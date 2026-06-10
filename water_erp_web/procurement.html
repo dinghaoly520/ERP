@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>采购管理中心 - 智慧水发 · 招采ERP系统</title>
+  <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/procurement.css" />
+</head>
+<body>
+  <header class="site-header" id="top">
+    <div class="header-inner">
+      <a class="brand" href="index.html" aria-label="四川水发集团">
+        <img src="./assets/logo.jpg" alt="四川水发集团" />
+        <div class="brand-text"><strong>四川水发集团</strong><small>SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small></div>
+      </a>
+      <nav class="top-nav" aria-label="主导航">
+        <a href="index.html" class="nav-link">首页</a>
+        <div class="nav-item has-dropdown">
+          <a href="procurement.html" class="nav-link active">采购管理</a>
+          <div class="nav-dropdown">
+            <a href="procurement.html#personal">个人中心</a>
+            <a href="procurement.html#approval">立项申请</a>
+            <a href="procurement.html#database">数据库与数据分析</a>
+            <a href="procurement.html#project">项目管理与归档</a>
+            <a href="procurement.html#tender-write">招标文件编写</a>
+            <a href="procurement.html#tender-review">招标文件审查</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="bid.html" class="nav-link">开评标管理</a>
+          <div class="nav-dropdown">
+            <a href="bid.html#submit">标书投递</a>
+            <a href="bid.html#open">开标管理</a>
+            <a href="bid.html#system">投标系统</a>
+            <a href="bid.html#result">结果公示</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="expert.html" class="nav-link">专家管理</a>
+          <div class="nav-dropdown">
+            <a href="expert.html#pool">专家库</a>
+            <a href="expert.html#extract">专家抽取</a>
+            <a href="expert.html#notify">通知确认</a>
+            <a href="expert.html#evaluate">专家评价</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="supplier.html" class="nav-link">供应商管理</a>
+          <div class="nav-dropdown">
+            <a href="supplier.html#register">供应商注册</a>
+            <a href="supplier.html#pool">供应商库</a>
+            <a href="supplier.html#evaluate">供应商评价</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="mall.html" class="nav-link">电子商城</a>
+          <div class="nav-dropdown">
+            <a href="mall.html#central">集中采购</a>
+            <a href="mall.html#employee">员工内购</a>
+            <a href="mall.html#merchant-join">商家入驻</a>
+            <a href="mall.html#merchant">商家管理</a>
+            <a href="mall.html#welfare">员工福利</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="notice.html" class="nav-link">信息公告</a>
+          <div class="nav-dropdown">
+            <a href="notice.html#tender">招标公告</a>
+            <a href="notice.html#result">中标公示</a>
+            <a href="notice.html#policy">政策法规</a>
+            <a href="notice.html#notice">平台通知</a>
+          </div>
+        </div>
+        <a href="about.html" class="nav-link">关于我们</a>
+      </nav>
+      <div class="header-actions">
+        <button class="btn btn-ghost" data-open="login">登录</button>
+        <button class="btn btn-solid small" data-open="register">注册</button>
+        <button class="menu-toggle" aria-label="展开菜单"><span></span><span></span><span></span></button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero区域 -->
+    <section class="procurement-hero">
+      <div class="procurement-hero-bg"></div>
+      <div class="procurement-hero-content">
+        <p class="eyebrow">集中管理 · 统筹调度 · 降本增效</p>
+        <h1>采购管理中心</h1>
+        <p class="hero-subtitle">全流程采购管理，实现采购业务规范化、透明化、智能化</p>
+        <p class="hero-desc">覆盖需求提报、计划编制、招标采购、合同签订、履约验收、结算付款全链条管理</p>
+        <div class="hero-buttons">
+          <button class="btn btn-primary" data-open="procurement-enter">进入中心</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('modules').scrollIntoView({behavior:'smooth'})">了解更多</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 核心数据 -->
+    <section class="procurement-stats">
+      <div class="stats-wrapper">
+        <div class="stat-item">
+          <strong data-count="28736">0</strong>
+          <span>采购项目</span>
+        </div>
+        <div class="stat-item">
+          <strong data-count="3675" data-suffix="亿">0</strong>
+          <span>采购金额</span>
+        </div>
+        <div class="stat-item">
+          <strong data-count="15682">0</strong>
+          <span>完成项目</span>
+        </div>
+        <div class="stat-item">
+          <strong data-count="98" data-suffix="%">0</strong>
+          <span>合规率</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 功能模块 -->
+    <section class="procurement-modules" id="modules">
+      <div class="modules-wrapper">
+        <div class="section-head">
+          <span></span>
+          <h2>功能模块</h2>
+        </div>
+        <div class="modules-grid">
+          <article class="module-card">
+            <div class="module-icon">
+              <div class="line-icon" data-icon="file"></div>
+            </div>
+            <h3>需求管理</h3>
+            <p>采购需求在线提报、汇总审核、智能合并，实现需求统一管理</p>
+            <ul>
+              <li>需求在线提报</li>
+              <li>多级审批流程</li>
+              <li>智能需求合并</li>
+            </ul>
+          </article>
+          <article class="module-card">
+            <div class="module-icon">
+              <div class="line-icon" data-icon="check"></div>
+            </div>
+            <h3>立项审批</h3>
+            <p>项目立项申请、可行性论证、审批决策，确保项目合规启动</p>
+            <ul>
+              <li>立项申请提交</li>
+              <li>可行性分析论证</li>
+              <li>多级审批决策</li>
+            </ul>
+          </article>
+          <article class="module-card">
+            <div class="module-icon">
+              <div class="line-icon" data-icon="layers"></div>
+            </div>
+            <h3>计划管理</h3>
+            <p>采购计划编制、分解下达、执行跟踪，确保采购有序推进</p>
+            <ul>
+              <li>年度计划编制</li>
+              <li>月度计划分解</li>
+              <li>执行进度跟踪</li>
+            </ul>
+          </article>
+          <article class="module-card">
+            <div class="module-icon">
+              <div class="line-icon" data-icon="database"></div>
+            </div>
+            <h3>招标采购</h3>
+            <p>招标公告发布、投标管理、开评标组织，全流程电子化招标</p>
+            <ul>
+              <li>招标文件编制</li>
+              <li>在线投标管理</li>
+              <li>电子开评标</li>
+            </ul>
+          </article>
+          <article class="module-card">
+            <div class="module-icon">
+              <div class="line-icon" data-icon="clock"></div>
+            </div>
+            <h3>合同管理</h3>
+            <p>合同在线签订、履约跟踪、变更管理，实现合同全生命周期管理</p>
+            <ul>
+              <li>电子合同签订</li>
+              <li>履约进度跟踪</li>
+              <li>变更签证管理</li>
+            </ul>
+          </article>
+          <article class="module-card">
+            <div class="module-icon">
+              <div class="line-icon" data-icon="safe"></div>
+            </div>
+            <h3>验收管理</h3>
+            <p>到货验收、质量检验、验收确认，确保采购物资质量达标</p>
+            <ul>
+              <li>到货登记验收</li>
+              <li>质量检验记录</li>
+              <li>验收报告生成</li>
+            </ul>
+          </article>
+          <article class="module-card">
+            <div class="module-icon">
+              <div class="line-icon" data-icon="cart"></div>
+            </div>
+            <h3>结算付款</h3>
+            <p>对账结算、发票管理、付款申请，实现资金支付规范化</p>
+            <ul>
+              <li>在线对账结算</li>
+              <li>发票验真管理</li>
+              <li>付款审批流程</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 采购流程 -->
+    <section class="procurement-process">
+      <div class="process-bg"></div>
+      <div class="process-wrapper">
+        <div class="section-head inverse">
+          <span></span>
+          <h2>采购流程</h2>
+        </div>
+        <div class="process-flow">
+          <div class="flow-step">
+            <div class="flow-num">01</div>
+            <div class="flow-content">
+              <h4>需求提报</h4>
+              <p>各部门提交采购需求</p>
+            </div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-num">02</div>
+            <div class="flow-content">
+              <h4>立项审批</h4>
+              <p>项目立项论证审批</p>
+            </div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-num">03</div>
+            <div class="flow-content">
+              <h4>计划编制</h4>
+              <p>汇总编制采购计划</p>
+            </div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-num">04</div>
+            <div class="flow-content">
+              <h4>招标采购</h4>
+              <p>组织实施招标活动</p>
+            </div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-num">05</div>
+            <div class="flow-content">
+              <h4>合同签订</h4>
+              <p>中标后签订采购合同</p>
+            </div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-num">06</div>
+            <div class="flow-content">
+              <h4>履约验收</h4>
+              <p>跟踪履约并验收</p>
+            </div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-num">07</div>
+            <div class="flow-content">
+              <h4>结算付款</h4>
+              <p>对账结算完成付款</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 管理优势 -->
+    <section class="procurement-advantages">
+      <div class="advantages-wrapper">
+        <div class="section-head">
+          <span></span>
+          <h2>管理优势</h2>
+        </div>
+        <div class="advantages-grid">
+          <article class="advantage-card">
+            <div class="advantage-icon">📋</div>
+            <h3>流程规范</h3>
+            <p>标准化采购流程，明确各环节职责，确保采购活动合规有序</p>
+          </article>
+          <article class="advantage-card">
+            <div class="advantage-icon">🔒</div>
+            <h3>阳光透明</h3>
+            <p>采购全过程留痕可追溯，杜绝暗箱操作，防范廉洁风险</p>
+          </article>
+          <article class="advantage-card">
+            <div class="advantage-icon">📊</div>
+            <h3>数据驱动</h3>
+            <p>采购数据实时统计分析，辅助科学决策，优化采购策略</p>
+          </article>
+          <article class="advantage-card">
+            <div class="advantage-icon">⚡</div>
+            <h3>协同高效</h3>
+            <p>多部门在线协同，信息实时共享，大幅提升采购效率</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 采购类型 -->
+    <section class="procurement-types">
+      <div class="types-wrapper">
+        <div class="section-head">
+          <span></span>
+          <h2>采购类型</h2>
+        </div>
+        <div class="types-grid">
+          <article class="type-card">
+            <div class="type-header">
+              <div class="line-icon" data-icon="layers"></div>
+              <h3>工程采购</h3>
+            </div>
+            <p>水利工程、市政工程、土木工程等建设项目采购</p>
+            <div class="type-tags">
+              <span>施工招标</span>
+              <span>监理招标</span>
+              <span>设计招标</span>
+            </div>
+          </article>
+          <article class="type-card">
+            <div class="type-header">
+              <div class="line-icon" data-icon="cart"></div>
+              <h3>物资采购</h3>
+            </div>
+            <p>管材、设备、建材等物资材料的集中采购</p>
+            <div class="type-tags">
+              <span>集中采购</span>
+              <span>框架协议</span>
+              <span>商城采购</span>
+            </div>
+          </article>
+          <article class="type-card">
+            <div class="type-header">
+              <div class="line-icon" data-icon="users"></div>
+              <h3>服务采购</h3>
+            </div>
+            <p>咨询、设计、检测、运维等服务类采购</p>
+            <div class="type-tags">
+              <span>咨询服务</span>
+              <span>技术服务</span>
+              <span>运维服务</span>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 立即进入 -->
+    <section class="procurement-cta">
+      <div class="cta-content">
+        <h2>开启智慧采购管理之旅</h2>
+        <p>全流程数字化采购管理，让采购更规范、更高效、更透明</p>
+        <div class="cta-buttons">
+          <button class="btn btn-primary" data-open="procurement-enter">进入中心</button>
+          <button class="btn btn-secondary" data-open="consult">联系咨询</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="quick-panel" aria-label="快捷入口">
+    <button data-open="procurement-enter">采购</button>
+    <button id="backTop">置顶</button>
+  </aside>
+
+  <div class="modal" id="modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-mask" data-close></div>
+    <div class="modal-card" role="document">
+      <button class="modal-close" data-close aria-label="关闭">×</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <script src="./js/main.js"></script>
+  <script src="./js/procurement.js"></script>
+</body>
+</html>

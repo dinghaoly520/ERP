@@ -1,0 +1,299 @@
+/* 开评标系统页面样式 */
+
+/* Hero区域 */
+.bid-hero {
+  position: relative;
+  min-height: clamp(380px, 28vw, 500px);
+  overflow: hidden;
+  background: linear-gradient(135deg, #042a58 0%, #064ea2 50%, #073a78 100%);
+}
+
+.bid-hero-bg {
+  position: absolute;
+  inset: 0;
+  background: url('../assets/bg-hydro-hero-3.png') center center/cover no-repeat;
+  opacity: 0.15;
+}
+
+.bid-hero::before {
+  content: "";
+  position: absolute;
+  left: -8%; right: -8%; bottom: clamp(-60px, -4vw, -28px);
+  height: clamp(80px, 8vw, 140px);
+  background: #fff;
+  border-radius: 50% 50% 0 0/76% 76% 0 0;
+  z-index: 1;
+}
+
+.bid-hero-content {
+  position: relative;
+  z-index: 4;
+  width: var(--max);
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: clamp(78px, 6.4vw, 112px) 0 clamp(88px, 6.8vw, 122px);
+  text-align: center;
+}
+
+.bid-hero .eyebrow {
+  display: inline-block;
+  background: linear-gradient(90deg, #39a8ff, #0e62d0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 16px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  font-size: 14px;
+}
+
+.bid-hero h1 {
+  margin: 0 0 18px;
+  color: #fff;
+  font-size: clamp(32px, 3.2vw, 46px);
+  font-weight: 900;
+  letter-spacing: .06em;
+}
+
+.bid-hero .hero-subtitle {
+  margin: 0 0 32px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: clamp(16px, 1.6vw, 20px);
+  font-weight: 700;
+}
+
+.bid-hero .hero-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.bid-hero .hero-buttons .btn-solid {
+  background: #fff;
+  color: #064ea2;
+  text-decoration: none;
+}
+
+.bid-hero .hero-buttons .btn-solid:hover {
+  background: #f0f6fc;
+}
+
+.bid-hero .hero-buttons .btn-outline {
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #fff;
+  background: transparent;
+}
+
+.bid-hero .hero-buttons .btn-outline:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #fff;
+}
+
+/* 核心能力 */
+.bid-intro {
+  padding: 56px 0;
+  background: #fff;
+}
+
+.intro-wrapper {
+  width: var(--max);
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--page-gutter);
+}
+
+.intro-wrapper .section-head {
+  margin-bottom: 28px;
+}
+
+.intro-features {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: clamp(14px, 1.8vw, 20px);
+}
+
+.intro-feature {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, #f5f9fd, #eef5fb);
+  border-radius: 8px;
+  border: 1px solid #e0eaf5;
+  transition: all 0.3s ease;
+}
+
+.intro-feature:hover {
+  border-color: #b8d4f5;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(6, 78, 162, 0.1);
+}
+
+.intro-feature .line-icon {
+  width: 36px;
+  height: 36px;
+  color: #064ea2;
+}
+
+.intro-feature strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1a2a44;
+  margin-bottom: 4px;
+}
+
+.intro-feature span {
+  font-size: 12px;
+  color: #5a6d8a;
+}
+
+/* 业务流程 */
+.bid-process {
+  padding: 56px 0;
+  background: #f6f9fd;
+}
+
+.process-wrapper {
+  width: var(--max);
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--page-gutter);
+}
+
+.process-wrapper .section-head {
+  margin-bottom: 28px;
+}
+
+.process-timeline {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(14px, 1.8vw, 24px);
+}
+
+.process-step {
+  background: #fff;
+  border-radius: 10px;
+  padding: 24px;
+  border: 1px solid #e8f0fa;
+  transition: all 0.3s ease;
+}
+
+.process-step:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(6, 78, 162, 0.1);
+  border-color: #b8d4f5;
+}
+
+.step-number {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #064ea2, #39a8ff);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 900;
+  margin-bottom: 16px;
+}
+
+.process-step h4 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #1a2a44;
+}
+
+.process-step p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #5a6d8a;
+}
+
+/* 角色协同 */
+.bid-roles {
+  padding: 56px 0;
+  background: linear-gradient(135deg, #042a58 0%, #064ea2 50%, #073a78 100%);
+}
+
+.roles-wrapper {
+  width: var(--max);
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--page-gutter);
+}
+
+.roles-wrapper .section-head {
+  margin-bottom: 28px;
+}
+
+.roles-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+.role-card {
+  display: block;
+  padding: 24px 20px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  color: #fff;
+  text-decoration: none;
+  transition: all 0.25s ease;
+}
+
+.role-card:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.role-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.role-icon .line-icon {
+  width: 24px;
+  height: 24px;
+  color: #fff;
+}
+
+.role-card strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.role-card span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* 响应式 */
+@media (max-width: 1200px) {
+  .process-timeline { grid-template-columns: repeat(2, 1fr); }
+  .intro-features { grid-template-columns: repeat(2, 1fr); }
+  .roles-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .process-timeline { grid-template-columns: 1fr; }
+  .intro-features { grid-template-columns: 1fr; }
+  .roles-grid { grid-template-columns: 1fr; }
+}

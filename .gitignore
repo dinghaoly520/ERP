@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.docx
+*.pptx
+.env
+.DS_Store
+.claude/
+.superpowers/

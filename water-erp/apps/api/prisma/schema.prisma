@@ -1,0 +1,366 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── 基础 ──
+
+model Department {
+  id   String @id @default(cuid())
+  name String @unique
+  code String? @unique
+  users User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id           String     @id @default(cuid())
+  username     String     @unique
+  displayName  String
+  email        String?
+  passwordHash String?
+  role         String     @default("internal_user")
+  isActive     Boolean    @default(true)
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  supplier            Supplier?
+  notifications       Notification[]
+  supplierEvaluations SupplierEvaluation[]
+}
+
+// ── 开评标 ──
+
+enum BidStage {
+  DOWNLOAD
+  SUBMIT
+  OPENING
+  EVALUATING
+  ARCHIVED
+}
+
+enum DecryptStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  DANGER
+}
+
+enum ConfirmStatus {
+  CONFIRMED
+  PENDING
+  EXCEPTION
+}
+
+enum ScoreCategory {
+  QUALIFICATION
+  RESPONSIVE
+  BUSINESS
+  TECHNICAL
+  PRICE
+}
+
+enum ArchiveStatus {
+  ARCHIVED
+  PENDING_CONFIRM
+  NOT_STARTED
+}
+
+model BidProject {
+  id               String    @id @default(cuid())
+  projectCode      String    @unique
+  name             String
+  procurementMethod String
+  openTime         DateTime
+  deadline         DateTime
+  stage            BidStage  @default(DOWNLOAD)
+  riskNote         String?
+  suppliers        BidSupplier[]
+  openingSession   BidOpeningSession?
+  openingRecords   BidOpeningRecord[]
+  experts          BidExpert[]
+  scoreItems       BidScoreItem[]
+  clarifications   BidClarification[]
+  supervisionLogs  BidSupervisionLog[]
+  archiveItems     BidArchiveItem[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([stage])
+}
+
+model BidSupplier {
+  id             String        @id @default(cuid())
+  projectId      String
+  supplierName   String
+  downloadStatus String        @default("待下载")
+  submitStatus   String        @default("待提交")
+  encryptStatus  String        @default("待校验")
+  receiptNo      String?
+  decryptStatus  DecryptStatus @default(PENDING)
+  confirmStatus  ConfirmStatus @default(PENDING)
+  project        BidProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([projectId, supplierName])
+}
+
+model BidOpeningSession {
+  id                String   @id @default(cuid())
+  projectId         String   @unique
+  host              String
+  supervisor        String
+  status            String   @default("待开标")
+  decryptWindowStart DateTime
+  decryptWindowEnd  DateTime
+  remainingSeconds  Int      @default(0)
+  project           BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model BidOpeningRecord {
+  id            String   @id @default(cuid())
+  projectId     String
+  supplierName  String
+  amount        String
+  period        String
+  qualityTarget String
+  bondStatus    String
+  decryptResult String
+  confirmStatus String
+  project       BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt     DateTime   @default(now())
+}
+
+model BidExpert {
+  id                String   @id @default(cuid())
+  projectId         String
+  expertName        String
+  major             String
+  signedIn          Boolean  @default(false)
+  avoidanceConfirmed Boolean @default(false)
+  progress          Int      @default(0)
+  totalScore        Decimal  @default("0") @db.Decimal(5, 1)
+  project           BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scoreRecords      BidScoreRecord[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model BidScoreItem {
+  id            String        @id @default(cuid())
+  projectId     String
+  category      ScoreCategory
+  name          String
+  maxScore      Decimal       @default("0") @db.Decimal(5, 1)
+  project       BidProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scoreRecords  BidScoreRecord[]
+  createdAt     DateTime @default(now())
+}
+
+model BidScoreRecord {
+  id          String      @id @default(cuid())
+  expertId    String
+  scoreItemId String
+  score       Decimal     @db.Decimal(5, 1)
+  reason      String?
+  expert      BidExpert   @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  scoreItem   BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+}
+
+model BidClarification {
+  id           String   @id @default(cuid())
+  projectId    String
+  question     String
+  issuer       String
+  supplierName String
+  status       String   @default("待回复")
+  reply        String?
+  project      BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model BidSupervisionLog {
+  id        String   @id @default(cuid())
+  projectId String
+  time      DateTime
+  role      String
+  target    String
+  action    String
+  result    String
+  riskFlag  String   @default("无")
+  project   BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+}
+
+model BidArchiveItem {
+  id          String        @id @default(cuid())
+  projectId   String
+  name        String
+  ownerRole   String
+  status      ArchiveStatus @default(NOT_STARTED)
+  hashDigest  String?
+  archivedAt  DateTime?
+  project     BidProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+// ── 供应商管理 ──
+
+enum SupplierStatus {
+  PENDING      // 待审核
+  RETURNED     // 退回补正
+  APPROVED     // 审核通过/已入库
+  REJECTED     // 审核不通过
+  DISABLED     // 停用
+  BLACKLIST    // 黑名单
+}
+
+enum ChangeStatus {
+  PENDING   // 待审核
+  APPROVED  // 已通过
+  REJECTED  // 已拒绝
+}
+
+model Supplier {
+  id                 String            @id @default(cuid())
+  userId             String            @unique
+  name               String
+  normalizedName     String            @unique
+  creditCode         String            @unique
+  enterpriseType     String
+  legalPerson        String
+  registeredAddress  String
+  businessScope      String
+  status             SupplierStatus    @default(PENDING)
+  classificationId   String?
+  rejectReason       String?
+  returnReason       String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classification     SupplierClassification? @relation(fields: [classificationId], references: [id])
+  contacts           SupplierContact[]
+  qualifications     SupplierQualification[]
+  evaluations        SupplierEvaluation[]
+  changeRecords      SupplierChangeRecord[]
+
+  @@index([status])
+  @@index([creditCode])
+}
+
+model SupplierContact {
+  id          String   @id @default(cuid())
+  supplierId  String
+  name        String
+  phone       String
+  email       String?
+  isPrimary   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+}
+
+model SupplierQualification {
+  id          String    @id @default(cuid())
+  supplierId  String
+  type        String
+  name        String
+  fileUrl     String
+  validFrom   DateTime?
+  validTo     DateTime?
+  status      String    @default("有效")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  supplier    Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@index([validTo])
+}
+
+model SupplierClassification {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  code        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  suppliers   Supplier[]
+}
+
+model SupplierEvaluation {
+  id                  String    @id @default(cuid())
+  supplierId          String
+  projectId           String?
+  evaluatorId         String
+  score               Decimal   @db.Decimal(5, 1)
+  level               String
+  completenessScore   Decimal   @db.Decimal(5, 1)
+  responsivenessScore Decimal   @db.Decimal(5, 1)
+  cooperationScore    Decimal   @db.Decimal(5, 1)
+  complianceScore     Decimal   @db.Decimal(5, 1)
+  overallScore        Decimal   @db.Decimal(5, 1)
+  comment             String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  supplier            Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  evaluator           User      @relation(fields: [evaluatorId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@index([evaluatorId])
+}
+
+model SupplierChangeRecord {
+  id           String        @id @default(cuid())
+  supplierId   String
+  fieldName    String
+  fieldLabel   String
+  oldValue     String?
+  newValue     String?
+  reason       String?
+  status       ChangeStatus  @default(PENDING)
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  rejectReason String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  supplier     Supplier      @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  content   String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}

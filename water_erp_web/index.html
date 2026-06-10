@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>智慧水发·蜀水云采</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <header class="site-header" id="top">
+    <div class="header-inner">
+      <a class="brand" href="#top" aria-label="四川水发集团">
+        <img src="./assets/logo.jpg" alt="四川水发集团" />
+        <div class="brand-text"><strong>四川水发集团</strong><small>SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small></div>
+      </a>
+      <nav class="top-nav" aria-label="主导航">
+        <a href="#top" class="nav-link active">首页</a>
+        <a href="http://192.168.1.111:3001" class="nav-link">采购管理</a>
+        <div class="nav-item has-dropdown">
+          <a href="bid.html" class="nav-link">开评标管理</a>
+          <div class="nav-dropdown">
+            <a href="bid.html#download">招标文件下载</a>
+            <a href="bid.html#submit">标书投递</a>
+            <a href="bid.html#system">评标系统</a>
+            <a href="bid.html#result">结果公示</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="expert.html" class="nav-link">专家管理</a>
+          <div class="nav-dropdown">
+            <a href="expert.html#pool">专家库</a>
+            <a href="expert.html#extract">专家抽取</a>
+            <a href="expert.html#notify">通知确认</a>
+            <a href="expert.html#evaluate">专家评价</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="supplier.html" class="nav-link">供应商管理</a>
+          <div class="nav-dropdown">
+            <a href="supplier.html#register">供应商注册</a>
+            <a href="supplier.html#pool">供应商库</a>
+            <a href="supplier.html#evaluate">供应商评价</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="mall.html" class="nav-link">集中采购</a>
+          <div class="nav-dropdown">
+            <a href="mall.html#merchant-join">商家入驻</a>
+            <a href="mall.html#merchant">商家管理</a>
+            <a href="mall.html#catalog">集中采购目录</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="notice.html" class="nav-link">信息公告</a>
+          <div class="nav-dropdown">
+            <a href="notice.html#tender">招标公告</a>
+            <a href="notice.html#result">中标公示</a>
+            <a href="notice.html#policy">政策法规</a>
+            <a href="notice.html#notice">平台通知</a>
+          </div>
+        </div>
+        <a href="about.html" class="nav-link">关于我们</a>
+      </nav>
+      <div class="header-actions">
+        <button class="btn btn-ghost" data-open="login">登录</button>
+        <button class="btn btn-solid small" data-open="register">注册</button>
+        <button class="menu-toggle" aria-label="展开菜单"><span></span><span></span><span></span></button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="platform">
+      <div class="hero-bg" aria-hidden="true"><div class="hero-bg-image"></div></div>
+      <div class="hero-content">
+        <p class="eyebrow">数字采购 · 阳光交易 · 协同共享</p>
+        <h1>智慧水发·蜀水云采</h1>
+        <p class="hero-subtitle">阳光透明 · 合规高效 · 互信共赢 · 价值创造</p>
+        <p class="hero-copy">打造公开、公平、公正的电子化招标采购平台，<br/>为四川水发集团高质量发展提供坚实数字化支撑。</p>
+        <div class="hero-buttons">
+          <button class="btn btn-solid" data-open="procure">我要采购 <span>→</span></button>
+          <button class="btn btn-outline" data-open="tender">我要投标 <span>→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 功能入口 -->
+    <section class="assurance" aria-label="功能入口">
+      <div class="assurance-inner">
+        <a href="procurement.html" class="assurance-item">
+          <div class="line-icon" data-icon="file"></div>
+          <div><strong>采购管理入口</strong><span>立项申请、项目管理、招标文件</span></div>
+        </a>
+        <a href="mall.html" class="assurance-item">
+          <div class="line-icon" data-icon="cart"></div>
+          <div><strong>电子商城入口</strong><span>集中采购、员工内购、商家入驻</span></div>
+        </a>
+        <a href="supplier.html" class="assurance-item">
+          <div class="line-icon" data-icon="share"></div>
+          <div><strong>供应商入口</strong><span>供应商注册、供应商库、评价</span></div>
+        </a>
+        <a href="expert.html" class="assurance-item">
+          <div class="line-icon" data-icon="users"></div>
+          <div><strong>专家入口</strong><span>专家库、专家抽取、专家评价</span></div>
+        </a>
+        <a href="bid.html" class="assurance-item">
+          <div class="line-icon" data-icon="safe"></div>
+          <div><strong>开评标系统入口</strong><span>在线开标、专家评审、监督归档</span></div>
+        </a>
+      </div>
+    </section>
+
+    <!-- 公告信息 -->
+    <section class="notice-section" id="notice">
+      <div class="notice-wrapper">
+        <div class="notice-header">
+          <div class="notice-tabs">
+            <button class="notice-tab active" data-tab="tender">招标公告</button>
+            <button class="notice-tab" data-tab="result">中标公示</button>
+          </div>
+          <a href="notice.html" class="notice-more">全部公告 →</a>
+        </div>
+        <div class="notice-content">
+          <!-- 招标公告 -->
+          <div class="notice-panel active" id="tender">
+            <div class="notice-featured">
+              <div class="featured-main">
+                <div class="featured-meta">
+                  <span class="meta-tag tender">招标公告</span>
+                  <span class="meta-date">2026-05-18</span>
+                  <span class="meta-badge">重要</span>
+                </div>
+                <h3 class="featured-title">2026年度水利工程物资集中采购招标公告</h3>
+                <p class="featured-desc">本项目为四川水发集团2026年度水利工程物资集中采购，采购内容包括钢管、阀门、水泵等主要设备物资...</p>
+                <div class="featured-info">
+                  <span class="info-item"><i>项目编号</i>SWSW-2026-0518</span>
+                  <span class="info-item"><i>报名截止</i><em>2026-05-28 17:00</em></span>
+                </div>
+              </div>
+              <a href="#" class="featured-btn">查看详情 →</a>
+            </div>
+            <div class="notice-list">
+              <a href="#" class="notice-row">
+                <span class="row-date">05-16</span>
+                <span class="row-title">智慧水务信息化系统建设项目招标公告</span>
+                <span class="row-arrow">→</span>
+              </a>
+              <a href="#" class="notice-row">
+                <span class="row-date">05-12</span>
+                <span class="row-title">升钟水库灌区续建配套与节水改造工程招标</span>
+                <span class="row-arrow">→</span>
+              </a>
+              <a href="#" class="notice-row">
+                <span class="row-date">05-06</span>
+                <span class="row-title">武都引水工程机电设备维护服务招标公告</span>
+                <span class="row-arrow">→</span>
+              </a>
+            </div>
+          </div>
+          <!-- 中标公示 -->
+          <div class="notice-panel" id="result">
+            <div class="notice-featured result">
+              <div class="featured-main">
+                <div class="featured-meta">
+                  <span class="meta-tag result">中标公示</span>
+                  <span class="meta-date">2026-05-17</span>
+                </div>
+                <h3 class="featured-title">亭子口水利枢纽加固工程中标公示</h3>
+                <p class="featured-desc">经评标委员会评审，确定四川川水建设工程有限公司为中标单位，中标金额1.26亿元...</p>
+                <div class="featured-info">
+                  <span class="info-item"><i>中标单位</i>四川川水建设工程有限公司</span>
+                  <span class="info-item"><i>中标金额</i><em>1.26亿元</em></span>
+                </div>
+              </div>
+              <a href="#" class="featured-btn success">查看详情 →</a>
+            </div>
+            <div class="notice-list">
+              <a href="#" class="notice-row">
+                <span class="row-date">05-13</span>
+                <span class="row-title">紫坪铺水库大坝安全监测设备采购中标公示</span>
+                <span class="row-arrow">→</span>
+              </a>
+              <a href="#" class="notice-row">
+                <span class="row-date">05-10</span>
+                <span class="row-title">川水大厦电梯设备采购中标公示</span>
+                <span class="row-arrow">→</span>
+              </a>
+              <a href="#" class="notice-row">
+                <span class="row-date">05-08</span>
+                <span class="row-title">办公家具集中采购中标公示</span>
+                <span class="row-arrow">→</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cooperation" id="about">
+      <div class="section-head cooperation-title">
+        <h2>携手水发　共创阳光招采新未来</h2>
+      </div>
+      <div class="cooperation-grid">
+        <article><div class="line-icon" data-icon="sun"></div><div><strong>阳光透明</strong><span>公开公平公正，流程全程可追溯</span></div></article>
+        <article><div class="line-icon" data-icon="shield"></div><div><strong>合规高效</strong><span>规范业务流程，提升采购效率</span></div></article>
+        <article><div class="line-icon" data-icon="heart"></div><div><strong>互信共赢</strong><span>阳光透明合作，互信互利共赢</span></div></article>
+        <article><div class="line-icon" data-icon="star"></div><div><strong>价值创造</strong><span>优化资源配置，创造更大价值</span></div></article>
+      </div>
+    </section>
+
+  </main>
+
+  <aside class="quick-panel" aria-label="快捷入口">
+    <button data-open="procure">采购</button>
+    <button data-open="tender">投标</button>
+    <button id="backTop">置顶</button>
+  </aside>
+
+  <div class="modal" id="modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-mask" data-close></div>
+    <div class="modal-card" role="document">
+      <button class="modal-close" data-close aria-label="关闭">×</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <script src="./js/main.js"></script>
+</body>
+</html>

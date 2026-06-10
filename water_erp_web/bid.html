@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>开评标系统 - 智慧水发 · 招采ERP系统</title>
+  <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/bid.css" />
+</head>
+<body>
+  <header class="site-header" id="top">
+    <div class="header-inner">
+      <a class="brand" href="index.html" aria-label="四川水发集团">
+        <img src="./assets/logo.jpg" alt="四川水发集团" />
+        <div class="brand-text"><strong>四川水发集团</strong><small>SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small></div>
+      </a>
+      <nav class="top-nav" aria-label="主导航">
+        <a href="index.html" class="nav-link">首页</a>
+        <div class="nav-item has-dropdown">
+          <a href="procurement.html" class="nav-link">采购管理</a>
+          <div class="nav-dropdown">
+            <a href="procurement.html#personal">个人中心</a>
+            <a href="procurement.html#approval">立项申请</a>
+            <a href="procurement.html#database">数据库与数据分析</a>
+            <a href="procurement.html#project">项目管理与归档</a>
+            <a href="procurement.html#tender-write">招标文件编写</a>
+            <a href="procurement.html#tender-review">招标文件审查</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="bid.html" class="nav-link active">开评标管理</a>
+          <div class="nav-dropdown">
+            <a href="supplier-vue/dist/index.html#/bid">总览驾驶舱</a>
+            <a href="supplier-vue/dist/index.html#/bid/submit">供应商端</a>
+            <a href="supplier-vue/dist/index.html#/bid/open">开标主持端</a>
+            <a href="supplier-vue/dist/index.html#/bid/evaluate">专家评标端</a>
+            <a href="supplier-vue/dist/index.html#/bid/supervise">监督端</a>
+            <a href="supplier-vue/dist/index.html#/bid/archive">归档端</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="expert.html" class="nav-link">专家管理</a>
+          <div class="nav-dropdown">
+            <a href="expert.html#pool">专家库</a>
+            <a href="expert.html#extract">专家抽取</a>
+            <a href="expert.html#notify">通知确认</a>
+            <a href="expert.html#evaluate">专家评价</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="supplier.html" class="nav-link">供应商管理</a>
+          <div class="nav-dropdown">
+            <a href="supplier.html#register">供应商注册</a>
+            <a href="supplier.html#pool">供应商库</a>
+            <a href="supplier.html#evaluate">供应商评价</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="mall.html" class="nav-link">电子商城</a>
+          <div class="nav-dropdown">
+            <a href="mall.html#central">集中采购</a>
+            <a href="mall.html#employee">员工内购</a>
+            <a href="mall.html#merchant-join">商家入驻</a>
+            <a href="mall.html#merchant">商家管理</a>
+            <a href="mall.html#welfare">员工福利</a>
+          </div>
+        </div>
+        <div class="nav-item has-dropdown">
+          <a href="notice.html" class="nav-link">信息公告</a>
+          <div class="nav-dropdown">
+            <a href="notice.html#tender">招标公告</a>
+            <a href="notice.html#result">中标公示</a>
+            <a href="notice.html#policy">政策法规</a>
+            <a href="notice.html#notice">平台通知</a>
+          </div>
+        </div>
+        <a href="about.html" class="nav-link">关于我们</a>
+      </nav>
+      <div class="header-actions">
+        <button class="btn btn-ghost" data-open="login">登录</button>
+        <button class="btn btn-solid small" data-open="register">注册</button>
+        <button class="menu-toggle" aria-label="展开菜单"><span></span><span></span><span></span></button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section class="bid-hero">
+      <div class="bid-hero-bg"></div>
+      <div class="bid-hero-content">
+        <p class="eyebrow">电子开标 · 在线评标 · 全程留痕</p>
+        <h1>开评标系统</h1>
+        <p class="hero-subtitle">限时开标、密文投递、独立评审、监督归档</p>
+        <div class="hero-buttons">
+          <a class="btn btn-solid" href="supplier-vue/dist/index.html#/bid">进入系统</a>
+          <button class="btn btn-outline" onclick="document.getElementById('intro').scrollIntoView({behavior:'smooth'})">了解更多</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 核心能力 -->
+    <section class="bid-intro" id="intro">
+      <div class="intro-wrapper">
+        <div class="section-head">
+          <span></span>
+          <h2>核心能力</h2>
+        </div>
+        <div class="intro-features">
+          <div class="intro-feature">
+            <div class="line-icon" data-icon="shield"></div>
+            <div>
+              <strong>密文投递</strong>
+              <span>开标前仅保存密文和哈希，任何人不可预览明文</span>
+            </div>
+          </div>
+          <div class="intro-feature">
+            <div class="line-icon" data-icon="bolt"></div>
+            <div>
+              <strong>到时开标</strong>
+              <span>按招标文件确定时间自动开标，在线解密生成记录</span>
+            </div>
+          </div>
+          <div class="intro-feature">
+            <div class="line-icon" data-icon="users"></div>
+            <div>
+              <strong>独立评审</strong>
+              <span>专家完成核验承诺后独立评分，系统自动校验偏差</span>
+            </div>
+          </div>
+          <div class="intro-feature">
+            <div class="line-icon" data-icon="database"></div>
+            <div>
+              <strong>全程留痕</strong>
+              <span>监督端可查看日志和异常，但不可干预评分或绕过时间锁</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 业务流程 -->
+    <section class="bid-process">
+      <div class="process-wrapper">
+        <div class="section-head">
+          <span></span>
+          <h2>业务流程</h2>
+        </div>
+        <div class="process-timeline">
+          <div class="process-step">
+            <div class="step-number">01</div>
+            <div class="step-content">
+              <h4>插件授权</h4>
+              <p>企业绑定安全组件，校验身份、证书与设备</p>
+            </div>
+          </div>
+          <div class="process-step">
+            <div class="step-number">02</div>
+            <div class="step-content">
+              <h4>受控下载</h4>
+              <p>报名审核通过后，下载带动态水印的招标文件</p>
+            </div>
+          </div>
+          <div class="process-step">
+            <div class="step-number">03</div>
+            <div class="step-content">
+              <h4>加密投递</h4>
+              <p>签章后用项目公钥加密，截止后自动锁定</p>
+            </div>
+          </div>
+          <div class="process-step">
+            <div class="step-number">04</div>
+            <div class="step-content">
+              <h4>在线开标</h4>
+              <p>到时自动进入开标，投标人在线解密并确认</p>
+            </div>
+          </div>
+          <div class="process-step">
+            <div class="step-number">05</div>
+            <div class="step-content">
+              <h4>专家评标</h4>
+              <p>独立完成资格、商务、技术、价格评审</p>
+            </div>
+          </div>
+          <div class="process-step">
+            <div class="step-number">06</div>
+            <div class="step-content">
+              <h4>归档公示</h4>
+              <p>评标报告确认后一键归档，结果在线公示</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 角色协同 -->
+    <section class="bid-roles">
+      <div class="roles-wrapper">
+        <div class="section-head inverse">
+          <span></span>
+          <h2>角色协同</h2>
+        </div>
+        <div class="roles-grid">
+          <a href="supplier-vue/dist/index.html#/bid/submit" class="role-card">
+            <div class="role-icon"><div class="line-icon" data-icon="layers"></div></div>
+            <strong>供应商端</strong>
+            <span>安全组件授权、受控下载、加密投递、提交回执</span>
+          </a>
+          <a href="supplier-vue/dist/index.html#/bid/open" class="role-card">
+            <div class="role-icon"><div class="line-icon" data-icon="file"></div></div>
+            <strong>开标主持端</strong>
+            <span>到时开标、在线解密、开标记录、异常处理</span>
+          </a>
+          <a href="supplier-vue/dist/index.html#/bid/evaluate" class="role-card">
+            <div class="role-icon"><div class="line-icon" data-icon="users"></div></div>
+            <strong>专家评标端</strong>
+            <span>身份核验、保密承诺、独立评分、报告确认</span>
+          </a>
+          <a href="supplier-vue/dist/index.html#/bid/supervise" class="role-card">
+            <div class="role-icon"><div class="line-icon" data-icon="shield"></div></div>
+            <strong>监督端</strong>
+            <span>过程时间线、日志追溯、异常留痕、只读不可干预</span>
+          </a>
+          <a href="supplier-vue/dist/index.html#/bid/archive" class="role-card">
+            <div class="role-icon"><div class="line-icon" data-icon="safe"></div></div>
+            <strong>归档端</strong>
+            <span>资料清单、完整率、防篡改摘要、一键归档</span>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="quick-panel" aria-label="快捷入口">
+    <a href="supplier-vue/dist/index.html#/bid">开标</a>
+    <button id="backTop">置顶</button>
+  </aside>
+
+  <div class="modal" id="modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-mask" data-close></div>
+    <div class="modal-card" role="document">
+      <button class="modal-close" data-close aria-label="关闭">×</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <script src="./js/main.js"></script>
+  <script src="./js/bid.js"></script>
+</body>
+</html>
