@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class OwnerGuard implements CanActivate {
   constructor(private prisma: PrismaService) {}
 
-  async canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
     const supplierId = request.params.id;
