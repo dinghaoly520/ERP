@@ -69,4 +69,9 @@ export const supplierApi = {
   withdrawSubmission(submissionId: string) {
     return api.post(`/supplier-portal/bid-submissions/${submissionId}/withdraw`)
   },
+
+  // Password
+  changePassword(oldPassword: string, newPassword: string) {
+    return api.post('/supplier-portal/change-password', { oldPassword, newPassword })
+  },
 }

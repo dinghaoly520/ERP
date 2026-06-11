@@ -10,6 +10,7 @@ import { UploadModule } from './upload/upload.module';
 import { AnnouncementModule } from './announcement/announcement.module';
 import { SupplierPortalModule } from './supplier-portal/supplier-portal.module';
 import { ExpertModule } from './expert/expert.module';
+import { AiModule } from './ai';
 import { RolesGuard } from './common/guards/roles.guard';
 
 @Module({
@@ -24,6 +25,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     AnnouncementModule,
     SupplierPortalModule,
     ExpertModule,
+    AiModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: RolesGuard },

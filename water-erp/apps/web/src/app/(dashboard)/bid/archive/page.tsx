@@ -6,6 +6,13 @@ import type { BidProjectDetail } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
+import { Archive, CheckCircle, AlertTriangle, Package } from 'lucide-react';
+
+const statusDefs: Record<string, { label: string; color: string }> = {
+  ARCHIVED: { label: '已归档', color: '#11a874' },
+  PENDING_CONFIRM: { label: '待确认', color: '#f5a623' },
+  NOT_STARTED: { label: '未开始', color: '#8a9aaa' },
+};
 
 export default function BidArchivePage() {
   const [projectId, setProjectId] = useState('');
@@ -19,61 +26,92 @@ export default function BidArchivePage() {
   };
 
   useEffect(() => {
-    api.get<{id:string}[]>('/bid/projects').then(ps => {
-      if (ps.length) setProjectId(ps[0].id);
-    });
+    api.get<{id:string}[]>('/bid/projects').then(ps => { if (ps.length) setProjectId(ps[0].id); });
   }, []);
 
   useEffect(() => { load(); }, [projectId]);
 
   if (loading) return <TableSkeleton rows={6} cols={4} />;
-  if (!project) return <div className="text-[#5a6d8a] text-center py-20">暂无项目数据</div>;
+  if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20">暂无项目数据</div>;
 
-  const archived = project.archiveItems.filter(a => a.status === 'ARCHIVED').length;
-  const rate = project.archiveItems.length > 0 ? Math.round((archived / project.archiveItems.length) * 100) : 0;
-  const statusLabel: Record<string, string> = { ARCHIVED: '已归档', PENDING_CONFIRM: '待确认', NOT_STARTED: '未开始' };
-  const statusColor: Record<string, string> = { ARCHIVED: '#11a874', PENDING_CONFIRM: '#f5a623', NOT_STARTED: '#8a9aaa' };
+  const aItems = project.archiveItems;
+  const archived = aItems.filter(a => a.status === 'ARCHIVED').length;
+  const rate = aItems.length > 0 ? Math.round((archived / aItems.length) * 100) : 0;
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-[#18243a] mb-1">归档端</h1>
-          <p className="text-sm text-[#5a6d8a]">开标记录、评分表、澄清记录、评标报告、结果公示统一归档</p>
+          <h1 className="text-[28px] font-bold tracking-tight text-[oklch(0.18_0.012_265)]" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>归档端</h1>
+          <p className="text-[14px] text-[oklch(0.55_0.01_264)] mt-1">资料归档 · 防篡改 · 统一管理</p>
         </div>
         <ProjectSelector value={projectId} onChange={setProjectId} />
       </div>
 
-      <div className="bg-white rounded-xl border border-[#e8f0fa] p-5 mb-4 flex items-center gap-6">
-        <div className="text-4xl">📦</div>
-        <div><h2 className="font-bold text-[#18243a]">电子档案编号：ARCH-{project.projectCode}</h2><p className="text-sm text-[#5a6d8a]">防篡改摘要：HASH-CHAIN-20260608-AF39C8E2</p></div>
-        <div className="text-center"><div className="text-3xl font-bold text-[#064ea2]">{rate}%</div><div className="text-xs text-[#5a6d8a]">归档完整率</div></div>
+      {/* Status header */}
+      <div className="bg-white border border-[oklch(0.91_0.006_264)] p-5 mb-8 flex items-center gap-6">
+        <div className="flex-1">
+          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+            电子档案编号：ARCH-{project.projectCode}
+          </h2>
+          <p className="text-[12px] text-[oklch(0.62_0.008_264)] font-mono mt-0.5">HASH-CHAIN-{project.projectCode}-{Date.now().toString(16).toUpperCase().slice(0, 8)}</p>
+        </div>
+        <div className="text-center px-6">
+          <div className="text-[2rem] font-bold font-mono text-[oklch(0.42_0.14_260)] tracking-tight">{rate}%</div>
+          <div className="text-[11px] text-[oklch(0.62_0.008_264)] uppercase tracking-wider">归档率</div>
+        </div>
         <button onClick={async () => { await api.post(`/bid/projects/${projectId}/archive-all`, {}); toast.success('归档完成'); load(); }}
-          className="px-5 py-2 bg-[#11a874] text-white rounded-lg font-semibold hover:bg-[#0e8f62] transition">一键归档</button>
+          className="flex items-center gap-2 px-5 py-2.5 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors">
+          <Package size={14} strokeWidth={1.5} /> 一键归档
+        </button>
       </div>
 
-      <div className="grid grid-cols-[1.4fr_0.7fr] gap-4">
-        <div className="bg-white rounded-xl border border-[#e8f0fa] p-5">
-          <h2 className="font-bold text-[#18243a] mb-3">归档资料清单</h2>
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-[#e8f0fa] text-left text-[#5a6d8a]"><th className="pb-2">资料名称</th><th className="pb-2">责任端</th><th className="pb-2">状态</th><th className="pb-2">哈希摘要</th></tr></thead>
-            <tbody>{project.archiveItems.map(a => (
-              <tr key={a.id} className="border-b border-[#e8f0fa]">
-                <td className="py-2">{a.name}</td><td className="py-2 text-[#5a6d8a]">{a.ownerRole}</td>
-                <td className="py-2"><span className="px-2 py-0.5 rounded text-xs font-semibold" style={{ color: statusColor[a.status], backgroundColor: statusColor[a.status] + '18' }}>{statusLabel[a.status]}</span></td>
-                <td className="py-2 text-[#5a6d8a] font-mono text-xs">{a.hashDigest || '—'}</td>
+      <div className="grid grid-cols-[2fr_1fr] gap-6">
+        <div className="bg-white border border-[oklch(0.91_0.006_264)]">
+          <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
+            <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>归档资料清单</h2>
+          </div>
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
+                <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">资料名称</th>
+                <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">责任端</th>
+                <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">状态</th>
+                <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">哈希摘要</th>
               </tr>
-            ))}</tbody>
+            </thead>
+            <tbody>
+              {aItems.map(a => {
+                const s = statusDefs[a.status] || { label: a.status, color: '#94a3b8' };
+                return (
+                  <tr key={a.id} className="border-b border-[oklch(0.94_0.004_264)]">
+                    <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">{a.name}</td>
+                    <td className="px-5 py-3 text-[12px] text-[oklch(0.55_0.01_264)]">{a.ownerRole}</td>
+                    <td className="px-5 py-3"><span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{ color: s.color, backgroundColor: `${s.color}18` }}>{s.label}</span></td>
+                    <td className="px-5 py-3 text-[12px] text-[oklch(0.62_0.008_264)] font-mono">{a.hashDigest || '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
           </table>
         </div>
-        <div className="bg-white rounded-xl border border-[#e8f0fa] p-5">
-          <h2 className="font-bold text-[#18243a] mb-3">缺失提醒</h2>
-          {project.archiveItems.filter(a => a.status !== 'ARCHIVED').map(a => (
-            <div key={a.id} className="bg-[#fff8e8] rounded-lg p-3 text-sm text-[#8a6d3b] mb-2">⚠️ {a.name}{a.status === 'PENDING_CONFIRM' ? '待确认' : '未开始'}</div>
-          ))}
-          {archived > 0 && (
-            <div className="bg-[#e8fff0] rounded-lg p-3 text-sm text-[#0e8f62]">✅ {project.archiveItems.filter(a => a.status === 'ARCHIVED').map(a => a.name).join('、')}已入档</div>
-          )}
+
+        <div className="bg-white border border-[oklch(0.91_0.006_264)] p-5">
+          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight mb-4" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>缺失提醒</h2>
+          <div className="space-y-2">
+            {aItems.filter(a => a.status !== 'ARCHIVED').map(a => (
+              <div key={a.id} className="flex items-start gap-2 bg-[oklch(0.96_0.04_85)] border border-[oklch(0.88_0.06_82)] p-3">
+                <AlertTriangle size={14} strokeWidth={1.5} className="text-[oklch(0.64_0.16_82)] mt-0.5 flex-shrink-0" />
+                <span className="text-[12px] text-[oklch(0.18_0.012_265)] tracking-tight">{a.name} — {statusDefs[a.status]?.label}</span>
+              </div>
+            ))}
+            {archived > 0 && (
+              <div className="flex items-start gap-2 bg-[oklch(0.96_0.03_158)] border border-[oklch(0.88_0.06_158)] p-3">
+                <CheckCircle size={14} strokeWidth={1.5} className="text-[oklch(0.54_0.16_158)] mt-0.5 flex-shrink-0" />
+                <span className="text-[12px] text-[oklch(0.18_0.012_265)] tracking-tight">{archived} 项已归档</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

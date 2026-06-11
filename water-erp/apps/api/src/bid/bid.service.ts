@@ -10,6 +10,48 @@ import { CreateClarificationDto } from './dto/create-clarification.dto';
 export class BidService {
   constructor(private prisma: PrismaService) {}
 
+  async getDashboardStats() {
+    const [
+      totalProjects,
+      activeProjects,
+      totalSuppliers,
+      approvedSuppliers,
+      totalExperts,
+      totalAnnouncements,
+      recentLogs,
+    ] = await Promise.all([
+      this.prisma.bidProject.count(),
+      this.prisma.bidProject.count({ where: { stage: { in: ['OPENING', 'EVALUATING', 'SUBMIT'] } } }),
+      this.prisma.supplier.count(),
+      this.prisma.supplier.count({ where: { status: 'APPROVED' } }),
+      this.prisma.bidExpert.groupBy({ by: ['expertName'], _count: true }),
+      this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
+      this.prisma.bidSupervisionLog.findMany({
+        orderBy: { time: 'desc' },
+        take: 8,
+      }),
+    ]);
+
+    const stageCounts = await this.prisma.bidProject.groupBy({
+      by: ['stage'],
+      _count: { stage: true },
+    });
+
+    const stageDistribution: Record<string, number> = {};
+    stageCounts.forEach(s => { stageDistribution[s.stage] = s._count.stage; });
+
+    return {
+      totalProjects,
+      activeProjects,
+      totalSuppliers,
+      approvedSuppliers,
+      totalExperts: totalExperts.length,
+      totalAnnouncements,
+      stageDistribution,
+      recentActivity: recentLogs,
+    };
+  }
+
   listProjects() {
     return this.prisma.bidProject.findMany({
       orderBy: { createdAt: 'desc' },

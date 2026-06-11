@@ -2,6 +2,16 @@ packages:
   - apps/*
   - packages/*
 
+onlyBuiltDependencies:
+  - '@nestjs/core'
+  - '@prisma/engines'
+  - '@scarf/scarf'
+  - esbuild
+  - msgpackr-extract
+  - prisma
+  - sharp
+  - unrs-resolver
+
 ignoredBuiltDependencies:
   - '@nestjs/core'
   - '@prisma/engines'

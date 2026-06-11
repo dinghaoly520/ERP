@@ -69,7 +69,7 @@ export default function SupplierDetailPage() {
     setReviewLoading(false);
   };
 
-  if (loading) return <div className="text-[#5a6d8a] py-20 text-center">加载中...</div>;
+  if (loading) return <div className="text-[oklch(0.55_0.01_264)] py-20 text-center">加载中...</div>;
   if (!supplier) return <div className="text-[#e74c3c] py-20 text-center">供应商不存在</div>;
 
   const st = statusMap[supplier.status] || { label: supplier.status, color: '#999', bg: '#99918' };
@@ -86,22 +86,22 @@ export default function SupplierDetailPage() {
     <div>
       {/* 头部 */}
       <div className="flex items-center gap-4 mb-6">
-        <button onClick={() => router.push('/supplier')} className="text-[#5a6d8a] hover:text-[#064ea2] transition text-lg">←</button>
+        <button onClick={() => router.push('/supplier')} className="text-[oklch(0.55_0.01_264)] hover:text-[#064ea2] transition text-lg">←</button>
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-[#18243a]">{supplier.name}</h1>
+            <h1 className="text-2xl font-bold text-[oklch(0.18_0.012_265)]">{supplier.name}</h1>
             <span className="px-2 py-1 rounded text-xs font-semibold" style={{ color: st.color, backgroundColor: st.bg }}>{st.label}</span>
           </div>
-          <p className="text-sm text-[#5a6d8a] mt-1">统一社会信用代码：{supplier.creditCode}</p>
+          <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">统一社会信用代码：{supplier.creditCode}</p>
         </div>
       </div>
 
       {/* Tab 导航 */}
-      <div className="flex border-b border-[#e8f0fa] mb-6">
+      <div className="flex border-b border-[oklch(0.91_0.006_264)] mb-6">
         {tabs.map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             className={`px-5 py-3 text-sm font-semibold transition border-b-2 -mb-px ${
-              activeTab === tab.key ? 'text-[#064ea2] border-[#064ea2]' : 'text-[#5a6d8a] border-transparent hover:text-[#18243a]'
+              activeTab === tab.key ? 'text-[#064ea2] border-[#064ea2]' : 'text-[oklch(0.55_0.01_264)] border-transparent hover:text-[oklch(0.18_0.012_265)]'
             }`}>
             {tab.label}{tab.count !== undefined && <span className="ml-1 text-xs opacity-60">({tab.count})</span>}
           </button>
@@ -109,7 +109,7 @@ export default function SupplierDetailPage() {
       </div>
 
       {/* Tab 内容 */}
-      <div className="bg-white rounded-xl border border-[#e8f0fa] p-6">
+      <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-6">
         {/* 基本信息 */}
         {activeTab === 'info' && (
           <div className="grid grid-cols-2 gap-x-12 gap-y-4">
@@ -124,20 +124,20 @@ export default function SupplierDetailPage() {
               ['注册时间', new Date(supplier.createdAt).toLocaleString('zh-CN')],
             ].map(([label, value]) => (
               <div key={label as string}>
-                <p className="text-xs text-[#5a6d8a] mb-1">{label}</p>
-                <p className="text-sm font-semibold text-[#18243a]">{value}</p>
+                <p className="text-xs text-[oklch(0.55_0.01_264)] mb-1">{label}</p>
+                <p className="text-sm font-semibold text-[oklch(0.18_0.012_265)]">{value}</p>
               </div>
             ))}
             {supplier.returnReason && (
               <div className="col-span-2 mt-2 p-3 bg-[#f5a62312] rounded-lg border border-[#f5a62330]">
                 <p className="text-xs text-[#f5a623] font-semibold mb-1">退回原因</p>
-                <p className="text-sm text-[#18243a]">{supplier.returnReason}</p>
+                <p className="text-sm text-[oklch(0.18_0.012_265)]">{supplier.returnReason}</p>
               </div>
             )}
             {supplier.rejectReason && (
               <div className="col-span-2 mt-2 p-3 bg-[#e74c3c12] rounded-lg border border-[#e74c3c30]">
                 <p className="text-xs text-[#e74c3c] font-semibold mb-1">拒绝原因</p>
-                <p className="text-sm text-[#18243a]">{supplier.rejectReason}</p>
+                <p className="text-sm text-[oklch(0.18_0.012_265)]">{supplier.rejectReason}</p>
               </div>
             )}
           </div>
@@ -147,20 +147,20 @@ export default function SupplierDetailPage() {
         {activeTab === 'contacts' && (
           <div>
             {(!supplier.contacts || supplier.contacts.length === 0) ? (
-              <p className="text-[#5a6d8a] text-center py-8">暂无联系人信息</p>
+              <p className="text-[oklch(0.55_0.01_264)] text-center py-8">暂无联系人信息</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[#e8f0fa] text-left text-[#5a6d8a]">
+                  <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
                     <th className="pb-3">姓名</th><th className="pb-3">手机号</th><th className="pb-3">邮箱</th><th className="pb-3">类型</th>
                   </tr>
                 </thead>
                 <tbody>
                   {supplier.contacts.map(c => (
-                    <tr key={c.id} className="border-b border-[#e8f0fa]">
-                      <td className="py-3 font-semibold text-[#18243a]">{c.name}</td>
-                      <td className="py-3 text-[#5a6d8a]">{c.phone}</td>
-                      <td className="py-3 text-[#5a6d8a]">{c.email || '—'}</td>
+                    <tr key={c.id} className="border-b border-[oklch(0.91_0.006_264)]">
+                      <td className="py-3 font-semibold text-[oklch(0.18_0.012_265)]">{c.name}</td>
+                      <td className="py-3 text-[oklch(0.55_0.01_264)]">{c.phone}</td>
+                      <td className="py-3 text-[oklch(0.55_0.01_264)]">{c.email || '—'}</td>
                       <td className="py-3">{c.isPrimary ? <span className="px-2 py-0.5 text-xs bg-[#064ea218] text-[#064ea2] rounded">主要联系人</span> : '普通联系人'}</td>
                     </tr>
                   ))}
@@ -174,11 +174,11 @@ export default function SupplierDetailPage() {
         {activeTab === 'qualifications' && (
           <div>
             {qualifications.length === 0 ? (
-              <p className="text-[#5a6d8a] text-center py-8">暂无资质材料</p>
+              <p className="text-[oklch(0.55_0.01_264)] text-center py-8">暂无资质材料</p>
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 {qualifications.map(q => (
-                  <div key={q.id} className="border border-[#e8f0fa] rounded-lg p-4">
+                  <div key={q.id} className="border border-[oklch(0.91_0.006_264)] rounded-lg p-4">
                     <div className="flex justify-between items-start mb-2">
                       <span className="px-2 py-0.5 text-xs bg-[#064ea212] text-[#064ea2] rounded">{q.type}</span>
                       <span className={`text-xs px-2 py-0.5 rounded ${
@@ -187,8 +187,8 @@ export default function SupplierDetailPage() {
                         'bg-[#11a87418] text-[#11a874]'
                       }`}>{q.status || '有效'}</span>
                     </div>
-                    <p className="font-semibold text-[#18243a] text-sm mb-1">{q.name}</p>
-                    <p className="text-xs text-[#5a6d8a]">
+                    <p className="font-semibold text-[oklch(0.18_0.012_265)] text-sm mb-1">{q.name}</p>
+                    <p className="text-xs text-[oklch(0.55_0.01_264)]">
                       有效期：{q.validFrom ? new Date(q.validFrom).toLocaleDateString('zh-CN') : '—'} ~ {q.validTo ? new Date(q.validTo).toLocaleDateString('zh-CN') : '长期'}
                     </p>
                   </div>
@@ -202,18 +202,18 @@ export default function SupplierDetailPage() {
         {activeTab === 'evaluations' && (
           <div>
             {evaluations.length === 0 ? (
-              <p className="text-[#5a6d8a] text-center py-8">暂无评价记录</p>
+              <p className="text-[oklch(0.55_0.01_264)] text-center py-8">暂无评价记录</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[#e8f0fa] text-left text-[#5a6d8a]">
+                  <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
                     <th className="pb-3">评分</th><th className="pb-3">等级</th><th className="pb-3">评价人</th><th className="pb-3">评价时间</th><th className="pb-3">意见</th>
                   </tr>
                 </thead>
                 <tbody>
                   {evaluations.map(e => (
-                    <tr key={e.id} className="border-b border-[#e8f0fa]">
-                      <td className="py-3 font-bold text-[#18243a]">{e.score}分</td>
+                    <tr key={e.id} className="border-b border-[oklch(0.91_0.006_264)]">
+                      <td className="py-3 font-bold text-[oklch(0.18_0.012_265)]">{e.score}分</td>
                       <td className="py-3">
                         <span className={`px-2 py-0.5 text-xs font-semibold rounded ${
                           e.level === 'A' ? 'bg-[#11a87418] text-[#11a874]' :
@@ -222,9 +222,9 @@ export default function SupplierDetailPage() {
                           'bg-[#e74c3c18] text-[#e74c3c]'
                         }`}>{e.level}</span>
                       </td>
-                      <td className="py-3 text-[#5a6d8a]">{e.evaluator?.displayName || '—'}</td>
-                      <td className="py-3 text-[#5a6d8a]">{new Date(e.createdAt).toLocaleDateString('zh-CN')}</td>
-                      <td className="py-3 text-[#5a6d8a] max-w-[200px] truncate">{e.comment || '—'}</td>
+                      <td className="py-3 text-[oklch(0.55_0.01_264)]">{e.evaluator?.displayName || '—'}</td>
+                      <td className="py-3 text-[oklch(0.55_0.01_264)]">{new Date(e.createdAt).toLocaleDateString('zh-CN')}</td>
+                      <td className="py-3 text-[oklch(0.55_0.01_264)] max-w-[200px] truncate">{e.comment || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -237,11 +237,11 @@ export default function SupplierDetailPage() {
         {activeTab === 'changes' && (
           <div>
             {changes.length === 0 ? (
-              <p className="text-[#5a6d8a] text-center py-8">暂无变更记录</p>
+              <p className="text-[oklch(0.55_0.01_264)] text-center py-8">暂无变更记录</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[#e8f0fa] text-left text-[#5a6d8a]">
+                  <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
                     <th className="pb-3">变更字段</th><th className="pb-3">原值</th><th className="pb-3">新值</th><th className="pb-3">状态</th><th className="pb-3">变更时间</th><th className="pb-3 text-right">操作</th>
                   </tr>
                 </thead>
@@ -249,12 +249,12 @@ export default function SupplierDetailPage() {
                   {changes.map(c => {
                     const cs = changeStatusMap[c.status] || { label: c.status, color: '#999', bg: '#99918' };
                     return (
-                      <tr key={c.id} className="border-b border-[#e8f0fa]">
-                        <td className="py-3 font-semibold text-[#18243a]">{c.fieldLabel}</td>
-                        <td className="py-3 text-[#5a6d8a] max-w-[150px] truncate">{c.oldValue || '—'}</td>
+                      <tr key={c.id} className="border-b border-[oklch(0.91_0.006_264)]">
+                        <td className="py-3 font-semibold text-[oklch(0.18_0.012_265)]">{c.fieldLabel}</td>
+                        <td className="py-3 text-[oklch(0.55_0.01_264)] max-w-[150px] truncate">{c.oldValue || '—'}</td>
                         <td className="py-3 text-[#064ea2] max-w-[150px] truncate">{c.newValue || '—'}</td>
                         <td className="py-3"><span className="px-2 py-0.5 text-xs font-semibold rounded" style={{ color: cs.color, backgroundColor: cs.bg }}>{cs.label}</span></td>
-                        <td className="py-3 text-[#5a6d8a]">{new Date(c.createdAt).toLocaleDateString('zh-CN')}</td>
+                        <td className="py-3 text-[oklch(0.55_0.01_264)]">{new Date(c.createdAt).toLocaleDateString('zh-CN')}</td>
                         <td className="py-3 text-right">
                           {c.status === 'PENDING' && (
                             <div className="flex justify-end gap-2">
@@ -279,15 +279,15 @@ export default function SupplierDetailPage() {
       {reviewModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setReviewModal(null)}>
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-[#18243a] mb-4">
+            <h3 className="text-lg font-bold text-[oklch(0.18_0.012_265)] mb-4">
               {reviewModal.type === 'approve' ? '确认通过变更' : '拒绝变更'}
             </h3>
             {reviewModal.type === 'reject' && (
               <textarea value={reviewReason} onChange={e => setReviewReason(e.target.value)}
-                placeholder="请填写拒绝原因..." className="w-full px-3 py-2 border border-[#e8f0fa] rounded-lg text-sm mb-4 h-24 resize-none focus:outline-none focus:border-[#064ea2]" />
+                placeholder="请填写拒绝原因..." className="w-full px-3 py-2 border border-[oklch(0.91_0.006_264)] rounded-lg text-sm mb-4 h-24 resize-none focus:outline-none focus:border-[#064ea2]" />
             )}
             <div className="flex justify-end gap-3">
-              <button onClick={() => setReviewModal(null)} className="px-4 py-2 text-sm text-[#5a6d8a] hover:bg-[#f8fbff] rounded-lg transition">取消</button>
+              <button onClick={() => setReviewModal(null)} className="px-4 py-2 text-sm text-[oklch(0.55_0.01_264)] hover:bg-[oklch(0.992_0.003_264)] rounded-lg transition">取消</button>
               <button onClick={handleReviewChange} disabled={reviewLoading || (reviewModal.type === 'reject' && !reviewReason.trim())}
                 className={`px-4 py-2 text-sm text-white rounded-lg transition disabled:opacity-50 ${reviewModal.type === 'approve' ? 'bg-[#11a874] hover:bg-[#0e8c5f]' : 'bg-[#e74c3c] hover:bg-[#c0392b]'}`}>
                 {reviewLoading ? '处理中...' : '确认'}

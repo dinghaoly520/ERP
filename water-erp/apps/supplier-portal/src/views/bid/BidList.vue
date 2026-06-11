@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBidStore } from '@/stores/bid'
+import CountdownTimer from '@/components/CountdownTimer.vue'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -118,9 +119,8 @@ function getCountdown(deadline: string) {
           </div>
         </div>
         <div class="project-footer">
-          <div class="countdown" :class="{ urgent: !isDeadlinePassed(p.deadline) && getCountdown(p.deadline) !== '已截止' }">
-            <el-icon><Timer /></el-icon>
-            {{ getCountdown(p.deadline) }}
+          <div class="countdown-wrap">
+            <CountdownTimer :deadline="p.deadline" />
           </div>
           <el-button type="primary" text size="small">
             查看详情 <el-icon><ArrowRight /></el-icon>

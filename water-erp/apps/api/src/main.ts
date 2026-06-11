@@ -4,6 +4,16 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { PORTS } from '@water-erp/config';
+
+function corsOrigins(): string[] {
+  const clientPorts = [PORTS.web, PORTS.supplier, PORTS.expert, PORTS.public];
+  const origins: string[] = [];
+  for (const port of clientPorts) {
+    origins.push(`http://localhost:${port}`, `http://127.0.0.1:${port}`);
+  }
+  return origins;
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,14 +24,7 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalFilters(new HttpExceptionFilter());
   app.enableCors({
-    origin: [
-      'http://localhost:3002',
-      'http://127.0.0.1:3002',
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'http://localhost:3003',
-      'http://127.0.0.1:3003',
-    ],
+    origin: corsOrigins(),
     credentials: true,
   });
 

@@ -1,0 +1,128 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { SupplierPortalService } from './supplier-portal.service';
+import { PrismaService } from '../prisma/prisma.service';
+
+describe('SupplierPortalService', () => {
+  let service: SupplierPortalService;
+  let prisma: any;
+
+  const mockSupplier = {
+    id: 'supplier-1',
+    userId: 'user-1',
+    name: '四川川水建设工程有限公司',
+    creditCode: '91510000MA62K5XX0X',
+    enterpriseType: '国有企业',
+    legalPerson: '张明',
+    registeredAddress: '成都市高新区天府大道北段1700号',
+    businessScope: '水利水电工程施工',
+    status: 'APPROVED',
+    classificationId: 'cls-1',
+    contacts: [{ name: '张经理', phone: '13800138001', isPrimary: true }],
+    qualifications: [
+      { type: '营业执照', name: '企业法人营业执照', validTo: new Date('2030-12-31'), status: '有效' },
+      { type: '资质证书', name: '水利水电一级', validTo: new Date('2028-06-30'), status: '有效' },
+    ],
+  };
+
+  beforeEach(async () => {
+    prisma = {
+      supplier: { findUnique: jest.fn() },
+      supplierEvaluation: { count: jest.fn() },
+      supplierBidSubmission: { count: jest.fn() },
+      supplierChangeRecord: { count: jest.fn() },
+      supplierQualification: { count: jest.fn() },
+      notification: { count: jest.fn() },
+      user: { findUnique: jest.fn() },
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [SupplierPortalService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+
+    service = module.get<SupplierPortalService>(SupplierPortalService);
+  });
+
+  describe('getDashboardStats', () => {
+    it('应返回供应商仪表盘统计（包含完整度评分）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue(mockSupplier);
+      prisma.supplierEvaluation.count.mockResolvedValue(3);
+      prisma.supplierBidSubmission.count.mockResolvedValue(2);
+      prisma.supplierChangeRecord.count.mockResolvedValue(1);
+      prisma.notification.count.mockResolvedValue(5);
+      prisma.supplierQualification.count.mockResolvedValue(2);
+
+      const result = await service.getDashboardStats('user-1');
+
+      expect(result).toBeDefined();
+      expect(result!.supplierStatus).toBe('APPROVED');
+      expect(result!.evaluationCount).toBe(3);
+      expect(result!.submissionCount).toBe(2);
+      expect(result!.qualificationCount).toBe(2);
+      expect(result!.pendingChanges).toBe(1);
+      expect(result!.unreadNotifications).toBe(5);
+      expect(result!.profileCompleteness).toBeDefined();
+      expect(result!.profileCompleteness.score).toBeGreaterThanOrEqual(0);
+      expect(result!.profileCompleteness.score).toBeLessThanOrEqual(100);
+    });
+
+    it('无供应商记录时应返回 null', async () => {
+      prisma.supplier.findUnique.mockResolvedValue(null);
+
+      const result = await service.getDashboardStats('nonexistent');
+
+      expect(result).toBeNull();
+    });
+
+    it('资质齐全的供应商应有较高完整度', async () => {
+      const fullSupplier = {
+        ...mockSupplier,
+        contacts: [
+          { name: '张经理', phone: '13800138001', isPrimary: true },
+          { name: '王芳', phone: '13800138002', isPrimary: false },
+        ],
+        qualifications: [
+          { type: '营业执照', name: '企业法人营业执照', validTo: new Date('2030-12-31'), status: '有效' },
+          { type: '资质证书', name: '水利水电一级', validTo: new Date('2028-06-30'), status: '有效' },
+          { type: '安全生产许可证', name: '安全生产许可证', validTo: new Date('2027-03-14'), status: '有效' },
+        ],
+      };
+      prisma.supplier.findUnique.mockResolvedValue(fullSupplier);
+      prisma.supplierEvaluation.count.mockResolvedValue(0);
+      prisma.supplierBidSubmission.count.mockResolvedValue(0);
+      prisma.supplierChangeRecord.count.mockResolvedValue(0);
+      prisma.notification.count.mockResolvedValue(0);
+
+      const result = await service.getDashboardStats('user-1');
+
+      expect(result!.profileCompleteness.score).toBeGreaterThanOrEqual(80);
+    });
+
+    it('缺少基本信息的供应商应有较低完整度并包含缺失项', async () => {
+      const minimal = {
+        id: 'supplier-2',
+        userId: 'user-2',
+        name: null,
+        creditCode: null,
+        enterpriseType: null,
+        legalPerson: null,
+        registeredAddress: null,
+        businessScope: null,
+        status: 'PENDING',
+        classificationId: null,
+        contacts: [],
+        qualifications: [],
+      };
+
+      prisma.supplier.findUnique.mockResolvedValue(minimal);
+      prisma.supplierEvaluation.count.mockResolvedValue(0);
+      prisma.supplierBidSubmission.count.mockResolvedValue(0);
+      prisma.supplierChangeRecord.count.mockResolvedValue(0);
+      prisma.notification.count.mockResolvedValue(0);
+
+      const result = await service.getDashboardStats('user-2');
+
+      expect(result!.profileCompleteness.score).toBeLessThan(30);
+      expect(result!.profileCompleteness.missing.length).toBeGreaterThan(5);
+    });
+  });
+});

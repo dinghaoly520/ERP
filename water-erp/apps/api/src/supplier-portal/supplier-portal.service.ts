@@ -314,24 +314,28 @@ export class SupplierPortalService {
   // ─── Dashboard Stats ───
 
   async getDashboardStats(userId: string) {
-    const supplier = await this.prisma.supplier.findUnique({ where: { userId } });
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { userId },
+      include: {
+        contacts: true,
+        qualifications: true,
+      },
+    });
     if (!supplier) return null;
 
     const [
       evaluationCount,
       submissionCount,
-      qualificationCount,
       pendingChanges,
       unreadNotifications,
     ] = await Promise.all([
       this.prisma.supplierEvaluation.count({ where: { supplierId: supplier.id } }),
       this.prisma.supplierBidSubmission.count({ where: { supplierId: supplier.id, status: 'submitted' } }),
-      this.prisma.supplierQualification.count({ where: { supplierId: supplier.id } }),
       this.prisma.supplierChangeRecord.count({ where: { supplierId: supplier.id, status: 'PENDING' } }),
       this.prisma.notification.count({ where: { userId, isRead: false } }),
     ]);
 
-    // Check for expiring qualifications
+    // Expiring qualifications
     const thirtyDaysLater = new Date(Date.now() + 30 * 24 * 3600 * 1000);
     const expiringQualifications = await this.prisma.supplierQualification.count({
       where: {
@@ -341,14 +345,70 @@ export class SupplierPortalService {
       },
     });
 
+    // Profile completeness calculation
+    const completeness = this.calculateProfileCompleteness(supplier);
+
     return {
       supplierStatus: supplier.status,
       evaluationCount,
       submissionCount,
-      qualificationCount,
+      qualificationCount: supplier.qualifications.length,
       pendingChanges,
       unreadNotifications,
       expiringQualifications,
+      profileCompleteness: completeness,
     };
+  }
+
+  private calculateProfileCompleteness(supplier: any): { score: number; missing: string[] } {
+    let score = 0
+    const total = 100
+    const missing: string[] = []
+
+    // Basic info (40 points)
+    if (supplier.name) score += 8; else missing.push('企业名称')
+    if (supplier.creditCode) score += 8; else missing.push('统一社会信用代码')
+    if (supplier.enterpriseType) score += 6; else missing.push('企业类型')
+    if (supplier.legalPerson) score += 6; else missing.push('法定代表人')
+    if (supplier.registeredAddress) score += 6; else missing.push('注册地址')
+    if (supplier.businessScope) score += 6; else missing.push('经营范围')
+
+    // Contacts (20 points)
+    if (supplier.contacts?.length > 0) {
+      score += 12
+      const hasPrimary = supplier.contacts.some((c: any) => c.isPrimary)
+      if (hasPrimary) score += 8; else missing.push('主要联系人')
+    } else {
+      missing.push('联系人')
+    }
+
+    // Qualifications (30 points)
+    if (supplier.qualifications?.length > 0) {
+      score += 15
+      const hasLicense = supplier.qualifications.some((q: any) => q.type === '营业执照')
+      if (hasLicense) score += 15; else missing.push('营业执照')
+    } else {
+      missing.push('资质材料')
+    }
+
+    // Classification (10 points)
+    if (supplier.classificationId) score += 10; else missing.push('供应商分类')
+
+    return { score, missing }
+  }
+
+  // ─── Password ───
+
+  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    const { compareSync, hashSync } = await import('bcryptjs')
+    const user = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!user?.passwordHash || !compareSync(oldPassword, user.passwordHash)) {
+      throw new BadRequestException({ error: '原密码不正确', code: 'WRONG_PASSWORD' })
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: hashSync(newPassword, 10) },
+    })
+    return { success: true }
   }
 }

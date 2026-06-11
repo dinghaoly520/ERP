@@ -4,11 +4,12 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { supplierApi } from '@/api/supplier'
 import {
   HomeFilled, Stamp, OfficeBuilding, Medal, Phone, EditPen,
   Document, DocumentChecked, Bell, ChatDotRound, Star,
   Fold, Expand, SwitchButton, User, Setting, Notification,
-  Search,
+  Search, Lock, ArrowDown,
 } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 
@@ -18,6 +19,19 @@ const authStore = useAuthStore()
 const notifStore = useNotificationStore()
 
 const isCollapse = ref(false)
+const mobileDrawer = ref(false)
+const isMobile = ref(false)
+const pwdDialog = ref(false)
+const pwdLoading = ref(false)
+const pwdForm = ref({ old: '', newPwd: '', confirm: '' })
+
+// Responsive detection
+function checkMobile() {
+  isMobile.value = window.innerWidth < 768
+  if (isMobile.value) isCollapse.value = true
+}
+checkMobile()
+window.addEventListener('resize', checkMobile)
 
 // Sidebar navigation
 const menuItems = [
@@ -62,6 +76,25 @@ async function handleLogout() {
 function handleCommand(cmd: string) {
   if (cmd === 'logout') handleLogout()
   else if (cmd === 'profile') router.push('/profile')
+  else if (cmd === 'password') pwdDialog.value = true
+}
+
+async function handleChangePassword() {
+  if (pwdForm.value.newPwd !== pwdForm.value.confirm) { ElMessage.warning('两次密码不一致'); return }
+  if (pwdForm.value.newPwd.length < 6) { ElMessage.warning('密码不少于6位'); return }
+  pwdLoading.value = true
+  try {
+    await supplierApi.changePassword(pwdForm.value.old, pwdForm.value.newPwd)
+    ElMessage.success('密码修改成功')
+    pwdDialog.value = false
+    pwdForm.value = { old: '', newPwd: '', confirm: '' }
+  } catch { ElMessage.error('密码修改失败') }
+  finally { pwdLoading.value = false }
+}
+
+function handleMenuSelect(path: string) {
+  if (isMobile.value) mobileDrawer.value = false
+  router.push(path)
 }
 
 // Fetch unread count on mount
@@ -192,6 +225,9 @@ notifStore.fetchUnreadCount()
                 <el-dropdown-item command="profile">
                   <el-icon><User /></el-icon>企业信息
                 </el-dropdown-item>
+                <el-dropdown-item command="password">
+                  <el-icon><Lock /></el-icon>修改密码
+                </el-dropdown-item>
                 <el-dropdown-item command="logout" divided>
                   <el-icon><SwitchButton /></el-icon>退出登录
                 </el-dropdown-item>
@@ -210,6 +246,24 @@ notifStore.fetchUnreadCount()
         </RouterView>
       </el-main>
     </el-container>
+
+    <!-- Mobile overlay -->
+    <div v-if="isMobile && !mobileDrawer" class="mobile-fab" @click="mobileDrawer = true">
+      <el-icon :size="22"><Fold /></el-icon>
+    </div>
+
+    <!-- Change password dialog -->
+    <el-dialog v-model="pwdDialog" title="修改密码" width="420px" destroy-on-close>
+      <el-form :model="pwdForm" label-width="90px" size="large">
+        <el-form-item label="原密码"><el-input v-model="pwdForm.old" type="password" placeholder="请输入当前密码" show-password /></el-form-item>
+        <el-form-item label="新密码"><el-input v-model="pwdForm.newPwd" type="password" placeholder="不少于6位" show-password /></el-form-item>
+        <el-form-item label="确认密码"><el-input v-model="pwdForm.confirm" type="password" placeholder="请再次输入新密码" show-password /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="pwdDialog = false">取消</el-button>
+        <el-button type="primary" :loading="pwdLoading" @click="handleChangePassword">确认修改</el-button>
+      </template>
+    </el-dialog>
   </el-container>
 </template>
 
@@ -477,6 +531,27 @@ notifStore.fetchUnreadCount()
   overflow-y: auto;
   padding: 0;
 }
+
+/* ─── Mobile FAB ─── */
+.mobile-fab {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--sp-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(10, 94, 184, 0.4);
+  cursor: pointer;
+  z-index: 100;
+  transition: transform 0.2s;
+}
+
+.mobile-fab:hover { transform: scale(1.1); }
 
 /* ─── Route transition ─── */
 .sp-route-enter-active,

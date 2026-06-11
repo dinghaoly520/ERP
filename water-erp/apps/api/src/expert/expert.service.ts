@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AiService } from '../ai/ai.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 
 @Injectable()
 export class ExpertService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private aiService: AiService,
+  ) {}
 
   /* ── 个人资料 ── */
 
@@ -183,7 +187,7 @@ export class ExpertService {
     };
   }
 
-  /* ── 辅助评标 ── */
+  /* ── 辅助评标（AI引擎驱动） ── */
 
   async getAssistData(userId: string, projectId: string, supplierId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -194,47 +198,8 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
 
-    const supplier = await this.prisma.bidSupplier.findFirst({
-      where: { id: supplierId, projectId },
-    });
-    if (!supplier) throw new NotFoundException('供应商不存在');
-
-    // 模拟AI辅助评标数据
-    return {
-      supplierName: supplier.supplierName,
-      complianceCheck: {
-        overall: '符合',
-        items: [
-          { name: '投标函签字盖章', status: 'pass', detail: '投标函已按要求签字盖章' },
-          { name: '法定代表人授权书', status: 'pass', detail: '授权书有效，授权范围明确' },
-          { name: '营业执照', status: 'pass', detail: '营业执照在有效期内' },
-          { name: '资质证书', status: 'pass', detail: '资质等级符合要求' },
-          { name: '安全生产许可证', status: 'pass', detail: '许可证有效' },
-          { name: '项目经理资格', status: 'pass', detail: '一级建造师，符合要求' },
-          { name: '投标保证金', status: 'pass', detail: '保证金已按时足额缴纳' },
-          { name: '投标文件完整性', status: 'pass', detail: '文件份数符合要求' },
-        ],
-      },
-      riskAnalysis: [
-        { level: 'info', category: '技术', content: '技术方案中关于施工进度的描述较为详细，建议关注关键路径分析' },
-        { level: 'info', category: '商务', content: '商务报价处于有效区间，建议结合市场行情综合评审' },
-        { level: 'success', category: '资质', content: '供应商资质齐全，无异常记录' },
-        { level: 'info', category: '经验', content: '同类项目经验3个以上，建议重点评审项目成果质量' },
-      ],
-      scoreSuggestion: [
-        { category: 'QUALIFICATION', name: '企业资质', suggestedScore: 85, reason: '资质齐全，等级符合要求' },
-        { category: 'TECHNICAL', name: '技术方案', suggestedScore: 80, reason: '方案较为完善，但部分细节可进一步优化' },
-        { category: 'BUSINESS', name: '商务报价', suggestedScore: 88, reason: '报价合理，处于有效区间偏上' },
-        { category: 'RESPONSIVE', name: '响应性', suggestedScore: 90, reason: '完全响应招标文件要求' },
-        { category: 'PRICE', name: '价格评分', suggestedScore: 82, reason: '价格具有竞争力' },
-      ],
-      keyPoints: [
-        '该供应商技术方案中质量控制体系较为完善',
-        '项目经理具有丰富的同类项目经验',
-        '商务报价略高于基准价，但仍在有效范围内',
-        '售后服务承诺明确，响应时间满足要求',
-      ],
-    };
+    // 使用 AI 引擎进行全方位分析
+    return this.aiService.analyzeBid(projectId, supplierId, expert.id);
   }
 
   /* ── 专家打分 ── */

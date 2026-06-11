@@ -1,0 +1,142 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { BarChart3, Clock, CheckCircle, TrendingUp, Clipboard, ScrollText, Inbox, Megaphone, Building2, Edit3, MessageSquare, Pencil, AlertTriangle, UserCircle } from 'lucide-react';
+import { api } from '@/lib/api';
+import type { ExpertStatistics, ExpertProject, User } from '@/lib/types';
+
+export default function ExpertDashboardPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [stats, setStats] = useState<ExpertStatistics | null>(null);
+  const [projects, setProjects] = useState<ExpertProject[]>([]);
+
+  useEffect(() => {
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(setUser);
+    api.get<ExpertStatistics>('/expert/statistics').then(setStats).catch(() => {});
+    api.get<ExpertProject[]>('/expert/projects').then(setProjects).catch(() => {});
+  }, []);
+
+  const stageLabel: Record<string, string> = { DOWNLOAD: '文件下载', SUBMIT: '加密投递', OPENING: '在线开标', EVALUATING: '专家评标', ARCHIVED: '资料归档' };
+
+  return (
+    <div>
+      {/* 欢迎横幅 */}
+      <div className="bg-gradient-to-r from-[#5b21b6] via-[#7c3aed] to-[#a78bfa] rounded-2xl p-8 mb-6 text-white relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
+        <div className="relative">
+          <p className="text-white/70 text-sm mb-1">专家评审工作站</p>
+          <h1 className="text-2xl font-bold mb-2">欢迎，{user?.displayName || '专家'}</h1>
+          <p className="text-white/70 text-sm">独立评审、客观公正、全程留痕</p>
+        </div>
+      </div>
+
+      {/* 统计卡片 */}
+      <div className="grid grid-cols-4 gap-px bg-[oklch(0.91_0.006_264)] mb-8">
+        {[
+          { label: '分配项目', value: stats?.totalProjects ?? 0, color: 'text-violet-600 bg-violet-50', Icon: Clipboard },
+          { label: '进行中', value: stats?.signedInProjects ?? 0, color: 'text-amber-600 bg-amber-50', Icon: Clock },
+          { label: '已完成', value: stats?.completedProjects ?? 0, color: 'text-emerald-600 bg-emerald-50', Icon: CheckCircle },
+          { label: '平均得分', value: stats?.averageScore ?? 0, color: 'text-blue-600 bg-blue-50', Icon: TrendingUp },
+        ].map(card => (
+          <div key={card.label} className="bg-white p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider">{card.label}</span>
+              <card.Icon size={18} strokeWidth={1.5} className={card.color} />
+            </div>
+            <div className="text-[2rem] font-bold text-[oklch(0.18_0.012_265)] font-mono tracking-tight">{card.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-[1fr_340px] gap-6">
+        {/* 项目列表 */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">我的评审项目</h2>
+            <button onClick={() => router.push('/projects')} className="text-sm text-[#7c3aed] hover:underline font-semibold">查看全部 →</button>
+          </div>
+
+          {projects.length === 0 ? (
+            <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-12 text-center">
+              <Clipboard size={48} strokeWidth={1} className="text-[oklch(0.80_0.006_264)] mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-[oklch(0.18_0.012_265)] mb-2">暂无评审任务</h3>
+              <p className="text-sm text-[oklch(0.55_0.01_264)]">当您被分配为评审专家时，任务将显示在这里</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {projects.slice(0, 5).map(ep => {
+                const stageColor: Record<string, string> = { EVALUATING: '#7c3aed', OPENING: '#f5a623', ARCHIVED: '#11a874' };
+                return (
+                  <div key={ep.id} onClick={() => router.push(`/evaluate/${ep.project.id}`)}
+                    className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-5 hover:shadow-md hover:border-[#c4b5fd] transition-all cursor-pointer">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-[#7c3aed] bg-purple-50 px-3 py-1 rounded-lg">{ep.project.projectCode}</span>
+                        <h3 className="font-bold text-[oklch(0.18_0.012_265)]">{ep.project.name}</h3>
+                      </div>
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                        style={{ color: stageColor[ep.project.stage] || '#5a6d8a', backgroundColor: (stageColor[ep.project.stage] || '#5a6d8a') + '18' }}>
+                        {stageLabel[ep.project.stage] || ep.project.stage}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-6 text-sm text-[oklch(0.55_0.01_264)] mb-3">
+                      <span>投标单位：{ep.project.suppliers?.length ?? 0} 家</span>
+                      <span>评分项：{ep.project.scoreItems?.length ?? 0} 项</span>
+                      <span>澄清：{ep.project._count?.clarifications ?? 0} 条</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-2 bg-[oklch(0.94_0.004_264)] rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-[#7c3aed] to-[#a78bfa] rounded-full transition-all duration-500"
+                          style={{ width: `${ep.progress}%` }} />
+                      </div>
+                      <span className="text-xs font-semibold text-[#7c3aed] w-12 text-right">{ep.progress}%</span>
+                      {!ep.signedIn && <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded font-semibold">待核验</span>}
+                      {ep.progress >= 100 && <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-semibold">已完成</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 右侧面板 */}
+        <div className="space-y-4">
+          {/* 快捷操作 */}
+          <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-5">
+            <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-4">快捷操作</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: '评审项目', desc: '查看+评审', path: '/projects', Icon: Clipboard },
+                { label: '个人信息', desc: '管理资料', path: '/profile', Icon: UserCircle },
+              ].map(action => (
+                <button key={action.path} onClick={() => router.push(action.path)}
+                  className="bg-purple-50 rounded-lg p-4 text-left hover:bg-purple-100 border border-purple-100 transition-all">
+                  <action.Icon size={20} strokeWidth={1.5} className="text-[#7c3aed]" />
+                  <div className="text-sm font-semibold text-[oklch(0.18_0.012_265)]">{action.label}</div>
+                  <div className="text-xs text-[oklch(0.55_0.01_264)]">{action.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 评审须知 */}
+          <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl border border-purple-100 p-5">
+            <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3"><ScrollText size={14} strokeWidth={1.5} className="inline" /> 评审须知</h3>
+            <ul className="space-y-2 text-sm text-[oklch(0.55_0.01_264)]">
+              <li className="flex items-start gap-2"><span className="text-[#7c3aed] mt-0.5">•</span>评审前需完成身份核验与回避确认</li>
+              <li className="flex items-start gap-2"><span className="text-[#7c3aed] mt-0.5">•</span>独立评审，不得与其他专家商议</li>
+              <li className="flex items-start gap-2"><span className="text-[#7c3aed] mt-0.5">•</span>所有评分需给出客观理由</li>
+              <li className="flex items-start gap-2"><span className="text-[#7c3aed] mt-0.5">•</span>评分提交后不可随意修改</li>
+              <li className="flex items-start gap-2"><span className="text-[#7c3aed] mt-0.5">•</span>评审全程留痕，受监督审计</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

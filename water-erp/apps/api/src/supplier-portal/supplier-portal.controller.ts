@@ -157,4 +157,20 @@ export class SupplierPortalController {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.withdrawSubmission(supplierId, submissionId);
   }
+
+  // ─── Password ───
+
+  @Post('change-password')
+  async changePassword(
+    @Request() req: any,
+    @Body() body: { oldPassword: string; newPassword: string },
+  ) {
+    if (!body.oldPassword || !body.newPassword) {
+      throw new BadRequestException({ error: '请填写完整信息', code: 'MISSING_FIELDS' });
+    }
+    if (body.newPassword.length < 6) {
+      throw new BadRequestException({ error: '新密码不少于6位', code: 'INVALID_PASSWORD' });
+    }
+    return this.portalService.changePassword(req.user.sub, body.oldPassword, body.newPassword);
+  }
 }

@@ -1,0 +1,307 @@
+/* ============================================================================
+   共享类型定义 — 所有门户应用的唯一类型来源
+   ============================================================================ */
+
+/* ── 用户 & 认证 ── */
+
+export type AppRole = 'admin' | 'bid_host' | 'bid_expert' | 'supplier' | 'procurement_staff';
+export type SupplierStatus = 'PENDING' | 'RETURNED' | 'APPROVED' | 'REJECTED' | 'DISABLED' | 'BLACKLIST';
+export type ChangeStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED';
+export type AnnouncementType = 'BID_NOTICE' | 'WIN_NOTICE' | 'POLICY' | 'PLATFORM';
+export type AnnouncementStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type DecryptStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'DANGER';
+export type ConfirmStatus = 'PENDING' | 'CONFIRMED' | 'EXCEPTION';
+
+export interface User {
+  id: string;
+  username: string;
+  displayName: string;
+  email?: string;
+  role: string;
+  isActive: boolean;
+}
+
+/* ── 投标项目 ── */
+
+export interface BidProject {
+  id: string;
+  projectCode: string;
+  name: string;
+  procurementMethod: string;
+  openTime: string;
+  deadline: string;
+  stage: string;
+  riskNote?: string;
+  _count?: { suppliers: number };
+}
+
+export interface BidSupplier {
+  id: string;
+  supplierName: string;
+  downloadStatus: string;
+  submitStatus: string;
+  encryptStatus: string;
+  receiptNo?: string;
+  decryptStatus: string;
+  confirmStatus: string;
+}
+
+export interface BidExpert {
+  id: string;
+  expertName: string;
+  major: string;
+  signedIn: boolean;
+  avoidanceConfirmed: boolean;
+  progress: number;
+  totalScore: number;
+}
+
+export interface BidScoreItem {
+  id: string;
+  category: string;
+  name: string;
+  maxScore: number;
+}
+
+export interface BidSupervisionLog {
+  id: string;
+  time: string;
+  role: string;
+  target: string;
+  action: string;
+  result: string;
+  riskFlag: string;
+}
+
+export interface BidArchiveItem {
+  id: string;
+  name: string;
+  ownerRole: string;
+  status: string;
+  hashDigest?: string;
+  archivedAt?: string;
+}
+
+export interface BidClarification {
+  id: string;
+  question: string;
+  issuer: string;
+  supplierName: string;
+  status: string;
+  reply?: string;
+}
+
+export interface BidProjectDetail extends BidProject {
+  suppliers: BidSupplier[];
+  openingSession?: { host: string; supervisor: string; status: string; decryptWindowStart: string; decryptWindowEnd: string; remainingSeconds: number };
+  openingRecords: { supplierName: string; amount: string; period: string; qualityTarget: string; bondStatus: string; decryptResult: string; confirmStatus: string }[];
+  experts: BidExpert[];
+  scoreItems: BidScoreItem[];
+  clarifications: BidClarification[];
+  supervisionLogs: BidSupervisionLog[];
+  archiveItems: BidArchiveItem[];
+}
+
+/* ── 专家端 ── */
+
+export interface ExpertStatistics {
+  totalProjects: number;
+  completedProjects: number;
+  signedInProjects: number;
+  pendingProjects: number;
+  averageScore: number;
+  recentActivity: BidSupervisionLog[];
+}
+
+export interface ExpertProject {
+  id: string;
+  expertName: string;
+  major: string;
+  signedIn: boolean;
+  avoidanceConfirmed: boolean;
+  progress: number;
+  totalScore: number;
+  createdAt: string;
+  project: {
+    id: string;
+    projectCode: string;
+    name: string;
+    stage: string;
+    openTime: string;
+    suppliers: BidSupplier[];
+    scoreItems: BidScoreItem[];
+    _count: { clarifications: number };
+  };
+  scoreRecords: { id: string; scoreItemId: string; score: number; reason?: string; scoreItem: BidScoreItem }[];
+}
+
+export interface ExpertProjectDetail extends BidProjectDetail {
+  myExpertRecord: BidExpert & { id: string };
+  myScores: { id: string; expertId: string; scoreItemId: string; score: number; reason?: string; scoreItem: BidScoreItem }[];
+}
+
+export interface DecryptedDocuments {
+  supplier: { id: string; name: string; decryptStatus: string };
+  documents: { name: string; type: string; size: string; status: string }[];
+  canView: boolean;
+}
+
+export interface AssistData {
+  supplierName: string;
+  generatedAt?: string;
+  model?: string;
+  overall?: { score: number; level: string; breakdown: { compliance: { weight: number; score: number }; risk: { weight: number; score: number }; scoring: { weight: number; score: number } } };
+  complianceCheck: { overall: string; score?: number; items: { name: string; status: string; detail: string }[] };
+  riskAnalysis: { level: string; category: string; content: string; confidence?: number }[];
+  scoreSuggestion: { category: string; name: string; suggestedScore: number; minScore?: number; maxScore: number; reason: string; confidence?: number }[];
+  keyPoints: string[];
+}
+
+export interface EvaluationReport {
+  projectName: string;
+  projectCode: string;
+  expertName: string;
+  expertProgress: number;
+  signedIn: boolean;
+  avoidanceConfirmed: boolean;
+  supplierScores: {
+    supplierName: string;
+    totalScore: number;
+    completed: boolean;
+    categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; reason?: string }[] }>;
+  }[];
+  scoreItems: BidScoreItem[];
+  canConfirm: boolean;
+}
+
+/* ── 供应商端 ── */
+
+export interface Supplier {
+  id: string;
+  userId: string;
+  name: string;
+  creditCode: string;
+  enterpriseType: string;
+  legalPerson: string;
+  registeredAddress: string;
+  businessScope: string;
+  status: SupplierStatus;
+  classificationId?: string;
+  rejectReason?: string;
+  returnReason?: string;
+  createdAt: string;
+  updatedAt: string;
+  classification?: SupplierClassification;
+  contacts?: SupplierContact[];
+  qualifications?: SupplierQualification[];
+  _count?: { evaluations: number };
+}
+
+export interface SupplierContact {
+  id: string;
+  supplierId: string;
+  name: string;
+  phone: string;
+  email?: string;
+  isPrimary: boolean;
+}
+
+export interface SupplierQualification {
+  id: string;
+  supplierId: string;
+  type: string;
+  name: string;
+  fileUrl: string;
+  validFrom?: string;
+  validTo?: string;
+  status: string;
+}
+
+export interface SupplierClassification {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  _count?: { suppliers: number };
+}
+
+export interface SupplierEvaluation {
+  id: string;
+  supplierId: string;
+  projectId?: string;
+  evaluatorId: string;
+  score: number;
+  level: string;
+  completenessScore: number;
+  responsivenessScore: number;
+  cooperationScore: number;
+  complianceScore: number;
+  overallScore: number;
+  comment?: string;
+  createdAt: string;
+  evaluator?: { id: string; displayName: string };
+}
+
+export interface SupplierChangeRecord {
+  id: string;
+  supplierId: string;
+  fieldName: string;
+  fieldLabel: string;
+  oldValue?: string;
+  newValue?: string;
+  reason?: string;
+  status: ChangeStatus;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  rejectReason?: string;
+  createdAt: string;
+}
+
+export interface SupplierListResponse {
+  total: number;
+  page: number;
+  pageSize: number;
+  items: Supplier[];
+}
+
+/* ── 公告 & 通知 ── */
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  type: AnnouncementType;
+  status: AnnouncementStatus;
+  summary?: string;
+  publishDate?: string;
+  isTop: boolean;
+  viewCount: number;
+  relatedProjectCode?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  content: string;
+  isRead: boolean;
+  link?: string;
+  createdAt: string;
+}
+
+/* ── 驾驶舱统计 ── */
+
+export interface DashboardStats {
+  totalProjects: number;
+  activeProjects: number;
+  totalSuppliers: number;
+  approvedSuppliers: number;
+  totalExperts: number;
+  totalAnnouncements: number;
+  stageDistribution: Record<string, number>;
+  recentActivity: BidSupervisionLog[];
+}

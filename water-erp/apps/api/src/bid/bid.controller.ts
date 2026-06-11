@@ -15,6 +15,10 @@ import { CreateClarificationDto } from './dto/create-clarification.dto';
 export class BidController {
   constructor(private bidService: BidService) {}
 
+  @Get('dashboard-stats')
+  @ApiOperation({ summary: '驾驶舱统计' })
+  getDashboardStats() { return this.bidService.getDashboardStats(); }
+
   @Get('projects')
   @ApiOperation({ summary: '项目列表' })
   listProjects() { return this.bidService.listProjects(); }

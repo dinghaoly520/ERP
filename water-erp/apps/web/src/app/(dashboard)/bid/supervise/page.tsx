@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
+import { Shield, AlertTriangle, Eye } from 'lucide-react';
 
 export default function BidSupervisePage() {
   const [projectId, setProjectId] = useState('');
@@ -12,9 +13,7 @@ export default function BidSupervisePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<{id:string}[]>('/bid/projects').then(ps => {
-      if (ps.length) setProjectId(ps[0].id);
-    });
+    api.get<{id:string}[]>('/bid/projects').then(ps => { if (ps.length) setProjectId(ps[0].id); });
   }, []);
 
   useEffect(() => {
@@ -24,54 +23,96 @@ export default function BidSupervisePage() {
   }, [projectId]);
 
   if (loading) return <TableSkeleton rows={6} cols={6} />;
-  if (!project) return <div className="text-[#5a6d8a] text-center py-20">暂无项目数据</div>;
+  if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20">暂无项目数据</div>;
+
+  const anomalies = project.suppliers.filter(s => s.decryptStatus === 'DANGER');
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-[#18243a] mb-1">监督端</h1>
-          <p className="text-sm text-[#5a6d8a]">可监督、不可干预：查看节点、日志、异常和证据链</p>
+          <h1 className="text-[28px] font-bold tracking-tight text-[oklch(0.18_0.012_265)]" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>监督端</h1>
+          <p className="text-[14px] text-[oklch(0.55_0.01_264)] mt-1">全程监督 · 不可干预</p>
         </div>
         <ProjectSelector value={projectId} onChange={setProjectId} />
       </div>
 
-      <div className="bg-gradient-to-r from-[#f8fbff] to-[#eef6ff] rounded-xl border border-[#e8f0fa] p-5 mb-4 flex items-center gap-4">
-        <div className="text-3xl">👁️</div>
-        <div className="flex-1"><h2 className="font-bold text-[#18243a] mb-1">监督权限边界</h2><p className="text-sm text-[#5a6d8a]">监督人员可查看过程、日志和异常，但不具备开标前查看明文、修改评分、替专家提交意见的能力。</p></div>
-        <span className="px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded">禁止干预评分</span>
+      {/* Permission notice */}
+      <div className="bg-[oklch(0.97_0.004_264)] border border-[oklch(0.88_0.06_22)] p-4 mb-8 flex items-center gap-4">
+        <Shield size={20} strokeWidth={1.5} className="text-[oklch(0.50_0.18_22)] flex-shrink-0" />
+        <div className="flex-1">
+          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight mb-0.5">监督权限边界</h2>
+          <p className="text-[12px] text-[oklch(0.55_0.01_264)]">可查看过程、日志和异常，不具备开标前查看明文、修改评分、替专家提交意见的能力</p>
+        </div>
+        <span className="text-[11px] font-bold text-[oklch(0.50_0.18_22)] bg-[oklch(0.96_0.03_22)] px-3 py-1 tracking-wide">禁止干预评分</span>
       </div>
 
-      <div className="grid grid-cols-[1fr_0.8fr] gap-4 mb-4">
-        <div className="bg-white rounded-xl border border-[#e8f0fa] p-5">
-          <h2 className="font-bold text-[#18243a] mb-4">过程时间线</h2>
-          <div className="space-y-4">
-            {project.supervisionLogs.map(log => (
-              <div key={log.id} className="flex gap-3 items-start">
-                <div className="w-2 h-2 rounded-full bg-[#064ea2] mt-2 flex-shrink-0" />
-                <div><div className="text-xs text-[#5a6d8a]">{new Date(log.time).toLocaleString('zh-CN')}</div><div className="text-sm">{log.role} · {log.action}（{log.result}）</div></div>
+      <div className="grid grid-cols-[1fr_1fr] gap-6 mb-8">
+        {/* Timeline */}
+        <div className="bg-white border border-[oklch(0.91_0.006_264)] p-5">
+          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight mb-4" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+            过程时间线
+          </h2>
+          <div className="space-y-3">
+            {project.supervisionLogs.map((log, i) => (
+              <div key={log.id} className={`flex items-start gap-3 ${i === 0 ? '' : 'pt-3 border-t border-[oklch(0.94_0.004_264)]'}`}>
+                <div className={`w-1.5 h-1.5 mt-2 flex-shrink-0 ${log.riskFlag && log.riskFlag !== '无' ? 'bg-[oklch(0.50_0.18_22)]' : 'bg-[oklch(0.42_0.14_260)]'}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] text-[oklch(0.72_0.008_264)] font-mono">{new Date(log.time).toLocaleString('zh-CN')}</div>
+                  <div className="text-[13px] text-[oklch(0.18_0.012_265)] tracking-tight">{log.role} · {log.action}</div>
+                  <div className="text-[12px] text-[oklch(0.55_0.01_264)]">{log.result}</div>
+                </div>
               </div>
             ))}
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-[#e8f0fa] p-5">
-          <h2 className="font-bold text-[#18243a] mb-4">异常事件</h2>
-          {project.suppliers.filter(s => s.decryptStatus === 'DANGER').map(s => (
-            <div key={s.id} className="bg-[#fff8e8] rounded-lg p-4 text-sm text-[#8a6d3b] mb-3">⚠️ {s.supplierName} 解密证书校验失败</div>
+
+        {/* Anomalies */}
+        <div className="bg-white border border-[oklch(0.91_0.006_264)] p-5">
+          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight mb-4" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+            异常事件
+          </h2>
+          {anomalies.length === 0 ? (
+            <div className="bg-[oklch(0.96_0.02_260)] border border-[oklch(0.88_0.04_258)] p-4 text-[12px] text-[oklch(0.42_0.14_260)] flex items-center gap-2">
+              <Eye size={14} strokeWidth={1.5} /> 当前无异常事件
+            </div>
+          ) : anomalies.map(s => (
+            <div key={s.id} className="bg-[oklch(0.96_0.04_85)] border border-[oklch(0.88_0.06_82)] p-4 mb-2 flex items-start gap-2">
+              <AlertTriangle size={14} strokeWidth={1.5} className="text-[oklch(0.64_0.16_82)] mt-0.5 flex-shrink-0" />
+              <span className="text-[13px] text-[oklch(0.18_0.012_265)] tracking-tight">{s.supplierName} — 解密证书校验失败</span>
+            </div>
           ))}
-          {project.suppliers.filter(s => s.decryptStatus === 'DANGER').length === 0 && (
-            <div className="bg-[#e8f4fd] rounded-lg p-4 text-sm text-[#3a6d8a]">✅ 当前无异常事件</div>
-          )}
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-[#e8f0fa] p-5">
-        <h2 className="font-bold text-[#18243a] mb-3">监督日志</h2>
-        <table className="w-full text-sm">
-          <thead><tr className="border-b border-[#e8f0fa] text-left text-[#5a6d8a]"><th className="pb-2">时间</th><th className="pb-2">角色</th><th className="pb-2">对象</th><th className="pb-2">操作</th><th className="pb-2">结果</th><th className="pb-2">风险标记</th></tr></thead>
-          <tbody>{project.supervisionLogs.map(log => (
-            <tr key={log.id} className="border-b border-[#e8f0fa]"><td className="py-2 text-[#5a6d8a]">{new Date(log.time).toLocaleString('zh-CN')}</td><td className="py-2">{log.role}</td><td className="py-2">{log.target}</td><td className="py-2">{log.action}</td><td className="py-2">{log.result}</td><td className="py-2">{log.riskFlag}</td></tr>
-          ))}</tbody>
+      {/* Log table */}
+      <div className="bg-white border border-[oklch(0.91_0.006_264)]">
+        <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
+          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>监督日志</h2>
+        </div>
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
+              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">时间</th>
+              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">角色</th>
+              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">对象</th>
+              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">操作</th>
+              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">结果</th>
+              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">风险</th>
+            </tr>
+          </thead>
+          <tbody>
+            {project.supervisionLogs.map(log => (
+              <tr key={log.id} className="border-b border-[oklch(0.94_0.004_264)]">
+                <td className="px-5 py-3 text-[12px] text-[oklch(0.55_0.01_264)] font-mono">{new Date(log.time).toLocaleString('zh-CN')}</td>
+                <td className="px-5 py-3 text-[12px]">{log.role}</td>
+                <td className="px-5 py-3 text-[12px]">{log.target}</td>
+                <td className="px-5 py-3 text-[13px]">{log.action}</td>
+                <td className="px-5 py-3 text-[12px]">{log.result}</td>
+                <td className="px-5 py-3 text-[12px]">{log.riskFlag}</td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
     </div>

@@ -1,21 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
 @import "tailwindcss";
 
+/* =============================================================================
+   智慧水发 ERP — Design Tokens (Refined Industrial)
+   ============================================================================= */
+
 :root {
-  --primary: #064ea2;
-  --primary-light: #0e62d0;
-  --primary-dark: #042a58;
-  --success: #11a874;
-  --warning: #f5a623;
-  --danger: #e74c3c;
-  --bg: #f6f9fd;
-  --card: #ffffff;
-  --border: #e8f0fa;
-  --text-primary: #18243a;
-  --text-secondary: #5a6d8a;
+  --color-bg: oklch(0.982 0.003 264);
+  --color-surface: oklch(1 0 0);
+  --color-border: oklch(0.91 0.006 264);
+  --color-text: oklch(0.18 0.012 265);
+  --color-text-secondary: oklch(0.45 0.01 264);
+  --color-text-tertiary: oklch(0.62 0.008 264);
+  --color-blue-950: oklch(0.18 0.045 262);
+  --color-blue-700: oklch(0.42 0.14 260);
+  --color-blue-600: oklch(0.50 0.16 258);
+  --color-success: oklch(0.54 0.16 158);
+  --color-warning: oklch(0.64 0.16 82);
+  --color-danger: oklch(0.50 0.18 22);
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--bg);
-  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 0.8125rem;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
 }

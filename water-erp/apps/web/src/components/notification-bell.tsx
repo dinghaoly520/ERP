@@ -3,6 +3,13 @@
 import { useEffect, useState, useRef } from 'react';
 import { getNotifications, getUnreadNotificationCount, markNotificationRead, markAllNotificationsRead } from '@/lib/api/supplier';
 import type { Notification } from '@/lib/types';
+import { Bell, CheckCheck, CheckCircle, XCircle, RefreshCw, Info } from 'lucide-react';
+
+const typeCfg: Record<string, { Icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>; cls: string }> = {
+  SUPPLIER_APPROVED: { Icon: CheckCircle, cls: 'text-emerald-600 bg-emerald-50' },
+  SUPPLIER_REJECTED: { Icon: XCircle, cls: 'text-red-600 bg-red-50' },
+  SUPPLIER_RETURNED: { Icon: RefreshCw, cls: 'text-amber-600 bg-amber-50' },
+};
 
 export default function NotificationBell() {
   const [unread, setUnread] = useState(0);
@@ -45,47 +52,54 @@ export default function NotificationBell() {
     setUnread(0);
   };
 
-  const typeIcon: Record<string, string> = {
-    SUPPLIER_APPROVED: '✅',
-    SUPPLIER_REJECTED: '❌',
-    SUPPLIER_RETURNED: '🔄',
-  };
-
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen(!open)} className="relative p-2 text-[#5a6d8a] hover:text-[#064ea2] transition">
-        🔔
+      <button onClick={() => setOpen(!open)} className="relative p-2 text-[oklch(0.55_0.008_264)] hover:text-[oklch(0.18_0.012_265)] transition-colors">
+        <Bell size={18} strokeWidth={1.5} />
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+          <span className="absolute top-0.5 right-0.5 bg-[oklch(0.50_0.18_22)] text-white text-[9px] font-bold min-w-[16px] h-[16px] flex items-center justify-center px-1 font-mono">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-xl border border-[#e8f0fa] z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#e8f0fa]">
-            <span className="font-bold text-sm text-[#18243a]">通知 ({unread} 未读)</span>
+        <div className="absolute right-0 top-full mt-2 w-96 bg-white border border-[oklch(0.91_0.006_264)] z-50">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[oklch(0.91_0.006_264)]">
+            <span className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">
+              通知 <span className="text-[oklch(0.62_0.008_264)] font-medium">({unread} 未读)</span>
+            </span>
             {unread > 0 && (
-              <button onClick={handleAllRead} className="text-xs text-[#064ea2] hover:underline">全部已读</button>
+              <button onClick={handleAllRead} className="flex items-center gap-1 text-[12px] text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] font-medium tracking-tight transition-colors">
+                <CheckCheck size={13} strokeWidth={1.5} /> 全部已读
+              </button>
             )}
           </div>
           <div className="max-h-80 overflow-y-auto">
             {items.length === 0 ? (
-              <div className="p-6 text-center text-[#5a6d8a] text-sm">暂无通知</div>
-            ) : items.map(n => (
-              <div key={n.id} className={`px-4 py-3 border-b border-[#f0f4f8] hover:bg-[#f8fbff] cursor-pointer ${!n.isRead ? 'bg-[#f0f7ff]' : ''}`}
-                onClick={() => !n.isRead && handleRead(n.id)}>
-                <div className="flex items-start gap-2">
-                  <span className="text-sm mt-0.5">{typeIcon[n.type] || '📢'}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#18243a] truncate">{n.title}</p>
-                    <p className="text-xs text-[#5a6d8a] mt-0.5 line-clamp-2">{n.content}</p>
-                    <p className="text-[10px] text-[#8a9aaa] mt-1">{new Date(n.createdAt).toLocaleString('zh-CN')}</p>
+              <div className="p-8 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无通知</div>
+            ) : (
+              items.map(n => {
+                const cfg = typeCfg[n.type];
+                const IconComp = cfg?.Icon || Info;
+                return (
+                  <div key={n.id}
+                    className={`px-4 py-3 border-b border-[oklch(0.94_0.004_264)] hover:bg-[oklch(0.992_0.003_264)] cursor-pointer ${!n.isRead ? 'bg-[oklch(0.97_0.008_262)]' : ''}`}
+                    onClick={() => !n.isRead && handleRead(n.id)}>
+                    <div className="flex items-start gap-3">
+                      <div className={`p-1.5 flex-shrink-0 mt-0.5 ${cfg?.cls || 'text-slate-500 bg-slate-50'}`}>
+                        <IconComp size={14} strokeWidth={1.5} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] truncate tracking-tight">{n.title}</p>
+                        <p className="text-[12px] text-[oklch(0.55_0.01_264)] mt-0.5 line-clamp-2">{n.content}</p>
+                        <p className="text-[11px] text-[oklch(0.72_0.008_264)] mt-1 font-mono">{new Date(n.createdAt).toLocaleString('zh-CN')}</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                );
+              })
+            )}
           </div>
         </div>
       )}
