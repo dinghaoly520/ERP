@@ -1,0 +1,47 @@
+import {
+  Controller,
+  Post,
+  Delete,
+  Param,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { AuthGuard } from '../auth/auth.guard';
+import { UploadService } from './upload.service';
+
+@ApiTags('文件上传')
+@ApiCookieAuth('token')
+@Controller('upload')
+@UseGuards(AuthGuard)
+export class UploadController {
+  constructor(private uploadService: UploadService) {}
+
+  @Post()
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  }))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOperation({ summary: '上传文件' })
+  async upload(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException({ error: '请选择文件', code: 'NO_FILE' });
+    }
+    return this.uploadService.upload(file);
+  }
+
+  @Delete(':key')
+  @ApiOperation({ summary: '删除文件' })
+  async delete(@Param('key') key: string) {
+    return this.uploadService.delete(key);
+  }
+}

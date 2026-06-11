@@ -90,6 +90,7 @@ model BidProject {
   clarifications   BidClarification[]
   supervisionLogs  BidSupervisionLog[]
   archiveItems     BidArchiveItem[]
+  supplierSubmissions SupplierBidSubmission[]
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -363,4 +364,62 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
+}
+
+// ── 公告管理 ──
+
+enum AnnouncementType {
+  BID_NOTICE       // 招标公告
+  WIN_NOTICE       // 中标公示
+  POLICY           // 政策法规
+  PLATFORM         // 平台通知
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Announcement {
+  id          String             @id @default(cuid())
+  title       String
+  content     String
+  type        AnnouncementType   @default(BID_NOTICE)
+  status      AnnouncementStatus @default(DRAFT)
+  summary     String?
+  publishDate DateTime?
+  isTop       Boolean            @default(false)
+  viewCount   Int                @default(0)
+  relatedProjectCode String?
+  authorId    String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([publishDate])
+}
+
+// ── 供应商标书提交 ──
+
+model SupplierBidSubmission {
+  id              String    @id @default(cuid())
+  supplierId      String
+  projectId       String
+  bidPrice        String?
+  deliveryPeriod  String?
+  technicalFile   String?
+  businessFile    String?
+  coverLetter     String?
+  status          String    @default("draft")  // draft, submitted, withdrawn
+  submittedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project         BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierId, projectId])
+  @@index([supplierId])
+  @@index([projectId])
 }

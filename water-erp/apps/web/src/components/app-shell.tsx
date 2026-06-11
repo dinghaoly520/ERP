@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
+import NotificationBell from './notification-bell';
 
 const navItems = [
   { label: '首页', path: '/dashboard', icon: '🏠' },
@@ -17,7 +18,13 @@ const navItems = [
       { label: '归档端', path: '/bid/archive' },
     ],
   },
-  { label: '专家管理', path: '/expert', icon: '👨‍💼' },
+  {
+    label: '专家工作台', icon: '👨‍💼', children: [
+      { label: '工作台首页', path: '/expert' },
+      { label: '评审项目', path: '/expert/projects' },
+      { label: '个人信息', path: '/expert/profile' },
+    ],
+  },
   {
     label: '供应商管理', icon: '🏢', children: [
       { label: '供应商列表', path: '/supplier' },
@@ -82,6 +89,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <header className="h-14 bg-white shadow-sm flex items-center justify-between px-6 flex-shrink-0">
           <span className="text-sm text-[#5a6d8a]">{pathname}</span>
           <div className="flex items-center gap-4">
+            <NotificationBell />
             {user && <span className="text-sm font-semibold text-[#18243a]">{user.displayName}</span>}
             <button onClick={logout} className="text-sm text-[#5a6d8a] hover:text-[#064ea2]">退出</button>
           </div>

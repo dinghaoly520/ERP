@@ -3,22 +3,38 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
+import ProjectSelector from '@/components/project-selector';
+import { TableSkeleton } from '@/components/skeleton';
 
 export default function BidSubmitPage() {
+  const [projectId, setProjectId] = useState('');
   const [project, setProject] = useState<BidProjectDetail | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<BidProjectDetail[]>('/bid/projects').then(ps => {
-      if (ps.length) api.get<BidProjectDetail>(`/bid/projects/${ps[0].id}`).then(setProject);
+    api.get<{id:string}[]>('/bid/projects').then(ps => {
+      if (ps.length) setProjectId(ps[0].id);
     });
   }, []);
 
-  if (!project) return <div className="text-[#5a6d8a]">加载中...</div>;
+  useEffect(() => {
+    if (!projectId) return;
+    setLoading(true);
+    api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(p => { setProject(p); setLoading(false); });
+  }, [projectId]);
+
+  if (loading) return <TableSkeleton rows={4} cols={4} />;
+  if (!project) return <div className="text-[#5a6d8a] text-center py-20">暂无项目数据</div>;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-[#18243a] mb-1">供应商端</h1>
-      <p className="text-sm text-[#5a6d8a] mb-6">企业唯一安全组件、招标文件受控下载、投标文件加密上传与回执</p>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[#18243a] mb-1">供应商端</h1>
+          <p className="text-sm text-[#5a6d8a]">企业唯一安全组件、招标文件受控下载、投标文件加密上传与回执</p>
+        </div>
+        <ProjectSelector value={projectId} onChange={setProjectId} />
+      </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div className="bg-white rounded-xl border border-[#e8f0fa] p-5">

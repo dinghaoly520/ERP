@@ -3,22 +3,38 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
+import ProjectSelector from '@/components/project-selector';
+import { TableSkeleton } from '@/components/skeleton';
 
 export default function BidSupervisePage() {
+  const [projectId, setProjectId] = useState('');
   const [project, setProject] = useState<BidProjectDetail | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<BidProjectDetail[]>('/bid/projects').then(ps => {
-      if (ps.length) api.get<BidProjectDetail>(`/bid/projects/${ps[0].id}`).then(setProject);
+    api.get<{id:string}[]>('/bid/projects').then(ps => {
+      if (ps.length) setProjectId(ps[0].id);
     });
   }, []);
 
-  if (!project) return <div className="text-[#5a6d8a]">加载中...</div>;
+  useEffect(() => {
+    if (!projectId) return;
+    setLoading(true);
+    api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(p => { setProject(p); setLoading(false); });
+  }, [projectId]);
+
+  if (loading) return <TableSkeleton rows={6} cols={6} />;
+  if (!project) return <div className="text-[#5a6d8a] text-center py-20">暂无项目数据</div>;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-[#18243a] mb-1">监督端</h1>
-      <p className="text-sm text-[#5a6d8a] mb-6">可监督、不可干预：查看节点、日志、异常和证据链，不修改评分或敏感文件</p>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[#18243a] mb-1">监督端</h1>
+          <p className="text-sm text-[#5a6d8a]">可监督、不可干预：查看节点、日志、异常和证据链</p>
+        </div>
+        <ProjectSelector value={projectId} onChange={setProjectId} />
+      </div>
 
       <div className="bg-gradient-to-r from-[#f8fbff] to-[#eef6ff] rounded-xl border border-[#e8f0fa] p-5 mb-4 flex items-center gap-4">
         <div className="text-3xl">👁️</div>
@@ -40,8 +56,12 @@ export default function BidSupervisePage() {
         </div>
         <div className="bg-white rounded-xl border border-[#e8f0fa] p-5">
           <h2 className="font-bold text-[#18243a] mb-4">异常事件</h2>
-          <div className="bg-[#fff8e8] rounded-lg p-4 text-sm text-[#8a6d3b] mb-3">⚠️ 四川宏达水利工程有限公司解密证书校验失败</div>
-          <div className="bg-[#e8f4fd] rounded-lg p-4 text-sm text-[#3a6d8a]">ℹ️ 专家技术评分偏离平均值，已要求填写确认理由</div>
+          {project.suppliers.filter(s => s.decryptStatus === 'DANGER').map(s => (
+            <div key={s.id} className="bg-[#fff8e8] rounded-lg p-4 text-sm text-[#8a6d3b] mb-3">⚠️ {s.supplierName} 解密证书校验失败</div>
+          ))}
+          {project.suppliers.filter(s => s.decryptStatus === 'DANGER').length === 0 && (
+            <div className="bg-[#e8f4fd] rounded-lg p-4 text-sm text-[#3a6d8a]">✅ 当前无异常事件</div>
+          )}
         </div>
       </div>
 

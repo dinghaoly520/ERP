@@ -1,0 +1,506 @@
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { useNotificationStore } from '@/stores/notification'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  HomeFilled, Stamp, OfficeBuilding, Medal, Phone, EditPen,
+  Document, DocumentChecked, Bell, ChatDotRound, Star,
+  Fold, Expand, SwitchButton, User, Setting, Notification,
+  Search,
+} from '@element-plus/icons-vue'
+import dayjs from 'dayjs'
+
+const router = useRouter()
+const route = useRoute()
+const authStore = useAuthStore()
+const notifStore = useNotificationStore()
+
+const isCollapse = ref(false)
+
+// Sidebar navigation
+const menuItems = [
+  { path: '/dashboard', title: '工作台', icon: HomeFilled },
+  { divider: true, label: '企业中心' },
+  { path: '/onboarding', title: '入驻状态', icon: Stamp },
+  { path: '/profile', title: '企业信息', icon: OfficeBuilding },
+  { path: '/qualifications', title: '资质管理', icon: Medal },
+  { path: '/contacts', title: '联系人', icon: Phone },
+  { path: '/change-records', title: '信息变更', icon: EditPen },
+  { divider: true, label: '招投标' },
+  { path: '/bids', title: '招标信息', icon: Document },
+  { path: '/my-bids', title: '我的投标', icon: DocumentChecked },
+  { divider: true, label: '信息中心' },
+  { path: '/announcements', title: '信息公告', icon: Bell },
+  { path: '/notifications', title: '消息中心', icon: ChatDotRound, badge: true },
+  { path: '/evaluations', title: '评价记录', icon: Star },
+]
+
+const activeMenu = computed(() => route.path)
+
+// Notification popover
+const notifPopover = ref(false)
+const recentNotifs = computed(() => notifStore.notifications.slice(0, 5))
+
+async function handleNotifOpen() {
+  notifPopover.value = true
+  await notifStore.fetchNotifications(1, 5)
+}
+
+function goToNotif(n: any) {
+  notifPopover.value = false
+  if (n.link) router.push(n.link)
+  if (!n.isRead) notifStore.markAsRead(n.id)
+}
+
+async function handleLogout() {
+  await ElMessageBox.confirm('确定要退出登录吗？', '提示', { type: 'warning' })
+  await authStore.logout()
+}
+
+function handleCommand(cmd: string) {
+  if (cmd === 'logout') handleLogout()
+  else if (cmd === 'profile') router.push('/profile')
+}
+
+// Fetch unread count on mount
+notifStore.fetchUnreadCount()
+</script>
+
+<template>
+  <el-container class="sp-layout">
+    <!-- Sidebar -->
+    <el-aside :width="isCollapse ? '64px' : '240px'" class="sp-sidebar">
+      <div class="sp-sidebar-logo" @click="router.push('/dashboard')">
+        <div class="sp-logo-mark">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="white" fill-opacity="0.2"/>
+            <path d="M8 22C8 22 12 10 16 10C20 10 16 22 24 18" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="16" cy="8" r="2" fill="white"/>
+          </svg>
+        </div>
+        <transition name="sp-fade">
+          <div v-show="!isCollapse" class="sp-logo-text">
+            <span class="sp-logo-title">供应商门户</span>
+            <span class="sp-logo-sub">智慧水发 · ERP</span>
+          </div>
+        </transition>
+      </div>
+
+      <el-menu
+        :default-active="activeMenu"
+        :collapse="isCollapse"
+        :collapse-transition="false"
+        background-color="transparent"
+        text-color="rgba(255,255,255,0.65)"
+        active-text-color="#ffffff"
+        class="sp-sidebar-menu"
+        router
+      >
+        <template v-for="(item, idx) in menuItems" :key="idx">
+          <!-- Divider -->
+          <div v-if="item.divider" class="sp-menu-section" v-show="!isCollapse">
+            <span>{{ item.label }}</span>
+          </div>
+          <div v-else class="sp-menu-section-dot" v-show="isCollapse">
+            <!-- spacer -->
+          </div>
+          <!-- Menu item -->
+          <el-menu-item v-if="item.path" :index="item.path" class="sp-menu-item">
+            <el-icon><component :is="item.icon" /></el-icon>
+            <template #title>
+              <span>{{ item.title }}</span>
+              <el-badge v-if="item.badge && notifStore.unreadCount > 0" :value="notifStore.unreadCount" :max="99" class="sp-menu-badge" />
+            </template>
+          </el-menu-item>
+        </template>
+      </el-menu>
+    </el-aside>
+
+    <!-- Main content -->
+    <el-container class="sp-main">
+      <!-- Top bar -->
+      <el-header class="sp-header" height="64px">
+        <div class="sp-header-left">
+          <el-icon class="sp-collapse-btn" @click="isCollapse = !isCollapse">
+            <component :is="isCollapse ? Expand : Fold" />
+          </el-icon>
+          <el-breadcrumb separator="/">
+            <el-breadcrumb-item>
+              <router-link to="/dashboard">首页</router-link>
+            </el-breadcrumb-item>
+            <el-breadcrumb-item v-if="route.meta?.title">
+              {{ route.meta.title }}
+            </el-breadcrumb-item>
+          </el-breadcrumb>
+        </div>
+
+        <div class="sp-header-right">
+          <!-- Notification bell -->
+          <el-popover
+            v-model:visible="notifPopover"
+            placement="bottom-end"
+            :width="360"
+            trigger="click"
+            @show="handleNotifOpen"
+          >
+            <template #reference>
+              <el-badge :value="notifStore.unreadCount" :max="99" :hidden="notifStore.unreadCount === 0">
+                <el-icon class="sp-header-icon"><Bell /></el-icon>
+              </el-badge>
+            </template>
+            <div class="sp-notif-popover">
+              <div class="sp-notif-header">
+                <span class="sp-notif-title">消息通知</span>
+                <el-button link type="primary" size="small" @click="notifStore.markAllAsRead(); notifStore.fetchUnreadCount()">
+                  全部已读
+                </el-button>
+              </div>
+              <div v-if="recentNotifs.length === 0" class="sp-notif-empty">暂无消息</div>
+              <div
+                v-for="n in recentNotifs"
+                :key="n.id"
+                class="sp-notif-item"
+                :class="{ unread: !n.isRead }"
+                @click="goToNotif(n)"
+              >
+                <div class="sp-notif-dot" v-if="!n.isRead"></div>
+                <div class="sp-notif-content">
+                  <div class="sp-notif-item-title">{{ n.title }}</div>
+                  <div class="sp-notif-item-desc">{{ n.content }}</div>
+                  <div class="sp-notif-item-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</div>
+                </div>
+              </div>
+              <div class="sp-notif-footer" @click="router.push('/notifications'); notifPopover = false">
+                查看全部消息
+              </div>
+            </div>
+          </el-popover>
+
+          <!-- User dropdown -->
+          <el-dropdown @command="handleCommand" trigger="click">
+            <div class="sp-user-bar">
+              <el-avatar :size="34" :style="{ background: 'var(--sp-primary)', fontWeight: 700, fontSize: '14px' }">
+                {{ authStore.displayName?.charAt(0) || 'S' }}
+              </el-avatar>
+              <span class="sp-user-name">{{ authStore.displayName }}</span>
+              <el-icon><ArrowDown /></el-icon>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="profile">
+                  <el-icon><User /></el-icon>企业信息
+                </el-dropdown-item>
+                <el-dropdown-item command="logout" divided>
+                  <el-icon><SwitchButton /></el-icon>退出登录
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </el-header>
+
+      <!-- Page content -->
+      <el-main class="sp-content">
+        <RouterView v-slot="{ Component }">
+          <transition name="sp-route" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </RouterView>
+      </el-main>
+    </el-container>
+  </el-container>
+</template>
+
+<style scoped>
+.sp-layout {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ─── Sidebar ─── */
+.sp-sidebar {
+  background: linear-gradient(180deg, #062f6b 0%, #0a5eb8 50%, #0891b2 100%);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sp-sidebar::-webkit-scrollbar { width: 0; }
+
+.sp-sidebar-logo {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sp-logo-mark {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.sp-logo-mark svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sp-logo-text {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sp-logo-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.sp-logo-sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.2;
+}
+
+.sp-sidebar-menu {
+  border-right: none;
+  flex: 1;
+  padding: 8px 0;
+}
+
+.sp-sidebar-menu:not(.el-menu--collapse) {
+  width: 240px;
+}
+
+.sp-menu-section {
+  padding: 18px 20px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.sp-menu-section-dot {
+  height: 12px;
+}
+
+.sp-menu-item {
+  height: 44px !important;
+  line-height: 44px !important;
+  margin: 2px 8px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.sp-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.sp-menu-item.is-active {
+  background: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.sp-menu-badge :deep(.el-badge__content) {
+  font-size: 10px;
+}
+
+/* ─── Header ─── */
+.sp-main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sp-header {
+  background: #fff;
+  border-bottom: 1px solid var(--sp-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  z-index: 10;
+  box-shadow: var(--sp-shadow-xs);
+}
+
+.sp-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.sp-collapse-btn {
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--sp-gray-500);
+  transition: color 0.2s;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.sp-collapse-btn:hover { color: var(--sp-primary); background: var(--sp-gray-50); }
+
+.sp-header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.sp-header-icon {
+  font-size: 20px;
+  color: var(--sp-gray-500);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.sp-header-icon:hover { color: var(--sp-primary); background: var(--sp-primary-lighter); }
+
+.sp-user-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 12px 4px 4px;
+  border-radius: 24px;
+  transition: background 0.2s;
+}
+
+.sp-user-bar:hover { background: var(--sp-gray-50); }
+
+.sp-user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sp-gray-900);
+}
+
+/* ─── Notification popover ─── */
+.sp-notif-popover {
+  margin: -12px;
+}
+
+.sp-notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--sp-border);
+}
+
+.sp-notif-title { font-weight: 700; font-size: 15px; }
+
+.sp-notif-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--sp-gray-400);
+  font-size: 13px;
+}
+
+.sp-notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.sp-notif-item:hover { background: var(--sp-gray-50); }
+
+.sp-notif-item.unread { background: #f0f7ff; }
+
+.sp-notif-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sp-primary);
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.sp-notif-content { flex: 1; min-width: 0; }
+
+.sp-notif-item-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--sp-gray-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sp-notif-item-desc {
+  font-size: 12px;
+  color: var(--sp-gray-500);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-notif-item-time {
+  font-size: 11px;
+  color: var(--sp-gray-400);
+  margin-top: 4px;
+}
+
+.sp-notif-footer {
+  text-align: center;
+  padding: 12px;
+  border-top: 1px solid var(--sp-border);
+  color: var(--sp-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sp-notif-footer:hover { background: var(--sp-primary-lighter); }
+
+/* ─── Content ─── */
+.sp-content {
+  background: var(--sp-bg);
+  overflow-y: auto;
+  padding: 0;
+}
+
+/* ─── Route transition ─── */
+.sp-route-enter-active,
+.sp-route-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.sp-route-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.sp-route-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.sp-fade-enter-active,
+.sp-fade-leave-active {
+  transition: opacity 0.2s;
+}
+
+.sp-fade-enter-from,
+.sp-fade-leave-to {
+  opacity: 0;
+}
+</style>

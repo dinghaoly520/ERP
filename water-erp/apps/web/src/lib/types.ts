@@ -87,3 +87,75 @@ export interface BidProjectDetail extends BidProject {
   supervisionLogs: BidSupervisionLog[];
   archiveItems: BidArchiveItem[];
 }
+
+/* ── 专家端类型 ── */
+
+export interface ExpertStatistics {
+  totalProjects: number;
+  completedProjects: number;
+  signedInProjects: number;
+  pendingProjects: number;
+  averageScore: number;
+  recentActivity: { id: string; time: string; role: string; target: string; action: string; result: string; riskFlag: string }[];
+}
+
+export interface ExpertProject {
+  id: string;
+  expertName: string;
+  major: string;
+  signedIn: boolean;
+  avoidanceConfirmed: boolean;
+  progress: number;
+  totalScore: number;
+  createdAt: string;
+  project: {
+    id: string;
+    projectCode: string;
+    name: string;
+    stage: string;
+    openTime: string;
+    suppliers: BidSupplier[];
+    scoreItems: BidScoreItem[];
+    _count: { clarifications: number };
+  };
+  scoreRecords: { id: string; scoreItemId: string; score: number; reason?: string; scoreItem: BidScoreItem }[];
+}
+
+export interface ExpertProjectDetail extends BidProjectDetail {
+  myExpertRecord: BidExpert & { id: string };
+  myScores: { id: string; expertId: string; scoreItemId: string; score: number; reason?: string; scoreItem: BidScoreItem }[];
+}
+
+export interface DecryptedDocuments {
+  supplier: { id: string; name: string; decryptStatus: string };
+  documents: { name: string; type: string; size: string; status: string }[];
+  canView: boolean;
+}
+
+export interface AssistData {
+  supplierName: string;
+  complianceCheck: {
+    overall: string;
+    items: { name: string; status: string; detail: string }[];
+  };
+  riskAnalysis: { level: string; category: string; content: string }[];
+  scoreSuggestion: { category: string; name: string; suggestedScore: number; reason: string }[];
+  keyPoints: string[];
+}
+
+export interface EvaluationReport {
+  projectName: string;
+  projectCode: string;
+  expertName: string;
+  expertProgress: number;
+  signedIn: boolean;
+  avoidanceConfirmed: boolean;
+  supplierScores: {
+    supplierName: string;
+    totalScore: number;
+    completed: boolean;
+    categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; reason?: string }[] }>;
+  }[];
+  scoreItems: BidScoreItem[];
+  canConfirm: boolean;
+}
