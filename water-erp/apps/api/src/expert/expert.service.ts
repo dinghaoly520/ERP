@@ -252,7 +252,6 @@ export class ExpertService {
     }
 
     // 删除该专家该供应商的旧评分（允许修改）
-    // 通过 scoreItemId 找到对应的 scoreRecords 并删除
     await this.prisma.bidScoreRecord.deleteMany({
       where: {
         expertId: expert.id,
@@ -358,6 +357,7 @@ export class ExpertService {
         scoreItems: { orderBy: [{ category: 'asc' }, { createdAt: 'asc' }] },
       },
     });
+    if (!project) throw new NotFoundException('项目不存在');
 
     // 按供应商分组汇总评分
     const supplierScores = project.suppliers.map(supplier => {
