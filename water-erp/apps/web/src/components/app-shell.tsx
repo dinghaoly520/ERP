@@ -6,8 +6,8 @@ import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
 import {
   LayoutDashboard, ClipboardList, Gavel, Building2,
-  ShoppingCart, Megaphone, Star, Info, ChevronLeft,
-  ChevronRight, LogOut, PanelLeftClose, PanelLeft,
+  ShoppingCart, Megaphone, Star, Info, UsersRound,
+  LogOut, PanelLeftClose, PanelLeft,
 } from 'lucide-react';
 
 interface NavItem {
@@ -32,6 +32,7 @@ const navItems: NavItem[] = [
       { label: '供应商列表', path: '/supplier' },
     ],
   },
+  { label: '专家管理', path: '/expert', icon: UsersRound },
   { label: '电子商城', path: '/mall', icon: ShoppingCart },
   { label: '信息公告', path: '/notice', icon: Megaphone },
   { label: '评价管理', path: '/evaluation', icon: Star },

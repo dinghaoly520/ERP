@@ -90,8 +90,8 @@ export default function EvaluationPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[oklch(0.18_0.012_265)]">评价管理</h1>
-          <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">评价列表、发起评价、评价统计、异常记录</p>
+          <h1 className="text-2xl font-bold text-[oklch(0.18_0.012_265)]">供应商评价管理</h1>
+          <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">供应商履约评价、发起评价、评价统计、异常记录</p>
         </div>
         <button onClick={() => setCreateModal(true)}
           className="px-5 py-2 bg-[#064ea2] text-white rounded-lg font-semibold hover:bg-[#0e62d0] transition">发起评价</button>

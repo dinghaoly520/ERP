@@ -44,8 +44,8 @@ export default function MallPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[oklch(0.18_0.012_265)]">电子商城</h1>
-          <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">集中采购、员工内购、商家入驻与管理</p>
+          <h1 className="text-2xl font-bold text-[oklch(0.18_0.012_265)]">商城后台</h1>
+          <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">商品目录、供应商商品、采购单后台管理；商城前台运行在 3002</p>
         </div>
       </div>
 
