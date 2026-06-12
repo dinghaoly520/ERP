@@ -496,7 +496,7 @@ export default function ExpertEvaluatePage() {
                       const catScored = items.reduce((s, i) => s + (scores[i.id]?.score ?? 0), 0);
                       return (
                         <div key={category} className="bg-purple-50 rounded-xl border border-purple-100 overflow-hidden">
-                          <div className="flex items-center justify-between p-4 border-b border-purple-100" style={{ borderLeft: `4px solid ${CATEGORY_COLOR[category] || '#7c3aed'}` }}>
+                          <div className="flex items-center justify-between p-4 border-b border-purple-100" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[category] || '#7c3aed'}` }}>
                             <div className="flex items-center gap-3">
                               <span className="text-sm font-bold px-3 py-1 rounded-lg" style={{ color: CATEGORY_COLOR[category] || '#7c3aed', backgroundColor: (CATEGORY_COLOR[category] || '#7c3aed') + '18' }}>
                                 {CATEGORY_LABEL[category] || category}
@@ -605,7 +605,7 @@ export default function ExpertEvaluatePage() {
                       {Object.entries(ss.categoryScores).length > 0 && (
                         <div className="p-5 grid grid-cols-3 gap-3">
                           {Object.entries(ss.categoryScores).map(([cat, data]) => (
-                            <div key={cat} className="bg-purple-50 rounded-lg p-3" style={{ borderLeft: `3px solid ${CATEGORY_COLOR[cat] || '#7c3aed'}` }}>
+                            <div key={cat} className="bg-purple-50 rounded-lg p-3" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[cat] || '#7c3aed'}` }}>
                               <div className="text-xs font-semibold mb-1" style={{ color: CATEGORY_COLOR[cat] || '#7c3aed' }}>{CATEGORY_LABEL[cat] || cat}</div>
                               <div className="text-lg font-bold text-[oklch(0.18_0.012_265)]">{data.total} <span className="text-xs text-[oklch(0.55_0.01_264)] font-normal">/ {data.max}</span></div>
                             </div>

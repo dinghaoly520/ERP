@@ -4,12 +4,12 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { PORTS } from '@water-erp/config';
+
+const CLIENT_PORTS = { web: 3002, supplier: 3003, expert: 3004, public: 3005 };
 
 function corsOrigins(): string[] {
-  const clientPorts = [PORTS.web, PORTS.supplier, PORTS.expert, PORTS.public];
   const origins: string[] = [];
-  for (const port of clientPorts) {
+  for (const port of Object.values(CLIENT_PORTS)) {
     origins.push(`http://localhost:${port}`, `http://127.0.0.1:${port}`);
   }
   return origins;

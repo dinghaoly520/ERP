@@ -36,19 +36,19 @@
   --sp-border: #e2e8f0;
   --sp-border-light: #f1f5f9;
 
-  /* Shadows */
-  --sp-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --sp-shadow-sm: 0 2px 8px rgba(10, 94, 184, 0.06);
-  --sp-shadow-md: 0 8px 24px rgba(10, 94, 184, 0.08);
-  --sp-shadow-lg: 0 16px 40px rgba(10, 94, 184, 0.12);
-  --sp-shadow-primary: 0 4px 14px rgba(10, 94, 184, 0.25);
+  /* Shadows — zeroed out for flat industrial aesthetic */
+  --sp-shadow-xs: none;
+  --sp-shadow-sm: none;
+  --sp-shadow-md: none;
+  --sp-shadow-lg: none;
+  --sp-shadow-primary: none;
 
-  /* Radius */
-  --sp-radius-sm: 6px;
-  --sp-radius-md: 10px;
-  --sp-radius-lg: 16px;
-  --sp-radius-xl: 20px;
-  --sp-radius-full: 9999px;
+  /* Radius — industrial restraint (max 4px) */
+  --sp-radius-sm: 2px;
+  --sp-radius-md: 4px;
+  --sp-radius-lg: 4px;
+  --sp-radius-xl: 4px;
+  --sp-radius-full: 4px;
 
   /* Transitions */
   --sp-ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -84,7 +84,7 @@ a:hover { color: var(--sp-primary-light); }
   --el-button-hover-border-color: var(--sp-primary-light);
   --el-button-active-bg-color: var(--sp-primary-dark);
   --el-button-active-border-color: var(--sp-primary-dark);
-  box-shadow: var(--sp-shadow-primary);
+  box-shadow: none; border-radius: 2px;
 }
 
 .el-button--primary.is-plain {
@@ -115,9 +115,9 @@ a:hover { color: var(--sp-primary-light); }
 }
 
 .el-card {
-  border-radius: var(--sp-radius-md) !important;
+  border-radius: 2px !important;
   border: 1px solid var(--sp-border) !important;
-  box-shadow: var(--sp-shadow-sm) !important;
+  box-shadow: none !important; border-radius: 2px !important;
 }
 
 .el-table {
@@ -129,7 +129,7 @@ a:hover { color: var(--sp-primary-light); }
 
 .el-table th.el-table__cell { font-weight: 600; font-size: 13px; }
 
-.el-dialog { border-radius: var(--sp-radius-lg) !important; }
+.el-dialog { border-radius: 2px !important; }
 .el-dialog__header { border-bottom: 1px solid var(--sp-border); padding-bottom: 16px; }
 
 .el-tag { border-radius: var(--sp-radius-full) !important; }
@@ -267,13 +267,13 @@ a:hover { color: var(--sp-primary-light); }
 .sp-status.approved::before { background: var(--sp-green); }
 .sp-status.rejected { background: var(--sp-red-light); color: var(--sp-red); }
 .sp-status.rejected::before { background: var(--sp-red); }
-.sp-status.returned { background: #fef3c7; color: #92400e; }
+.sp-status.returned { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
 .sp-status.returned::before { background: #92400e; }
 .sp-status.disabled { background: var(--sp-gray-100); color: var(--sp-gray-400); }
 .sp-status.disabled::before { background: var(--sp-gray-400); }
 .sp-status.draft { background: var(--sp-gray-100); color: var(--sp-gray-500); }
 .sp-status.draft::before { background: var(--sp-gray-400); }
-.sp-status.submitted { background: #dbeafe; color: var(--sp-primary); }
+.sp-status.submitted { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: var(--sp-primary); }
 .sp-status.submitted::before { background: var(--sp-primary); }
 
 /* ─── Empty state ─── */

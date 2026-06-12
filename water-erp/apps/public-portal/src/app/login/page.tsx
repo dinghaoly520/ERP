@@ -28,8 +28,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#042a58] via-[#064ea2] to-[#0891b2]">
-      <div className="bg-white rounded-2xl p-10 w-full max-w-md shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center bg-[oklch(0.18_0.045_262)]">
+      <div className="bg-white p-10 w-full max-w-md">
         <div className="text-center mb-8">
           <a href="/" className="inline-flex items-center gap-2 text-2xl font-extrabold text-[#064ea2] hover:text-[#0e62d0]">← </a>
           <h1 className="text-2xl font-bold text-[oklch(0.18_0.012_265)] mb-1 mt-4">登录平台</h1>
@@ -49,7 +49,7 @@ export default function LoginPage() {
               placeholder="请输入密码" className="w-full px-4 py-3 border border-[oklch(0.91_0.006_264)] rounded-xl text-sm focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2]/10 outline-none transition" />
           </div>
           <button onClick={handleLogin} disabled={logging}
-            className="w-full py-3 bg-gradient-to-r from-[#064ea2] to-[#39a8ff] text-white rounded-xl font-bold text-sm hover:shadow-lg transition disabled:opacity-50">
+            className="w-full py-3 bg-[oklch(0.42_0.14_260)] text-white text-sm font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] disabled:opacity-40 transition-colors">
             {logging ? '登录中...' : '登 录'}
           </button>
           <div className="text-center text-xs text-[oklch(0.55_0.01_264)]">

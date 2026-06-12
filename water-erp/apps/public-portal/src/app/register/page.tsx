@@ -46,8 +46,8 @@ export default function RegisterPage() {
   const update = (field: string, value: string) => setForm(f => ({ ...f, [field]: value }));
 
   return (
-    <div className="min-h-screen bg-[#f6f9fd] flex items-center justify-center">
-      <div className="bg-white rounded-2xl p-10 w-full max-w-lg shadow-xl">
+    <div className="min-h-screen bg-[oklch(0.982_0.003_264)] flex items-center justify-center">
+      <div className="bg-white p-10 w-full max-w-lg border border-[oklch(0.91_0.006_264)]">
         <div className="text-center mb-6">
           <a href="/" className="text-sm text-[oklch(0.55_0.01_264)] hover:text-[#064ea2]">← 返回首页</a>
           <h1 className="text-2xl font-bold text-[oklch(0.18_0.012_265)] mt-2 mb-1">供应商注册</h1>

@@ -4,33 +4,30 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import type { Announcement } from '@/lib/types';
-import {
-  ChevronRight, Building2, Gavel, Shield, User, Lock, Eye, EyeOff,
-  ArrowUpRight, FileText, Megaphone, Clock, Users,
-} from 'lucide-react';
-
 import { landingURL } from '@water-erp/config';
 
-const typeDefs: Record<string, { label: string; cls: string }> = {
-  BID_NOTICE:  { label: '招标公告', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  WIN_NOTICE:  { label: '中标公示', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  POLICY:      { label: '政策法规', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-  PLATFORM:    { label: '平台通知', cls: 'bg-slate-50 text-slate-600 border-slate-200' },
-};
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   智慧水发·蜀水云采 — Landing Page
+   复刻自 water_erp_web/index.html 设计稿
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 export default function HomePage() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
   const [logging, setLogging] = useState(false);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [mobileNav, setMobileNav] = useState(false);
+  const [modal, setModal] = useState<'login' | 'register' | null>(null);
+  const [regForm, setRegForm] = useState({ name: '', creditCode: '', phone: '', pwd: '', contact: '' });
+  const [regLoading, setRegLoading] = useState(false);
+  const [heroIdx, setHeroIdx] = useState(0);
+  const heroImages = ['bg-hydro-hero-1.png','bg-hydro-hero-2.png','bg-hydro-hero-3.png','bg-hydro-hero-4.png','bg-hydro-hero-5.png','bg-hydro-hero-6.png'];
 
+  // Hero image rotation — preload all images for smooth crossfade
   useEffect(() => {
-    api.get<{ items: Announcement[] }>('/announcements/public?pageSize=6')
-      .then(res => setAnnouncements(res.items || []))
-      .catch(() => {});
+    heroImages.forEach(src => { const img = new Image(); img.src = `/assets/${src}`; });
+    const t = setInterval(() => setHeroIdx(i => (i + 1) % heroImages.length), 5000);
+    return () => clearInterval(t);
   }, []);
 
   const handleLogin = async () => {
@@ -39,216 +36,355 @@ export default function HomePage() {
     try {
       await api.post('/auth/login', { username, password });
       const me = await api.get<{ role: string }>('/auth/me');
-      const dest = landingURL(me.role);
       toast.success('登录成功，正在跳转...');
-      setTimeout(() => { window.location.href = dest; }, 600);
-    } catch (e: any) {
-      toast.error(e.message || '登录失败，请检查用户名密码');
-    }
+      setTimeout(() => { window.location.href = landingURL(me.role); }, 600);
+    } catch (e: any) { toast.error(e.message || '登录失败'); }
     setLogging(false);
   };
 
+  const handleRegister = async () => {
+    const f = regForm;
+    if (!f.name || !f.creditCode || !f.phone || !f.pwd) { toast.error('请填写完整信息'); return; }
+    if (f.pwd.length < 6) { toast.error('密码不少于6位'); return; }
+    setRegLoading(true);
+    try {
+      await api.post('/supplier/register', {
+        name: f.name, creditCode: f.creditCode, enterpriseType: '有限责任公司',
+        legalPerson: f.contact || f.name, registeredAddress: '', businessScope: '',
+        username: f.phone, displayName: f.contact || f.name, password: f.pwd,
+        contacts: [{ name: f.contact || f.name, phone: f.phone, isPrimary: true }],
+        qualifications: [],
+      });
+      toast.success('注册成功！请登录'); setModal(null);
+    } catch (e: any) { toast.error(e.message || '注册失败'); }
+    setRegLoading(false);
+  };
+
+  const navItems = [
+    { label: '首页', href: '/', active: true },
+    { label: '智慧水发·采购中心', href: 'http://192.168.1.111:3001' },
+    {
+      label: '开评标管理', children: ['招标文件下载', '标书投递', '评标系统', '结果公示'],
+    },
+    {
+      label: '专家管理', children: ['专家库', '专家抽取', '通知确认', '专家评价'],
+    },
+    {
+      label: '供应商管理', children: ['供应商注册', '供应商库', '供应商评价'],
+    },
+    {
+      label: '集中采购', children: ['商家入驻', '商家管理', '集中采购目录'],
+    },
+    {
+      label: '信息公告', children: ['招标公告', '中标公示', '政策法规', '平台通知'],
+    },
+    { label: '关于我们', href: '/about' },
+  ];
+
+  const features = [
+    { icon: 'file', title: '采购管理入口', desc: '立项申请、项目管理、招标文件' },
+    { icon: 'cart', title: '电子商城入口', desc: '集中采购、员工内购、商家入驻' },
+    { icon: 'share', title: '供应商入口', desc: '供应商注册、供应商库、评价' },
+    { icon: 'users', title: '专家入口', desc: '专家库、专家抽取、专家评价' },
+    { icon: 'safe', title: '开评标系统入口', desc: '在线开标、专家评审、监督归档' },
+  ];
+
+  const cooperation = [
+    { icon: 'sun',     title: '阳光透明', desc: '公开公平公正，流程全程可追溯' },
+    { icon: 'shield',  title: '合规高效', desc: '规范业务流程，提升采购效率' },
+    { icon: 'heart',   title: '互信共赢', desc: '阳光透明合作，互信互利共赢' },
+    { icon: 'star',    title: '价值创造', desc: '优化资源配置，创造更大价值' },
+  ];
+
   return (
-    <div className="min-h-screen flex flex-col bg-[oklch(0.982_0.003_264)]">
-      {/* ── Header bar — hairline precision ── */}
-      <header className="border-b border-[oklch(0.91_0.006_264)] bg-white sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-3 group">
-            <div className="w-8 h-8 bg-[oklch(0.42_0.14_260)] flex items-center justify-center">
-              <span className="text-white font-bold text-xs tracking-wider">水</span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-bold text-[oklch(0.18_0.012_265)] text-sm tracking-tight">智慧水发</span>
-              <span className="text-[oklch(0.62_0.008_264)] text-[11px] font-medium">ERP</span>
+    <div className="min-h-screen text-[#18243a] bg-white overflow-x-hidden" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+      {/* ═══════════════════ Header ═══════════════════ */}
+      <header className="sticky top-0 z-50 h-[68px] flex items-center bg-white border-b border-[#e5ecf4]">
+        <div className="w-full max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
+          {/* Brand */}
+          <a href="/" className="flex items-center gap-3 shrink-0">
+            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-10 w-auto object-contain" />
+            <div className="flex flex-col gap-0">
+              <strong className="text-[#123a6e] text-xl tracking-[0.14em] leading-tight whitespace-nowrap" style={{ fontFamily: '"SimHei","黑体",sans-serif', fontWeight: 900 }}>四川水发集团</strong>
+              <small className="text-[6px] text-[#8a96aa] font-medium text-center whitespace-nowrap tracking-wide">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
             </div>
           </a>
-          <nav className="flex items-center gap-1 text-[13px] text-[oklch(0.45_0.01_264)]">
-            <a href="/announcements" className="px-3 py-1.5 hover:text-[oklch(0.18_0.012_265)] transition-colors rounded-sm hover:bg-[oklch(0.97_0.008_262)]">公告</a>
-            <span className="w-px h-4 bg-[oklch(0.91_0.006_264)] mx-1" />
-            <a href="/login" className="px-3 py-1.5 hover:text-[oklch(0.18_0.012_265)] transition-colors rounded-sm hover:bg-[oklch(0.97_0.008_262)]">登录</a>
-            <a href="/register" className="ml-2 px-4 py-1.5 bg-[oklch(0.42_0.14_260)] text-white text-[13px] font-semibold hover:bg-[oklch(0.50_0.16_258)] transition-colors tracking-tight">
-              供应商注册
-            </a>
+
+          {/* Navigation */}
+          <nav className="hidden lg:flex items-center gap-9 h-full text-[15px] font-semibold text-[#333]">
+            {navItems.map((item, i) => (
+              <div key={i} className="relative h-full group">
+                {item.children ? (
+                  <>
+                    <a href="#" className="h-full flex items-center hover:text-[#064ea2] transition-colors">
+                      {item.label}
+                    </a>
+                    <div className="absolute left-0 top-full min-w-[160px] bg-white rounded-lg shadow-lg py-1.5 opacity-0 invisible -translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-200 z-50">
+                      {item.children.map((child, j) => (
+                        <a key={j} href="#" className="block px-4 py-2 text-sm text-[#444] hover:bg-[#f5f8fc] hover:text-[#064ea2] transition-colors">{child}</a>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <a href={item.href || '#'} className={`h-full flex items-center hover:text-[#064ea2] transition-colors ${i === 0 ? 'text-[#064ea2]' : ''}`}>
+                    {item.label}
+                  </a>
+                )}
+              </div>
+            ))}
           </nav>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3 shrink-0">
+            <button onClick={() => setModal('login')} className="h-10 px-6 border border-[#d0dae8] text-[#064ea2] bg-white rounded-md text-sm font-semibold hover:bg-[#f5f8fc] transition-colors">登录</button>
+            <button onClick={() => setModal('register')} className="h-10 px-5 bg-[#064ea2] text-white rounded-md text-sm font-semibold hover:bg-[#043d82] transition-colors">注册</button>
+            <button onClick={() => setMobileNav(!mobileNav)} className="hidden max-lg:flex w-9 h-9 rounded-md border border-[#d0dae8] items-center justify-center flex-col gap-[4px]">
+              <span className="w-4 h-0.5 bg-[#064ea2] rounded" />
+              <span className="w-4 h-0.5 bg-[#064ea2] rounded" />
+              <span className="w-4 h-0.5 bg-[#064ea2] rounded" />
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* ── Hero section — deep navy with precision type ── */}
-      <section className="bg-[oklch(0.18_0.045_262)] text-white">
-        <div className="max-w-7xl mx-auto px-6 py-20 grid grid-cols-[1fr_440px] gap-16 items-start">
-          {/* Left — value proposition */}
-          <div className="pt-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/[0.07] text-[11px] font-medium text-white/60 tracking-wide uppercase mb-10">
-              <Building2 size={12} strokeWidth={1.5} />
-              四川省水利发展集团
-            </div>
-            <h1 className="text-[2.75rem] font-extrabold leading-[1.08] tracking-tight mb-6" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-              智慧水发<br />
-              <span className="text-white/50 font-semibold">招采ERP管理平台</span>
-            </h1>
-            <p className="text-[15px] text-white/50 leading-relaxed mb-12 max-w-lg">
-              全流程电子化招标采购 · 专家独立评审 · AI 辅助评标
-            </p>
+      {/* Mobile Nav */}
+      {mobileNav && (
+        <nav className="lg:hidden bg-white border-b border-[#e5ecf4] px-6 py-3 grid grid-cols-2 gap-1">
+          {navItems.map((item, i) => (
+            <a key={i} href={item.href || '#'} className="h-10 flex items-center text-sm font-semibold text-[#333] hover:text-[#064ea2]">{item.label}</a>
+          ))}
+        </nav>
+      )}
 
-            {/* Feature grid — technical precision */}
-            <div className="grid grid-cols-4 gap-px bg-white/[0.06]">
-              {[
-                { icon: Gavel, label: '在线开标', sub: '加密 / 解密', stat: '5 个项目' },
-                { icon: Users, label: '专家评标', sub: '独立评审', stat: '3 位在评' },
-                { icon: Building2, label: '供应商库', sub: '自助服务', stat: '12 家入库' },
-                { icon: Shield, label: '监督留痕', sub: '全程审计', stat: '100% 覆盖' },
-              ].map((f, i) => (
-                <div key={i} className="bg-white/[0.04] p-5 hover:bg-white/[0.07] transition-colors">
-                  <f.icon size={18} strokeWidth={1.5} className="text-white/30 mb-3" />
-                  <div className="text-[13px] font-semibold tracking-tight mb-0.5">{f.label}</div>
-                  <div className="text-[11px] text-white/35 leading-relaxed">{f.sub}</div>
-                  <div className="text-[11px] text-white/20 mt-3 font-mono tracking-tight">{f.stat}</div>
+      <main>
+        {/* ═══════════════════ Hero ═══════════════════ */}
+        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden bg-[#eaf4ff]">
+          <div className="absolute inset-0 w-full" style={{
+            background: 'linear-gradient(90deg,rgba(246,250,255,.95) 0%,rgba(246,250,255,.88) 35%,rgba(246,250,255,.5) 60%,rgba(246,250,255,.15) 100%)',
+          }}>
+            {heroImages.map((src, i) => (
+              <div key={src} className="absolute inset-0 transition-opacity duration-1000 ease-in-out" style={{ background: `url('/assets/${src}') center center/cover no-repeat`, opacity: i === heroIdx ? 1 : 0 }} />
+            ))}
+          </div>
+
+          {/* Dot switchers */}
+          <div className="absolute right-6 bottom-16 z-10 flex gap-1.5">
+            {heroImages.map((_, i) => (
+              <button key={i} onClick={() => setHeroIdx(i)}
+                className={`h-1 rounded-full transition-all duration-300 ${i === heroIdx ? 'w-8 bg-[#064ea2]' : 'w-4 bg-white/50 hover:bg-white/80'}`} />
+            ))}
+          </div>
+
+          {/* Bottom curve */}
+          <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-white rounded-[50%_50%_0_0/76%_76%_0_0] z-10" />
+          <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-transparent border-t-[clamp(3px,.4vw,6px)] border-r-[clamp(3px,.5vw,8px)] border-t-[#0b59ad] border-r-[#18a56c] rounded-[50%_50%_0_0/76%_76%_0_0] z-20 pointer-events-none" />
+
+          <div className="relative z-20 max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)] py-[clamp(56px,5vw,96px)]">
+            <h1 className="text-[clamp(40px,3.6vw,62px)] font-black leading-[1.15] tracking-[0.10em] mb-5 hero-title" data-text="智慧水发·蜀水云采">智慧水发·蜀水云采</h1>
+            <p className="text-[clamp(16px,1.2vw,20px)] text-white/80 font-medium mb-12 max-w-xl">四川省水利发展集团统一招采门户 —— 阳光透明、合规高效的电子化招标采购平台</p>
+            <div className="flex gap-4">
+              <button onClick={() => setModal('login')} className="hero-btn">
+                我要采购
+                <span className="hero-btn-arrow"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="8" x2="13" y2="8"/><polyline points="9 4 13 8 9 12"/></svg></span>
+              </button>
+              <button onClick={() => router.push('/announcements')} className="hero-btn-outline">
+                我要投标
+                <span className="hero-btn-arrow"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="8" x2="13" y2="8"/><polyline points="9 4 13 8 9 12"/></svg></span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════ 快捷入口 ═══════════════════ */}
+        <section className="relative z-10 bg-white py-8">
+          <div className="max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)]">
+            <div className="grid grid-cols-5 max-md:grid-cols-3 max-sm:grid-cols-2 gap-5">
+              {features.map((f) => (
+                <a key={f.title} href="#" className="flex items-center gap-4 px-5 py-4 rounded-lg hover:bg-[#f5f8fc] transition-colors group">
+                  <div className="w-11 h-11 rounded-lg bg-[#eef3fb] flex items-center justify-center text-[#064ea2] shrink-0 group-hover:bg-[#064ea2] group-hover:text-white transition-colors" dangerouslySetInnerHTML={{ __html: SVG_ICONS[f.icon] }} />
+                  <div>
+                    <strong className="block text-[15px] font-bold text-[#1c2941]">{f.title}</strong>
+                    <span className="text-xs text-[#8a96aa]">{f.desc}</span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════ 公告信息（主角）═══════════════════ */}
+        <section className="py-14 bg-[#f7f9fc]">
+          <div className="max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)]">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-5">
+                <h2 className="text-2xl font-black text-[#18243a]">招标公告</h2>
+                <div className="flex gap-1.5">
+                  {['招标公告', '中标公示'].map((tab, i) => (
+                    <button key={tab} className={`px-5 py-2 rounded-md text-sm font-semibold transition-colors ${i === 0 ? 'bg-[#064ea2] text-white' : 'text-[#666] hover:bg-white hover:text-[#064ea2]'}`}>
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <a href="/announcements" className="text-sm font-semibold text-[#064ea2] hover:underline">全部公告 →</a>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* Featured card — spans 2 cols */}
+              <div className="lg:col-span-2 bg-white rounded-lg border border-[#e5ecf4] p-7 hover:shadow-md transition-shadow cursor-pointer">
+                <div className="flex items-center gap-2.5 mb-4">
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded bg-[#064ea2] text-white">招标公告</span>
+                  <span className="text-xs text-[#999]">2026-05-18</span>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded bg-[#fff1f0] text-[#d43030]">重要</span>
+                </div>
+                <h3 className="text-xl font-bold text-[#18243a] mb-3">2026年度水利工程物资集中采购招标公告</h3>
+                <p className="text-sm text-[#666] mb-5 leading-relaxed">本项目为四川水发集团2026年度水利工程物资集中采购，采购内容包括钢管、阀门、水泵等主要设备物资...</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-6 text-xs">
+                    <span className="text-[#999]">项目编号 <span className="text-[#18243a] font-semibold ml-1">SWSW-2026-0518</span></span>
+                    <span className="text-[#999]">报名截止 <em className="not-italic text-[#d43030] font-bold ml-1">2026-05-28 17:00</em></span>
+                  </div>
+                  <a href="/announcements" className="text-sm font-semibold text-[#064ea2] hover:underline shrink-0">查看详情 →</a>
+                </div>
+              </div>
+
+              {/* Side list — 1 col */}
+              <div className="bg-white rounded-lg border border-[#e5ecf4] divide-y divide-[#eef1f6]">
+                {[
+                  { date: '05-16', title: '智慧水务信息化系统建设项目招标公告' },
+                  { date: '05-12', title: '升钟水库灌区续建配套与节水改造工程招标' },
+                  { date: '05-06', title: '武都引水工程机电设备维护服务招标公告' },
+                  { date: '04-28', title: '亭子口水利枢纽下游河道治理工程招标' },
+                ].map((item) => (
+                  <a key={item.date} href="/announcements" className="flex flex-col gap-1.5 px-5 py-4 hover:bg-[#f9fafb] transition-colors group">
+                    <span className="text-xs text-[#aaa]">{item.date}</span>
+                    <span className="text-[15px] font-medium text-[#333] group-hover:text-[#064ea2] transition-colors leading-snug">{item.title}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════ 价值观 ═══════════════════ */}
+        <section className="relative bg-[#eef3f8] py-12 overflow-hidden">
+          <div className="absolute inset-0 opacity-70" style={{ background: "url('/assets/bg-waterworks-bottom.png') center bottom/cover no-repeat" }} />
+          <div className="relative z-10 max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)]">
+            <h2 className="text-lg font-black text-[#1a2a42] tracking-wide mb-6">携手水发　共创阳光招采新未来</h2>
+            <div className="grid grid-cols-4 max-sm:grid-cols-2 gap-6">
+              {cooperation.map((item, i) => (
+                <div key={i} className={`flex items-center gap-4 ${i < 3 ? 'max-sm:border-r-0 border-r border-[rgba(91,119,147,.15)] pr-6' : ''}`}>
+                  <div className="w-11 h-11 rounded-lg bg-white/80 flex items-center justify-center text-[#064ea2] shrink-0" dangerouslySetInnerHTML={{ __html: SVG_ICONS[item.icon] }} />
+                  <div>
+                    <strong className="block text-[15px] font-bold text-[#1a2a42] mb-0.5">{item.title}</strong>
+                    <span className="text-xs text-[#5a6d8a]">{item.desc}</span>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
+        </section>
+      </main>
 
-          {/* Right — login panel */}
-          <div className="bg-white text-[oklch(0.18_0.012_265)] p-8 border border-[oklch(0.91_0.006_264)]">
-            <div className="mb-8">
-              <h2 className="text-lg font-bold tracking-tight mb-1" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-                登录平台
-              </h2>
-              <p className="text-[13px] text-[oklch(0.62_0.008_264)]">使用企业账号登录</p>
-            </div>
+      {/* ═══════════════════ Side Panel ═══════════════════ */}
+      <div className="fixed right-5 bottom-6 z-30 flex flex-col gap-2">
+        <button onClick={() => router.push('/login')} className="w-11 h-11 rounded-full bg-white text-[#064ea2] font-bold text-xs border border-[#d0dae8] shadow-sm hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] transition-colors">采购</button>
+        <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="w-11 h-11 rounded-full bg-white text-[#064ea2] font-bold text-xs border border-[#d0dae8] shadow-sm hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] transition-colors">↑</button>
+      </div>
 
-            <div className="space-y-5">
-              <div>
-                <label className="block text-[11px] font-semibold text-[oklch(0.45_0.01_264)] uppercase tracking-wider mb-2">用户名</label>
-                <div className="relative">
-                  <User size={14} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-[oklch(0.62_0.008_264)]" />
-                  <input
-                    value={username} onChange={e => setUsername(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                    placeholder="输入用户名"
-                    className="w-full pl-9 pr-3 py-2.5 border border-[oklch(0.91_0.006_264)] text-[14px] bg-[oklch(0.992_0.001_264)] placeholder:text-[oklch(0.80_0.006_264)] focus:outline-none focus:border-[oklch(0.42_0.14_260)] hover:border-[oklch(0.62_0.01_264)] transition-colors"
-                  />
-                </div>
-              </div>
+      {/* ═══════════════════ Modal ═══════════════════ */}
+      {modal && (
+        <div className="fixed inset-0 z-[100] flex" onClick={() => setModal(null)}>
+          <div className="absolute inset-0 bg-[rgba(3,17,38,.46)] backdrop-blur-sm" />
+          <div className="relative m-auto w-[min(620px,calc(100vw-36px))] max-h-[86vh] overflow-auto bg-white rounded-[10px] shadow-[0_30px_90px_rgba(0,0,0,.26)] p-[34px]" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setModal(null)} className="absolute right-4 top-2.5 w-9 h-9 text-[26px] text-[#7d8798] hover:text-[#064ea2]">×</button>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-[oklch(0.45_0.01_264)] uppercase tracking-wider mb-2">密码</label>
-                <div className="relative">
-                  <Lock size={14} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-[oklch(0.62_0.008_264)]" />
-                  <input
-                    type={showPw ? 'text' : 'password'}
-                    value={password} onChange={e => setPassword(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                    placeholder="输入密码"
-                    className="w-full pl-9 pr-10 py-2.5 border border-[oklch(0.91_0.006_264)] text-[14px] bg-[oklch(0.992_0.001_264)] placeholder:text-[oklch(0.80_0.006_264)] focus:outline-none focus:border-[oklch(0.42_0.14_260)] hover:border-[oklch(0.62_0.01_264)] transition-colors"
-                  />
-                  <button onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[oklch(0.55_0.008_264)] hover:text-[oklch(0.30_0.01_264)]">
-                    {showPw ? <EyeOff size={14} strokeWidth={1.5} /> : <Eye size={14} strokeWidth={1.5} />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                onClick={handleLogin} disabled={logging}
-                className="w-full py-2.5 bg-[oklch(0.42_0.14_260)] text-white text-[14px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
-              >
-                {logging ? '验证中...' : '登 录'}
-                {!logging && <ChevronRight size={16} strokeWidth={2} />}
-              </button>
-
-              <div className="text-center pt-1">
-                <a href="/register" className="text-[13px] text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] font-medium tracking-tight">
-                  供应商注册 →
-                </a>
-              </div>
-            </div>
-
-            {/* Test accounts footer */}
-            <div className="mt-8 pt-6 border-t border-[oklch(0.94_0.004_264)]">
-              <p className="text-[10px] text-[oklch(0.72_0.008_264)] leading-relaxed">
-                <span className="font-semibold text-[oklch(0.55_0.01_264)]">测试账号</span>
-                <br />admin / admin123 · supplier1 / 123456 · wangjg / 123456
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Announcements section ── */}
-      <section className="max-w-7xl mx-auto px-6 py-20 w-full">
-        <div className="flex items-end justify-between mb-10">
-          <div>
-            <div className="flex items-center gap-2 text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-3">
-              <Megaphone size={12} strokeWidth={1.5} />
-              Announcements
-            </div>
-            <h2 className="text-2xl font-bold tracking-tight text-[oklch(0.18_0.012_265)]" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-              最新公告
-            </h2>
-          </div>
-          <button onClick={() => router.push('/announcements')}
-            className="flex items-center gap-1 text-[13px] text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] font-medium tracking-tight transition-colors">
-            查看全部 <ArrowUpRight size={14} strokeWidth={1.5} />
-          </button>
-        </div>
-
-        {announcements.length === 0 ? (
-          <div className="border border-[oklch(0.91_0.006_264)] bg-white p-16 text-center">
-            <FileText size={32} strokeWidth={1} className="text-[oklch(0.80_0.006_264)] mx-auto mb-4" />
-            <p className="text-[13px] text-[oklch(0.62_0.008_264)]">暂无公告</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 border border-[oklch(0.91_0.006_264)] bg-white">
-            {announcements.map((a, i) => {
-              const t = typeDefs[a.type] || typeDefs.PLATFORM;
-              return (
-                <div
-                  key={a.id}
-                  onClick={() => router.push(`/announcements/${a.id}`)}
-                  className={`p-5 cursor-pointer hover:bg-[oklch(0.992_0.003_264)] transition-colors group ${i % 3 !== 2 ? 'border-r border-[oklch(0.91_0.006_264)]' : ''} ${i < announcements.length - (announcements.length % 3 || 3) ? 'border-b border-[oklch(0.91_0.006_264)]' : ''}`}
-                >
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 border tracking-wide uppercase ${t.cls}`}>
-                      {t.label}
-                    </span>
-                    {a.isTop && (
-                      <span className="text-[10px] font-bold text-[oklch(0.50_0.18_22)] bg-[oklch(0.96_0.03_22)] px-1.5 py-0.5 border border-[oklch(0.88_0.06_22)] tracking-wide">置顶</span>
-                    )}
+            {modal === 'login' ? (
+              <>
+                <h3 className="text-2xl font-bold text-[#063f82] mb-2.5">登录平台</h3>
+                <p className="text-[#526075] leading-relaxed mb-4">智慧水发·蜀水云采</p>
+                <div className="grid gap-3.5">
+                  <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
+                    用户名
+                    <input value={username} onChange={e => setUsername(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                      className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="请输入用户名" />
+                  </label>
+                  <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
+                    密码
+                    <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                      className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="请输入密码" />
+                  </label>
+                  <div className="flex gap-3 mt-5">
+                    <button onClick={handleLogin} disabled={logging}
+                      className="h-[42px] px-6 bg-[#064ea2] text-white rounded font-bold text-sm hover:bg-[#043f88] transition-colors">
+                      {logging ? '登录中...' : '登 录'}
+                    </button>
+                    <button onClick={() => setModal(null)} className="h-[42px] px-6 border border-[#d2deed] text-[#526075] rounded font-bold text-sm hover:bg-[#f8fbff]">取消</button>
                   </div>
-                  <h3 className="text-[14px] font-semibold text-[oklch(0.18_0.012_265)] mb-2 line-clamp-2 leading-snug group-hover:text-[oklch(0.42_0.14_260)] transition-colors tracking-tight">
-                    {a.title}
-                  </h3>
-                  {a.summary && <p className="text-[12px] text-[oklch(0.62_0.008_264)] mb-3 line-clamp-1">{a.summary}</p>}
-                  <div className="flex items-center gap-4 text-[11px] text-[oklch(0.72_0.008_264)]">
-                    <span className="flex items-center gap-1.5">
-                      <Clock size={11} strokeWidth={1.5} />
-                      {a.publishDate ? new Date(a.publishDate).toLocaleDateString('zh-CN') : ''}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Eye size={11} strokeWidth={1.5} />
-                      {a.viewCount}
-                    </span>
+                  <p className="text-xs text-[#8a9aaa] mt-2">测试: admin/admin123 · supplier1/123456</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-2xl font-bold text-[#063f82] mb-2.5">供应商注册</h3>
+                <div className="steps mb-5">{['填写信息','提交审核','审核通过','正式入驻'].map(s => <span key={s}>{s}</span>)}</div>
+                <div className="grid gap-3.5">
+                  <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
+                    企业名称 *
+                    <input value={regForm.name} onChange={e => setRegForm(f => ({ ...f, name: e.target.value }))}
+                      className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="营业执照上的企业全称" />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
+                      统一社会信用代码 *
+                      <input value={regForm.creditCode} onChange={e => setRegForm(f => ({ ...f, creditCode: e.target.value }))}
+                        className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="18位信用代码" />
+                    </label>
+                    <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
+                      手机号 *
+                      <input value={regForm.phone} onChange={e => setRegForm(f => ({ ...f, phone: e.target.value }))}
+                        className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="联系电话" />
+                    </label>
+                  </div>
+                  <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
+                    联系人
+                    <input value={regForm.contact} onChange={e => setRegForm(f => ({ ...f, contact: e.target.value }))}
+                      className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="企业联系人姓名" />
+                  </label>
+                  <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
+                    密码 *
+                    <input type="password" value={regForm.pwd} onChange={e => setRegForm(f => ({ ...f, pwd: e.target.value }))}
+                      className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="不少于6位" />
+                  </label>
+                  <div className="flex gap-3 mt-5">
+                    <button onClick={handleRegister} disabled={regLoading}
+                      className="h-[42px] px-6 bg-[#064ea2] text-white rounded font-bold text-sm hover:bg-[#043f88] transition-colors">
+                      {regLoading ? '提交中...' : '提交注册'}
+                    </button>
+                    <button onClick={() => setModal(null)} className="h-[42px] px-6 border border-[#d2deed] text-[#526075] rounded font-bold text-sm hover:bg-[#f8fbff]">取消</button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* ── Footer — minimal ── */}
-      <footer className="border-t border-[oklch(0.91_0.006_264)] bg-white mt-auto">
-        <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between text-[11px] text-[oklch(0.72_0.008_264)]">
-          <span>© {new Date().getFullYear()} 四川省水利发展集团有限责任公司</span>
-          <div className="flex items-center gap-4">
-            <span>成都市高新区天府大道北段1700号</span>
-            <span className="w-px h-3 bg-[oklch(0.91_0.006_264)]" />
-            <span>028-8888-6666</span>
-            <span className="w-px h-3 bg-[oklch(0.91_0.006_264)]" />
-            <span>erp@scwater.com</span>
+              </>
+            )}
           </div>
         </div>
-      </footer>
+      )}
     </div>
   );
 }
+
+/* ━━━━ SVG Icons ━━━━ */
+const S = 'width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+const SVG_ICONS: Record<string, string> = {
+  file: `<svg viewBox="0 0 24 24" ${S}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`,
+  cart: `<svg viewBox="0 0 24 24" ${S}><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>`,
+  share: `<svg viewBox="0 0 24 24" ${S}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`,
+  users: `<svg viewBox="0 0 24 24" ${S}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  safe: `<svg viewBox="0 0 24 24" ${S}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+  sun: `<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`,
+  shield: `<svg viewBox="0 0 24 24" ${S}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+  heart: `<svg viewBox="0 0 24 24" ${S}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
+  star: `<svg viewBox="0 0 24 24" ${S}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+};
