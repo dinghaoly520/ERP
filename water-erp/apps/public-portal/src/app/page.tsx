@@ -168,7 +168,7 @@ export default function HomePage() {
 
       <main>
         {/* ═══════════════════ Hero ═══════════════════ */}
-        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden bg-white">
+        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden bg-[#f5f7fa]">
           <div className="absolute inset-0 w-full" style={{
             background: 'linear-gradient(90deg,rgba(246,250,255,.95) 0%,rgba(246,250,255,.88) 35%,rgba(246,250,255,.5) 60%,rgba(246,250,255,.15) 100%)',
           }}>
