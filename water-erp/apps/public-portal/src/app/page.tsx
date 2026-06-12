@@ -166,7 +166,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="bg-white">
+      <main className="bg-[#f5f7fa]">
         {/* ═══════════════════ Hero ═══════════════════ */}
         <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden">
           <div className="absolute inset-0 w-full" style={{
