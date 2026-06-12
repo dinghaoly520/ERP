@@ -27,8 +27,19 @@ describe('SupplierPortalService', () => {
   beforeEach(async () => {
     prisma = {
       supplier: { findUnique: jest.fn() },
+      bidProject: { findUnique: jest.fn() },
       supplierEvaluation: { count: jest.fn() },
-      supplierBidSubmission: { count: jest.fn() },
+      supplierBidSubmission: {
+        count: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        create: jest.fn(),
+      },
+      bidSupplier: {
+        findFirst: jest.fn(),
+        update: jest.fn(),
+        create: jest.fn(),
+      },
       supplierChangeRecord: { count: jest.fn() },
       supplierQualification: { count: jest.fn() },
       notification: { count: jest.fn() },
@@ -123,6 +134,55 @@ describe('SupplierPortalService', () => {
 
       expect(result!.profileCompleteness.score).toBeLessThan(30);
       expect(result!.profileCompleteness.missing.length).toBeGreaterThan(5);
+    });
+  });
+
+  describe('submitBid', () => {
+    it('rejects submission when project is not in SUBMIT stage', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', stage: 'OPENING',
+        deadline: new Date(Date.now() + 3600_000),
+      });
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' }))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_SUBMITTING' } });
+    });
+
+    it('rejects submission after deadline', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', stage: 'SUBMIT',
+        deadline: new Date(Date.now() - 3600_000),
+      });
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' }))
+        .rejects.toMatchObject({ response: { code: 'DEADLINE_PASSED' } });
+    });
+
+    it('rejects non-APPROVED supplier', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-2', name: '待审供应商', status: 'PENDING' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', stage: 'SUBMIT',
+        deadline: new Date(Date.now() + 3600_000),
+      });
+      await expect(service.submitBid('supplier-2', 'project-1', { bidPrice: '100' }))
+        .rejects.toMatchObject({ response: { code: 'NOT_APPROVED' } });
+    });
+
+    it('allows valid submission', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', stage: 'SUBMIT',
+        deadline: new Date(Date.now() + 3600_000),
+      });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+      prisma.supplierBidSubmission.create.mockResolvedValue({
+        id: 'sub-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'submitted',
+      });
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+      prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-1', supplierId: 'supplier-1' });
+
+      const result = await service.submitBid('supplier-1', 'project-1', { bidPrice: '100' });
+      expect(result.status).toBe('submitted');
     });
   });
 });

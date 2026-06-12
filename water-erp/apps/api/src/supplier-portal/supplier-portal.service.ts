@@ -178,6 +178,30 @@ export class SupplierPortalService {
 
   // ─── Bid Submissions ───
 
+  private async assertCanSubmitBid(supplierId: string, projectId: string) {
+    const [supplier, project] = await Promise.all([
+      this.prisma.supplier.findUnique({ where: { id: supplierId } }),
+      this.prisma.bidProject.findUnique({
+        where: { id: projectId },
+        select: { id: true, stage: true, deadline: true },
+      }),
+    ]);
+
+    if (!supplier) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
+    if (supplier.status !== 'APPROVED') {
+      throw new BadRequestException({ error: '供应商未通过审核，无法投标', code: 'NOT_APPROVED' });
+    }
+    if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
+    if (project.stage !== 'SUBMIT') {
+      throw new BadRequestException({ error: '当前项目不在投递阶段', code: 'PROJECT_NOT_SUBMITTING' });
+    }
+    if (project.deadline.getTime() < Date.now()) {
+      throw new BadRequestException({ error: '投递截止时间已过', code: 'DEADLINE_PASSED' });
+    }
+
+    return { supplier, project };
+  }
+
   async submitBid(supplierId: string, projectId: string, data: {
     bidPrice?: string;
     deliveryPeriod?: string;
@@ -193,10 +217,7 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '已提交过标书，不可重复提交', code: 'ALREADY_SUBMITTED' });
     }
 
-    // Get supplier name for BidSupplier record
-    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId } });
-    if (!supplier) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
-    if (supplier.status !== 'APPROVED') throw new BadRequestException({ error: '供应商未通过审核，无法投标', code: 'NOT_APPROVED' });
+    const { supplier } = await this.assertCanSubmitBid(supplierId, projectId);
 
     const now = new Date();
 
@@ -231,13 +252,14 @@ export class SupplierPortalService {
     if (existingBidSupplier) {
       await this.prisma.bidSupplier.update({
         where: { id: existingBidSupplier.id },
-        data: { submitStatus: '已提交', encryptStatus: '密文已校验' },
+        data: { supplierId, submitStatus: '已提交', encryptStatus: '密文已校验' },
       });
     } else {
       const receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
       await this.prisma.bidSupplier.create({
         data: {
           projectId,
+          supplierId,
           supplierName: supplier.name,
           downloadStatus: '已下载',
           submitStatus: '已提交',
