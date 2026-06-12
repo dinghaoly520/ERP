@@ -14,47 +14,47 @@ export class ExpertController {
 
   /* ── 个人资料 ── */
   @Get('profile')
-  getProfile(@CurrentUser('id') userId: string) {
+  getProfile(@CurrentUser('sub') userId: string) {
     return this.expertService.getProfile(userId);
   }
 
   @Patch('profile')
-  updateProfile(@CurrentUser('id') userId: string, @Body() dto: UpdateExpertProfileDto) {
+  updateProfile(@CurrentUser('sub') userId: string, @Body() dto: UpdateExpertProfileDto) {
     return this.expertService.updateProfile(userId, dto);
   }
 
   /* ── 统计概览 ── */
   @Get('statistics')
-  getStatistics(@CurrentUser('id') userId: string) {
+  getStatistics(@CurrentUser('sub') userId: string) {
     return this.expertService.getStatistics(userId);
   }
 
   /* ── 项目列表 ── */
   @Get('projects')
-  listProjects(@CurrentUser('id') userId: string) {
+  listProjects(@CurrentUser('sub') userId: string) {
     return this.expertService.listProjects(userId);
   }
 
   @Get('projects/:projectId')
-  getProject(@CurrentUser('id') userId: string, @Param('projectId') projectId: string) {
+  getProject(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.getProject(userId, projectId);
   }
 
   /* ── 身份核验 ── */
   @Post('projects/:projectId/sign-in')
-  signIn(@CurrentUser('id') userId: string, @Param('projectId') projectId: string) {
+  signIn(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.signIn(userId, projectId);
   }
 
   @Post('projects/:projectId/avoidance')
-  confirmAvoidance(@CurrentUser('id') userId: string, @Param('projectId') projectId: string) {
+  confirmAvoidance(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.confirmAvoidance(userId, projectId);
   }
 
   /* ── 标书解密获取 ── */
   @Get('projects/:projectId/documents/:supplierId')
   getDecryptedDocuments(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
     @Param('supplierId') supplierId: string,
   ) {
@@ -64,7 +64,7 @@ export class ExpertController {
   /* ── 辅助评标 ── */
   @Get('projects/:projectId/assist/:supplierId')
   getAssistData(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
     @Param('supplierId') supplierId: string,
   ) {
@@ -74,7 +74,7 @@ export class ExpertController {
   /* ── 专家打分 ── */
   @Post('projects/:projectId/scores')
   submitScores(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
     @Body() dto: BatchScoreDto,
   ) {
@@ -82,19 +82,19 @@ export class ExpertController {
   }
 
   @Get('projects/:projectId/my-scores')
-  getMyScores(@CurrentUser('id') userId: string, @Param('projectId') projectId: string) {
+  getMyScores(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.getMyScores(userId, projectId);
   }
 
   /* ── 澄清答疑 ── */
   @Get('projects/:projectId/clarifications')
-  listClarifications(@CurrentUser('id') userId: string, @Param('projectId') projectId: string) {
+  listClarifications(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.getProject(userId, projectId).then(p => p.clarifications);
   }
 
   @Post('projects/:projectId/clarifications')
   createClarification(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
     @Body() dto: CreateExpertClarificationDto,
   ) {
@@ -103,13 +103,13 @@ export class ExpertController {
 
   /* ── 评审报告 ── */
   @Get('projects/:projectId/report')
-  getReport(@CurrentUser('id') userId: string, @Param('projectId') projectId: string) {
+  getReport(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.getReport(userId, projectId);
   }
 
   @Post('projects/:projectId/report/confirm')
   confirmReport(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
     @Body() dto?: ConfirmReportDto,
   ) {
