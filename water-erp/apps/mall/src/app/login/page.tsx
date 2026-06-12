@@ -36,156 +36,74 @@ export default function MallLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
-      {/* ════ Left: Brand Panel (hidden on mobile) ════ */}
-      <div
-        className="hidden lg:block lg:w-[54%] relative overflow-hidden"
-        style={{ background: '#064ea2' }}
-      >
-        {/* Angular clip mask */}
-        <div
-          className="absolute inset-0"
-          style={{
-            clipPath: 'polygon(0 0, 100% 0, 84% 100%, 0 100%)',
-            background: '#064ea2',
-          }}
-        />
+    <div className="relative min-h-screen overflow-hidden bg-[#061427] text-white" style={{ fontFamily: '\"Microsoft YaHei\",\"PingFang SC\",Arial,sans-serif' }}>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.22),transparent_30%),radial-gradient(circle_at_78%_72%,rgba(232,132,44,0.24),transparent_26%),linear-gradient(135deg,#061427_0%,#08244a_52%,#050b18_100%)]" />
+      <div className="absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(125,211,252,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(125,211,252,0.12)_1px,transparent_1px)] [background-size:36px_36px]" />
+      <div className="absolute left-[8%] top-[18%] hidden h-64 w-64 rounded-full border border-cyan-300/20 lg:block" />
+      <div className="absolute bottom-16 left-[10%] hidden w-[460px] grid-cols-2 gap-3 opacity-80 lg:grid">
+        {['管材目录', '钢材采购', '机电设备', '工程服务'].map((item, index) => (
+          <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 shadow-2xl backdrop-blur-md" style={{ transform: `translateY(${index % 2 ? 18 : 0}px)` }}>
+            <div className="mb-3 h-1.5 w-12 rounded-full bg-[#e8842c] shadow-[0_0_20px_rgba(232,132,44,0.55)]" />
+            <div className="text-sm font-bold text-white/90">{item}</div>
+            <div className="mt-1 text-xs text-white/42">集中目录 · 透明采购</div>
+          </div>
+        ))}
+      </div>
 
-        {/* Dot grid texture */}
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)',
-            backgroundSize: '20px 20px',
-          }}
-        />
+      <main className="relative z-10 flex min-h-screen flex-col lg:flex-row">
+        <section className="flex flex-1 flex-col justify-between px-7 py-8 sm:px-10 lg:px-16 xl:px-24">
+          <div className="flex items-center gap-4">
+            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-12 w-auto rounded-xl border border-white/12 object-cover shadow-[0_0_32px_rgba(34,211,238,0.16)]" />
+            <div>
+              <div className="text-lg font-black tracking-[0.16em]">四川水发集团</div>
+              <div className="mt-1 text-[10px] uppercase tracking-[0.28em] text-cyan-100/45">Sichuan Water Development Group</div>
+            </div>
+          </div>
 
-        {/* Content */}
-        <div className="relative z-10 flex flex-col justify-center px-16 xl:px-24 max-w-lg h-full">
-          <img
-            src="/assets/logo.jpg"
-            alt="四川水发集团"
-            className="h-12 w-auto mb-12"
-            style={{ filter: 'brightness(0) invert(1)' }}
-          />
-          <h1
-            className="text-white text-[clamp(36px,3vw,48px)] font-black leading-[1.1] tracking-tight mb-3"
-            style={{ fontFamily: '"SimHei","黑体",sans-serif' }}
-          >
-            蜀水云采
-            <br />
-            电子商城
-          </h1>
-          <div
-            className="w-10 h-[3px] mb-6"
-            style={{ background: '#e8842c' }}
-          />
-          <p className="text-white/40 text-sm leading-relaxed mb-12">
-            集中采购目录 · 一站式水利工程物资采购平台
-          </p>
-
-          <div className="flex flex-col gap-5">
-            {[
-              { label: '目录齐全', desc: '钢材、管材、机电设备全覆盖' },
-              { label: '价格透明', desc: '阳光采购，实时价格可查' },
-              { label: '品质保障', desc: '认证供应商，正品溯源' },
-            ].map((item, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <span
-                  className="w-1.5 h-1.5 mt-[7px] shrink-0"
-                  style={{ background: '#e8842c', borderRadius: 0, transform: 'rotate(45deg)' }}
-                />
-                <div>
-                  <span className="text-white/90 text-sm font-bold">{item.label}</span>
-                  <span className="text-white/35 text-xs ml-3">{item.desc}</span>
+          <div className="my-16 max-w-2xl lg:my-0">
+            <div className="mb-5 inline-flex rounded-full border border-[#e8842c]/30 bg-[#e8842c]/10 px-4 py-1.5 text-xs font-bold tracking-[0.22em] text-orange-200">B2B PROCUREMENT MALL</div>
+            <h1 className="text-[clamp(40px,5vw,72px)] font-black leading-[1.02] tracking-tight" style={{ fontFamily: '\"SimHei\",\"黑体\",sans-serif' }}>
+              蜀水云采<br />电子商城
+            </h1>
+            <p className="mt-6 max-w-xl text-base leading-8 text-slate-300/78">集中采购目录 · 一站式水利工程物资采购平台</p>
+            <div className="mt-9 grid max-w-xl gap-3 sm:grid-cols-3">
+              {['集中目录', '透明价格', '品质溯源'].map(item => (
+                <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-semibold text-white/86 backdrop-blur-md">
+                  <span className="mr-2 inline-block h-2 w-2 rotate-45 bg-[#e8842c] shadow-[0_0_14px_rgba(232,132,44,0.8)]" />{item}
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* ════ Right: Form Area ════ */}
-      <div
-        className="flex-1 flex items-center justify-center px-8 py-12"
-        style={{ background: '#fafbfc' }}
-      >
-        <div className="w-full max-w-sm">
-          {/* Mobile logo (only shows on small screens) */}
-          <img
-            src="/assets/logo.jpg"
-            alt="四川水发集团"
-            className="h-10 w-auto mb-10 lg:hidden"
-          />
+          <div className="text-xs text-white/35">智慧水发 · 蜀水云采 · 安全可信的企业采购入口</div>
+        </section>
 
-          <h2
-            className="text-[26px] font-black text-[#18243a] mb-1.5 tracking-tight"
-            style={{ fontFamily: '"SimHei","黑体",sans-serif' }}
-          >
-            登录商城
-          </h2>
-          <p className="text-[13px] text-[#8a96aa] mb-9">
-            请输入您的账号信息进入商城
-          </p>
+        <section className="flex w-full items-center justify-center px-6 pb-10 lg:w-[480px] lg:px-12 lg:py-0">
+          <div className="w-full max-w-sm rounded-[28px] border border-cyan-100/16 bg-[#081428]/72 p-7 shadow-[0_30px_100px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:p-9">
+            <div className="mb-8">
+              <div className="mb-3 h-1 w-14 rounded-full bg-gradient-to-r from-[#e8842c] to-[#22d3ee]" />
+              <h2 className="text-2xl font-black" style={{ fontFamily: '\"SimHei\",\"黑体\",sans-serif' }}>登录电子商城</h2>
+              <p className="mt-2 text-sm text-slate-300/65">进入水利工程物资采购平台</p>
+            </div>
 
-          <form onSubmit={handleLogin} className="flex flex-col gap-5">
-            <label className="block">
-              <span className="text-[11px] font-bold text-[#5a6d8a] uppercase tracking-[0.12em]">
-                用户名
-              </span>
-              <input
-                type="text"
-                value={form.username}
-                onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                placeholder="请输入用户名"
-                className="mt-1.5 w-full h-11 px-4 bg-white border border-[#d8e0eb] text-sm focus:outline-none focus:border-[#064ea2] placeholder:text-[#bbb]"
-                style={{ borderRadius: 2 }}
-              />
-            </label>
+            <form onSubmit={handleLogin} className="space-y-5">
+              <label className="block">
+                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-cyan-100/55">用户名</span>
+                <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="请输入用户名" className="h-12 w-full rounded-2xl border border-white/12 bg-white/[0.07] px-4 text-sm text-white outline-none transition placeholder:text-white/28 focus:border-cyan-300/70 focus:shadow-[0_0_0_4px_rgba(34,211,238,0.12)]" />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-cyan-100/55">密码</span>
+                <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="请输入密码" className="h-12 w-full rounded-2xl border border-white/12 bg-white/[0.07] px-4 text-sm text-white outline-none transition placeholder:text-white/28 focus:border-cyan-300/70 focus:shadow-[0_0_0_4px_rgba(34,211,238,0.12)]" />
+              </label>
+              <button type="submit" disabled={loading} className="h-12 w-full rounded-2xl bg-gradient-to-r from-[#064ea2] via-[#0ea5e9] to-[#22d3ee] text-sm font-black tracking-[0.18em] text-white shadow-[0_18px_45px_rgba(14,165,233,0.28)] transition hover:brightness-110 disabled:opacity-45">
+                {loading ? '登录中...' : '进入商城'}
+              </button>
+            </form>
 
-            <label className="block">
-              <span className="text-[11px] font-bold text-[#5a6d8a] uppercase tracking-[0.12em]">
-                密码
-              </span>
-              <input
-                type="password"
-                value={form.password}
-                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                placeholder="请输入密码"
-                className="mt-1.5 w-full h-11 px-4 bg-white border border-[#d8e0eb] text-sm focus:outline-none focus:border-[#064ea2] placeholder:text-[#bbb]"
-                style={{ borderRadius: 2 }}
-              />
-            </label>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full h-11 text-white text-sm font-bold transition-colors mt-2 disabled:opacity-40"
-              style={{ background: '#064ea2', borderRadius: 2 }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#043d82')}
-              onMouseLeave={e => (e.currentTarget.style.background = '#064ea2')}
-            >
-              {loading ? '登录中...' : '登录商城'}
-            </button>
-          </form>
-
-          <div
-            className="mt-8 pt-5 flex items-center justify-between text-xs"
-            style={{ borderTop: '1px solid #e5ecf4' }}
-          >
-            <span className="text-[#8a96aa]">测试: admin / admin123</span>
-            <a
-              href="http://localhost:3006"
-              className="text-[#064ea2] font-semibold"
-              style={{ textDecoration: 'none' }}
-              onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
-              onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
-            >
-              ← 返回门户
-            </a>
+            <a href="http://localhost:3006" className="mt-7 inline-flex text-xs font-semibold text-cyan-100/55 transition hover:text-cyan-100" style={{ textDecoration: 'none' }}>← 返回门户</a>
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }
