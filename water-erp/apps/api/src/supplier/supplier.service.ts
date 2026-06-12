@@ -495,6 +495,18 @@ export class SupplierService {
     return { levelCounts, avgScore, total: evaluations.length };
   }
 
+  async getStats() {
+    const [total, pending, approved, disabled, blacklist] = await Promise.all([
+      this.prisma.supplier.count(),
+      this.prisma.supplier.count({ where: { status: 'PENDING' } }),
+      this.prisma.supplier.count({ where: { status: 'APPROVED' } }),
+      this.prisma.supplier.count({ where: { status: 'DISABLED' } }),
+      this.prisma.supplier.count({ where: { status: 'BLACKLIST' } }),
+    ]);
+
+    return { total, pending, approved, disabled, blacklist };
+  }
+
   async listClassifications() {
     return this.prisma.supplierClassification.findMany({
       orderBy: { createdAt: 'asc' },

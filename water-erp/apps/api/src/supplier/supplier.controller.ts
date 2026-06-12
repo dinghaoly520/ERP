@@ -36,6 +36,13 @@ export class SupplierController {
     return this.supplierService.getRegisterStatus(req.user.sub);
   }
 
+  @Get('stats')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: '供应商统计数据（Dashboard用）' })
+  async getStats() {
+    return this.supplierService.getStats();
+  }
+
   @Get('list')
   @UseGuards(AuthGuard)
   @ApiOperation({ summary: '供应商库列表' })

@@ -32,37 +32,46 @@ export default function AnnouncementsPage() {
   }, [type, search]);
 
   return (
-    <div className="min-h-screen bg-[oklch(0.982_0.003_264)]">
-      <header className="bg-white shadow-sm border-b border-[oklch(0.91_0.006_264)]">
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-2 text-[oklch(0.18_0.012_265)] font-bold hover:text-[#064ea2] transition">
-            ← 返回首页
+    <div className="min-h-screen bg-[#f7f9fc]">
+      {/* ═══ Header with brand ═══ */}
+      <header className="sticky top-0 z-50 bg-white border-b border-[#e5ecf4]">
+        <div className="max-w-5xl mx-auto px-6 h-[72px] flex items-center justify-between">
+          <a href="/" className="flex items-center gap-3">
+            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-11 w-auto rounded-lg object-contain" />
+            <div className="flex flex-col gap-0">
+              <strong className="text-[#123a6e] text-lg tracking-[0.12em] leading-tight whitespace-nowrap" style={{ fontFamily: '"SimHei","黑体",sans-serif', fontWeight: 900 }}>四川水发集团</strong>
+              <small className="text-[7px] text-[#8a96aa] font-medium tracking-wide">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
+            </div>
           </a>
-          <span className="text-sm text-[oklch(0.55_0.01_264)]">信息公告</span>
+          <a href="/" className="text-sm text-[#5a6d8a] hover:text-[#064ea2] font-semibold transition">← 返回首页</a>
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-6 py-12">
-        <h1 className="text-2xl font-bold text-[oklch(0.18_0.012_265)] mb-1">信息公告</h1>
-        <p className="text-sm text-[oklch(0.55_0.01_264)] mb-8">招标公告、中标公示、政策法规、平台通知</p>
+      <div className="max-w-5xl mx-auto px-6 py-10">
+        {/* Page title */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-[#18243a] mb-1">信息公告</h1>
+          <p className="text-sm text-[#5a6d8a]">招标公告、中标公示、政策法规、平台通知</p>
+        </div>
 
-        {/* 筛选 */}
+        {/* Filters */}
         <div className="flex gap-4 mb-8">
           <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="搜索公告标题" className="flex-1 px-4 py-2.5 bg-white border border-[oklch(0.91_0.006_264)] rounded-xl text-sm focus:border-[#064ea2] outline-none" />
+            placeholder="搜索公告标题" className="flex-1 px-4 py-2.5 bg-white border border-[#e5ecf4] rounded-xl text-sm focus:border-[#064ea2] outline-none" />
           <select value={type} onChange={e => setType(e.target.value)}
-            className="px-4 py-2.5 bg-white border border-[oklch(0.91_0.006_264)] rounded-xl text-sm focus:border-[#064ea2] outline-none">
+            className="px-4 py-2.5 bg-white border border-[#e5ecf4] rounded-xl text-sm focus:border-[#064ea2] outline-none">
             <option value="">全部类型</option>
             {Object.entries(ANNOUNCEMENT_TYPE_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </div>
 
+        {/* List */}
         {loading ? (
-          <div className="text-center py-12 text-[oklch(0.55_0.01_264)]">加载中...</div>
+          <div className="text-center py-12 text-[#5a6d8a]">加载中...</div>
         ) : items.length === 0 ? (
-          <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-12 text-center">
+          <div className="bg-white rounded-xl border border-[#e5ecf4] p-12 text-center">
             <div className="text-5xl mb-3">📢</div>
-            <p className="text-[oklch(0.55_0.01_264)]">暂无公告</p>
+            <p className="text-[#5a6d8a]">暂无公告</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -70,14 +79,14 @@ export default function AnnouncementsPage() {
               const t = ANNOUNCEMENT_TYPE_MAP[a.type] || ANNOUNCEMENT_TYPE_MAP.PLATFORM;
               return (
                 <div key={a.id} onClick={() => router.push(`/announcements/${a.id}`)}
-                  className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-5 hover:shadow-md hover:border-[oklch(0.80_0.04_258)] transition-all cursor-pointer">
+                  className="bg-white rounded-xl border border-[#e5ecf4] p-5 hover:shadow-md hover:border-[#064ea240] transition-all cursor-pointer">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ color: t.color, backgroundColor: t.bg }}>{t.label}</span>
-                    {a.isTop && <span className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded font-bold">置顶</span>}
-                    <span className="text-sm font-bold text-[oklch(0.18_0.012_265)] flex-1">{a.title}</span>
+                    <span className="text-xs px-2.5 py-1 rounded font-semibold" style={{ color: t.color, backgroundColor: t.bg }}>{t.label}</span>
+                    {a.isTop && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded font-bold">置顶</span>}
+                    <span className="text-sm font-bold text-[#18243a] flex-1">{a.title}</span>
                   </div>
-                  {a.summary && <p className="text-xs text-[oklch(0.55_0.01_264)] ml-1 mb-2">{a.summary}</p>}
-                  <div className="flex items-center gap-4 text-xs text-[oklch(0.72_0.008_264)] ml-1">
+                  {a.summary && <p className="text-xs text-[#5a6d8a] ml-1 mb-2">{a.summary}</p>}
+                  <div className="flex items-center gap-4 text-xs text-[#8a96aa] ml-1">
                     <span>{a.publishDate ? new Date(a.publishDate).toLocaleDateString('zh-CN') : ''}</span>
                     <span>浏览 {a.viewCount} 次</span>
                   </div>

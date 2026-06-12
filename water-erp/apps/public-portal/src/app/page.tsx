@@ -62,31 +62,63 @@ export default function HomePage() {
 
   const announceData = [
     { // 招标公告
+      color: '#064ea2', deadlineLabel: '报名截止',
       featured: {
-        tag: '招标公告', date: '2026-05-18', urgent: true,
-        title: '2026年度水利工程物资集中采购招标公告',
-        desc: '本项目为四川水发集团2026年度水利工程物资集中采购，采购内容包括钢管、阀门、水泵等主要设备物资...',
-        code: 'SWSW-2026-0518', deadline: '2026-05-28 17:00',
+        tag: '招标公告', date: '2026-06-10', urgent: true,
+        title: '向家坝灌区北总干渠二期工程土建施工招标公告',
+        desc: '本项目为向家坝灌区北总干渠二期工程，建设内容包括明渠开挖、隧洞衬砌、渡槽架设及沿线配套建筑物，总长 42.6 公里，设计灌溉面积 48.2 万亩...',
+        code: 'SWZB-2026-XJB02', deadline: '2026-07-05 17:00',
       },
       list: [
-        { date: '05-16', title: '智慧水务信息化系统建设项目招标公告' },
-        { date: '05-12', title: '升钟水库灌区续建配套与节水改造工程招标' },
-        { date: '05-06', title: '武都引水工程机电设备维护服务招标公告' },
-        { date: '04-28', title: '亭子口水利枢纽下游河道治理工程招标' },
+        { date: '06-08', title: '紫坪铺水库大坝安全监测系统升级改造项目招标' },
+        { date: '06-03', title: '都江堰灌区数字化管理平台（二期）建设项目招标' },
+        { date: '05-27', title: '引大济岷工程预应力钢筒混凝土管（PCCP）采购招标' },
+        { date: '05-20', title: '亭子口灌区一期工程机电设备安装施工招标公告' },
       ],
     },
     { // 中标公示
+      color: '#18a56c', deadlineLabel: '公示截止',
       featured: {
-        tag: '中标公示', date: '2026-05-20', urgent: false,
-        title: '2026年度水利工程物资集中采购中标公示',
-        desc: '经评标委员会评审，现将2026年度水利工程物资集中采购项目中标结果公示如下，公示期为3个工作日...',
-        code: 'SWSW-2026-ZB0518', deadline: '2026-05-25 17:00',
+        tag: '中标公示', date: '2026-06-09', urgent: false,
+        title: '武都引水二期灌区工程信息化系统集成中标公示',
+        desc: '经评标委员会评审，武都引水二期灌区工程信息化系统集成项目已完成评标工作，第一中标候选人为中水北方勘测设计研究有限责任公司，投标报价 3,286.50 万元，现将评标结果予以公示...',
+        code: 'SWZB-2026-WDYS01', deadline: '2026-06-16 17:00',
       },
       list: [
-        { date: '05-18', title: '智慧水务信息化系统建设项目中标公示' },
-        { date: '05-14', title: '升钟水库灌区续建配套与节水改造工程中标公示' },
-        { date: '05-10', title: '武都引水工程机电设备维护服务中标公示' },
-        { date: '05-02', title: '亭子口水利枢纽下游河道治理工程中标公示' },
+        { date: '06-05', title: '升钟水库灌区续建配套工程监理服务中标公示' },
+        { date: '05-30', title: '鲁班水库除险加固工程钢板桩围堰施工中标公示' },
+        { date: '05-22', title: '小井沟水利枢纽水轮机发电机组采购中标公示' },
+        { date: '05-15', title: '岷江犍为航电枢纽库区防护工程中标公示' },
+      ],
+    },
+    { // 政策法规
+      color: '#f5a623', deadlineLabel: '生效日期',
+      featured: {
+        tag: '政策法规', date: '2026-05-28', urgent: false,
+        title: '四川省水利厅关于进一步规范水利工程招标投标活动的通知',
+        desc: '为深入贯彻落实《招标投标法》及其实施条例，进一步规范我省水利工程招标投标活动，维护招标投标市场秩序，保障工程质量和安全，根据水利部有关要求，现就有关事项通知如下...',
+        code: '川水发〔2026〕18号', deadline: '2026-07-01',
+      },
+      list: [
+        { date: '05-15', title: '水利部关于修改《水利工程建设项目招标投标管理规定》的决定' },
+        { date: '04-20', title: '四川省发展和改革委员会关于开展招标投标领域优化营商环境整治工作的通知' },
+        { date: '03-30', title: '国务院办公厅关于创新完善体制机制推动招标投标市场规范健康发展的意见' },
+        { date: '02-18', title: '水利工程建设标准强制性条文（2026年版）发布实施' },
+      ],
+    },
+    { // 平台通知
+      color: '#5a6d8a', deadlineLabel: '生效日期',
+      featured: {
+        tag: '平台通知', date: '2026-06-11', urgent: false,
+        title: '蜀水云采平台系统升级维护公告',
+        desc: '为提升平台服务质量和系统稳定性，蜀水云采电子化招标采购平台将于 2026 年 6 月 15 日（周日）02:00-06:00 进行系统升级维护。届时平台将暂停服务，请各用户提前安排好相关工作...',
+        code: 'PT-2026-06-11', deadline: '2026-06-15 06:00',
+      },
+      list: [
+        { date: '06-01', title: '关于开通电子商城集中采购功能的通知' },
+        { date: '05-20', title: '蜀水云采平台供应商操作手册（2026版）更新发布' },
+        { date: '05-10', title: '关于调整专家评审费发放方式的通知' },
+        { date: '04-28', title: '平台数字证书（CA）办理流程变更公告' },
       ],
     },
   ];
@@ -109,21 +141,27 @@ export default function HomePage() {
   return (
     <div className="min-h-screen text-[#18243a] bg-white overflow-x-hidden" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       {/* ═══════════════════ Header ═══════════════════ */}
-      <header className="sticky top-0 z-50 h-[52px] flex items-center bg-white border-b border-[#e5ecf4]">
+      <header className="sticky top-0 z-50 h-[88px] flex items-center bg-white border-b border-[#e5ecf4]">
         <div className="w-full px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
           {/* Brand */}
           <a href="/" className="flex items-center gap-3 shrink-0">
-            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-10 w-auto object-contain" />
+            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-14 w-auto object-contain" />
             <div className="flex flex-col gap-0">
-              <strong className="text-[#123a6e] text-xl tracking-[0.14em] leading-tight whitespace-nowrap" style={{ fontFamily: '"SimHei","黑体",sans-serif', fontWeight: 900 }}>四川水发集团</strong>
-              <small className="text-[6px] text-[#8a96aa] font-medium text-center whitespace-nowrap tracking-wide">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
+              <strong className="text-[#123a6e] text-3xl tracking-[0.14em] leading-tight whitespace-nowrap" style={{ fontFamily: '"SimHei","黑体",sans-serif', fontWeight: 900 }}>四川水发集团</strong>
+              <small className="text-[7px] text-[#8a96aa] font-medium text-center whitespace-nowrap tracking-wide">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
             </div>
           </a>
 
           {/* Actions */}
           <div className="flex items-center gap-3 shrink-0">
-            <button onClick={() => setModal('login')} className="h-10 px-6 border border-[#d0dae8] text-[#064ea2] bg-white rounded-md text-sm font-semibold hover:bg-[#f5f8fc] transition-colors">登录</button>
-            <button onClick={() => setModal('register')} className="h-10 px-5 bg-[#064ea2] text-white rounded-md text-sm font-semibold hover:bg-[#043d82] transition-colors">注册</button>
+            <button onClick={() => setModal('login')}
+              className="h-11 px-6 border border-[#c5d3e8] text-[#064ea2] bg-white rounded-full text-sm font-semibold hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] hover:shadow-[0_2px_8px_rgba(6,78,162,.25)] active:scale-95 transition-all duration-200">
+              登录
+            </button>
+            <button onClick={() => setModal('register')}
+              className="h-11 px-6 bg-[#064ea2] text-white rounded-full text-sm font-semibold hover:bg-[#084fb0] hover:shadow-[0_2px_12px_rgba(6,78,162,.35)] active:scale-95 transition-all duration-200">
+              注册
+            </button>
           </div>
         </div>
       </header>
@@ -191,9 +229,14 @@ export default function HomePage() {
               <div className="flex items-center gap-5">
                 <h2 className="text-2xl font-black text-[#18243a]">公告</h2>
                 <div className="flex gap-2">
-                  {['招标公告', '中标公示'].map((tab, i) => (
-                    <button key={tab} onClick={() => setAnnounceTab(i)} className={i === announceTab ? 'tab-active' : 'tab-inactive'}>
-                      {tab}
+                  {announceData.map((tab, i) => (
+                    <button key={tab.featured.tag} onClick={() => setAnnounceTab(i)}
+                      className="px-4 py-2 text-[13px] font-semibold rounded-lg transition-all duration-200 cursor-pointer"
+                      style={i === announceTab
+                        ? { color: '#fff', backgroundColor: tab.color }
+                        : { color: '#5a6d8a', backgroundColor: '#e8ecf2', border: '1px solid #e8ecf2' }
+                      }>
+                      {tab.featured.tag}
                     </button>
                   ))}
                 </div>
@@ -205,7 +248,7 @@ export default function HomePage() {
               {/* Featured card — spans 2 cols */}
               <div className="lg:col-span-2 bg-white rounded-lg border border-[#e5ecf4] p-7 hover:shadow-md transition-shadow cursor-pointer">
                 <div className="flex items-center gap-2.5 mb-4">
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded text-white ${announceTab === 0 ? 'bg-[#064ea2]' : 'bg-[#18a56c]'}`}>{announceData[announceTab].featured.tag}</span>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded text-white" style={{ backgroundColor: announceData[announceTab].color }}>{announceData[announceTab].featured.tag}</span>
                   <span className="text-xs text-[#999]">{announceData[announceTab].featured.date}</span>
                   {announceData[announceTab].featured.urgent && <span className="text-xs font-semibold px-2.5 py-1 rounded bg-[#fff1f0] text-[#d43030]">重要</span>}
                 </div>
@@ -214,7 +257,7 @@ export default function HomePage() {
                 <div className="flex items-center justify-between">
                   <div className="flex gap-6 text-xs">
                     <span className="text-[#999]">项目编号 <span className="text-[#18243a] font-semibold ml-1">{announceData[announceTab].featured.code}</span></span>
-                    <span className="text-[#999]">{announceTab === 0 ? '报名截止' : '公示截止'} <em className="not-italic text-[#d43030] font-bold ml-1">{announceData[announceTab].featured.deadline}</em></span>
+                    <span className="text-[#999]">{announceData[announceTab].deadlineLabel} <em className="not-italic text-[#d43030] font-bold ml-1">{announceData[announceTab].featured.deadline}</em></span>
                   </div>
                   <a href="/announcements" className="neu-link shrink-0">查看详情 →</a>
                 </div>

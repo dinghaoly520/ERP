@@ -1,9 +1,9 @@
 import type { NextConfig } from 'next';
 
-const nextConfig: NextConfig = {
+const config: NextConfig = {
   rewrites: async () => [
     { source: '/api/:path*', destination: 'http://localhost:4001/api/:path*' },
   ],
 };
 
-export default nextConfig;
+export default config;

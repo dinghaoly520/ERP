@@ -106,17 +106,11 @@ notifStore.fetchUnreadCount()
     <!-- Sidebar -->
     <el-aside :width="isCollapse ? '64px' : '240px'" class="sp-sidebar">
       <div class="sp-sidebar-logo" @click="router.push('/dashboard')">
-        <div class="sp-logo-mark">
-          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="32" height="32" rx="8" fill="white" fill-opacity="0.2"/>
-            <path d="M8 22C8 22 12 10 16 10C20 10 16 22 24 18" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-            <circle cx="16" cy="8" r="2" fill="white"/>
-          </svg>
-        </div>
+        <img src="/logo.jpg" alt="四川水发集团" class="sp-logo-img" />
         <transition name="sp-fade">
           <div v-show="!isCollapse" class="sp-logo-text">
-            <span class="sp-logo-title">供应商门户</span>
-            <span class="sp-logo-sub">智慧水发 · ERP</span>
+            <span class="sp-logo-title">四川水发集团</span>
+            <span class="sp-logo-sub">供应商门户 · 蜀水云采</span>
           </div>
         </transition>
       </div>
@@ -296,15 +290,13 @@ notifStore.fetchUnreadCount()
   flex-shrink: 0;
 }
 
-.sp-logo-mark {
+.sp-logo-img {
   width: 36px;
   height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
   flex-shrink: 0;
-}
-
-.sp-logo-mark svg {
-  width: 100%;
-  height: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .sp-logo-text {
@@ -319,6 +311,7 @@ notifStore.fetchUnreadCount()
   font-weight: 800;
   color: #fff;
   line-height: 1.2;
+  letter-spacing: 0.05em;
 }
 
 .sp-logo-sub {

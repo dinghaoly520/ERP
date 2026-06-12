@@ -41,69 +41,86 @@ async function handleLogin() {
 </script>
 
 <template>
-  <div class="login-page">
-    <!-- Background decoration -->
-    <div class="login-bg">
-      <div class="login-bg-circle c1"></div>
-      <div class="login-bg-circle c2"></div>
-      <div class="login-bg-circle c3"></div>
+  <div class="sp-login">
+    <!-- Background wave pattern -->
+    <div class="sp-login-waves">
+      <svg viewBox="0 0 1440 900" fill="none" preserveAspectRatio="xMidYMid slice" class="sp-login-wave-svg">
+        <path d="M0 600 Q360 480 720 560 Q1080 640 1440 520 L1440 900 L0 900Z" fill="rgba(255,255,255,0.025)"/>
+        <path d="M0 680 Q360 580 720 640 Q1080 700 1440 600 L1440 900 L0 900Z" fill="rgba(255,255,255,0.018)"/>
+        <path d="M0 760 Q360 680 720 730 Q1080 780 1440 700 L1440 900 L0 900Z" fill="rgba(255,255,255,0.012)"/>
+      </svg>
     </div>
 
-    <div class="login-container">
-      <!-- Left: Branding -->
-      <div class="login-brand">
-        <div class="brand-content">
-          <div class="brand-icon">
-            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="64" height="64" rx="16" fill="white" fill-opacity="0.15"/>
-              <path d="M16 44C16 44 24 20 32 20C40 20 32 44 48 36" stroke="white" stroke-width="4" stroke-linecap="round"/>
-              <circle cx="32" cy="14" r="4" fill="white"/>
-            </svg>
+    <!-- Left: Branding -->
+    <div class="sp-login-brand">
+      <div class="sp-login-brand-inner">
+        <div class="sp-login-brand-top">
+          <img src="/logo.jpg" alt="四川水发集团" class="sp-login-logo" />
+          <div class="sp-login-brand-text">
+            <strong class="sp-login-brand-name">四川水发集团</strong>
+            <small class="sp-login-brand-en">SICHUAN WATER DEVELOPMENT GROUP</small>
           </div>
-          <h1 class="brand-title">智慧水发 · ERP</h1>
-          <p class="brand-subtitle">供应商门户平台</p>
-          <div class="brand-features">
-            <div class="brand-feature">
-              <el-icon><CircleCheckFilled /></el-icon>
-              <span>在线注册，快速入驻</span>
+        </div>
+        <h1 class="sp-login-title">供应商门户</h1>
+        <div class="sp-login-divider" />
+        <p class="sp-login-subtitle">
+          智慧水发 · 蜀水云采
+        </p>
+
+        <div class="sp-login-features">
+          <div class="sp-login-feature">
+            <span class="sp-login-dot" />
+            <div>
+              <span class="sp-login-feature-label">在线投标</span>
+              <span class="sp-login-feature-desc">实时获取招标信息，一键投递</span>
             </div>
-            <div class="brand-feature">
-              <el-icon><CircleCheckFilled /></el-icon>
-              <span>实时招标，便捷投标</span>
+          </div>
+          <div class="sp-login-feature">
+            <span class="sp-login-dot" />
+            <div>
+              <span class="sp-login-feature-label">进度跟踪</span>
+              <span class="sp-login-feature-desc">开标、评标、结果全程可见</span>
             </div>
-            <div class="brand-feature">
-              <el-icon><CircleCheckFilled /></el-icon>
-              <span>信息透明，安全可靠</span>
+          </div>
+          <div class="sp-login-feature">
+            <span class="sp-login-dot" />
+            <div>
+              <span class="sp-login-feature-label">信息透明</span>
+              <span class="sp-login-feature-desc">公告公示、政策法规随时查阅</span>
             </div>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Right: Login form -->
-      <div class="login-form-area">
-        <div class="login-form-wrapper">
-          <h2 class="form-title">欢迎登录</h2>
-          <p class="form-desc">请输入您的账号信息登录供应商门户</p>
+    <!-- Right: Login Form -->
+    <div class="sp-login-form-area">
+      <div class="sp-login-form-wrapper">
+        <h2 class="sp-form-title">欢迎登录</h2>
+        <p class="sp-form-desc">请使用供应商账号登录平台</p>
 
-          <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="handleLogin">
-            <el-form-item prop="username">
-              <el-input v-model="form.username" placeholder="请输入用户名" prefix-icon="User" />
-            </el-form-item>
-            <el-form-item prop="password">
-              <el-input v-model="form.password" type="password" placeholder="请输入密码" prefix-icon="Lock" show-password />
-            </el-form-item>
+        <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="handleLogin">
+          <el-form-item prop="username">
+            <el-input v-model="form.username" placeholder="请输入用户名" prefix-icon="User" />
+          </el-form-item>
+          <el-form-item prop="password">
+            <el-input v-model="form.password" type="password" placeholder="请输入密码" prefix-icon="Lock" show-password />
+          </el-form-item>
 
-            <el-form-item>
-              <el-button type="primary" :loading="loading" class="login-btn" @click="handleLogin">
-                {{ loading ? '登录中...' : '登 录' }}
-              </el-button>
-            </el-form-item>
-          </el-form>
+          <el-form-item>
+            <el-button type="primary" :loading="loading" class="sp-login-btn" @click="handleLogin">
+              {{ loading ? '登录中...' : '登 录' }}
+            </el-button>
+          </el-form-item>
+        </el-form>
 
-          <div class="form-footer">
-            <span class="form-footer-text">还没有账号？</span>
-            <router-link to="/register" class="form-footer-link">立即注册供应商</router-link>
-          </div>
+        <div class="sp-form-footer">
+          <span class="sp-form-footer-text">还没有账号？</span>
+          <router-link to="/register" class="sp-form-footer-link">立即注册供应商</router-link>
+        </div>
+
+        <div class="sp-form-test">
+          <span>测试: supplier1 / 123456</span>
         </div>
       </div>
     </div>
@@ -111,190 +128,242 @@ async function handleLogin() {
 </template>
 
 <style scoped>
-.login-page {
+.sp-login {
   min-height: 100vh;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #062f6b 0%, #0a5eb8 40%, #0891b2 100%);
   position: relative;
   overflow: hidden;
+  background: #0a1e3d;
 }
 
-/* Animated background circles */
-.login-bg {
+/* ── Wave SVG ── */
+.sp-login-waves {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 0;
 }
 
-.login-bg-circle {
+.sp-login-wave-svg {
   position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.c1 {
-  width: 600px; height: 600px;
-  top: -200px; left: -200px;
-  animation: floatCircle 20s ease-in-out infinite;
-}
-
-.c2 {
-  width: 400px; height: 400px;
-  bottom: -100px; right: -100px;
-  animation: floatCircle 15s ease-in-out infinite reverse;
-}
-
-.c3 {
-  width: 200px; height: 200px;
-  top: 50%; left: 45%;
-  animation: floatCircle 25s ease-in-out infinite;
-}
-
-@keyframes floatCircle {
-  0%, 100% { transform: translate(0, 0); }
-  33% { transform: translate(30px, -20px); }
-  66% { transform: translate(-20px, 15px); }
-}
-
-.login-container {
-  display: flex;
-  width: 900px;
-  max-width: 95vw;
-  min-height: 520px;
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.3);
-  position: relative;
-  z-index: 1;
-  animation: slideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(30px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Left branding panel */
-.login-brand {
-  flex: 1;
-  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
-  backdrop-filter: blur(20px);
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 60px 48px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.brand-content { max-width: 320px; }
-
-.brand-icon {
-  width: 72px;
-  height: 72px;
-  margin-bottom: 28px;
-}
-
-.brand-icon svg {
+  inset: 0;
   width: 100%;
   height: 100%;
 }
 
-.brand-title {
-  font-size: 28px;
-  font-weight: 900;
-  color: #fff;
-  margin-bottom: 8px;
-  letter-spacing: -0.5px;
+/* ── Left Brand Panel ── */
+.sp-login-brand {
+  flex: 1.2;
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 1;
 }
 
-.brand-subtitle {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 40px;
+.sp-login-brand-inner {
+  padding: 60px 48px 60px 64px;
+  max-width: 420px;
 }
 
-.brand-features {
+.sp-login-logo {
+  height: 44px;
+  width: auto;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.sp-login-brand-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 36px;
+}
+
+.sp-login-brand-text {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 2px;
 }
 
-.brand-feature {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 14px;
-}
-
-.brand-feature .el-icon {
-  color: #34d399;
+.sp-login-brand-name {
   font-size: 18px;
-  flex-shrink: 0;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.1em;
+  font-family: "SimHei", "黑体", sans-serif;
 }
 
-/* Right form panel */
-.login-form-area {
-  flex: 1;
-  background: #fff;
+.sp-login-brand-en {
+  font-size: 7px;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+.sp-login-title {
+  font-family: "SimHei", "黑体", sans-serif;
+  font-size: 38px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+  margin-bottom: 12px;
+}
+
+.sp-login-divider {
+  width: 32px;
+  height: 3px;
+  background: #18a56c;
+  margin-bottom: 12px;
+}
+
+.sp-login-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-bottom: 48px;
+  letter-spacing: 0.05em;
+}
+
+.sp-login-features {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sp-login-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.sp-login-dot {
+  width: 6px;
+  height: 6px;
+  background: #18a56c;
+  margin-top: 6px;
+  flex-shrink: 0;
+  border-radius: 0;
+  transform: rotate(45deg);
+}
+
+.sp-login-feature-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 2px;
+}
+
+.sp-login-feature-desc {
+  display: block;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* ── Right Form Panel ── */
+.sp-login-form-area {
+  flex: 0 0 440px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 48px;
+  background: #fff;
+  position: relative;
+  z-index: 2;
+  /* Sharp left edge, rounded right */
+  border-radius: 0 4px 4px 0;
 }
 
-.login-form-wrapper {
+.sp-login-form-wrapper {
   width: 100%;
-  max-width: 360px;
+  max-width: 320px;
+  padding: 48px 40px;
 }
 
-.form-title {
+.sp-form-title {
+  font-family: "SimHei", "黑体", sans-serif;
   font-size: 24px;
   font-weight: 800;
   color: var(--sp-gray-900);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
-.form-desc {
-  font-size: 14px;
+.sp-form-desc {
+  font-size: 13px;
   color: var(--sp-gray-500);
   margin-bottom: 32px;
 }
 
-.login-form-wrapper :deep(.el-input__wrapper) {
-  border-radius: 10px;
+.sp-login-form-wrapper :deep(.el-input__wrapper) {
+  border-radius: 2px;
   padding: 4px 12px;
+  box-shadow: 0 0 0 1px var(--sp-border) inset;
 }
 
-.login-btn {
+.sp-login-form-wrapper :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px var(--sp-gray-400) inset;
+}
+
+.sp-login-form-wrapper :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--sp-primary) inset;
+}
+
+.sp-login-btn {
   width: 100%;
-  height: 46px;
-  border-radius: 10px;
-  font-size: 16px;
+  height: 44px;
+  border-radius: 2px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 4px;
+  letter-spacing: 3px;
+  margin-top: 8px;
 }
 
-.form-footer {
+.sp-form-footer {
   text-align: center;
-  margin-top: 24px;
-  font-size: 14px;
+  margin-top: 20px;
+  font-size: 13px;
 }
 
-.form-footer-text { color: var(--sp-gray-500); }
-.form-footer-link {
+.sp-form-footer-text {
+  color: var(--sp-gray-500);
+}
+
+.sp-form-footer-link {
   color: var(--sp-primary);
   font-weight: 600;
   margin-left: 4px;
+  text-decoration: none;
 }
 
-.form-footer-link:hover { text-decoration: underline; }
+.sp-form-footer-link:hover {
+  text-decoration: underline;
+}
 
-@media (max-width: 768px) {
-  .login-brand { display: none; }
-  .login-container { width: 95vw; min-height: auto; }
-  .login-form-area { padding: 32px 24px; }
+.sp-form-test {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--sp-border-light);
+  text-align: center;
+  font-size: 11px;
+  color: var(--sp-gray-400);
+}
+
+/* ── Responsive ── */
+@media (max-width: 860px) {
+  .sp-login {
+    flex-direction: column;
+  }
+
+  .sp-login-brand {
+    display: none;
+  }
+
+  .sp-login-form-area {
+    flex: 1;
+    border-radius: 0;
+  }
+
+  .sp-login-form-wrapper {
+    max-width: 100%;
+    padding: 48px 24px;
+  }
 }
 </style>

@@ -157,6 +157,13 @@ async function submitRegister() {
     <div class="register-container">
       <!-- Header -->
       <div class="register-header">
+        <div class="register-brand">
+          <img src="/logo.jpg" alt="四川水发集团" class="register-logo" />
+          <div class="register-brand-text">
+            <strong class="register-brand-name">四川水发集团</strong>
+            <small class="register-brand-en">SICHUAN WATER DEVELOPMENT GROUP</small>
+          </div>
+        </div>
         <router-link to="/login" class="back-link">
           <el-icon><ArrowLeft /></el-icon>返回登录
         </router-link>
@@ -393,6 +400,43 @@ async function submitRegister() {
   text-align: center;
   margin-bottom: 36px;
   position: relative;
+}
+
+.register-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.register-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.register-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: left;
+}
+
+.register-brand-name {
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--sp-gray-900);
+  letter-spacing: 0.1em;
+  font-family: "SimHei", "黑体", sans-serif;
+}
+
+.register-brand-en {
+  font-size: 7px;
+  color: var(--sp-gray-400);
+  letter-spacing: 0.05em;
+  font-weight: 500;
 }
 
 .back-link {
