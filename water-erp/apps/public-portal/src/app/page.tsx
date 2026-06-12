@@ -16,7 +16,6 @@ export default function HomePage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [logging, setLogging] = useState(false);
-  const [mobileNav, setMobileNav] = useState(false);
   const [modal, setModal] = useState<'login' | 'register' | null>(null);
   const [regForm, setRegForm] = useState({ name: '', creditCode: '', phone: '', pwd: '', contact: '' });
   const [regLoading, setRegLoading] = useState(false);
@@ -92,32 +91,11 @@ export default function HomePage() {
     },
   ];
 
-  const navItems = [
-    { label: '首页', href: '/', active: true },
-    { label: '智慧水发·采购中心', href: 'http://192.168.1.111:3001' },
-    {
-      label: '开评标管理', children: ['招标文件下载', '标书投递', '评标系统', '结果公示'],
-    },
-    {
-      label: '专家管理', children: ['专家库', '专家抽取', '通知确认', '专家评价'],
-    },
-    {
-      label: '供应商管理', children: ['供应商注册', '供应商库', '供应商评价'],
-    },
-    {
-      label: '集中采购', children: ['商家入驻', '商家管理', '集中采购目录'],
-    },
-    {
-      label: '信息公告', children: ['招标公告', '中标公示', '政策法规', '平台通知'],
-    },
-    { label: '关于我们', href: '/about' },
-  ];
-
   const features = [
     { icon: 'file', title: '智慧水发·采购中心', desc: '立项申请、项目管理、招标文件', href: 'http://192.168.1.111:3001' },
-    { icon: 'cart', title: '电子商城', desc: '集中采购、员工内购、商家入驻', href: 'http://localhost:3002' },
-    { icon: 'share', title: '供应商端', desc: '供应商注册、供应商库、评价', href: 'http://localhost:3003' },
-    { icon: 'users', title: '采购管理端', desc: '采购计划、合同管理、数据分析', href: 'http://localhost:3004' },
+    { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: 'http://localhost:3002' },
+    { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: 'http://localhost:3003' },
+    { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: 'http://localhost:3004' },
     { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: 'http://localhost:3005' },
   ];
 
@@ -131,8 +109,8 @@ export default function HomePage() {
   return (
     <div className="min-h-screen text-[#18243a] bg-white overflow-x-hidden" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       {/* ═══════════════════ Header ═══════════════════ */}
-      <header className="sticky top-0 z-50 h-[68px] flex items-center bg-white border-b border-[#e5ecf4]">
-        <div className="w-full max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
+      <header className="sticky top-0 z-50 h-[52px] flex items-center bg-white border-b border-[#e5ecf4]">
+        <div className="w-full px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
           {/* Brand */}
           <a href="/" className="flex items-center gap-3 shrink-0">
             <img src="/assets/logo.jpg" alt="四川水发集团" className="h-10 w-auto object-contain" />
@@ -142,51 +120,13 @@ export default function HomePage() {
             </div>
           </a>
 
-          {/* Navigation */}
-          <nav className="hidden lg:flex items-center gap-9 h-full text-[15px] font-semibold text-[#333]">
-            {navItems.map((item, i) => (
-              <div key={i} className="relative h-full group">
-                {item.children ? (
-                  <>
-                    <a href="#" className="h-full flex items-center hover:text-[#064ea2] transition-colors">
-                      {item.label}
-                    </a>
-                    <div className="absolute left-0 top-full min-w-[160px] bg-white rounded-lg shadow-lg py-1.5 opacity-0 invisible -translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-200 z-50">
-                      {item.children.map((child, j) => (
-                        <a key={j} href="#" className="block px-4 py-2 text-sm text-[#444] hover:bg-[#f5f8fc] hover:text-[#064ea2] transition-colors">{child}</a>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <a href={item.href || '#'} className={`h-full flex items-center hover:text-[#064ea2] transition-colors ${i === 0 ? 'text-[#064ea2]' : ''}`}>
-                    {item.label}
-                  </a>
-                )}
-              </div>
-            ))}
-          </nav>
-
           {/* Actions */}
           <div className="flex items-center gap-3 shrink-0">
             <button onClick={() => setModal('login')} className="h-10 px-6 border border-[#d0dae8] text-[#064ea2] bg-white rounded-md text-sm font-semibold hover:bg-[#f5f8fc] transition-colors">登录</button>
             <button onClick={() => setModal('register')} className="h-10 px-5 bg-[#064ea2] text-white rounded-md text-sm font-semibold hover:bg-[#043d82] transition-colors">注册</button>
-            <button onClick={() => setMobileNav(!mobileNav)} className="hidden max-lg:flex w-9 h-9 rounded-md border border-[#d0dae8] items-center justify-center flex-col gap-[4px]">
-              <span className="w-4 h-0.5 bg-[#064ea2] rounded" />
-              <span className="w-4 h-0.5 bg-[#064ea2] rounded" />
-              <span className="w-4 h-0.5 bg-[#064ea2] rounded" />
-            </button>
           </div>
         </div>
       </header>
-
-      {/* Mobile Nav */}
-      {mobileNav && (
-        <nav className="lg:hidden bg-white border-b border-[#e5ecf4] px-6 py-3 grid grid-cols-2 gap-1">
-          {navItems.map((item, i) => (
-            <a key={i} href={item.href || '#'} className="h-10 flex items-center text-sm font-semibold text-[#333] hover:text-[#064ea2]">{item.label}</a>
-          ))}
-        </nav>
-      )}
 
       <main>
         {/* ═══════════════════ Hero ═══════════════════ */}
@@ -211,7 +151,7 @@ export default function HomePage() {
           <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-white rounded-[50%_50%_0_0/76%_76%_0_0] z-10" />
           <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-transparent border-t-[clamp(3px,.4vw,6px)] border-r-[clamp(3px,.5vw,8px)] border-t-[#0b59ad] border-r-[#18a56c] rounded-[50%_50%_0_0/76%_76%_0_0] z-20 pointer-events-none" />
 
-          <div className="relative z-20 max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)] py-[clamp(56px,5vw,96px)]">
+          <div className="relative z-20 px-[clamp(40px,4vw,72px)] py-[clamp(56px,5vw,96px)]">
             <h1 className="text-[clamp(40px,3.6vw,62px)] font-black leading-[1.15] tracking-[0.10em] mb-5 hero-title" data-text="智慧水发·蜀水云采">智慧水发·蜀水云采</h1>
             <p className="text-[clamp(16px,1.2vw,20px)] text-white/80 font-medium mb-12 max-w-xl">四川省水利发展集团统一招采门户 —— 阳光透明、合规高效的电子化招标采购平台</p>
             <div className="flex gap-4">
@@ -229,7 +169,7 @@ export default function HomePage() {
 
         {/* ═══════════════════ 快捷入口 ═══════════════════ */}
         <section className="relative z-10 bg-white py-8">
-          <div className="max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)]">
+          <div className="px-[clamp(40px,4vw,72px)]">
             <div className="grid grid-cols-5 max-md:grid-cols-3 max-sm:grid-cols-2 gap-5">
               {features.map((f) => (
                 <a key={f.title} href={f.href} className="flex items-center gap-4 px-5 py-4 rounded-lg hover:bg-[#f5f8fc] transition-colors group">
@@ -246,7 +186,7 @@ export default function HomePage() {
 
         {/* ═══════════════════ 公告信息（主角）═══════════════════ */}
         <section className="py-14 bg-[#f7f9fc]">
-          <div className="max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)]">
+          <div className="px-[clamp(40px,4vw,72px)]">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-5">
                 <h2 className="text-2xl font-black text-[#18243a]">公告</h2>
@@ -297,7 +237,7 @@ export default function HomePage() {
         <section className="relative bg-[#eef3f8] py-12 overflow-hidden">
           <img src="/assets/bg-waterworks-bottom.png" alt="" className="absolute inset-0 w-full h-full object-cover object-bottom opacity-90" />
           <div className="absolute inset-0" style={{ background: "linear-gradient(0deg, rgba(238,243,248,0) 0%, rgba(238,243,248,0) 40%, rgba(238,243,248,0.5) 70%, rgba(238,243,248,1) 100%)" }} />
-          <div className="relative z-10 max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)]">
+          <div className="relative z-10 px-[clamp(40px,4vw,72px)]">
             <h2 className="text-lg font-black text-[#1a2a42] tracking-wide mb-6">携手水发　共创阳光招采新未来</h2>
             <div className="grid grid-cols-4 max-sm:grid-cols-2 gap-6">
               {cooperation.map((item, i) => (
