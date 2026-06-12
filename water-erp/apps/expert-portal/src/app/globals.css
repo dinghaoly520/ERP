@@ -1,40 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
-
 @import "tailwindcss";
 
-/* =============================================================================
-   专家评审工作站 — Expert Color System (OKLCH Purple)
-   Purple accent identity, flat industrial aesthetic, no gradients/shadows
-   ============================================================================= */
+/* 专家评审工作站 — Water Blue Color System */
 
 :root {
-  /* Base tokens */
+  --color-primary: #064ea2;
+  --color-primary-hover: #043d82;
   --color-bg: oklch(0.982 0.003 264);
   --color-surface: oklch(1 0 0);
   --color-border: oklch(0.91 0.006 264);
   --color-text: oklch(0.18 0.012 265);
   --color-text-secondary: oklch(0.45 0.01 264);
-  --color-text-tertiary: oklch(0.62 0.008 264);
-
-  /* Expert identity — violet in OKLCH */
-  --expert-950: oklch(0.22 0.06 285);
-  --expert-900: oklch(0.35 0.12 285);
-  --expert-700: oklch(0.52 0.18 285);
-  --expert-600: oklch(0.60 0.19 285);
-  --expert-400: oklch(0.68 0.12 285);
-  --expert-200: oklch(0.82 0.06 285);
-  --expert-100: oklch(0.92 0.04 285);
-  --expert-50:  oklch(0.97 0.015 285);
-
-  /* Semantic */
   --color-success: oklch(0.54 0.16 158);
   --color-warning: oklch(0.64 0.16 82);
   --color-danger:  oklch(0.50 0.18 22);
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 0.8125rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 0.875rem;
   color: var(--color-text);
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;

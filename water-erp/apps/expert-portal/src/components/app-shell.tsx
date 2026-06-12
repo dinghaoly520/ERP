@@ -3,10 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '../lib/types';
-import { portalURL } from '@water-erp/config';
 import { LayoutDashboard, ClipboardList, UserCircle, LogOut, PanelLeftClose, PanelLeft } from 'lucide-react';
 
-const LOGIN_URL = portalURL('public', '/login');
+const LOGIN_URL = '/login';
 
 const navItems = [
   { label: '工作台', path: '/', icon: LayoutDashboard },
@@ -40,9 +39,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden bg-[oklch(0.982_0.003_264)]">
       {/* Sidebar — violet deep */}
-      <aside className={`${collapsed ? 'w-[56px]' : 'w-56'} bg-[oklch(0.22_0.06_285)] text-white flex flex-col flex-shrink-0 transition-all duration-200 overflow-hidden`}>
+      <aside className={`${collapsed ? 'w-[56px]' : 'w-56'} bg-[oklch(0.18_0.045_262)] text-white flex flex-col flex-shrink-0 transition-all duration-200 overflow-hidden`}>
         <div className="h-14 flex items-center gap-3 px-4 border-b border-white/[0.06] cursor-pointer flex-shrink-0">
-          <div className="w-7 h-7 bg-[oklch(0.52_0.18_285)] flex items-center justify-center flex-shrink-0">
+          <div className="w-7 h-7 bg-[oklch(0.50_0.16_258)] flex items-center justify-center flex-shrink-0">
             <span className="text-[10px] font-bold tracking-wider">评</span>
           </div>
           {!collapsed && <span className="text-[13px] font-bold tracking-tight whitespace-nowrap">专家评审工作站</span>}
@@ -78,7 +77,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-4">
             {user && <span className="text-[13px] font-medium text-[oklch(0.18_0.012_265)] tracking-tight">{user.displayName}</span>}
             <button onClick={logout}
-              className="flex items-center gap-1.5 text-[12px] text-[oklch(0.55_0.008_264)] hover:text-[oklch(0.50_0.18_22)] transition-colors tracking-tight">
+              className="flex items-center gap-1.5 text-[12px] text-[oklch(0.55_0.008_264)] hover:text-[#e74c3c] transition-colors tracking-tight">
               <LogOut size={14} strokeWidth={1.5} /> 退出
             </button>
           </div>

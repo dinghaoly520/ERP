@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BarChart3, Clock, CheckCircle, TrendingUp, Clipboard, ScrollText, Inbox, Megaphone, Building2, Edit3, MessageSquare, Pencil, AlertTriangle, UserCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { ExpertStatistics, ExpertProject, User } from '@/lib/types';
 
@@ -16,8 +17,8 @@ export default function ExpertDashboardPage() {
     fetch('/api/auth/me', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(setUser);
-    api.get<ExpertStatistics>('/expert/statistics').then(setStats).catch(() => {});
-    api.get<ExpertProject[]>('/expert/projects').then(setProjects).catch(() => {});
+    api.get<ExpertStatistics>('/expert/statistics').then(setStats).catch(() => toast.error('加载统计数据失败'));
+    api.get<ExpertProject[]>('/expert/projects').then(setProjects).catch(() => toast.error('加载项目列表失败'));
   }, []);
 
   const stageLabel: Record<string, string> = { DOWNLOAD: '文件下载', SUBMIT: '加密投递', OPENING: '在线开标', EVALUATING: '专家评标', ARCHIVED: '资料归档' };
@@ -25,7 +26,7 @@ export default function ExpertDashboardPage() {
   return (
     <div>
       {/* 欢迎横幅 */}
-      <div className="bg-gradient-to-r from-[#5b21b6] via-[#7c3aed] to-[#a78bfa] rounded-2xl p-8 mb-6 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-r from-[#043f88] via-[#064ea2] to-[#0e62d0] rounded-2xl p-8 mb-6 text-white relative overflow-hidden">
         <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
         <div className="relative">
           <p className="text-white/70 text-sm mb-1">专家评审工作站</p>
@@ -37,7 +38,7 @@ export default function ExpertDashboardPage() {
       {/* 统计卡片 */}
       <div className="grid grid-cols-4 gap-px bg-[oklch(0.91_0.006_264)] mb-8">
         {[
-          { label: '分配项目', value: stats?.totalProjects ?? 0, color: 'text-violet-600 bg-violet-50', Icon: Clipboard },
+          { label: '分配项目', value: stats?.totalProjects ?? 0, color: 'text-blue-600 bg-blue-50', Icon: Clipboard },
           { label: '进行中', value: stats?.signedInProjects ?? 0, color: 'text-amber-600 bg-amber-50', Icon: Clock },
           { label: '已完成', value: stats?.completedProjects ?? 0, color: 'text-emerald-600 bg-emerald-50', Icon: CheckCircle },
           { label: '平均得分', value: stats?.averageScore ?? 0, color: 'text-blue-600 bg-blue-50', Icon: TrendingUp },
