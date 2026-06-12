@@ -115,10 +115,10 @@ export default function HomePage() {
 
   const features = [
     { icon: 'file', title: '智慧水发·采购中心', desc: '立项申请、项目管理、招标文件', href: 'http://192.168.1.111:3001' },
-    { icon: 'cart', title: '电子商城', desc: '集中采购、员工内购、商家入驻', href: 'http://192.168.1.111:3002' },
-    { icon: 'share', title: '供应商端', desc: '供应商注册、供应商库、评价', href: 'http://192.168.1.111:3003' },
-    { icon: 'users', title: '采购管理端', desc: '采购计划、合同管理、数据分析', href: 'http://192.168.1.111:3004' },
-    { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: 'http://192.168.1.111:3005' },
+    { icon: 'cart', title: '电子商城', desc: '集中采购、员工内购、商家入驻', href: 'http://localhost:3002' },
+    { icon: 'share', title: '供应商端', desc: '供应商注册、供应商库、评价', href: 'http://localhost:3003' },
+    { icon: 'users', title: '采购管理端', desc: '采购计划、合同管理、数据分析', href: 'http://localhost:3004' },
+    { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: 'http://localhost:3005' },
   ];
 
   const cooperation = [
