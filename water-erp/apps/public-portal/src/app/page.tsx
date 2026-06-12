@@ -26,9 +26,16 @@ export default function HomePage() {
   const [announceTab, setAnnounceTab] = useState(0);
   const heroImages = ['bg-hydro-hero-1.png','bg-hydro-hero-2.png','bg-hydro-hero-3.png','bg-hydro-hero-4.png','bg-hydro-hero-5.png','bg-hydro-hero-6.png'];
 
-  // Hero image rotation — preload all images for smooth crossfade
+  // Hero image rotation — preload remaining images after mount
+  const [heroLoaded, setHeroLoaded] = useState<Set<number>>(new Set([0]));
   useEffect(() => {
-    heroImages.forEach(src => { const img = new Image(); img.src = `/assets/${src}`; });
+    // Preload remaining hero images
+    heroImages.forEach((src, i) => {
+      if (i === 0) return;
+      const img = new Image();
+      img.src = `/assets/${src}`;
+      img.onload = () => setHeroLoaded(prev => new Set(prev).add(i));
+    });
     const t = setInterval(() => setHeroIdx(i => (i + 1) % heroImages.length), 5000);
     return () => clearInterval(t);
   }, []);
@@ -94,7 +101,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen text-[#18243a] bg-white overflow-x-hidden" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       {/* ═══════════════════ Header ═══════════════════ */}
-      <header className="sticky top-0 z-50 h-[88px] flex items-center bg-white border-b border-[#e5ecf4]">
+      <header className="sticky top-0 z-50 h-[88px] flex items-center bg-white border-b border-[#e5ecf4]" style={{ willChange: 'transform' }}>
         <div className="w-full px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
           {/* Brand */}
           <a href="/" className="flex items-center gap-3 shrink-0">
@@ -121,14 +128,29 @@ export default function HomePage() {
 
       <main className="bg-[#f5f7fa]">
         {/* ═══════════════════ Hero ═══════════════════ */}
-        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden">
-          <div className="absolute inset-0 w-full" style={{
+        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden bg-[#0b3d7a]" style={{ contain: 'layout style paint' }}>
+          {/* Background images — <img> for better loading control */}
+          {heroImages.map((src, i) => (
+            <img
+              key={src}
+              src={`/assets/${src}`}
+              alt=""
+              loading={i === 0 ? 'eager' : 'lazy'}
+              fetchPriority={i === 0 ? 'high' : 'low'}
+              decoding={i === 0 ? 'sync' : 'async'}
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                opacity: i === heroIdx && heroLoaded.has(i) ? 1 : 0,
+                transition: 'opacity 0.8s ease-in-out',
+                willChange: i === heroIdx || i === (heroIdx + 1) % heroImages.length ? 'opacity' : 'auto',
+              }}
+            />
+          ))}
+
+          {/* Gradient overlay */}
+          <div className="absolute inset-0 pointer-events-none" style={{
             background: 'linear-gradient(90deg,rgba(246,250,255,.95) 0%,rgba(246,250,255,.88) 35%,rgba(246,250,255,.5) 60%,rgba(246,250,255,.15) 100%)',
-          }}>
-            {heroImages.map((src, i) => (
-              <div key={src} className="absolute inset-0 transition-opacity duration-1000 ease-in-out" style={{ background: `url('/assets/${src}') center center/cover no-repeat`, opacity: i === heroIdx ? 1 : 0 }} />
-            ))}
-          </div>
+          }} />
 
           {/* Dot switchers */}
           <div className="absolute right-6 bottom-16 z-10 flex gap-1.5">
@@ -143,7 +165,7 @@ export default function HomePage() {
           <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-transparent border-t-[clamp(3px,.4vw,6px)] border-r-[clamp(3px,.5vw,8px)] border-t-[#0b59ad] border-r-[#18a56c] rounded-[50%_50%_0_0/76%_76%_0_0] z-20 pointer-events-none" />
 
           <div className="relative z-20 px-[clamp(40px,4vw,72px)] py-[clamp(56px,5vw,96px)]">
-            <h1 className="text-[clamp(40px,3.6vw,62px)] font-black leading-[1.15] tracking-[0.10em] mb-5 hero-title" data-text="智慧水发·蜀水云采">智慧水发·蜀水云采</h1>
+            <h1 className="text-[clamp(40px,3.6vw,62px)] font-black leading-[1.15] tracking-[0.10em] mb-5 hero-title">智慧水发·蜀水云采</h1>
             <p className="text-[clamp(16px,1.2vw,20px)] text-white/80 font-medium mb-12 max-w-xl">四川省水利发展集团统一招采门户 —— 阳光透明、合规高效的电子化招标采购平台</p>
             <div className="flex gap-4">
               <button onClick={() => setModal('login')} className="hero-btn">
@@ -238,15 +260,18 @@ export default function HomePage() {
           <div className="absolute inset-0" style={{ background: "linear-gradient(0deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0.5) 70%, rgba(255,255,255,1) 100%)" }} />
           <div className="relative z-10 px-[clamp(40px,4vw,72px)]">
             <h2 className="value-title">携手水发　共创阳光招采新未来</h2>
-            <div className="grid grid-cols-4 max-sm:grid-cols-2 gap-6">
+            <div className="flex items-stretch max-sm:grid max-sm:grid-cols-2 max-sm:gap-4">
               {cooperation.map((item, i) => (
-                <div key={i} className={`flex items-center gap-4 ${i < 3 ? 'max-sm:border-r-0 border-r border-[rgba(91,119,147,.15)] pr-6' : ''}`}>
-                  <div className="value-icon" dangerouslySetInnerHTML={{ __html: SVG_ICONS[item.icon] }} />
-                  <div>
-                    <strong className="value-item-title">{item.title}</strong>
-                    <span className="value-item-desc">{item.desc}</span>
+                <React.Fragment key={i}>
+                  <div className="flex-1 flex items-center gap-4">
+                    <div className="value-icon" dangerouslySetInnerHTML={{ __html: SVG_ICONS[item.icon] }} />
+                    <div>
+                      <strong className="value-item-title">{item.title}</strong>
+                      <span className="value-item-desc">{item.desc}</span>
+                    </div>
                   </div>
-                </div>
+                  {i < cooperation.length - 1 && <div className="value-divider" />}
+                </React.Fragment>
               ))}
             </div>
           </div>
