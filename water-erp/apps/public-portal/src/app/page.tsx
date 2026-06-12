@@ -21,6 +21,7 @@ export default function HomePage() {
   const [regForm, setRegForm] = useState({ name: '', creditCode: '', phone: '', pwd: '', contact: '' });
   const [regLoading, setRegLoading] = useState(false);
   const [heroIdx, setHeroIdx] = useState(0);
+  const [announceTab, setAnnounceTab] = useState(0);
   const heroImages = ['bg-hydro-hero-1.png','bg-hydro-hero-2.png','bg-hydro-hero-3.png','bg-hydro-hero-4.png','bg-hydro-hero-5.png','bg-hydro-hero-6.png'];
 
   // Hero image rotation — preload all images for smooth crossfade
@@ -60,6 +61,37 @@ export default function HomePage() {
     setRegLoading(false);
   };
 
+  const announceData = [
+    { // 招标公告
+      featured: {
+        tag: '招标公告', date: '2026-05-18', urgent: true,
+        title: '2026年度水利工程物资集中采购招标公告',
+        desc: '本项目为四川水发集团2026年度水利工程物资集中采购，采购内容包括钢管、阀门、水泵等主要设备物资...',
+        code: 'SWSW-2026-0518', deadline: '2026-05-28 17:00',
+      },
+      list: [
+        { date: '05-16', title: '智慧水务信息化系统建设项目招标公告' },
+        { date: '05-12', title: '升钟水库灌区续建配套与节水改造工程招标' },
+        { date: '05-06', title: '武都引水工程机电设备维护服务招标公告' },
+        { date: '04-28', title: '亭子口水利枢纽下游河道治理工程招标' },
+      ],
+    },
+    { // 中标公示
+      featured: {
+        tag: '中标公示', date: '2026-05-20', urgent: false,
+        title: '2026年度水利工程物资集中采购中标公示',
+        desc: '经评标委员会评审，现将2026年度水利工程物资集中采购项目中标结果公示如下，公示期为3个工作日...',
+        code: 'SWSW-2026-ZB0518', deadline: '2026-05-25 17:00',
+      },
+      list: [
+        { date: '05-18', title: '智慧水务信息化系统建设项目中标公示' },
+        { date: '05-14', title: '升钟水库灌区续建配套与节水改造工程中标公示' },
+        { date: '05-10', title: '武都引水工程机电设备维护服务中标公示' },
+        { date: '05-02', title: '亭子口水利枢纽下游河道治理工程中标公示' },
+      ],
+    },
+  ];
+
   const navItems = [
     { label: '首页', href: '/', active: true },
     { label: '智慧水发·采购中心', href: 'http://192.168.1.111:3001' },
@@ -82,11 +114,11 @@ export default function HomePage() {
   ];
 
   const features = [
-    { icon: 'file', title: '采购管理入口', desc: '立项申请、项目管理、招标文件' },
-    { icon: 'cart', title: '电子商城入口', desc: '集中采购、员工内购、商家入驻' },
-    { icon: 'share', title: '供应商入口', desc: '供应商注册、供应商库、评价' },
-    { icon: 'users', title: '专家入口', desc: '专家库、专家抽取、专家评价' },
-    { icon: 'safe', title: '开评标系统入口', desc: '在线开标、专家评审、监督归档' },
+    { icon: 'file', title: '智慧水发·采购中心', desc: '立项申请、项目管理、招标文件', href: 'http://192.168.1.111:3001' },
+    { icon: 'cart', title: '电子商城', desc: '集中采购、员工内购、商家入驻', href: 'http://192.168.1.111:3002' },
+    { icon: 'share', title: '供应商端', desc: '供应商注册、供应商库、评价', href: 'http://192.168.1.111:3003' },
+    { icon: 'users', title: '采购管理端', desc: '采购计划、合同管理、数据分析', href: 'http://192.168.1.111:3004' },
+    { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: 'http://192.168.1.111:3005' },
   ];
 
   const cooperation = [
@@ -200,7 +232,7 @@ export default function HomePage() {
           <div className="max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)]">
             <div className="grid grid-cols-5 max-md:grid-cols-3 max-sm:grid-cols-2 gap-5">
               {features.map((f) => (
-                <a key={f.title} href="#" className="flex items-center gap-4 px-5 py-4 rounded-lg hover:bg-[#f5f8fc] transition-colors group">
+                <a key={f.title} href={f.href} className="flex items-center gap-4 px-5 py-4 rounded-lg hover:bg-[#f5f8fc] transition-colors group">
                   <div className="w-11 h-11 rounded-lg bg-[#eef3fb] flex items-center justify-center text-[#064ea2] shrink-0 group-hover:bg-[#064ea2] group-hover:text-white transition-colors" dangerouslySetInnerHTML={{ __html: SVG_ICONS[f.icon] }} />
                   <div>
                     <strong className="block text-[15px] font-bold text-[#1c2941]">{f.title}</strong>
@@ -217,45 +249,40 @@ export default function HomePage() {
           <div className="max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)]">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-5">
-                <h2 className="text-2xl font-black text-[#18243a]">招标公告</h2>
-                <div className="flex gap-1.5">
+                <h2 className="text-2xl font-black text-[#18243a]">公告</h2>
+                <div className="flex gap-2">
                   {['招标公告', '中标公示'].map((tab, i) => (
-                    <button key={tab} className={`px-5 py-2 rounded-md text-sm font-semibold transition-colors ${i === 0 ? 'bg-[#064ea2] text-white' : 'text-[#666] hover:bg-white hover:text-[#064ea2]'}`}>
+                    <button key={tab} onClick={() => setAnnounceTab(i)} className={i === announceTab ? 'tab-active' : 'tab-inactive'}>
                       {tab}
                     </button>
                   ))}
                 </div>
               </div>
-              <a href="/announcements" className="text-sm font-semibold text-[#064ea2] hover:underline">全部公告 →</a>
+              <a href="/announcements" className="neu-link">全部公告 →</a>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               {/* Featured card — spans 2 cols */}
               <div className="lg:col-span-2 bg-white rounded-lg border border-[#e5ecf4] p-7 hover:shadow-md transition-shadow cursor-pointer">
                 <div className="flex items-center gap-2.5 mb-4">
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded bg-[#064ea2] text-white">招标公告</span>
-                  <span className="text-xs text-[#999]">2026-05-18</span>
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded bg-[#fff1f0] text-[#d43030]">重要</span>
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded text-white ${announceTab === 0 ? 'bg-[#064ea2]' : 'bg-[#18a56c]'}`}>{announceData[announceTab].featured.tag}</span>
+                  <span className="text-xs text-[#999]">{announceData[announceTab].featured.date}</span>
+                  {announceData[announceTab].featured.urgent && <span className="text-xs font-semibold px-2.5 py-1 rounded bg-[#fff1f0] text-[#d43030]">重要</span>}
                 </div>
-                <h3 className="text-xl font-bold text-[#18243a] mb-3">2026年度水利工程物资集中采购招标公告</h3>
-                <p className="text-sm text-[#666] mb-5 leading-relaxed">本项目为四川水发集团2026年度水利工程物资集中采购，采购内容包括钢管、阀门、水泵等主要设备物资...</p>
+                <h3 className="text-xl font-bold text-[#18243a] mb-3">{announceData[announceTab].featured.title}</h3>
+                <p className="text-sm text-[#666] mb-5 leading-relaxed">{announceData[announceTab].featured.desc}</p>
                 <div className="flex items-center justify-between">
                   <div className="flex gap-6 text-xs">
-                    <span className="text-[#999]">项目编号 <span className="text-[#18243a] font-semibold ml-1">SWSW-2026-0518</span></span>
-                    <span className="text-[#999]">报名截止 <em className="not-italic text-[#d43030] font-bold ml-1">2026-05-28 17:00</em></span>
+                    <span className="text-[#999]">项目编号 <span className="text-[#18243a] font-semibold ml-1">{announceData[announceTab].featured.code}</span></span>
+                    <span className="text-[#999]">{announceTab === 0 ? '报名截止' : '公示截止'} <em className="not-italic text-[#d43030] font-bold ml-1">{announceData[announceTab].featured.deadline}</em></span>
                   </div>
-                  <a href="/announcements" className="text-sm font-semibold text-[#064ea2] hover:underline shrink-0">查看详情 →</a>
+                  <a href="/announcements" className="neu-link shrink-0">查看详情 →</a>
                 </div>
               </div>
 
               {/* Side list — 1 col */}
               <div className="bg-white rounded-lg border border-[#e5ecf4] divide-y divide-[#eef1f6]">
-                {[
-                  { date: '05-16', title: '智慧水务信息化系统建设项目招标公告' },
-                  { date: '05-12', title: '升钟水库灌区续建配套与节水改造工程招标' },
-                  { date: '05-06', title: '武都引水工程机电设备维护服务招标公告' },
-                  { date: '04-28', title: '亭子口水利枢纽下游河道治理工程招标' },
-                ].map((item) => (
+                {announceData[announceTab].list.map((item) => (
                   <a key={item.date} href="/announcements" className="flex flex-col gap-1.5 px-5 py-4 hover:bg-[#f9fafb] transition-colors group">
                     <span className="text-xs text-[#aaa]">{item.date}</span>
                     <span className="text-[15px] font-medium text-[#333] group-hover:text-[#064ea2] transition-colors leading-snug">{item.title}</span>
@@ -268,7 +295,8 @@ export default function HomePage() {
 
         {/* ═══════════════════ 价值观 ═══════════════════ */}
         <section className="relative bg-[#eef3f8] py-12 overflow-hidden">
-          <div className="absolute inset-0 opacity-70" style={{ background: "url('/assets/bg-waterworks-bottom.png') center bottom/cover no-repeat" }} />
+          <img src="/assets/bg-waterworks-bottom.png" alt="" className="absolute inset-0 w-full h-full object-cover object-bottom opacity-90" />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(0deg, rgba(238,243,248,0) 0%, rgba(238,243,248,0) 40%, rgba(238,243,248,0.5) 70%, rgba(238,243,248,1) 100%)" }} />
           <div className="relative z-10 max-w-[1860px] mx-auto px-[clamp(40px,4vw,72px)]">
             <h2 className="text-lg font-black text-[#1a2a42] tracking-wide mb-6">携手水发　共创阳光招采新未来</h2>
             <div className="grid grid-cols-4 max-sm:grid-cols-2 gap-6">

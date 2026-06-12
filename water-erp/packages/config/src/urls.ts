@@ -24,6 +24,7 @@ export const ROLE_PORTAL: Record<string, AppName> = {
   procurement_staff: 'web',
   supplier: 'supplier',
   bid_expert: 'expert',
+  mall: 'mall',
 };
 
 /** 获取指定角色登陆后应跳转的完整门户 URL */

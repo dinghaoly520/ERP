@@ -25,6 +25,69 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── Announcement Tabs ── */
+.tab-active {
+  padding: 0.45em 1.6em;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  border-radius: 0.5em;
+  background: #064ea2;
+  border: 1px solid #064ea2;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: inset 3px 3px 6px #04336e, inset -3px -3px 6px #0869d6;
+}
+
+.tab-inactive {
+  padding: 0.45em 1.6em;
+  font-size: 14px;
+  font-weight: 600;
+  color: #5a6d8a;
+  border-radius: 0.5em;
+  background: #e8ecf2;
+  border: 1px solid #e8ecf2;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 4px 4px 8px #cdd2db, -4px -4px 8px #ffffff;
+}
+
+.tab-inactive:hover {
+  color: #064ea2;
+  border: 1px solid #fff;
+}
+
+.tab-inactive:active {
+  box-shadow: 2px 2px 5px #cdd2db, -2px -2px 5px #ffffff;
+}
+
+/* ── Neumorphism Link Buttons ── */
+.neu-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #18243a;
+  padding: 0.5em 1.3em;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 0.5em;
+  background: #e8ecf2;
+  border: 1px solid #e8ecf2;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 5px 5px 10px #c5cad3, -5px -5px 10px #ffffff;
+}
+
+.neu-link:hover {
+  border: 1px solid #fff;
+  color: #064ea2;
+}
+
+.neu-link:active {
+  box-shadow: 3px 3px 8px #c5cad3, -3px -3px 8px #ffffff;
+}
+
 /* ── Hero CTA Buttons ── */
 .hero-btn {
   position: relative;
