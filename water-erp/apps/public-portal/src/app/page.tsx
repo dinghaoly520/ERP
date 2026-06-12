@@ -206,7 +206,7 @@ export default function HomePage() {
         </section>
 
         {/* ═══════════════════ 快捷入口 ═══════════════════ */}
-        <section className="relative z-10 bg-white py-8">
+        <section className="relative z-10 bg-[#f0f5fb] py-8">
           <div className="px-[clamp(40px,4vw,72px)]">
             <div className="grid grid-cols-5 max-md:grid-cols-3 max-sm:grid-cols-2 gap-5">
               {features.map((f) => (
