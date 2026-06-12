@@ -43,9 +43,17 @@ export class BidController {
   @ApiOperation({ summary: '提交投标' })
   submitBid(@Param('id') id: string, @Body() dto: SubmitBidDto) { return this.bidService.submitBid(id, dto); }
 
+  @Post('projects/:id/open-submission')
+  @ApiOperation({ summary: '开放投递 (DOWNLOAD→SUBMIT)' })
+  openSubmission(@Param('id') id: string) { return this.bidService.openSubmission(id); }
+
   @Post('projects/:id/open')
   @ApiOperation({ summary: '启动开标' })
   startOpening(@Param('id') id: string) { return this.bidService.startOpening(id); }
+
+  @Post('projects/:id/start-evaluation')
+  @ApiOperation({ summary: '启动评标 (OPENING→EVALUATING)' })
+  startEvaluation(@Param('id') id: string) { return this.bidService.startEvaluation(id); }
 
   @Post('projects/:id/decrypt/:supplierId')
   @ApiOperation({ summary: '解密供应商投标' })

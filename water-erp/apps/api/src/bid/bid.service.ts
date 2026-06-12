@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
@@ -9,10 +9,29 @@ import { CreateClarificationDto } from './dto/create-clarification.dto';
 
 @Injectable()
 export class BidService {
+  // 阶段转换白名单
+  private static readonly STAGE_TRANSITIONS: Record<string, string[]> = {
+    DOWNLOAD:    ['SUBMIT'],
+    SUBMIT:      ['OPENING'],
+    OPENING:     ['EVALUATING'],
+    EVALUATING:  ['ARCHIVED'],
+    ARCHIVED:    [],
+  };
+
   constructor(
     private prisma: PrismaService,
     private notificationService: NotificationService,
   ) {}
+
+  private assertStageTransition(current: string, target: string) {
+    const allowed = BidService.STAGE_TRANSITIONS[current];
+    if (!allowed || !allowed.includes(target)) {
+      throw new BadRequestException({
+        error: `不允许从 ${current} 转换到 ${target}`,
+        code: 'INVALID_STAGE_TRANSITION',
+      });
+    }
+  }
 
   async getDashboardStats() {
     const [
@@ -101,7 +120,16 @@ export class BidService {
     return project;
   }
 
-  updateProject(id: string, dto: UpdateBidProjectDto) {
+  async updateProject(id: string, dto: UpdateBidProjectDto) {
+    if (dto.stage) {
+      const project = await this.prisma.bidProject.findUnique({
+        where: { id },
+        select: { stage: true },
+      });
+      if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+      this.assertStageTransition(project.stage, dto.stage);
+    }
+
     return this.prisma.bidProject.update({
       where: { id },
       data: {
@@ -132,9 +160,48 @@ export class BidService {
   }
 
   startOpening(projectId: string) {
+    return this.startOpeningInternal(projectId);
+  }
+
+  async openSubmission(id: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertStageTransition(project.stage, 'SUBMIT');
+
     return this.prisma.bidProject.update({
-      where: { id: projectId },
+      where: { id },
+      data: { stage: 'SUBMIT' },
+    });
+  }
+
+  private async startOpeningInternal(id: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertStageTransition(project.stage, 'OPENING');
+
+    return this.prisma.bidProject.update({
+      where: { id },
       data: { stage: 'OPENING' },
+    });
+  }
+
+  async startEvaluation(id: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertStageTransition(project.stage, 'EVALUATING');
+
+    return this.prisma.bidProject.update({
+      where: { id },
+      data: { stage: 'EVALUATING' },
     });
   }
 
@@ -189,11 +256,38 @@ export class BidService {
     return this.prisma.bidArchiveItem.findMany({ where: { projectId } });
   }
 
-  archiveAll(projectId: string) {
+  async archiveAll(id: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertStageTransition(project.stage, 'ARCHIVED');
+
+    const archiveItems = await this.prisma.bidArchiveItem.findMany({
+      where: { projectId: id, status: { not: 'ARCHIVED' } },
+    });
+
+    if (archiveItems.length === 0) {
+      throw new BadRequestException({ error: '没有可归档的项目', code: 'NO_ITEMS_TO_ARCHIVE' });
+    }
+
     const now = new Date();
-    return this.prisma.bidArchiveItem.updateMany({
-      where: { projectId, status: { not: 'ARCHIVED' } },
-      data: { status: 'ARCHIVED', hashDigest: `SHA256-${Date.now().toString(16).toUpperCase().slice(0, 6)}`, archivedAt: now },
+    const hashDigest = `sha256:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+
+    await this.prisma.bidArchiveItem.updateMany({
+      where: { projectId: id, status: { not: 'ARCHIVED' } },
+      data: { status: 'ARCHIVED', hashDigest, archivedAt: now },
+    });
+
+    await this.prisma.bidProject.update({
+      where: { id },
+      data: { stage: 'ARCHIVED' },
+    });
+
+    return this.prisma.bidProject.findUnique({
+      where: { id },
+      include: { archiveItems: true },
     });
   }
 }
