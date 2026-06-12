@@ -203,3 +203,40 @@ body {
   0%, 20%   { background-position: 200% center; }
   60%, 100% { background-position: -100% center; }
 }
+
+/* ── Feature Card Divider (彩色流光) ── */
+.feature-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 8px 0;
+  position: relative;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(6, 78, 162, 0.08) 15%,
+    rgba(6, 78, 162, 0.3) 50%,
+    rgba(6, 78, 162, 0.08) 85%,
+    transparent 100%
+  );
+}
+
+.feature-divider::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(8, 145, 178, 0.7),
+    rgba(6, 78, 162, 0.7),
+    rgba(24, 165, 108, 0.7),
+    transparent
+  );
+  background-size: 100% 300%;
+  animation: divider-flow 3s linear infinite;
+}
+
+@keyframes divider-flow {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: 0% 100%; }
+}

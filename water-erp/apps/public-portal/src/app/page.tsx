@@ -1,5 +1,7 @@
 'use client';
 
+import React from 'react';
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -208,15 +210,18 @@ export default function HomePage() {
         {/* ═══════════════════ 快捷入口 ═══════════════════ */}
 <section className="relative z-10 py-8">
           <div className="px-[clamp(40px,4vw,72px)]">
-            <div className="grid grid-cols-5 max-md:grid-cols-3 max-sm:grid-cols-2 gap-5">
-              {features.map((f) => (
-                <a key={f.title} href={f.href} className="flex items-center gap-4 px-5 py-4 rounded-lg hover:bg-[#f5f8fc] transition-colors group">
-                  <div className="w-11 h-11 rounded-lg bg-[#eef3fb] flex items-center justify-center text-[#064ea2] shrink-0 group-hover:bg-[#064ea2] group-hover:text-white transition-colors" dangerouslySetInnerHTML={{ __html: SVG_ICONS[f.icon] }} />
-                  <div>
-                    <strong className="block text-[15px] font-bold text-[#1c2941]">{f.title}</strong>
-                    <span className="text-xs text-[#8a96aa]">{f.desc}</span>
-                  </div>
-                </a>
+            <div className="flex items-stretch">
+              {features.map((f, idx) => (
+                <React.Fragment key={f.title}>
+                  <a href={f.href} className="flex-1 flex items-center gap-4 px-5 py-4 rounded-lg hover:bg-[#f5f8fc] transition-colors group">
+                    <div className="w-11 h-11 rounded-lg bg-[#eef3fb] flex items-center justify-center text-[#064ea2] shrink-0 group-hover:bg-[#064ea2] group-hover:text-white transition-colors" dangerouslySetInnerHTML={{ __html: SVG_ICONS[f.icon] }} />
+                    <div>
+                      <strong className="block text-[15px] font-bold text-[#1c2941]">{f.title}</strong>
+                      <span className="text-xs text-[#8a96aa]">{f.desc}</span>
+                    </div>
+                  </a>
+                  {idx < features.length - 1 && <div className="feature-divider" />}
+                </React.Fragment>
               ))}
             </div>
           </div>
