@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { SubmitBidDto } from './dto/submit-bid.dto';
@@ -8,7 +9,10 @@ import { CreateClarificationDto } from './dto/create-clarification.dto';
 
 @Injectable()
 export class BidService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationService: NotificationService,
+  ) {}
 
   async getDashboardStats() {
     const [
@@ -75,8 +79,8 @@ export class BidService {
     });
   }
 
-  createProject(dto: CreateBidProjectDto) {
-    return this.prisma.bidProject.create({
+  async createProject(dto: CreateBidProjectDto) {
+    const project = await this.prisma.bidProject.create({
       data: {
         name: dto.name,
         projectCode: `BID-${Date.now()}`,
@@ -86,6 +90,15 @@ export class BidService {
         riskNote: dto.riskNote,
       },
     });
+
+    await this.notificationService.sendToRole('bid_host', {
+      type: 'BID_PUBLISHED',
+      title: `新招标项目：${project.name}`,
+      content: `项目编号 ${project.projectCode} 已创建，采购方式：${project.procurementMethod}。`,
+      link: `/bid?id=${project.id}`,
+    });
+
+    return project;
   }
 
   updateProject(id: string, dto: UpdateBidProjectDto) {
