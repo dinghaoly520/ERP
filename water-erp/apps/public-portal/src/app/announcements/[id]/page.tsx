@@ -48,17 +48,11 @@ export default function AnnouncementDetailPage() {
 
           <div className="flex items-center gap-3">
             <button onClick={() => router.push('/announcements')}
-              className="h-10 px-5 text-[13px] font-semibold transition-all duration-200 active:scale-95"
-              style={{ background: '#fff', color: '#5a6d8a', border: '1px solid #d0dae8', borderRadius: 2 }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#064ea2'; e.currentTarget.style.color = '#064ea2'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#d0dae8'; e.currentTarget.style.color = '#5a6d8a'; }}>
+              className="h-10 px-5 border border-[#d0dae8] text-[#5a6d8a] bg-white rounded-full text-[13px] font-semibold hover:border-[#064ea2] hover:text-[#064ea2] active:scale-95 transition-all duration-200">
               ← 公告列表
             </button>
             <button onClick={() => router.push('/')}
-              className="h-10 px-5 text-[13px] font-semibold transition-all duration-200 active:scale-95"
-              style={{ background: '#fff', color: '#064ea2', border: '1px solid #c5d3e8', borderRadius: 2 }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#064ea2'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#064ea2'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#064ea2'; e.currentTarget.style.borderColor = '#c5d3e8'; }}>
+              className="h-10 px-5 border border-[#c5d3e8] text-[#064ea2] bg-white rounded-full text-[13px] font-semibold hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] hover:shadow-[0_2px_8px_rgba(6,78,162,.25)] active:scale-95 transition-all duration-200">
               ← 返回首页
             </button>
           </div>
@@ -68,18 +62,18 @@ export default function AnnouncementDetailPage() {
       {/* ═══ 内容区 ═══ */}
       <div className="px-[clamp(40px,4vw,72px)] py-10">
         <div className="max-w-[960px]">
-          <div className="bg-white border border-[#e5ecf4] p-8" style={{ borderRadius: 2 }}>
+          <div className="bg-white rounded-2xl border border-[#e5ecf4] p-8">
             {/* 标签 */}
             <div className="flex items-center gap-3 mb-4">
-              <span className="text-xs px-3 py-1 rounded font-semibold" style={{ color: t.color, backgroundColor: t.bg }}>{t.label}</span>
-              {item.isTop && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded font-bold">置顶</span>}
+              <span className="text-xs px-3 py-1 rounded-full font-semibold" style={{ color: t.color, backgroundColor: t.bg }}>{t.label}</span>
+              {item.isTop && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded-full font-bold">置顶</span>}
             </div>
 
             {/* 标题 */}
             <h1 className="text-2xl font-black text-[#18243a] mb-4 leading-snug" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>{item.title}</h1>
 
             {/* 元信息 */}
-            <div className="flex items-center gap-5 text-sm text-[#8a96aa] mb-6 pb-6" style={{ borderBottom: '1px solid #e5ecf4' }}>
+            <div className="flex items-center gap-5 text-sm text-[#8a96aa] mb-6 pb-6 border-b border-[#e5ecf4]">
               <span>发布时间：{item.publishDate ? new Date(item.publishDate).toLocaleString('zh-CN') : ''}</span>
               {item.relatedProjectCode && <span>项目编号：{item.relatedProjectCode}</span>}
               <span>浏览 {item.viewCount || 0} 次</span>
@@ -87,7 +81,7 @@ export default function AnnouncementDetailPage() {
 
             {/* 摘要 */}
             {item.summary && (
-              <div className="p-4 mb-6 text-sm text-[#5a6d8a] border border-[#e5ecf4]" style={{ background: '#f7f9fc', borderRadius: 2 }}>
+              <div className="p-4 mb-6 text-sm text-[#5a6d8a] bg-[#f7f9fc] rounded-xl border border-[#e5ecf4]">
                 <strong className="text-[#18243a]">摘要：</strong>{item.summary}
               </div>
             )}
