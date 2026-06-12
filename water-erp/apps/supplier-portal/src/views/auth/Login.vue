@@ -389,6 +389,8 @@ async function handleLogin() {
 @media (max-width: 1024px) {
   .sp-login {
     flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .sp-hero {
