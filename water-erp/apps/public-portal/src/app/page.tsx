@@ -237,7 +237,7 @@ export default function HomePage() {
                     <span className="text-[#999]">项目编号 <span className="text-[#18243a] font-semibold ml-1">{announceData[announceTab].featured.code}</span></span>
                     <span className="text-[#999]">{announceData[announceTab].deadlineLabel} <em className="not-italic text-[#d43030] font-bold ml-1">{announceData[announceTab].featured.deadline}</em></span>
                   </div>
-                  <a href={`/announcements/${announceData[announceTab].featured.id}`} className="neu-link shrink-0">查看详情 →</a>
+                  <span className="neu-link shrink-0">查看详情 →</span>
                 </div>
               </a>
 
