@@ -222,43 +222,45 @@ export class BidService {
   }
 
   async decryptSupplier(projectId: string, supplierId: string, dto?: DecryptSupplierDto) {
-    const bidSupplier = await this.prisma.bidSupplier.findFirst({
-      where: { projectId, id: supplierId },
-    });
-    if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
-
-    // Phase 1: Decrypting
-    await this.prisma.bidSupplier.update({
-      where: { id: supplierId },
-      data: { decryptStatus: 'RUNNING' },
-    });
-
-    // Phase 2: Success
-    await this.prisma.bidSupplier.update({
-      where: { id: supplierId },
-      data: { decryptStatus: 'SUCCESS' },
-    });
-
-    // Phase 3: Create record (if DTO provided)
-    if (dto) {
-      await this.prisma.bidOpeningRecord.create({
-        data: {
-          projectId,
-          supplierName: bidSupplier.supplierName,
-          amount: dto.amount,
-          period: dto.period,
-          qualityTarget: dto.qualityTarget,
-          bondStatus: dto.bondStatus,
-          decryptResult: '解密成功',
-          confirmStatus: '待确认',
-        },
+    return this.prisma.$transaction(async (tx) => {
+      const bidSupplier = await tx.bidSupplier.findFirst({
+        where: { projectId, id: supplierId },
       });
-    }
+      if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
 
-    // Phase 4: Confirm
-    return this.prisma.bidSupplier.update({
-      where: { id: supplierId },
-      data: { confirmStatus: 'CONFIRMED' },
+      // Phase 1: Decrypting
+      await tx.bidSupplier.update({
+        where: { id: supplierId },
+        data: { decryptStatus: 'RUNNING' },
+      });
+
+      // Phase 2: Success
+      await tx.bidSupplier.update({
+        where: { id: supplierId },
+        data: { decryptStatus: 'SUCCESS' },
+      });
+
+      // Phase 3: Create record (if DTO provided)
+      if (dto) {
+        await tx.bidOpeningRecord.create({
+          data: {
+            projectId,
+            supplierName: bidSupplier.supplierName,
+            amount: dto.amount,
+            period: dto.period,
+            qualityTarget: dto.qualityTarget,
+            bondStatus: dto.bondStatus,
+            decryptResult: '解密成功',
+            confirmStatus: '待确认',
+          },
+        });
+      }
+
+      // Phase 4: Confirm
+      return tx.bidSupplier.update({
+        where: { id: supplierId },
+        data: { confirmStatus: 'CONFIRMED' },
+      });
     });
   }
 

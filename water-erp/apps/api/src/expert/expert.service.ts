@@ -248,24 +248,30 @@ export class ExpertService {
     await this.prisma.bidScoreRecord.deleteMany({
       where: {
         expertId: expert.id,
+        supplierId: { in: dto.scores.map(i => i.supplierId) },
         scoreItemId: { in: dto.scores.map(i => i.scoreItemId) },
       },
     });
 
     // 创建新评分
-    const records = await Promise.all(
-      dto.scores.map(item =>
-        this.prisma.bidScoreRecord.create({
-          data: {
-            expertId: expert.id,
-            scoreItemId: item.scoreItemId,
-            supplierId: item.supplierId,
-            score: item.score,
-            reason: item.reason,
-          },
-        }),
-      ),
-    );
+    await this.prisma.bidScoreRecord.createMany({
+      data: dto.scores.map(item => ({
+        expertId: expert.id,
+        scoreItemId: item.scoreItemId,
+        supplierId: item.supplierId,
+        score: item.score,
+        reason: item.reason,
+      })),
+    });
+
+    // 查询新创建的记录用于返回值
+    const records = await this.prisma.bidScoreRecord.findMany({
+      where: {
+        expertId: expert.id,
+        scoreItemId: { in: dto.scores.map(i => i.scoreItemId) },
+        supplierId: { in: dto.scores.map(i => i.supplierId) },
+      },
+    });
 
     // 更新专家的进度和总分
     const allScoreItems = await this.prisma.bidScoreItem.findMany({ where: { projectId } });
