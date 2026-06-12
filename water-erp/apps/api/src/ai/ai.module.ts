@@ -8,7 +8,7 @@ import { AuthGuard } from '../auth/auth.guard';
 @Module({
   imports: [PrismaModule, AuthModule],
   controllers: [AiController],
-  providers: [AiService, AuthGuard],
+  providers: [AiService],
   exports: [AiService],
 })
 export class AiModule {}
