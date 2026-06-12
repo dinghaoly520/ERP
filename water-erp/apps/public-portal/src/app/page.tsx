@@ -166,9 +166,9 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main>
+      <main className="bg-[#f5f7fa]">
         {/* ═══════════════════ Hero ═══════════════════ */}
-        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden bg-[#f5f7fa]">
+        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden">
           <div className="absolute inset-0 w-full" style={{
             background: 'linear-gradient(90deg,rgba(246,250,255,.95) 0%,rgba(246,250,255,.88) 35%,rgba(246,250,255,.5) 60%,rgba(246,250,255,.15) 100%)',
           }}>
@@ -206,7 +206,7 @@ export default function HomePage() {
         </section>
 
         {/* ═══════════════════ 快捷入口 ═══════════════════ */}
-        <section className="relative z-10 bg-[#f5f7fa] py-8">
+        <section className="relative z-10 py-8">
           <div className="px-[clamp(40px,4vw,72px)]">
             <div className="grid grid-cols-5 max-md:grid-cols-3 max-sm:grid-cols-2 gap-5">
               {features.map((f) => (
