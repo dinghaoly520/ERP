@@ -7,10 +7,18 @@ import type { Announcement } from '@/lib/types';
 
 const ANNOUNCEMENT_TYPE_MAP: Record<string, { label: string; color: string; bg: string }> = {
   BID_NOTICE: { label: '招标公告', color: '#064ea2', bg: '#064ea218' },
-  WIN_NOTICE: { label: '中标公示', color: '#11a874', bg: '#11a87418' },
+  WIN_NOTICE: { label: '中标公示', color: '#18a56c', bg: '#18a56c18' },
   POLICY: { label: '政策法规', color: '#f5a623', bg: '#f5a62318' },
   PLATFORM: { label: '平台通知', color: '#5a6d8a', bg: '#5a6d8a18' },
 };
+
+const TAB_LIST = [
+  { key: '', label: '全部' },
+  { key: 'BID_NOTICE', label: '招标公告', color: '#064ea2' },
+  { key: 'WIN_NOTICE', label: '中标公示', color: '#18a56c' },
+  { key: 'POLICY', label: '政策法规', color: '#f5a623' },
+  { key: 'PLATFORM', label: '平台通知', color: '#5a6d8a' },
+];
 
 export default function AnnouncementsPage() {
   const router = useRouter();
@@ -31,64 +39,92 @@ export default function AnnouncementsPage() {
       .finally(() => setLoading(false));
   }, [type, search]);
 
+  const activeTab = TAB_LIST.find(t => t.key === type);
+
   return (
-    <div className="min-h-screen bg-[#f7f9fc]">
-      {/* ═══ Header with brand ═══ */}
-      <header className="sticky top-0 z-50 bg-white border-b border-[#e5ecf4]">
-        <div className="max-w-5xl mx-auto px-6 h-[72px] flex items-center justify-between">
-          <a href="/" className="flex items-center gap-3">
-            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-11 w-auto rounded-lg object-contain" />
+    <div className="min-h-screen bg-[#f7f9fc]" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+      {/* ═══ Header — 与首页一致 ═══ */}
+      <header className="sticky top-0 z-50 h-[88px] flex items-center bg-white border-b border-[#e5ecf4]">
+        <div className="w-full px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
+          <a href="/" className="flex items-center gap-3 shrink-0">
+            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-14 w-auto object-contain" />
             <div className="flex flex-col gap-0">
-              <strong className="text-[#123a6e] text-lg tracking-[0.12em] leading-tight whitespace-nowrap" style={{ fontFamily: '"SimHei","黑体",sans-serif', fontWeight: 900 }}>四川水发集团</strong>
-              <small className="text-[7px] text-[#8a96aa] font-medium tracking-wide">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
+              <strong className="text-[#123a6e] text-3xl tracking-[0.14em] leading-tight whitespace-nowrap" style={{ fontFamily: '"SimHei","黑体",sans-serif', fontWeight: 900 }}>四川水发集团</strong>
+              <small className="text-[7px] text-[#8a96aa] font-medium text-center whitespace-nowrap tracking-wide">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
             </div>
           </a>
-          <a href="/" className="text-sm text-[#5a6d8a] hover:text-[#064ea2] font-semibold transition">← 返回首页</a>
+
+          <button onClick={() => router.push('/')}
+            className="h-10 px-5 text-[13px] font-semibold transition-all duration-200 active:scale-95"
+            style={{ background: '#fff', color: '#064ea2', border: '1px solid #c5d3e8', borderRadius: 2 }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#064ea2'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#064ea2'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#064ea2'; e.currentTarget.style.borderColor = '#c5d3e8'; }}>
+            ← 返回首页
+          </button>
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-6 py-10">
-        {/* Page title */}
+      {/* ═══ 内容区 — 全宽与首页对齐 ═══ */}
+      <div className="px-[clamp(40px,4vw,72px)] py-10">
+        {/* 标题 */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-[#18243a] mb-1">信息公告</h1>
-          <p className="text-sm text-[#5a6d8a]">招标公告、中标公示、政策法规、平台通知</p>
+          <h1 className="text-2xl font-black text-[#18243a] mb-1" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>信息公告</h1>
+          <p className="text-sm text-[#8a96aa]">招标公告 · 中标公示 · 政策法规 · 平台通知</p>
         </div>
 
-        {/* Filters */}
-        <div className="flex gap-4 mb-8">
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="搜索公告标题" className="flex-1 px-4 py-2.5 bg-white border border-[#e5ecf4] rounded-xl text-sm focus:border-[#064ea2] outline-none" />
-          <select value={type} onChange={e => setType(e.target.value)}
-            className="px-4 py-2.5 bg-white border border-[#e5ecf4] rounded-xl text-sm focus:border-[#064ea2] outline-none">
-            <option value="">全部类型</option>
-            {Object.entries(ANNOUNCEMENT_TYPE_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
+        {/* Tab 切换 + 搜索 */}
+        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+          <div className="flex gap-2">
+            {TAB_LIST.map(tab => (
+              <button key={tab.key} onClick={() => setType(tab.key)}
+                className="px-4 py-2 text-[13px] font-semibold rounded-lg transition-all duration-200 cursor-pointer min-h-[36px]"
+                style={tab.key === type
+                  ? { color: '#fff', backgroundColor: (tab.color || '#064ea2') }
+                  : { color: '#5a6d8a', backgroundColor: '#e8ecf2' }
+                }>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative">
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="搜索公告标题..."
+              className="w-64 h-9 pl-9 pr-3 bg-white border border-[#d8e0eb] text-sm focus:outline-none focus:border-[#064ea2] placeholder:text-[#bbb]"
+              style={{ borderRadius: 2 }} />
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#bbb]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </div>
         </div>
 
-        {/* List */}
+        {/* 列表 */}
         {loading ? (
-          <div className="text-center py-12 text-[#5a6d8a]">加载中...</div>
+          <div className="text-center py-16 text-[#8a96aa]">加载中...</div>
         ) : items.length === 0 ? (
-          <div className="bg-white rounded-xl border border-[#e5ecf4] p-12 text-center">
-            <div className="text-5xl mb-3">📢</div>
-            <p className="text-[#5a6d8a]">暂无公告</p>
+          <div className="bg-white border border-[#e5ecf4] p-16 text-center" style={{ borderRadius: 2 }}>
+            <div className="text-5xl mb-4">📢</div>
+            <p className="text-[#5a6d8a] font-semibold mb-1">暂无相关公告</p>
+            <p className="text-xs text-[#8a96aa]">试试切换分类或调整搜索关键词</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="flex flex-col gap-3">
             {items.map(a => {
               const t = ANNOUNCEMENT_TYPE_MAP[a.type] || ANNOUNCEMENT_TYPE_MAP.PLATFORM;
               return (
                 <div key={a.id} onClick={() => router.push(`/announcements/${a.id}`)}
-                  className="bg-white rounded-xl border border-[#e5ecf4] p-5 hover:shadow-md hover:border-[#064ea240] transition-all cursor-pointer">
+                  className="bg-white border border-[#e5ecf4] p-5 hover:border-[#064ea240] hover:shadow-md transition-all cursor-pointer"
+                  style={{ borderRadius: 2 }}>
                   <div className="flex items-center gap-3 mb-2">
                     <span className="text-xs px-2.5 py-1 rounded font-semibold" style={{ color: t.color, backgroundColor: t.bg }}>{t.label}</span>
                     {a.isTop && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded font-bold">置顶</span>}
-                    <span className="text-sm font-bold text-[#18243a] flex-1">{a.title}</span>
+                    <span className="text-[15px] font-bold text-[#18243a] flex-1">{a.title}</span>
                   </div>
-                  {a.summary && <p className="text-xs text-[#5a6d8a] ml-1 mb-2">{a.summary}</p>}
+                  {a.summary && <p className="text-xs text-[#5a6d8a] ml-1 mb-2 line-clamp-2">{a.summary}</p>}
                   <div className="flex items-center gap-4 text-xs text-[#8a96aa] ml-1">
                     <span>{a.publishDate ? new Date(a.publishDate).toLocaleDateString('zh-CN') : ''}</span>
-                    <span>浏览 {a.viewCount} 次</span>
+                    {a.relatedProjectCode && <span>项目编号：{a.relatedProjectCode}</span>}
+                    <span>浏览 {a.viewCount || 0} 次</span>
                   </div>
                 </div>
               );
