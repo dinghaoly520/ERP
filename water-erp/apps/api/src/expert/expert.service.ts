@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
@@ -216,21 +216,50 @@ export class ExpertService {
       throw new ForbiddenException('请先完成身份核验和回避确认');
     }
 
+    // Validate project is in EVALUATING stage
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'EVALUATING') {
+      throw new BadRequestException({ error: '项目不在评标阶段', code: 'PROJECT_NOT_EVALUATING' });
+    }
+
+    // Validate scores don't exceed maxScore
+    const scoreItemIds = dto.scores.map(s => s.scoreItemId);
+    const scoreItems = await this.prisma.bidScoreItem.findMany({
+      where: { id: { in: scoreItemIds } },
+      select: { id: true, maxScore: true },
+    });
+    const maxScoreMap = new Map(scoreItems.map(si => [si.id, Number(si.maxScore)]));
+
+    for (const item of dto.scores) {
+      const maxScore = maxScoreMap.get(item.scoreItemId);
+      if (maxScore !== undefined && item.score > maxScore) {
+        throw new BadRequestException({
+          error: `评分项 ${item.scoreItemId} 分数 ${item.score} 超过满分 ${maxScore}`,
+          code: 'SCORE_EXCEEDS_MAX',
+        });
+      }
+    }
+
     // 删除该专家该供应商的旧评分（允许修改）
     await this.prisma.bidScoreRecord.deleteMany({
       where: {
         expertId: expert.id,
-        scoreItemId: { in: dto.items.map(i => i.scoreItemId) },
+        scoreItemId: { in: dto.scores.map(i => i.scoreItemId) },
       },
     });
 
     // 创建新评分
     const records = await Promise.all(
-      dto.items.map(item =>
+      dto.scores.map(item =>
         this.prisma.bidScoreRecord.create({
           data: {
             expertId: expert.id,
             scoreItemId: item.scoreItemId,
+            supplierId: item.supplierId,
             score: item.score,
             reason: item.reason,
           },
@@ -263,7 +292,7 @@ export class ExpertService {
         role: '评审专家',
         target: user.displayName,
         action: `提交评分（供应商：${dto.supplierName}）`,
-        result: `共${dto.items.length}项评分`,
+        result: `共${dto.scores.length}项评分`,
         riskFlag: '无',
       },
     });
@@ -311,7 +340,6 @@ export class ExpertService {
 
     const expert = await this.prisma.bidExpert.findFirst({
       where: { projectId, expertName: user.displayName },
-      include: { scoreRecords: { include: { scoreItem: true } } },
     });
     if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
 
@@ -324,9 +352,22 @@ export class ExpertService {
     });
     if (!project) throw new NotFoundException('项目不存在');
 
+    // Query score records and group by supplierId
+    const scoreRecords = await this.prisma.bidScoreRecord.findMany({
+      where: { expertId: expert.id },
+      include: { scoreItem: true },
+    });
+
+    const bySupplier = new Map<string, typeof scoreRecords>();
+    for (const r of scoreRecords) {
+      const key = r.supplierId || '__unassigned';
+      if (!bySupplier.has(key)) bySupplier.set(key, []);
+      bySupplier.get(key)!.push(r);
+    }
+
     // 按供应商分组汇总评分
     const supplierScores = project.suppliers.map(supplier => {
-      const records = expert.scoreRecords;
+      const records = bySupplier.get(supplier.id) || [];
       const totalScore = records.reduce((sum, r) => sum + Number(r.score), 0);
       const categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; reason?: string }[] }> = {};
 

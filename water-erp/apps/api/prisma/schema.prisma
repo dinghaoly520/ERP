@@ -98,20 +98,21 @@ model BidProject {
 }
 
 model BidSupplier {
-  id             String        @id @default(cuid())
-  projectId      String
-  supplierId     String?
-  supplierName   String
-  downloadStatus String        @default("待下载")
-  submitStatus   String        @default("待提交")
-  encryptStatus  String        @default("待校验")
-  receiptNo      String?
-  decryptStatus  DecryptStatus @default(PENDING)
-  confirmStatus  ConfirmStatus @default(PENDING)
-  project        BidProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  supplier       Supplier?     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id              String           @id @default(cuid())
+  projectId       String
+  supplierId      String?
+  supplierName    String
+  downloadStatus  String           @default("待下载")
+  submitStatus    String           @default("待提交")
+  encryptStatus   String           @default("待校验")
+  receiptNo       String?
+  decryptStatus   DecryptStatus    @default(PENDING)
+  confirmStatus   ConfirmStatus    @default(PENDING)
+  project         BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier        Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  bidScoreRecords BidScoreRecord[]
 
   @@unique([projectId, supplierName])
   @@index([supplierId])
@@ -175,11 +176,15 @@ model BidScoreRecord {
   id          String       @id @default(cuid())
   expertId    String
   scoreItemId String
+  supplierId  String?
   score       Decimal      @db.Decimal(5, 1)
   reason      String?
   expert      BidExpert    @relation(fields: [expertId], references: [id], onDelete: Cascade)
   scoreItem   BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
+  supplier    BidSupplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   createdAt   DateTime     @default(now())
+
+  @@index([supplierId])
 }
 
 model BidClarification {
