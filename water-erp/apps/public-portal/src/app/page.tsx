@@ -139,7 +139,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen text-[#18243a] bg-[#f5f7fa] overflow-x-hidden" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+    <div className="min-h-screen text-[#18243a] bg-white overflow-x-hidden" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       {/* ═══════════════════ Header ═══════════════════ */}
       <header className="sticky top-0 z-50 h-[88px] flex items-center bg-[#f5f7fa] border-b border-[#e5ecf4]">
         <div className="w-full px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
@@ -186,7 +186,7 @@ export default function HomePage() {
           </div>
 
           {/* Bottom curve */}
-          <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-[#f5f7fa] rounded-[50%_50%_0_0/76%_76%_0_0] z-10" />
+          <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-white rounded-[50%_50%_0_0/76%_76%_0_0] z-10" />
           <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-transparent border-t-[clamp(3px,.4vw,6px)] border-r-[clamp(3px,.5vw,8px)] border-t-[#0b59ad] border-r-[#18a56c] rounded-[50%_50%_0_0/76%_76%_0_0] z-20 pointer-events-none" />
 
           <div className="relative z-20 px-[clamp(40px,4vw,72px)] py-[clamp(56px,5vw,96px)]">
@@ -223,7 +223,7 @@ export default function HomePage() {
         </section>
 
         {/* ═══════════════════ 公告信息（主角）═══════════════════ */}
-        <section className="py-14 bg-[#f5f7fa] relative z-10">
+        <section className="py-14 bg-white relative z-10">
           <div className="px-[clamp(40px,4vw,72px)]">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-5">
@@ -277,9 +277,9 @@ export default function HomePage() {
         </section>
 
         {/* ═══════════════════ 价值观 ═══════════════════ */}
-        <section className="relative bg-[#f5f7fa] py-12 overflow-hidden">
+        <section className="relative bg-white py-12 overflow-hidden">
           <img src="/assets/bg-waterworks-bottom.png" alt="" className="absolute inset-0 w-full h-full object-cover object-bottom opacity-90" />
-          <div className="absolute inset-0" style={{ background: "linear-gradient(0deg, rgba(245,247,250,0) 0%, rgba(245,247,250,0) 40%, rgba(245,247,250,0.5) 70%, rgba(245,247,250,1) 100%)" }} />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(0deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0.5) 70%, rgba(255,255,255,1) 100%)" }} />
           <div className="relative z-10 px-[clamp(40px,4vw,72px)]">
             <h2 className="text-lg font-black text-[#1a2a42] tracking-wide mb-6">携手水发　共创阳光招采新未来</h2>
             <div className="grid grid-cols-4 max-sm:grid-cols-2 gap-6">
