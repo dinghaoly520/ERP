@@ -168,7 +168,7 @@ export default function HomePage() {
 
       <main>
         {/* ═══════════════════ Hero ═══════════════════ */}
-        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden bg-[#eaf4ff]">
+        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden bg-white">
           <div className="absolute inset-0 w-full" style={{
             background: 'linear-gradient(90deg,rgba(246,250,255,.95) 0%,rgba(246,250,255,.88) 35%,rgba(246,250,255,.5) 60%,rgba(246,250,255,.15) 100%)',
           }}>
@@ -223,7 +223,7 @@ export default function HomePage() {
         </section>
 
         {/* ═══════════════════ 公告信息（主角）═══════════════════ */}
-        <section className="py-14 bg-[#f7f9fc]">
+        <section className="py-14 bg-white relative z-10">
           <div className="px-[clamp(40px,4vw,72px)]">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-5">
@@ -231,10 +231,10 @@ export default function HomePage() {
                 <div className="flex gap-2">
                   {announceData.map((tab, i) => (
                     <button key={tab.featured.tag} onClick={() => setAnnounceTab(i)}
-                      className="px-4 py-2 text-[13px] font-semibold rounded-lg transition-all duration-200 cursor-pointer"
+                      className="px-4 py-2 text-[13px] font-semibold rounded-lg transition-all duration-200 cursor-pointer min-h-[36px]"
                       style={i === announceTab
                         ? { color: '#fff', backgroundColor: tab.color }
-                        : { color: '#5a6d8a', backgroundColor: '#e8ecf2', border: '1px solid #e8ecf2' }
+                        : { color: '#5a6d8a', backgroundColor: '#e8ecf2' }
                       }>
                       {tab.featured.tag}
                     </button>
@@ -277,9 +277,9 @@ export default function HomePage() {
         </section>
 
         {/* ═══════════════════ 价值观 ═══════════════════ */}
-        <section className="relative bg-[#eef3f8] py-12 overflow-hidden">
+        <section className="relative bg-white py-12 overflow-hidden">
           <img src="/assets/bg-waterworks-bottom.png" alt="" className="absolute inset-0 w-full h-full object-cover object-bottom opacity-90" />
-          <div className="absolute inset-0" style={{ background: "linear-gradient(0deg, rgba(238,243,248,0) 0%, rgba(238,243,248,0) 40%, rgba(238,243,248,0.5) 70%, rgba(238,243,248,1) 100%)" }} />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(0deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0.5) 70%, rgba(255,255,255,1) 100%)" }} />
           <div className="relative z-10 px-[clamp(40px,4vw,72px)]">
             <h2 className="text-lg font-black text-[#1a2a42] tracking-wide mb-6">携手水发　共创阳光招采新未来</h2>
             <div className="grid grid-cols-4 max-sm:grid-cols-2 gap-6">
