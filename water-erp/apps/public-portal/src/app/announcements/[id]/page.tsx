@@ -1,37 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { api } from '@/lib/api';
-import type { Announcement } from '@/lib/types';
-
-const ANNOUNCEMENT_TYPE_MAP: Record<string, { label: string; color: string; bg: string }> = {
-  BID_NOTICE: { label: '招标公告', color: '#064ea2', bg: '#064ea218' },
-  WIN_NOTICE: { label: '中标公示', color: '#18a56c', bg: '#18a56c18' },
-  POLICY: { label: '政策法规', color: '#f5a623', bg: '#f5a62318' },
-  PLATFORM: { label: '平台通知', color: '#5a6d8a', bg: '#5a6d8a18' },
-};
+import { ANNOUNCEMENTS } from '@/lib/announcements';
 
 export default function AnnouncementDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
-  const [item, setItem] = useState<Announcement | null>(null);
-  const [loading, setLoading] = useState(true);
+  const item = ANNOUNCEMENTS.find(a => a.id === id);
 
-  useEffect(() => {
-    api.get<Announcement>(`/announcements/public/${id}`)
-      .then(setItem)
-      .catch(() => router.push('/announcements'))
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  if (loading) return (
-    <div className="min-h-screen bg-[#f7f9fc] flex items-center justify-center text-[#8a96aa]">加载中...</div>
+  if (!item) return (
+    <div className="min-h-screen bg-[#f7f9fc] flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+      <div className="text-5xl">📢</div>
+      <p className="text-[#5a6d8a] font-semibold">未找到该公告</p>
+      <button onClick={() => router.push('/announcements')}
+        className="h-10 px-5 border border-[#c5d3e8] text-[#064ea2] bg-white rounded-full text-[13px] font-semibold hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] active:scale-95 transition-all duration-200">
+        ← 返回公告列表
+      </button>
+    </div>
   );
-  if (!item) return null;
-
-  const t = ANNOUNCEMENT_TYPE_MAP[item.type] || ANNOUNCEMENT_TYPE_MAP.PLATFORM;
 
   return (
     <div className="min-h-screen bg-[#f7f9fc]" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
@@ -65,8 +52,8 @@ export default function AnnouncementDetailPage() {
           <div className="bg-white rounded-2xl border border-[#e5ecf4] p-8">
             {/* 标签 */}
             <div className="flex items-center gap-3 mb-4">
-              <span className="text-xs px-3 py-1 rounded-full font-semibold" style={{ color: t.color, backgroundColor: t.bg }}>{t.label}</span>
-              {item.isTop && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded-full font-bold">置顶</span>}
+              <span className="text-xs px-3 py-1 rounded-full font-semibold" style={{ color: item.color, backgroundColor: item.color + '18' }}>{item.tag}</span>
+              {item.urgent && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded-full font-bold">重要</span>}
             </div>
 
             {/* 标题 */}
@@ -74,20 +61,13 @@ export default function AnnouncementDetailPage() {
 
             {/* 元信息 */}
             <div className="flex items-center gap-5 text-sm text-[#8a96aa] mb-6 pb-6 border-b border-[#e5ecf4]">
-              <span>发布时间：{item.publishDate ? new Date(item.publishDate).toLocaleString('zh-CN') : ''}</span>
-              {item.relatedProjectCode && <span>项目编号：{item.relatedProjectCode}</span>}
-              <span>浏览 {item.viewCount || 0} 次</span>
+              <span>发布时间：{item.date}</span>
+              <span>编号：{item.code}</span>
+              <span>{item.deadlineLabel}：<em className="not-italic text-[#d43030] font-bold">{item.deadline}</em></span>
             </div>
 
-            {/* 摘要 */}
-            {item.summary && (
-              <div className="p-4 mb-6 text-sm text-[#5a6d8a] bg-[#f7f9fc] rounded-xl border border-[#e5ecf4]">
-                <strong className="text-[#18243a]">摘要：</strong>{item.summary}
-              </div>
-            )}
-
             {/* 正文 */}
-            <div className="text-[15px] text-[#18243a] leading-relaxed whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: item.content || '' }} />
+            <div className="text-[15px] text-[#18243a] leading-relaxed whitespace-pre-wrap">{item.content}</div>
           </div>
         </div>
       </div>

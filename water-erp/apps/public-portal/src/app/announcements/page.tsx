@@ -1,43 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
-import type { Announcement } from '@/lib/types';
-
-const ANNOUNCEMENT_TYPE_MAP: Record<string, { label: string; color: string; bg: string }> = {
-  BID_NOTICE: { label: '招标公告', color: '#064ea2', bg: '#064ea218' },
-  WIN_NOTICE: { label: '中标公示', color: '#18a56c', bg: '#18a56c18' },
-  POLICY: { label: '政策法规', color: '#f5a623', bg: '#f5a62318' },
-  PLATFORM: { label: '平台通知', color: '#5a6d8a', bg: '#5a6d8a18' },
-};
-
-const TAB_LIST = [
-  { key: '', label: '全部' },
-  { key: 'BID_NOTICE', label: '招标公告', color: '#064ea2' },
-  { key: 'WIN_NOTICE', label: '中标公示', color: '#18a56c' },
-  { key: 'POLICY', label: '政策法规', color: '#f5a623' },
-  { key: 'PLATFORM', label: '平台通知', color: '#5a6d8a' },
-];
+import { ANNOUNCEMENTS, ANNOUNCEMENT_TABS } from '@/lib/announcements';
 
 export default function AnnouncementsPage() {
   const router = useRouter();
-  const [items, setItems] = useState<Announcement[]>([]);
   const [type, setType] = useState('');
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setLoading(true);
-    const query = new URLSearchParams();
-    if (type) query.set('type', type);
-    if (search) query.set('search', search);
-    query.set('pageSize', '20');
-    api.get<{ items: Announcement[] }>(`/announcements/public?${query.toString()}`)
-      .then(res => setItems(res.items || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [type, search]);
+  const filtered = ANNOUNCEMENTS.filter(a => {
+    const matchType = !type || a.type === type;
+    const matchSearch = !search || a.title.includes(search) || a.code.includes(search);
+    return matchType && matchSearch;
+  });
 
   return (
     <div className="min-h-screen bg-[#f7f9fc]" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
@@ -70,7 +46,7 @@ export default function AnnouncementsPage() {
         {/* Tab 切换 + 搜索 */}
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div className="flex gap-2">
-            {TAB_LIST.map(tab => (
+            {ANNOUNCEMENT_TABS.map(tab => (
               <button key={tab.key} onClick={() => setType(tab.key)}
                 className={`px-4 py-2 text-[13px] font-semibold rounded-full transition-all duration-200 cursor-pointer min-h-[36px] ${
                   tab.key === type
@@ -94,9 +70,7 @@ export default function AnnouncementsPage() {
         </div>
 
         {/* 列表 */}
-        {loading ? (
-          <div className="text-center py-16 text-[#8a96aa]">加载中...</div>
-        ) : items.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="bg-white rounded-2xl border border-[#e5ecf4] p-16 text-center">
             <div className="text-5xl mb-4">📢</div>
             <p className="text-[#5a6d8a] font-semibold mb-1">暂无相关公告</p>
@@ -104,25 +78,22 @@ export default function AnnouncementsPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {items.map(a => {
-              const t = ANNOUNCEMENT_TYPE_MAP[a.type] || ANNOUNCEMENT_TYPE_MAP.PLATFORM;
-              return (
-                <div key={a.id} onClick={() => router.push(`/announcements/${a.id}`)}
-                  className="bg-white rounded-2xl border border-[#e5ecf4] p-5 hover:border-[#064ea240] hover:shadow-md transition-all cursor-pointer">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ color: t.color, backgroundColor: t.bg }}>{t.label}</span>
-                    {a.isTop && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded-full font-bold">置顶</span>}
-                    <span className="text-[15px] font-bold text-[#18243a] flex-1">{a.title}</span>
-                  </div>
-                  {a.summary && <p className="text-xs text-[#5a6d8a] ml-1 mb-2 line-clamp-2">{a.summary}</p>}
-                  <div className="flex items-center gap-4 text-xs text-[#8a96aa] ml-1">
-                    <span>{a.publishDate ? new Date(a.publishDate).toLocaleDateString('zh-CN') : ''}</span>
-                    {a.relatedProjectCode && <span>项目编号：{a.relatedProjectCode}</span>}
-                    <span>浏览 {a.viewCount || 0} 次</span>
-                  </div>
+            {filtered.map(a => (
+              <div key={a.id} onClick={() => router.push(`/announcements/${a.id}`)}
+                className="bg-white rounded-2xl border border-[#e5ecf4] p-5 hover:border-[#064ea240] hover:shadow-md transition-all cursor-pointer">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ color: a.color, backgroundColor: a.color + '18' }}>{a.tag}</span>
+                  {a.urgent && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded-full font-bold">重要</span>}
+                  <span className="text-[15px] font-bold text-[#18243a] flex-1">{a.title}</span>
                 </div>
-              );
-            })}
+                <p className="text-xs text-[#5a6d8a] ml-1 mb-2 line-clamp-2">{a.desc}</p>
+                <div className="flex items-center gap-4 text-xs text-[#8a96aa] ml-1">
+                  <span>{a.date}</span>
+                  <span>编号：{a.code}</span>
+                  <span>{a.deadlineLabel}：{a.deadline}</span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
