@@ -175,6 +175,19 @@ body {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
 }
 
+/* ── Hero Image Crossfade ── */
+.hero-img {
+  will-change: opacity;
+}
+.hero-img-active {
+  opacity: 1;
+  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hero-img-hidden {
+  opacity: 0;
+  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* ── Feature Card Divider (彩色流光) ── */
 .feature-divider {
   width: 1px;

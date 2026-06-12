@@ -24,19 +24,23 @@ export default function HomePage() {
   const [regLoading, setRegLoading] = useState(false);
   const [heroIdx, setHeroIdx] = useState(0);
   const [announceTab, setAnnounceTab] = useState(0);
-  const heroImages = ['bg-hydro-hero-1.png','bg-hydro-hero-2.png','bg-hydro-hero-3.png','bg-hydro-hero-4.png','bg-hydro-hero-5.png','bg-hydro-hero-6.png'];
+  const heroImages = ['bg-hydro-hero-1.png','bg-hydro-hero-2.png','bg-hydro-hero-3.png','bg-hydro-hero-4.png','bg-hydro-hero-5.png'];
 
-  // Hero image rotation — preload remaining images after mount
-  const [heroLoaded, setHeroLoaded] = useState<Set<number>>(new Set([0]));
+  // Hero rotation — only render current + previous for smooth crossfade
+  const [heroPrev, setHeroPrev] = useState(0);
+  const [heroReady, setHeroReady] = useState(false);
   useEffect(() => {
-    // Preload remaining hero images
-    heroImages.forEach((src, i) => {
-      if (i === 0) return;
+    // Preload all images upfront
+    let loaded = 0;
+    heroImages.forEach((src) => {
       const img = new Image();
       img.src = `/assets/${src}`;
-      img.onload = () => setHeroLoaded(prev => new Set(prev).add(i));
+      img.onload = () => { loaded++; if (loaded === heroImages.length) setHeroReady(true); };
     });
-    const t = setInterval(() => setHeroIdx(i => (i + 1) % heroImages.length), 5000);
+    const t = setInterval(() => {
+      setHeroPrev(i => i); // keep previous
+      setHeroIdx(i => { setHeroPrev(i); return (i + 1) % heroImages.length; });
+    }, 6000);
     return () => clearInterval(t);
   }, []);
 
@@ -128,29 +132,24 @@ export default function HomePage() {
 
       <main className="bg-[#f5f7fa]">
         {/* ═══════════════════ Hero ═══════════════════ */}
-        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden bg-[#0b3d7a]" style={{ contain: 'layout style paint' }}>
-          {/* Background images — <img> for better loading control */}
-          {heroImages.map((src, i) => (
-            <img
-              key={src}
-              src={`/assets/${src}`}
-              alt=""
-              loading={i === 0 ? 'eager' : 'lazy'}
-              fetchPriority={i === 0 ? 'high' : 'low'}
-              decoding={i === 0 ? 'sync' : 'async'}
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{
-                opacity: i === heroIdx && heroLoaded.has(i) ? 1 : 0,
-                transition: 'opacity 0.8s ease-in-out',
-                willChange: i === heroIdx || i === (heroIdx + 1) % heroImages.length ? 'opacity' : 'auto',
-              }}
-            />
-          ))}
-
-          {/* Gradient overlay */}
-          <div className="absolute inset-0 pointer-events-none" style={{
+        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden bg-[#0b3d7a]">
+          {/* Gradient base — sits BEHIND images, only visible during transitions */}
+          <div className="absolute inset-0" style={{
             background: 'linear-gradient(90deg,rgba(246,250,255,.95) 0%,rgba(246,250,255,.88) 35%,rgba(246,250,255,.5) 60%,rgba(246,250,255,.15) 100%)',
-          }} />
+          }}>
+            {/* Only render current + previous image for smooth crossfade */}
+            {[heroPrev, heroIdx].map((idx, layer) => (
+              <img
+                key={`${idx}-${layer}`}
+                src={`/assets/${heroImages[idx]}`}
+                alt=""
+                loading={idx === 0 ? 'eager' : 'lazy'}
+                fetchPriority={idx === heroIdx ? 'high' : 'low'}
+                decoding={idx === 0 ? 'sync' : 'async'}
+                className={`absolute inset-0 w-full h-full object-cover hero-img ${idx === heroIdx && heroReady ? 'hero-img-active' : 'hero-img-hidden'}`}
+              />
+            ))}
+          </div>
 
           {/* Dot switchers */}
           <div className="absolute right-6 bottom-16 z-10 flex gap-1.5">

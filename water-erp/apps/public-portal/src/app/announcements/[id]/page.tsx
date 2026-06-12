@@ -48,7 +48,7 @@ export default function AnnouncementDetailPage() {
 
       {/* ═══ 内容区 ═══ */}
       <div className="px-[clamp(40px,4vw,72px)] py-10">
-        <div className="max-w-[960px]">
+        <div className="w-full mx-auto">
           <div className="bg-white rounded-2xl border border-[#e5ecf4] p-8">
             {/* 标签 */}
             <div className="flex items-center gap-3 mb-4">
