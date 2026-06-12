@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+:root {
+  --color-primary: #064ea2;
+  --color-primary-hover: #043d82;
+  --color-bg: #f5f7fa;
+  --color-surface: #fff;
+  --color-border: #e5ecf4;
+  --color-text: #18243a;
+  --color-text-secondary: #5a6d8a;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
