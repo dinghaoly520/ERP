@@ -7,6 +7,8 @@ import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { SubmitBidDto } from './dto/submit-bid.dto';
 import { CreateScoreDto } from './dto/create-score.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
+import { StartOpeningDto } from './dto/start-opening.dto';
+import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 
 @ApiTags('开评标管理')
 @ApiCookieAuth('token')
@@ -49,7 +51,7 @@ export class BidController {
 
   @Post('projects/:id/open')
   @ApiOperation({ summary: '启动开标' })
-  startOpening(@Param('id') id: string) { return this.bidService.startOpening(id); }
+  startOpening(@Param('id') id: string, @Body() dto?: StartOpeningDto) { return this.bidService.startOpening(id, dto); }
 
   @Post('projects/:id/start-evaluation')
   @ApiOperation({ summary: '启动评标 (OPENING→EVALUATING)' })
@@ -57,7 +59,7 @@ export class BidController {
 
   @Post('projects/:id/decrypt/:supplierId')
   @ApiOperation({ summary: '解密供应商投标' })
-  decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string) { return this.bidService.decryptSupplier(id, supplierId); }
+  decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto) { return this.bidService.decryptSupplier(id, supplierId, dto); }
 
   @Get('projects/:id/opening-records')
   @ApiOperation({ summary: '开标记录' })

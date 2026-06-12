@@ -6,6 +6,8 @@ import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { SubmitBidDto } from './dto/submit-bid.dto';
 import { CreateScoreDto } from './dto/create-score.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
+import { StartOpeningDto } from './dto/start-opening.dto';
+import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 
 @Injectable()
 export class BidService {
@@ -159,8 +161,8 @@ export class BidService {
     });
   }
 
-  startOpening(projectId: string) {
-    return this.startOpeningInternal(projectId);
+  startOpening(projectId: string, dto?: StartOpeningDto) {
+    return this.startOpeningInternal(projectId, dto);
   }
 
   async openSubmission(id: string) {
@@ -177,13 +179,27 @@ export class BidService {
     });
   }
 
-  private async startOpeningInternal(id: string) {
+  private async startOpeningInternal(id: string, dto?: StartOpeningDto) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: { stage: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     this.assertStageTransition(project.stage, 'OPENING');
+
+    // Create opening session if DTO is provided
+    if (dto) {
+      await this.prisma.bidOpeningSession.create({
+        data: {
+          projectId: id,
+          host: dto.host,
+          supervisor: dto.supervisor,
+          decryptWindowStart: new Date(dto.decryptWindowStart),
+          decryptWindowEnd: new Date(dto.decryptWindowEnd),
+          status: '待开标',
+        },
+      });
+    }
 
     return this.prisma.bidProject.update({
       where: { id },
@@ -205,10 +221,44 @@ export class BidService {
     });
   }
 
-  decryptSupplier(projectId: string, supplierId: string) {
+  async decryptSupplier(projectId: string, supplierId: string, dto?: DecryptSupplierDto) {
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, id: supplierId },
+    });
+    if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
+
+    // Phase 1: Decrypting
+    await this.prisma.bidSupplier.update({
+      where: { id: supplierId },
+      data: { decryptStatus: 'RUNNING' },
+    });
+
+    // Phase 2: Success
+    await this.prisma.bidSupplier.update({
+      where: { id: supplierId },
+      data: { decryptStatus: 'SUCCESS' },
+    });
+
+    // Phase 3: Create record (if DTO provided)
+    if (dto) {
+      await this.prisma.bidOpeningRecord.create({
+        data: {
+          projectId,
+          supplierName: bidSupplier.supplierName,
+          amount: dto.amount,
+          period: dto.period,
+          qualityTarget: dto.qualityTarget,
+          bondStatus: dto.bondStatus,
+          decryptResult: '解密成功',
+          confirmStatus: '待确认',
+        },
+      });
+    }
+
+    // Phase 4: Confirm
     return this.prisma.bidSupplier.update({
       where: { id: supplierId },
-      data: { decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
+      data: { confirmStatus: 'CONFIRMED' },
     });
   }
 
