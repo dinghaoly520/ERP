@@ -203,3 +203,64 @@ body {
   0%, 20%   { background-position: 200% center; }
   60%, 100% { background-position: -100% center; }
 }
+
+/* ── Glow Divider ── */
+.glow-divider {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(6, 78, 162, 0.06) 15%,
+    rgba(6, 78, 162, 0.35) 40%,
+    rgba(8, 145, 178, 0.5) 50%,
+    rgba(6, 78, 162, 0.35) 60%,
+    rgba(6, 78, 162, 0.06) 85%,
+    transparent 100%
+  );
+  position: relative;
+  overflow: visible;
+}
+
+.glow-divider::before {
+  content: '';
+  position: absolute;
+  inset: -4px 10% -4px 10%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(6, 78, 162, 0.03) 20%,
+    rgba(6, 78, 162, 0.15) 45%,
+    rgba(8, 145, 178, 0.2) 50%,
+    rgba(6, 78, 162, 0.15) 55%,
+    rgba(6, 78, 162, 0.03) 80%,
+    transparent 100%
+  );
+  filter: blur(6px);
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+.glow-divider::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(8, 145, 178, 0.6),
+    transparent
+  );
+  animation: glow-slide 4s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+@keyframes glow-slide {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}

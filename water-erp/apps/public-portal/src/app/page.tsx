@@ -206,6 +206,10 @@ export default function HomePage() {
         </section>
 
         {/* ═══════════════════ 快捷入口 ═══════════════════ */}
+        {/* 上分隔线 - 动态光晕 */}
+        <div className="relative z-10">
+          <div className="glow-divider" />
+        </div>
         <section className="relative z-10 py-8">
           <div className="px-[clamp(40px,4vw,72px)]">
             <div className="grid grid-cols-5 max-md:grid-cols-3 max-sm:grid-cols-2 gap-5">
@@ -221,6 +225,10 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+        {/* 下分隔线 - 动态光晕 */}
+        <div className="relative z-10">
+          <div className="glow-divider" />
+        </div>
 
         {/* ═══════════════════ 公告信息（主角）═══════════════════ */}
         <section className="py-14 bg-white relative z-10">
