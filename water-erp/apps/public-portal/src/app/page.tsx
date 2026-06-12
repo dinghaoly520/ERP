@@ -141,7 +141,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen text-[#18243a] bg-white overflow-x-hidden" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       {/* ═══════════════════ Header ═══════════════════ */}
-      <header className="sticky top-0 z-50 h-[88px] flex items-center bg-[#f5f7fa] border-b border-[#e5ecf4]">
+      <header className="sticky top-0 z-50 h-[88px] flex items-center bg-white border-b border-[#e5ecf4]">
         <div className="w-full px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
           {/* Brand */}
           <a href="/" className="flex items-center gap-3 shrink-0">
@@ -166,7 +166,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="bg-[#f5f7fa]">
+      <main className="bg-white">
         {/* ═══════════════════ Hero ═══════════════════ */}
         <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden">
           <div className="absolute inset-0 w-full" style={{
