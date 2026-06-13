@@ -5,8 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
 import {
-  LayoutDashboard, ClipboardList, Gavel, Building2,
-  ShoppingCart, Megaphone, Star, Info, UsersRound,
+  LayoutDashboard, Building2, Megaphone, UsersRound,
   LogOut, PanelLeftClose, PanelLeft,
 } from 'lucide-react';
 
@@ -14,29 +13,13 @@ interface NavItem {
   label: string;
   path?: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  children?: { label: string; path: string }[];
 }
 
 const navItems: NavItem[] = [
-  { label: '首页', path: '/dashboard', icon: LayoutDashboard },
-  { label: '采购管理', path: '/procurement', icon: ClipboardList },
-  {
-    label: '开评标管理', icon: Gavel, children: [
-      { label: '总览驾驶舱', path: '/bid' },
-      { label: '开标主持端', path: '/bid/open' },
-      { label: '监督端', path: '/bid/supervise' },
-      { label: '归档端', path: '/bid/archive' },
-    ],
-  },
-  { label: '供应商管理', icon: Building2, children: [
-      { label: '供应商列表', path: '/supplier' },
-    ],
-  },
-  { label: '专家管理', path: '/expert', icon: UsersRound },
-  { label: '电子商城', path: '/mall', icon: ShoppingCart },
-  { label: '信息公告', path: '/notice', icon: Megaphone },
-  { label: '评价管理', path: '/evaluation', icon: Star },
-  { label: '关于我们', path: '/about', icon: Info },
+  { label: '首页驾驶舱', path: '/dashboard', icon: LayoutDashboard },
+  { label: '信息发布中心', path: '/notice', icon: Megaphone },
+  { label: '供应商管理中心', path: '/supplier', icon: Building2 },
+  { label: '专家管理中心', path: '/expert', icon: UsersRound },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -69,7 +52,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {!collapsed && (
             <div className="flex flex-col gap-0 overflow-hidden">
               <span className="text-[13px] font-bold tracking-tight text-white leading-tight whitespace-nowrap">四川水发集团</span>
-              <span className="text-[9px] text-white/35 font-medium whitespace-nowrap">智慧水发 · 管理端</span>
+              <span className="text-[9px] text-white/35 font-medium whitespace-nowrap">智慧水发 · 采购管理工作台</span>
             </div>
           )}
         </div>
@@ -77,50 +60,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Nav items */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
           {navItems.map(item => (
-            <div key={item.label} className="mb-0.5">
-              {item.children ? (
-                <>
-                  {!collapsed && (
-                    <div className="px-3 py-2 text-[10px] font-semibold text-white/25 uppercase tracking-widest">
-                      {item.label}
-                    </div>
-                  )}
-                  {item.children.map(child => (
-                    <button
-                      key={child.path}
-                      onClick={() => router.push(child.path)}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors text-left relative ${
-                        isActive(child.path)
-                          ? 'bg-[#064ea2] text-white font-semibold rounded-lg'
-                          : 'text-white/45 hover:text-white/80 hover:bg-white/[0.04] rounded-lg'
-                      }`}
-                    >
-                      {isActive(child.path) && (
-                        <div className="w-[3px] h-4 bg-[#0891b2] rounded-r absolute left-0" />
-                      )}
-                      <span className={`${collapsed ? 'mx-auto' : ''} tracking-tight`}>
-                        {collapsed ? child.label.slice(0, 2) : child.label}
-                      </span>
-                    </button>
-                  ))}
-                </>
-              ) : (
-                <button
-                  onClick={() => router.push(item.path!)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors relative rounded-lg ${
-                    isActive(item.path!)
-                      ? 'bg-[#064ea2] text-white font-semibold'
-                      : 'text-white/45 hover:text-white/80 hover:bg-white/[0.04]'
-                  }`}
-                >
-                  {isActive(item.path!) && (
-                    <div className="w-[3px] h-4 bg-[#0891b2] rounded-r absolute left-0" />
-                  )}
-                  <div className="flex-shrink-0"><item.icon size={collapsed ? 18 : 16} strokeWidth={1.5} /></div>
-                  {!collapsed && <span className="tracking-tight">{item.label}</span>}
-                </button>
+            <button
+              key={item.path}
+              onClick={() => router.push(item.path!)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 mb-1 text-[13px] transition-colors relative rounded-lg ${
+                isActive(item.path!)
+                  ? 'bg-[#064ea2] text-white font-semibold shadow-[0_8px_20px_rgba(6,78,162,0.28)]'
+                  : 'text-white/50 hover:text-white/85 hover:bg-white/[0.05]'
+              }`}
+            >
+              {isActive(item.path!) && (
+                <div className="w-[3px] h-4 bg-[#7dd3fc] rounded-r absolute left-0" />
               )}
-            </div>
+              <div className="flex-shrink-0"><item.icon size={collapsed ? 18 : 16} strokeWidth={1.5} /></div>
+              {!collapsed && <span className="tracking-tight">{item.label}</span>}
+            </button>
           ))}
         </nav>
 

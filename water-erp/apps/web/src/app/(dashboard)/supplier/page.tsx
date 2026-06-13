@@ -43,6 +43,10 @@ export default function SupplierPage() {
 
   const handleAction = async () => {
     if (!actionModal) return;
+    if (actionModal.type !== 'approve' && !actionReason.trim()) {
+      alert('请填写处理原因');
+      return;
+    }
     setActionLoading(true);
     try {
       const { type, supplier } = actionModal;
@@ -61,19 +65,20 @@ export default function SupplierPage() {
   // 统计
   const stats = {
     total: data.total,
-    pending: data.items.filter(s => s.status === 'PENDING').length,
-    approved: data.items.filter(s => s.status === 'APPROVED').length,
-    abnormal: data.items.filter(s => ['DISABLED', 'BLACKLIST'].includes(s.status)).length,
+    pending: data.items.filter((s: Supplier) => s.status === 'PENDING').length,
+    approved: data.items.filter((s: Supplier) => s.status === 'APPROVED').length,
+    abnormal: data.items.filter((s: Supplier) => ['DISABLED', 'BLACKLIST'].includes(s.status)).length,
   };
 
   const totalPages = Math.ceil(data.total / 20);
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[oklch(0.18_0.012_265)]">供应商管理</h1>
-          <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">供应商注册审核、供应商库管理、信息变更、状态维护</p>
+          <div className="mb-2 inline-flex rounded-full border border-[#bbf7d0] bg-[#f0fdf4] px-3 py-1 text-xs font-semibold text-[#11a874]">供应商管理中心</div>
+          <h1 className="text-2xl font-bold text-[#0f2f57]">供应商管理中心</h1>
+          <p className="text-sm text-[#5a6d8a] mt-1">供应商审核、供应商库、信息变更、评价与异常/黑名单管理</p>
         </div>
       </div>
 
@@ -89,6 +94,48 @@ export default function SupplierPage() {
             <p className="text-xs text-[oklch(0.55_0.01_264)] mb-1">{s.label}</p>
             <p className="text-3xl font-bold" style={{ color: s.color }}>{s.value}</p>
           </div>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-[#e5ecf4] p-5 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-bold text-[#18243a]">供应商生命周期</h2>
+            <p className="text-sm text-[#5a6d8a] mt-1">注册申请 → 资料审核 → 入库管理 → 履约评价 → 异常处理</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-5 gap-3">
+          {[
+            { label: '注册申请', desc: '提交企业资料', color: '#064ea2' },
+            { label: '资料审核', desc: '资质与基础信息审核', color: '#f5a623' },
+            { label: '入库管理', desc: '分类、状态与联系人', color: '#11a874' },
+            { label: '履约评价', desc: '服务质量与综合评分', color: '#7c3aed' },
+            { label: '异常处理', desc: '停用、黑名单、恢复', color: '#e74c3c' },
+          ].map((item, index) => (
+            <div key={item.label} className="rounded-xl border border-[#e5ecf4] bg-[#f8fafc] p-4">
+              <div className="mb-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: item.color }}>{index + 1}</div>
+              <div className="font-semibold text-[#18243a]">{item.label}</div>
+              <div className="mt-1 text-xs text-[#5a6d8a]">{item.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {[
+          { label: '全部供应商', status: '' },
+          { label: '待审核', status: 'PENDING' },
+          { label: '已入库', status: 'APPROVED' },
+          { label: '退回补正', status: 'RETURNED' },
+          { label: '异常/黑名单', status: 'BLACKLIST' },
+        ].map(tab => (
+          <button
+            key={tab.label}
+            onClick={() => { setFilterStatus(tab.status); setPage(1); }}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${filterStatus === tab.status ? 'bg-[#064ea2] text-white shadow-[0_8px_20px_rgba(6,78,162,0.2)]' : 'bg-white text-[#5a6d8a] border border-[#e5ecf4] hover:text-[#064ea2]'}`}
+          >
+            {tab.label}
+          </button>
         ))}
       </div>
 
@@ -135,16 +182,17 @@ export default function SupplierPage() {
               <th className="px-5 py-3">企业类型</th>
               <th className="px-5 py-3">状态</th>
               <th className="px-5 py-3">分类</th>
+              <th className="px-5 py-3">评分</th>
               <th className="px-5 py-3">注册时间</th>
               <th className="px-5 py-3 text-right">操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="px-5 py-10 text-center text-[oklch(0.55_0.01_264)]">加载中...</td></tr>
+              <tr><td colSpan={8} className="px-5 py-10 text-center text-[oklch(0.55_0.01_264)]">加载中...</td></tr>
             ) : data.items.length === 0 ? (
-              <tr><td colSpan={7} className="px-5 py-10 text-center text-[oklch(0.55_0.01_264)]">暂无供应商数据</td></tr>
-            ) : data.items.map(s => {
+              <tr><td colSpan={8} className="px-5 py-10 text-center text-[oklch(0.55_0.01_264)]">暂无供应商数据</td></tr>
+            ) : data.items.map((s: Supplier) => {
               const st = statusMap[s.status] || { label: s.status, color: '#999', bg: '#99918' };
               return (
                 <tr key={s.id} className="border-b border-[oklch(0.91_0.006_264)] hover:bg-[oklch(0.992_0.003_264)]">
@@ -155,6 +203,9 @@ export default function SupplierPage() {
                     <span className="px-2 py-1 rounded text-xs font-semibold" style={{ color: st.color, backgroundColor: st.bg }}>{st.label}</span>
                   </td>
                   <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{s.classification?.name || '—'}</td>
+                  <td className="px-5 py-3">
+                    <span className="rounded-full bg-[#eff6ff] px-2 py-1 text-xs font-semibold text-[#064ea2]">信用良好</span>
+                  </td>
                   <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-2">
