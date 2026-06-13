@@ -10,6 +10,7 @@ const authStore = useAuthStore()
 const form = reactive({ username: 'supplier1', password: 'supplier1@2026' })
 const loading = ref(false)
 const formRef = ref()
+const showPwd = ref(false)
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -45,318 +46,423 @@ async function handleLogin() {
 </script>
 
 <template>
-  <div class="sp-login">
-    <div class="sp-bg-grad" />
-    <div class="sp-top-fade" />
+  <!-- ━━━ 清爽产品风 · 水绿玻璃 · 背景 bg-hydro-hero-7 ━━━ -->
+  <main class="lp">
+    <div class="lp-bg" aria-hidden="true" />
 
-    <main class="sp-shell">
-      <section class="sp-copy">
-        <div class="sp-brand-row">
-          <img src="/logo.jpg" alt="四川水发集团" class="sp-logo" />
-          <div>
-            <strong class="sp-brand-name">四川水发集团</strong>
-            <small class="sp-brand-sub">智慧水发 · 蜀水云采</small>
+    <div class="lp-brand" aria-label="蜀水云采">
+      <img src="/logo.jpg" alt="" class="lp-brand-mark" />
+      蜀水云采
+    </div>
+
+    <section class="lp-showcase" aria-label="产品概览">
+      <div class="lp-board">
+        <span class="lp-kicker">SUPPLIER PORTAL</span>
+        <h2>成为蜀水云采的可靠供应。</h2>
+        <p>入库协同 · 在线投标 · 全程可追踪</p>
+        <div class="lp-tiles">
+          <div class="lp-tile">
+            <strong>协同</strong>
+            <small>在线投标与进度跟踪</small>
+          </div>
+          <div class="lp-tile">
+            <strong>透明</strong>
+            <small>信息全程公开可查</small>
           </div>
         </div>
+      </div>
+    </section>
 
-        <div class="sp-copy-main">
-          <span class="sp-kicker">SUPPLIER PORTAL</span>
-          <h1>供应商门户</h1>
-          <p>入库协同 · 在线投标 · 全程可追踪</p>
-          <div class="sp-tags">
-            <span><i />在线投标</span>
-            <span><i />进度跟踪</span>
-            <span><i />信息透明</span>
-          </div>
+    <section class="lp-panel" aria-label="登录表单">
+      <div class="lp-card">
+        <h2>供应商登录</h2>
+        <p class="lp-sub">进入供应商协同服务平台。</p>
+
+        <el-form
+          ref="formRef"
+          :model="form"
+          :rules="rules"
+          label-position="top"
+          class="lp-form"
+          @keyup.enter="handleLogin"
+        >
+          <el-form-item prop="username" class="lp-field">
+            <template #label>用户名</template>
+            <el-input v-model="form.username" placeholder="请输入用户名" />
+          </el-form-item>
+
+          <el-form-item prop="password" class="lp-field">
+            <template #label>密码</template>
+            <el-input
+              v-model="form.password"
+              :type="showPwd ? 'text' : 'password'"
+              placeholder="请输入密码"
+            >
+              <template #suffix>
+                <button type="button" class="lp-eye" :aria-label="showPwd ? '隐藏密码' : '显示密码'" @click="showPwd = !showPwd">
+                  {{ showPwd ? '●' : '○' }}
+                </button>
+              </template>
+            </el-input>
+          </el-form-item>
+
+          <el-form-item>
+            <button type="button" class="lp-primary" :disabled="loading" @click="handleLogin">
+              {{ loading ? '登录中…' : '登录门户' }}
+            </button>
+          </el-form-item>
+        </el-form>
+
+        <div class="lp-divider">测试账号　supplier1 / supplier1@2026</div>
+
+        <div class="lp-foot">
+          还没有账号？<router-link to="/register">立即注册供应商</router-link>
+          <a class="lp-back" href="http://localhost:3006">← 返回门户</a>
         </div>
-      </section>
-
-      <section class="sp-form-area">
-        <div class="sp-form-card">
-          <div class="sp-card-accent" />
-          <h2>供应商登录</h2>
-          <p>进入供应商协同服务平台</p>
-
-          <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="handleLogin">
-            <el-form-item prop="username">
-              <el-input v-model="form.username" placeholder="请输入用户名" prefix-icon="User" />
-            </el-form-item>
-            <el-form-item prop="password">
-              <el-input v-model="form.password" type="password" placeholder="请输入密码" prefix-icon="Lock" show-password />
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" :loading="loading" class="sp-login-btn" @click="handleLogin">
-                {{ loading ? '登录中...' : '登录门户' }}
-              </el-button>
-            </el-form-item>
-          </el-form>
-
-          <a href="http://localhost:3006" style="text-decoration:none" class="sp-back">← 返回门户</a>
-        </div>
-        <div class="sp-form-footer">
-          <span>还没有账号？</span>
-          <router-link to="/register">立即注册供应商</router-link>
-        </div>
-      </section>
-    </main>
-  </div>
+      </div>
+    </section>
+  </main>
 </template>
 
 <style scoped>
-.sp-login {
-  min-height: 100vh;
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+
+.lp {
+  --ink: #09251d;
+  --muted: #587269;
+  --green: #0f7b54;
+  --green-deep: #064635;
+  --mist: #eef6f0;
+  --line: rgba(9, 37, 29, 0.14);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   position: relative;
-  overflow-x: hidden;
-  overflow-y: auto;
-  background: #f6f9fd;
-  color: #0f172a;
-  font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 520px);
+  min-height: 100vh;
+  isolation: isolate;
+  overflow: hidden;
+  font-family: 'Manrope', 'Microsoft YaHei', sans-serif;
+  color: var(--ink);
+  background: var(--mist);
 }
 
-.sp-bg-grad {
+.lp-bg {
   position: absolute;
   inset: 0;
-  pointer-events: none;
-  background: radial-gradient(circle at 16% 18%, rgba(6,78,162,0.12), transparent 30%),
-    radial-gradient(circle at 84% 78%, rgba(16,185,129,0.16), transparent 28%);
+  z-index: -3;
+  background-image: url('/bg-hydro-hero-7.png');
+  background-position: center;
+  background-size: cover;
+  filter: saturate(0.72) contrast(0.88) brightness(1.08);
+  transform: scale(1.04);
 }
 
-.sp-top-fade {
+.lp::before,
+.lp::after {
   position: absolute;
-  inset-x: 0;
-  top: 0;
-  height: 128px;
+  inset: 0;
+  content: '';
   pointer-events: none;
-  background: linear-gradient(to bottom, white, transparent);
+}
+.lp::before {
+  z-index: -2;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.14) 38%, rgba(0, 0, 0, 0.72) 68%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.14) 38%, rgba(0, 0, 0, 0.72) 68%, #000 100%);
+}
+.lp::after {
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(238, 246, 240, 0.08) 0%, rgba(238, 246, 240, 0.24) 34%, rgba(238, 246, 240, 0.64) 66%, rgba(238, 246, 240, 0.9) 100%),
+    radial-gradient(circle at 84% 50%, rgba(255, 255, 255, 0.64), transparent 34%),
+    linear-gradient(90deg, rgba(3, 34, 24, 0.3), transparent 42%);
 }
 
-.sp-shell {
-  position: relative;
-  z-index: 1;
-  width: min(100%, 1280px);
-  min-height: 100vh;
-  margin: 0 auto;
-  padding: 32px 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 64px;
-}
-
-.sp-copy {
-  flex: 1;
-  max-width: 640px;
-}
-
-.sp-brand-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 92px;
-}
-
-.sp-logo {
-  height: 48px;
-  width: auto;
-  border-radius: 16px;
-  border: 1px solid #bbf7d0;
-  background: #fff;
-  object-fit: cover;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
-}
-
-.sp-brand-name {
-  display: block;
-  font-family: "SimHei", "黑体", sans-serif;
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: 0.16em;
-  color: #0f172a;
-}
-
-.sp-brand-sub {
-  display: block;
-  margin-top: 4px;
-  color: #64748b;
-  font-size: 12px;
-  letter-spacing: 0.2em;
-}
-
-.sp-kicker {
+.lp-brand {
+  position: fixed;
+  top: 28px;
+  right: 6vw;
+  z-index: 3;
   display: inline-flex;
-  margin-bottom: 20px;
-  border: 1px solid #86efac;
-  border-radius: 9999px;
-  background: #f0fdf4;
-  padding: 6px 16px;
-  color: #166534;
+  align-items: center;
+  gap: 10px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+}
+.lp-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 13px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 14px 30px rgba(15, 123, 84, 0.24);
+}
+
+/* 左侧展示 */
+.lp-showcase {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  min-height: 100vh;
+  padding: 96px 24px 48px 6vw;
+}
+.lp-board {
+  display: grid;
+  width: min(540px, 100%);
+  gap: 14px;
+  animation: lp-in 0.7s var(--ease) 0.12s both;
+}
+@keyframes lp-in {
+  from { opacity: 0; transform: translateX(22px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.lp-kicker {
+  justify-self: start;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+  padding: 7px 16px;
+  color: #effaf3;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.2em;
 }
-
-.sp-copy-main h1 {
+.lp-board h2 {
   margin: 0;
-  font-family: "SimHei", "黑体", sans-serif;
-  font-size: clamp(34px, 5vw, 64px);
-  font-weight: 900;
-  line-height: 1.08;
-  color: #0f172a;
+  color: #fff;
+  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-size: clamp(40px, 6vw, 72px);
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+  text-shadow: 0 14px 50px rgba(0, 0, 0, 0.34);
 }
-
-.sp-copy-main p {
-  margin: 20px 0 0;
-  color: #64748b;
+.lp-board p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
   font-size: 16px;
-  line-height: 1.8;
+  line-height: 1.6;
+  max-width: 30ch;
+  text-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
 }
-
-.sp-tags {
-  display: flex;
-  flex-wrap: wrap;
+.lp-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
-  margin-top: 32px;
+  margin-top: 8px;
+}
+.lp-tile {
+  min-height: 104px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.1);
+}
+.lp-tile strong {
+  display: block;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+}
+.lp-tile small {
+  color: #5c746b;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
-.sp-tags span {
+/* 右侧表单 */
+.lp-panel {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  padding: 96px 6vw 40px 32px;
+}
+.lp-card {
+  width: min(440px, 100%);
+  padding: 30px;
+  border: 1px solid rgba(9, 37, 29, 0.12);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 24px 70px rgba(20, 58, 44, 0.18);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  animation: lp-rise 0.58s var(--ease) both;
+}
+@keyframes lp-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.lp-card h2 {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-size: 30px;
+  line-height: 1;
+}
+.lp-sub {
+  margin: 12px 0 22px;
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 14px;
+}
+
+/* Element Plus 表单接管 */
+.lp-form :deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+.lp-form :deep(.el-form-item__label) {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  padding-bottom: 8px;
+  line-height: 1;
+}
+.lp-form :deep(.el-input__wrapper) {
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 0 0 1px var(--line) inset;
+  transition: box-shadow 0.2s var(--ease), background 0.2s var(--ease);
+}
+.lp-form :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px rgba(15, 123, 84, 0.45) inset;
+}
+.lp-form :deep(.el-input__wrapper.is-focus) {
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(15, 123, 84, 0.62) inset, 0 0 0 4px rgba(15, 123, 84, 0.14);
+}
+.lp-form :deep(.el-input__inner) {
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+.lp-form :deep(.el-input__inner::placeholder) {
+  color: rgba(9, 37, 29, 0.46);
+}
+.lp-form :deep(.el-form-item__error) {
+  font-size: 12px;
+}
+
+.lp-eye {
+  width: 32px;
+  height: 32px;
+  margin: -10px -4px 0 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--green-deep);
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.lp-primary {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  border: 1px solid #bbf7d0;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.84);
-  padding: 8px 14px;
-  color: #334155;
-  font-size: 14px;
-  font-weight: 600;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  justify-content: center;
+  width: 100%;
+  height: 54px;
+  border: 0;
+  border-radius: 16px;
+  color: #effaf3;
+  background: var(--green);
+  box-shadow: 0 18px 36px rgba(15, 123, 84, 0.24);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  transition: transform 0.2s var(--ease), filter 0.2s var(--ease);
+}
+.lp-primary:hover {
+  transform: translateY(-2px);
+  filter: saturate(1.08);
+}
+.lp-primary:disabled {
+  cursor: wait;
+  opacity: 0.78;
+  transform: none;
 }
 
-.sp-tags i {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 9999px;
-  background: #10b981;
+.lp-divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 18px;
+  color: #6d817b;
+  font-size: 12px;
+}
+.lp-divider::before,
+.lp-divider::after {
+  content: '';
+  height: 1px;
+  background: currentColor;
+  opacity: 0.22;
 }
 
-.sp-form-area {
-  flex: 0 0 460px;
+.lp-foot {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 10px;
+  color: #607870;
+  font-size: 13px;
 }
-
-.sp-form-card {
-  width: 100%;
-  max-width: 448px;
-  border: 1px solid #bbf7d0;
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 32px 40px;
-  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.10);
-  backdrop-filter: blur(12px);
-}
-
-@media (min-width: 640px) {
-  .sp-form-card { padding: 40px; }
-}
-
-.sp-card-accent {
-  width: 48px;
-  height: 4px;
-  margin-bottom: 24px;
-  border-radius: 9999px;
-  background: #10b981;
-}
-
-.sp-form-card h2 {
-  margin: 0;
-  font-family: "SimHei", "黑体", sans-serif;
-  font-size: 24px;
-  font-weight: 900;
-  color: #0f172a;
-}
-
-.sp-form-card > p {
-  margin: 8px 0 28px;
-  color: #64748b;
-  font-size: 14px;
-}
-
-.sp-form-card :deep(.el-input__wrapper) {
-  min-height: 48px;
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 0 0 1px #d7e3f2 inset;
-}
-
-.sp-form-card :deep(.el-input__wrapper:hover),
-.sp-form-card :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #10b981 inset, 0 0 0 4px rgba(16, 185, 129, 0.12);
-}
-
-.sp-form-card :deep(.el-input__inner) {
-  color: #0f172a;
-}
-
-.sp-form-card :deep(.el-input__inner::placeholder) {
-  color: #94a3b8;
-}
-
-.sp-login-btn {
-  width: 100%;
-  height: 48px;
-  border: 0;
-  border-radius: 16px;
-  background: linear-gradient(90deg, #064ea2, #10b981);
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  box-shadow: 0 16px 36px rgba(16, 185, 129, 0.25);
-}
-
-.sp-back {
-  display: inline-flex;
-  margin-top: 28px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #64748b;
-  transition: color 0.15s;
-}
-
-.sp-back:hover {
-  color: #10b981;
-}
-
-.sp-form-footer {
-  margin-top: 16px;
-  text-align: center;
-  color: #64748b;
-  font-size: 14px;
-}
-
-.sp-form-footer a {
-  margin-left: 4px;
-  color: #10b981;
+.lp-foot a {
+  color: var(--green);
   font-weight: 700;
   text-decoration: none;
 }
-
-.sp-form-footer a:hover {
-  color: #059669;
+.lp-foot a:hover {
+  color: var(--green-deep);
+}
+.lp-back {
+  font-weight: 600 !important;
+  color: #607870 !important;
+}
+.lp-back:hover {
+  color: var(--green-deep) !important;
 }
 
-@media (max-width: 900px) {
-  .sp-shell {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 36px;
-    padding: 28px 22px 40px;
+@media (max-width: 860px) {
+  .lp {
+    grid-template-columns: 1fr;
   }
-  .sp-brand-row { margin-bottom: 48px; }
-  .sp-form-area { flex: none; }
-  .sp-form-card { max-width: none; padding: 24px; }
+  .lp::before {
+    backdrop-filter: blur(14px);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.18) 34%, rgba(0, 0, 0, 0.8) 62%, #000 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.18) 34%, rgba(0, 0, 0, 0.8) 62%, #000 100%);
+  }
+  .lp::after {
+    background: linear-gradient(180deg, rgba(238, 246, 240, 0.14) 0%, rgba(238, 246, 240, 0.28) 36%, rgba(238, 246, 240, 0.8) 70%, rgba(238, 246, 240, 0.94) 100%),
+      radial-gradient(circle at 50% 76%, rgba(255, 255, 255, 0.64), transparent 34%);
+  }
+  .lp-brand {
+    top: 20px;
+    right: 18px;
+  }
+  .lp-panel {
+    grid-column: 1;
+    grid-row: 2;
+    align-items: stretch;
+    min-height: auto;
+    padding: 84px 18px 24px;
+  }
+  .lp-showcase {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 44vh;
+    padding: 90px 18px 24px;
+  }
 }
 </style>

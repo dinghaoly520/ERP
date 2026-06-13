@@ -5,8 +5,49 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   采购管理端 · 登录页 — Light Minimal · 天蓝色系
+   采购管理平台 · 登录页 — 清爽产品风 · 水绿玻璃
+   背景：bg-hydro-hero-8
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const LP_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+.lp{--ink:#09251d;--muted:#587269;--green:#0f7b54;--green-deep:#064635;--mist:#eef6f0;--line:rgba(9,37,29,.14);--ease:cubic-bezier(.2,.8,.2,1);position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,520px);min-height:100vh;isolation:isolate;overflow:hidden;font-family:"Manrope","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--mist)}
+.lp-bg{position:absolute;inset:0;z-index:-3;background-image:url('/assets/bg-hydro-hero-8.png');background-position:center;background-size:cover;filter:saturate(.72) contrast(.88) brightness(1.08);transform:scale(1.04)}
+.lp::before,.lp::after{position:absolute;inset:0;content:"";pointer-events:none}
+.lp::before{z-index:-2;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);-webkit-mask-image:linear-gradient(90deg,transparent 0%,rgba(0,0,0,.14) 38%,rgba(0,0,0,.72) 68%,#000 100%);mask-image:linear-gradient(90deg,transparent 0%,rgba(0,0,0,.14) 38%,rgba(0,0,0,.72) 68%,#000 100%)}
+.lp::after{z-index:-1;background:linear-gradient(90deg,rgba(238,246,240,.08) 0%,rgba(238,246,240,.24) 34%,rgba(238,246,240,.64) 66%,rgba(238,246,240,.9) 100%),radial-gradient(circle at 84% 50%,rgba(255,255,255,.64),transparent 34%),linear-gradient(90deg,rgba(3,34,24,.3),transparent 42%)}
+.lp-brand{position:fixed;top:28px;right:6vw;z-index:3;display:inline-flex;align-items:center;gap:10px;font-weight:900;letter-spacing:.02em;font-family:"Plus Jakarta Sans","Microsoft YaHei",sans-serif}
+.lp-brand-mark{width:36px;height:36px;border-radius:13px;object-fit:cover;border:1px solid rgba(255,255,255,.6);box-shadow:0 14px 30px rgba(15,123,84,.24)}
+.lp-showcase{grid-column:1;grid-row:1;display:flex;align-items:flex-end;justify-content:flex-start;min-height:100vh;padding:96px 24px 48px 6vw}
+.lp-board{display:grid;width:min(540px,100%);gap:14px;animation:lp-in .7s var(--ease) .12s both}
+@keyframes lp-in{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:translateX(0)}}
+.lp-kicker{justify-self:start;border:1px solid rgba(255,255,255,.5);border-radius:999px;background:rgba(255,255,255,.16);backdrop-filter:blur(8px);padding:7px 16px;color:#effaf3;font-size:11px;font-weight:800;letter-spacing:.2em}
+.lp-board h2{margin:0;color:#fff;font-family:"Plus Jakarta Sans","Microsoft YaHei",sans-serif;font-size:clamp(40px,6vw,72px);line-height:.95;letter-spacing:-.01em;text-shadow:0 14px 50px rgba(0,0,0,.34)}
+.lp-board p{margin:0;color:rgba(255,255,255,.92);font-size:16px;line-height:1.6;max-width:30ch;text-shadow:0 8px 30px rgba(0,0,0,.3)}
+.lp-tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+.lp-tile{min-height:104px;padding:16px;border:1px solid rgba(255,255,255,.42);border-radius:18px;background:rgba(255,255,255,.82);backdrop-filter:blur(16px);box-shadow:0 18px 42px rgba(0,0,0,.1)}
+.lp-tile strong{display:block;font-family:"Plus Jakarta Sans",sans-serif;font-size:22px;font-weight:800}
+.lp-tile small{color:#5c746b;font-size:12px;line-height:1.45}
+.lp-panel{grid-column:2;grid-row:1;display:flex;min-height:100vh;flex-direction:column;justify-content:center;align-items:flex-end;padding:96px 6vw 40px 32px}
+.lp-card{width:min(440px,100%);padding:30px;border:1px solid rgba(9,37,29,.12);border-radius:24px;background:rgba(255,255,255,.82);box-shadow:0 24px 70px rgba(20,58,44,.18);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);animation:lp-rise .58s var(--ease) both}
+@keyframes lp-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.lp-card h1{margin:0;font-family:"Plus Jakarta Sans","Microsoft YaHei",sans-serif;font-size:32px;line-height:1}
+.lp-sub{margin:12px 0 26px;color:var(--muted);line-height:1.55;font-size:14px}
+.lp-form{display:grid;gap:16px}
+.lp-field{display:grid;gap:8px}
+.lp-field label{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.lp-input{width:100%;height:52px;border:1px solid var(--line);border-radius:14px;padding:0 16px;outline:none;color:var(--ink);background:rgba(255,255,255,.74);font-family:inherit;font-size:14px;transition:border .2s var(--ease),box-shadow .2s var(--ease),background .2s var(--ease)}
+.lp-input::placeholder{color:rgba(9,37,29,.46)}
+.lp-input:focus{border-color:rgba(15,123,84,.62);box-shadow:0 0 0 4px rgba(15,123,84,.14);background:#fff}
+.lp-primary{display:inline-flex;align-items:center;justify-content:center;width:100%;height:54px;margin-top:4px;border:0;border-radius:16px;color:#effaf3;background:var(--green);box-shadow:0 18px 36px rgba(15,123,84,.24);font-weight:800;font-size:15px;cursor:pointer;transition:transform .2s var(--ease),filter .2s var(--ease)}
+.lp-primary:hover{transform:translateY(-2px);filter:saturate(1.08)}
+.lp-primary:disabled{cursor:wait;opacity:.78;transform:none}
+.lp-divider{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;color:#6d817b;font-size:12px;margin-top:4px}
+.lp-divider:before,.lp-divider:after{content:"";height:1px;background:currentColor;opacity:.22}
+.lp-back{display:inline-flex;justify-content:center;gap:6px;margin-top:20px;font-size:13px;font-weight:600;color:#607870;text-decoration:none;transition:color .2s}
+.lp-back:hover{color:var(--green-deep)}
+@media(max-width:860px){.lp{grid-template-columns:1fr}.lp::before{backdrop-filter:blur(14px);-webkit-mask-image:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.18) 34%,rgba(0,0,0,.8) 62%,#000 100%);mask-image:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.18) 34%,rgba(0,0,0,.8) 62%,#000 100%)}.lp::after{background:linear-gradient(180deg,rgba(238,246,240,.14) 0%,rgba(238,246,240,.28) 36%,rgba(238,246,240,.8) 70%,rgba(238,246,240,.94) 100%),radial-gradient(circle at 50% 76%,rgba(255,255,255,.64),transparent 34%)}.lp-brand{top:20px;right:18px}.lp-panel{grid-column:1;grid-row:2;align-items:stretch;min-height:auto;padding:84px 18px 24px}.lp-showcase{grid-column:1;grid-row:1;min-height:44vh;padding:90px 18px 24px}}
+`;
 
 export default function ProcurementLoginPage() {
   const router = useRouter();
@@ -32,56 +73,60 @@ export default function ProcurementLoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#f6f9fd] text-slate-900" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(6,78,162,0.12),transparent_30%),radial-gradient(circle_at_84%_78%,rgba(14,165,233,0.16),transparent_28%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-white to-transparent" />
+    <main className="lp">
+      <style dangerouslySetInnerHTML={{ __html: LP_CSS }} />
+      <div className="lp-bg" aria-hidden="true" />
 
-      <main className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 py-8 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:px-12">
-        <section className="flex max-w-2xl flex-col justify-center py-8 lg:py-0">
-          <div className="mb-16 flex items-center gap-4 lg:mb-24">
-            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-12 w-auto rounded-2xl border border-sky-100 bg-white object-cover shadow-sm" />
-            <div>
-              <div className="text-lg font-black tracking-[0.16em] text-slate-950" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>四川水发集团</div>
-              <div className="mt-1 text-xs font-medium tracking-[0.22em] text-slate-500">智慧水发 · 蜀水云采</div>
+      <div className="lp-brand" aria-label="蜀水云采">
+        <img src="/assets/logo.jpg" alt="" className="lp-brand-mark" />
+        蜀水云采
+      </div>
+
+      <section className="lp-showcase" aria-label="产品概览">
+        <div className="lp-board">
+          <span className="lp-kicker">PROCUREMENT MANAGEMENT</span>
+          <h2>招采全流程，统一在中枢。</h2>
+          <p>信息发布 · 供应商管理 · 专家管理</p>
+          <div className="lp-tiles">
+            <div className="lp-tile">
+              <strong>统筹</strong>
+              <small>招采项目全流程协同</small>
+            </div>
+            <div className="lp-tile">
+              <strong>监管</strong>
+              <small>开评标过程全程留痕</small>
             </div>
           </div>
-          <div>
-            <div className="mb-5 inline-flex rounded-full border border-sky-300 bg-sky-50 px-4 py-1.5 text-xs font-bold tracking-[0.18em] text-[#0369a1]">PROCUREMENT MANAGEMENT</div>
-            <h1 className="text-[clamp(34px,5vw,64px)] font-black leading-tight tracking-tight text-slate-950" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>采购管理平台</h1>
-            <p className="mt-5 max-w-xl text-base leading-8 text-slate-600">信息发布 · 供应商管理 · 专家管理</p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              {['招采统筹', '过程监管', '资源协同'].map(item => (
-                <span key={item} className="rounded-full border border-sky-100 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm">
-                  <span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#0ea5e9]" />{item}
-                </span>
-              ))}
+        </div>
+      </section>
+
+      <section className="lp-panel" aria-label="登录表单">
+        <div className="lp-card">
+          <h1>管理端登录</h1>
+          <p className="lp-sub">进入招采运营管理中枢。</p>
+
+          <form className="lp-form" onSubmit={handleLogin} noValidate>
+            <div className="lp-field">
+              <label htmlFor="web-user">用户名</label>
+              <input id="web-user" className="lp-input" type="text" autoComplete="username"
+                value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                placeholder="请输入用户名" />
             </div>
-          </div>
-        </section>
-        <section className="flex w-full justify-center py-8 lg:w-[460px] lg:py-0">
-          <div className="w-full max-w-md rounded-[28px] border border-sky-100 bg-white/95 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.10)] backdrop-blur sm:p-10">
-            <div className="mb-8">
-              <div className="mb-4 h-1 w-12 rounded-full bg-[#0ea5e9]" />
-              <h2 className="text-2xl font-black text-slate-950" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>管理端登录</h2>
-              <p className="mt-2 text-sm text-slate-500">进入招采运营管理中枢</p>
+            <div className="lp-field">
+              <label htmlFor="web-pass">密码</label>
+              <input id="web-pass" className="lp-input" type="password" autoComplete="current-password"
+                value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                placeholder="请输入密码" />
             </div>
-            <form onSubmit={handleLogin} className="space-y-5">
-              <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-slate-700">用户名</span>
-                <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="请输入用户名" className="h-12 w-full rounded-2xl border border-[#d7e3f2] bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#0ea5e9] focus:ring-4 focus:ring-sky-100" />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-slate-700">密码</span>
-                <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="请输入密码" className="h-12 w-full rounded-2xl border border-[#d7e3f2] bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#0ea5e9] focus:ring-4 focus:ring-sky-100" />
-              </label>
-              <button type="submit" disabled={loading} className="h-12 w-full rounded-2xl bg-gradient-to-r from-[#064ea2] to-[#0ea5e9] text-sm font-black tracking-[0.12em] text-white shadow-[0_16px_36px_rgba(14,165,233,0.25)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-45">
-                {loading ? '验证中...' : '进入管理平台'}
-              </button>
-            </form>
-            <a href="http://localhost:3006" className="mt-7 inline-flex text-sm font-semibold text-slate-500 transition hover:text-[#0ea5e9]" style={{ textDecoration: 'none' }}>← 返回门户</a>
-          </div>
-        </section>
-      </main>
-    </div>
+            <button className="lp-primary" type="submit" disabled={loading}>
+              {loading ? '验证中…' : '进入管理平台'}
+            </button>
+          </form>
+
+          <div className="lp-divider">测试账号　caigou / caigou@2026</div>
+          <a className="lp-back" href="http://localhost:3006">← 返回门户</a>
+        </div>
+      </section>
+    </main>
   );
 }
