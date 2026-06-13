@@ -117,6 +117,18 @@ export class SupplierPortalController {
     return this.portalService.getEvaluationStats(supplierId);
   }
 
+  // ─── Bid Projects (招标机会) ───
+
+  @Get('bid-projects')
+  async listBidProjects() {
+    return this.portalService.listBidProjects();
+  }
+
+  @Get('bid-projects/:id')
+  async getBidProject(@Param('id') id: string) {
+    return this.portalService.getBidProject(id);
+  }
+
   // ─── Bid Submissions ───
 
   @Get('bid-submissions')

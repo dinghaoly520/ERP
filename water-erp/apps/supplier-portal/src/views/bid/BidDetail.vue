@@ -25,8 +25,9 @@ const stageMap: Record<string, { label: string; color: string }> = {
 
 const project = computed(() => bidStore.currentProject)
 
+const isApproved = computed(() => supplierStore.profile?.status === 'APPROVED')
 const canSubmit = computed(() => {
-  if (!project.value) return false
+  if (!project.value || !isApproved.value) return false
   const p = project.value
   // Can submit if stage is DOWNLOAD or SUBMIT, and deadline hasn't passed
   return (p.stage === 'DOWNLOAD' || p.stage === 'SUBMIT') && new Date(p.deadline) > new Date()
@@ -38,7 +39,10 @@ const supplierCount = computed(() => {
 
 onMounted(async () => {
   try {
-    await bidStore.fetchProject(projectId.value)
+    await Promise.all([
+      bidStore.fetchProject(projectId.value),
+      supplierStore.fetchProfile(),
+    ])
   } finally {
     loading.value = false
   }

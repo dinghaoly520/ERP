@@ -5,6 +5,7 @@ import { useBidStore } from '@/stores/bid'
 import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { supplierApi } from '@/api/supplier'
+import { uploadFile, type FileAssetResponse } from '@/api/upload'
 import dayjs from 'dayjs'
 
 const route = useRoute()
@@ -27,6 +28,36 @@ const form = ref({
 
 const project = computed(() => bidStore.currentProject)
 const existingSubmission = ref<any>(null)
+const techFileMeta = ref<FileAssetResponse | null>(null)
+const bizFileMeta = ref<FileAssetResponse | null>(null)
+
+/** el-upload 自定义上传：落 MinIO，回写表单字段为鉴权代理下载 URL */
+async function handleFileUpload(options: any, field: 'technicalFile' | 'businessFile') {
+  const file = options.file as File
+  if (file.size > 50 * 1024 * 1024) {
+    ElMessage.error('文件不能超过 50MB')
+    options.onError(new Error('FILE_TOO_LARGE'))
+    return
+  }
+  try {
+    const res = await uploadFile(file, 'bid_document')
+    form.value[field] = res.url
+    if (field === 'technicalFile') techFileMeta.value = res
+    else bizFileMeta.value = res
+    options.onSuccess(res)
+    ElMessage.success('文件上传成功')
+  } catch (e: any) {
+    options.onError(e)
+  }
+}
+const uploadTech = (o: any) => handleFileUpload(o, 'technicalFile')
+const uploadBiz = (o: any) => handleFileUpload(o, 'businessFile')
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
 
 onMounted(async () => {
   try {
@@ -168,21 +199,27 @@ async function handleSubmit() {
 
           <el-form-item label="技术方案文件">
             <div class="file-upload-area">
-              <el-button type="primary" plain>
-                <el-icon><Upload /></el-icon>上传技术方案
-              </el-button>
+              <el-upload :http-request="uploadTech" :show-file-list="false" :disabled="!canSubmit || existingSubmission?.status === 'submitted'">
+                <el-button type="primary" plain :disabled="!canSubmit || existingSubmission?.status === 'submitted'">
+                  <el-icon><Upload /></el-icon>上传技术方案
+                </el-button>
+              </el-upload>
               <span class="file-hint">支持 PDF 格式，不超过 50MB</span>
-              <span v-if="form.technicalFile" class="file-name">{{ form.technicalFile }}</span>
+              <span v-if="techFileMeta" class="file-name">{{ techFileMeta.originalName }}（{{ formatSize(techFileMeta.size) }}）</span>
+              <span v-else-if="form.technicalFile" class="file-name">已上传文件</span>
             </div>
           </el-form-item>
 
           <el-form-item label="商务文件">
             <div class="file-upload-area">
-              <el-button type="primary" plain>
-                <el-icon><Upload /></el-icon>上传商务文件
-              </el-button>
+              <el-upload :http-request="uploadBiz" :show-file-list="false" :disabled="!canSubmit || existingSubmission?.status === 'submitted'">
+                <el-button type="primary" plain :disabled="!canSubmit || existingSubmission?.status === 'submitted'">
+                  <el-icon><Upload /></el-icon>上传商务文件
+                </el-button>
+              </el-upload>
               <span class="file-hint">支持 PDF 格式，不超过 50MB</span>
-              <span v-if="form.businessFile" class="file-name">{{ form.businessFile }}</span>
+              <span v-if="bizFileMeta" class="file-name">{{ bizFileMeta.originalName }}（{{ formatSize(bizFileMeta.size) }}）</span>
+              <span v-else-if="form.businessFile" class="file-name">已上传文件</span>
             </div>
           </el-form-item>
 
