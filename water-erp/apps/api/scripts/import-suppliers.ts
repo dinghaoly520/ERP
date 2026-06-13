@@ -14,7 +14,8 @@
  */
 import { PrismaClient, type SupplierStatus } from '@prisma/client';
 import { hashSync } from 'bcryptjs';
-import { readFileSync, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 

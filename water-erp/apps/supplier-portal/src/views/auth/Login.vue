@@ -54,18 +54,6 @@ async function handleLogin() {
       <span class="lp-brand-name">四川水发集团</span>
     </div>
 
-    <section class="lp-showcase" aria-label="产品概览">
-      <div class="lp-board">
-        <span class="lp-kicker">SUPPLIER PORTAL</span>
-        <h2>成为蜀水云采的可靠供应。</h2>
-        <p>入库协同 · 在线投标 · 全程可追踪</p>
-        <div class="lp-tiles">
-          <div class="lp-tile"><strong>协同</strong><small>在线投标与进度跟踪</small></div>
-          <div class="lp-tile"><strong>透明</strong><small>信息全程公开可查</small></div>
-        </div>
-      </div>
-    </section>
-
     <section class="lp-panel" aria-label="登录表单">
       <div class="lp-card">
         <div class="lp-head">

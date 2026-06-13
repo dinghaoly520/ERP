@@ -105,18 +105,6 @@ export default function ProcurementLoginPage() {
         <span className="lp-brand-name">四川水发集团</span>
       </div>
 
-      <section className="lp-showcase" aria-label="产品概览">
-        <div className="lp-board">
-          <span className="lp-kicker">PROCUREMENT MANAGEMENT</span>
-          <h2>招采全流程，统一在中枢。</h2>
-          <p>信息发布 · 供应商管理 · 专家管理</p>
-          <div className="lp-tiles">
-            <div className="lp-tile"><strong>统筹</strong><small>招采项目全流程协同</small></div>
-            <div className="lp-tile"><strong>监管</strong><small>开评标过程全程留痕</small></div>
-          </div>
-        </div>
-      </section>
-
       <section className="lp-panel" aria-label="登录表单">
         <div className="lp-card">
           <div className="lp-head">

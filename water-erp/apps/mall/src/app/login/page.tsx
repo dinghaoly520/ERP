@@ -113,18 +113,6 @@ export default function MallLoginPage() {
         <span className="lp-brand-name">四川水发集团</span>
       </div>
 
-      <section className="lp-showcase" aria-label="产品概览">
-        <div className="lp-board">
-          <span className="lp-kicker">B2B PROCUREMENT MALL</span>
-          <h2>水利工程物资，一站直采。</h2>
-          <p>集中采购目录 · 透明价格 · 品质溯源</p>
-          <div className="lp-tiles">
-            <div className="lp-tile"><strong>直采</strong><small>水利工程物资一站直达</small></div>
-            <div className="lp-tile"><strong>溯源</strong><small>目录价品质全程可比</small></div>
-          </div>
-        </div>
-      </section>
-
       <section className="lp-panel" aria-label="登录表单">
         <div className="lp-card">
           <div className="lp-head">

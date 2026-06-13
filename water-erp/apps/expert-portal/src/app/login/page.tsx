@@ -144,18 +144,6 @@ export default function ExpertLoginPage() {
         <span className="lp-brand-name">四川水发集团</span>
       </div>
 
-      <section className="lp-showcase" aria-label="产品概览">
-        <div className="lp-board">
-          <span className="lp-kicker">ONLINE BID OPENING &amp; EVALUATION</span>
-          <h2>独立评审，全程留痕。</h2>
-          <p>专家独立打分 · AI 智能辅助 · 过程可回溯</p>
-          <div className="lp-tiles">
-            <div className="lp-tile"><strong>独立</strong><small>评审身份加密隔离</small></div>
-            <div className="lp-tile"><strong>智能</strong><small>AI 辅助异常识别</small></div>
-          </div>
-        </div>
-      </section>
-
       <section className="lp-panel" aria-label="登录表单">
         <div className="lp-card">
           <div className="lp-head">
