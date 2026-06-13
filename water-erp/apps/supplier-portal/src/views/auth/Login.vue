@@ -10,7 +10,6 @@ const authStore = useAuthStore()
 const form = reactive({ username: 'supplier1', password: 'supplier1@2026' })
 const loading = ref(false)
 const formRef = ref()
-const showPwd = ref(false)
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -46,13 +45,13 @@ async function handleLogin() {
 </script>
 
 <template>
-  <!-- ━━━ 清爽产品风 · 水绿玻璃 · 背景 bg-hydro-hero-7 ━━━ -->
-  <main class="lp">
+  <!-- ━━━ 浅色炫彩毛玻璃 · 浅薄荷 · 背景 bg-hydro-hero-7 ━━━ -->
+  <main class="lp lp--supplier">
     <div class="lp-bg" aria-hidden="true" />
 
-    <div class="lp-brand" aria-label="蜀水云采">
+    <div class="lp-brand" aria-label="四川水发集团">
       <img src="/logo.jpg" alt="" class="lp-brand-mark" />
-      蜀水云采
+      <span class="lp-brand-name">四川水发集团</span>
     </div>
 
     <section class="lp-showcase" aria-label="产品概览">
@@ -61,22 +60,19 @@ async function handleLogin() {
         <h2>成为蜀水云采的可靠供应。</h2>
         <p>入库协同 · 在线投标 · 全程可追踪</p>
         <div class="lp-tiles">
-          <div class="lp-tile">
-            <strong>协同</strong>
-            <small>在线投标与进度跟踪</small>
-          </div>
-          <div class="lp-tile">
-            <strong>透明</strong>
-            <small>信息全程公开可查</small>
-          </div>
+          <div class="lp-tile"><strong>协同</strong><small>在线投标与进度跟踪</small></div>
+          <div class="lp-tile"><strong>透明</strong><small>信息全程公开可查</small></div>
         </div>
       </div>
     </section>
 
     <section class="lp-panel" aria-label="登录表单">
       <div class="lp-card">
-        <h2>供应商登录</h2>
-        <p class="lp-sub">进入供应商协同服务平台。</p>
+        <div class="lp-head">
+          <div class="lp-brand-word">智慧水发<span class="lp-dot">·</span>蜀水云采</div>
+          <h1 class="lp-title">供应商门户</h1>
+          <p class="lp-tag">供应商协同服务平台</p>
+        </div>
 
         <el-form
           ref="formRef"
@@ -88,36 +84,29 @@ async function handleLogin() {
         >
           <el-form-item prop="username" class="lp-field">
             <template #label>用户名</template>
-            <el-input v-model="form.username" placeholder="请输入用户名" />
+            <el-input v-model="form.username" placeholder="请输入用户名" prefix-icon="User" />
           </el-form-item>
 
           <el-form-item prop="password" class="lp-field">
             <template #label>密码</template>
             <el-input
               v-model="form.password"
-              :type="showPwd ? 'text' : 'password'"
+              type="password"
               placeholder="请输入密码"
-            >
-              <template #suffix>
-                <button type="button" class="lp-eye" :aria-label="showPwd ? '隐藏密码' : '显示密码'" @click="showPwd = !showPwd">
-                  {{ showPwd ? '●' : '○' }}
-                </button>
-              </template>
-            </el-input>
+              prefix-icon="Lock"
+              show-password
+            />
           </el-form-item>
 
           <el-form-item>
             <button type="button" class="lp-primary" :disabled="loading" @click="handleLogin">
-              {{ loading ? '登录中…' : '登录门户' }}
+              {{ loading ? '登录中…' : '登 录' }}
             </button>
           </el-form-item>
         </el-form>
 
-        <div class="lp-divider">测试账号　supplier1 / supplier1@2026</div>
-
         <div class="lp-foot">
           还没有账号？<router-link to="/register">立即注册供应商</router-link>
-          <a class="lp-back" href="http://localhost:3006">← 返回门户</a>
         </div>
       </div>
     </section>
@@ -128,12 +117,10 @@ async function handleLogin() {
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
 
 .lp {
-  --ink: #09251d;
-  --muted: #587269;
-  --green: #0f7b54;
-  --green-deep: #064635;
-  --mist: #eef6f0;
-  --line: rgba(9, 37, 29, 0.14);
+  --tint: oklch(0.975 0.02 var(--hue));
+  --ink: oklch(0.26 0.025 var(--hue));
+  --muted: #6b787e;
+  --line: oklch(0.93 0.015 var(--hue));
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   position: relative;
   display: grid;
@@ -143,7 +130,10 @@ async function handleLogin() {
   overflow: hidden;
   font-family: 'Manrope', 'Microsoft YaHei', sans-serif;
   color: var(--ink);
-  background: var(--mist);
+  background: var(--tint);
+}
+.lp--supplier {
+  --hue: 155;
 }
 
 .lp-bg {
@@ -153,10 +143,9 @@ async function handleLogin() {
   background-image: url('/bg-hydro-hero-7.png');
   background-position: center;
   background-size: cover;
-  filter: saturate(0.72) contrast(0.88) brightness(1.08);
+  filter: saturate(0.8) contrast(0.92) brightness(1.05);
   transform: scale(1.04);
 }
-
 .lp::before,
 .lp::after {
   position: absolute;
@@ -166,40 +155,44 @@ async function handleLogin() {
 }
 .lp::before {
   z-index: -2;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.14) 38%, rgba(0, 0, 0, 0.72) 68%, #000 100%);
-  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.14) 38%, rgba(0, 0, 0, 0.72) 68%, #000 100%);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.03) 40%, rgba(0, 0, 0, 0.3) 68%, rgba(0, 0, 0, 0.85) 92%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.03) 40%, rgba(0, 0, 0, 0.3) 68%, rgba(0, 0, 0, 0.85) 92%, #000 100%);
 }
 .lp::after {
   z-index: -1;
-  background: linear-gradient(90deg, rgba(238, 246, 240, 0.08) 0%, rgba(238, 246, 240, 0.24) 34%, rgba(238, 246, 240, 0.64) 66%, rgba(238, 246, 240, 0.9) 100%),
-    radial-gradient(circle at 84% 50%, rgba(255, 255, 255, 0.64), transparent 34%),
-    linear-gradient(90deg, rgba(3, 34, 24, 0.3), transparent 42%);
+  background: linear-gradient(90deg, transparent 0%, color-mix(in oklch, var(--tint) 5%, transparent) 42%, color-mix(in oklch, var(--tint) 35%, transparent) 70%, color-mix(in oklch, var(--tint) 92%, white) 100%),
+    radial-gradient(circle at 86% 46%, color-mix(in oklch, white 30%, transparent), transparent 42%),
+    linear-gradient(90deg, rgba(3, 30, 40, 0.1), transparent 45%);
 }
 
 .lp-brand {
   position: fixed;
-  top: 28px;
-  right: 6vw;
+  top: 26px;
+  left: 6vw;
   z-index: 3;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 900;
-  letter-spacing: 0.02em;
-  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  gap: 12px;
 }
 .lp-brand-mark {
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   border-radius: 13px;
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 14px 30px rgba(15, 123, 84, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 10px 26px rgba(20, 40, 50, 0.18);
+}
+.lp-brand-name {
+  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #fff;
+  text-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
 }
 
-/* 左侧展示 */
 .lp-showcase {
   grid-column: 1;
   grid-row: 1;
@@ -235,8 +228,8 @@ async function handleLogin() {
   margin: 0;
   color: #fff;
   font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
-  font-size: clamp(40px, 6vw, 72px);
-  line-height: 0.95;
+  font-size: clamp(40px, 6vw, 70px);
+  line-height: 0.96;
   letter-spacing: -0.01em;
   text-shadow: 0 14px 50px rgba(0, 0, 0, 0.34);
 }
@@ -255,19 +248,20 @@ async function handleLogin() {
   margin-top: 8px;
 }
 .lp-tile {
-  min-height: 104px;
+  min-height: 102px;
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(16px);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.09);
 }
 .lp-tile strong {
   display: block;
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-size: 22px;
   font-weight: 800;
+  color: var(--ink);
 }
 .lp-tile small {
   color: #5c746b;
@@ -275,7 +269,6 @@ async function handleLogin() {
   line-height: 1.45;
 }
 
-/* 右侧表单 */
 .lp-panel {
   grid-column: 2;
   grid-row: 1;
@@ -287,31 +280,69 @@ async function handleLogin() {
   padding: 96px 6vw 40px 32px;
 }
 .lp-card {
+  position: relative;
   width: min(440px, 100%);
-  padding: 30px;
-  border: 1px solid rgba(9, 37, 29, 0.12);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 24px 70px rgba(20, 58, 44, 0.18);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  padding: 34px 32px 30px;
+  border-radius: 26px;
+  background: radial-gradient(circle at 92% 0%, color-mix(in oklch, oklch(0.93 0.055 var(--hue)) 38%, transparent), transparent 36%),
+    radial-gradient(circle at 4% 96%, color-mix(in oklch, oklch(0.93 0.045 calc(var(--hue) + 80)) 32%, transparent), transparent 34%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.52));
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow: 0 24px 60px color-mix(in oklch, oklch(0.5 0.05 var(--hue)) 13%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   animation: lp-rise 0.58s var(--ease) both;
 }
 @keyframes lp-rise {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.lp-card h2 {
+.lp-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.2px;
+  pointer-events: none;
+  background: linear-gradient(135deg, color-mix(in oklch, oklch(0.9 0.06 var(--hue)) 78%, white), rgba(255, 255, 255, 0.72) 46%, color-mix(in oklch, oklch(0.9 0.05 calc(var(--hue) + 90)) 70%, white));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.lp-head {
+  margin-bottom: 26px;
+}
+.lp-brand-word {
+  display: flex;
+  align-items: center;
+  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  color: oklch(0.5 0.07 var(--hue));
+  margin-bottom: 12px;
+}
+.lp-brand-word .lp-dot {
+  font-size: 18px;
+  line-height: 1;
+  margin: 0 4px;
+  opacity: 0.5;
+}
+.lp-title {
   margin: 0;
   font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
-  font-size: 30px;
-  line-height: 1;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.05;
+  color: oklch(0.26 0.04 var(--hue));
+  letter-spacing: -0.01em;
 }
-.lp-sub {
-  margin: 12px 0 22px;
+.lp-tag {
+  margin: 8px 0 0;
   color: var(--muted);
-  line-height: 1.55;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 /* Element Plus 表单接管 */
@@ -321,49 +352,39 @@ async function handleLogin() {
 .lp-form :deep(.el-form-item__label) {
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink);
+  letter-spacing: 0.06em;
+  color: color-mix(in oklch, var(--ink) 82%, #000);
   padding-bottom: 8px;
   line-height: 1;
 }
 .lp-form :deep(.el-input__wrapper) {
-  height: 52px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.74);
+  height: 54px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.62);
   box-shadow: 0 0 0 1px var(--line) inset;
   transition: box-shadow 0.2s var(--ease), background 0.2s var(--ease);
 }
 .lp-form :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px rgba(15, 123, 84, 0.45) inset;
+  box-shadow: 0 0 0 1px oklch(0.7 0.06 var(--hue)) inset;
 }
 .lp-form :deep(.el-input__wrapper.is-focus) {
   background: #fff;
-  box-shadow: 0 0 0 1px rgba(15, 123, 84, 0.62) inset, 0 0 0 4px rgba(15, 123, 84, 0.14);
+  box-shadow: 0 0 0 1px oklch(0.66 0.08 var(--hue)) inset, 0 0 0 4px color-mix(in oklch, oklch(0.78 0.08 var(--hue)) 16%, transparent);
 }
 .lp-form :deep(.el-input__inner) {
   color: var(--ink);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 14.5px;
 }
 .lp-form :deep(.el-input__inner::placeholder) {
-  color: rgba(9, 37, 29, 0.46);
+  color: oklch(0.66 0.018 var(--hue));
+}
+.lp-form :deep(.el-input__prefix) {
+  color: oklch(0.58 0.06 var(--hue));
+  margin: 0 6px 0 4px;
 }
 .lp-form :deep(.el-form-item__error) {
   font-size: 12px;
-}
-
-.lp-eye {
-  width: 32px;
-  height: 32px;
-  margin: -10px -4px 0 0;
-  border: 0;
-  border-radius: 50%;
-  color: var(--green-deep);
-  background: transparent;
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
 }
 
 .lp-primary {
@@ -372,66 +393,42 @@ async function handleLogin() {
   justify-content: center;
   width: 100%;
   height: 54px;
-  border: 0;
-  border-radius: 16px;
-  color: #effaf3;
-  background: var(--green);
-  box-shadow: 0 18px 36px rgba(15, 123, 84, 0.24);
+  margin-top: 4px;
+  border: 1px solid color-mix(in oklch, oklch(0.8 0.06 var(--hue)) 50%, white);
+  border-radius: 15px;
+  color: oklch(0.32 0.07 var(--hue));
+  background: linear-gradient(135deg, oklch(0.93 0.055 var(--hue)), oklch(0.91 0.048 calc(var(--hue) + 24)));
+  box-shadow: 0 10px 24px color-mix(in oklch, oklch(0.5 0.05 var(--hue)) 14%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.65);
   font-family: inherit;
   font-weight: 800;
   font-size: 15px;
+  letter-spacing: 0.16em;
   cursor: pointer;
   transition: transform 0.2s var(--ease), filter 0.2s var(--ease);
 }
 .lp-primary:hover {
   transform: translateY(-2px);
-  filter: saturate(1.08);
+  filter: brightness(1.02);
 }
 .lp-primary:disabled {
   cursor: wait;
-  opacity: 0.78;
+  opacity: 0.7;
   transform: none;
 }
 
-.lp-divider {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 12px;
-  margin: 4px 0 18px;
-  color: #6d817b;
-  font-size: 12px;
-}
-.lp-divider::before,
-.lp-divider::after {
-  content: '';
-  height: 1px;
-  background: currentColor;
-  opacity: 0.22;
-}
-
 .lp-foot {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  color: #607870;
+  margin-top: 14px;
+  text-align: center;
+  color: var(--muted);
   font-size: 13px;
 }
 .lp-foot a {
-  color: var(--green);
+  color: oklch(0.42 0.08 var(--hue));
   font-weight: 700;
   text-decoration: none;
 }
 .lp-foot a:hover {
-  color: var(--green-deep);
-}
-.lp-back {
-  font-weight: 600 !important;
-  color: #607870 !important;
-}
-.lp-back:hover {
-  color: var(--green-deep) !important;
+  text-decoration: underline;
 }
 
 @media (max-width: 860px) {
@@ -439,30 +436,30 @@ async function handleLogin() {
     grid-template-columns: 1fr;
   }
   .lp::before {
-    backdrop-filter: blur(14px);
-    -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.18) 34%, rgba(0, 0, 0, 0.8) 62%, #000 100%);
-    mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.18) 34%, rgba(0, 0, 0, 0.8) 62%, #000 100%);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.04) 38%, rgba(0, 0, 0, 0.4) 64%, rgba(0, 0, 0, 0.9) 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.04) 38%, rgba(0, 0, 0, 0.4) 64%, rgba(0, 0, 0, 0.9) 100%);
   }
   .lp::after {
-    background: linear-gradient(180deg, rgba(238, 246, 240, 0.14) 0%, rgba(238, 246, 240, 0.28) 36%, rgba(238, 246, 240, 0.8) 70%, rgba(238, 246, 240, 0.94) 100%),
-      radial-gradient(circle at 50% 76%, rgba(255, 255, 255, 0.64), transparent 34%);
+    background: linear-gradient(180deg, transparent 0%, color-mix(in oklch, var(--tint) 8%, transparent) 40%, color-mix(in oklch, var(--tint) 45%, transparent) 72%, color-mix(in oklch, var(--tint) 92%, white) 100%),
+      radial-gradient(circle at 50% 78%, color-mix(in oklch, white 28%, transparent), transparent 40%);
   }
   .lp-brand {
-    top: 20px;
-    right: 18px;
+    top: 18px;
+    left: 18px;
   }
   .lp-panel {
     grid-column: 1;
     grid-row: 2;
     align-items: stretch;
     min-height: auto;
-    padding: 84px 18px 24px;
+    padding: 80px 18px 28px;
   }
   .lp-showcase {
     grid-column: 1;
     grid-row: 1;
-    min-height: 44vh;
-    padding: 90px 18px 24px;
+    min-height: 40vh;
+    padding: 80px 18px 18px;
   }
 }
 </style>
