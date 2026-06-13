@@ -20,6 +20,12 @@ export class CatalogController {
     return this.catalogService.list({ category, region, status, source, search });
   }
 
+  @Get('suppliers')
+  @ApiOperation({ summary: '供应商维度聚合（目录内）' })
+  async suppliers() {
+    return this.catalogService.listSuppliers();
+  }
+
   @Get(':id/history')
   @ApiOperation({ summary: '采购目录价格历史' })
   async history(@Param('id') id: string) {

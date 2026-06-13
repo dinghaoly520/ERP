@@ -117,4 +117,35 @@ export class CatalogService {
       note: r.note,
     }));
   }
+
+  /** 按供应商聚合目录（供应商维度浏览，不依赖 Supplier 登录表）。 */
+  async listSuppliers() {
+    const items = await this.prisma.catalogItem.findMany({
+      select: { supplier: true, supplierType: true, region: true, category: true, referencePrice: true },
+    });
+    const map = new Map<string, { supplier: string; supplierType: string; regions: Set<string>; categories: Set<string>; prices: number[]; count: number }>();
+    for (const it of items) {
+      let e = map.get(it.supplier);
+      if (!e) {
+        e = { supplier: it.supplier, supplierType: it.supplierType, regions: new Set(), categories: new Set(), prices: [], count: 0 };
+        map.set(it.supplier, e);
+      }
+      e.regions.add(it.region);
+      e.categories.add(it.category);
+      e.prices.push(Number(it.referencePrice));
+      e.count += 1;
+    }
+    return Array.from(map.values())
+      .map(e => ({
+        supplier: e.supplier,
+        supplierType: e.supplierType,
+        regions: Array.from(e.regions),
+        categories: Array.from(e.categories),
+        itemCount: e.count,
+        minPrice: Math.min(...e.prices),
+        maxPrice: Math.max(...e.prices),
+        avgPrice: Math.round((e.prices.reduce((a, b) => a + b, 0) / e.prices.length) * 100) / 100,
+      }))
+      .sort((a, b) => b.itemCount - a.itemCount);
+  }
 }
