@@ -260,7 +260,7 @@ model Supplier {
   userId            String         @unique
   name              String
   normalizedName    String         @unique
-  creditCode        String         @unique
+  creditCode        String?        @unique
   enterpriseType    String
   legalPerson       String
   registeredAddress String

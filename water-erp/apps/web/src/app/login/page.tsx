@@ -6,12 +6,11 @@ import { toast } from 'sonner';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    采购管理平台 · 登录页 — 浅色炫彩毛玻璃 · 浅天蓝
-   背景：bg-hydro-hero-8
-   遮罩：左清晰 → 右渐近不透明（平滑渐变）
+   背景：bg-hydro-hero-8 · 卡顶艺术字居中 + 交互增强
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const LP_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=ZCOOL+XiaoWei&display=swap');
 .lp{--tint:oklch(0.975 0.02 var(--hue));--ink:oklch(0.26 0.025 var(--hue));--muted:#6b787e;--line:oklch(0.93 0.015 var(--hue));--ease:cubic-bezier(.2,.8,.2,1);position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,520px);min-height:100vh;isolation:isolate;overflow:hidden;font-family:"Manrope","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--tint)}
 .lp--web{--hue:235}
 .lp-bg{position:absolute;inset:0;z-index:-3;background-image:url('/assets/bg-hydro-hero-8.png');background-position:center;background-size:cover;filter:saturate(.8) contrast(.92) brightness(1.05);transform:scale(1.04)}
@@ -32,25 +31,37 @@ const LP_CSS = `
 .lp-tile strong{display:block;font-family:"Plus Jakarta Sans",sans-serif;font-size:22px;font-weight:800;color:var(--ink)}
 .lp-tile small{color:#5c746b;font-size:12px;line-height:1.45}
 .lp-panel{grid-column:2;grid-row:1;display:flex;min-height:100vh;flex-direction:column;justify-content:center;align-items:flex-end;padding:96px 6vw 40px 32px}
-.lp-card{position:relative;width:min(440px,100%);padding:34px 32px 30px;border-radius:26px;background:radial-gradient(circle at 92% 0%,color-mix(in oklch,oklch(0.93 0.055 var(--hue)) 38%,transparent),transparent 36%),radial-gradient(circle at 4% 96%,color-mix(in oklch,oklch(0.93 0.045 calc(var(--hue) + 80)) 32%,transparent),transparent 34%),linear-gradient(160deg,rgba(255,255,255,.74),rgba(255,255,255,.54));backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);box-shadow:0 24px 60px color-mix(in oklch,oklch(0.5 0.05 var(--hue)) 13%,transparent),inset 0 1px 0 rgba(255,255,255,.9);animation:lp-rise .58s var(--ease) both}
+.lp-card{position:relative;width:min(440px,100%);padding:36px 32px 30px;border-radius:26px;background:radial-gradient(circle at 92% 0%,color-mix(in oklch,oklch(0.93 0.055 var(--hue)) 38%,transparent),transparent 36%),radial-gradient(circle at 4% 96%,color-mix(in oklch,oklch(0.93 0.045 calc(var(--hue) + 80)) 32%,transparent),transparent 34%),linear-gradient(160deg,rgba(255,255,255,.74),rgba(255,255,255,.54));backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);box-shadow:0 24px 60px color-mix(in oklch,oklch(0.5 0.05 var(--hue)) 13%,transparent),inset 0 1px 0 rgba(255,255,255,.9);animation:lp-rise .58s var(--ease) backwards;transition:transform .35s var(--ease),box-shadow .35s var(--ease)}
 @keyframes lp-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-.lp-card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.2px;pointer-events:none;background:linear-gradient(135deg,color-mix(in oklch,oklch(0.9 0.06 var(--hue)) 78%,white),rgba(255,255,255,.72) 46%,color-mix(in oklch,oklch(0.9 0.05 calc(var(--hue) + 90)) 70%,white));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
-.lp-head{margin-bottom:26px}
-.lp-brand-word{display:flex;align-items:center;font-family:"Plus Jakarta Sans","Microsoft YaHei",sans-serif;font-size:13px;font-weight:700;letter-spacing:.26em;color:oklch(0.5 0.07 var(--hue));margin-bottom:12px}
-.lp-brand-word .lp-dot{font-size:18px;line-height:1;margin:0 4px;opacity:.5}
-.lp-title{margin:0;font-family:"Plus Jakarta Sans","Microsoft YaHei",sans-serif;font-size:32px;font-weight:800;line-height:1.05;color:oklch(0.26 0.04 var(--hue));letter-spacing:-.01em}
-.lp-tag{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.5}
+.lp-card:hover{transform:translateY(-4px);box-shadow:0 32px 70px color-mix(in oklch,oklch(0.5 0.05 var(--hue)) 20%,transparent),inset 0 1px 0 rgba(255,255,255,.9)}
+.lp-card:hover::before{filter:saturate(1.3) brightness(1.05)}
+.lp-card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.2px;pointer-events:none;background:linear-gradient(135deg,color-mix(in oklch,oklch(0.9 0.06 var(--hue)) 78%,white),rgba(255,255,255,.72) 46%,color-mix(in oklch,oklch(0.9 0.05 calc(var(--hue) + 90)) 70%,white));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;transition:filter .35s var(--ease)}
+.lp-head{margin-bottom:28px;text-align:center}
+.lp-brand-word{display:flex;align-items:center;justify-content:center;font-family:"ZCOOL XiaoWei","Microsoft YaHei",serif;font-size:24px;font-weight:400;letter-spacing:.08em;color:oklch(0.46 0.09 var(--hue));margin-bottom:10px}
+.lp-brand-word .lp-dot{font-size:24px;line-height:1;margin:0 6px;opacity:.55}
+.lp-title{margin:0;font-family:"Plus Jakarta Sans","Microsoft YaHei",sans-serif;font-size:30px;font-weight:800;line-height:1.1;color:oklch(0.26 0.04 var(--hue));letter-spacing:-.01em}
 .lp-form{display:grid;gap:16px}
 .lp-field{display:grid;gap:8px}
-.lp-field label{font-size:12px;font-weight:800;letter-spacing:.06em;color:color-mix(in oklch,var(--ink) 82%,#000)}
+.lp-field label{font-size:12px;font-weight:800;letter-spacing:.06em;color:color-mix(in oklch,var(--ink) 82%,#000);transition:color .2s var(--ease)}
 .lp-input-wrap{position:relative}
-.lp-input-icon{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:oklch(0.58 0.06 var(--hue));opacity:.9;pointer-events:none}
+.lp-input-icon{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:oklch(0.58 0.06 var(--hue));opacity:.9;pointer-events:none;transition:color .2s var(--ease),transform .2s var(--ease)}
 .lp-input{width:100%;height:54px;border:1px solid var(--line);border-radius:15px;padding:0 16px 0 46px;outline:none;color:var(--ink);background:rgba(255,255,255,.62);font-family:inherit;font-size:14.5px;transition:border .2s var(--ease),box-shadow .2s var(--ease),background .2s var(--ease)}
 .lp-input::placeholder{color:oklch(0.66 0.018 var(--hue))}
+.lp-input:hover{border-color:oklch(0.7 0.06 var(--hue));background:rgba(255,255,255,.74)}
 .lp-input:focus{border-color:oklch(0.66 0.08 var(--hue));box-shadow:0 0 0 4px color-mix(in oklch,oklch(0.78 0.08 var(--hue)) 16%,transparent);background:#fff}
-.lp-primary{display:inline-flex;align-items:center;justify-content:center;width:100%;height:54px;margin-top:6px;border:1px solid color-mix(in oklch,oklch(0.8 0.06 var(--hue)) 50%,white);border-radius:15px;color:oklch(0.32 0.07 var(--hue));background:linear-gradient(135deg,oklch(0.93 0.055 var(--hue)),oklch(0.91 0.048 calc(var(--hue) + 24)));box-shadow:0 10px 24px color-mix(in oklch,oklch(0.5 0.05 var(--hue)) 14%,transparent),inset 0 1px 0 rgba(255,255,255,.65);font-family:inherit;font-weight:800;font-size:15px;letter-spacing:.16em;cursor:pointer;transition:transform .2s var(--ease),filter .2s var(--ease)}
-.lp-primary:hover{transform:translateY(-2px);filter:brightness(1.02)}
+.lp-field:focus-within label{color:oklch(0.5 0.1 var(--hue))}
+.lp-input-wrap:focus-within .lp-input-icon{color:oklch(0.5 0.1 var(--hue));transform:translateY(-50%) scale(1.12)}
+.lp-primary{display:inline-flex;align-items:center;justify-content:center;position:relative;overflow:hidden;width:100%;height:54px;margin-top:6px;border:1px solid color-mix(in oklch,oklch(0.8 0.06 var(--hue)) 50%,white);border-radius:15px;color:oklch(0.32 0.07 var(--hue));background:linear-gradient(135deg,oklch(0.93 0.055 var(--hue)),oklch(0.91 0.048 calc(var(--hue) + 24)));box-shadow:0 10px 24px color-mix(in oklch,oklch(0.5 0.05 var(--hue)) 14%,transparent),inset 0 1px 0 rgba(255,255,255,.65);font-family:inherit;font-weight:800;font-size:15px;letter-spacing:.16em;cursor:pointer;transition:transform .2s var(--ease),filter .2s var(--ease),box-shadow .2s var(--ease)}
+.lp-primary::after{content:"";position:absolute;top:0;left:-130%;width:55%;height:100%;background:linear-gradient(120deg,transparent,rgba(255,255,255,.6),transparent);transform:skewX(-18deg);pointer-events:none;transition:left .65s var(--ease)}
+.lp-primary:hover{transform:translateY(-2px);filter:brightness(1.03);box-shadow:0 14px 30px color-mix(in oklch,oklch(0.5 0.06 var(--hue)) 20%,transparent),inset 0 1px 0 rgba(255,255,255,.65)}
+.lp-primary:hover::after{left:130%}
 .lp-primary:disabled{cursor:wait;opacity:.7;transform:none}
+.lp-head,.lp-field,.lp-primary{animation:lp-up .5s var(--ease) backwards}
+.lp-head{animation-delay:.06s}
+.lp-field:nth-of-type(1){animation-delay:.14s}
+.lp-field:nth-of-type(2){animation-delay:.22s}
+.lp-primary{animation-delay:.3s}
+@keyframes lp-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:860px){.lp{grid-template-columns:1fr}.lp::before{backdrop-filter:blur(14px) saturate(1.2);-webkit-mask-image:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.04) 38%,rgba(0,0,0,.4) 64%,rgba(0,0,0,.9) 100%);mask-image:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.04) 38%,rgba(0,0,0,.4) 64%,rgba(0,0,0,.9) 100%)}.lp::after{background:linear-gradient(180deg,transparent 0%,color-mix(in oklch,var(--tint) 8%,transparent) 40%,color-mix(in oklch,var(--tint) 45%,transparent) 72%,color-mix(in oklch,var(--tint) 92%,white) 100%),radial-gradient(circle at 50% 78%,color-mix(in oklch,white 28%,transparent),transparent 40%)}.lp-brand{top:18px;left:18px}.lp-panel{grid-column:1;grid-row:2;align-items:stretch;min-height:auto;padding:80px 18px 28px}.lp-showcase{grid-column:1;grid-row:1;min-height:40vh;padding:80px 18px 18px}}
 `;
 
@@ -111,7 +122,6 @@ export default function ProcurementLoginPage() {
           <div className="lp-head">
             <div className="lp-brand-word">智慧水发<span className="lp-dot">·</span>蜀水云采</div>
             <h1 className="lp-title">采购管理平台</h1>
-            <p className="lp-tag">招采运营管理中枢</p>
           </div>
 
           <form className="lp-form" onSubmit={handleLogin} noValidate>
