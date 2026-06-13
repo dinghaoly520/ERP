@@ -89,6 +89,21 @@ export async function fetchPublicAnnouncement(id: string): Promise<AnnouncementI
   return toAnnouncementItem(data);
 }
 
+/* ── 服务端预取（Server Component 专用） ──
+   直接请求 API 绝对地址（服务端无法用相对 /api），按类型各取 5 条，
+   失败返回空数组，绝不抛错以免阻塞首屏渲染。 */
+export async function fetchAnnouncementsServer(apiBase: string): Promise<AnnouncementItem[]> {
+  const types = ['BID_NOTICE', 'WIN_NOTICE', 'POLICY', 'PLATFORM'];
+  const settled = await Promise.all(
+    types.map(type =>
+      fetch(`${apiBase}/api/announcements/public?type=${type}&pageSize=5`, { cache: 'no-store' })
+        .then(r => (r.ok ? r.json() : { items: [] }))
+        .catch(() => ({ items: [] })),
+    ),
+  );
+  return settled.flatMap(r => (r.items || []).map(toAnnouncementItem));
+}
+
 /* ── 本地兜底数据（API 不可用时使用） ── */
 
 export const ANNOUNCEMENTS: AnnouncementItem[] = [

@@ -221,17 +221,46 @@ body {
   }
 }
 
-/* ── Hero Image Crossfade ── */
-.hero-img {
+/* ── Hero slideshow — pure CSS crossfade (不依赖 JS) ──
+   5 张图各显示 6s，30s 一个循环；每张图的淡出(20%→23%)与下一张的淡入(0%→3%)
+   在边界重叠，形成交叉淡入。无需客户端 JS 即可轮播。 */
+.hero-slide {
   will-change: opacity;
-}
-.hero-img-active {
-  opacity: 1;
-  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.hero-img-hidden {
   opacity: 0;
-  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: hero-cycle 30s infinite;
+}
+.hero-slide:nth-child(1) { animation-delay: 0s; }
+.hero-slide:nth-child(2) { animation-delay: 6s; }
+.hero-slide:nth-child(3) { animation-delay: 12s; }
+.hero-slide:nth-child(4) { animation-delay: 18s; }
+.hero-slide:nth-child(5) { animation-delay: 24s; }
+@keyframes hero-cycle {
+  0%   { opacity: 0; }
+  3%   { opacity: 1; }
+  20%  { opacity: 1; }
+  23%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+/* 指示点：与图片同步高亮当前那张 */
+.hero-dot {
+  height: 4px;
+  width: 16px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.5);
+  animation: hero-dot-cycle 30s infinite;
+}
+.hero-dot:nth-child(1) { animation-delay: 0s; }
+.hero-dot:nth-child(2) { animation-delay: 6s; }
+.hero-dot:nth-child(3) { animation-delay: 12s; }
+.hero-dot:nth-child(4) { animation-delay: 18s; }
+.hero-dot:nth-child(5) { animation-delay: 24s; }
+@keyframes hero-dot-cycle {
+  0%   { width: 16px; background: rgba(255, 255, 255, 0.5); }
+  3%   { width: 32px; background: #064ea2; }
+  20%  { width: 32px; background: #064ea2; }
+  23%  { width: 16px; background: rgba(255, 255, 255, 0.5); }
+  100% { width: 16px; background: rgba(255, 255, 255, 0.5); }
 }
 
 /* ── Feature Card Divider (彩色流光) ── */
