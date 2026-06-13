@@ -80,7 +80,7 @@ export default function ExpertLoginPage() {
         else toast.error('非专家账户，请使用专家账号登录');
       } else if (WEB_ROLES.includes(role)) {
         toast.success('登录成功，正在跳转管理后台...');
-        window.location.href = landingURL(role); // → http://localhost:3004/dashboard
+        window.location.href = landingURL(role); // admin/bid_host → :3007/bid 开评标管理端；procurement_staff → :3004/dashboard 采购工作台
       } else {
         toast.error('请使用管理员账号登录');
       }
