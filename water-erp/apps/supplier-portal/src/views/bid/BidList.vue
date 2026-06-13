@@ -21,11 +21,11 @@ const stageMap: Record<string, { label: string; color: string }> = {
 
 const stageFilters = [
   { label: '全部', value: '' },
-  { label: '文件下载', value: 'DOWNLOAD' },
-  { label: '加密投递', value: 'SUBMIT' },
-  { label: '在线开标', value: 'OPENING' },
-  { label: '专家评标', value: 'EVALUATING' },
-  { label: '已归档', value: 'ARCHIVED' },
+  { label: '下载', value: 'DOWNLOAD' },
+  { label: '投递', value: 'SUBMIT' },
+  { label: '开标', value: 'OPENING' },
+  { label: '评标', value: 'EVALUATING' },
+  { label: '归档', value: 'ARCHIVED' },
 ]
 
 const filteredProjects = computed(() => {
@@ -37,6 +37,9 @@ const filteredProjects = computed(() => {
   }
   return list
 })
+
+const submitCount = computed(() => bidStore.projects.filter((p: any) => p.stage === 'SUBMIT').length)
+const activeCount = computed(() => bidStore.projects.filter((p: any) => ['DOWNLOAD', 'SUBMIT', 'OPENING'].includes(p.stage)).length)
 
 function stageCount(stage: string) {
   if (!stage) return bidStore.projects.length
@@ -67,75 +70,54 @@ function getCountdown(deadline: string) {
 </script>
 
 <template>
-  <div class="page-container" v-loading="loading">
-    <div class="sp-page-title-row">
+  <div class="page-container bid-opportunity-page" v-loading="loading">
+    <div class="opportunity-header">
       <div>
         <div class="sp-page-eyebrow">Tender Opportunities</div>
         <h1 class="sp-modern-title">招标机会</h1>
-        <p class="sp-modern-desc">聚合当前可参与项目，重点关注文件下载、加密投递和开标时间节点。</p>
+        <p class="sp-modern-desc">减少卡片堆叠，按项目关键节点快速筛选与进入详情。</p>
       </div>
-      <el-button type="primary" @click="router.push('/my-bids')">
-        <el-icon><DocumentChecked /></el-icon>查看投标进展
-      </el-button>
+      <div class="header-stats">
+        <div><strong>{{ bidStore.projects.length }}</strong><span>全部项目</span></div>
+        <div><strong>{{ activeCount }}</strong><span>进行中</span></div>
+        <div><strong>{{ submitCount }}</strong><span>可投递</span></div>
+      </div>
     </div>
 
-    <!-- Filters -->
-    <div class="sp-filter-panel">
-      <el-row :gutter="16" align="middle">
-        <el-col :xs="24" :sm="12" :md="8">
-          <el-input v-model="search" placeholder="搜索项目名称或编号" prefix-icon="Search" clearable size="large" />
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="16">
-          <div class="sp-chip-group">
-            <el-button v-for="f in stageFilters" :key="f.value" :type="filterStage === f.value ? 'primary' : 'default'" class="sp-chip" @click="filterStage = f.value">
-              {{ f.label }} · {{ stageCount(f.value) }}
-            </el-button>
+    <div class="compact-filter">
+      <el-input v-model="search" placeholder="搜索项目名称或编号" prefix-icon="Search" clearable />
+      <div class="stage-tabs">
+        <button v-for="f in stageFilters" :key="f.value" :class="{ active: filterStage === f.value }" @click="filterStage = f.value">
+          {{ f.label }} <span>{{ stageCount(f.value) }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div v-if="filteredProjects.length > 0" class="opportunity-list">
+      <div v-for="p in filteredProjects" :key="p.id" class="opportunity-row" @click="router.push(`/bids/${p.id}`)">
+        <div class="row-main">
+          <div class="row-title-line">
+            <h3>{{ p.name }}</h3>
+            <span class="sp-status" :style="{ background: (stageMap[p.stage]?.color || '#94a3b8') + '18', color: stageMap[p.stage]?.color || '#94a3b8' }">
+              {{ stageMap[p.stage]?.label || p.stage }}
+            </span>
           </div>
-        </el-col>
-      </el-row>
-    </div>
-
-    <!-- Project list -->
-    <div v-if="filteredProjects.length > 0" class="project-grid" style="margin-top: 16px;">
-      <div v-for="p in filteredProjects" :key="p.id" class="sp-opportunity-card project-card" @click="router.push(`/bids/${p.id}`)">
-        <div class="project-card-top">
-          <span
-            class="sp-status"
-            :style="{ background: (stageMap[p.stage]?.color || '#94a3b8') + '18', color: stageMap[p.stage]?.color || '#94a3b8' }"
-          >
-            {{ stageMap[p.stage]?.label || p.stage }}
-          </span>
-          <span class="project-code">{{ p.projectCode }}</span>
-        </div>
-        <h3 class="sp-opportunity-title">{{ p.name }}</h3>
-        <div class="sp-opportunity-meta">
-          <div class="sp-meta-line">
-            <el-icon><Document /></el-icon>
+          <div class="row-meta">
+            <span>{{ p.projectCode }}</span>
             <span>{{ p.procurementMethod }}</span>
-          </div>
-          <div class="sp-meta-line">
-            <el-icon><Clock /></el-icon>
-            <span>截止：{{ dayjs(p.deadline).format('YYYY-MM-DD HH:mm') }}</span>
-          </div>
-          <div class="sp-meta-line">
-            <el-icon><Calendar /></el-icon>
-            <span>开标：{{ dayjs(p.openTime).format('YYYY-MM-DD HH:mm') }}</span>
+            <span>开标 {{ dayjs(p.openTime).format('MM-DD HH:mm') }}</span>
           </div>
         </div>
-        <div class="project-footer">
-          <div class="sp-deadline-pill">
-            <el-icon><Clock /></el-icon>
-            <span>{{ isDeadlinePassed(p.deadline) ? '已截止' : `剩余 ${getCountdown(p.deadline)}` }}</span>
-          </div>
-          <el-button type="primary" size="small">
-            查看详情 <el-icon><ArrowRight /></el-icon>
-          </el-button>
+        <div class="row-deadline" :class="{ expired: isDeadlinePassed(p.deadline) }">
+          <small>投递截止</small>
+          <strong>{{ dayjs(p.deadline).format('MM-DD HH:mm') }}</strong>
+          <CountdownTimer :deadline="p.deadline" />
         </div>
+        <el-button type="primary" plain size="small">详情</el-button>
       </div>
     </div>
 
-    <!-- Empty -->
-    <div v-else class="sp-card" style="margin-top: 16px;">
+    <div v-else class="sp-card">
       <div class="sp-empty">
         <div class="sp-empty-icon">📋</div>
         <div class="sp-empty-text">暂无招标项目</div>
@@ -146,9 +128,27 @@ function getCountdown(deadline: string) {
 </template>
 
 <style scoped>
-.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
-.project-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.project-code { font-size: 12px; color: var(--sp-gray-400); font-family: monospace; }
-.project-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--sp-border-light); }
-@media (max-width: 768px) { .project-grid { grid-template-columns: 1fr; } .project-footer { align-items: flex-start; flex-direction: column; } }
+.bid-opportunity-page { max-width: 1440px; }
+.opportunity-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+.header-stats { display: grid; grid-template-columns: repeat(3, 92px); gap: 10px; }
+.header-stats div { padding: 12px; border: 1px solid var(--sp-border); border-radius: 14px; background: rgba(255,255,255,.88); text-align: center; }
+.header-stats strong { display: block; color: var(--sp-gray-900); font-size: 22px; line-height: 1; }
+.header-stats span { display: block; margin-top: 5px; color: var(--sp-gray-500); font-size: 12px; }
+.compact-filter { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--sp-border); border-radius: 18px; background: rgba(255,255,255,.92); box-shadow: var(--sp-shadow-sm); }
+.stage-tabs { display: flex; gap: 8px; overflow-x: auto; }
+.stage-tabs button { border: 1px solid var(--sp-border); border-radius: 999px; background: #fff; color: var(--sp-gray-600); padding: 8px 12px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.stage-tabs button span { margin-left: 5px; color: var(--sp-gray-400); }
+.stage-tabs button.active { border-color: var(--sp-primary); background: var(--sp-primary); color: #fff; }
+.stage-tabs button.active span { color: rgba(255,255,255,.76); }
+.opportunity-list { display: grid; gap: 10px; margin-top: 16px; }
+.opportunity-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px auto; gap: 18px; align-items: center; padding: 16px 18px; border: 1px solid var(--sp-border); border-radius: 16px; background: rgba(255,255,255,.94); box-shadow: var(--sp-shadow-xs); cursor: pointer; transition: all .18s ease; }
+.opportunity-row:hover { transform: translateY(-1px); border-color: rgba(22,132,216,.45); box-shadow: var(--sp-shadow-sm); }
+.row-title-line { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.row-title-line h3 { margin: 0; color: var(--sp-gray-900); font-size: 16px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 7px; color: var(--sp-gray-500); font-size: 12px; }
+.row-deadline { padding-left: 18px; border-left: 1px solid var(--sp-border-light); }
+.row-deadline small { display: block; color: var(--sp-gray-400); font-size: 11px; }
+.row-deadline strong { display: block; color: var(--sp-gray-900); font-size: 14px; }
+.row-deadline.expired strong { color: var(--sp-red); }
+@media (max-width: 900px) { .opportunity-header, .compact-filter { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; } .header-stats { grid-template-columns: repeat(3, 1fr); } .opportunity-row { grid-template-columns: 1fr; } .row-deadline { padding-left: 0; border-left: 0; } }
 </style>

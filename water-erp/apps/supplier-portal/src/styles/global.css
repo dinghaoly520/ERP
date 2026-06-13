@@ -148,7 +148,10 @@ a:hover { color: var(--sp-primary-light); }
 
 /* ─── Layout helpers ─── */
 .page-container {
-  padding: 28px;
+  width: 100%;
+  max-width: 1520px;
+  margin: 0 auto;
+  padding: 24px 28px;
   min-height: calc(100vh - 64px);
   animation: spFadeIn var(--sp-duration-normal) var(--sp-ease);
 }
@@ -172,13 +175,13 @@ a:hover { color: var(--sp-primary-light); }
 
 /* ─── Cards ─── */
 .sp-card {
-  background: var(--sp-surface);
-  border-radius: var(--sp-radius-md);
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: var(--sp-radius-lg);
   border: 1px solid var(--sp-border);
   box-shadow: var(--sp-shadow-sm);
-  padding: 24px;
-  margin-bottom: 20px;
-  transition: box-shadow var(--sp-duration-normal) var(--sp-ease);
+  padding: 20px;
+  margin-bottom: 18px;
+  transition: box-shadow var(--sp-duration-normal) var(--sp-ease), transform var(--sp-duration-normal) var(--sp-ease);
 }
 
 .sp-card:hover {
@@ -189,8 +192,8 @@ a:hover { color: var(--sp-primary-light); }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--sp-border-light);
 }
 
@@ -202,10 +205,10 @@ a:hover { color: var(--sp-primary-light); }
 
 /* ─── Stat cards ─── */
 .sp-stat {
-  background: var(--sp-surface);
-  border-radius: var(--sp-radius-md);
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: var(--sp-radius-lg);
   border: 1px solid var(--sp-border);
-  padding: 22px 24px;
+  padding: 18px 20px;
   display: flex;
   align-items: center;
   gap: 18px;
@@ -238,7 +241,7 @@ a:hover { color: var(--sp-primary-light); }
 .sp-stat-content { flex: 1; min-width: 0; }
 
 .sp-stat-value {
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 900;
   color: var(--sp-gray-900);
   line-height: 1.1;

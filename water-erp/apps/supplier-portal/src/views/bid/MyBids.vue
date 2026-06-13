@@ -28,10 +28,10 @@ onMounted(async () => {
   }
 })
 
-const statusMap: Record<string, { label: string; class: string }> = {
-  draft: { label: '草稿', class: 'draft' },
-  submitted: { label: '已提交', class: 'submitted' },
-  withdrawn: { label: '已撤回', class: 'disabled' },
+const statusMap: Record<string, { label: string; class: string; tone: string }> = {
+  draft: { label: '草稿', class: 'draft', tone: 'orange' },
+  submitted: { label: '已提交', class: 'submitted', tone: 'green' },
+  withdrawn: { label: '已撤回', class: 'disabled', tone: 'gray' },
 }
 
 async function handleWithdraw(submissionId: string) {
@@ -47,41 +47,46 @@ async function handleWithdraw(submissionId: string) {
 </script>
 
 <template>
-  <div class="page-container" v-loading="loading">
-    <div class="sp-page-title-row">
+  <div class="page-container bid-progress-page" v-loading="loading">
+    <div class="progress-header">
       <div>
         <div class="sp-page-eyebrow">Bid Progress</div>
         <h1 class="sp-modern-title">投标进展</h1>
-        <p class="sp-modern-desc">集中跟踪标书草稿、已提交记录、撤回状态和项目截止时间。</p>
+        <p class="sp-modern-desc">用时间线层级展示投标记录，减少重复字段和卡片厚重感。</p>
       </div>
       <el-button type="primary" @click="router.push('/bids')">
         <el-icon><Plus /></el-icon>浏览招标机会
       </el-button>
     </div>
 
-    <div class="sp-metric-grid" style="margin-bottom: 18px;">
-      <div class="sp-stat"><div class="sp-stat-icon blue"><el-icon><Document /></el-icon></div><div class="sp-stat-content"><div class="sp-stat-value">{{ summary.total }}</div><div class="sp-stat-label">全部记录</div></div></div>
-      <div class="sp-stat"><div class="sp-stat-icon orange"><el-icon><EditPen /></el-icon></div><div class="sp-stat-content"><div class="sp-stat-value">{{ summary.draft }}</div><div class="sp-stat-label">草稿待提交</div></div></div>
-      <div class="sp-stat"><div class="sp-stat-icon green"><el-icon><DocumentChecked /></el-icon></div><div class="sp-stat-content"><div class="sp-stat-value">{{ summary.submitted }}</div><div class="sp-stat-label">已提交</div></div></div>
-      <div class="sp-stat"><div class="sp-stat-icon red"><el-icon><RefreshLeft /></el-icon></div><div class="sp-stat-content"><div class="sp-stat-value">{{ summary.withdrawn }}</div><div class="sp-stat-label">已撤回</div></div></div>
+    <div class="progress-summary">
+      <div><strong>{{ summary.total }}</strong><span>全部</span></div>
+      <div><strong>{{ summary.draft }}</strong><span>草稿</span></div>
+      <div><strong>{{ summary.submitted }}</strong><span>已提交</span></div>
+      <div><strong>{{ summary.withdrawn }}</strong><span>已撤回</span></div>
     </div>
 
-    <div v-if="supplierStore.bidSubmissions.length > 0" class="bid-progress-grid">
-      <div v-for="row in supplierStore.bidSubmissions" :key="row.id" class="sp-business-card bid-progress-card">
-        <div class="bid-progress-top">
-          <span class="sp-status" :class="statusMap[row.status]?.class || 'draft'">{{ statusMap[row.status]?.label || row.status }}</span>
-          <span class="bid-progress-code">{{ row.project?.projectCode || '-' }}</span>
+    <div v-if="supplierStore.bidSubmissions.length > 0" class="progress-list">
+      <div v-for="row in supplierStore.bidSubmissions" :key="row.id" class="progress-row">
+        <div class="status-rail" :class="statusMap[row.status]?.tone || 'gray'">
+          <span></span>
         </div>
-        <h3 class="bid-progress-title">{{ row.project?.name || '-' }}</h3>
-        <div class="bid-progress-meta">
-          <div><span>投标报价</span><strong>{{ row.bidPrice || '-' }}</strong></div>
-          <div><span>交货/工期</span><strong>{{ row.deliveryPeriod || '-' }}</strong></div>
-          <div><span>提交时间</span><strong>{{ row.submittedAt ? dayjs(row.submittedAt).format('YYYY-MM-DD HH:mm') : '-' }}</strong></div>
-          <div><span>截止时间</span><strong>{{ row.project?.deadline ? dayjs(row.project.deadline).format('YYYY-MM-DD HH:mm') : '-' }}</strong></div>
+        <div class="progress-main">
+          <div class="progress-title-line">
+            <h3>{{ row.project?.name || '-' }}</h3>
+            <span class="sp-status" :class="statusMap[row.status]?.class || 'draft'">{{ statusMap[row.status]?.label || row.status }}</span>
+          </div>
+          <div class="progress-meta">
+            <span>{{ row.project?.projectCode || '-' }}</span>
+            <span>报价：{{ row.bidPrice || '-' }}</span>
+            <span>工期：{{ row.deliveryPeriod || '-' }}</span>
+            <span>提交：{{ row.submittedAt ? dayjs(row.submittedAt).format('MM-DD HH:mm') : '-' }}</span>
+            <span>截止：{{ row.project?.deadline ? dayjs(row.project.deadline).format('MM-DD HH:mm') : '-' }}</span>
+          </div>
         </div>
-        <div class="bid-progress-actions">
-          <el-button type="primary" @click="router.push(`/bids/${row.projectId}`)">查看项目</el-button>
-          <el-button v-if="row.status === 'submitted'" type="warning" plain @click="handleWithdraw(row.id)">撤回标书</el-button>
+        <div class="progress-actions">
+          <el-button type="primary" plain size="small" @click="router.push(`/bids/${row.projectId}`)">项目详情</el-button>
+          <el-button v-if="row.status === 'submitted'" type="warning" plain size="small" @click="handleWithdraw(row.id)">撤回</el-button>
         </div>
       </div>
     </div>
@@ -98,14 +103,21 @@ async function handleWithdraw(submissionId: string) {
 </template>
 
 <style scoped>
-.bid-progress-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
-.bid-progress-card { padding: 18px; }
-.bid-progress-top,.bid-progress-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.bid-progress-code { color: var(--sp-gray-400); font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-.bid-progress-title { margin: 14px 0; color: var(--sp-gray-900); font-size: 17px; font-weight: 900; line-height: 1.4; }
-.bid-progress-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
-.bid-progress-meta div { padding: 10px; border-radius: 12px; background: var(--sp-gray-50); }
-.bid-progress-meta span { display: block; color: var(--sp-gray-400); font-size: 12px; }
-.bid-progress-meta strong { display: block; margin-top: 3px; color: var(--sp-gray-900); font-size: 13px; }
-@media (max-width: 768px) { .bid-progress-grid { grid-template-columns: 1fr; } .bid-progress-meta { grid-template-columns: 1fr; } .bid-progress-actions { align-items: stretch; flex-direction: column; } .bid-progress-actions .el-button { width: 100%; } }
+.bid-progress-page { max-width: 1360px; }
+.progress-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+.progress-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.progress-summary div { padding: 14px 16px; border: 1px solid var(--sp-border); border-radius: 16px; background: rgba(255,255,255,.92); box-shadow: var(--sp-shadow-xs); }
+.progress-summary strong { display: block; color: var(--sp-gray-900); font-size: 26px; line-height: 1; }
+.progress-summary span { display: block; margin-top: 6px; color: var(--sp-gray-500); font-size: 12px; }
+.progress-list { display: grid; gap: 10px; }
+.progress-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 15px 18px; border: 1px solid var(--sp-border); border-radius: 16px; background: rgba(255,255,255,.94); box-shadow: var(--sp-shadow-xs); }
+.status-rail { width: 18px; display: flex; justify-content: center; align-self: stretch; }
+.status-rail span { width: 10px; height: 10px; margin-top: 8px; border-radius: 999px; background: var(--sp-gray-300); box-shadow: 0 0 0 5px var(--sp-gray-100); }
+.status-rail.green span { background: var(--sp-green); box-shadow: 0 0 0 5px var(--sp-green-light); }
+.status-rail.orange span { background: var(--sp-orange); box-shadow: 0 0 0 5px var(--sp-orange-light); }
+.progress-title-line { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.progress-title-line h3 { margin: 0; color: var(--sp-gray-900); font-size: 16px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.progress-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 7px; color: var(--sp-gray-500); font-size: 12px; }
+.progress-actions { display: flex; gap: 8px; }
+@media (max-width: 768px) { .progress-header { flex-direction: column; align-items: stretch; } .progress-summary { grid-template-columns: repeat(2, 1fr); } .progress-row { grid-template-columns: 14px 1fr; } .progress-actions { grid-column: 2; } }
 </style>
