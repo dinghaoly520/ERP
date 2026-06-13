@@ -5,6 +5,11 @@ export default function proxy(request: NextRequest) {
   const token = request.cookies.get('token')?.value;
   const { pathname } = request.nextUrl;
 
+  // Allow public assets without auth
+  if (pathname.startsWith('/assets')) {
+    return NextResponse.next();
+  }
+
   // Allow login page without auth
   if (pathname === '/login') {
     if (token) return NextResponse.redirect(new URL('/', request.url));
