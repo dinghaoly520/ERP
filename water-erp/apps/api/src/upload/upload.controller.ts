@@ -1,9 +1,11 @@
 import {
   Controller,
+  Get,
   Post,
   Delete,
   Param,
   Query,
+  Res,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -45,6 +47,13 @@ export class UploadController {
       throw new BadRequestException({ error: '请选择文件', code: 'NO_FILE' });
     }
     return this.uploadService.upload(file, category, req.user?.sub);
+  }
+
+  @Get('files/:id')
+  @ApiCookieAuth('token')
+  @ApiOperation({ summary: '下载/预览文件（鉴权）' })
+  async download(@Param('id') id: string, @Res() res: any) {
+    return this.uploadService.streamFile(id, res);
   }
 
   @Delete(':key')

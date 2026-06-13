@@ -5,10 +5,16 @@ import * as cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
-/** 登录指定用户并返回 cookie */
-async function loginAs(app: INestApplication, username: string, password: string): Promise<string[]> {
+/** 登录并返回 cookie；需带 X-Portal 以匹配按门户命名的 cookie */
+async function loginAs(
+  app: INestApplication,
+  username: string,
+  password: string,
+  portal: string,
+): Promise<string[]> {
   const res = await request(app.getHttpServer())
     .post('/api/auth/login')
+    .set('X-Portal', portal)
     .send({ username, password });
   const cookie = res.headers['set-cookie'];
   return Array.isArray(cookie) ? cookie : cookie ? [cookie] : [];
@@ -33,11 +39,16 @@ describe('Bid Lifecycle (e2e)', () => {
 
     prisma = app.get(PrismaService);
 
-    adminCookie = await loginAs(app, 'caigou', 'caigou@2026');
-    supplierCookie = await loginAs(app, 'supplier1', 'supplier1@2026');
+    adminCookie = await loginAs(app, 'caigou', 'caigou@2026', 'web');
+    supplierCookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
   });
 
   afterAll(async () => {
+    if (createdProjectId) {
+      await prisma.bidSupervisionLog.deleteMany({ where: { projectId: createdProjectId } });
+      await prisma.bidSupplier.deleteMany({ where: { projectId: createdProjectId } });
+      await prisma.bidProject.delete({ where: { id: createdProjectId } }).catch(() => {});
+    }
     await app.close();
   });
 
@@ -47,6 +58,7 @@ describe('Bid Lifecycle (e2e)', () => {
     return request(app.getHttpServer())
       .post('/api/bid/projects')
       .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
       .send({
         name: `E2E测试项目-${Date.now()}`,
         procurementMethod: '公开招标',
@@ -66,14 +78,15 @@ describe('Bid Lifecycle (e2e)', () => {
     return request(app.getHttpServer())
       .post(`/api/bid/projects/${createdProjectId}/open-submission`)
       .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
       .expect(201);
   });
 
-  it('重复推进同阶段幂等成功', async () => {
-    // 再次 open-submission（DOWNLOAD→SUBMIT 幂等）
-    await request(app.getHttpServer())
+  it('重复推进同阶段幂等成功', () => {
+    return request(app.getHttpServer())
       .post(`/api/bid/projects/${createdProjectId}/open-submission`)
       .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
       .expect(201);
   });
 
@@ -81,6 +94,7 @@ describe('Bid Lifecycle (e2e)', () => {
     return request(app.getHttpServer())
       .post(`/api/bid/projects/${createdProjectId}/start-evaluation`)
       .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
       .expect(409);
   });
 
@@ -88,6 +102,7 @@ describe('Bid Lifecycle (e2e)', () => {
     return request(app.getHttpServer())
       .post(`/api/bid/projects/${createdProjectId}/suppliers`)
       .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
       .send({ supplierName: 'E2E测试供应商' })
       .expect(201)
       .expect(res => {
@@ -100,6 +115,7 @@ describe('Bid Lifecycle (e2e)', () => {
     return request(app.getHttpServer())
       .post(`/api/bid/projects/${createdProjectId}/suppliers`)
       .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
       .send({ supplierName: 'E2E测试供应商' })
       .expect(400);
   });
@@ -108,6 +124,7 @@ describe('Bid Lifecycle (e2e)', () => {
     return request(app.getHttpServer())
       .post(`/api/bid/projects/${createdProjectId}/open`)
       .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
       .send({
         host: '主持人',
         supervisor: '监督员',
@@ -121,6 +138,7 @@ describe('Bid Lifecycle (e2e)', () => {
     return request(app.getHttpServer())
       .post(`/api/bid/projects/${createdProjectId}/start-evaluation`)
       .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
       .expect(201);
   });
 
@@ -128,6 +146,7 @@ describe('Bid Lifecycle (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/bid/projects')
       .set('Cookie', supplierCookie)
+      .set('X-Portal', 'supplier')
       .send({ name: '非法项目', procurementMethod: '公开招标', openTime: '2099-12-31T09:00:00Z', deadline: '2099-12-30T17:00:00Z' })
       .expect(403);
   });
@@ -136,20 +155,12 @@ describe('Bid Lifecycle (e2e)', () => {
     return request(app.getHttpServer())
       .get(`/api/bid/projects/${createdProjectId}/supervision-logs`)
       .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
       .expect(200)
       .expect(res => {
         expect(Array.isArray(res.body)).toBe(true);
         // 应至少有 open-submission、open、start-evaluation 三条日志
         expect(res.body.length).toBeGreaterThanOrEqual(3);
       });
-  });
-
-  // 清理
-  afterAll(async () => {
-    if (createdProjectId) {
-      await prisma.bidSupervisionLog.deleteMany({ where: { projectId: createdProjectId } });
-      await prisma.bidSupplier.deleteMany({ where: { projectId: createdProjectId } });
-      await prisma.bidProject.delete({ where: { id: createdProjectId } }).catch(() => {});
-    }
   });
 });
