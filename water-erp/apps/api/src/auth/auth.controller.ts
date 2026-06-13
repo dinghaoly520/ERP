@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthGuard } from './auth.guard';
+import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from './current-user.decorator';
 
 @ApiTags('认证')
@@ -13,6 +14,7 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('register')
+  @Public()
   @ApiOperation({ summary: '注册新用户' })
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.register(dto);
@@ -21,6 +23,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '用户登录' })
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
@@ -39,7 +42,7 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(AuthGuard)
+
   @ApiCookieAuth('token')
   @ApiOperation({ summary: '获取当前用户信息' })
   me(@CurrentUser('sub') userId: string) {

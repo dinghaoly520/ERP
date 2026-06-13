@@ -69,7 +69,7 @@ describe('BidService — stage transitions', () => {
         count: jest.fn(),
         groupBy: jest.fn(),
       },
-      bidSupervisionLog: { findMany: jest.fn() },
+      bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
       bidExpert: { groupBy: jest.fn(), findFirst: jest.fn() },
       bidScoreItem: { findFirst: jest.fn() },
       bidScoreRecord: { upsert: jest.fn() },
@@ -130,12 +130,18 @@ describe('BidService — stage transitions', () => {
   });
 
   describe('openSubmission', () => {
-    it('transitions DOWNLOAD → SUBMIT', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD' });
+    it('transitions DOWNLOAD → SUBMIT and writes supervision log', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD', name: '测试项目' });
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'SUBMIT' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
 
       const result = await service.openSubmission('p1');
       expect(result.stage).toBe('SUBMIT');
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ action: '开放投递 (DOWNLOAD→SUBMIT)' }),
+        }),
+      );
     });
   });
 
@@ -148,8 +154,8 @@ describe('BidService — stage transitions', () => {
   });
 
   describe('archiveAll', () => {
-    it('uses transaction for atomic archive + stage update', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+    it('uses transaction for atomic archive + stage update + supervision log', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' });
       prisma.bidArchiveItem.findMany.mockResolvedValue([
         { id: 'a1', status: 'PENDING_CONFIRM' },
       ]);
@@ -157,23 +163,24 @@ describe('BidService — stage transitions', () => {
       const txCalls: any[][] = [];
       prisma.$transaction = jest.fn(async (ops: any[]) => {
         txCalls.push(ops);
-        // Simulate the two operations
+        // Simulate the operations
         await Promise.all(ops);
       });
       prisma.bidArchiveItem.updateMany = jest.fn().mockResolvedValue({ count: 1 });
       prisma.bidProject.update = jest.fn().mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
+      prisma.bidSupervisionLog.create = jest.fn().mockResolvedValue({});
       prisma.bidProject.findUnique = jest.fn().mockResolvedValue({ id: 'p1', stage: 'ARCHIVED', archiveItems: [] });
 
       const result = await service.archiveAll('p1');
 
-      // Verify $transaction was called with batch operations
+      // Verify $transaction was called with batch operations (3 elements now)
       expect(prisma.$transaction).toHaveBeenCalled();
       expect(txCalls.length).toBe(1);
-      expect(txCalls[0].length).toBe(2); // updateMany + update
+      expect(txCalls[0].length).toBe(3); // updateMany + update + supervisionLog.create
     });
 
     it('rejects if not in EVALUATING', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
 
       await expect(service.archiveAll('p1')).rejects.toThrow(ConflictException);
     });
@@ -213,6 +220,104 @@ describe('BidService — stage transitions', () => {
           create: expect.objectContaining({ expertId: 'exp-1', scoreItemId: 'si-1', supplierId: 'sup-1', score: 10, reason: 'good' }),
         }),
       );
+    });
+  });
+
+  describe('startEvaluation', () => {
+    it('transitions OPENING → EVALUATING and writes supervision log', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.startEvaluation('p1');
+      expect(result.stage).toBe('EVALUATING');
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ action: '启动评标 (OPENING→EVALUATING)' }),
+        }),
+      );
+    });
+  });
+
+  describe('decryptSupplier', () => {
+    it('writes supervision log on successful decrypt', async () => {
+      const logCreate = jest.fn().mockResolvedValue({});
+      prisma.$transaction = jest.fn(async (fn: any) => {
+        const tx = {
+          bidSupplier: {
+            findFirst: jest.fn().mockResolvedValue({ id: 'bs-1', supplierName: '供应商A' }),
+            update: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' }),
+            findUnique: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'DANGER' }),
+          },
+          bidOpeningRecord: { create: jest.fn().mockResolvedValue({}) },
+          bidSupervisionLog: { create: logCreate },
+        };
+        return fn(tx);
+      });
+
+      // Force non-danger outcome by mocking Math.random
+      const origRandom = Math.random;
+      Math.random = () => 0.5; // > 0.05, so not DANGER
+
+      const result = await service.decryptSupplier('p1', 'bs-1');
+
+      expect(logCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ action: '标书解密', riskFlag: '无' }),
+        }),
+      );
+
+      Math.random = origRandom;
+    });
+  });
+
+  describe('submitBid — 投标提交规则', () => {
+    it('项目不存在时拒绝提交', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(null);
+
+      await expect(service.submitBid('p1', { supplierName: '测试供应商' }))
+        .rejects.toThrow(BadRequestException);
+    });
+
+    it('项目不在投标阶段时拒绝提交', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', deadline: new Date('2099-12-31') });
+
+      await expect(service.submitBid('p1', { supplierName: '测试供应商' }))
+        .rejects.toThrow(BadRequestException);
+    });
+
+    it('投标截止时间已过时拒绝提交', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', deadline: new Date('2020-01-01') });
+
+      await expect(service.submitBid('p1', { supplierName: '测试供应商' }))
+        .rejects.toThrow(BadRequestException);
+    });
+
+    it('供应商已提交时拒绝重复提交', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', deadline: new Date('2099-12-31') });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1', submitStatus: '已提交' });
+
+      await expect(service.submitBid('p1', { supplierName: '测试供应商' }))
+        .rejects.toThrow(BadRequestException);
+    });
+
+    it('DOWNLOAD 阶段允许提交', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD', deadline: new Date('2099-12-31') });
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+      prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-1', submitStatus: '已提交' });
+
+      const result = await service.submitBid('p1', { supplierName: '测试供应商' });
+      expect(result).toBeDefined();
+      expect(prisma.bidSupplier.create).toHaveBeenCalled();
+    });
+
+    it('SUBMIT 阶段允许提交', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', deadline: new Date('2099-12-31') });
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+      prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-1', submitStatus: '已提交' });
+
+      const result = await service.submitBid('p1', { supplierName: '测试供应商' });
+      expect(result).toBeDefined();
     });
   });
 });

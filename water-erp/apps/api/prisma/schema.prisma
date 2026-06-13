@@ -10,12 +10,13 @@ datasource db {
 // ── 基础 ──
 
 model Department {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  code      String?  @unique
-  users     User[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String                @id @default(cuid())
+  name                String                @unique
+  code                String?               @unique
+  users               User[]
+  procurementProjects ProcurementProject[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 }
 
 model User {
@@ -36,6 +37,7 @@ model User {
   supplierEvaluations SupplierEvaluation[]
   bidExperts          BidExpert[]
   uploadedFiles       FileAsset[]
+  createdProcurements ProcurementProject[]
 }
 
 // ── 开评标 ──
@@ -93,6 +95,7 @@ model BidProject {
   supervisionLogs     BidSupervisionLog[]
   archiveItems        BidArchiveItem[]
   supplierSubmissions SupplierBidSubmission[]
+  procurementProject  ProcurementProject?
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt
 
@@ -115,6 +118,7 @@ model BidSupplier {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   bidScoreRecords BidScoreRecord[]
+  decryptError    String?          // 解密失败原因
 
   @@unique([projectId, supplierName])
   @@index([supplierId])
@@ -461,4 +465,36 @@ model FileAsset {
 
   @@index([category])
   @@index([uploaderId])
+// ── 采购管理 ──
+
+enum ProcurementStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  BIDDING
+  CONTRACTED
+  CLOSED
+}
+
+model ProcurementProject {
+  id                String            @id @default(cuid())
+  title             String
+  projectCode       String            @unique
+  description       String?
+  budget            Decimal?          @db.Decimal(12, 2)
+  procurementType   String            // 货物/工程/服务
+  procurementMethod String            // 公开招标/邀请招标/竞争性谈判/单一来源
+  status            ProcurementStatus @default(DRAFT)
+  rejectReason      String?
+  departmentId      String?
+  creatorId         String?
+  bidProjectId      String?           @unique // 关联的招标项目
+  bidProject        BidProject?       @relation(fields: [bidProjectId], references: [id])
+  department        Department?       @relation(fields: [departmentId], references: [id])
+  creator           User?             @relation(fields: [creatorId], references: [id])
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([status])
 }
