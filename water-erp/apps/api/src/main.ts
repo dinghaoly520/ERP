@@ -43,3 +43,5 @@ async function bootstrap() {
   logger.log(`Swagger docs at http://localhost:${port}/api/docs`);
 }
 bootstrap();
+
+// trigger rebuild for prisma client (nullable creditCode)

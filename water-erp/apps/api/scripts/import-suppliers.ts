@@ -90,6 +90,23 @@ async function main() {
   );
   console.log(`Loaded ${data.length} suppliers from JSON`);
 
+  // The source Excel has a few rows where two DIFFERENT companies share one
+  // creditCode (a data-entry error). creditCode is @unique, so keep the code
+  // on the first occurrence and null it for the duplicate (keyed by name instead).
+  const seenCc = new Map<string, string>();
+  let ccDupes = 0;
+  for (const s of data) {
+    if (s.creditCode) {
+      if (seenCc.has(s.creditCode)) {
+        ccDupes++;
+        s.creditCode = null;
+      } else {
+        seenCc.set(s.creditCode, s.name);
+      }
+    }
+  }
+  if (ccDupes) console.log(`Resolved ${ccDupes} duplicate-creditCode conflict(s) (nulled the duplicate)`);
+
   // 1. ensure classifications
   const classMap = new Map<string, string>();
   for (const c of CLASSIFICATIONS) {
