@@ -35,23 +35,24 @@ window.addEventListener('resize', checkMobile)
 
 // Sidebar navigation
 const menuItems = [
-  { path: '/dashboard', title: '工作台', icon: HomeFilled },
-  { divider: true, label: '企业中心' },
-  { path: '/onboarding', title: '入驻状态', icon: Stamp },
-  { path: '/profile', title: '企业信息', icon: OfficeBuilding },
-  { path: '/qualifications', title: '资质管理', icon: Medal },
-  { path: '/contacts', title: '联系人', icon: Phone },
-  { path: '/change-records', title: '信息变更', icon: EditPen },
-  { divider: true, label: '招投标' },
-  { path: '/bids', title: '招标信息', icon: Document },
-  { path: '/my-bids', title: '我的投标', icon: DocumentChecked },
+  { path: '/dashboard', title: '业务工作台', icon: HomeFilled, desc: '状态与待办总览' },
+  { divider: true, label: '投标中心' },
+  { path: '/bids', title: '招标机会', icon: Document, desc: '发现可参与项目' },
+  { path: '/my-bids', title: '投标进展', icon: DocumentChecked, desc: '跟踪已投项目' },
+  { divider: true, label: '企业档案' },
+  { path: '/onboarding', title: '入驻状态', icon: Stamp, desc: '审核与补正进度' },
+  { path: '/profile', title: '企业信息', icon: OfficeBuilding, desc: '主体资料维护' },
+  { path: '/qualifications', title: '资质与证照', icon: Medal, desc: '证照有效期管理' },
+  { path: '/contacts', title: '联系人', icon: Phone, desc: '业务联系人维护' },
+  { path: '/change-records', title: '资料变更申请', icon: EditPen, desc: '变更审核记录' },
   { divider: true, label: '信息中心' },
-  { path: '/announcements', title: '信息公告', icon: Bell },
-  { path: '/notifications', title: '消息中心', icon: ChatDotRound, badge: true },
-  { path: '/evaluations', title: '评价记录', icon: Star },
+  { path: '/announcements', title: '公告公示', icon: Bell, desc: '公告与政策' },
+  { path: '/notifications', title: '消息通知', icon: ChatDotRound, badge: true, desc: '平台消息' },
+  { path: '/evaluations', title: '履约评价', icon: Star, desc: '评价记录' },
 ]
 
 const activeMenu = computed(() => route.path)
+const activeMenuItem = computed(() => menuItems.find((item: any) => item.path === route.path))
 
 // Notification popover
 const notifPopover = ref(false)
@@ -109,8 +110,8 @@ notifStore.fetchUnreadCount()
         <img src="/logo.jpg" alt="四川水发集团" class="sp-logo-img" />
         <transition name="sp-fade">
           <div v-show="!isCollapse" class="sp-logo-text">
-            <span class="sp-logo-title">四川水发集团</span>
-            <span class="sp-logo-sub">供应商门户 · 蜀水云采</span>
+            <span class="sp-logo-title">蜀水云采</span>
+            <span class="sp-logo-sub">供应商业务门户</span>
           </div>
         </transition>
       </div>
@@ -153,17 +154,18 @@ notifStore.fetchUnreadCount()
           <el-icon class="sp-collapse-btn" @click="isCollapse = !isCollapse">
             <component :is="isCollapse ? Expand : Fold" />
           </el-icon>
-          <el-breadcrumb separator="/">
-            <el-breadcrumb-item>
-              <router-link to="/dashboard">首页</router-link>
-            </el-breadcrumb-item>
-            <el-breadcrumb-item v-if="route.meta?.title">
-              {{ route.meta.title }}
-            </el-breadcrumb-item>
-          </el-breadcrumb>
+          <div class="sp-header-title-wrap">
+            <div class="sp-header-kicker">SUPPLIER PORTAL</div>
+            <div class="sp-header-title">{{ activeMenuItem?.title || route.meta?.title || '供应商门户' }}</div>
+          </div>
         </div>
 
         <div class="sp-header-right">
+          <el-button class="sp-header-search" @click="router.push('/bids')">
+            <el-icon><Search /></el-icon>
+            <span>查找招标机会</span>
+          </el-button>
+
           <!-- Notification bell -->
           <el-popover
             v-model:visible="notifPopover"

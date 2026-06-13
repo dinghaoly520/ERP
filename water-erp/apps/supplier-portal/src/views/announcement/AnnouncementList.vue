@@ -55,25 +55,27 @@ function handlePageChange(page: number) {
 
 <template>
   <div class="page-container" v-loading="loading">
-    <div class="page-header">
-      <h1 class="page-title">信息公告</h1>
-      <p class="page-desc">查看招标公告、中标公示、政策法规等信息</p>
+    <div class="sp-page-title-row">
+      <div>
+        <div class="sp-page-eyebrow">Public Notices</div>
+        <h1 class="sp-modern-title">公告公示</h1>
+        <p class="sp-modern-desc">集中查看招标公告、中标公示、政策法规和平台通知。</p>
+      </div>
     </div>
 
     <!-- Filters -->
-    <div class="sp-card" style="padding: 16px 20px;">
+    <div class="sp-filter-panel">
       <el-row :gutter="16" align="middle">
         <el-col :xs="24" :sm="12" :md="8">
           <el-input v-model="search" placeholder="搜索公告标题" prefix-icon="Search" clearable size="large" @keyup.enter="handleSearch" @clear="handleSearch" />
         </el-col>
         <el-col :xs="24" :sm="12" :md="16">
-          <div class="type-filters">
+          <div class="sp-chip-group">
             <el-button
               v-for="t in typeOptions"
               :key="t.value"
               :type="activeType === t.value ? 'primary' : 'default'"
-              size="default"
-              round
+              class="sp-chip"
               @click="activeType = t.value; handleSearch()"
             >
               {{ t.label }}
@@ -103,6 +105,7 @@ function handlePageChange(page: number) {
         <div class="announcement-row-right">
           <span v-if="a.isTop" class="top-badge">置顶</span>
           <span class="announcement-row-date">{{ dayjs(a.publishDate || a.createdAt).format('YYYY-MM-DD') }}</span>
+          <el-button link type="primary">查看详情</el-button>
           <el-icon style="color: var(--sp-gray-300);"><ArrowRight /></el-icon>
         </div>
       </div>
@@ -146,7 +149,12 @@ function handlePageChange(page: number) {
 }
 
 .announcement-row:last-child { border-bottom: none; }
-.announcement-row:hover { background: var(--sp-gray-50); margin: 0 -24px; padding: 16px 24px; border-radius: 8px; }
+.announcement-row:hover {
+  background: var(--sp-primary-lighter);
+  margin: 0 -18px;
+  padding: 16px 18px;
+  border-radius: var(--sp-radius-md);
+}
 
 .announcement-row-left {
   display: flex;

@@ -10,7 +10,7 @@ import { supplierApi } from '@/api/supplier'
 import SkeletonCard from '@/components/SkeletonCard.vue'
 import ProfileCompleteness from '@/components/ProfileCompleteness.vue'
 import CountdownTimer from '@/components/CountdownTimer.vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -43,7 +43,7 @@ const stats = computed(() => supplierStore.dashboardStats)
 const statusInfo = computed(() => supplierStore.status)
 
 const statusLabel: Record<string, string> = {
-  PENDING: '待审核', RETURNED: '已退回补正', APPROVED: '已入库',
+  PENDING: '待审核', RETURNED: '退回补正', APPROVED: '已入库',
   REJECTED: '审核不通过', DISABLED: '已停用', BLACKLIST: '黑名单',
 }
 const statusType: Record<string, string> = {
@@ -65,21 +65,58 @@ const stageMap: Record<string, { label: string; color: string }> = {
 }
 
 const completeness = computed(() => stats.value?.profileCompleteness || { score: 0, missing: [] })
+const visibleProjects = computed(() => bidStore.projects.slice(0, 4))
+const visibleAnnouncements = computed(() => announcementStore.announcements.slice(0, 4))
+const visibleNotifications = computed(() => notifStore.notifications.filter((n: any) => !n.isRead).slice(0, 3))
 
-const quickActions = computed(() => {
+const metrics = computed(() => {
   const s = stats.value
   if (!s) return []
-  const actions = [
-    { icon: 'Search', label: '浏览招标', path: '/bids', color: '#0a5eb8', desc: '查看最新招标项目' },
-    { icon: 'Document', label: '我的投标', path: '/my-bids', color: '#059669', desc: '管理已提交标书' },
-    { icon: 'Bell', label: '查看公告', path: '/announcements', color: '#d97706', desc: '招标公告和中标公示' },
-    { icon: 'Medal', label: '资质管理', path: '/qualifications', color: '#7c3aed', desc: '维护企业资质材料' },
+  return [
+    { icon: 'DocumentChecked', label: '投标记录', value: s.submissionCount, color: 'green', path: '/my-bids' },
+    { icon: 'Folder', label: '资质证照', value: s.qualificationCount, color: 'orange', path: '/qualifications' },
+    { icon: 'EditPen', label: '待审变更', value: s.pendingChanges, color: 'cyan', path: '/change-records' },
+    { icon: 'WarningFilled', label: '到期风险', value: s.expiringQualifications, color: 'red', path: '/qualifications' },
   ]
-  if (s.unreadNotifications > 0) {
-    actions.push({ icon: 'ChatDotRound', label: `${s.unreadNotifications}条未读`, path: '/notifications', color: '#dc2626', desc: '查看未读消息' })
-  }
-  return actions
 })
+
+const tasks = computed(() => {
+  const s = stats.value
+  const status = statusInfo.value
+  if (!s || !status) return []
+
+  const items = []
+  if (status.status === 'RETURNED') {
+    items.push({ icon: 'EditPen', title: '处理资料补正', desc: status.returnReason || '根据审核意见补齐入驻资料', path: '/onboarding', tone: 'orange' })
+  }
+  if ((s.profileCompleteness?.score || 0) < 100) {
+    items.push({ icon: 'OfficeBuilding', title: '完善企业档案', desc: `资料完整度 ${s.profileCompleteness?.score || 0}%`, path: '/profile', tone: 'blue' })
+  }
+  if (s.expiringQualifications > 0) {
+    items.push({ icon: 'WarningFilled', title: '更新到期资质', desc: `${s.expiringQualifications} 项证照临近有效期`, path: '/qualifications', tone: 'red' })
+  }
+  if (s.pendingChanges > 0) {
+    items.push({ icon: 'EditPen', title: '跟踪变更审核', desc: `${s.pendingChanges} 条资料变更待审核`, path: '/change-records', tone: 'cyan' })
+  }
+  if (s.unreadNotifications > 0) {
+    items.push({ icon: 'ChatDotRound', title: '处理未读消息', desc: `${s.unreadNotifications} 条平台通知待查看`, path: '/notifications', tone: 'red' })
+  }
+  if (items.length === 0) {
+    items.push({ icon: 'CircleCheckFilled', title: '暂无紧急待办', desc: '可继续查看招标机会或维护企业档案', path: '/bids', tone: 'green' })
+  }
+  return items.slice(0, 4)
+})
+
+function toneStyle(tone: string) {
+  const map: Record<string, { background: string; color: string }> = {
+    blue: { background: 'var(--sp-primary-lighter)', color: 'var(--sp-primary)' },
+    green: { background: 'var(--sp-green-light)', color: 'var(--sp-green)' },
+    orange: { background: 'var(--sp-orange-light)', color: 'var(--sp-orange)' },
+    red: { background: 'var(--sp-red-light)', color: 'var(--sp-red)' },
+    cyan: { background: 'var(--sp-cyan-light)', color: 'var(--sp-cyan)' },
+  }
+  return map[tone] || map.blue
+}
 
 async function handleChangePassword() {
   if (pwdForm.value.newPwd !== pwdForm.value.confirm) {
@@ -105,313 +142,477 @@ async function handleChangePassword() {
 </script>
 
 <template>
-  <div class="page-container">
-    <!-- Loading skeleton -->
+  <div class="page-container supplier-dashboard">
     <template v-if="loading">
-      <SkeletonCard :lines="2" :avatar="true" style="margin-bottom: 20px;" />
+      <SkeletonCard :lines="2" :avatar="true" style="margin-bottom: 18px;" />
       <el-row :gutter="16">
-        <el-col v-for="i in 6" :key="i" :xs="12" :sm="8" :md="4">
+        <el-col v-for="i in 4" :key="i" :xs="12" :md="6">
           <SkeletonCard :lines="2" />
         </el-col>
       </el-row>
     </template>
 
     <template v-else>
-      <!-- Welcome banner + Profile completeness -->
-      <el-row :gutter="20">
-        <el-col :xs="24" :lg="16">
-          <div class="sp-card welcome-banner" v-if="statusInfo">
-            <div class="welcome-content">
-              <div class="welcome-text">
-                <div class="welcome-greeting">
-                  <span class="greeting-time">{{ new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好' }}</span>
-                  <span class="greeting-name">{{ authStore.displayName || statusInfo.name }}</span>
+      <section class="dashboard-hero" v-if="statusInfo">
+        <div class="hero-copy">
+          <div class="hero-eyebrow">蜀水云采 · 供应商工作台</div>
+          <h1>{{ authStore.displayName || statusInfo.name }}，{{ new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好' }}</h1>
+          <p>
+            当前状态
+            <span class="sp-status hero-status" :class="statusType[statusInfo.status] || 'pending'">
+              {{ statusLabel[statusInfo.status] || statusInfo.status }}
+            </span>
+            <template v-if="statusInfo.status === 'RETURNED' && statusInfo.returnReason">
+              ，请优先处理：{{ statusInfo.returnReason }}
+            </template>
+            <template v-else>
+              ，重点关注投标机会、资质有效期和待处理消息。
+            </template>
+          </p>
+          <div class="hero-actions">
+            <el-button type="primary" color="#ffffff" plain @click="router.push('/bids')">查看招标机会</el-button>
+            <el-button color="#ffffff" plain @click="router.push('/my-bids')">投标进展</el-button>
+            <el-button color="#ffffff" plain @click="router.push('/profile')">完善档案</el-button>
+          </div>
+        </div>
+        <div class="hero-summary">
+          <div class="summary-number">{{ completeness.score }}<small>%</small></div>
+          <div class="summary-label">资料完整度</div>
+          <div class="summary-note">{{ completeness.missing.length ? `仍有 ${completeness.missing.length} 项待完善` : '资料已完善' }}</div>
+        </div>
+      </section>
+
+      <section class="dashboard-grid">
+        <div class="main-column">
+          <div class="metric-grid" v-if="stats">
+            <div v-for="item in metrics" :key="item.label" class="metric-card" @click="router.push(item.path)">
+              <div class="sp-stat-icon" :class="item.color">
+                <el-icon :size="22"><component :is="item.icon" /></el-icon>
+              </div>
+              <div>
+                <div class="metric-value">{{ item.value }}</div>
+                <div class="metric-label">{{ item.label }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="content-card">
+            <div class="section-head">
+              <div>
+                <h2><el-icon><Document /></el-icon> 招标机会</h2>
+                <p>只展示最近项目，避免与“招标机会”页面重复。</p>
+              </div>
+              <el-button link type="primary" @click="router.push('/bids')">查看全部</el-button>
+            </div>
+            <div v-if="visibleProjects.length === 0" class="compact-empty">暂无招标项目</div>
+            <div v-else class="project-list">
+              <div v-for="p in visibleProjects" :key="p.id" class="project-row" @click="router.push(`/bids/${p.id}`)">
+                <div class="project-main">
+                  <span class="project-title">{{ p.name }}</span>
+                  <span class="project-code">{{ p.projectCode }}</span>
                 </div>
-                <p class="welcome-desc">
-                  <span class="sp-status" :class="statusType[statusInfo.status] || 'pending'">
-                    {{ statusLabel[statusInfo.status] || statusInfo.status }}
+                <div class="project-side">
+                  <span class="sp-status" :style="{ background: (stageMap[p.stage]?.color || '#94a3b8') + '18', color: stageMap[p.stage]?.color || '#94a3b8' }">
+                    {{ stageMap[p.stage]?.label || p.stage }}
                   </span>
-                  <span v-if="statusInfo.status === 'RETURNED' && statusInfo.returnReason" class="welcome-reason">
-                    退回原因：{{ statusInfo.returnReason }}
-                  </span>
-                </p>
-                <!-- Quick actions -->
-                <div class="quick-actions">
-                  <div v-for="a in quickActions" :key="a.path" class="quick-action" @click="router.push(a.path)">
-                    <div class="qa-icon" :style="{ background: a.color + '15', color: a.color }">
-                      <el-icon :size="18"><component :is="a.icon" /></el-icon>
-                    </div>
-                    <div class="qa-text">
-                      <span class="qa-label">{{ a.label }}</span>
-                      <span class="qa-desc">{{ a.desc }}</span>
-                    </div>
-                  </div>
+                  <CountdownTimer :deadline="p.deadline" />
                 </div>
               </div>
             </div>
           </div>
-        </el-col>
 
-        <!-- Profile completeness ring -->
-        <el-col :xs="24" :lg="8">
-          <div class="sp-card completeness-wrapper">
-            <ProfileCompleteness :score="completeness.score" :missing="completeness.missing" />
-          </div>
-        </el-col>
-      </el-row>
-
-      <!-- Stats -->
-      <el-row :gutter="16" v-if="stats" style="margin-top: 20px;">
-        <el-col :xs="12" :sm="8" :md="4" v-for="(item, idx) in [
-          { icon: 'Medal', label: '评价次数', value: stats.evaluationCount, color: 'blue', path: '/evaluations' },
-          { icon: 'DocumentChecked', label: '已投项目', value: stats.submissionCount, color: 'green', path: '/my-bids' },
-          { icon: 'Folder', label: '资质数量', value: stats.qualificationCount, color: 'orange', path: '/qualifications' },
-          { icon: 'EditPen', label: '待审变更', value: stats.pendingChanges, color: 'cyan', path: '/change-records' },
-          { icon: 'ChatDotRound', label: '未读消息', value: stats.unreadNotifications, color: 'red', path: '/notifications' },
-          { icon: 'WarningFilled', label: '即将到期', value: stats.expiringQualifications, color: 'orange', path: '/qualifications' },
-        ]" :key="idx">
-          <div class="sp-stat" @click="router.push(item.path)">
-            <div class="sp-stat-icon" :class="item.color">
-              <el-icon :size="26"><component :is="item.icon" /></el-icon>
-            </div>
-            <div class="sp-stat-content">
-              <div class="sp-stat-value">{{ item.value }}</div>
-              <div class="sp-stat-label">{{ item.label }}</div>
-            </div>
-          </div>
-        </el-col>
-      </el-row>
-
-      <!-- Main content: announcements + bids -->
-      <el-row :gutter="20" style="margin-top: 20px;">
-        <el-col :xs="24" :lg="12">
-          <div class="sp-card">
-            <div class="sp-card-header">
-              <span class="sp-card-title"><el-icon><Bell /></el-icon> 最新公告</span>
+          <div class="content-card">
+            <div class="section-head">
+              <div>
+                <h2><el-icon><Bell /></el-icon> 公告公示</h2>
+                <p>压缩展示最新公告，详情进入公告公示页查看。</p>
+              </div>
               <el-button link type="primary" @click="router.push('/announcements')">查看全部</el-button>
             </div>
-            <div v-if="announcementStore.announcements.length === 0" class="sp-empty" style="padding: 30px;">
-              <div class="sp-empty-icon">📢</div>
-              <div class="sp-empty-text">暂无公告</div>
-            </div>
+            <div v-if="visibleAnnouncements.length === 0" class="compact-empty">暂无公告</div>
             <div v-else class="announcement-list">
-              <div v-for="a in announcementStore.announcements" :key="a.id" class="announcement-item" @click="router.push(`/announcements/${a.id}`)">
+              <div v-for="a in visibleAnnouncements" :key="a.id" class="announcement-row" @click="router.push(`/announcements/${a.id}`)">
                 <el-tag :type="(typeTagType[a.type] as any)" size="small" effect="plain">{{ typeLabel[a.type] || a.type }}</el-tag>
                 <span class="announcement-title">{{ a.title }}</span>
                 <span class="announcement-date">{{ dayjs(a.publishDate || a.createdAt).format('MM-DD') }}</span>
               </div>
             </div>
           </div>
-        </el-col>
-        <el-col :xs="24" :lg="12">
-          <div class="sp-card">
-            <div class="sp-card-header">
-              <span class="sp-card-title"><el-icon><Document /></el-icon> 招标项目</span>
-              <el-button link type="primary" @click="router.push('/bids')">查看全部</el-button>
+        </div>
+
+        <aside class="side-column">
+          <div class="content-card profile-card">
+            <ProfileCompleteness :score="completeness.score" :missing="completeness.missing" />
+          </div>
+
+          <div class="content-card">
+            <div class="section-head compact">
+              <h2><el-icon><Notification /></el-icon> 今日待办</h2>
             </div>
-            <div v-if="bidStore.projects.length === 0" class="sp-empty" style="padding: 30px;">
-              <div class="sp-empty-icon">📋</div>
-              <div class="sp-empty-text">暂无招标项目</div>
-            </div>
-            <div v-else class="bid-list">
-              <div v-for="p in bidStore.projects" :key="p.id" class="bid-item" @click="router.push(`/bids/${p.id}`)">
-                <div class="bid-item-top">
-                  <span class="bid-item-name">{{ p.name }}</span>
-                  <span class="sp-status" :style="{ background: (stageMap[p.stage]?.color || '#94a3b8') + '18', color: stageMap[p.stage]?.color || '#94a3b8' }" style="font-size: 11px; padding: 2px 10px;">
-                    {{ stageMap[p.stage]?.label || p.stage }}
-                  </span>
+            <div class="task-list">
+              <div v-for="task in tasks" :key="task.title" class="task-row" @click="router.push(task.path)">
+                <div class="task-icon" :style="toneStyle(task.tone)">
+                  <el-icon><component :is="task.icon" /></el-icon>
                 </div>
-                <div class="bid-item-meta">
-                  <span>{{ p.projectCode }}</span>
-                  <span>{{ p.procurementMethod }}</span>
-                  <CountdownTimer :deadline="p.deadline" />
+                <div>
+                  <div class="task-title">{{ task.title }}</div>
+                  <div class="task-desc">{{ task.desc }}</div>
                 </div>
               </div>
             </div>
           </div>
-        </el-col>
-      </el-row>
 
-      <!-- Recent notifications -->
-      <div class="sp-card" style="margin-top: 20px;">
-        <div class="sp-card-header">
-          <span class="sp-card-title"><el-icon><ChatDotRound /></el-icon> 最新消息</span>
-          <el-button link type="primary" @click="router.push('/notifications')">查看全部</el-button>
-        </div>
-        <div v-if="notifStore.notifications.length === 0" class="sp-empty" style="padding: 30px;">
-          <div class="sp-empty-icon">🔔</div>
-          <div class="sp-empty-text">暂无消息</div>
-        </div>
-        <div v-else>
-          <div v-for="n in notifStore.notifications.slice(0, 5)" :key="n.id" class="notif-item" :class="{ unread: !n.isRead }">
-            <div class="notif-dot" v-if="!n.isRead"></div>
-            <div class="notif-body">
-              <div class="notif-title">{{ n.title }}</div>
-              <div class="notif-content">{{ n.content }}</div>
+          <div class="content-card" v-if="visibleNotifications.length > 0">
+            <div class="section-head compact">
+              <h2><el-icon><ChatDotRound /></el-icon> 未读消息</h2>
+              <el-button link type="primary" @click="router.push('/notifications')">处理</el-button>
             </div>
-            <div class="notif-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</div>
+            <div class="message-list">
+              <div v-for="n in visibleNotifications" :key="n.id" class="message-row" @click="router.push('/notifications')">
+                <div class="message-title">{{ n.title }}</div>
+                <div class="message-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </aside>
+      </section>
     </template>
-
-    <!-- Change password dialog -->
-    <el-dialog v-model="pwdDialog" title="修改密码" width="420px" destroy-on-close>
-      <el-form :model="pwdForm" label-width="90px" size="large">
-        <el-form-item label="原密码">
-          <el-input v-model="pwdForm.old" type="password" placeholder="请输入当前密码" show-password />
-        </el-form-item>
-        <el-form-item label="新密码">
-          <el-input v-model="pwdForm.newPwd" type="password" placeholder="不少于6位" show-password />
-        </el-form-item>
-        <el-form-item label="确认密码">
-          <el-input v-model="pwdForm.confirm" type="password" placeholder="请再次输入新密码" show-password />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="pwdDialog = false">取消</el-button>
-        <el-button type="primary" :loading="pwdLoading" @click="handleChangePassword">确认修改</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.welcome-banner {
-  background: linear-gradient(135deg, #0a5eb8, #0891b2);
-  border: none;
-  color: #fff;
+.supplier-dashboard {
+  max-width: 1520px;
+  margin: 0 auto;
+  padding: 28px;
 }
 
-.welcome-content {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.welcome-greeting {
-  margin-bottom: 8px;
-}
-
-.greeting-time {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
-  display: block;
-  margin-bottom: 4px;
-}
-
-.greeting-name {
-  font-size: 24px;
-  font-weight: 900;
-  letter-spacing: -0.5px;
-}
-
-.welcome-desc {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 20px;
-}
-
-.welcome-desc .sp-status { font-size: 12px; padding: 3px 12px; }
-.welcome-reason { color: rgba(255, 255, 255, 0.7); font-size: 13px; }
-
-/* Quick actions */
-.quick-actions {
+.dashboard-hero {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 24px;
+  align-items: stretch;
+  min-height: 220px;
+  padding: 30px;
+  border-radius: 22px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 82% 14%, rgba(255, 255, 255, 0.24), transparent 24%),
+    linear-gradient(135deg, #0756a5 0%, #0f83bd 100%);
+  box-shadow: 0 20px 55px rgba(7, 86, 165, 0.18);
 }
 
-.quick-action {
+.hero-eyebrow {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.hero-copy h1 {
+  margin-top: 12px;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.hero-copy p {
+  max-width: 760px;
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.hero-status {
+  margin: 0 6px;
+  background: rgba(255,255,255,.9) !important;
+}
+
+.hero-actions {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 24px;
 }
 
-.quick-action:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
-}
-
-.qa-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.qa-text {
+.hero-summary {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  justify-content: center;
+  align-items: center;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(12px);
 }
 
-.qa-label {
+.summary-number {
+  font-size: 52px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.summary-number small {
+  font-size: 20px;
+}
+
+.summary-label {
+  margin-top: 8px;
+  font-weight: 800;
+}
+
+.summary-note {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 20px;
+  margin-top: 20px;
+  align-items: start;
+}
+
+.main-column,
+.side-column {
+  display: grid;
+  gap: 20px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.metric-card,
+.content-card {
+  border: 1px solid var(--sp-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--sp-shadow-sm);
+}
+
+.metric-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 96px;
+  padding: 18px;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+
+.metric-card:hover,
+.project-row:hover,
+.task-row:hover,
+.announcement-row:hover,
+.message-row:hover {
+  transform: translateY(-1px);
+  border-color: rgba(22, 132, 216, 0.34);
+  background: var(--sp-surface-hover);
+}
+
+.metric-value {
+  color: var(--sp-gray-900);
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.metric-label {
+  margin-top: 5px;
+  color: var(--sp-gray-500);
   font-size: 13px;
-  font-weight: 700;
-  color: #fff;
-  white-space: nowrap;
 }
 
-.qa-desc {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+.content-card {
+  padding: 20px 24px;
+}
+
+.profile-card {
+  padding: 20px;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--sp-border-light);
+}
+
+.section-head.compact {
+  align-items: center;
+}
+
+.section-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sp-gray-900);
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.section-head p {
+  margin-top: 3px;
+  color: var(--sp-gray-500);
+  font-size: 12px;
+}
+
+.project-list,
+.announcement-list,
+.task-list,
+.message-list {
+  display: grid;
+}
+
+.project-row,
+.announcement-row,
+.task-row,
+.message-row {
+  cursor: pointer;
+  transition: all .18s ease;
+}
+
+.project-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--sp-border-light);
+}
+
+.project-row:last-child,
+.announcement-row:last-child,
+.message-row:last-child {
+  border-bottom: none;
+}
+
+.project-title {
+  display: block;
+  color: var(--sp-gray-900);
+  font-size: 15px;
+  font-weight: 850;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Completeness */
-.completeness-wrapper {
-  height: 100%;
-  min-height: 280px;
+.project-code {
+  display: block;
+  margin-top: 4px;
+  color: var(--sp-gray-400);
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.project-side {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.announcement-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--sp-border-light);
+}
+
+.announcement-title {
+  color: var(--sp-gray-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.announcement-date,
+.message-time {
+  color: var(--sp-gray-400);
+  font-size: 12px;
+}
+
+.task-list {
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.task-row {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--sp-border-light);
+  border-radius: 14px;
+  background: var(--sp-gray-50);
+}
+
+.task-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
-/* Lists */
-.announcement-list, .bid-list { display: flex; flex-direction: column; }
-
-.announcement-item {
-  display: flex; align-items: center; gap: 12px; padding: 12px 0;
-  border-bottom: 1px solid var(--sp-border-light); cursor: pointer; transition: background 0.15s;
+.task-title,
+.message-title {
+  color: var(--sp-gray-900);
+  font-weight: 850;
 }
-.announcement-item:last-child { border-bottom: none; }
-.announcement-item:hover { background: var(--sp-gray-50); margin: 0 -24px; padding: 12px 24px; border-radius: 8px; }
-.announcement-title { flex: 1; font-size: 14px; color: var(--sp-gray-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.announcement-date { font-size: 12px; color: var(--sp-gray-400); flex-shrink: 0; }
 
-.bid-item { padding: 12px 0; border-bottom: 1px solid var(--sp-border-light); cursor: pointer; transition: background 0.15s; }
-.bid-item:last-child { border-bottom: none; }
-.bid-item:hover { background: var(--sp-gray-50); margin: 0 -24px; padding: 12px 24px; border-radius: 8px; }
-.bid-item-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.bid-item-name { font-weight: 600; font-size: 14px; color: var(--sp-gray-900); flex: 1; margin-right: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bid-item-meta { display: flex; gap: 16px; font-size: 12px; color: var(--sp-gray-500); align-items: center; }
+.task-desc {
+  margin-top: 2px;
+  color: var(--sp-gray-500);
+  font-size: 12px;
+}
 
-.notif-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--sp-border-light); }
-.notif-item:last-child { border-bottom: none; }
-.notif-item.unread { background: #f0f7ff; margin: 0 -24px; padding: 14px 24px; border-radius: 8px; }
-.notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sp-primary); margin-top: 6px; flex-shrink: 0; }
-.notif-body { flex: 1; min-width: 0; }
-.notif-title { font-weight: 600; font-size: 14px; color: var(--sp-gray-900); }
-.notif-content { font-size: 13px; color: var(--sp-gray-500); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.notif-time { font-size: 12px; color: var(--sp-gray-400); flex-shrink: 0; margin-top: 2px; }
+.message-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--sp-border-light);
+}
 
-@media (max-width: 992px) {
-  .completeness-wrapper { min-height: auto; }
+.compact-empty {
+  padding: 26px 0 8px;
+  color: var(--sp-gray-400);
+  text-align: center;
+}
+
+@media (max-width: 1280px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .side-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .profile-card {
+    grid-row: span 2;
+  }
+}
+
+@media (max-width: 900px) {
+  .supplier-dashboard {
+    padding: 16px;
+  }
+  .dashboard-hero,
+  .metric-grid,
+  .side-column {
+    grid-template-columns: 1fr;
+  }
+  .hero-summary {
+    min-height: 150px;
+  }
+  .project-row {
+    grid-template-columns: 1fr;
+  }
+  .project-side {
+    justify-content: space-between;
+  }
 }
 </style>
