@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -45,6 +46,14 @@ const CATEGORIES = ['全部', '钢材', '水泥', '管材', '机电设备', '防
 const STOCK_COLORS: Record<string, string> = { '充足': 'text-green-600', '现货': 'text-blue-600', '预定': 'text-amber-500' };
 
 export default function MallPage() {
+  const router = useRouter();
+
+  // 未登录则跳转登录页
+  useEffect(() => {
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then(r => { if (!r.ok) router.push('/login'); })
+      .catch(() => router.push('/login'));
+  }, []);
   const [category, setCategory] = useState('全部');
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<{ product: Product; qty: number }[]>([]);

@@ -46,7 +46,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {!collapsed && (
             <div className="flex flex-col gap-0 overflow-hidden">
               <span className="text-[13px] font-bold tracking-tight text-white leading-tight whitespace-nowrap">四川水发集团</span>
-              <span className="text-[9px] text-white/35 font-medium whitespace-nowrap">专家评审工作站</span>
+              <span className="text-[9px] text-white/35 font-medium whitespace-nowrap">在线开评标系统</span>
             </div>
           )}
         </div>

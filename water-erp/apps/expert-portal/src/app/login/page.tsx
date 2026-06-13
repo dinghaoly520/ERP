@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   专家评审工作站 · 登录页 — Light Minimal · 紫色系
+   在线开评标系统 · 登录页 — Light Minimal · 紫色系
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 export default function ExpertLoginPage() {
@@ -42,8 +42,8 @@ export default function ExpertLoginPage() {
             </div>
           </div>
           <div>
-            <div className="mb-5 inline-flex rounded-full border border-purple-300 bg-purple-50 px-4 py-1.5 text-xs font-bold tracking-[0.18em] text-[#7c3aed]">EXPERT REVIEW STATION</div>
-            <h1 className="text-[clamp(34px,5vw,64px)] font-black leading-tight tracking-tight text-slate-950" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>专家评审工作站</h1>
+            <div className="mb-5 inline-flex rounded-full border border-purple-300 bg-purple-50 px-4 py-1.5 text-xs font-bold tracking-[0.18em] text-[#7c3aed]">ONLINE BID OPENING & EVALUATION</div>
+            <h1 className="text-[clamp(34px,5vw,64px)] font-black leading-tight tracking-tight text-slate-950" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>在线开评标系统</h1>
             <p className="mt-5 max-w-xl text-base leading-8 text-slate-600">独立评审 · 在线评分 · 全程留痕</p>
             <div className="mt-8 flex flex-wrap gap-3">
               {['独立评审', '智能辅助', '过程留痕'].map(item => (
@@ -71,7 +71,7 @@ export default function ExpertLoginPage() {
                 <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="请输入密码" className="h-12 w-full rounded-2xl border border-[#d7e3f2] bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#8b5cf6] focus:ring-4 focus:ring-purple-100" />
               </label>
               <button type="submit" disabled={loading} className="h-12 w-full rounded-2xl bg-gradient-to-r from-[#064ea2] to-[#8b5cf6] text-sm font-black tracking-[0.12em] text-white shadow-[0_16px_36px_rgba(139,92,246,0.25)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-45">
-                {loading ? '验证中...' : '进入评审工作站'}
+                {loading ? '验证中...' : '进入开评标系统'}
               </button>
             </form>
             <a href="http://localhost:3006" className="mt-7 inline-flex text-sm font-semibold text-slate-500 transition hover:text-[#8b5cf6]" style={{ textDecoration: 'none' }}>← 返回门户</a>

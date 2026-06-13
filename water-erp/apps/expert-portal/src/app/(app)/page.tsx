@@ -29,9 +29,9 @@ export default function ExpertDashboardPage() {
       <div className="bg-gradient-to-r from-[#043f88] via-[#064ea2] to-[#0e62d0] rounded-2xl p-8 mb-6 text-white relative overflow-hidden">
         <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
         <div className="relative">
-          <p className="text-white/70 text-sm mb-1">专家评审工作站</p>
+          <p className="text-white/70 text-sm mb-1">在线开评标系统</p>
           <h1 className="text-2xl font-bold mb-2">欢迎，{user?.displayName || '专家'}</h1>
-          <p className="text-white/70 text-sm">独立评审、客观公正、全程留痕</p>
+          <p className="text-white/70 text-sm">在线开标、专家评审、过程留痕</p>
         </div>
       </div>
 

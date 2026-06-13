@@ -168,11 +168,57 @@ body {
   transform: translateX(3px);
 }
 
-/* ── Hero Title ── */
+/* ── Hero Title — 轻彩光影流动 ── */
 .hero-title {
-  color: #fff;
+  position: relative;
+  display: inline-block;
   font-weight: 900;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #eef6ff 12%,
+    #f4f0ff 22%,
+    #edfcf6 34%,
+    #fff5f6 46%,
+    #eef1ff 58%,
+    #eef6ff 70%,
+    #ffffff 82%,
+    #ffffff 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: hero-title-flow 12s linear infinite;
+}
+
+/* Glow layer — tight behind text glyph bounds */
+.hero-title-glow {
+  position: absolute;
+  inset: 2px -4px -2px -4px;
+  z-index: -1;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(170, 215, 255, 0.06),
+    rgba(195, 185, 255, 0.04),
+    rgba(170, 225, 215, 0.04),
+    rgba(245, 195, 215, 0.03),
+    rgba(170, 215, 255, 0.06)
+  );
+  background-size: 300% 100%;
+  animation: hero-title-flow 12s linear infinite;
+  filter: blur(12px);
+  pointer-events: none;
+}
+
+@keyframes hero-title-flow {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 300% center;
+  }
 }
 
 /* ── Hero Image Crossfade ── */

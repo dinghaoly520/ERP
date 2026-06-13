@@ -48,7 +48,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(setUser);
+      .then(u => { if (!u) window.location.href = '/login'; else setUser(u); })
+      .catch(() => { window.location.href = '/login'; });
   }, []);
 
   const logout = async () => {

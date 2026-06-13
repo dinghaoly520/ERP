@@ -109,6 +109,20 @@ export default function HomePage() {
     { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: 'http://localhost:3005' },
   ];
 
+  // 点击快捷入口时，先检查登录状态
+  const handleFeatureClick = async (href: string) => {
+    try {
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      if (res.ok) {
+        window.open(href, '_blank');
+      } else {
+        setModal('login');
+      }
+    } catch {
+      setModal('login');
+    }
+  };
+
   const cooperation = [
     { icon: 'sun',     title: '阳光透明', desc: '公开公平公正，流程全程可追溯' },
     { icon: 'shield',  title: '合规高效', desc: '规范业务流程，提升采购效率' },
@@ -199,13 +213,13 @@ export default function HomePage() {
             <div className="flex items-stretch">
               {features.map((f, idx) => (
                 <React.Fragment key={f.title}>
-                  <a href={f.href} className="flex-1 flex items-center gap-4 px-5 py-4 rounded-lg hover:bg-[#f5f8fc] transition-colors group">
+                  <button onClick={() => handleFeatureClick(f.href)} className="flex-1 flex items-center gap-4 px-5 py-4 rounded-lg hover:bg-[#f5f8fc] transition-colors group text-left">
                     <div className="w-11 h-11 rounded-lg bg-[#eef3fb] flex items-center justify-center text-[#064ea2] shrink-0 group-hover:bg-[#064ea2] group-hover:text-white transition-colors" dangerouslySetInnerHTML={{ __html: SVG_ICONS[f.icon] }} />
                     <div>
                       <strong className="block text-[15px] font-bold text-[#1c2941]">{f.title}</strong>
                       <span className="text-xs text-[#8a96aa]">{f.desc}</span>
                     </div>
-                  </a>
+                  </button>
                   {idx < features.length - 1 && <div className="feature-divider" />}
                 </React.Fragment>
               ))}
