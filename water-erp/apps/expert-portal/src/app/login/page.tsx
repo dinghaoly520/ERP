@@ -46,7 +46,7 @@ const LP_CSS = `
 .lp-tab:hover{color:oklch(0.4 0.09 var(--hue))}
 .lp-tab.is-active{background:#fff;color:oklch(0.42 0.08 var(--hue));box-shadow:0 6px 16px color-mix(in oklch,oklch(0.5 0.05 var(--hue)) 13%,transparent)}
 .lp-head{margin-bottom:24px;text-align:center}
-.lp-brand-word{display:block;font-family:"Plus Jakarta Sans","Microsoft YaHei",sans-serif;font-size:37px;font-weight:800;line-height:1.1;letter-spacing:-.01em;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.2);background:radial-gradient(ellipse 72% 150% at center,color-mix(in oklch,oklch(0.3 0.12 var(--hue)) 62%,transparent) 0%,color-mix(in oklch,oklch(0.3 0.12 var(--hue)) 28%,transparent) 42%,transparent 72%);text-align:center;margin:0;padding:6px 0}
+.lp-brand-word{display:block;font-family:"Plus Jakarta Sans","Microsoft YaHei",sans-serif;font-size:37px;font-weight:800;line-height:1.1;letter-spacing:-.01em;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.2);background:radial-gradient(ellipse 100% 150% at center,color-mix(in oklch,oklch(0.3 0.12 var(--hue)) 62%,transparent) 0%,color-mix(in oklch,oklch(0.3 0.12 var(--hue)) 26%,transparent) 55%,transparent 100%);text-align:center;margin:0 -34px;padding:6px 34px}
 .lp-brand-word .lp-dot{font-size:28px;line-height:1;margin:0 8px;opacity:.5;color:#fff}
 .lp-divider{display:flex;align-items:center;justify-content:center;width:168px;margin:18px auto 4px;color:oklch(0.5 0.1 var(--hue));font-size:9px;line-height:1}
 .lp-divider::before,.lp-divider::after{content:"";flex:1;height:1px}
