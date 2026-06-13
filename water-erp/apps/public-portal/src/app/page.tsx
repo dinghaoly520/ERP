@@ -24,33 +24,28 @@ export default function HomePage() {
   const [regLoading, setRegLoading] = useState(false);
   const [heroIdx, setHeroIdx] = useState(0);
   const [announceTab, setAnnounceTab] = useState(0);
-  const heroImages = ['bg-hydro-hero-1.png','bg-hydro-hero-2.png','bg-hydro-hero-3.png','bg-hydro-hero-4.png','bg-hydro-hero-5.png'];
+  const heroImages = ['bg-hydro-hero-1.jpg','bg-hydro-hero-2.jpg','bg-hydro-hero-3.jpg','bg-hydro-hero-4.jpg','bg-hydro-hero-5.jpg'];
 
   // Hero rotation — only render current + previous for smooth crossfade
   const [heroPrev, setHeroPrev] = useState(0);
   const [heroReady, setHeroReady] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    let loaded = 0;
-    const done = () => { if (!cancelled) setHeroReady(true); };
-    // Preload all images; count both success and failure
-    heroImages.forEach((src) => {
-      const img = new Image();
-      img.onload = () => { loaded++; if (loaded === heroImages.length) done(); };
-      img.onerror = () => { loaded++; if (loaded === heroImages.length) done(); };
-      img.src = `/assets/${src}`;
-    });
-    // Fallback: force ready after 3s even if preload hangs
-    const fallback = setTimeout(done, 3000);
+    const ready = () => { if (!cancelled) setHeroReady(true); };
+    // Show the hero as soon as the FIRST image loads (don't block on all 5)
+    const first = new Image();
+    first.onload = ready;
+    first.onerror = ready;
+    first.src = `/assets/${heroImages[0]}`;
+    // Preload the rest in the background for smooth rotation
+    heroImages.slice(1).forEach((src) => { const img = new Image(); img.src = `/assets/${src}`; });
+    // Safety: force ready after 2.5s even if onload never fires
+    const fallback = setTimeout(ready, 2500);
     const t = setInterval(() => {
-      setHeroPrev(i => i); // keep previous
       setHeroIdx(i => { setHeroPrev(i); return (i + 1) % heroImages.length; });
     }, 6000);
 
-    const handlePageShow = () => {
-      cancelled = false;
-      setHeroReady(true);
-    };
+    const handlePageShow = () => ready();
     window.addEventListener('pageshow', handlePageShow);
 
     return () => {
