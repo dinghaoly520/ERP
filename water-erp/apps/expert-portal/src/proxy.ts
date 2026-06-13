@@ -1,7 +1,18 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export default function proxy(request: NextRequest) {
+async function verifyToken(token: string): Promise<boolean> {
+  try {
+    const res = await fetch('http://localhost:4001/api/auth/me', {
+      headers: { Cookie: `token=${token}` },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export default async function proxy(request: NextRequest) {
   const token = request.cookies.get('token')?.value;
   const { pathname } = request.nextUrl;
 
@@ -12,12 +23,14 @@ export default function proxy(request: NextRequest) {
 
   // Allow login page without auth
   if (pathname === '/login') {
-    if (token) return NextResponse.redirect(new URL('/', request.url));
+    if (token && await verifyToken(token)) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
     return NextResponse.next();
   }
 
-  // Block all other routes without auth
-  if (!token) {
+  // Block all other routes without valid auth
+  if (!token || !(await verifyToken(token))) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
