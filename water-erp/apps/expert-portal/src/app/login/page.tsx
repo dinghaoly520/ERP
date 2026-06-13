@@ -35,12 +35,12 @@ const TAB_CONFIG: Record<Tab, {
   },
   admin: {
     title: '管理员登录',
-    subtitle: '进入管理后台',
+    subtitle: '进入开评标管理端',
     accountLabel: '管理员账号',
     userPlaceholder: '请输入管理员账户',
-    hint: 'caigou / caigou@2026 · lizhuren / lizhuren@2026',
-    button: '进入管理后台',
-    defaults: { username: 'caigou', password: 'caigou@2026' },
+    hint: 'lizhuren / lizhuren@2026（开标主持人→开评标管理端）· caigou / caigou@2026（采购→采购工作台）',
+    button: '进入开评标管理端',
+    defaults: { username: 'lizhuren', password: 'lizhuren@2026' },
   },
 };
 

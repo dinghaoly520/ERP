@@ -23,6 +23,9 @@ const PORT_TO_PORTAL: Record<string, string> = {
   '3004': 'web',
   '3005': 'expert',
   '3006': 'public',
+  // bid-portal(:3007) 复用 token_web 命名空间：admin/bid_host 的 cookie 即 token_web（无 token_bid），
+  // 故从端口推断门户时把 3007 映射到 'web'，使无 X-Portal 头的客户端请求（如 AppShell 的 /auth/me）能读到 token_web。
+  '3007': 'web',
 };
 
 /** 直接访问 API（如 Swagger）时使用的旧版 cookie 名 */
