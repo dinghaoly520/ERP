@@ -104,4 +104,17 @@ export class CatalogService {
     if (!item) throw new BadRequestException({ error: '目录条目不存在', code: 'NOT_FOUND' });
     return serialize(item);
   }
+
+  async getHistory(id: string) {
+    const rows = await this.prisma.priceHistory.findMany({
+      where: { catalogItemId: id },
+      orderBy: { recordedAt: 'asc' },
+      select: { recordedAt: true, price: true, note: true },
+    });
+    return rows.map(r => ({
+      recordedAt: r.recordedAt.toISOString(),
+      price: Number(r.price),
+      note: r.note,
+    }));
+  }
 }

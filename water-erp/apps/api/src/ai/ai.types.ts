@@ -41,3 +41,24 @@ export interface AiAnalysisResult {
   scoreSuggestion: ScoreSuggestion[];
   keyPoints: string[];
 }
+
+export interface SupplierRecommendation {
+  supplierId: string;
+  name: string;
+  classification?: string;
+  matchScore: number;
+  reason: string;
+  legalPerson?: string;
+  enterpriseType?: string;
+  contacts?: { name: string; phone: string; isPrimary: boolean }[];
+}
+
+export interface SupplierSelectionResult {
+  requirement: string;
+  engine: 'deepseek' | 'rules';
+  model: string;
+  candidatePool: number;
+  summary: string;
+  recommendations: SupplierRecommendation[];
+  generatedAt: string;
+}

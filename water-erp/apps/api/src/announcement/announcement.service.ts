@@ -29,7 +29,9 @@ export class AnnouncementService {
         relatedProjectCode: dto.relatedProjectCode,
         authorId,
         status: 'PUBLISHED',
+        ...(dto.metadata !== undefined && { metadata: dto.metadata as any }),
       },
+      include: { attachments: { include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } } } } },
     });
   }
 
@@ -55,19 +57,30 @@ export class AnnouncementService {
         skip,
         take: pageSize,
         orderBy: [{ isTop: 'desc' }, { publishDate: 'desc' }, { createdAt: 'desc' }],
+        include: {
+          attachments: { include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } } } },
+          bidDocument: { select: { id: true, title: true, accessScope: true, requirePayment: true, price: true, downloadCount: true } },
+        },
       }),
     ]);
 
     return { total, page, pageSize, items };
   }
 
-  /** Public listing — only published items */
+  /** Public listing — only published items；公开端不含招标文件（首页不泄露） */
   async publicList(params: { type?: string; search?: string; page?: number; pageSize?: number }) {
-    return this.list({ ...params, status: 'PUBLISHED' });
+    const res = await this.list({ ...params, status: 'PUBLISHED' });
+    return { ...res, items: res.items.map((a: any) => this.stripForPublic(a)) };
   }
 
   async get(id: string) {
-    const announcement = await this.prisma.announcement.findUnique({ where: { id } });
+    const announcement = await this.prisma.announcement.findUnique({
+      where: { id },
+      include: {
+        attachments: { include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } } } },
+        bidDocument: { select: { id: true, title: true, accessScope: true, requirePayment: true, price: true, downloadCount: true, fileAsset: { select: { originalName: true, size: true } } } },
+      },
+    });
     if (!announcement) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
     return announcement;
   }
@@ -77,12 +90,18 @@ export class AnnouncementService {
     if (announcement.status !== 'PUBLISHED') {
       throw new BadRequestException({ error: '公告未发布', code: 'NOT_PUBLISHED' });
     }
-    // Increment view count
     await this.prisma.announcement.update({
       where: { id },
       data: { viewCount: { increment: 1 } },
     });
-    return announcement;
+    // 公开端剔除招标文件，仅保留普通附件
+    return this.stripForPublic(announcement);
+  }
+
+  /** 移除招标文件信息（首页/公开端不暴露） */
+  private stripForPublic(a: any) {
+    const { bidDocument, ...rest } = a;
+    return rest;
   }
 
   async update(id: string, dto: UpdateAnnouncementDto) {
@@ -111,6 +130,7 @@ export class AnnouncementService {
         ...(dto.publishDate !== undefined && { publishDate: new Date(dto.publishDate) }),
         ...(dto.isTop !== undefined && { isTop: dto.isTop }),
         ...(dto.relatedProjectCode !== undefined && { relatedProjectCode: dto.relatedProjectCode }),
+        ...(dto.metadata !== undefined && { metadata: dto.metadata as any }),
       },
     });
   }

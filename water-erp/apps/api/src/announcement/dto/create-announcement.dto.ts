@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsBoolean, IsDateString } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsBoolean, IsDateString, IsObject } from 'class-validator';
 
 export class CreateAnnouncementDto {
   @IsString() @IsNotEmpty()
@@ -24,6 +24,9 @@ export class CreateAnnouncementDto {
 
   @IsString() @IsOptional()
   relatedProjectCode?: string;
+
+  @IsObject() @IsOptional()
+  metadata?: Record<string, any>;
 }
 
 export class UpdateAnnouncementDto {
@@ -53,4 +56,7 @@ export class UpdateAnnouncementDto {
 
   @IsString() @IsOptional()
   relatedProjectCode?: string;
+
+  @IsObject() @IsOptional()
+  metadata?: Record<string, any>;
 }
