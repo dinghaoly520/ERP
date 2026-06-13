@@ -501,3 +501,37 @@ model ProcurementProject {
 
   @@index([status])
 }
+
+// ── 电子商城采购目录 ──
+
+model CatalogItem {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  name            String
+  specification   String
+  category        String
+  group           String
+  unit            String
+  referencePrice  Decimal   @db.Decimal(12, 2)
+  priceMin        Decimal   @db.Decimal(12, 2)
+  priceMax        Decimal   @db.Decimal(12, 2)
+  lastDealPrice   Decimal   @db.Decimal(12, 2)
+  averagePrice    Decimal   @db.Decimal(12, 2)
+  supplier        String
+  supplierType    String
+  priceSource     String
+  region          String
+  taxIncluded     Boolean   @default(true)
+  freightIncluded Boolean   @default(false)
+  changeRate      Decimal   @db.Decimal(5, 2)
+  minOrder        String
+  remark          String?
+  status          String    @default("有效")
+  validUntil      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([category])
+  @@index([group])
+  @@index([status])
+}

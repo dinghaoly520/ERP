@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { hashSync } from 'bcryptjs';
+import { CATALOG_SEED } from './catalog-seed-data';
 
 const prisma = new PrismaClient();
 
@@ -515,6 +516,17 @@ async function main() {
       email: 'mall@scsdjt.com',
     },
   });
+
+  // ── 电子商城采购目录 ──
+  for (const item of CATALOG_SEED) {
+    const { updatedAt, ...rest } = item;
+    await prisma.catalogItem.upsert({
+      where: { code: item.code },
+      update: rest,
+      create: { ...rest, updatedAt },
+    });
+  }
+  console.log(`Seeded: ${CATALOG_SEED.length} catalog items`);
 
   console.log('Seeded: caigou/mall accounts, expert users, pending supplier');
   console.log('\n  各门户独立账号（每端口需单独登录）:');

@@ -12,6 +12,7 @@ import { SupplierPortalModule } from './supplier-portal/supplier-portal.module';
 import { ExpertModule } from './expert/expert.module';
 import { AiModule } from './ai';
 import { ProcurementModule } from './procurement/procurement.module';
+import { CatalogModule } from './catalog/catalog.module';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -29,6 +30,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     ExpertModule,
     AiModule,
     ProcurementModule,
+    CatalogModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
