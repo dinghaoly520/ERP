@@ -27,7 +27,7 @@ describe('SupplierPortalService', () => {
   beforeEach(async () => {
     prisma = {
       supplier: { findUnique: jest.fn() },
-      bidProject: { findUnique: jest.fn() },
+      bidProject: { findUnique: jest.fn(), findMany: jest.fn() },
       supplierEvaluation: { count: jest.fn() },
       supplierBidSubmission: {
         count: jest.fn(),
@@ -183,6 +183,39 @@ describe('SupplierPortalService', () => {
 
       const result = await service.submitBid('supplier-1', 'project-1', { bidPrice: '100' });
       expect(result.status).toBe('submitted');
+    });
+  });
+
+  describe('listBidProjects', () => {
+    it('返回招标项目列表，仅公开字段 + 投标方数量', async () => {
+      prisma.bidProject.findMany.mockResolvedValue([{ id: 'p1', name: '项目一', stage: 'SUBMIT' }]);
+
+      const result = await service.listBidProjects();
+
+      expect(result).toHaveLength(1);
+      const select = prisma.bidProject.findMany.mock.calls[0][0].select;
+      expect(select._count).toEqual({ select: { suppliers: true } });
+      // 不得拉取其他投标方身份或评审内部数据
+      for (const f of ['suppliers', 'openingRecords', 'openingSession', 'experts', 'scoreItems', 'supervisionLogs', 'archiveItems']) {
+        expect(select[f]).toBeUndefined();
+      }
+    });
+  });
+
+  describe('getBidProject', () => {
+    it('返回项目详情含澄清答疑，但不暴露投标方/开标记录/专家评分', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目一', clarifications: [] });
+
+      const result = await service.getBidProject('p1');
+
+      expect(result).not.toBeNull();
+      expect(result!.id).toBe('p1');
+      const select = prisma.bidProject.findUnique.mock.calls[0][0].select;
+      expect(select.clarifications).toBeDefined();
+      expect(select._count).toEqual({ select: { suppliers: true } });
+      for (const f of ['suppliers', 'openingRecords', 'openingSession', 'experts', 'scoreItems', 'supervisionLogs', 'archiveItems']) {
+        expect(select[f]).toBeUndefined();
+      }
     });
   });
 });
