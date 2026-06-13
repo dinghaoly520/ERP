@@ -518,7 +518,8 @@ async function main() {
 
   console.log('Seeded: caigou/mall accounts, expert users, pending supplier');
   console.log('\n  各门户独立账号（每端口需单独登录）:');
-  console.log('    [采购管理端 :3004]  caigou / caigou@2026    · lizhuren / lizhuren@2026');
+  console.log('    [采购管理端 :3004]  caigou / caigou@2026');
+  console.log('    [开评标管理端 :3007]  lizhuren / lizhuren@2026  (登录入口为专家端 :3005 → 管理员tab)');
   console.log('    [供应商端  :3003]  supplier1 / supplier1@2026');
   console.log('    [专家评标  :3005]  wangjg / wangjg@2026    · liuxm / liuxm@2026  · chenzq / chenzq@2026');
   console.log('    [电子商城  :3002]  mall / mall@2026');
