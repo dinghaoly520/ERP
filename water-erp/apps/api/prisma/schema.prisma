@@ -465,6 +465,8 @@ model FileAsset {
 
   @@index([category])
   @@index([uploaderId])
+}
+
 // ── 采购管理 ──
 
 enum ProcurementStatus {
