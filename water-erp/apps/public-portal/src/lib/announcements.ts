@@ -23,16 +23,16 @@ export const ANNOUNCEMENT_TABS = [
   { key: '', label: '全部' },
   { key: 'BID_NOTICE', label: '招标公告', color: '#064ea2' },
   { key: 'WIN_NOTICE', label: '中标公示', color: '#18a56c' },
-  { key: 'POLICY', label: '政策法规', color: '#f5a623' },
-  { key: 'PLATFORM', label: '平台通知', color: '#5a6d8a' },
+  { key: 'POLICY', label: '政策法规', color: '#d43030' },
+  { key: 'PLATFORM', label: '平台通知', color: '#f5a623' },
 ];
 
 /* ── 类型→标签/颜色 映射 ── */
 const TYPE_META: Record<string, { tag: string; color: string }> = {
   BID_NOTICE: { tag: '招标公告', color: '#064ea2' },
   WIN_NOTICE: { tag: '中标公示', color: '#18a56c' },
-  POLICY:     { tag: '政策法规', color: '#f5a623' },
-  PLATFORM:   { tag: '平台通知', color: '#5a6d8a' },
+  POLICY:     { tag: '政策法规', color: '#d43030' },
+  PLATFORM:   { tag: '平台通知', color: '#f5a623' },
 };
 
 /* ── 将后端 Announcement 转为前端 AnnouncementItem ── */

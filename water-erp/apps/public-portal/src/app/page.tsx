@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -32,7 +32,7 @@ export default function HomePage() {
   useEffect(() => {
     let cancelled = false;
     let loaded = 0;
-    const done = () => { if (!cancelled && !heroReady) setHeroReady(true); };
+    const done = () => { if (!cancelled) setHeroReady(true); };
     // Preload all images; count both success and failure
     heroImages.forEach((src) => {
       const img = new Image();
@@ -46,7 +46,19 @@ export default function HomePage() {
       setHeroPrev(i => i); // keep previous
       setHeroIdx(i => { setHeroPrev(i); return (i + 1) % heroImages.length; });
     }, 6000);
-    return () => { cancelled = true; clearTimeout(fallback); clearInterval(t); };
+
+    const handlePageShow = () => {
+      cancelled = false;
+      setHeroReady(true);
+    };
+    window.addEventListener('pageshow', handlePageShow);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(fallback);
+      clearInterval(t);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
   }, []);
 
   const handleLogin = async () => {
@@ -82,7 +94,7 @@ export default function HomePage() {
   // 从后端 API 按公告类型分别获取，避免全局分页导致各类型数量不均
   const typeGroups = ['BID_NOTICE', 'WIN_NOTICE', 'POLICY', 'PLATFORM'];
   const [fetchedAnnouncements, setFetchedAnnouncements] = useState<AnnouncementItem[]>(ANNOUNCEMENTS);
-  useEffect(() => {
+  const loadAnnouncements = useCallback(() => {
     Promise.all(typeGroups.map(type => fetchPublicAnnouncements({ type, pageSize: 5 })))
       .then(results => {
         const items = results.flatMap(result => result.items);
@@ -90,6 +102,13 @@ export default function HomePage() {
       })
       .catch(() => { /* keep fallback */ });
   }, []);
+
+  useEffect(() => {
+    loadAnnouncements();
+    const handlePageShow = () => loadAnnouncements();
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, [loadAnnouncements]);
 
   // 从数据按类型分组
   const announceData = typeGroups.map(type => {
@@ -295,7 +314,7 @@ export default function HomePage() {
                   <h3 className="announce-featured-title">{announceData[announceTab].featured.title}</h3>
                   {/* 正文预览 */}
                   <p className="announce-featured-content-preview">
-                    {announceData[announceTab].featured.aiSummary || announceData[announceTab].featured.content.replace(/<h2>.*?<\/h2>/g, '').replace(/<[^>]+>/g, '').trim().slice(0, 320)}
+                    {announceData[announceTab].featured.aiSummary || announceData[announceTab].featured.desc || announceData[announceTab].featured.content.replace(/<h2>.*?<\/h2>/g, '').replace(/<[^>]+>/g, '').trim().slice(0, 320)}
                   </p>
                   {/* 底部元信息 */}
                   <div className="flex items-center justify-between mt-auto">

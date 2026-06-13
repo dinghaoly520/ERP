@@ -2049,3 +2049,44 @@ a.group:hover::after {
   .flow-node::before { animation: none; }
   .flow-card { transition: none; }
 }
+
+
+.announcement-detail-content h2 {
+  margin: 0 0 18px;
+  font-size: 24px;
+  font-weight: 900;
+  color: #18243a;
+  line-height: 1.45;
+}
+
+.announcement-detail-content h3 {
+  margin: 28px 0 12px;
+  padding-left: 12px;
+  border-left: 4px solid #064ea2;
+  font-size: 17px;
+  font-weight: 800;
+  color: #123a6e;
+  line-height: 1.5;
+}
+
+.announcement-detail-content h4 {
+  margin: 18px 0 8px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #26364e;
+}
+
+.announcement-detail-content p {
+  margin: 0 0 14px;
+  font-size: 15px;
+  line-height: 2;
+  color: #26364e;
+  text-align: justify;
+}
+
+.announcement-detail-content ul,
+.announcement-detail-content ol {
+  margin: 0 0 16px 1.2em;
+  line-height: 2;
+  color: #26364e;
+}

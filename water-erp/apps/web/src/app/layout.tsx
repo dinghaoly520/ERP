@@ -3,7 +3,7 @@ import { Toaster } from 'sonner';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '智慧水发·招采ERP系统',
+  title: '采购管理平台-智慧水发·蜀水云采',
   description: '四川水发集团电子化招标采购平台',
 };
 

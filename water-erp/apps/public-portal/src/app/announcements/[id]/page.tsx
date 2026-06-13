@@ -89,8 +89,19 @@ export default function AnnouncementDetailPage() {
               {item.code && <span>编号：{item.code}</span>}
             </div>
 
+            {/* AI 摘要 */}
+            {item.aiSummary && (
+              <div className="mb-6 rounded-xl border border-[#d8e6f7] bg-[#f6fbff] p-5">
+                <div className="mb-2 text-sm font-bold text-[#064ea2]">AI 摘要</div>
+                <p className="text-[15px] leading-8 text-[#26364e]">{item.aiSummary}</p>
+              </div>
+            )}
+
             {/* 正文 */}
-            <div className="text-[15px] text-[#18243a] leading-relaxed whitespace-pre-wrap">{item.content}</div>
+            <div
+              className="announcement-detail-content text-[15px] text-[#18243a] leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: item.content }}
+            />
           </div>
         </div>
       </div>

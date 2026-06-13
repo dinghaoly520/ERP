@@ -3,7 +3,7 @@ import { Toaster } from 'sonner';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '集中采购价格目录 — 智慧水发·蜀水云采',
+  title: '电子商城-智慧水发·蜀水云采',
   description: '四川省水利发展集团集中采购目录价格参考平台',
 };
 
