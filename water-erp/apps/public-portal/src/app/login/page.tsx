@@ -16,9 +16,10 @@ export default function LoginPage() {
     if (!username || !password) { toast.error('请输入用户名和密码'); return; }
     setLogging(true);
     try {
-      await api.post('/auth/login', { username, password });
-      const me = await api.get<{ role: string }>('/auth/me');
-      const dest = landingURL(me.role);
+      // 登录响应已含 role；公共门户带 X-Portal: public，/auth/me 会找 token_public（不存在）→ 401，
+      // 故直接用登录返回的 role 跳转，不再单独请求 /auth/me。
+      const { role } = await api.post<{ role: string }>('/auth/login', { username, password });
+      const dest = landingURL(role);
       toast.success('登录成功，正在跳转...');
       setTimeout(() => { window.location.href = dest; }, 800);
     } catch (e: any) {
