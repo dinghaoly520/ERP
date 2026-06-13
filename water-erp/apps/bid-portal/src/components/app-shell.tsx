@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
 import {
-  LayoutDashboard, Unlock, Shield, ClipboardCheck, Archive, Upload,
+  LayoutDashboard, Unlock, Shield, ClipboardCheck, Archive,
   LogOut, PanelLeftClose, PanelLeft,
 } from 'lucide-react';
 
@@ -21,7 +21,6 @@ const navItems: NavItem[] = [
   { label: '监督端', path: '/bid/supervise', icon: Shield },
   { label: '评标端', path: '/bid/evaluate', icon: ClipboardCheck },
   { label: '归档端', path: '/bid/archive', icon: Archive },
-  { label: '投标提交', path: '/bid/submit', icon: Upload },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
