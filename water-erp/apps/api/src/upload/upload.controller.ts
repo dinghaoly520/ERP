@@ -10,13 +10,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { AuthGuard } from '../auth/auth.guard';
 import { UploadService } from './upload.service';
 
 @ApiTags('文件上传')
 @ApiCookieAuth('token')
 @Controller('upload')
-@UseGuards(AuthGuard)
+
 export class UploadController {
   constructor(private uploadService: UploadService) {}
 

@@ -1,12 +1,11 @@
 import { Controller, Get, Post, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
-import { AuthGuard } from '../auth/auth.guard';
 import { NotificationService } from './notification.service';
 
 @ApiTags('通知')
 @ApiCookieAuth('token')
 @Controller('notifications')
-@UseGuards(AuthGuard)
+
 export class NotificationController {
   constructor(private notificationService: NotificationService) {}
 

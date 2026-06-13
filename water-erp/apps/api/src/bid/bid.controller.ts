@@ -1,7 +1,6 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { BidService } from './bid.service';
-import { AuthGuard } from '../auth/auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
@@ -14,7 +13,6 @@ import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 @ApiTags('开评标管理')
 @ApiCookieAuth('token')
 @Controller('bid')
-@UseGuards(AuthGuard)
 @Roles('admin', 'bid_host', 'procurement_staff')
 export class BidController {
   constructor(private bidService: BidService) {}

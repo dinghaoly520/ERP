@@ -127,7 +127,30 @@ export class BidService {
     return this.prisma.bidSupplier.findMany({ where: { projectId } });
   }
 
-  submitBid(projectId: string, dto: SubmitBidDto) {
+  async submitBid(projectId: string, dto: SubmitBidDto) {
+    // 1. 项目存在且在投标阶段
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, deadline: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
+      throw new BadRequestException({ error: '项目不在投标阶段', code: 'PROJECT_NOT_ACCEPTING' });
+    }
+
+    // 2. 截止时间校验
+    if (project.deadline.getTime() < Date.now()) {
+      throw new BadRequestException({ error: '投标截止时间已过', code: 'DEADLINE_PASSED' });
+    }
+
+    // 3. 供应商不能重复投标
+    const existing = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierName: dto.supplierName },
+    });
+    if (existing && existing.submitStatus === '已提交') {
+      throw new BadRequestException({ error: '该供应商已提交投标', code: 'ALREADY_SUBMITTED' });
+    }
+
     const receiptNo = `TB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
     return this.prisma.bidSupplier.create({
       data: {
@@ -150,21 +173,27 @@ export class BidService {
   async openSubmission(id: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true },
+      select: { stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'SUBMIT');
 
-    return this.prisma.bidProject.update({
+    const updated = await this.prisma.bidProject.update({
       where: { id },
       data: { stage: 'SUBMIT' },
     });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '开放投递 (DOWNLOAD→SUBMIT)', result: '阶段变更成功', riskFlag: '无' },
+    });
+
+    return updated;
   }
 
   private async startOpeningInternal(id: string, dto?: StartOpeningDto) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true },
+      select: { stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'OPENING');
@@ -183,24 +212,36 @@ export class BidService {
       });
     }
 
-    return this.prisma.bidProject.update({
+    const updated = await this.prisma.bidProject.update({
       where: { id },
       data: { stage: 'OPENING' },
     });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action: '启动开标 (SUBMIT→OPENING)', result: '阶段变更成功', riskFlag: '无' },
+    });
+
+    return updated;
   }
 
   async startEvaluation(id: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true },
+      select: { stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'EVALUATING');
 
-    return this.prisma.bidProject.update({
+    const updated = await this.prisma.bidProject.update({
       where: { id },
       data: { stage: 'EVALUATING' },
     });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '启动评标 (OPENING→EVALUATING)', result: '阶段变更成功', riskFlag: '无' },
+    });
+
+    return updated;
   }
 
   async decryptSupplier(projectId: string, supplierId: string, dto?: DecryptSupplierDto) {
@@ -210,19 +251,33 @@ export class BidService {
       });
       if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
 
-      // Phase 1: Decrypting
+      // Phase 1: 开始解密
       await tx.bidSupplier.update({
         where: { id: supplierId },
         data: { decryptStatus: 'RUNNING' },
       });
 
-      // Phase 2: Success
+      // Phase 2: 模拟解密结果（约 5% 概率出现 DANGER）
+      const isDanger = Math.random() < 0.05;
+      if (isDanger) {
+        const errorMsg = '标书文件校验失败：签名不匹配或文件损坏';
+        await tx.bidSupplier.update({
+          where: { id: supplierId },
+          data: { decryptStatus: 'DANGER', decryptError: errorMsg },
+        });
+        await tx.bidSupervisionLog.create({
+          data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${errorMsg}`, riskFlag: '高风险' },
+        });
+        return tx.bidSupplier.findUnique({ where: { id: supplierId } });
+      }
+
+      // Phase 3: 解密成功
       await tx.bidSupplier.update({
         where: { id: supplierId },
         data: { decryptStatus: 'SUCCESS' },
       });
 
-      // Phase 3: Create record (if DTO provided)
+      // Phase 4: 创建开标记录（if DTO provided）
       if (dto) {
         await tx.bidOpeningRecord.create({
           data: {
@@ -238,11 +293,17 @@ export class BidService {
         });
       }
 
-      // Phase 4: Confirm
-      return tx.bidSupplier.update({
+      // Phase 5: 确认
+      const confirmed = await tx.bidSupplier.update({
         where: { id: supplierId },
         data: { confirmStatus: 'CONFIRMED' },
       });
+
+      await tx.bidSupervisionLog.create({
+        data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: '解密成功并确认', riskFlag: '无' },
+      });
+
+      return confirmed;
     });
   }
 
@@ -319,7 +380,7 @@ export class BidService {
   async archiveAll(id: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true },
+      select: { stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'ARCHIVED');
@@ -335,7 +396,7 @@ export class BidService {
     const now = new Date();
     const hashDigest = `sha256:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 
-    // 事务：归档项更新 + 项目状态变更 原子执行
+    // 事务：归档项更新 + 项目状态变更 + 监督日志 原子执行
     await this.prisma.$transaction([
       this.prisma.bidArchiveItem.updateMany({
         where: { projectId: id, status: { not: 'ARCHIVED' } },
@@ -344,6 +405,9 @@ export class BidService {
       this.prisma.bidProject.update({
         where: { id },
         data: { stage: 'ARCHIVED' },
+      }),
+      this.prisma.bidSupervisionLog.create({
+        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '一键归档', result: `归档 ${archiveItems.length} 项`, riskFlag: '无' },
       }),
     ]);
 

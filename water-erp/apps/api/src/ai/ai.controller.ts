@@ -1,13 +1,12 @@
 import { Controller, Get, Post, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
-import { AuthGuard } from '../auth/auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AiService } from './ai.service';
 
 @ApiTags('AI辅助评标')
 @ApiCookieAuth('token')
 @Controller('ai')
-@UseGuards(AuthGuard)
+
 export class AiController {
   constructor(private aiService: AiService) {}
 

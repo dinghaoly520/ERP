@@ -1,5 +1,4 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
 import { SupplierPortalService } from './supplier-portal.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
@@ -7,7 +6,7 @@ import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dt
 import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('supplier-portal')
-@UseGuards(AuthGuard)
+
 export class SupplierPortalController {
   constructor(
     private portalService: SupplierPortalService,

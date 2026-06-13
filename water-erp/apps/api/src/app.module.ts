@@ -11,6 +11,8 @@ import { AnnouncementModule } from './announcement/announcement.module';
 import { SupplierPortalModule } from './supplier-portal/supplier-portal.module';
 import { ExpertModule } from './expert/expert.module';
 import { AiModule } from './ai';
+import { ProcurementModule } from './procurement/procurement.module';
+import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
 @Module({
@@ -26,8 +28,10 @@ import { RolesGuard } from './common/guards/roles.guard';
     SupplierPortalModule,
     ExpertModule,
     AiModule,
+    ProcurementModule,
   ],
   providers: [
+    { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
