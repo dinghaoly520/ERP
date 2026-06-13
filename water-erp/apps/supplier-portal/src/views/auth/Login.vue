@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { onMounted, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
@@ -18,6 +18,11 @@ const rules = {
     { min: 6, message: '密码不少于6位', trigger: 'blur' },
   ],
 }
+
+onMounted(async () => {
+  if (router.currentRoute.value.query.forceLogin !== '1') return
+  await authStore.logout()
+})
 
 async function handleLogin() {
   const valid = await formRef.value?.validate().catch(() => false)

@@ -125,6 +125,10 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (to.meta.guest) {
+    // Public homepage quick-entry uses forceLogin=1 so users must re-enter
+    // credentials even if this portal already has a cached session.
+    if (to.query.forceLogin === '1') return next()
+
     // Guest pages — redirect to dashboard if already logged in
     if (authStore.isLoggedIn) return next('/dashboard')
     return next()

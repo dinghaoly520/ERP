@@ -24,8 +24,12 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow login page without auth
+  // Allow login page without auth. Public homepage quick-entry uses forceLogin=1
+  // so users must re-enter credentials even if this portal already has a cookie.
   if (pathname === '/login') {
+    if (request.nextUrl.searchParams.get('forceLogin') === '1') {
+      return NextResponse.next();
+    }
     if (token && await verifyToken(token)) {
       return NextResponse.redirect(new URL('/', request.url));
     }

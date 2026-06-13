@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { FlowHeader } from '@/components/flow-header';
 import { FlowRiver } from '@/components/flow-river';
 import { FlowTrack, FlowBackdrop, type StageData } from '@/components/flow-stage';
+import { ANNOUNCEMENTS, fetchPublicAnnouncements, type AnnouncementItem } from '@/lib/announcements';
+import { useEffect, useMemo, useState } from 'react';
 
 const STAGES: StageData[] = [
   {
@@ -53,28 +55,66 @@ const STAGES: StageData[] = [
   },
 ];
 
+const QUICK_ACTIONS = [
+  { k: 'PROJECT', title: '发起采购项目', desc: '登录管理端创建采购需求、选择采购方式并流转审批。', cta: '进入采购管理端', href: '/login' },
+  { k: 'NOTICE', title: '查看公开公告', desc: '直接进入公告大厅，核对已发布招标公告与中标公示。', cta: '公告大厅', href: '/announcements' },
+  { k: 'SUPPLIER', title: '触达供应商库', desc: '供应商注册、分类、评价与信用信息会沉淀到业务库。', cta: '供应商注册入口', href: '/register' },
+];
+
+const METHOD_GUIDE = [
+  { method: '公开招标', rule: '金额较大、竞争充分', output: '公告 / 招标文件 / 评标报告' },
+  { method: '邀请招标', rule: '候选供应商清晰', output: '邀请名单 / 回执 / 开标记录' },
+  { method: '竞争性谈判', rule: '需求需多轮澄清', output: '谈判纪要 / 最终报价' },
+  { method: '询价采购', rule: '规格明确、价格可比', output: '报价单 / 比价表' },
+  { method: '单一来源', rule: '唯一供应商或特殊连续性', output: '论证意见 / 审批留痕' },
+];
+
 export default function ProcurementPortalPage() {
   const router = useRouter();
+  const [notices, setNotices] = useState<AnnouncementItem[]>(ANNOUNCEMENTS.filter((a) => a.type === 'BID_NOTICE').slice(0, 3));
+
+  useEffect(() => {
+    fetchPublicAnnouncements({ type: 'BID_NOTICE', pageSize: 3 })
+      .then((data) => setNotices(data.items.length ? data.items : notices))
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const activeProjects = useMemo(() => notices.filter((n) => n.type === 'BID_NOTICE').length, [notices]);
+
   return (
     <div className="flow-page">
       <FlowBackdrop />
 
       <FlowHeader label="PROCUREMENT · 采购管理" />
 
-      {/* ════ Hero ════ */}
-      <section className="flow-hero">
-        <span className="flow-eyebrow">四川水发 · 采购全流程</span>
-        <h1 className="flow-title">九阶流程 · 阳光采购<br />全程在线 · 合规高效</h1>
-        <p className="flow-sub">
-          从需求申报到合同归档，智慧水发·蜀水云采构建覆盖采购全生命周期的数字化流程。
-          每一个环节在线流转、数据留痕、智能辅助，让采购更阳光、更高效、更合规。
-        </p>
-        <div className="mt-12">
-          <FlowRiver accent="brand" />
+      <section className="flow-hero flow-hero-split">
+        <div className="flow-hero-copy">
+          <span className="flow-eyebrow">四川水发 · 采购全流程</span>
+          <h1 className="flow-title">九阶流程 · 阳光采购<br />全程在线 · 合规高效</h1>
+          <p className="flow-sub">
+            从需求申报到合同归档，智慧水发·蜀水云采构建覆盖采购全生命周期的数字化流程。
+            这里不只是流程展示：它会把采购人员带到真实业务入口，并联动公开公告数据。
+          </p>
+          <div className="flow-hero-actions">
+            <button onClick={() => router.push('/login')} className="flow-cta-btn">进入采购管理端</button>
+            <button onClick={() => router.push('/announcements')} className="flow-cta-btn ghost">查看公告大厅</button>
+          </div>
+        </div>
+        <div className="flow-command glass">
+          <span className="flow-command-label">BUSINESS CONSOLE</span>
+          <strong>{activeProjects}</strong>
+          <p>当前关联招标公告</p>
+          <div className="flow-command-list">
+            {notices.slice(0, 2).map((n) => (
+              <button key={n.id} onClick={() => router.push(`/announcements/${n.id}`)}>
+                <span>{n.code || n.tag}</span>{n.title}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* ════ Metrics ════ */}
       <div className="flow-metrics">
         {[
           { num: '9', suffix: '阶', label: '标准化采购流程' },
@@ -89,7 +129,17 @@ export default function ProcurementPortalPage() {
         ))}
       </div>
 
-      {/* ════ 横向流程图谱 ════ */}
+      <section className="flow-business-grid">
+        {QUICK_ACTIONS.map((item) => (
+          <button key={item.k} className="flow-action-tile" onClick={() => router.push(item.href)}>
+            <span>{item.k}</span>
+            <strong>{item.title}</strong>
+            <p>{item.desc}</p>
+            <em>{item.cta} →</em>
+          </button>
+        ))}
+      </section>
+
       <div className="flow-section-head">
         <h2>采购全流程图谱</h2>
         <p>SWIPE / SCROLL / DRAG · 横向拖拽浏览九大环节</p>
@@ -97,12 +147,45 @@ export default function ProcurementPortalPage() {
 
       <FlowTrack stages={STAGES} accent="brand" />
 
-      {/* ════ CTA ════ */}
+      <section className="flow-utility-panel">
+        <div className="flow-utility-head">
+          <span>METHOD ROUTER</span>
+          <h2>采购方式不是说明文字，而是业务分流器</h2>
+          <p>不同采购方式对应不同文件、审批链和公告动作。采购人员可从这里判断下一步进入哪个业务模块。</p>
+        </div>
+        <div className="flow-method-grid">
+          {METHOD_GUIDE.map((m) => (
+            <div key={m.method} className="flow-method-card">
+              <strong>{m.method}</strong>
+              <p>{m.rule}</p>
+              <span>{m.output}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="flow-live-board">
+        <div>
+          <span className="flow-eyebrow">LIVE PROCUREMENT DATA</span>
+          <h2>最新招标公告</h2>
+          <p>直接读取公共公告接口；若后端不可用，自动使用本地兜底数据，保证页面仍可演示。</p>
+        </div>
+        <div className="flow-live-list">
+          {notices.map((n) => (
+            <button key={n.id} onClick={() => router.push(`/announcements/${n.id}`)}>
+              <time>{n.date}</time>
+              <strong>{n.title}</strong>
+              <span>{n.code || n.tag}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <div className="flow-cta">
         <div className="flex flex-wrap items-end justify-between gap-8">
           <div className="max-w-xl">
             <h3>开启阳光采购</h3>
-            <p>采购管理人员登录后即可进入采购管理平台，发起项目、编制文件、组织开评标。</p>
+            <p>采购管理人员登录后即可进入采购管理平台，发起项目、编制文件、组织开评标；公告发布后会同步沉淀到公共门户。</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <button onClick={() => router.push('/login')} className="flow-cta-btn">

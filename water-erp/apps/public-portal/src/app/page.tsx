@@ -79,16 +79,19 @@ export default function HomePage() {
     setRegLoading(false);
   };
 
-  // 从后端 API 获取公告数据，失败时使用本地兜底
+  // 从后端 API 按公告类型分别获取，避免全局分页导致各类型数量不均
+  const typeGroups = ['BID_NOTICE', 'WIN_NOTICE', 'POLICY', 'PLATFORM'];
   const [fetchedAnnouncements, setFetchedAnnouncements] = useState<AnnouncementItem[]>(ANNOUNCEMENTS);
   useEffect(() => {
-    fetchPublicAnnouncements({ pageSize: 20 })
-      .then(data => { if (data.items.length > 0) setFetchedAnnouncements(data.items); })
+    Promise.all(typeGroups.map(type => fetchPublicAnnouncements({ type, pageSize: 12 })))
+      .then(results => {
+        const items = results.flatMap(result => result.items);
+        if (items.length > 0) setFetchedAnnouncements(items);
+      })
       .catch(() => { /* keep fallback */ });
   }, []);
 
   // 从数据按类型分组
-  const typeGroups = ['BID_NOTICE', 'WIN_NOTICE', 'POLICY', 'PLATFORM'];
   const announceData = typeGroups.map(type => {
     const items = fetchedAnnouncements.filter(a => a.type === type);
     const first = items[0] || ANNOUNCEMENTS.find(a => a.type === type);
@@ -103,10 +106,10 @@ export default function HomePage() {
 
   const features = [
     { icon: 'file', title: '智慧水发·采购中心', desc: '采购文件编制、项目管理、AI协同', href: 'http://192.168.1.111:3001' },
-    { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: 'http://localhost:3002' },
-    { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: 'http://localhost:3003' },
-    { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: 'http://localhost:3004' },
-    { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: 'http://localhost:3005' },
+    { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: 'http://localhost:3002/login?forceLogin=1' },
+    { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: 'http://localhost:3003/login?forceLogin=1' },
+    { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: 'http://localhost:3004/login?forceLogin=1' },
+    { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: 'http://localhost:3005/login?forceLogin=1' },
   ];
 
 

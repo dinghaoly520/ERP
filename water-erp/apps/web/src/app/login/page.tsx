@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -12,6 +12,11 @@ export default function ProcurementLoginPage() {
   const router = useRouter();
   const [form, setForm] = useState({ username: 'caigou', password: 'caigou@2026' });
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('forceLogin') !== '1') return;
+    fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Portal': 'web' }, credentials: 'include' });
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
