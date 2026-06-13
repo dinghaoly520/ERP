@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
-import NotificationBell from './notification-bell';
 import {
   LayoutDashboard, Building2, Megaphone, UsersRound,
   LogOut, PanelLeftClose, PanelLeft,
@@ -21,15 +20,6 @@ const navItems: NavItem[] = [
   { label: '供应商管理中心', path: '/supplier', icon: Building2 },
   { label: '专家管理中心', path: '/expert', icon: UsersRound },
 ];
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: '管理员',
-  bid_host: '开标主持人',
-  procurement_staff: '采购管理员',
-  bid_expert: '评审专家',
-  supplier: '供应商',
-  mall: '商城采购员',
-};
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -53,7 +43,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const registeredName = user?.displayName?.trim() || user?.username || '未登录';
   const userInitial = registeredName.slice(0, 1);
-  const roleLabel = user?.role ? ROLE_LABELS[user.role] || user.role : '';
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#f7f9fc]">
@@ -63,29 +52,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {/* Brand */}
           <button onClick={() => router.push('/dashboard')} className="flex items-center gap-3">
             <img src="/assets/logo.jpg" alt="四川水发集团" className="h-11 w-auto object-contain" />
-            <span className="flex flex-col items-start leading-tight">
-              <strong
-                className="block text-xl font-black tracking-[0.12em] text-[#123a6e]"
-                style={{ fontFamily: '"SimHei","黑体",sans-serif' }}
-              >
-                四川水发集团
-              </strong>
-              <span className="text-[11px] font-medium tracking-wide text-[#5a6d8a]">
-                智慧水发 · 采购管理工作台
-              </span>
-            </span>
+            <strong
+              className="block text-xl font-black tracking-[0.12em] text-[#123a6e]"
+              style={{ fontFamily: '"SimHei","黑体",sans-serif' }}
+            >
+              四川水发集团
+            </strong>
           </button>
 
           {/* Actions */}
           <div className="flex items-center gap-3">
-            <NotificationBell />
             <div className="flex items-center gap-2 rounded-xl bg-[#f3f7fc] px-3 py-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#064ea2] text-xs font-black text-white">
                 {userInitial}
               </span>
               <div className="hidden leading-tight sm:block">
                 <div className="text-sm font-black text-[#18243a]">{registeredName}</div>
-                {roleLabel && <div className="text-[11px] text-[#8a96aa]">{roleLabel}</div>}
               </div>
             </div>
             <button
