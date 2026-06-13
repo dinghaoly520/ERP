@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   电子商城 · 登录页 — 浅色炫彩毛玻璃 · 浅琥珀
+   电子商城 · 登录页 — 浅色炫彩毛玻璃 · 浅黄
    背景：bg-hydro-hero-6 · 卡顶艺术字居中 + 交互增强
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const LP_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=ZCOOL+XiaoWei&display=swap');
 .lp{--tint:oklch(0.975 0.02 var(--hue));--ink:oklch(0.26 0.025 var(--hue));--muted:#6b787e;--line:oklch(0.93 0.015 var(--hue));--ease:cubic-bezier(.2,.8,.2,1);position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,520px);min-height:100vh;isolation:isolate;overflow:hidden;font-family:"Manrope","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--tint)}
-.lp--mall{--hue:55}
+.lp--mall{--hue:95}
 .lp-bg{position:absolute;inset:0;z-index:-3;background-image:url('/assets/bg-hydro-hero-6.png');background-position:center;background-size:cover;filter:saturate(.8) contrast(.92) brightness(1.05);transform:scale(1.04)}
 .lp::before,.lp::after{position:absolute;inset:0;content:"";pointer-events:none}
 .lp::before{z-index:-2;backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);-webkit-mask-image:linear-gradient(90deg,transparent 0%,rgba(0,0,0,.03) 40%,rgba(0,0,0,.3) 68%,rgba(0,0,0,.85) 92%,#000 100%);mask-image:linear-gradient(90deg,transparent 0%,rgba(0,0,0,.03) 40%,rgba(0,0,0,.3) 68%,rgba(0,0,0,.85) 92%,#000 100%)}
