@@ -2,13 +2,17 @@
 import { ref, onMounted } from 'vue'
 import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { UploadFilled } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
+import { uploadFile, type FileAssetResponse } from '@/api/upload'
 
 const supplierStore = useSupplierStore()
 const loading = ref(true)
 const dialogVisible = ref(false)
 const dialogLoading = ref(false)
-const form = ref({ type: '', name: '', fileUrl: '/uploads/placeholder.pdf', validFrom: '', validTo: '' })
+const uploading = ref(false)
+const uploadedMeta = ref<FileAssetResponse | null>(null)
+const form = ref({ type: '', name: '', fileUrl: '', validFrom: '', validTo: '' })
 
 onMounted(async () => {
   try {
@@ -21,13 +25,48 @@ onMounted(async () => {
 const qualTypes = ['营业执照', '资质证书', '安全生产许可证', '质量管理体系认证', '环境管理体系认证', '职业健康安全管理体系认证', '其他']
 
 function openAdd() {
-  form.value = { type: '', name: '', fileUrl: '/uploads/placeholder.pdf', validFrom: '', validTo: '' }
+  form.value = { type: '', name: '', fileUrl: '', validFrom: '', validTo: '' }
+  uploadedMeta.value = null
   dialogVisible.value = true
+}
+
+/** el-upload 自定义上传：调用 /api/upload 落 MinIO，回写 fileUrl 并暂存元数据 */
+async function customUpload(options: any) {
+  const file = options.file as File
+  if (file.size > 50 * 1024 * 1024) {
+    ElMessage.error('文件不能超过 50MB')
+    options.onError(new Error('FILE_TOO_LARGE'))
+    return
+  }
+  uploading.value = true
+  try {
+    const res = await uploadFile(file, 'qualification')
+    form.value.fileUrl = res.url
+    uploadedMeta.value = res
+    options.onSuccess(res)
+    ElMessage.success('文件上传成功')
+  } catch (e: any) {
+    // 全局 axios 拦截器已对 400/403 给出错误提示
+    options.onError(e)
+  } finally {
+    uploading.value = false
+  }
+}
+
+/** 格式化文件大小 */
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
 async function handleAdd() {
   if (!form.value.type || !form.value.name) {
     ElMessage.warning('请填写资质类型和名称')
+    return
+  }
+  if (!uploadedMeta.value || !form.value.fileUrl) {
+    ElMessage.warning('请先上传资质文件')
     return
   }
   dialogLoading.value = true
@@ -91,9 +130,9 @@ function getStatusInfo(q: any) {
               <el-icon><Calendar /></el-icon>
               {{ dayjs(q.validFrom).format('YYYY-MM-DD') }} ~ {{ q.validTo ? dayjs(q.validTo).format('YYYY-MM-DD') : '长期' }}
             </div>
-            <div>
+            <div class="qual-file">
               <el-icon><Document /></el-icon>
-              {{ q.fileUrl }}
+              <a :href="q.fileUrl" target="_blank" rel="noopener" class="qual-file-link">查看附件文件</a>
             </div>
           </div>
           <div class="qual-actions">
@@ -130,14 +169,28 @@ function getStatusInfo(q: any) {
         <el-form-item label="有效期止">
           <el-date-picker v-model="form.validTo" type="date" placeholder="选择结束日期（不填为长期有效）" style="width: 100%" value-format="YYYY-MM-DD" />
         </el-form-item>
-        <el-form-item label="上传文件">
-          <el-button type="primary" plain>选择文件</el-button>
-          <span style="margin-left: 12px; color: var(--sp-gray-400); font-size: 13px;">支持 PDF、JPG、PNG</span>
+        <el-form-item label="上传文件" required>
+          <el-upload
+            :show-file-list="false"
+            :http-request="customUpload"
+            accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.zip,.txt"
+          >
+            <el-button type="primary" plain :icon="UploadFilled" :loading="uploading">
+              {{ uploadedMeta ? '重新选择文件' : '选择文件' }}
+            </el-button>
+          </el-upload>
+          <div v-if="uploadedMeta" class="upload-meta">
+            <el-icon><Document /></el-icon>
+            <span>{{ uploadedMeta.originalName }}</span>
+            <span class="upload-meta-size">{{ formatSize(uploadedMeta.size) }}</span>
+            <span class="upload-meta-type">{{ uploadedMeta.mimeType }}</span>
+          </div>
+          <span v-else class="upload-hint">支持 PDF、图片、Office、ZIP，≤50MB</span>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="dialogLoading" @click="handleAdd">确认添加</el-button>
+        <el-button type="primary" :loading="dialogLoading" :disabled="!uploadedMeta" @click="handleAdd">确认添加</el-button>
       </template>
     </el-dialog>
   </div>
@@ -175,6 +228,12 @@ function getStatusInfo(q: any) {
 
 .qual-meta .el-icon { margin-right: 4px; }
 
+.qual-file-link {
+  color: var(--sp-primary, #064ea2);
+  text-decoration: none;
+}
+.qual-file-link:hover { text-decoration: underline; }
+
 .qual-actions {
   display: flex;
   justify-content: flex-end;
@@ -182,5 +241,23 @@ function getStatusInfo(q: any) {
   margin-top: auto;
   padding-top: 12px;
   border-top: 1px solid var(--sp-border-light);
+}
+
+.upload-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--sp-gray-500);
+}
+.upload-meta-size { color: var(--sp-gray-400); }
+.upload-meta-type { color: var(--sp-gray-400); font-size: 12px; }
+
+.upload-hint {
+  margin-left: 12px;
+  color: var(--sp-gray-400);
+  font-size: 13px;
 }
 </style>

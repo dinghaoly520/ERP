@@ -10,8 +10,8 @@ export function portalURL(app: AppName, path = '/'): string {
 
 /** 角色 → 登陆后跳转路径 */
 export const ROLE_LANDING: Record<string, string> = {
-  admin: '/dashboard',
-  bid_host: '/dashboard',
+  admin: '/bid',
+  bid_host: '/bid',
   procurement_staff: '/dashboard',
   supplier: '/dashboard',
   bid_expert: '/',
@@ -19,8 +19,8 @@ export const ROLE_LANDING: Record<string, string> = {
 
 /** 角色 → 目标门户 */
 export const ROLE_PORTAL: Record<string, AppName> = {
-  admin: 'web',
-  bid_host: 'web',
+  admin: 'bid',
+  bid_host: 'bid',
   procurement_staff: 'web',
   supplier: 'supplier',
   bid_expert: 'expert',

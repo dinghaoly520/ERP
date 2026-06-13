@@ -6,10 +6,20 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { hashSync } from 'bcryptjs';
 
-/** 登录指定用户并返回 cookie */
-async function loginAs(app: INestApplication, username: string, password: string): Promise<string[]> {
+/**
+ * 登录指定用户并返回 cookie。
+ * 后端按门户命名 cookie（token_web / token_supplier / token_expert），
+ * 因此登录与后续请求都需带上 X-Portal 头，后端才能读到对应 cookie。
+ */
+async function loginAs(
+  app: INestApplication,
+  username: string,
+  password: string,
+  portal: string,
+): Promise<string[]> {
   const res = await request(app.getHttpServer())
     .post('/api/auth/login')
+    .set('X-Portal', portal)
     .send({ username, password });
   const cookie = res.headers['set-cookie'];
   return Array.isArray(cookie) ? cookie : cookie ? [cookie] : [];
@@ -47,7 +57,6 @@ describe('Auth (e2e)', () => {
   });
 
   afterAll(async () => {
-    // 清理测试用户
     await prisma.user.deleteMany({ where: { username: 'e2e-disabled-user' } });
     await app.close();
   });
@@ -72,6 +81,7 @@ describe('Auth (e2e)', () => {
   it('/api/auth/login (POST) — 无效凭证应返回 401', () => {
     return request(app.getHttpServer())
       .post('/api/auth/login')
+      .set('X-Portal', 'web')
       .send({ username: 'nonexistent', password: 'wrong' })
       .expect(401);
   });
@@ -79,6 +89,7 @@ describe('Auth (e2e)', () => {
   it('/api/auth/login (POST) — 正确凭证应返回 200 + access_token', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/login')
+      .set('X-Portal', 'web')
       .send({ username: 'caigou', password: 'caigou@2026' })
       .expect(200);
 
@@ -89,6 +100,7 @@ describe('Auth (e2e)', () => {
   it('/api/auth/login (POST) — 禁用用户应返回 401', () => {
     return request(app.getHttpServer())
       .post('/api/auth/login')
+      .set('X-Portal', 'web')
       .send({ username: 'e2e-disabled-user', password: '123456' })
       .expect(401);
   });
@@ -97,41 +109,44 @@ describe('Auth (e2e)', () => {
 
   describe('角色权限隔离', () => {
     it('供应商不能访问招标管理接口', async () => {
-      const cookie = await loginAs(app, 'supplier1', 'supplier1@2026');
+      const cookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
 
       await request(app.getHttpServer())
         .post('/api/bid/projects')
         .set('Cookie', cookie)
+        .set('X-Portal', 'supplier')
         .send({ name: '非法项目', procurementMethod: '公开招标', openTime: '2026-07-01T09:00:00Z', deadline: '2026-07-01T08:30:00Z' })
         .expect(403);
     });
 
     it('供应商不能访问专家接口', async () => {
-      const cookie = await loginAs(app, 'supplier1', 'supplier1@2026');
+      const cookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
 
       await request(app.getHttpServer())
         .get('/api/expert/profile')
         .set('Cookie', cookie)
+        .set('X-Portal', 'supplier')
         .expect(403);
     });
 
     it('专家不能创建招标项目', async () => {
-      const cookie = await loginAs(app, 'wangjg', 'wangjg@2026');
+      const cookie = await loginAs(app, 'wangjg', 'wangjg@2026', 'expert');
 
       await request(app.getHttpServer())
         .post('/api/bid/projects')
         .set('Cookie', cookie)
+        .set('X-Portal', 'expert')
         .send({ name: '非法项目', procurementMethod: '公开招标', openTime: '2026-07-01T09:00:00Z', deadline: '2026-07-01T08:30:00Z' })
         .expect(403);
     });
 
     it('专家不能访问 AI 管理端接口', async () => {
-      const cookie = await loginAs(app, 'wangjg', 'wangjg@2026');
+      const cookie = await loginAs(app, 'wangjg', 'wangjg@2026', 'expert');
 
-      // anomalies 和 risk-scores 应拒绝 bid_expert
       await request(app.getHttpServer())
         .get('/api/ai/projects/fake-id/anomalies')
         .set('Cookie', cookie)
+        .set('X-Portal', 'expert')
         .expect(403);
     });
   });

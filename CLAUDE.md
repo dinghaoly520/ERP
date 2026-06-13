@@ -20,6 +20,7 @@ Run workspace commands from `water-erp/`.
 | `apps/web` | Next.js 16 App Router | 3004 | Admin/internal staff portal |
 | `apps/expert-portal` | Next.js 16 App Router | 3005 | Bid expert portal |
 | `apps/public-portal` | Next.js 16 App Router | 3006 | Public-facing landing + announcements |
+| `apps/bid-portal` | Next.js 16 App Router | 3007 | 开评标管理端 — bid opening/evaluation admin backend (开标大厅/监督端/评标/归档); post-login home for `admin`/`bid_host`, reached via the public-portal "在线开评标系统" card → `:3005` login |
 | `packages/config` | TypeScript | — | Shared ports and role-to-portal routing (`@water-erp/config`) |
 | `packages/shared` | TypeScript | — | Shared domain types, labels, status maps, and brand constants (`@water-erp/shared`) |
 | `packages/ui` | package scaffold | — | Currently unused scaffold |
@@ -47,7 +48,7 @@ pnpm db:migrate
 pnpm db:seed
 pnpm db:studio
 
-# Start all apps concurrently (mall, supplier, web, expert, public, api)
+# Start all apps concurrently (mall, supplier, web, expert, public, bid, api)
 pnpm dev
 
 # Start one app
@@ -57,6 +58,7 @@ pnpm dev:supplier
 pnpm dev:web
 pnpm dev:expert
 pnpm dev:public
+pnpm dev:bid
 
 # Build
 pnpm build
@@ -66,6 +68,7 @@ pnpm build:supplier
 pnpm build:web
 pnpm build:expert
 pnpm build:public
+pnpm build:bid
 
 # Lint
 pnpm lint
@@ -114,7 +117,7 @@ JWT_SECRET=water-erp-jwt-secret
 Seed data creates demo accounts. Passwords follow the `<username>@2026` convention. Each portal keeps an independent login session (cookies are named per portal: `token_web`, `token_expert`, `token_supplier`, `token_mall`), so you must log in separately at each portal:
 
 - `caigou / caigou@2026` — 采购管理员（procurement_staff，web 门户 :3004）
-- `lizhuren / lizhuren@2026` — 开标主持人（bid_host，web 门户 :3004）
+- `lizhuren / lizhuren@2026` — 开标主持人（bid_host，开评标管理端 :3007）
 - `supplier1 / supplier1@2026` — 供应商（已入库，supplier 门户 :3003）
 - `supplier2 / supplier2@2026` — 供应商（待审核，supplier 门户 :3003）
 - `wangjg / wangjg@2026` — 专家·王建国（expert 门户 :3005）
@@ -138,14 +141,18 @@ The seed also creates supplier classifications, demo suppliers, notifications, a
 - `web: 3004`
 - `expert: 3005`
 - `public: 3006`
+- `bid: 3007`
 
 `packages/config/src/urls.ts` maps roles to post-login portal destinations:
 
-- `admin`, `bid_host`, `procurement_staff` → `web`
+- `admin`, `bid_host` → `bid` (开评标管理端 :3007, landing `/bid`)
+- `procurement_staff` → `web` (采购管理工作台 :3004)
 - `supplier` → `supplier`
 - `bid_expert` → `expert`
 - `mall` → `mall`
 - unknown roles fall back to `public`
+
+> Cookie nuance: `apps/bid-portal` reads the `token_web` cookie and sends `X-Portal: web`. The backend (`apps/api/src/auth/portal-cookie.ts`) names cookies by **role**, and `admin`/`bid_host` map to the `web` namespace (there is no `token_bid`), so the bid portal needs no backend auth change and shares the `token_web` session with `apps/web`.
 
 The portals do not share component implementations. Shared cross-portal concepts live in `@water-erp/shared`: role/status types, bid stages, announcement labels, supplier status maps, scoring category labels/colors, notification icons, and brand constants.
 
@@ -230,7 +237,7 @@ Important enums include `BidStage` (`DOWNLOAD → SUBMIT → OPENING → EVALUAT
 
 ### Frontend Conventions
 
-- Next.js portals (`mall`, `web`, `expert-portal`, `public-portal`) rewrite `/api/:path*` to `http://localhost:4001/api/:path*` in `next.config.ts`.
+- Next.js portals (`mall`, `web`, `expert-portal`, `public-portal`, `bid-portal`) rewrite `/api/:path*` to `http://localhost:4001/api/:path*` in `next.config.ts`.
 - The Vue supplier portal proxies `/api` to `http://localhost:4001` in `vite.config.ts` and aliases `@` to `src`.
 - Portal API clients use thin wrappers around `/api` and include credentials for cookie auth where applicable.
 - Next.js portals use React 19 and Tailwind CSS v4; supplier portal uses Vue 3, Vite, Element Plus, Pinia, and Vue Router.

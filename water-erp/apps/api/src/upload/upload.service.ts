@@ -1,6 +1,7 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { minioClient, MINIO_BUCKET, ensureBucket } from './minio.client';
 
 /** Allowed MIME types for upload */
 const ALLOWED_MIME_TYPES = [
@@ -27,10 +28,19 @@ const ALLOWED_CATEGORIES = [
 ];
 
 @Injectable()
-export class UploadService {
+export class UploadService implements OnModuleInit {
   private readonly logger = new Logger(UploadService.name);
 
   constructor(private prisma: PrismaService) {}
+
+  async onModuleInit() {
+    // 启动时确保 bucket 存在；MinIO 不可用时不阻断应用启动，仅记录告警
+    try {
+      await ensureBucket();
+    } catch (err) {
+      this.logger.error(`MinIO bucket 初始化失败：${(err as Error).message}`);
+    }
+  }
 
   /**
    * 生成文件存储 key: uploads/{yyyy-mm-dd}/{random}.{ext}
@@ -40,16 +50,6 @@ export class UploadService {
     const ext = originalName.includes('.') ? originalName.split('.').pop() : 'bin';
     const hash = crypto.randomBytes(8).toString('hex');
     return `uploads/${date}/${hash}.${ext}`;
-  }
-
-  /**
-   * 生成文件访问 URL（MinIO 地址）
-   */
-  getFileUrl(key: string): string {
-    const endpoint = process.env.MINIO_ENDPOINT || 'localhost';
-    const port = process.env.MINIO_PORT || '9000';
-    const bucket = 'water-erp';
-    return `http://${endpoint}:${port}/${bucket}/${key}`;
   }
 
   /**
@@ -79,17 +79,19 @@ export class UploadService {
   }
 
   /**
-   * 上传文件并持久化元数据
+   * 上传文件并持久化元数据（文件字节写入 MinIO）
    */
   async upload(file: Express.Multer.File, category: string = 'general', userId?: string) {
     this.validateFile(file, category);
 
     const key = this.generateKey(file.originalname);
-    const url = this.getFileUrl(key);
     const sha256 = this.computeSha256(file.buffer);
 
-    // TODO: 生产环境使用 MinIO SDK 上传文件内容
-    this.logger.log(`File uploaded: ${key} (${file.size} bytes, ${file.mimetype})`);
+    // 写入 MinIO 对象存储
+    await minioClient.putObject(MINIO_BUCKET, key, file.buffer, file.size, {
+      'Content-Type': file.mimetype,
+    });
+    this.logger.log(`File stored in MinIO: ${key} (${file.size} bytes, ${file.mimetype})`);
 
     // 持久化文件元数据到数据库
     const asset = await this.prisma.fileAsset.create({
@@ -104,10 +106,11 @@ export class UploadService {
       },
     });
 
+    // url 为鉴权代理下载路径（稳定、不失效、受 AuthGuard 保护）
     return {
       id: asset.id,
       key: asset.key,
-      url,
+      url: `/api/upload/files/${asset.id}`,
       originalName: asset.originalName,
       mimeType: asset.mimeType,
       size: asset.size,
@@ -118,7 +121,28 @@ export class UploadService {
   }
 
   /**
-   * 删除文件（元数据 + TODO: MinIO 对象）
+   * 以流的方式返回文件内容（鉴权下载）。受全局 AuthGuard 保护。
+   */
+  async streamFile(id: string, res: any) {
+    const asset = await this.prisma.fileAsset.findUnique({ where: { id } });
+    if (!asset) {
+      throw new NotFoundException({ error: '文件不存在', code: 'NOT_FOUND' });
+    }
+
+    res.setHeader('Content-Type', asset.mimeType);
+    res.setHeader('Content-Length', String(asset.size));
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${encodeURIComponent(asset.originalName)}"`,
+    );
+
+    const dataStream = await minioClient.getObject(MINIO_BUCKET, asset.key);
+    dataStream.pipe(res);
+    return dataStream;
+  }
+
+  /**
+   * 删除文件（MinIO 对象 + 元数据）
    */
   async delete(key: string) {
     const asset = await this.prisma.fileAsset.findUnique({ where: { key } });
@@ -126,8 +150,9 @@ export class UploadService {
       throw new BadRequestException({ error: '文件不存在', code: 'NOT_FOUND' });
     }
 
-    // TODO: 生产环境使用 MinIO SDK 删除对象
-    this.logger.log(`File deleted: ${key}`);
+    // 先删对象，再删元数据；任一失败抛错以暴露问题
+    await minioClient.removeObject(MINIO_BUCKET, key);
+    this.logger.log(`File removed from MinIO: ${key}`);
 
     await this.prisma.fileAsset.delete({ where: { key } });
     return { deleted: true, key };

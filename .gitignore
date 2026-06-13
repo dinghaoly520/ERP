@@ -11,3 +11,10 @@ dist/
 .claude/
 .superpowers/
 .worktrees/
+
+# Build artifacts & caches (auto-generated; do not track)
+*.tsbuildinfo
+next-env.d.ts
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
