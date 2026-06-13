@@ -20,8 +20,8 @@ export default function AboutPage() {
             <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)] mb-4">平台简介</h2>
             <div className="text-sm text-[oklch(0.55_0.01_264)] leading-relaxed space-y-3">
               <p>
-                <strong className="text-[oklch(0.18_0.012_265)]">智慧水发招采ERP系统</strong>是面向水利行业的全流程电子化招标采购管理平台，
-                涵盖项目管理、招标公告、在线开标、专家评标、供应商管理、监督审计等核心业务。
+                <strong className="text-[oklch(0.18_0.012_265)]">智慧水发采购管理工作台</strong>是面向水利行业采购管理场景的数字化业务平台，
+                聚焦信息发布、供应商管理、专家管理三大核心能力。
               </p>
               <p>
                 平台严格按照《中华人民共和国招标投标法》、《政府采购法》及其实施条例设计开发，
@@ -40,14 +40,14 @@ export default function AboutPage() {
             <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)] mb-4">核心功能模块</h2>
             <div className="grid grid-cols-2 gap-4">
               {[
-                { icon: '⚖️', title: '开评标管理', desc: '在线开标、专家评标、监督归档全流程管理' },
-                { icon: '📋', title: '采购管理', desc: '立项审批、招标文件编写与审查' },
-                { icon: '🏢', title: '供应商管理', desc: '注册审核、资质管理、评价体系' },
-                { icon: '👨‍💼', title: '专家工作台', desc: '身份核验、独立评审、AI辅助评标' },
-                { icon: '📢', title: '信息公告', desc: '招标公告、中标公示、政策法规发布' },
-                { icon: '⭐', title: '评价管理', desc: '供应商评价、统计分析、等级划分' },
-                { icon: '🔍', title: '监督审计', desc: '全程留痕、风险预警、合规审计' },
-                { icon: '🔒', title: '安全管理', desc: '数据加密、权限控制、操作审计' },
+                { icon: '📢', title: '信息发布中心', desc: '采购公告、成交公示、政策制度和通知公告统一发布' },
+                { icon: '🏢', title: '供应商管理中心', desc: '注册审核、供应商库、评价体系和异常管理' },
+                { icon: '👨‍💼', title: '专家管理中心', desc: '专家库、抽取分配、回避关系和履职评价' },
+                { icon: '🔔', title: '待办工作台', desc: '聚合发布、供应商、专家事项，统一办理' },
+                { icon: '🔍', title: '风险预警', desc: '异常供应商、发布异常、专家履职风险提醒' },
+                { icon: '📊', title: '数据总览', desc: '三大中心关键指标与最近动态实时汇总' },
+                { icon: '🔒', title: '权限控制', desc: '按角色控制入口、按钮与关键业务操作' },
+                { icon: '📜', title: '操作留痕', desc: '重要操作记录可追溯，支撑合规管理' },
               ].map(item => (
                 <div key={item.title} className="bg-[oklch(0.992_0.003_264)] rounded-lg p-4 border border-[oklch(0.91_0.006_264)]">
                   <div className="text-xl mb-2">{item.icon}</div>
@@ -63,12 +63,12 @@ export default function AboutPage() {
             <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)] mb-4">平台特色</h2>
             <div className="grid grid-cols-3 gap-4">
               {[
-                { icon: '🔒', title: '安全合规', desc: '全流程加密，符合国家招投标法规要求' },
-                { icon: '⚡', title: '高效便捷', desc: '电子化流程，缩短采购周期50%以上' },
+                { icon: '🔒', title: '安全合规', desc: '关键操作留痕，符合采购管理合规要求' },
+                { icon: '⚡', title: '高效便捷', desc: '待办驱动，缩短业务处理周期' },
                 { icon: '📊', title: '数据驱动', desc: '实时数据统计，辅助管理决策' },
-                { icon: '🌐', title: '全线上化', desc: '无需线下操作，全流程线上完成' },
-                { icon: '🤖', title: '智能辅助', desc: 'AI辅助评标，提升评审效率与质量' },
-                { icon: '📜', title: '全程留痕', desc: '所有操作可追溯，保障公平公正' },
+                { icon: '🌐', title: '统一入口', desc: '三大中心能力集中在采购管理端办理' },
+                { icon: '🤖', title: '智能辅助', desc: 'AI辅助信息分析与风险识别' },
+                { icon: '📜', title: '全程留痕', desc: '所有重要操作可追溯，保障规范透明' },
               ].map(item => (
                 <div key={item.title} className="text-center p-4">
                   <div className="text-3xl mb-3">{item.icon}</div>

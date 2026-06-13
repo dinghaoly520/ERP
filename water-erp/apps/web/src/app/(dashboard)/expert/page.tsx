@@ -41,10 +41,15 @@ export default function ExpertPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[oklch(0.18_0.012_265)]">专家管理</h1>
-          <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">管理评审专家库，查看专家评审记录与统计数据</p>
+          <div className="mb-2 inline-flex rounded-full border border-[#ddd6fe] bg-[#f5f3ff] px-3 py-1 text-xs font-semibold text-[#7c3aed]">专家管理中心</div>
+          <h1 className="text-2xl font-bold text-[#0f2f57]">专家管理中心</h1>
+          <p className="text-sm text-[#5a6d8a] mt-1">专家库、专家抽取/分配、回避关系、履职评价与参与项目记录</p>
+        </div>
+        <div className="flex gap-2">
+          <button className="rounded-xl border border-[#ddd6fe] bg-white px-4 py-2 text-sm font-semibold text-[#7c3aed] hover:bg-[#f5f3ff]">专家抽取</button>
+          <button className="rounded-xl bg-[#7c3aed] px-4 py-2 text-sm font-semibold text-white hover:bg-[#6d28d9]">新增专家</button>
         </div>
       </div>
 
@@ -66,6 +71,21 @@ export default function ExpertPage() {
         </button>
       </div>
 
+      <div className="bg-white rounded-2xl border border-[#e5ecf4] p-5 mb-6">
+        <h2 className="font-bold text-[#18243a]">专家管理流程</h2>
+        <p className="text-sm text-[#5a6d8a] mt-1 mb-4">专家入库 → 专家抽取 → 回避校验 → 评审履职 → 评价归档</p>
+        <div className="grid grid-cols-5 gap-3">
+          {[
+            '专家入库', '专家抽取', '回避校验', '评审履职', '评价归档'
+          ].map((label, index) => (
+            <div key={label} className="rounded-xl border border-[#e5ecf4] bg-[#f8fafc] p-4">
+              <div className="mb-2 flex h-7 w-7 items-center justify-center rounded-full bg-[#7c3aed] text-xs font-bold text-white">{index + 1}</div>
+              <div className="font-semibold text-[#18243a]">{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* 统计 */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-5">
@@ -79,11 +99,22 @@ export default function ExpertPage() {
           </p>
         </div>
         <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-5">
-          <p className="text-xs text-[oklch(0.55_0.01_264)] mb-1">已完成项目</p>
+          <p className="text-xs text-[oklch(0.55_0.01_264)] mb-1">履职完成</p>
           <p className="text-3xl font-bold text-[#11a874]">
             {experts.reduce((s, e) => s + e.bidExperts.filter(a => a.progress >= 100).length, 0)}
           </p>
         </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {['专家库', '专家抽取', '回避关系', '履职评价', '参与记录'].map((tab, index) => (
+          <button
+            key={tab}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${index === 0 ? 'bg-[#7c3aed] text-white shadow-[0_8px_20px_rgba(124,58,237,0.2)]' : 'bg-white text-[#5a6d8a] border border-[#e5ecf4] hover:text-[#7c3aed]'}`}
+          >
+            {tab}
+          </button>
+        ))}
       </div>
 
       {/* 专家列表 */}
@@ -133,6 +164,20 @@ export default function ExpertPage() {
                   <span>参与项目：{expert.bidExperts.length} 个</span>
                   <span>进行中：{activeProjects.length} 个</span>
                   <span>已完成：{completedProjects.length} 个</span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-lg bg-[#f8fafc] px-3 py-2">
+                    <span className="text-[#8a96aa]">可用状态</span>
+                    <div className="mt-1 font-semibold text-[#11a874]">可用</div>
+                  </div>
+                  <div className="rounded-lg bg-[#f8fafc] px-3 py-2">
+                    <span className="text-[#8a96aa]">履职评分</span>
+                    <div className="mt-1 font-semibold text-[#7c3aed]">良好</div>
+                  </div>
+                  <div className="rounded-lg bg-[#f8fafc] px-3 py-2">
+                    <span className="text-[#8a96aa]">回避提醒</span>
+                    <div className="mt-1 font-semibold text-[#5a6d8a]">无</div>
+                  </div>
                 </div>
               </div>
             );

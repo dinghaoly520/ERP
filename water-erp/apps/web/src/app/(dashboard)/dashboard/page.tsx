@@ -1,48 +1,51 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { User } from '@/lib/types';
+import { formatDateTime, numberOrZero, statusTone } from '@/lib/workbench';
 import {
-  ClipboardList, Building2, Users, Megaphone, ArrowUpRight,
-  Gavel, Star, ShoppingCart, Info, TrendingUp, AlertTriangle,
-  CheckCircle, Clock,
+  AlertTriangle, ArrowRight, BellRing, Building2, CheckCircle2,
+  Clock3, FileText, Megaphone, PlusCircle, ShieldAlert, Sparkles,
+  TrendingUp, UsersRound,
 } from 'lucide-react';
 
-interface DashboardStats {
-  totalProjects: number;
-  activeProjects: number;
-  totalSuppliers: number;
-  approvedSuppliers: number;
-  totalExperts: number;
-  totalAnnouncements: number;
-  stageDistribution: Record<string, number>;
-  recentActivity: { id: string; time: string; role: string; target: string; action: string; result: string; riskFlag: string }[];
-}
-
 interface SupplierStats {
-  total: number; pending: number; approved: number; disabled: number; blacklist: number;
+  total: number;
+  pending: number;
+  approved: number;
+  disabled: number;
+  blacklist: number;
 }
 
 interface AnnouncementStats {
-  total: number; published: number; bidNotice: number; winNotice: number; policy: number;
+  total: number;
+  published: number;
+  bidNotice: number;
+  winNotice: number;
+  policy: number;
 }
 
-const stageDefs: Record<string, { label: string; color: string }> = {
-  DOWNLOAD:    { label: '文件下载', color: 'oklch(0.50 0.12 195)' },
-  SUBMIT:      { label: '加密投递', color: 'oklch(0.42 0.14 260)' },
-  OPENING:     { label: '在线开标', color: 'oklch(0.64 0.16 82)' },
-  EVALUATING:  { label: '专家评标', color: 'oklch(0.55 0.18 285)' },
-  ARCHIVED:    { label: '已归档', color: 'oklch(0.54 0.16 158)' },
-};
+interface ExpertAssignment {
+  id: string;
+  progress: number;
+  signedIn: boolean;
+  project?: { stage?: string };
+}
+
+interface ExpertItem {
+  id: string;
+  displayName: string;
+  bidExperts?: ExpertAssignment[];
+}
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [supplierStats, setSupplierStats] = useState<SupplierStats | null>(null);
   const [announcementStats, setAnnouncementStats] = useState<AnnouncementStats | null>(null);
+  const [experts, setExperts] = useState<ExpertItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,243 +54,166 @@ export default function DashboardPage() {
       .then(setUser);
 
     Promise.all([
-      api.get<DashboardStats>('/bid/dashboard-stats').catch(() => null),
       api.get<SupplierStats>('/supplier/stats').catch(() => null),
       api.get<AnnouncementStats>('/announcements/stats').catch(() => null),
-    ]).then(([ds, ss, as]) => {
-      setStats(ds);
+      api.get<ExpertItem[]>('/expert-admin').catch(() => []),
+    ]).then(([ss, as, expertList]) => {
       setSupplierStats(ss);
       setAnnouncementStats(as);
+      setExperts(Array.isArray(expertList) ? expertList : []);
       setLoading(false);
     });
   }, []);
 
-  const statCards = [
-    { label: '招标项目', value: stats?.totalProjects ?? 0, sub: `${stats?.activeProjects ?? 0} 个进行中`, icon: ClipboardList, path: '/bid', color: '#064ea2' },
-    { label: '供应商库', value: supplierStats?.total ?? stats?.totalSuppliers ?? 0, sub: `${supplierStats?.approved ?? stats?.approvedSuppliers ?? 0} 家已入库`, icon: Building2, path: '/supplier', color: '#11a874' },
-    { label: '评审专家', value: stats?.totalExperts ?? 0, sub: '参与评标', icon: Users, path: '/bid', color: '#0891b2' },
-    { label: '信息公告', value: announcementStats?.total ?? stats?.totalAnnouncements ?? 0, sub: `${announcementStats?.published ?? 0} 条已发布`, icon: Megaphone, path: '/notice', color: '#f5a623' },
+  const expertActiveCount = useMemo(() => experts.reduce((sum, expert) => {
+    return sum + (expert.bidExperts || []).filter(item => item.project?.stage !== 'ARCHIVED').length;
+  }, 0), [experts]);
+
+  const expertUnfinishedCount = useMemo(() => experts.reduce((sum, expert) => {
+    return sum + (expert.bidExperts || []).filter(item => numberOrZero(item.progress) < 100).length;
+  }, 0), [experts]);
+
+  const pendingSuppliers = numberOrZero(supplierStats?.pending);
+  const announcementDraftLike = Math.max(numberOrZero(announcementStats?.total) - numberOrZero(announcementStats?.published), 0);
+  const supplierRisk = numberOrZero(supplierStats?.disabled) + numberOrZero(supplierStats?.blacklist);
+  const totalTodos = pendingSuppliers + announcementDraftLike + expertUnfinishedCount;
+  const alertCount = supplierRisk + (expertUnfinishedCount > 0 ? 1 : 0);
+
+  const metricCards = [
+    { label: '今日待办', value: totalTodos, hint: '三大中心待处理事项', icon: BellRing, tone: statusTone.blue },
+    { label: '待发布/待审核信息', value: announcementDraftLike, hint: '草稿、待发布、未发布信息', icon: Megaphone, tone: statusTone.orange },
+    { label: '待审供应商', value: pendingSuppliers, hint: '注册入库审核', icon: Building2, tone: statusTone.green },
+    { label: '专家待处理事项', value: expertUnfinishedCount, hint: '履职、分配、评价事项', icon: UsersRound, tone: statusTone.purple },
+    { label: '风险预警', value: alertCount, hint: '异常供应商与专家提醒', icon: ShieldAlert, tone: statusTone.red },
+  ];
+
+  const todoItems = [
+    { type: '信息发布', title: `${announcementDraftLike} 条信息需要完善或发布`, desc: '检查草稿、待发布和发布状态', path: '/notice', tone: statusTone.orange },
+    { type: '供应商审核', title: `${pendingSuppliers} 家供应商等待审核`, desc: '处理注册资料、资质文件和入库状态', path: '/supplier', tone: statusTone.green },
+    { type: '专家管理', title: `${expertUnfinishedCount} 项专家事项待跟进`, desc: '关注专家分配、回避和履职评价', path: '/expert', tone: statusTone.purple },
+  ];
+
+  const centerCards = [
+    { title: '信息发布中心', desc: '公告、公示、政策制度、草稿与发布记录', path: '/notice', icon: Megaphone, tone: statusTone.blue, action: '进入发布中心' },
+    { title: '供应商管理中心', desc: '供应商审核、供应商库、评价、变更和黑名单', path: '/supplier', icon: Building2, tone: statusTone.green, action: '处理供应商' },
+    { title: '专家管理中心', desc: '专家库、抽取分配、回避关系、履职评价', path: '/expert', icon: UsersRound, tone: statusTone.purple, action: '管理专家' },
   ];
 
   return (
-    <div>
-      {/* ── 品牌欢迎横幅 ── */}
-      <div className="mb-8 bg-gradient-to-r from-[#064ea2] to-[#0891b2] rounded-xl p-6 text-white flex items-center gap-5">
-        <img src="/assets/logo.jpg" alt="四川水发集团" className="w-14 h-14 rounded-xl object-cover border-2 border-white/30 flex-shrink-0" />
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-1">
-            <span className="text-[11px] font-semibold bg-white/20 px-2.5 py-0.5 rounded tracking-wider uppercase">Overview</span>
-            <TrendingUp size={12} strokeWidth={1.5} className="opacity-60" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">欢迎回来，{user?.displayName || '管理员'}</h1>
-          <p className="text-sm text-white/70 mt-0.5">四川水发集团 · 智慧水发招采ERP管理平台</p>
-        </div>
-      </div>
-
-      {/* ── Stat cards ── */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
-        {statCards.map(card => (
-          <div
-            key={card.label}
-            onClick={() => router.push(card.path)}
-            className="bg-white rounded-xl border border-[#e5ecf4] p-5 cursor-pointer hover:shadow-md transition-all group"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-[11px] font-semibold text-[#8a96aa] uppercase tracking-wider">{card.label}</span>
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: card.color + '18' }}>
-                <card.icon size={16} strokeWidth={1.5} style={{ color: card.color }} />
-              </div>
+    <div className="min-h-full space-y-6 bg-[radial-gradient(circle_at_top_left,rgba(14,98,208,0.10),transparent_34%),linear-gradient(180deg,#f7fbff_0%,#f8fafc_100%)]">
+      <section className="overflow-hidden rounded-2xl border border-[#dbeafe] bg-white/85 p-6 shadow-[0_18px_60px_rgba(15,47,87,0.08)] backdrop-blur">
+        <div className="flex items-start justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#064ea2] text-white shadow-[0_12px_30px_rgba(6,78,162,0.28)]">
+              <Sparkles size={26} strokeWidth={1.6} />
             </div>
-            {loading ? (
-              <div className="h-8 w-16 bg-[#f0f3f8] animate-pulse rounded" />
-            ) : (
-              <>
-                <div className="text-[2rem] font-bold text-[#18243a] tracking-tight">{card.value}</div>
-                <div className="text-[11px] text-[#8a96aa] mt-1 flex items-center gap-1">
-                  {card.sub}
-                  <ArrowUpRight size={11} strokeWidth={1.5} className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: card.color }} />
-                </div>
-              </>
-            )}
+            <div>
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-3 py-1 text-xs font-semibold text-[#064ea2]">
+                <TrendingUp size={13} strokeWidth={1.6} /> 采购管理工作台
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight text-[#0f2f57]">欢迎回来，{user?.displayName || '管理员'}</h1>
+              <p className="mt-1 text-sm text-[#5a6d8a]">聚焦信息发布、供应商管理、专家管理，统一处理待办与风险。</p>
+            </div>
           </div>
+          <div className="flex gap-2">
+            <button onClick={() => router.push('/notice')} className="inline-flex items-center gap-2 rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-semibold text-white hover:bg-[#053f85]">
+              <PlusCircle size={16} /> 新建信息
+            </button>
+            <button onClick={() => router.push('/supplier')} className="inline-flex items-center gap-2 rounded-xl border border-[#dbeafe] bg-white px-4 py-2 text-sm font-semibold text-[#064ea2] hover:bg-[#eff6ff]">
+              处理待办 <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-5 gap-4">
+        {metricCards.map(card => (
+          <button key={card.label} onClick={() => router.push(card.label.includes('信息') ? '/notice' : card.label.includes('供应商') ? '/supplier' : card.label.includes('专家') ? '/expert' : '/dashboard')} className="group rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg" style={{ borderColor: card.tone.border }}>
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-xs font-semibold text-[#5a6d8a]">{card.label}</span>
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ color: card.tone.color, backgroundColor: card.tone.bg }}><card.icon size={18} strokeWidth={1.6} /></span>
+            </div>
+            <div className="text-3xl font-black tracking-tight text-[#18243a]">{loading ? '—' : card.value}</div>
+            <p className="mt-1 text-xs text-[#8a96aa]">{card.hint}</p>
+          </button>
         ))}
-      </div>
+      </section>
 
-      {/* ── Main grid ── */}
-      <div className="grid grid-cols-[1fr_340px] gap-6">
-        <div className="space-y-6">
-          {/* 项目阶段分布 */}
-          <div className="bg-white rounded-xl border border-[#e5ecf4] p-6">
-            <h2 className="text-[13px] font-semibold text-[#18243a] mb-5 tracking-tight">项目阶段分布</h2>
-            {loading ? (
-              <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-6 bg-[#f0f3f8] animate-pulse rounded" />)}
-              </div>
-            ) : stats ? (
-              <div className="space-y-2">
-                {Object.entries(stageDefs).map(([stage, def]) => {
-                  const count = stats.stageDistribution[stage] || 0;
-                  const total = stats.totalProjects || 1;
-                  const pct = Math.round((count / total) * 100);
-                  return (
-                    <div key={stage} className="flex items-center gap-4 group cursor-default">
-                      <span className="text-[12px] text-[#5a6d8a] w-[72px] flex-shrink-0">{def.label}</span>
-                      <div className="flex-1 h-6 bg-[#f7f9fc] rounded overflow-hidden relative">
-                        <div
-                          className="h-full transition-all duration-700 flex items-center px-2 rounded"
-                          style={{
-                            width: `${Math.max(pct, count > 0 ? 10 : 0)}%`,
-                            backgroundColor: def.color.replace(')', ' / 0.18)').replace('oklch(', 'oklch('),
-                          }}
-                        >
-                          {count > 0 && (
-                            <span className="text-[11px] font-bold" style={{ color: def.color }}>{count}</span>
-                          )}
-                        </div>
-                      </div>
-                      <span className="text-[12px] font-mono font-bold text-[#18243a] w-10 text-right">{pct}%</span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-[13px] text-[#8a96aa]">暂无数据</div>
-            )}
+      <section className="grid grid-cols-[1.45fr_0.95fr] gap-6">
+        <div className="rounded-2xl border border-[#e5ecf4] bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-[#18243a]">待办工作台</h2>
+              <p className="text-sm text-[#5a6d8a]">按业务中心聚合需要立即处理的事项</p>
+            </div>
+            <Clock3 className="text-[#8a96aa]" size={20} />
           </div>
-
-          {/* 供应商统计卡片（A 提供） */}
-          {supplierStats && (
-            <div className="bg-white rounded-xl border border-[#e5ecf4] p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-[13px] font-semibold text-[#18243a] tracking-tight">供应商概况</h2>
-                <button onClick={() => router.push('/supplier')} className="text-[12px] text-[#064ea2] hover:underline flex items-center gap-1">
-                  查看详情 <ArrowUpRight size={12} strokeWidth={1.5} />
-                </button>
-              </div>
-              <div className="grid grid-cols-4 gap-4">
-                {[
-                  { label: '供应商总数', value: supplierStats.total, color: '#18243a' },
-                  { label: '待审核', value: supplierStats.pending, color: '#f5a623' },
-                  { label: '已入库', value: supplierStats.approved, color: '#11a874' },
-                  { label: '异常/停用', value: supplierStats.disabled + supplierStats.blacklist, color: '#e74c3c' },
-                ].map(s => (
-                  <div key={s.label} className="text-center p-3 bg-[#f7f9fc] rounded-lg">
-                    <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
-                    <p className="text-[11px] text-[#8a96aa] mt-1">{s.label}</p>
+          <div className="space-y-3">
+            {todoItems.map(item => (
+              <button key={item.type} onClick={() => router.push(item.path)} className="w-full rounded-xl border p-4 text-left transition hover:bg-[#f8fbff]" style={{ borderColor: item.tone.border }}>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <span className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ color: item.tone.color, backgroundColor: item.tone.bg }}>{item.type}</span>
+                    <h3 className="mt-3 font-semibold text-[#18243a]">{item.title}</h3>
+                    <p className="mt-1 text-sm text-[#5a6d8a]">{item.desc}</p>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 监督动态 */}
-          <div className="bg-white rounded-xl border border-[#e5ecf4] p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[13px] font-semibold text-[#18243a] tracking-tight">监督动态</h2>
-              <button onClick={() => router.push('/bid')}
-                className="flex items-center gap-1 text-[12px] text-[#064ea2] hover:underline font-medium">
-                查看全部 <ArrowUpRight size={12} strokeWidth={1.5} />
-              </button>
-            </div>
-            {!stats?.recentActivity?.length ? (
-              <div className="text-center py-8 text-[13px] text-[#8a96aa]">暂无动态</div>
-            ) : (
-              <div className="space-y-0">
-                {stats.recentActivity.map((log, i) => {
-                  const isRisk = log.riskFlag && log.riskFlag !== '无';
-                  const isSuccess = log.result === '成功';
-                  return (
-                    <div key={log.id} className={`flex items-center gap-3 py-2.5 ${i === 0 ? '' : 'border-t border-[#f0f3f8]'}`}>
-                      <div className={`w-1.5 h-1.5 flex-shrink-0 rounded-full ${isRisk ? 'bg-[#e74c3c]' : isSuccess ? 'bg-[#11a874]' : 'bg-[#f5a623]'}`} />
-                      <span className="text-[13px] text-[#18243a] flex-1 min-w-0 truncate">{log.action}</span>
-                      <span className="text-[11px] text-[#8a96aa] flex-shrink-0">{log.role}</span>
-                      <span className="flex-shrink-0">
-                        {isRisk ? <AlertTriangle size={12} strokeWidth={1.5} className="text-[#e74c3c]" /> : isSuccess ? <CheckCircle size={12} strokeWidth={1.5} className="text-[#11a874]" /> : <Clock size={12} strokeWidth={1.5} className="text-[#f5a623]" />}
-                      </span>
-                      <span className="text-[11px] text-[#8a96aa] w-16 text-right font-mono flex-shrink-0">
-                        {new Date(log.time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right sidebar */}
-        <div className="space-y-4">
-          {/* Quick actions */}
-          <div className="bg-white rounded-xl border border-[#e5ecf4] p-5">
-            <h3 className="text-[11px] font-semibold text-[#8a96aa] uppercase tracking-widest mb-4">快捷操作</h3>
-            <div className="space-y-1">
-              {[
-                { label: '开评标管理', sub: '在线开标 · 评审', icon: Gavel, path: '/bid' },
-                { label: '供应商管理', sub: '审核 · 入库 · 评价', icon: Building2, path: '/supplier' },
-                { label: '发布公告', sub: '招标公告 · 中标公示', icon: Megaphone, path: '/notice' },
-                { label: '采购管理', sub: '立项 · 审批 · 归档', icon: ClipboardList, path: '/procurement' },
-                { label: '评价管理', sub: '评分 · 统计 · 分析', icon: Star, path: '/evaluation' },
-                { label: '电子商城', sub: '商品目录 · 采购', icon: ShoppingCart, path: '/mall' },
-              ].map(action => (
-                <button
-                  key={action.path}
-                  onClick={() => router.push(action.path)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#f7f9fc] rounded-lg transition-colors text-left group"
-                >
-                  <action.icon size={15} strokeWidth={1.5} className="text-[#8a96aa] group-hover:text-[#064ea2] flex-shrink-0 transition-colors" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-medium text-[#18243a]">{action.label}</div>
-                    <div className="text-[11px] text-[#8a96aa]">{action.sub}</div>
-                  </div>
-                  <ArrowUpRight size={12} strokeWidth={1.5} className="text-[#ccc] group-hover:text-[#064ea2] opacity-0 group-hover:opacity-100 transition-all" />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* System info */}
-          <div className="bg-[#f7f9fc] rounded-xl border border-[#e5ecf4] p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <img src="/assets/logo.jpg" alt="四川水发" className="w-7 h-7 rounded-lg object-cover" />
-              <h3 className="text-[11px] font-semibold text-[#8a96aa] uppercase tracking-widest">系统概况</h3>
-            </div>
-            <div className="space-y-2.5">
-              {[
-                { label: '平台名称', value: '智慧水发·蜀水云采' },
-                { label: '版本', value: 'v2.0.0' },
-                { label: '本月项目', value: `${stats?.totalProjects ?? 0} 个` },
-                { label: '数据更新', value: new Date().toLocaleString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) },
-              ].map(item => (
-                <div key={item.label} className="flex items-center justify-between">
-                  <span className="text-[12px] text-[#8a96aa]">{item.label}</span>
-                  <span className="text-[12px] font-medium text-[#18243a]">{item.value}</span>
+                  <ArrowRight className="text-[#8a96aa]" size={18} />
                 </div>
-              ))}
-            </div>
+              </button>
+            ))}
           </div>
+        </div>
 
-          {/* Operation guide */}
-          <div className="bg-white rounded-xl border border-[#e5ecf4] p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Info size={14} strokeWidth={1.5} className="text-[#8a96aa]" />
-              <h3 className="text-[11px] font-semibold text-[#8a96aa] uppercase tracking-widest">操作指引</h3>
+        <div className="rounded-2xl border border-[#fee2e2] bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-[#18243a]">风险与预警</h2>
+              <p className="text-sm text-[#5a6d8a]">异常供应商、发布异常和专家履职提醒</p>
             </div>
-            <div className="space-y-2.5">
-              {[
-                '开评标管理中控制招标全流程',
-                '供应商注册后需管理员审核入库',
-                '专家通过独立工作站进行评审',
-                '所有操作全程留痕接受监督审计',
-              ].map((text, i) => (
-                <p key={i} className="text-[12px] text-[#5a6d8a] leading-relaxed flex items-start gap-2">
-                  <span className="text-[11px] font-mono text-[#ccc] flex-shrink-0 mt-px">{String(i + 1).padStart(2, '0')}</span>
-                  {text}
-                </p>
-              ))}
+            <AlertTriangle className="text-[#e74c3c]" size={20} />
+          </div>
+          <div className="space-y-3">
+            <div className="rounded-xl border border-[#fed7aa] bg-[#fff7ed] p-4">
+              <div className="font-semibold text-[#9a3412]">异常/黑名单供应商</div>
+              <p className="mt-1 text-sm text-[#9a3412]/75">当前 {supplierRisk} 家供应商处于停用或黑名单状态。</p>
+            </div>
+            <div className="rounded-xl border border-[#ddd6fe] bg-[#f5f3ff] p-4">
+              <div className="font-semibold text-[#5b21b6]">专家履职提醒</div>
+              <p className="mt-1 text-sm text-[#5b21b6]/75">{expertUnfinishedCount} 项专家事项未完成，请及时跟进。</p>
+            </div>
+            <div className="rounded-xl border border-[#bfdbfe] bg-[#eff6ff] p-4">
+              <div className="font-semibold text-[#064ea2]">数据更新时间</div>
+              <p className="mt-1 text-sm text-[#064ea2]/75">{formatDateTime(new Date())}</p>
             </div>
           </div>
         </div>
-      </div>
+      </section>
+
+      <section className="grid grid-cols-3 gap-4">
+        {centerCards.map(card => (
+          <button key={card.title} onClick={() => router.push(card.path)} className="rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg" style={{ borderColor: card.tone.border }}>
+            <div className="mb-4 flex items-center justify-between">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl" style={{ color: card.tone.color, backgroundColor: card.tone.bg }}><card.icon size={22} strokeWidth={1.6} /></span>
+              <ArrowRight className="text-[#8a96aa]" size={18} />
+            </div>
+            <h3 className="text-lg font-bold text-[#18243a]">{card.title}</h3>
+            <p className="mt-2 min-h-[40px] text-sm leading-5 text-[#5a6d8a]">{card.desc}</p>
+            <div className="mt-4 text-sm font-semibold" style={{ color: card.tone.color }}>{card.action}</div>
+          </button>
+        ))}
+      </section>
+
+      <section className="rounded-2xl border border-[#e5ecf4] bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-[#18243a]">最近动态</h2>
+          <CheckCircle2 className="text-[#11a874]" size={20} />
+        </div>
+        <div className="grid grid-cols-3 gap-4 text-sm">
+          <div className="rounded-xl bg-[#f8fafc] p-4"><span className="font-semibold text-[#18243a]">发布动态</span><p className="mt-1 text-[#5a6d8a]">已发布 {numberOrZero(announcementStats?.published)} 条信息</p></div>
+          <div className="rounded-xl bg-[#f8fafc] p-4"><span className="font-semibold text-[#18243a]">供应商动态</span><p className="mt-1 text-[#5a6d8a]">已入库 {numberOrZero(supplierStats?.approved)} 家供应商</p></div>
+          <div className="rounded-xl bg-[#f8fafc] p-4"><span className="font-semibold text-[#18243a]">专家动态</span><p className="mt-1 text-[#5a6d8a]">当前 {expertActiveCount} 项专家参与记录</p></div>
+        </div>
+      </section>
     </div>
   );
 }
