@@ -8,6 +8,9 @@ const api = axios.create({
   timeout: 15000,
 })
 
+// 标记请求来源门户，后端据此读取对应门户的独立登录 cookie
+api.defaults.headers.common['X-Portal'] = 'supplier'
+
 // Response interceptor
 api.interceptors.response.use(
   (response) => response.data,

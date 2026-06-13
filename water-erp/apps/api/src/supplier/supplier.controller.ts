@@ -67,7 +67,7 @@ export class SupplierController {
 
   @Get('classifications')
   @UseGuards(AuthGuard)
-  @Roles('admin')
+  @Roles('admin', 'procurement_staff')
   @ApiOperation({ summary: '分类列表' })
   async listClassifications() {
     return this.supplierService.listClassifications();
@@ -75,7 +75,7 @@ export class SupplierController {
 
   @Post('classifications')
   @UseGuards(AuthGuard)
-  @Roles('admin')
+  @Roles('admin', 'procurement_staff')
   @ApiOperation({ summary: '创建分类' })
   async createClassification(@Body() dto: CreateClassificationDto) {
     return this.supplierService.createClassification(dto);
@@ -83,7 +83,7 @@ export class SupplierController {
 
   @Patch('classifications/:id')
   @UseGuards(AuthGuard)
-  @Roles('admin')
+  @Roles('admin', 'procurement_staff')
   @ApiOperation({ summary: '更新分类' })
   async updateClassification(@Param('id') id: string, @Body() dto: UpdateClassificationDto) {
     return this.supplierService.updateClassification(id, dto);
@@ -91,7 +91,7 @@ export class SupplierController {
 
   @Delete('classifications/:id')
   @UseGuards(AuthGuard)
-  @Roles('admin')
+  @Roles('admin', 'procurement_staff')
   @ApiOperation({ summary: '删除分类' })
   async deleteClassification(@Param('id') id: string) {
     return this.supplierService.deleteClassification(id);
@@ -127,7 +127,7 @@ export class SupplierController {
   }
 
   @Patch(':id/status')
-  @Roles('admin')
+  @Roles('admin', 'procurement_staff')
   @ApiOperation({ summary: '更新供应商状态（停用/黑名单）' })
   async updateStatus(
     @Param('id') id: string,

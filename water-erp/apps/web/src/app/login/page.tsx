@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 
 export default function ProcurementLoginPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ username: 'admin', password: 'admin123' });
+  const [form, setForm] = useState({ username: 'caigou', password: 'caigou@2026' });
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -18,7 +18,7 @@ export default function ProcurementLoginPage() {
     if (!form.username || !form.password) { toast.error('请输入用户名和密码'); return; }
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(form) });
+      const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Portal': 'web' }, credentials: 'include', body: JSON.stringify(form) });
       const data = await res.json();
       if (data.error) { toast.error(data.error); setLoading(false); return; }
       toast.success('登录成功'); router.push('/dashboard');

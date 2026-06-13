@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
+import { tokenFromRequest } from './portal-cookie';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -19,7 +20,7 @@ export class AuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const req = ctx.switchToHttp().getRequest<Request>();
-    const token = req.cookies?.token as string | undefined;
+    const token = tokenFromRequest(req);
     if (!token) throw new UnauthorizedException();
     try {
       const payload = await this.jwt.verifyAsync(token);

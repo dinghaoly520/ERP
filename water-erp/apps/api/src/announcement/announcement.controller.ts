@@ -72,7 +72,7 @@ export class AnnouncementController {
   }
 
   @Delete(':id')
-  @Roles('admin')
+  @Roles('admin', 'procurement_staff')
   @ApiOperation({ summary: '删除公告' })
   async remove(@Param('id') id: string) {
     return this.announcementService.remove(id);

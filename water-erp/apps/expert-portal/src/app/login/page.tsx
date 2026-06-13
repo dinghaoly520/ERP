@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 
 export default function ExpertLoginPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ username: 'wangjg', password: '123456' });
+  const [form, setForm] = useState({ username: 'wangjg', password: 'wangjg@2026' });
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -18,9 +18,9 @@ export default function ExpertLoginPage() {
     if (!form.username || !form.password) { toast.error('请输入用户名和密码'); return; }
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ username: form.username, password: form.password }) });
+      const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Portal': 'expert' }, credentials: 'include', body: JSON.stringify({ username: form.username, password: form.password }) });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as any).error || '登录失败'); }
-      const me = await fetch('/api/auth/me', { credentials: 'include' }).then(r => r.json());
+      const me = await fetch('/api/auth/me', { headers: { 'X-Portal': 'expert' }, credentials: 'include' }).then(r => r.json());
       if (me.role !== 'bid_expert') { toast.error('非专家账户，请使用专家账号登录'); setLoading(false); return; }
       toast.success('登录成功'); router.push('/');
     } catch (e: any) { toast.error(e.message || '登录失败'); }

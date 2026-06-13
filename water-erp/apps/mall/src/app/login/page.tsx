@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 
 export default function MallLoginPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ username: 'supplier1', password: '123456' });
+  const [form, setForm] = useState({ username: 'mall', password: 'mall@2026' });
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -20,7 +20,7 @@ export default function MallLoginPage() {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Portal': 'mall' },
         credentials: 'include',
         body: JSON.stringify(form),
       });

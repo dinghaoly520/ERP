@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const PORTAL = 'expert';
+const COOKIE = `token_${PORTAL}`;
+
 async function verifyToken(token: string): Promise<boolean> {
   try {
     const res = await fetch('http://localhost:4001/api/auth/me', {
-      headers: { Cookie: `token=${token}` },
+      headers: { Cookie: `${COOKIE}=${token}`, 'X-Portal': PORTAL },
     });
     return res.ok;
   } catch {
@@ -13,7 +16,7 @@ async function verifyToken(token: string): Promise<boolean> {
 }
 
 export default async function proxy(request: NextRequest) {
-  const token = request.cookies.get('token')?.value;
+  const token = request.cookies.get(COOKIE)?.value;
   const { pathname } = request.nextUrl;
 
   // Allow public assets without auth

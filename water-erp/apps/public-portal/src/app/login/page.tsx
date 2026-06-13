@@ -57,7 +57,7 @@ export default function LoginPage() {
           </div>
           <div className="mt-4 p-3 bg-[oklch(0.992_0.003_264)] rounded-lg border border-[oklch(0.91_0.006_264)] text-[10px] text-[oklch(0.55_0.01_264)]">
             <strong className="text-[oklch(0.18_0.012_265)]">测试账号：</strong>
-            admin/admin123 · supplier1/123456 · wangjg/123456
+            caigou/caigou@2026 (管理端) · supplier1/supplier1@2026 (供应商) · wangjg/wangjg@2026 (专家) · mall/mall@2026 (商城)
           </div>
         </div>
       </div>

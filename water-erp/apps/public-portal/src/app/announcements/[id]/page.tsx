@@ -38,8 +38,8 @@ export default function AnnouncementDetailPage() {
       <div className="text-5xl">📢</div>
       <p className="text-[#5a6d8a] font-semibold">未找到该公告</p>
       <button onClick={() => router.push('/announcements')}
-        className="h-10 px-5 border border-[#c5d3e8] text-[#064ea2] bg-white rounded-full text-[13px] font-semibold hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] active:scale-95 transition-all duration-200">
-        ← 返回公告列表
+        className="h-11 px-6 bg-[#064ea2] text-white rounded-full text-sm font-semibold hover:bg-[#084fb0] hover:shadow-[0_2px_12px_rgba(6,78,162,.35)] active:scale-95 transition-all duration-200">
+        返回公告列表
       </button>
     </div>
   );
@@ -59,12 +59,12 @@ export default function AnnouncementDetailPage() {
 
           <div className="flex items-center gap-3">
             <button onClick={() => router.push('/announcements')}
-              className="h-10 px-5 border border-[#d0dae8] text-[#5a6d8a] bg-white rounded-full text-[13px] font-semibold hover:border-[#064ea2] hover:text-[#064ea2] active:scale-95 transition-all duration-200">
-              ← 公告列表
+              className="h-11 px-6 border border-[#c5d3e8] text-[#064ea2] bg-white rounded-full text-sm font-semibold hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] hover:shadow-[0_2px_8px_rgba(6,78,162,.25)] active:scale-95 transition-all duration-200">
+              公告列表
             </button>
             <button onClick={() => router.push('/')}
-              className="h-10 px-5 border border-[#c5d3e8] text-[#064ea2] bg-white rounded-full text-[13px] font-semibold hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] hover:shadow-[0_2px_8px_rgba(6,78,162,.25)] active:scale-95 transition-all duration-200">
-              ← 返回首页
+              className="h-11 px-6 bg-[#064ea2] text-white rounded-full text-sm font-semibold hover:bg-[#084fb0] hover:shadow-[0_2px_12px_rgba(6,78,162,.35)] active:scale-95 transition-all duration-200">
+              返回首页
             </button>
           </div>
         </div>

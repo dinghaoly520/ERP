@@ -182,30 +182,54 @@ export default function HomePage() {
             <h1 className="text-[clamp(40px,3.6vw,62px)] font-black leading-[1.15] tracking-[0.10em] mb-5 hero-title">智慧水发·蜀水云采</h1>
             <p className="text-[clamp(16px,1.2vw,20px)] text-white/80 font-medium mb-12 max-w-xl">四川省水利发展集团统一招采门户 —— 阳光透明、合规高效的电子化招标采购平台</p>
             <div className="flex gap-4">
-              <button onClick={() => setModal('login')} className="hero-btn">
+              <button onClick={() => router.push('/procurement-portal')} className="hero-btn">
                 我要采购
-                <span className="hero-btn-arrow"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="8" x2="13" y2="8"/><polyline points="9 4 13 8 9 12"/></svg></span>
               </button>
-              <button onClick={() => router.push('/announcements')} className="hero-btn-outline">
+              <button onClick={() => router.push('/bidding-hall')} className="hero-btn-outline">
                 我要投标
-                <span className="hero-btn-arrow"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="8" x2="13" y2="8"/><polyline points="9 4 13 8 9 12"/></svg></span>
               </button>
             </div>
           </div>
         </section>
 
         {/* ═══════════════════ 快捷入口 ═══════════════════ */}
-<section className="relative z-10 py-8">
+        <section className="relative z-10 py-8 bg-white">
           <div className="px-[clamp(40px,4vw,72px)]">
             <div className="flex items-stretch">
               {features.map((f, idx) => (
                 <React.Fragment key={f.title}>
-                  <a href={f.href} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center gap-4 px-5 py-4 rounded-lg hover:bg-[#f5f8fc] transition-colors group">
-                    <div className="w-11 h-11 rounded-lg bg-[#eef3fb] flex items-center justify-center text-[#064ea2] shrink-0 group-hover:bg-[#064ea2] group-hover:text-white transition-colors" dangerouslySetInnerHTML={{ __html: SVG_ICONS[f.icon] }} />
-                    <div>
-                      <strong className="block text-[15px] font-bold text-[#1c2941]">{f.title}</strong>
-                      <span className="text-xs text-[#8a96aa]">{f.desc}</span>
+                  <a href={f.href} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 relative flex items-center gap-3.5 px-4 py-3.5 rounded-xl no-underline text-inherit overflow-hidden group"
+                    style={{ transition: 'transform 0.4s cubic-bezier(0.16,1,0.3,1), box-shadow 0.4s ease, background 0.3s ease' }}
+                    onMouseMove={e => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      e.currentTarget.style.setProperty('--glow-x', `${e.clientX - rect.left}px`);
+                      e.currentTarget.style.setProperty('--glow-y', `${e.clientY - rect.top}px`);
+                      e.currentTarget.style.transform = 'translateY(-3px)';
+                      e.currentTarget.style.background = 'linear-gradient(135deg,#f5f8fc,#eef3fb)';
+                      e.currentTarget.style.boxShadow = '0 8px 28px rgba(6,78,162,0.08),0 2px 8px rgba(6,78,162,0.04)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.transform = '';
+                      e.currentTarget.style.background = '';
+                      e.currentTarget.style.boxShadow = '';
+                    }}>
+                    {/* 悬停光晕 */}
+                    <div className="feature-card-glow" />
+                    {/* 图标 */}
+                    <div className="relative w-11 h-11 shrink-0">
+                      <div className="feature-icon-ring" />
+                      <div className="w-full h-full rounded-[10px] bg-[#eef3fb] text-[#064ea2] flex items-center justify-center group-hover:bg-[#064ea2] group-hover:text-white transition-all duration-300" dangerouslySetInnerHTML={{ __html: SVG_ICONS[f.icon] }} />
                     </div>
+                    {/* 文字 */}
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <strong className="text-[15px] font-bold text-[#1c2941] group-hover:text-[#064ea2] transition-colors whitespace-nowrap">{f.title}</strong>
+                      <span className="text-xs text-[#8a96aa] group-hover:text-[#5a7da8] transition-colors">{f.desc}</span>
+                    </div>
+                    {/* 右侧箭头指示 */}
+                    <span className="feature-card-arrow">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                   </a>
                   {idx < features.length - 1 && <div className="feature-divider" />}
                 </React.Fragment>
@@ -215,54 +239,89 @@ export default function HomePage() {
         </section>
 
         {/* ═══════════════════ 公告信息（主角）═══════════════════ */}
-        <section className="py-14 bg-white relative z-10">
-          <div className="px-[clamp(40px,4vw,72px)]">
+        <section className="announce-section relative z-10 overflow-hidden">
+          {/* 装饰背景 */}
+          <div className="announce-deco-grid" />
+          <div className="announce-deco-glow" />
+
+          <div className="relative z-10 px-[clamp(40px,4vw,72px)]">
+            {/* ── 标题栏 ── */}
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-5">
-                <h2 className="text-2xl font-black text-[#18243a]">公告</h2>
-                <div className="flex gap-2">
+                <div className="announce-title-group">
+                  <div className="announce-title-accent" />
+                  <h2 className="text-2xl font-black text-[#18243a]">公告</h2>
+                </div>
+                <div className="announce-tabs">
                   {announceData.map((tab, i) => (
                     <button key={tab.featured.tag} onClick={() => setAnnounceTab(i)}
-                      className="px-4 py-2 text-[13px] font-semibold rounded-lg transition-all duration-200 cursor-pointer min-h-[36px]"
-                      style={i === announceTab
-                        ? { color: '#fff', backgroundColor: tab.color }
-                        : { color: '#5a6d8a', backgroundColor: '#e8ecf2' }
-                      }>
+                      className={`announce-tab ${i === announceTab ? 'is-active' : ''}`}
+                      style={i === announceTab ? { '--tab-color': tab.color, color: '#fff', backgroundColor: tab.color } as React.CSSProperties : undefined}>
+                      <span className="announce-tab-dot" style={i === announceTab ? { backgroundColor: '#fff' } : { backgroundColor: tab.color }} />
                       {tab.featured.tag}
                     </button>
                   ))}
                 </div>
               </div>
-              <a href="/announcements" className="neu-link">全部公告 →</a>
+              <a href="/announcements" className="announce-view-all">
+                全部公告
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="announce-view-all-arrow"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </a>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* ── 内容网格 ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
               {/* Featured card — spans 2 cols */}
-              <a href={`/announcements/${announceData[announceTab].featured.id}`} className="lg:col-span-2 bg-white rounded-lg border border-[#e5ecf4] p-7 hover:shadow-md transition-shadow cursor-pointer block no-underline">
-                <div className="flex items-center gap-2.5 mb-4">
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded text-white" style={{ backgroundColor: announceData[announceTab].color }}>{announceData[announceTab].featured.tag}</span>
-                  <span className="text-xs text-[#999]">{announceData[announceTab].featured.date}</span>
-                  {announceData[announceTab].featured.urgent && <span className="text-xs font-semibold px-2.5 py-1 rounded bg-[#fff1f0] text-[#d43030]">重要</span>}
-                </div>
-                <h3 className="text-xl font-bold text-[#18243a] mb-3">{announceData[announceTab].featured.title}</h3>
-                <p className="text-sm text-[#666] mb-5 leading-relaxed">{announceData[announceTab].featured.desc}</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-6 text-xs">
-                    <span className="text-[#999]">项目编号 <span className="text-[#18243a] font-semibold ml-1">{announceData[announceTab].featured.code}</span></span>
-                    <span className="text-[#999]">{announceData[announceTab].deadlineLabel} <em className="not-italic text-[#d43030] font-bold ml-1">{announceData[announceTab].featured.deadline}</em></span>
+              <a href={`/announcements/${announceData[announceTab].featured.id}`}
+                className="announce-featured lg:col-span-2 group"
+                style={{ '--card-color': announceData[announceTab].color } as React.CSSProperties}>
+                <div className="announce-featured-border" />
+                <div className="announce-featured-inner">
+                  {/* 标签行 */}
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <span className="announce-tag" style={{ backgroundColor: announceData[announceTab].color }}>{announceData[announceTab].featured.tag}</span>
+                    <span className="text-xs text-[#999]">{announceData[announceTab].featured.date}</span>
+                    {announceData[announceTab].featured.urgent && (
+                      <span className="announce-tag-urgent">
+                        <span className="announce-tag-urgent-dot" />
+                        重要
+                      </span>
+                    )}
                   </div>
-                  <span className="neu-link shrink-0">查看详情 →</span>
+                  {/* 标题 */}
+                  <h3 className="announce-featured-title">{announceData[announceTab].featured.title}</h3>
+                  {/* 描述 */}
+                  <p className="announce-featured-desc">{announceData[announceTab].featured.desc}</p>
+                  {/* 底部元信息 */}
+                  <div className="flex items-center justify-between mt-auto">
+                    <div className="flex gap-6 text-xs">
+                      <span className="announce-meta">项目编号 <span className="announce-meta-val">{announceData[announceTab].featured.code}</span></span>
+                      <span className="announce-meta">{announceData[announceTab].deadlineLabel} <em className="announce-deadline">{announceData[announceTab].featured.deadline}</em></span>
+                    </div>
+                    <span className="announce-detail-btn">查看详情</span>
+                  </div>
                 </div>
               </a>
 
               {/* Side list — 1 col */}
-              <div className="bg-white rounded-lg border border-[#e5ecf4] divide-y divide-[#eef1f6]">
-                {announceData[announceTab].list.map((item) => (
-                  <a key={item.date} href={`/announcements/${item.id}`} className="flex flex-col gap-1.5 px-5 py-4 hover:bg-[#f9fafb] transition-colors group">
-                    <span className="text-xs text-[#aaa]">{item.date}</span>
-                    <span className="text-[15px] font-medium text-[#333] group-hover:text-[#064ea2] transition-colors leading-snug">{item.title}</span>
-                  </a>
-                ))}
+              <div className="announce-side">
+                <div className="announce-side-header">
+                  <span className="announce-side-title">最新公告</span>
+                  <span className="announce-side-count">{announceData[announceTab].list.length} 条</span>
+                </div>
+                <div className="announce-side-list">
+                  {announceData[announceTab].list.map((item, idx) => (
+                    <a key={item.date} href={`/announcements/${item.id}`}
+                      className="announce-side-item group"
+                      style={{ '--item-delay': `${idx * 60}ms` } as React.CSSProperties}>
+                      <div className="announce-side-item-rank">{String(idx + 1).padStart(2, '0')}</div>
+                      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                        <span className="text-xs text-[#aaa]">{item.date}</span>
+                        <span className="announce-side-item-title">{item.title}</span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -292,11 +351,10 @@ export default function HomePage() {
         </section>
       </main>
 
-      {/* ═══════════════════ Side Panel ═══════════════════ */}
-      <div className="fixed right-5 bottom-6 z-30 flex flex-col gap-2">
-        <button onClick={() => router.push('/login')} className="w-11 h-11 rounded-full bg-white text-[#064ea2] font-bold text-xs border border-[#d0dae8] shadow-sm hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] transition-colors">采购</button>
-        <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="w-11 h-11 rounded-full bg-white text-[#064ea2] font-bold text-xs border border-[#d0dae8] shadow-sm hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] transition-colors">↑</button>
-      </div>
+      {/* ═══════════════════ 置顶按钮 ═══════════════════ */}
+      <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="back-to-top">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+      </button>
 
       {/* ═══════════════════ Modal ═══════════════════ */}
       {modal && (
@@ -329,7 +387,7 @@ export default function HomePage() {
                     </button>
                     <button onClick={() => setModal(null)} className="h-[42px] px-6 border border-[#d2deed] text-[#526075] rounded font-bold text-sm hover:bg-[#f8fbff]">取消</button>
                   </div>
-                  <p className="text-xs text-[#8a9aaa] mt-2">测试: admin/admin123 · supplier1/123456</p>
+                  <p className="text-xs text-[#8a9aaa] mt-2">测试: caigou/caigou@2026 · supplier1/supplier1@2026 · wangjg/wangjg@2026</p>
                 </div>
               </>
             ) : (

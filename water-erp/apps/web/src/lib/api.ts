@@ -1,4 +1,5 @@
 const BASE = '/api';
+const PORTAL = 'web';
 
 export class ApiError extends Error {
   constructor(
@@ -12,7 +13,11 @@ export class ApiError extends Error {
 }
 
 async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { credentials: 'include', ...init });
+  const res = await fetch(`${BASE}${path}`, {
+    credentials: 'include',
+    ...init,
+    headers: { 'X-Portal': PORTAL, ...((init?.headers as Record<string, string>) || {}) },
+  });
   if (!res.ok) {
     let code = 'UNKNOWN';
     let message = `请求失败 (${res.status})`;

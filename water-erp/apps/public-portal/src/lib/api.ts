@@ -1,7 +1,12 @@
 const BASE = '/api';
+const PORTAL = 'public';
 
 async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { credentials: 'include', ...init });
+  const res = await fetch(`${BASE}${path}`, {
+    credentials: 'include',
+    ...init,
+    headers: { 'X-Portal': PORTAL, ...((init?.headers as Record<string, string>) || {}) },
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as any).error || `API ${res.status}`);

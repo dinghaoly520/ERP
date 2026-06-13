@@ -4,7 +4,7 @@
 
 /* ── 用户 & 认证 ── */
 
-export type AppRole = 'admin' | 'bid_host' | 'bid_expert' | 'supplier' | 'procurement_staff';
+export type AppRole = 'admin' | 'bid_host' | 'bid_expert' | 'supplier' | 'procurement_staff' | 'mall';
 export type SupplierStatus = 'PENDING' | 'RETURNED' | 'APPROVED' | 'REJECTED' | 'DISABLED' | 'BLACKLIST';
 export type ChangeStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED';

@@ -18,8 +18,8 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@water-erp/config": ["../../packages/config/src"],
-      "@water-erp/shared": ["../../packages/shared/src"]
+      "@water-erp/config": ["../../packages/config/dist"],
+      "@water-erp/shared": ["../../packages/shared/dist"]
     }
   },
   "ts-node": {

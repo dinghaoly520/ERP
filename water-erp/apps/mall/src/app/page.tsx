@@ -50,7 +50,7 @@ export default function MallPage() {
 
   // 未登录则跳转登录页
   useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'include' })
+    fetch('/api/auth/me', { headers: { 'X-Portal': 'mall' }, credentials: 'include' })
       .then(r => { if (!r.ok) router.push('/login'); })
       .catch(() => router.push('/login'));
   }, []);

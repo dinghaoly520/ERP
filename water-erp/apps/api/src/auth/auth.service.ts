@@ -38,6 +38,6 @@ export class AuthService {
 
   private issueToken(sub: string, username: string, role: string) {
     const access_token = this.jwt.sign({ sub, username, role });
-    return { access_token };
+    return { access_token, role };
   }
 }

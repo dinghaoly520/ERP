@@ -10,15 +10,17 @@ async function main() {
     create: { name: '采购中心', code: 'PROC' },
   });
 
-  await prisma.user.upsert({
-    where: { username: 'admin' },
+  // 采购管理端账号（web 门户）—— 原 admin 已移除
+  const webUser = await prisma.user.upsert({
+    where: { username: 'caigou' },
     update: {},
     create: {
-      username: 'admin',
-      displayName: '系统管理员',
-      passwordHash: hashSync('admin123', 10),
-      role: 'admin',
+      username: 'caigou',
+      displayName: '采购管理员',
+      passwordHash: hashSync('caigou@2026', 10),
+      role: 'procurement_staff',
       departmentId: dept.id,
+      email: 'caigou@scsdjt.com',
     },
   });
 
@@ -28,7 +30,7 @@ async function main() {
     create: {
       username: 'lizhuren',
       displayName: '李主任',
-      passwordHash: hashSync('123456', 10),
+      passwordHash: hashSync('lizhuren@2026', 10),
       role: 'bid_host',
       departmentId: dept.id,
     },
@@ -41,7 +43,7 @@ async function main() {
     create: {
       username: 'wangjg',
       displayName: '王建国',
-      passwordHash: hashSync('123456', 10),
+      passwordHash: hashSync('wangjg@2026', 10),
       role: 'bid_expert',
       departmentId: dept.id,
     },
@@ -53,7 +55,7 @@ async function main() {
     create: {
       username: 'liuxm',
       displayName: '刘晓梅',
-      passwordHash: hashSync('123456', 10),
+      passwordHash: hashSync('liuxm@2026', 10),
       role: 'bid_expert',
       departmentId: dept.id,
       email: 'liuxm@expert.com',
@@ -66,7 +68,7 @@ async function main() {
     create: {
       username: 'chenzq',
       displayName: '陈志强',
-      passwordHash: hashSync('123456', 10),
+      passwordHash: hashSync('chenzq@2026', 10),
       role: 'bid_expert',
       departmentId: dept.id,
       email: 'chenzq@expert.com',
@@ -153,9 +155,9 @@ async function main() {
 
   console.log(`Seeded: project ${project.projectCode}`);
 
-  // ── Seed announcements (15 announcements, content 500-1000 chars each) ──
+  // ── Seed announcements (10 announcements, content 500-1000 chars each) ──
   const announcements = await Promise.all([
-    // ── 招标公告 (BID_NOTICE) ──
+    // ── 招标公告 (BID_NOTICE) × 4 ──
     prisma.announcement.create({
       data: {
         title: '2026年度水利工程物资集中采购招标公告',
@@ -177,7 +179,7 @@ async function main() {
 <p>5. 本项目不接受联合体投标，不允许转包或分包。</p>
 <h3>三、报名时间及方式</h3>
 <p>报名时间：2026年5月20日至2026年6月5日（工作日9:00-17:00）</p>
-<p>报名方式：通过四川水发集团ERP供应商门户（supplier.scsdjt.com）在线报名</p>
+<p>报名方式：通过四川水发集团ERP供应商门户在线报名</p>
 <p>联系人：采购中心 李主任　电话：028-8888-0518</p>`,
         type: 'BID_NOTICE',
         status: 'PUBLISHED',
@@ -282,39 +284,7 @@ async function main() {
         viewCount: 278,
       },
     }),
-    prisma.announcement.create({
-      data: {
-        title: '四川水发集团总部办公楼物业管理服务招标公告',
-        content: `<h2>招标公告</h2>
-<p>四川水发集团总部办公楼物业管理服务项目，现面向社会公开招标，择优选择物业服务单位。</p>
-<h3>一、项目基本情况</h3>
-<p>项目名称：四川水发集团总部办公楼物业管理服务</p>
-<p>项目编号：BID-2026-0401</p>
-<p>采购方式：公开招标</p>
-<p>预算金额：人民币叁佰贰拾万元整/年（¥3,200,000.00/年），服务期3年</p>
-<p>服务对象：四川水发集团总部办公楼（含主楼、裙楼、地下停车场），建筑面积约28,000平方米</p>
-<p>服务期限：3年（合同一年一签，年度考核合格后自动续签）</p>
-<h3>二、服务范围</h3>
-<p>1. 综合客服：前台接待、会议服务、信件收发、来访登记等；</p>
-<p>2. 保洁服务：公共区域日常保洁、外墙清洗（每年2次）、石材养护、垃圾分类清运等；</p>
-<p>3. 设施设备维护：供配电系统、中央空调、电梯、消防系统、给排水系统的日常巡检和保养维修；</p>
-<p>4. 秩序维护：24小时安保巡逻、门禁管理、车辆引导、监控系统值守；</p>
-<p>5. 绿化养护：室内绿植养护、室外景观绿化养护，确保四季常青；</p>
-<p>6. 餐饮服务：员工食堂运营管理，满足每日300人次就餐需求。</p>
-<h3>三、资格要求</h3>
-<p>1. 具有独立法人资格，注册资金不低于200万元；</p>
-<p>2. 具备物业管理企业二级及以上资质；</p>
-<p>3. 近三年内有3个及以上同类办公楼物业管理项目业绩，单个项目面积不少于20,000平方米。</p>
-<h3>四、报名安排</h3>
-<p>报名时间：2026年4月1日至2026年4月20日　投标截止时间：2026年5月10日10:00</p>`,
-        type: 'BID_NOTICE',
-        status: 'PUBLISHED',
-        summary: '集团总部办公楼物业管理服务三年期公开招标',
-        publishDate: new Date('2026-04-01'),
-        viewCount: 198,
-      },
-    }),
-    // ── 中标公示 (WIN_NOTICE) ──
+    // ── 中标公示 (WIN_NOTICE) × 2 ──
     prisma.announcement.create({
       data: {
         title: '升钟水库灌区续建配套工程中标公示',
@@ -347,35 +317,6 @@ async function main() {
     }),
     prisma.announcement.create({
       data: {
-        title: '2026年度办公设备集中采购中标公示',
-        content: `<h2>中标候选人公示</h2>
-<p>项目编号：BID-2026-0310</p>
-<p>项目名称：2026年度办公设备集中采购</p>
-<p>招标方式：公开招标（最低评标价法）</p>
-<p>开标时间：2026年3月25日09:30</p>
-<p>公示期：2026年3月26日至2026年4月1日</p>
-<h3>中标候选人信息</h3>
-<p>第一中标候选人：成都诚信办公设备有限公司</p>
-<p>投标报价：¥1,856,000.00</p>
-<p>交货承诺：合同签订后15个工作日内完成全部交货及安装调试</p>
-<p>质保期：3年（上门服务，4小时响应，8小时到场）</p>
-<p>第二中标候选人：四川智远科技发展有限公司</p>
-<p>投标报价：¥1,920,000.00</p>
-<p>第三中标候选人：绵阳创新电子科技有限公司</p>
-<p>投标报价：¥1,975,000.00</p>
-<h3>采购内容</h3>
-<p>本次采购涵盖台式电脑（120台）、笔记本电脑（50台）、打印机（30台）、投影仪（10台）、会议系统（2套）等办公设备。要求所有设备均为原厂正品，提供原厂授权及售后服务承诺。</p>
-<h3>异议渠道</h3>
-<p>公示期内如有异议，请以书面形式提交至采购中心。联系电话：028-8888-0310。</p>`,
-        type: 'WIN_NOTICE',
-        status: 'PUBLISHED',
-        summary: '2026年度办公设备集中采购中标候选人公示',
-        publishDate: new Date('2026-03-26'),
-        viewCount: 156,
-      },
-    }),
-    prisma.announcement.create({
-      data: {
         title: '武引水库除险加固工程勘察设计中标公示',
         content: `<h2>中标候选人公示</h2>
 <p>项目编号：BID-2026-0415</p>
@@ -404,7 +345,7 @@ async function main() {
         viewCount: 267,
       },
     }),
-    // ── 政策法规 (POLICY) ──
+    // ── 政策法规 (POLICY) × 2 ──
     prisma.announcement.create({
       data: {
         title: '关于规范供应商注册及资质管理工作的通知',
@@ -457,29 +398,7 @@ async function main() {
         viewCount: 438,
       },
     }),
-    prisma.announcement.create({
-      data: {
-        title: '关于印发《四川水发集团采购管理办法（2026年修订）》的通知',
-        content: `<h2>关于印发《四川水发集团采购管理办法（2026年修订）》的通知</h2>
-<p>集团各部门、各全资及控股子公司：</p>
-<p>为进一步规范集团采购管理行为，提高采购效率，降低采购成本，防范采购风险，根据《中华人民共和国政府采购法》《中华人民共和国招标投标法》《四川省国有企业采购管理指引》等法律法规及规范性文件，结合集团实际情况和管理需要，对2024年版采购管理办法进行了全面修订。现将《四川水发集团采购管理办法（2026年修订）》印发给你们，请认真遵照执行。</p>
-<h3>本次修订主要内容</h3>
-<p>一、优化采购方式适用范围：明确了公开招标、邀请招标、竞争性磋商、竞争性谈判、单一来源采购、询价等六种采购方式的具体适用情形和审批权限；</p>
-<p>二、强化供应商管理：新增供应商分类分级管理、供应商动态评价、黑名单制度等内容，建立供应商全生命周期管理体系；</p>
-<p>三、完善评标专家管理：新增专家抽取"双随机"机制、专家履职评价制度，建立专家考核退出机制；</p>
-<p>四、加强信息化管理：明确所有采购活动须通过集团ERP系统进行全流程线上管理，实现采购过程可追溯、可审计；</p>
-<p>五、强化监督管理：新增采购后评价制度、供应商投诉处理机制，明确纪检审计部门的监督职责。</p>
-<h3>执行要求</h3>
-<p>各部门及子公司应于2026年6月30日前完成制度宣贯和培训工作，确保相关人员知悉并严格执行新办法的各项要求。执行中如有问题或建议，请及时反馈至采购中心。</p>
-<p>四川水发集团有限公司　2026年4月10日</p>`,
-        type: 'POLICY',
-        status: 'PUBLISHED',
-        summary: '印发2026年修订版采购管理办法的通知',
-        publishDate: new Date('2026-04-10'),
-        viewCount: 389,
-      },
-    }),
-    // ── 平台通知 (PLATFORM) ──
+    // ── 平台通知 (PLATFORM) × 2 ──
     prisma.announcement.create({
       data: {
         title: 'ERP供应商门户系统升级公告',
@@ -533,92 +452,6 @@ async function main() {
         viewCount: 456,
       },
     }),
-    prisma.announcement.create({
-      data: {
-        title: '系统维护公告：2026年6月15日例行维护',
-        content: `<h2>系统维护公告</h2>
-<p>尊敬的各位用户：</p>
-<p>为保障系统稳定运行和数据安全，四川水发集团ERP管理平台将于2026年6月15日（周日）进行例行维护升级。维护期间部分功能将暂时不可用，现将具体安排公告如下：</p>
-<h3>一、维护时间</h3>
-<p>2026年6月15日 00:00 - 06:00（共计6小时）</p>
-<h3>二、影响范围</h3>
-<p>1. 供应商门户（supplier.scsdjt.com）：暂停在线投标文件提交功能，浏览和查询功能不受影响；</p>
-<p>2. 专家评标系统：暂停在线评分提交功能，已提交的评分数据不受影响；</p>
-<p>3. 管理后台：暂停审批和流程操作功能，数据查询和统计功能正常使用；</p>
-<p>4. 公共信息门户：完全正常访问，不受维护影响。</p>
-<h3>三、维护内容</h3>
-<p>1. 数据库性能优化：对核心业务表进行索引优化和分区调整，提升查询效率；</p>
-<p>2. 安全补丁更新：修复近期发现的安全漏洞，升级SSL证书；</p>
-<p>3. 存储扩容：扩展文件存储空间，提升文件上传和下载速度；</p>
-<p>4. 备份策略优化：升级数据备份方案，缩短数据恢复时间目标（RTO）。</p>
-<h3>四、温馨提示</h3>
-<p>请各用户提前做好工作安排，避免在维护时段内进行重要业务操作。维护完成后系统将自动恢复，无需重新登录。如有紧急事务，请联系技术支持热线：028-8888-9999。</p>
-<p>给您带来不便，敬请谅解。　四川水发集团信息技术部　2026年6月10日</p>`,
-        type: 'PLATFORM',
-        status: 'PUBLISHED',
-        summary: '2026年6月15日ERP系统例行维护公告',
-        publishDate: new Date('2026-06-10'),
-        viewCount: 98,
-      },
-    }),
-    prisma.announcement.create({
-      data: {
-        title: '关于启用电子签章功能的通知',
-        content: `<h2>关于启用电子签章功能的通知</h2>
-<p>各供应商、评标专家、集团各部门：</p>
-<p>为进一步推进采购业务全流程电子化，提高合同签订效率，降低纸质文件管理成本，经集团研究决定，自2026年5月25日起正式启用电子签章功能。现将有关事项通知如下：</p>
-<h3>一、适用范围</h3>
-<p>1. 采购合同签署：集团与中标供应商之间的采购合同、框架协议等法律文件；</p>
-<p>2. 投标文件签署：供应商在线提交的投标文件中的签章页；</p>
-<p>3. 评标报告签署：评标专家对评标报告的在线确认和签章；</p>
-<p>4. 变更审批签署：供应商信息变更、合同变更等审批流程中的签章确认。</p>
-<h3>二、功能说明</h3>
-<p>1. 电子签章采用符合《中华人民共和国电子签名法》规定的可靠电子签名技术，具有与手写签名和盖章同等的法律效力；</p>
-<p>2. 每个签章操作均会生成唯一的时间戳和数字证书，确保文件防篡改、可验证；</p>
-<p>3. 已签章文件可在ERP系统中在线查看和下载PDF版本，支持验签功能。</p>
-<h3>三、使用方式</h3>
-<p>各用户须先完成实名认证，上传手持身份证照片和企业授权书（供应商）或身份证明材料（专家），经审核通过后开通电子签章权限。签章操作支持PC端和移动端，登录ERP系统后可在相应业务页面直接使用。</p>
-<h3>四、注意事项</h3>
-<p>电子签章是严肃的法律行为，请妥善保管登录账号和密码，因账号保管不善导致的签章行为由账号所有人承担责任。如发现账号异常，请立即联系技术支持：028-8888-9999。</p>
-<p>四川水发集团采购中心 信息技术部　2026年5月25日</p>`,
-        type: 'PLATFORM',
-        status: 'PUBLISHED',
-        summary: 'ERP系统电子签章功能正式启用通知',
-        publishDate: new Date('2026-05-25'),
-        viewCount: 367,
-      },
-    }),
-    // ── 招标计划预告 ──
-    prisma.announcement.create({
-      data: {
-        title: '2026年第三季度招标计划预告',
-        content: `<h2>2026年第三季度招标计划预告</h2>
-<p>各潜在投标人、供应商：</p>
-<p>为便于各供应商提前做好投标准备工作，现将四川水发集团2026年第三季度（7-9月）重点招标项目计划预告如下。具体招标时间及要求以正式发布的招标公告为准。</p>
-<h3>一、工程建设类</h3>
-<p>1. 大桥水库引水工程C1标段施工招标（预计7月中旬，预算约8,000万元）；</p>
-<p>2. 青衣江流域防洪治理工程（二期）（预计8月上旬，预算约5,500万元）；</p>
-<p>3. 黑龙滩水库除险加固工程（预计9月中旬，预算约3,200万元）。</p>
-<h3>二、设备物资类</h3>
-<p>1. 2026年下半年水利工程管材集中采购（预计7月下旬，预算约2,800万元）；</p>
-<p>2. 水文监测自动化设备采购（预计8月中旬，预算约1,200万元）；</p>
-<p>3. 办公家具及实验设备采购（预计9月上旬，预算约600万元）。</p>
-<h3>三、服务类</h3>
-<p>1. 2026年度工程监理服务框架协议招标（预计7月上旬，预算约500万元）；</p>
-<p>2. 集团信息安全等级保护测评及咨询（预计8月下旬，预算约150万元）；</p>
-<p>3. 法律顾问服务选聘（预计9月下旬，预算约80万元）。</p>
-<h3>四、说明事项</h3>
-<p>1. 以上项目计划和时间为初步安排，实际执行中可能根据项目进展情况进行调整；</p>
-<p>2. 各项目的具体招标范围、资格要求、时间安排等信息以正式发布的招标公告为准；</p>
-<p>3. 供应商可通过ERP系统订阅招标信息推送服务，第一时间获取招标动态。</p>
-<p>四川水发集团采购中心　2026年6月12日</p>`,
-        type: 'BID_NOTICE',
-        status: 'PUBLISHED',
-        summary: '2026年第三季度重点招标项目计划预告',
-        publishDate: new Date('2026-06-12'),
-        viewCount: 421,
-      },
-    }),
   ]);
 
   console.log(`Seeded: ${announcements.length} announcements`);
@@ -630,7 +463,7 @@ async function main() {
     create: {
       username: 'supplier1',
       displayName: '张经理',
-      passwordHash: hashSync('123456', 10),
+      passwordHash: hashSync('supplier1@2026', 10),
       role: 'supplier',
       isActive: true,
       email: 'zhang@chuanshui.com',
@@ -766,19 +599,16 @@ async function main() {
     },
   });
 
-  // ── Seed admin notifications ──
-  const adminUser = await prisma.user.findUnique({ where: { username: 'admin' } });
-  if (adminUser) {
-    await prisma.notification.createMany({
-      data: [
-        { userId: adminUser.id, type: 'SYSTEM', title: '系统升级完成', content: 'ERP管理平台已完成v2.0升级，新增专家工作台、供应商门户等功能模块。', link: '/dashboard' },
-        { userId: adminUser.id, type: 'SYSTEM', title: '新供应商注册待审核', content: '供应商"成都华西物资供应有限公司"提交了入库申请，请及时审核。', link: '/supplier' },
-        { userId: adminUser.id, type: 'SYSTEM', title: '评标进度提醒', content: '项目"2026年度水利工程物资集中采购"已有3位专家提交评分，当前进度85%。', link: '/bid' },
-        { userId: adminUser.id, type: 'SYSTEM', title: '供应商资质到期预警', content: '有2家供应商的资质证书将在30天内到期，请通知相关供应商及时更新。', link: '/supplier' },
-      ],
-      skipDuplicates: true,
-    });
-  }
+  // ── Seed 管理端通知（投递给采购管理端账号 caigou）──
+  await prisma.notification.createMany({
+    data: [
+      { userId: webUser.id, type: 'SYSTEM', title: '系统升级完成', content: 'ERP管理平台已完成v2.0升级，新增专家工作台、供应商门户等功能模块。', link: '/dashboard' },
+      { userId: webUser.id, type: 'SYSTEM', title: '新供应商注册待审核', content: '供应商"成都华西物资供应有限公司"提交了入库申请，请及时审核。', link: '/supplier' },
+      { userId: webUser.id, type: 'SYSTEM', title: '评标进度提醒', content: '项目"2026年度水利工程物资集中采购"已有3位专家提交评分，当前进度85%。', link: '/bid' },
+      { userId: webUser.id, type: 'SYSTEM', title: '供应商资质到期预警', content: '有2家供应商的资质证书将在30天内到期，请通知相关供应商及时更新。', link: '/supplier' },
+    ],
+    skipDuplicates: true,
+  });
 
   // ── Seed pending supplier for admin to review ──
   const pendingSupplierUser = await prisma.user.upsert({
@@ -787,7 +617,7 @@ async function main() {
     create: {
       username: 'supplier2',
       displayName: '赵总',
-      passwordHash: hashSync('123456', 10),
+      passwordHash: hashSync('supplier2@2026', 10),
       role: 'supplier',
       isActive: true,
       email: 'zhao@huaxi.com',
@@ -820,15 +650,26 @@ async function main() {
     },
   });
 
-  console.log('Seeded: admin notifications, expert users (liuxm, chenzq), pending supplier (supplier2 / 123456)');
-  console.log('\n  Available accounts:');
-  console.log('    admin / admin123       — 管理员');
-  console.log('    lizhuren / 123456      — 开标主持人');
-  console.log('    wangjg / 123456        — 专家·王建国');
-  console.log('    liuxm / 123456         — 专家·刘晓梅');
-  console.log('    chenzq / 123456        — 专家·陈志强');
-  console.log('    supplier1 / 123456     — 供应商(已入库)');
-  console.log('    supplier2 / 123456     — 供应商(待审核)');
+  // ── 电子商城账号（mall 门户）──
+  await prisma.user.upsert({
+    where: { username: 'mall' },
+    update: {},
+    create: {
+      username: 'mall',
+      displayName: '商城采购员',
+      passwordHash: hashSync('mall@2026', 10),
+      role: 'mall',
+      isActive: true,
+      email: 'mall@scsdjt.com',
+    },
+  });
+
+  console.log('Seeded: caigou/mall accounts, expert users, pending supplier');
+  console.log('\n  各门户独立账号（每端口需单独登录）:');
+  console.log('    [采购管理端 :3004]  caigou / caigou@2026    · lizhuren / lizhuren@2026');
+  console.log('    [供应商端  :3003]  supplier1 / supplier1@2026');
+  console.log('    [专家评标  :3005]  wangjg / wangjg@2026    · liuxm / liuxm@2026  · chenzq / chenzq@2026');
+  console.log('    [电子商城  :3002]  mall / mall@2026');
 }
 
 main()
