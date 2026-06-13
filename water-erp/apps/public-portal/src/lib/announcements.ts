@@ -1,5 +1,6 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    公告数据 — 首页、列表页、详情页共用
+   生产环境从后端 API 获取，开发/离线使用本地兜底数据
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 export interface AnnouncementItem {
@@ -24,6 +25,69 @@ export const ANNOUNCEMENT_TABS = [
   { key: 'POLICY', label: '政策法规', color: '#f5a623' },
   { key: 'PLATFORM', label: '平台通知', color: '#5a6d8a' },
 ];
+
+/* ── 类型→标签/颜色 映射 ── */
+const TYPE_META: Record<string, { tag: string; color: string }> = {
+  BID_NOTICE: { tag: '招标公告', color: '#064ea2' },
+  WIN_NOTICE: { tag: '中标公示', color: '#18a56c' },
+  POLICY:     { tag: '政策法规', color: '#f5a623' },
+  PLATFORM:   { tag: '平台通知', color: '#5a6d8a' },
+};
+
+/* ── 将后端 Announcement 转为前端 AnnouncementItem ── */
+function toAnnouncementItem(a: any): AnnouncementItem {
+  const meta = TYPE_META[a.type] ?? { tag: a.type, color: '#5a6d8a' };
+  const date = a.publishDate
+    ? new Date(a.publishDate).toISOString().slice(0, 10)
+    : new Date(a.createdAt).toISOString().slice(0, 10);
+
+  return {
+    id: a.id,
+    type: a.type,
+    tag: meta.tag,
+    color: meta.color,
+    date,
+    urgent: a.isTop ?? false,
+    title: a.title,
+    desc: a.summary || a.content?.slice(0, 120) || '',
+    code: a.relatedProjectCode || '',
+    deadlineLabel: a.type === 'WIN_NOTICE' ? '公示截止' : '报名截止',
+    deadline: '',
+    content: a.content || '',
+  };
+}
+
+/* ── API 获取公告列表 ── */
+export async function fetchPublicAnnouncements(params?: {
+  type?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: AnnouncementItem[]; total: number }> {
+  const sp = new URLSearchParams();
+  if (params?.type) sp.set('type', params.type);
+  if (params?.search) sp.set('search', params.search);
+  if (params?.page) sp.set('page', String(params.page));
+  if (params?.pageSize) sp.set('pageSize', String(params.pageSize));
+
+  const res = await fetch(`/api/announcements/public?${sp.toString()}`);
+  if (!res.ok) throw new Error(`公告加载失败 (${res.status})`);
+  const data = await res.json();
+  return {
+    items: (data.items || []).map(toAnnouncementItem),
+    total: data.total || 0,
+  };
+}
+
+/* ── API 获取公告详情 ── */
+export async function fetchPublicAnnouncement(id: string): Promise<AnnouncementItem> {
+  const res = await fetch(`/api/announcements/public/${id}`);
+  if (!res.ok) throw new Error(`公告加载失败 (${res.status})`);
+  const data = await res.json();
+  return toAnnouncementItem(data);
+}
+
+/* ── 本地兜底数据（API 不可用时使用） ── */
 
 export const ANNOUNCEMENTS: AnnouncementItem[] = [
   // ── 招标公告 ──

@@ -56,6 +56,50 @@ export class SupplierController {
     return this.supplierService.list({ status, classificationId, search, page, pageSize });
   }
 
+  // ─── 静态路由（必须在动态 :id 路由之前，否则会被吞掉）───
+
+  @Get('evaluations/stats')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'procurement_staff', 'leader')
+  @ApiOperation({ summary: '评价统计' })
+  async getEvaluationStats() {
+    return this.supplierService.getEvaluationStats();
+  }
+
+  @Get('classifications')
+  @UseGuards(AuthGuard)
+  @Roles('admin')
+  @ApiOperation({ summary: '分类列表' })
+  async listClassifications() {
+    return this.supplierService.listClassifications();
+  }
+
+  @Post('classifications')
+  @UseGuards(AuthGuard)
+  @Roles('admin')
+  @ApiOperation({ summary: '创建分类' })
+  async createClassification(@Body() dto: CreateClassificationDto) {
+    return this.supplierService.createClassification(dto);
+  }
+
+  @Patch('classifications/:id')
+  @UseGuards(AuthGuard)
+  @Roles('admin')
+  @ApiOperation({ summary: '更新分类' })
+  async updateClassification(@Param('id') id: string, @Body() dto: UpdateClassificationDto) {
+    return this.supplierService.updateClassification(id, dto);
+  }
+
+  @Delete('classifications/:id')
+  @UseGuards(AuthGuard)
+  @Roles('admin')
+  @ApiOperation({ summary: '删除分类' })
+  async deleteClassification(@Param('id') id: string) {
+    return this.supplierService.deleteClassification(id);
+  }
+
+  // ─── 动态路由 ───
+
   @Get(':id')
   @UseGuards(AuthGuard)
   @ApiOperation({ summary: '供应商详情' })
@@ -163,45 +207,5 @@ export class SupplierController {
   @ApiOperation({ summary: '发起评价' })
   async createEvaluation(@Param('id') id: string, @Body() dto: CreateEvaluationDto, @Request() req: any) {
     return this.supplierService.createEvaluation(id, req.user.sub, dto);
-  }
-
-  @Get('evaluations/stats')
-  @UseGuards(AuthGuard)
-  @Roles('admin', 'procurement_staff', 'leader')
-  @ApiOperation({ summary: '评价统计' })
-  async getEvaluationStats() {
-    return this.supplierService.getEvaluationStats();
-  }
-
-  @Get('classifications')
-  @UseGuards(AuthGuard)
-  @Roles('admin')
-  @ApiOperation({ summary: '分类列表' })
-  async listClassifications() {
-    return this.supplierService.listClassifications();
-  }
-
-  @Post('classifications')
-  @UseGuards(AuthGuard)
-  @Roles('admin')
-  @ApiOperation({ summary: '创建分类' })
-  async createClassification(@Body() dto: CreateClassificationDto) {
-    return this.supplierService.createClassification(dto);
-  }
-
-  @Patch('classifications/:id')
-  @UseGuards(AuthGuard)
-  @Roles('admin')
-  @ApiOperation({ summary: '更新分类' })
-  async updateClassification(@Param('id') id: string, @Body() dto: UpdateClassificationDto) {
-    return this.supplierService.updateClassification(id, dto);
-  }
-
-  @Delete('classifications/:id')
-  @UseGuards(AuthGuard)
-  @Roles('admin')
-  @ApiOperation({ summary: '删除分类' })
-  async deleteClassification(@Param('id') id: string) {
-    return this.supplierService.deleteClassification(id);
   }
 }

@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { landingURL } from '@water-erp/config';
-import { ANNOUNCEMENTS } from '@/lib/announcements';
+import { ANNOUNCEMENTS, fetchPublicAnnouncements, type AnnouncementItem } from '@/lib/announcements';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    智慧水发·蜀水云采 — Landing Page
@@ -30,18 +30,23 @@ export default function HomePage() {
   const [heroPrev, setHeroPrev] = useState(0);
   const [heroReady, setHeroReady] = useState(false);
   useEffect(() => {
-    // Preload all images upfront
+    let cancelled = false;
     let loaded = 0;
+    const done = () => { if (!cancelled && !heroReady) setHeroReady(true); };
+    // Preload all images; count both success and failure
     heroImages.forEach((src) => {
       const img = new Image();
+      img.onload = () => { loaded++; if (loaded === heroImages.length) done(); };
+      img.onerror = () => { loaded++; if (loaded === heroImages.length) done(); };
       img.src = `/assets/${src}`;
-      img.onload = () => { loaded++; if (loaded === heroImages.length) setHeroReady(true); };
     });
+    // Fallback: force ready after 3s even if preload hangs
+    const fallback = setTimeout(done, 3000);
     const t = setInterval(() => {
       setHeroPrev(i => i); // keep previous
       setHeroIdx(i => { setHeroPrev(i); return (i + 1) % heroImages.length; });
     }, 6000);
-    return () => clearInterval(t);
+    return () => { cancelled = true; clearTimeout(fallback); clearInterval(t); };
   }, []);
 
   const handleLogin = async () => {
@@ -74,18 +79,27 @@ export default function HomePage() {
     setRegLoading(false);
   };
 
-  // 从共享数据模块按类型分组
+  // 从后端 API 获取公告数据，失败时使用本地兜底
+  const [fetchedAnnouncements, setFetchedAnnouncements] = useState<AnnouncementItem[]>(ANNOUNCEMENTS);
+  useEffect(() => {
+    fetchPublicAnnouncements({ pageSize: 20 })
+      .then(data => { if (data.items.length > 0) setFetchedAnnouncements(data.items); })
+      .catch(() => { /* keep fallback */ });
+  }, []);
+
+  // 从数据按类型分组
   const typeGroups = ['BID_NOTICE', 'WIN_NOTICE', 'POLICY', 'PLATFORM'];
   const announceData = typeGroups.map(type => {
-    const items = ANNOUNCEMENTS.filter(a => a.type === type);
-    const first = items[0];
+    const items = fetchedAnnouncements.filter(a => a.type === type);
+    const first = items[0] || ANNOUNCEMENTS.find(a => a.type === type);
+    if (!first) return null;
     return {
       color: first.color,
       deadlineLabel: first.deadlineLabel,
       featured: { tag: first.tag, date: first.date, urgent: first.urgent, title: first.title, desc: first.desc, code: first.code, deadline: first.deadline, id: first.id },
       list: items.slice(1).map(a => ({ date: a.date.slice(5), title: a.title, id: a.id })),
     };
-  });
+  }).filter(Boolean) as { color: string; deadlineLabel: string; featured: { tag: string; date: string; urgent: boolean; title: string; desc: string; code: string; deadline: string; id: string }; list: { date: string; title: string; id: string }[] }[];
 
   const features = [
     { icon: 'file', title: '智慧水发·采购中心', desc: '采购文件编制、项目管理、AI协同', href: 'http://192.168.1.111:3001' },
@@ -111,7 +125,7 @@ export default function HomePage() {
           <a href="/" className="flex items-center gap-3 shrink-0">
             <img src="/assets/logo.jpg" alt="四川水发集团" className="h-14 w-auto object-contain" />
             <div className="flex flex-col gap-0">
-              <strong className="text-[#123a6e] text-3xl tracking-[0.14em] leading-tight whitespace-nowrap" style={{ fontFamily: '"SimHei","黑体",sans-serif', fontWeight: 900 }}>四川水发集团</strong>
+              <strong className="text-[#123a6e] text-3xl tracking-[0.14em] leading-tight whitespace-nowrap" style={{ fontFamily: '"SimHei","黑体","Heiti SC","STHeiti",sans-serif', fontWeight: 900, textShadow: '0 0 1px #123a6e, 0 0 1px #123a6e' }}>四川水发集团</strong>
               <small className="text-[7px] text-[#8a96aa] font-medium text-center whitespace-nowrap tracking-wide">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
             </div>
           </a>

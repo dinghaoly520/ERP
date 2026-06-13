@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
+import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 
 @Injectable()
 export class SupplierPortalService {
@@ -129,6 +130,11 @@ export class SupplierPortalService {
     if (!supplier) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
     if (supplier.userId !== userId) throw new ForbiddenException({ error: '无权操作', code: 'FORBIDDEN' });
     if (supplier.status !== 'APPROVED') throw new BadRequestException({ error: '只有已入库供应商可以提交变更', code: 'INVALID_STATUS' });
+
+    // 字段白名单校验
+    if (!isSupplierChangeAllowedField(dto.fieldName)) {
+      throw new BadRequestException({ error: '该字段不允许通过变更申请修改', code: 'FIELD_NOT_ALLOWED' });
+    }
 
     const oldValue = supplier[dto.fieldName as keyof typeof supplier] as string;
     return this.prisma.supplierChangeRecord.create({

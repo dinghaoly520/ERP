@@ -3,9 +3,11 @@ import {
   Post,
   Delete,
   Param,
+  Query,
   UseGuards,
   UseInterceptors,
   UploadedFile,
+  Request,
   BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
@@ -28,15 +30,22 @@ export class UploadController {
   @ApiBody({
     schema: {
       type: 'object',
-      properties: { file: { type: 'string', format: 'binary' } },
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        category: { type: 'string', description: '文件分类: qualification|bid_document|announcement|profile|general' },
+      },
     },
   })
   @ApiOperation({ summary: '上传文件' })
-  async upload(@UploadedFile() file: Express.Multer.File) {
+  async upload(
+    @UploadedFile() file: Express.Multer.File,
+    @Query('category') category: string = 'general',
+    @Request() req: any,
+  ) {
     if (!file) {
       throw new BadRequestException({ error: '请选择文件', code: 'NO_FILE' });
     }
-    return this.uploadService.upload(file);
+    return this.uploadService.upload(file, category, req.user?.sub);
   }
 
   @Delete(':key')

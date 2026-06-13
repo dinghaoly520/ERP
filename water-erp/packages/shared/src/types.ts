@@ -293,6 +293,20 @@ export interface Notification {
   createdAt: string;
 }
 
+/* ── 文件资产 ── */
+
+export interface FileAsset {
+  id: string;
+  key: string;
+  url: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  category: string;
+  sha256: string;
+  createdAt: string;
+}
+
 /* ── 驾驶舱统计 ── */
 
 export interface DashboardStats {

@@ -7,6 +7,7 @@ import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { CreateQualificationDto } from './dto/create-qualification.dto';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { CreateClassificationDto, UpdateClassificationDto } from './dto/create-classification.dto';
+import { isSupplierChangeAllowedField } from './supplier-change-fields';
 
 @Injectable()
 export class SupplierService {
@@ -41,50 +42,54 @@ export class SupplierService {
       throw new BadRequestException({ error: '用户名已存在', code: 'DUPLICATE_USERNAME' });
     }
 
-    // 创建用户和供应商
-    const user = await this.prisma.user.create({
-      data: {
-        username: dto.username,
-        displayName: dto.displayName,
-        email: dto.email,
-        passwordHash: hashSync(dto.password, 10),
-        role: 'supplier',
-        isActive: false, // 待审核后激活
-      },
-    });
+    // 创建用户和供应商 — 事务保证原子性
+    const { user, supplier } = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          username: dto.username,
+          displayName: dto.displayName,
+          email: dto.email,
+          passwordHash: hashSync(dto.password, 10),
+          role: 'supplier',
+          isActive: false, // 待审核后激活
+        },
+      });
 
-    const supplier = await this.prisma.supplier.create({
-      data: {
-        userId: user.id,
-        name: dto.name,
-        normalizedName,
-        creditCode: dto.creditCode,
-        enterpriseType: dto.enterpriseType,
-        legalPerson: dto.legalPerson,
-        registeredAddress: dto.registeredAddress,
-        businessScope: dto.businessScope,
-        contacts: {
-          create: dto.contacts.map(c => ({
-            name: c.name,
-            phone: c.phone,
-            email: c.email,
-            isPrimary: c.isPrimary,
-          })),
+      const supplier = await tx.supplier.create({
+        data: {
+          userId: user.id,
+          name: dto.name,
+          normalizedName,
+          creditCode: dto.creditCode,
+          enterpriseType: dto.enterpriseType,
+          legalPerson: dto.legalPerson,
+          registeredAddress: dto.registeredAddress,
+          businessScope: dto.businessScope,
+          contacts: {
+            create: dto.contacts.map(c => ({
+              name: c.name,
+              phone: c.phone,
+              email: c.email,
+              isPrimary: c.isPrimary,
+            })),
+          },
+          qualifications: {
+            create: dto.qualifications.map(q => ({
+              type: q.type,
+              name: q.name,
+              fileUrl: q.fileUrl,
+              validFrom: q.validFrom ? new Date(q.validFrom) : undefined,
+              validTo: q.validTo ? new Date(q.validTo) : undefined,
+            })),
+          },
         },
-        qualifications: {
-          create: dto.qualifications.map(q => ({
-            type: q.type,
-            name: q.name,
-            fileUrl: q.fileUrl,
-            validFrom: q.validFrom ? new Date(q.validFrom) : undefined,
-            validTo: q.validTo ? new Date(q.validTo) : undefined,
-          })),
+        include: {
+          contacts: true,
+          qualifications: true,
         },
-      },
-      include: {
-        contacts: true,
-        qualifications: true,
-      },
+      });
+
+      return { user, supplier };
     });
 
     return { user, supplier };
@@ -275,6 +280,11 @@ export class SupplierService {
       throw new ForbiddenException({ error: '只能提交自己的变更申请', code: 'FORBIDDEN' });
     }
 
+    // 字段白名单校验
+    if (!isSupplierChangeAllowedField(dto.fieldName)) {
+      throw new BadRequestException({ error: '该字段不允许通过变更申请修改', code: 'FIELD_NOT_ALLOWED' });
+    }
+
     // 获取旧值
     const oldValue = supplier[dto.fieldName as keyof typeof supplier] as string;
 
@@ -300,6 +310,11 @@ export class SupplierService {
     }
     if (change.status !== 'PENDING') {
       throw new BadRequestException({ error: '变更记录已处理', code: 'INVALID_STATUS' });
+    }
+
+    // 审批时再次校验白名单（不信任历史数据）
+    if (!isSupplierChangeAllowedField(change.fieldName)) {
+      throw new BadRequestException({ error: '该字段不允许通过变更申请修改', code: 'FIELD_NOT_ALLOWED' });
     }
 
     // 更新变更记录和供应商字段

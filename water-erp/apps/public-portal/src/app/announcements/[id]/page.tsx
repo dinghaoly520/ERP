@@ -1,13 +1,37 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ANNOUNCEMENTS } from '@/lib/announcements';
+import { fetchPublicAnnouncement, ANNOUNCEMENTS, type AnnouncementItem } from '@/lib/announcements';
 
 export default function AnnouncementDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
-  const item = ANNOUNCEMENTS.find(a => a.id === id);
+  const [item, setItem] = useState<AnnouncementItem | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublicAnnouncement(id)
+      .then(data => { if (!cancelled) setItem(data); })
+      .catch(() => {
+        // Fallback to local data
+        if (!cancelled) {
+          const found = ANNOUNCEMENTS.find(a => a.id === id) || null;
+          setItem(found);
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#f7f9fc] flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+      <div className="text-5xl">⏳</div>
+      <p className="text-[#5a6d8a] font-semibold">正在加载公告...</p>
+    </div>
+  );
 
   if (!item) return (
     <div className="min-h-screen bg-[#f7f9fc] flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
@@ -62,8 +86,7 @@ export default function AnnouncementDetailPage() {
             {/* 元信息 */}
             <div className="flex items-center gap-5 text-sm text-[#8a96aa] mb-6 pb-6 border-b border-[#e5ecf4]">
               <span>发布时间：{item.date}</span>
-              <span>编号：{item.code}</span>
-              <span>{item.deadlineLabel}：<em className="not-italic text-[#d43030] font-bold">{item.deadline}</em></span>
+              {item.code && <span>编号：{item.code}</span>}
             </div>
 
             {/* 正文 */}

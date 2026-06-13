@@ -1,19 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ANNOUNCEMENTS, ANNOUNCEMENT_TABS } from '@/lib/announcements';
+import { fetchPublicAnnouncements, ANNOUNCEMENT_TABS, ANNOUNCEMENTS, type AnnouncementItem } from '@/lib/announcements';
 
 export default function AnnouncementsPage() {
   const router = useRouter();
   const [type, setType] = useState('');
   const [search, setSearch] = useState('');
+  const [items, setItems] = useState<AnnouncementItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = ANNOUNCEMENTS.filter(a => {
-    const matchType = !type || a.type === type;
-    const matchSearch = !search || a.title.includes(search) || a.code.includes(search);
-    return matchType && matchSearch;
-  });
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchPublicAnnouncements({ type: type || undefined, search: search || undefined, pageSize: 100 })
+      .then(data => { if (!cancelled) setItems(data.items); })
+      .catch(() => {
+        // Fallback to local data
+        if (!cancelled) {
+          const filtered = ANNOUNCEMENTS.filter(a => {
+            const matchType = !type || a.type === type;
+            const matchSearch = !search || a.title.includes(search) || a.code.includes(search);
+            return matchType && matchSearch;
+          });
+          setItems(filtered);
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [type, search]);
 
   return (
     <div className="min-h-screen bg-[#f7f9fc]" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
@@ -70,7 +86,12 @@ export default function AnnouncementsPage() {
         </div>
 
         {/* 列表 */}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="bg-white rounded-2xl border border-[#e5ecf4] p-16 text-center">
+            <div className="text-5xl mb-4">⏳</div>
+            <p className="text-[#5a6d8a] font-semibold">正在加载公告...</p>
+          </div>
+        ) : items.length === 0 ? (
           <div className="bg-white rounded-2xl border border-[#e5ecf4] p-16 text-center">
             <div className="text-5xl mb-4">📢</div>
             <p className="text-[#5a6d8a] font-semibold mb-1">暂无相关公告</p>
@@ -78,7 +99,7 @@ export default function AnnouncementsPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {filtered.map(a => (
+            {items.map(a => (
               <div key={a.id} onClick={() => router.push(`/announcements/${a.id}`)}
                 className="bg-white rounded-2xl border border-[#e5ecf4] p-5 hover:border-[#064ea240] hover:shadow-md transition-all cursor-pointer">
                 <div className="flex items-center gap-3 mb-2">
@@ -89,8 +110,7 @@ export default function AnnouncementsPage() {
                 <p className="text-xs text-[#5a6d8a] ml-1 mb-2 line-clamp-2">{a.desc}</p>
                 <div className="flex items-center gap-4 text-xs text-[#8a96aa] ml-1">
                   <span>{a.date}</span>
-                  <span>编号：{a.code}</span>
-                  <span>{a.deadlineLabel}：{a.deadline}</span>
+                  {a.code && <span>编号：{a.code}</span>}
                 </div>
               </div>
             ))}

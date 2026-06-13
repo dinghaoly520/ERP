@@ -35,6 +35,7 @@ model User {
   notifications       Notification[]
   supplierEvaluations SupplierEvaluation[]
   bidExperts          BidExpert[]
+  uploadedFiles       FileAsset[]
 }
 
 // ── 开评标 ──
@@ -440,4 +441,24 @@ model SupplierBidSubmission {
   @@unique([supplierId, projectId])
   @@index([supplierId])
   @@index([projectId])
+}
+
+// ── 文件资产 ──
+
+model FileAsset {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  originalName String
+  mimeType     String
+  size         Int
+  sha256       String
+  category     String
+  uploaderId   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  uploader User? @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([uploaderId])
 }
