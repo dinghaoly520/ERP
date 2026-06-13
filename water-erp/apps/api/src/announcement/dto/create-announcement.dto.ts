@@ -13,6 +13,9 @@ export class CreateAnnouncementDto {
   @IsString() @IsOptional()
   summary?: string;
 
+  @IsString() @IsOptional()
+  aiSummary?: string;
+
   @IsDateString() @IsOptional()
   publishDate?: string;
 
@@ -35,6 +38,9 @@ export class UpdateAnnouncementDto {
 
   @IsString() @IsOptional()
   summary?: string;
+
+  @IsString() @IsOptional()
+  aiSummary?: string;
 
   @IsString() @IsOptional()
   status?: string;

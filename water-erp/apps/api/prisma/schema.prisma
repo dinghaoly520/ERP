@@ -407,6 +407,7 @@ model Announcement {
   id                 String             @id @default(cuid())
   title              String
   content            String
+  aiSummary          String?
   type               AnnouncementType   @default(BID_NOTICE)
   status             AnnouncementStatus @default(DRAFT)
   summary            String?

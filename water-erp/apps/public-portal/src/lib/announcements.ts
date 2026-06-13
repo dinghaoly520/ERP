@@ -16,6 +16,7 @@ export interface AnnouncementItem {
   deadlineLabel: string;
   deadline: string;
   content: string;
+  aiSummary?: string;
 }
 
 export const ANNOUNCEMENT_TABS = [
@@ -49,11 +50,12 @@ function toAnnouncementItem(a: any): AnnouncementItem {
     date,
     urgent: a.isTop ?? false,
     title: a.title,
-    desc: a.summary || a.content?.slice(0, 120) || '',
+    desc: a.aiSummary || a.summary || a.content?.slice(0, 120) || '',
     code: a.relatedProjectCode || '',
     deadlineLabel: a.type === 'WIN_NOTICE' ? '公示截止' : '报名截止',
     deadline: '',
     content: a.content || '',
+    aiSummary: a.aiSummary || undefined,
   };
 }
 

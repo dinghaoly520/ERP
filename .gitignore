@@ -4,6 +4,9 @@ dist/
 *.docx
 *.pptx
 .env
+.env*
+!.env.example
+!.env*.example
 .DS_Store
 .claude/
 .superpowers/

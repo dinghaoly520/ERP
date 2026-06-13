@@ -83,7 +83,7 @@ export default function HomePage() {
   const typeGroups = ['BID_NOTICE', 'WIN_NOTICE', 'POLICY', 'PLATFORM'];
   const [fetchedAnnouncements, setFetchedAnnouncements] = useState<AnnouncementItem[]>(ANNOUNCEMENTS);
   useEffect(() => {
-    Promise.all(typeGroups.map(type => fetchPublicAnnouncements({ type, pageSize: 12 })))
+    Promise.all(typeGroups.map(type => fetchPublicAnnouncements({ type, pageSize: 5 })))
       .then(results => {
         const items = results.flatMap(result => result.items);
         if (items.length > 0) setFetchedAnnouncements(items);
@@ -99,10 +99,10 @@ export default function HomePage() {
     return {
       color: first.color,
       deadlineLabel: first.deadlineLabel,
-      featured: { tag: first.tag, date: first.date, urgent: first.urgent, title: first.title, desc: first.desc, code: first.code, deadline: first.deadline, id: first.id },
-      list: items.slice(1).map(a => ({ date: a.date.slice(5), title: a.title, id: a.id })),
+      featured: { tag: first.tag, date: first.date, urgent: first.urgent, title: first.title, desc: first.desc, content: first.content, aiSummary: first.aiSummary, code: first.code, deadline: first.deadline, id: first.id },
+      list: items.slice(1, 5).map(a => ({ date: a.date.slice(5), title: a.title, id: a.id })),
     };
-  }).filter(Boolean) as { color: string; deadlineLabel: string; featured: { tag: string; date: string; urgent: boolean; title: string; desc: string; code: string; deadline: string; id: string }; list: { date: string; title: string; id: string }[] }[];
+  }).filter(Boolean) as { color: string; deadlineLabel: string; featured: { tag: string; date: string; urgent: boolean; title: string; desc: string; content: string; aiSummary?: string; code: string; deadline: string; id: string }; list: { date: string; title: string; id: string }[] }[];
 
   const features = [
     { icon: 'file', title: '智慧水发·采购中心', desc: '采购文件编制、项目管理、AI协同', href: 'http://192.168.1.111:3001' },
@@ -293,8 +293,10 @@ export default function HomePage() {
                   </div>
                   {/* 标题 */}
                   <h3 className="announce-featured-title">{announceData[announceTab].featured.title}</h3>
-                  {/* 描述 */}
-                  <p className="announce-featured-desc">{announceData[announceTab].featured.desc}</p>
+                  {/* 正文预览 */}
+                  <p className="announce-featured-content-preview">
+                    {announceData[announceTab].featured.aiSummary || announceData[announceTab].featured.content.replace(/<h2>.*?<\/h2>/g, '').replace(/<[^>]+>/g, '').trim().slice(0, 320)}
+                  </p>
                   {/* 底部元信息 */}
                   <div className="flex items-center justify-between mt-auto">
                     <div className="flex gap-6 text-xs">
@@ -310,13 +312,13 @@ export default function HomePage() {
               <div className="announce-side">
                 <div className="announce-side-header">
                   <span className="announce-side-title">最新公告</span>
-                  <span className="announce-side-count">{announceData[announceTab].list.length} 条</span>
+                  <span className="announce-side-count">共 5 项</span>
                 </div>
                 <div className="announce-side-list">
                   {announceData[announceTab].list.map((item, idx) => (
-                    <a key={item.date} href={`/announcements/${item.id}`}
+                    <a key={item.id} href={`/announcements/${item.id}`}
                       className="announce-side-item group"
-                      style={{ '--item-delay': `${idx * 60}ms` } as React.CSSProperties}>
+                      style={{ '--item-delay': `${idx * 60}ms`, '--rank-color': announceData[announceTab].color } as React.CSSProperties}>
                       <div className="announce-side-item-rank">{String(idx + 1).padStart(2, '0')}</div>
                       <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                         <span className="text-xs text-[#aaa]">{item.date}</span>
