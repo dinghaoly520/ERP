@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { BudgetItemInput } from './dto';
+import { Workbook } from 'exceljs';
 
 @Injectable()
 export class BudgetService {
@@ -203,5 +204,35 @@ export class BudgetService {
     });
 
     return { projectId: project.id, projectCode: project.projectCode, budgetAmount: Number(total.toFixed(2)) };
+  }
+
+  async exportList(userId: string, id: string): Promise<Buffer> {
+    const list = await this.getDetail(userId, id);
+    const wb = new Workbook();
+    const ws = wb.addWorksheet((list.name || '预算清单').slice(0, 31));
+    ws.columns = [
+      { header: '序号', key: 'no', width: 6 },
+      { header: '目录编码', key: 'code', width: 22 },
+      { header: '物资名称', key: 'name', width: 26 },
+      { header: '规格型号', key: 'specification', width: 30 },
+      { header: '单位', key: 'unit', width: 8 },
+      { header: '参考价', key: 'referencePrice', width: 12 },
+      { header: '数量', key: 'qty', width: 8 },
+      { header: '小计', key: 'subtotal', width: 14 },
+    ];
+    const rows = list.items.map((it, i) => ({
+      no: i + 1, code: it.code, name: it.name, specification: it.specification ?? '',
+      unit: it.unit, referencePrice: it.referencePrice, qty: it.qty,
+      subtotal: Number((it.referencePrice * it.qty).toFixed(2)),
+    }));
+    ws.addRows(rows);
+    ws.getRow(1).font = { bold: true };
+    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEef3fb' } };
+    const totalRow = rows.length + 2;
+    ws.getCell(`G${totalRow}`).value = '预算参考合计';
+    ws.getCell(`G${totalRow}`).font = { bold: true };
+    ws.getCell(`H${totalRow}`).value = Number(rows.reduce((sum, r) => sum + r.subtotal, 0).toFixed(2));
+    ws.getCell(`H${totalRow}`).font = { bold: true };
+    return Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
   }
 }

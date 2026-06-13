@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Request, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Request, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AnnouncementService } from './announcement.service';
@@ -78,6 +78,13 @@ export class AnnouncementController {
   @ApiOperation({ summary: '删除公告附件' })
   async removeAttachment(@Param('aid') aid: string) {
     return this.attachmentService.remove(aid);
+  }
+
+  @Get('attachments/:aid/download')
+  @Public()
+  @ApiOperation({ summary: '公开下载公告附件' })
+  async downloadAttachment(@Param('aid') aid: string, @Res() res: any) {
+    return this.attachmentService.stream(aid, res);
   }
 
   // ─── 招标文件（加密 + 受控分发）───

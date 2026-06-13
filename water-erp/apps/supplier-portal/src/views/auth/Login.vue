@@ -357,7 +357,7 @@ async function handleLogin() {
   letter-spacing: -0.01em;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  background: radial-gradient(ellipse 100% 150% at center, color-mix(in oklch, oklch(0.3 0.12 var(--hue)) 62%, transparent) 0%, color-mix(in oklch, oklch(0.3 0.12 var(--hue)) 26%, transparent) 55%, transparent 100%);
+  background: radial-gradient(ellipse 72% 150% at center, color-mix(in oklch, oklch(0.34 0.15 var(--hue)) 62%, transparent) 0%, color-mix(in oklch, oklch(0.34 0.15 var(--hue)) 28%, transparent) 42%, transparent 72%);
   text-align: center;
   margin: 0 -34px;
   padding: 6px 34px;

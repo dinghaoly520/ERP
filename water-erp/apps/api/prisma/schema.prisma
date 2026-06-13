@@ -39,6 +39,7 @@ model User {
   uploadedFiles       FileAsset[]
   createdProcurements ProcurementProject[]
   budgetLists                BudgetList[]
+  favorites           UserFavorite[]
   expertProfile       ExpertProfile?
   expertEvaluations   ExpertEvaluation[] @relation("ExpertEvaluationsReceived")
   expertEvalsGiven    ExpertEvaluation[] @relation("ExpertEvaluationsGiven")
@@ -652,6 +653,7 @@ model CatalogItem {
   updatedAt       DateTime  @updatedAt
   budgetItems     BudgetItem[]
   priceHistory    PriceHistory[]
+  favoritedBy         UserFavorite[]
 
   @@index([category])
   @@index([group])
@@ -711,4 +713,18 @@ model PriceHistory {
   createdAt     DateTime    @default(now())
 
   @@index([catalogItemId, recordedAt])
+}
+
+// ── 采购目录收藏 ──
+
+model UserFavorite {
+  userId        String
+  catalogItemId String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  catalogItem   CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@id([userId, catalogItemId])
+  @@index([userId])
+  @@index([catalogItemId])
 }

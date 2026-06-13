@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Request } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Request, Res } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { BudgetService } from './budget.service';
 import { CloneBudgetListDto, CreateBudgetListDto, SyncBudgetItemsDto, UpdateBudgetListDto } from './dto';
 
@@ -25,6 +26,17 @@ export class BudgetController {
   @ApiOperation({ summary: '预算清单详情（含条目）' })
   async get(@Request() req: any, @Param('id') id: string) {
     return this.budgetService.getDetail(req.user.sub, id);
+  }
+
+  @Get('lists/:id/export')
+  @ApiOperation({ summary: '导出预算清单 Excel' })
+  async exportList(@Request() req: any, @Param('id') id: string, @Res({ passthrough: true }) res: Response) {
+    const buf = await this.budgetService.exportList(req.user.sub, id);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent('预算清单-' + new Date().toISOString().slice(0, 10) + '.xlsx')}`,
+    });
+    return buf;
   }
 
   @Patch('lists/:id')

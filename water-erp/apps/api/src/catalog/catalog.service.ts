@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Workbook } from 'exceljs';
 
 export interface CatalogItemView {
   id: string;
@@ -147,5 +148,68 @@ export class CatalogService {
         avgPrice: Math.round((e.prices.reduce((a, b) => a + b, 0) / e.prices.length) * 100) / 100,
       }))
       .sort((a, b) => b.itemCount - a.itemCount);
+  }
+
+  async toggleFavorite(userId: string, itemId: string) {
+    const key = { userId_catalogItemId: { userId, catalogItemId: itemId } };
+    const existing = await this.prisma.userFavorite.findUnique({ where: key });
+    if (existing) {
+      await this.prisma.userFavorite.delete({ where: key });
+      return { favorited: false };
+    }
+    await this.prisma.userFavorite.create({ data: { userId, catalogItemId: itemId } });
+    return { favorited: true };
+  }
+
+  async listFavorites(userId: string) {
+    const favs = await this.prisma.userFavorite.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: { catalogItem: true },
+    });
+    return favs.map(f => serialize(f.catalogItem)).filter(Boolean);
+  }
+
+  async exportCatalog(params: { category?: string; region?: string; status?: string; source?: string; search?: string }): Promise<Buffer> {
+    const items = await this.list(params);
+    const wb = new Workbook();
+    const ws = wb.addWorksheet('采购目录');
+    ws.columns = [
+      { header: '目录编码', key: 'code', width: 22 },
+      { header: '物资名称', key: 'name', width: 24 },
+      { header: '规格型号', key: 'specification', width: 30 },
+      { header: '分类', key: 'category', width: 12 },
+      { header: '组别', key: 'group', width: 12 },
+      { header: '单位', key: 'unit', width: 8 },
+      { header: '参考价', key: 'referencePrice', width: 12 },
+      { header: '价格下限', key: 'priceMin', width: 12 },
+      { header: '价格上限', key: 'priceMax', width: 12 },
+      { header: '最近成交价', key: 'lastDealPrice', width: 12 },
+      { header: '历史均价', key: 'averagePrice', width: 12 },
+      { header: '价格变化(%)', key: 'changeRate', width: 12 },
+      { header: '价格来源', key: 'priceSource', width: 12 },
+      { header: '状态', key: 'status', width: 10 },
+      { header: '供应商', key: 'supplier', width: 30 },
+      { header: '供应商类型', key: 'supplierType', width: 12 },
+      { header: '区域', key: 'region', width: 8 },
+      { header: '含税', key: 'taxIncluded', width: 8 },
+      { header: '含运费', key: 'freightIncluded', width: 8 },
+      { header: '最小起订', key: 'minOrder', width: 12 },
+      { header: '更新时间', key: 'updatedAt', width: 14 },
+      { header: '有效期至', key: 'validUntil', width: 14 },
+      { header: '备注', key: 'remark', width: 40 },
+    ];
+    ws.addRows(items.map(it => ({
+      code: it.code, name: it.name, specification: it.specification, category: it.category, group: it.group,
+      unit: it.unit, referencePrice: it.referencePrice, priceMin: it.priceMin, priceMax: it.priceMax,
+      lastDealPrice: it.lastDealPrice, averagePrice: it.averagePrice, changeRate: it.changeRate,
+      priceSource: it.priceSource, status: it.status, supplier: it.supplier, supplierType: it.supplierType,
+      region: it.region, taxIncluded: it.taxIncluded ? '是' : '否', freightIncluded: it.freightIncluded ? '是' : '否',
+      minOrder: it.minOrder, updatedAt: it.updatedAt.slice(0, 10), validUntil: it.validUntil ? it.validUntil.slice(0, 10) : '',
+      remark: it.remark ?? '',
+    })));
+    ws.getRow(1).font = { bold: true };
+    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEef3fb' } };
+    return Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
   }
 }

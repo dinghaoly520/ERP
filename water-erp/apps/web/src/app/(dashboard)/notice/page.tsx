@@ -433,7 +433,7 @@ function AttachmentsModal({ announcement, onClose, onChanged }: { announcement: 
                 <div className="text-xs text-[#5a6d8a]">{a.fileAsset.originalName} · {(a.fileAsset.size / 1024).toFixed(0)} KB</div>
               </div>
               <div className="flex gap-3">
-                <a href={'/api/upload/files/' + a.fileAsset.id} target="_blank" rel="noreferrer" className="text-xs text-[#064ea2] hover:underline">预览</a>
+                <a href={'/api/announcements/attachments/' + a.id + '/download'} target="_blank" rel="noreferrer" className="text-xs text-[#064ea2] hover:underline">预览</a>
                 <button onClick={async () => { if (confirm('删除该附件？')) { await removeAttachment(a.id); load(); onChanged(); } }} className="text-xs text-[#e74c3c] hover:underline">删除</button>
               </div>
             </div>
