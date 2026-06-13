@@ -8,32 +8,14 @@ import { CreateScoreDto } from './dto/create-score.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
+import { assertBidStageTransition, type BidStage } from './bid-state';
 
 @Injectable()
 export class BidService {
-  // 阶段转换白名单
-  private static readonly STAGE_TRANSITIONS: Record<string, string[]> = {
-    DOWNLOAD:    ['SUBMIT'],
-    SUBMIT:      ['OPENING'],
-    OPENING:     ['EVALUATING'],
-    EVALUATING:  ['ARCHIVED'],
-    ARCHIVED:    [],
-  };
-
   constructor(
     private prisma: PrismaService,
     private notificationService: NotificationService,
   ) {}
-
-  private assertStageTransition(current: string, target: string) {
-    const allowed = BidService.STAGE_TRANSITIONS[current];
-    if (!allowed || !allowed.includes(target)) {
-      throw new BadRequestException({
-        error: `不允许从 ${current} 转换到 ${target}`,
-        code: 'INVALID_STAGE_TRANSITION',
-      });
-    }
-  }
 
   async getDashboardStats() {
     const [
@@ -129,7 +111,7 @@ export class BidService {
         select: { stage: true },
       });
       if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-      this.assertStageTransition(project.stage, dto.stage);
+      assertBidStageTransition(project.stage, dto.stage as BidStage);
     }
 
     return this.prisma.bidProject.update({
@@ -171,7 +153,7 @@ export class BidService {
       select: { stage: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    this.assertStageTransition(project.stage, 'SUBMIT');
+    assertBidStageTransition(project.stage, 'SUBMIT');
 
     return this.prisma.bidProject.update({
       where: { id },
@@ -185,7 +167,7 @@ export class BidService {
       select: { stage: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    this.assertStageTransition(project.stage, 'OPENING');
+    assertBidStageTransition(project.stage, 'OPENING');
 
     // Create opening session if DTO is provided
     if (dto) {
@@ -213,7 +195,7 @@ export class BidService {
       select: { stage: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    this.assertStageTransition(project.stage, 'EVALUATING');
+    assertBidStageTransition(project.stage, 'EVALUATING');
 
     return this.prisma.bidProject.update({
       where: { id },
@@ -272,11 +254,37 @@ export class BidService {
     return this.prisma.bidExpert.findMany({ where: { projectId }, include: { scoreRecords: true } });
   }
 
-  submitScore(projectId: string, dto: CreateScoreDto) {
-    return this.prisma.bidScoreRecord.create({
-      data: {
+  async submitScore(projectId: string, dto: CreateScoreDto) {
+    // 校验 expert 属于该项目
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { id: dto.expertId, projectId },
+    });
+    if (!expert) {
+      throw new BadRequestException({ error: '该专家不属于此项目', code: 'EXPERT_NOT_IN_PROJECT' });
+    }
+
+    // 校验 scoreItem 属于该项目
+    const scoreItem = await this.prisma.bidScoreItem.findFirst({
+      where: { id: dto.scoreItemId, projectId },
+    });
+    if (!scoreItem) {
+      throw new BadRequestException({ error: '评分项不属于此项目', code: 'SCORE_ITEM_NOT_IN_PROJECT' });
+    }
+
+    // 利用唯一约束 upsert：存在则更新，不存在则创建
+    return this.prisma.bidScoreRecord.upsert({
+      where: {
+        expertId_scoreItemId_supplierId: {
+          expertId: dto.expertId,
+          scoreItemId: dto.scoreItemId,
+          supplierId: dto.supplierId,
+        },
+      },
+      update: { score: dto.score, reason: dto.reason },
+      create: {
         expertId: dto.expertId,
         scoreItemId: dto.scoreItemId,
+        supplierId: dto.supplierId,
         score: dto.score,
         reason: dto.reason,
       },
@@ -314,7 +322,7 @@ export class BidService {
       select: { stage: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    this.assertStageTransition(project.stage, 'ARCHIVED');
+    assertBidStageTransition(project.stage, 'ARCHIVED');
 
     const archiveItems = await this.prisma.bidArchiveItem.findMany({
       where: { projectId: id, status: { not: 'ARCHIVED' } },
@@ -327,15 +335,17 @@ export class BidService {
     const now = new Date();
     const hashDigest = `sha256:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 
-    await this.prisma.bidArchiveItem.updateMany({
-      where: { projectId: id, status: { not: 'ARCHIVED' } },
-      data: { status: 'ARCHIVED', hashDigest, archivedAt: now },
-    });
-
-    await this.prisma.bidProject.update({
-      where: { id },
-      data: { stage: 'ARCHIVED' },
-    });
+    // 事务：归档项更新 + 项目状态变更 原子执行
+    await this.prisma.$transaction([
+      this.prisma.bidArchiveItem.updateMany({
+        where: { projectId: id, status: { not: 'ARCHIVED' } },
+        data: { status: 'ARCHIVED', hashDigest, archivedAt: now },
+      }),
+      this.prisma.bidProject.update({
+        where: { id },
+        data: { stage: 'ARCHIVED' },
+      }),
+    ]);
 
     return this.prisma.bidProject.findUnique({
       where: { id },

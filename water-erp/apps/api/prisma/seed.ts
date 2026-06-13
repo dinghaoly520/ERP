@@ -34,7 +34,8 @@ async function main() {
     },
   });
 
-  await prisma.user.upsert({
+  // 专家用户在项目创建之前 upsert，以便获取 ID 关联 BidExpert
+  const expertWangjg = await prisma.user.upsert({
     where: { username: 'wangjg' },
     update: {},
     create: {
@@ -43,6 +44,32 @@ async function main() {
       passwordHash: hashSync('123456', 10),
       role: 'bid_expert',
       departmentId: dept.id,
+    },
+  });
+
+  const expertLiuxm = await prisma.user.upsert({
+    where: { username: 'liuxm' },
+    update: {},
+    create: {
+      username: 'liuxm',
+      displayName: '刘晓梅',
+      passwordHash: hashSync('123456', 10),
+      role: 'bid_expert',
+      departmentId: dept.id,
+      email: 'liuxm@expert.com',
+    },
+  });
+
+  const expertChenzq = await prisma.user.upsert({
+    where: { username: 'chenzq' },
+    update: {},
+    create: {
+      username: 'chenzq',
+      displayName: '陈志强',
+      passwordHash: hashSync('123456', 10),
+      role: 'bid_expert',
+      departmentId: dept.id,
+      email: 'chenzq@expert.com',
     },
   });
 
@@ -83,9 +110,9 @@ async function main() {
       },
       experts: {
         create: [
-          { expertName: '王建国', major: '水利工程', signedIn: true, avoidanceConfirmed: true, progress: 92, totalScore: 91.6 },
-          { expertName: '刘晓梅', major: '机电设备', signedIn: true, avoidanceConfirmed: true, progress: 86, totalScore: 89.4 },
-          { expertName: '陈志强', major: '造价咨询', signedIn: true, avoidanceConfirmed: true, progress: 78, totalScore: 88.1 },
+          { userId: expertWangjg.id, expertName: '王建国', major: '水利工程', signedIn: true, avoidanceConfirmed: true, progress: 92, totalScore: 91.6 },
+          { userId: expertLiuxm.id, expertName: '刘晓梅', major: '机电设备', signedIn: true, avoidanceConfirmed: true, progress: 86, totalScore: 89.4 },
+          { userId: expertChenzq.id, expertName: '陈志强', major: '造价咨询', signedIn: true, avoidanceConfirmed: true, progress: 78, totalScore: 88.1 },
         ],
       },
       scoreItems: {
@@ -359,33 +386,6 @@ async function main() {
       skipDuplicates: true,
     });
   }
-
-  // ── Seed extra expert users (刘晓梅、陈志强) so expert workstation has matching users ──
-  await prisma.user.upsert({
-    where: { username: 'liuxm' },
-    update: {},
-    create: {
-      username: 'liuxm',
-      displayName: '刘晓梅',
-      passwordHash: hashSync('123456', 10),
-      role: 'bid_expert',
-      departmentId: dept.id,
-      email: 'liuxm@expert.com',
-    },
-  });
-
-  await prisma.user.upsert({
-    where: { username: 'chenzq' },
-    update: {},
-    create: {
-      username: 'chenzq',
-      displayName: '陈志强',
-      passwordHash: hashSync('123456', 10),
-      role: 'bid_expert',
-      departmentId: dept.id,
-      email: 'chenzq@expert.com',
-    },
-  });
 
   // ── Seed pending supplier for admin to review ──
   const pendingSupplierUser = await prisma.user.upsert({

@@ -23,7 +23,7 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({ where: { username: dto.username } });
-    if (!user || !user.passwordHash || !compareSync(dto.password, user.passwordHash)) {
+    if (!user || !user.isActive || !user.passwordHash || !compareSync(dto.password, user.passwordHash)) {
       return null;
     }
     return this.issueToken(user.id, user.username, user.role);

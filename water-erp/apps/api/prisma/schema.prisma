@@ -34,6 +34,7 @@ model User {
   supplier            Supplier?
   notifications       Notification[]
   supplierEvaluations SupplierEvaluation[]
+  bidExperts          BidExpert[]
 }
 
 // ── 开评标 ──
@@ -149,16 +150,21 @@ model BidOpeningRecord {
 model BidExpert {
   id                 String           @id @default(cuid())
   projectId          String
+  userId             String
   expertName         String
   major              String
   signedIn           Boolean          @default(false)
   avoidanceConfirmed Boolean          @default(false)
   progress           Int              @default(0)
   totalScore         Decimal          @default("0") @db.Decimal(5, 1)
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   project            BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scoreRecords       BidScoreRecord[]
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
+
+  @@unique([projectId, userId])
+  @@index([userId])
 }
 
 model BidScoreItem {
@@ -176,14 +182,15 @@ model BidScoreRecord {
   id          String       @id @default(cuid())
   expertId    String
   scoreItemId String
-  supplierId  String?
+  supplierId  String
   score       Decimal      @db.Decimal(5, 1)
   reason      String?
   expert      BidExpert    @relation(fields: [expertId], references: [id], onDelete: Cascade)
   scoreItem   BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
-  supplier    BidSupplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  supplier    BidSupplier  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   createdAt   DateTime     @default(now())
 
+  @@unique([expertId, scoreItemId, supplierId])
   @@index([supplierId])
 }
 

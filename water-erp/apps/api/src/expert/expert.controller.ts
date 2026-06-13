@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { ExpertService } from './expert.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
@@ -9,6 +10,7 @@ import { ConfirmReportDto } from './dto/confirm-report.dto';
 
 @Controller('expert')
 @UseGuards(AuthGuard)
+@Roles('bid_expert')
 export class ExpertController {
   constructor(private expertService: ExpertService) {}
 

@@ -2,9 +2,21 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
+import { hashSync } from 'bcryptjs';
+
+/** 登录指定用户并返回 cookie */
+async function loginAs(app: INestApplication, username: string, password: string): Promise<string[]> {
+  const res = await request(app.getHttpServer())
+    .post('/api/auth/login')
+    .send({ username, password });
+  const cookie = res.headers['set-cookie'];
+  return Array.isArray(cookie) ? cookie : cookie ? [cookie] : [];
+}
 
 describe('Auth (e2e)', () => {
   let app: INestApplication;
+  let prisma: PrismaService;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -14,9 +26,26 @@ describe('Auth (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
     await app.init();
+
+    prisma = app.get(PrismaService);
+
+    // 创建禁用用户用于测试
+    await prisma.user.upsert({
+      where: { username: 'e2e-disabled-user' },
+      update: { isActive: false, passwordHash: hashSync('123456', 10) },
+      create: {
+        username: 'e2e-disabled-user',
+        displayName: '已禁用测试用户',
+        passwordHash: hashSync('123456', 10),
+        role: 'admin',
+        isActive: false,
+      },
+    });
   });
 
   afterAll(async () => {
+    // 清理测试用户
+    await prisma.user.deleteMany({ where: { username: 'e2e-disabled-user' } });
     await app.close();
   });
 
@@ -37,10 +66,70 @@ describe('Auth (e2e)', () => {
       });
   });
 
-  it('/api/auth/login (POST) — 无效凭证应返回错误', () => {
+  it('/api/auth/login (POST) — 无效凭证应返回 401', () => {
     return request(app.getHttpServer())
       .post('/api/auth/login')
       .send({ username: 'nonexistent', password: 'wrong' })
       .expect(401);
+  });
+
+  it('/api/auth/login (POST) — 正确凭证应返回 200 + access_token', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ username: 'admin', password: 'admin123' })
+      .expect(200);
+
+    expect(res.headers['set-cookie']).toBeDefined();
+    expect(res.body).toHaveProperty('access_token');
+  });
+
+  it('/api/auth/login (POST) — 禁用用户应返回 401', () => {
+    return request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ username: 'e2e-disabled-user', password: '123456' })
+      .expect(401);
+  });
+
+  /* ── 角色权限隔离 ── */
+
+  describe('角色权限隔离', () => {
+    it('供应商不能访问招标管理接口', async () => {
+      const cookie = await loginAs(app, 'supplier1', '123456');
+
+      await request(app.getHttpServer())
+        .post('/api/bid/projects')
+        .set('Cookie', cookie)
+        .send({ name: '非法项目', procurementMethod: '公开招标', openTime: '2026-07-01T09:00:00Z', deadline: '2026-07-01T08:30:00Z' })
+        .expect(403);
+    });
+
+    it('供应商不能访问专家接口', async () => {
+      const cookie = await loginAs(app, 'supplier1', '123456');
+
+      await request(app.getHttpServer())
+        .get('/api/expert/profile')
+        .set('Cookie', cookie)
+        .expect(403);
+    });
+
+    it('专家不能创建招标项目', async () => {
+      const cookie = await loginAs(app, 'wangjg', '123456');
+
+      await request(app.getHttpServer())
+        .post('/api/bid/projects')
+        .set('Cookie', cookie)
+        .send({ name: '非法项目', procurementMethod: '公开招标', openTime: '2026-07-01T09:00:00Z', deadline: '2026-07-01T08:30:00Z' })
+        .expect(403);
+    });
+
+    it('专家不能访问 AI 管理端接口', async () => {
+      const cookie = await loginAs(app, 'wangjg', '123456');
+
+      // anomalies 和 risk-scores 应拒绝 bid_expert
+      await request(app.getHttpServer())
+        .get('/api/ai/projects/fake-id/anomalies')
+        .set('Cookie', cookie)
+        .expect(403);
+    });
   });
 });
