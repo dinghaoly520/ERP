@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ForbiddenException } from '@nestjs/common';
 import { ExpertService } from './expert.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
@@ -8,9 +9,9 @@ describe('ExpertService', () => {
   let prisma: any;
   let ai: any;
 
-  const mockUser = { id: 'user-1', displayName: '王建国', username: 'wangjg', role: 'bid_expert' };
   const mockExpert = {
     id: 'exp-1',
+    userId: 'user-1',
     expertName: '王建国',
     projectId: 'proj-1',
     major: '水利工程',
@@ -34,11 +35,12 @@ describe('ExpertService', () => {
         findMany: jest.fn(),
         deleteMany: jest.fn(),
         create: jest.fn(),
+        createMany: jest.fn(),
         count: jest.fn(),
       },
       bidScoreItem: { findMany: jest.fn() },
       bidSupplierCount: jest.fn(),
-      bidSupervisionLog: { create: jest.fn() },
+      bidSupervisionLog: { create: jest.fn(), findMany: jest.fn() },
       bidClarification: { create: jest.fn() },
     };
 
@@ -57,13 +59,12 @@ describe('ExpertService', () => {
 
   describe('getStatistics', () => {
     it('应返回专家统计数据', async () => {
-      prisma.user.findUnique.mockResolvedValue(mockUser);
       prisma.bidExpert.findMany.mockResolvedValue([
-        { progress: 100, signedIn: true, totalScore: 90, project: {} },
-        { progress: 50, signedIn: true, totalScore: 80, project: {} },
-        { progress: 0, signedIn: false, totalScore: 0, project: {} },
+        { progress: 100, signedIn: true, totalScore: 90, expertName: '王建国', project: {} },
+        { progress: 50, signedIn: true, totalScore: 80, expertName: '王建国', project: {} },
+        { progress: 0, signedIn: false, totalScore: 0, expertName: '王建国', project: {} },
       ]);
-      prisma.bidSupervisionLog.findMany = jest.fn().mockResolvedValue([]);
+      prisma.bidSupervisionLog.findMany.mockResolvedValue([]);
 
       const stats = await service.getStatistics('user-1');
 
@@ -73,17 +74,23 @@ describe('ExpertService', () => {
       expect(stats.pendingProjects).toBe(1);
       expect(stats.averageScore).toBeGreaterThan(0);
       expect(stats.recentActivity).toBeDefined();
+      // 不应调用 user.findUnique
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
     });
   });
 
   describe('signIn', () => {
     it('签到成功应更新专家状态', async () => {
-      prisma.user.findUnique.mockResolvedValue(mockUser);
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
       prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, signedIn: true });
 
       const result = await service.signIn('user-1', 'proj-1');
 
+      expect(prisma.bidExpert.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'user-1', projectId: 'proj-1' },
+        }),
+      );
       expect(prisma.bidExpert.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { signedIn: true } }),
       );
@@ -92,7 +99,6 @@ describe('ExpertService', () => {
 
   describe('getAssistData', () => {
     it('应调用 AI 引擎进行分析', async () => {
-      prisma.user.findUnique.mockResolvedValue(mockUser);
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
       ai.analyzeBid.mockResolvedValue({ supplierName: '川水建设', keyPoints: [] });
 
@@ -104,7 +110,7 @@ describe('ExpertService', () => {
 
   describe('updateProfile', () => {
     it('应更新用户 displayName 和 email', async () => {
-      prisma.user.update.mockResolvedValue({ ...mockUser, displayName: '王工', email: 'wang@test.com' });
+      prisma.user.update.mockResolvedValue({ id: 'user-1', displayName: '王工', email: 'wang@test.com' });
 
       await service.updateProfile('user-1', { displayName: '王工', email: 'wang@test.com' });
 
@@ -113,6 +119,47 @@ describe('ExpertService', () => {
           where: { id: 'user-1' },
           data: expect.objectContaining({ displayName: '王工', email: 'wang@test.com' }),
         }),
+      );
+    });
+  });
+
+  describe('身份隔离', () => {
+    it('未分配到项目的专家不能签到', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+
+      await expect(service.signIn('user-1', 'proj-1'))
+        .rejects.toThrow(ForbiddenException);
+    });
+
+    it('未分配到项目的专家不能查看项目', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+
+      await expect(service.getProject('user-1', 'proj-1'))
+        .rejects.toThrow(ForbiddenException);
+    });
+
+    it('未分配到项目的专家不能查看报告', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+
+      await expect(service.getReport('user-1', 'proj-1'))
+        .rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('getProfile', () => {
+    it('应返回用户信息和专家分配列表', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1', username: 'wangjg', displayName: '王建国', role: 'bid_expert', isActive: true,
+      });
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+
+      const result = await service.getProfile('user-1');
+
+      expect(result).toHaveProperty('assignments');
+      expect(result).not.toHaveProperty('passwordHash');
+      // 应通过 userId 查询专家记录
+      expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId: 'user-1' } }),
       );
     });
   });

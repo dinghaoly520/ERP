@@ -1,8 +1,22 @@
-import { IsString, IsNumber, IsOptional } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsNotEmpty } from 'class-validator';
 
 export class CreateScoreDto {
-  @IsString() expertId: string;
-  @IsString() scoreItemId: string;
-  @IsNumber() score: number;
-  @IsString() @IsOptional() reason?: string;
+  @IsString()
+  @IsNotEmpty()
+  expertId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  scoreItemId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  supplierId: string;
+
+  @IsNumber()
+  score: number;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
 }

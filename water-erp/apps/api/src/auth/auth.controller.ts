@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Res, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Res, UseGuards, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
@@ -25,7 +25,7 @@ export class AuthController {
   @ApiOperation({ summary: '用户登录' })
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.login(dto);
-    if (!result) return { error: '用户名或密码错误' };
+    if (!result) throw new UnauthorizedException('用户名或密码错误');
     res.cookie('token', result.access_token, { httpOnly: true, sameSite: 'lax', maxAge: 7 * 24 * 3600 * 1000 });
     return result;
   }
