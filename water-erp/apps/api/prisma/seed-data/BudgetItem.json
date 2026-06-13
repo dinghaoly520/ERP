@@ -1,0 +1,41 @@
+[
+  {
+    "id": "cmqcdscov0002kokfxggh15qc",
+    "budgetListId": "cmqcdscn40001kokfzjv8jnsh",
+    "catalogItemId": null,
+    "code": "CGML-GC-STEEL-001",
+    "name": "Q235B 热轧带钢",
+    "specification": "δ=6mm",
+    "unit": "吨",
+    "referencePrice": "4280",
+    "qty": "10",
+    "sortOrder": 0,
+    "createdAt": "2026-06-13T13:18:22.784Z"
+  },
+  {
+    "id": "cmqcdscov0003kokfz2ytpvzg",
+    "budgetListId": "cmqcdscn40001kokfzjv8jnsh",
+    "catalogItemId": null,
+    "code": "CGML-GC-CEMENT-002",
+    "name": "水泥",
+    "specification": "P.O42.5",
+    "unit": "吨",
+    "referencePrice": "380",
+    "qty": "50",
+    "sortOrder": 1,
+    "createdAt": "2026-06-13T13:18:22.784Z"
+  },
+  {
+    "id": "cmqcdtihz0008kokfi3ap0bo5",
+    "budgetListId": "cmqcdtigy0007kokfgm4yohrk",
+    "catalogItemId": null,
+    "code": "CGML-SB-PUMP-004",
+    "name": "潜水排污泵",
+    "specification": "15kW",
+    "unit": "台",
+    "referencePrice": "8600",
+    "qty": "2",
+    "sortOrder": 0,
+    "createdAt": "2026-06-13T13:19:16.967Z"
+  }
+]

@@ -1,0 +1,41 @@
+[
+  {
+    "id": "cb5cab4a339b41e1b05992db9f3a40b1",
+    "userId": "cmqbysdeo0006koh11kf0fh37",
+    "specialty": "水利工程",
+    "title": null,
+    "employer": null,
+    "phone": null,
+    "idNumber": null,
+    "availability": "可用",
+    "notes": null,
+    "createdAt": "2026-06-13T13:02:30.997Z",
+    "updatedAt": "2026-06-13T13:02:30.997Z"
+  },
+  {
+    "id": "eed3cd337e2e476e9a683416c03cc2df",
+    "userId": "cmqbysdg70008koh18qzpg1dx",
+    "specialty": "机电设备",
+    "title": null,
+    "employer": null,
+    "phone": null,
+    "idNumber": null,
+    "availability": "可用",
+    "notes": null,
+    "createdAt": "2026-06-13T13:02:30.997Z",
+    "updatedAt": "2026-06-13T13:02:30.997Z"
+  },
+  {
+    "id": "9ccae9a6364740d1b1fbd33c63bbd0d1",
+    "userId": "cmqbysdhq000akoh1il5mllhl",
+    "specialty": "造价咨询",
+    "title": null,
+    "employer": null,
+    "phone": null,
+    "idNumber": null,
+    "availability": "可用",
+    "notes": null,
+    "createdAt": "2026-06-13T13:02:30.997Z",
+    "updatedAt": "2026-06-13T13:02:30.997Z"
+  }
+]

@@ -1,0 +1,106 @@
+[
+  {
+    "id": "cmqbysdk5001hkoh1pbfj0q69",
+    "name": "工程建设类",
+    "code": "ENG",
+    "description": "水利、市政、建筑工程施工类供应商",
+    "createdAt": "2026-06-13T06:18:29.669Z",
+    "updatedAt": "2026-06-13T06:18:29.669Z"
+  },
+  {
+    "id": "cmqbysdk8001ikoh1ehqpqmop",
+    "name": "物资采购类",
+    "code": "MAT",
+    "description": "钢材、水泥、建材等物资供应商",
+    "createdAt": "2026-06-13T06:18:29.672Z",
+    "updatedAt": "2026-06-13T06:18:29.672Z"
+  },
+  {
+    "id": "cmqbysdk9001jkoh1tifps7yv",
+    "name": "服务采购类",
+    "code": "SVC",
+    "description": "软件、咨询、监理等服务供应商",
+    "createdAt": "2026-06-13T06:18:29.674Z",
+    "updatedAt": "2026-06-13T06:18:29.674Z"
+  },
+  {
+    "id": "cmqc8r5rn0000koekivxt3ig5",
+    "name": "信息技术与软件",
+    "code": "IT_INFO",
+    "description": "软件开发、信息化建设、信息技术服务、内控系统",
+    "createdAt": "2026-06-13T10:57:29.076Z",
+    "updatedAt": "2026-06-13T11:02:25.569Z"
+  },
+  {
+    "id": "cmqc8r5rq0001koeku7tn9d65",
+    "name": "勘测设计与测绘",
+    "code": "SURVEY",
+    "description": "勘测、设计、测绘、水利模型试验、岩土工程",
+    "createdAt": "2026-06-13T10:57:29.078Z",
+    "updatedAt": "2026-06-13T11:02:25.572Z"
+  },
+  {
+    "id": "cmqc8r5rr0002koekdv8d9vdk",
+    "name": "工程施工与装修",
+    "code": "CONSTR",
+    "description": "建设工程施工、装饰装修、劳务外委",
+    "createdAt": "2026-06-13T10:57:29.080Z",
+    "updatedAt": "2026-06-13T11:02:25.573Z"
+  },
+  {
+    "id": "cmqc8r5rs0003koeknc4macan",
+    "name": "设备与物资",
+    "code": "EQUIP",
+    "description": "电子设备、专业设备、家具、固定资产",
+    "createdAt": "2026-06-13T10:57:29.081Z",
+    "updatedAt": "2026-06-13T11:02:25.574Z"
+  },
+  {
+    "id": "cmqc8r5rt0004koek6qu42buj",
+    "name": "税务审计与评估",
+    "code": "TAX_AUDIT",
+    "description": "税务、审计、资产评估",
+    "createdAt": "2026-06-13T10:57:29.082Z",
+    "updatedAt": "2026-06-13T11:02:25.574Z"
+  },
+  {
+    "id": "cmqc8r5ru0005koekzndedr5g",
+    "name": "餐饮食材与零售",
+    "code": "FOOD",
+    "description": "餐饮、食材配送、茶叶酒水、综合零售",
+    "createdAt": "2026-06-13T10:57:29.082Z",
+    "updatedAt": "2026-06-13T11:02:25.575Z"
+  },
+  {
+    "id": "cmqc8r5ru0006koekrzdm59j9",
+    "name": "综合服务",
+    "code": "SERVICE",
+    "description": "物业保洁、运输仓储、人力资源、保险、医疗",
+    "createdAt": "2026-06-13T10:57:29.083Z",
+    "updatedAt": "2026-06-13T11:02:25.576Z"
+  },
+  {
+    "id": "cmqc8r5rv0007koekgaw137zd",
+    "name": "车辆服务",
+    "code": "VEHICLE",
+    "description": "车辆综合服务、车辆评估、汽车维修",
+    "createdAt": "2026-06-13T10:57:29.083Z",
+    "updatedAt": "2026-06-13T11:02:25.576Z"
+  },
+  {
+    "id": "cmqc8r5rw0008koekju6eaync",
+    "name": "广告宣传与办公",
+    "code": "AD_OFFICE",
+    "description": "广告宣传设计、办公耗材、印刷",
+    "createdAt": "2026-06-13T10:57:29.084Z",
+    "updatedAt": "2026-06-13T11:02:25.577Z"
+  },
+  {
+    "id": "cmqc8r5rw0009koek1q4l965w",
+    "name": "其他",
+    "code": "OTHER",
+    "description": "未归类供应商",
+    "createdAt": "2026-06-13T10:57:29.085Z",
+    "updatedAt": "2026-06-13T11:02:25.578Z"
+  }
+]
