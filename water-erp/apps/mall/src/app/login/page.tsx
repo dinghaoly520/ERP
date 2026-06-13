@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 
 export default function MallLoginPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ username: '', password: '' });
+  const [form, setForm] = useState({ username: 'supplier1', password: '123456' });
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
