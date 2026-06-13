@@ -79,7 +79,7 @@ describe('Auth (e2e)', () => {
   it('/api/auth/login (POST) — 正确凭证应返回 200 + access_token', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/login')
-      .send({ username: 'admin', password: 'admin123' })
+      .send({ username: 'caigou', password: 'caigou@2026' })
       .expect(200);
 
     expect(res.headers['set-cookie']).toBeDefined();
@@ -97,7 +97,7 @@ describe('Auth (e2e)', () => {
 
   describe('角色权限隔离', () => {
     it('供应商不能访问招标管理接口', async () => {
-      const cookie = await loginAs(app, 'supplier1', '123456');
+      const cookie = await loginAs(app, 'supplier1', 'supplier1@2026');
 
       await request(app.getHttpServer())
         .post('/api/bid/projects')
@@ -107,7 +107,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('供应商不能访问专家接口', async () => {
-      const cookie = await loginAs(app, 'supplier1', '123456');
+      const cookie = await loginAs(app, 'supplier1', 'supplier1@2026');
 
       await request(app.getHttpServer())
         .get('/api/expert/profile')
@@ -116,7 +116,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('专家不能创建招标项目', async () => {
-      const cookie = await loginAs(app, 'wangjg', '123456');
+      const cookie = await loginAs(app, 'wangjg', 'wangjg@2026');
 
       await request(app.getHttpServer())
         .post('/api/bid/projects')
@@ -126,7 +126,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('专家不能访问 AI 管理端接口', async () => {
-      const cookie = await loginAs(app, 'wangjg', '123456');
+      const cookie = await loginAs(app, 'wangjg', 'wangjg@2026');
 
       // anomalies 和 risk-scores 应拒绝 bid_expert
       await request(app.getHttpServer())

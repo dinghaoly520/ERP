@@ -33,8 +33,8 @@ describe('Bid Lifecycle (e2e)', () => {
 
     prisma = app.get(PrismaService);
 
-    adminCookie = await loginAs(app, 'admin', 'admin123');
-    supplierCookie = await loginAs(app, 'supplier1', '123456');
+    adminCookie = await loginAs(app, 'caigou', 'caigou@2026');
+    supplierCookie = await loginAs(app, 'supplier1', 'supplier1@2026');
   });
 
   afterAll(async () => {

@@ -128,6 +128,6 @@ Prisma schema at `apps/api/prisma/schema.prisma`. Three migrations: `init`, `add
 
 Seed data creates:
 - Department: 采购中心
-- Users: `admin/admin123` (管理员), `lizhuren/123456` (开标主持), `wangjg/123456` (专家·王建国), `liuxm/123456` (专家·刘晓梅), `chenzq/123456` (专家·陈志强), `supplier1/123456` (供应商·已入库), `supplier2/123456` (供应商·待审核)
+- Users: `caigou/caigou@2026` (采购管理员), `lizhuren/lizhuren@2026` (开标主持), `wangjg/wangjg@2026` (专家·王建国), `liuxm/liuxm@2026` (专家·刘晓梅), `chenzq/chenzq@2026` (专家·陈志强), `supplier1/supplier1@2026` (供应商·已入库), `supplier2/supplier2@2026` (供应商·待审核), `mall/mall@2026` (商城采购员)
 - 1 demo bid project `BID-2026-0518` with 5 suppliers, 3 experts, scores, supervision logs, archive items
 - 5 demo announcements

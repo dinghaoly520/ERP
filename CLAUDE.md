@@ -111,15 +111,18 @@ DATABASE_URL=postgresql://water_erp:water_erp_dev@localhost:5432/water_erp
 JWT_SECRET=water-erp-jwt-secret
 ```
 
-Seed data creates demo accounts:
+Seed data creates demo accounts. Passwords follow the `<username>@2026` convention. Each portal keeps an independent login session (cookies are named per portal: `token_web`, `token_expert`, `token_supplier`, `token_mall`), so you must log in separately at each portal:
 
-- `admin / admin123` — 管理员
-- `lizhuren / 123456` — 开标主持人
-- `wangjg / 123456` — 专家·王建国
-- `liuxm / 123456` — 专家·刘晓梅
-- `chenzq / 123456` — 专家·陈志强
-- `supplier1 / 123456` — 供应商（已入库）
-- `supplier2 / 123456` — 供应商（待审核）
+- `caigou / caigou@2026` — 采购管理员（procurement_staff，web 门户 :3004）
+- `lizhuren / lizhuren@2026` — 开标主持人（bid_host，web 门户 :3004）
+- `supplier1 / supplier1@2026` — 供应商（已入库，supplier 门户 :3003）
+- `supplier2 / supplier2@2026` — 供应商（待审核，supplier 门户 :3003）
+- `wangjg / wangjg@2026` — 专家·王建国（expert 门户 :3005）
+- `liuxm / liuxm@2026` — 专家·刘晓梅（expert 门户 :3005）
+- `chenzq / chenzq@2026` — 专家·陈志强（expert 门户 :3005）
+- `mall / mall@2026` — 商城采购员（mall 门户 :3002）
+
+> The `admin` account was removed in favor of per-portal accounts. The `admin` role still exists in the schema/RBAC (e.g. on `BidController`), it just has no seeded user.
 
 The seed also creates supplier classifications, demo suppliers, notifications, announcements, and several bid projects including `BID-2026-0518` with suppliers, experts, score items, opening records, supervision logs, and archive items.
 
