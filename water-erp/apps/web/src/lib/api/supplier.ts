@@ -1,6 +1,36 @@
 import { api } from '../api';
 import type { Supplier, SupplierListResponse, SupplierClassification, SupplierEvaluation, SupplierChangeRecord, SupplierQualification, Notification } from '../types';
 
+/* ── 供应商智能选取（web 门户专属视图模型）── */
+export interface SupplierStats {
+  total: number;
+  pending: number;
+  approved: number;
+  disabled: number;
+  blacklist: number;
+}
+
+export interface SupplierRecommendation {
+  supplierId: string;
+  name: string;
+  classification?: string;
+  matchScore: number;
+  reason: string;
+  legalPerson?: string;
+  enterpriseType?: string;
+  contacts?: { name: string; phone: string; isPrimary: boolean }[];
+}
+
+export interface SupplierSelectionResult {
+  requirement: string;
+  engine: 'deepseek' | 'rules';
+  model: string;
+  candidatePool: number;
+  summary: string;
+  recommendations: SupplierRecommendation[];
+  generatedAt: string;
+}
+
 // 供应商注册
 export function registerSupplier(data: {
   name: string;
@@ -33,6 +63,16 @@ export function getSupplierList(params?: { status?: string; classificationId?: s
   if (params?.page) query.set('page', String(params.page));
   if (params?.pageSize) query.set('pageSize', String(params.pageSize));
   return api.get<SupplierListResponse>(`/supplier/list?${query.toString()}`);
+}
+
+// 供应商统计（总数 / 待审核 / 已入库 / 停用 / 黑名单）
+export function getSupplierStats() {
+  return api.get<SupplierStats>('/supplier/stats');
+}
+
+// AI 智能推荐供应商（按采购需求）
+export function recommendSuppliers(data: { requirement: string; classificationId?: string; maxCount?: number }) {
+  return api.post<SupplierSelectionResult>('/ai/supplier-selection', data);
 }
 
 // 供应商详情

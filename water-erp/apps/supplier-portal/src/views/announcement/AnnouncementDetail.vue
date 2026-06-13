@@ -2,6 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAnnouncementStore } from '@/stores/announcement'
+import { announcementApi } from '@/api/announcement'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 
 const route = useRoute()
@@ -25,13 +27,67 @@ const typeTagType: Record<string, string> = {
   PLATFORM: 'info',
 }
 
+// 招标文件
+const bidDoc = ref<any>(null)
+const bidDocLoading = ref(false)
+const paying = ref(false)
+const downloading = ref(false)
+const payDialog = ref(false)
+const paymentRef = ref('')
+
+const isBidNotice = computed(() => store.currentAnnouncement?.type === 'BID_NOTICE')
+
+async function loadBidDoc() {
+  if (!isBidNotice.value) return
+  bidDocLoading.value = true
+  try {
+    const res: any = await announcementApi.getBidDocument(id.value)
+    bidDoc.value = res
+  } catch { bidDoc.value = null }
+  bidDocLoading.value = false
+}
+
+async function doPay() {
+  paying.value = true
+  try {
+    await announcementApi.payBidDocument(id.value, paymentRef.value || undefined)
+    ElMessage.success('付款凭证已提交，等待确认到账')
+    payDialog.value = false
+    paymentRef.value = ''
+    await loadBidDoc()
+  } catch (e: any) { ElMessage.error(e?.message || '提交失败') }
+  paying.value = false
+}
+
+async function doDownload() {
+  downloading.value = true
+  try {
+    const { blob, fileName } = await announcementApi.downloadBidDocument(id.value)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    a.click()
+    URL.revokeObjectURL(url)
+    await loadBidDoc()
+  } catch (e: any) { ElMessage.error(e?.message || '下载失败') }
+  downloading.value = false
+}
+
 onMounted(async () => {
   try {
     await store.fetchAnnouncement(id.value)
+    await loadBidDoc()
   } finally {
     loading.value = false
   }
 })
+
+function scopeHint(scope: string) {
+  if (scope === 'DESIGNATED') return '仅指定供应商可下载'
+  if (scope === 'INVITED') return '仅受邀供应商可下载'
+  return '全库供应商可下载'
+}
 </script>
 
 <template>
@@ -67,7 +123,58 @@ onMounted(async () => {
         <span>关联项目编号：{{ store.currentAnnouncement.relatedProjectCode }}</span>
         <el-button link type="primary" size="small" @click="router.push('/bids')">查看项目</el-button>
       </div>
+
+      <!-- 招标文件（加密 · 受控下载）-->
+      <template v-if="isBidNotice">
+        <el-divider />
+        <div class="bid-doc" v-loading="bidDocLoading">
+          <template v-if="bidDoc">
+            <div class="bid-doc-head">
+              <el-icon color="var(--sp-primary)"><Lock /></el-icon>
+              <strong>招标文件</strong>
+              <span class="bid-doc-title">{{ bidDoc.title }}</span>
+              <el-tag v-if="bidDoc.requirePayment" type="warning" size="small">付费 ¥{{ bidDoc.price }}</el-tag>
+              <el-tag v-else type="success" size="small">免费</el-tag>
+            </div>
+            <p class="bid-doc-hint">{{ scopeHint(bidDoc.accessScope) }} · 已下载 {{ bidDoc.downloadCount }} 次 · 文件已加密，仅授权供应商可下载</p>
+
+            <div class="bid-doc-actions">
+              <!-- 无资格 -->
+              <el-alert v-if="!bidDoc.eligible" :title="'无法下载：' + bidDoc.reason" type="error" :closable="false" show-icon />
+              <template v-else>
+                <!-- 需付费且未付款 -->
+                <template v-if="bidDoc.needPayment">
+                  <el-alert title="该招标文件需付费下载，提交付款凭证后由工作人员确认到账即可下载" type="warning" :closable="false" show-icon />
+                  <el-button type="primary" @click="payDialog = true">提交付款凭证</el-button>
+                </template>
+                <!-- 待确认到账 -->
+                <template v-else-if="bidDoc.requirePayment && !bidDoc.paid">
+                  <el-alert title="付款凭证已提交，等待工作人员确认到账" type="info" :closable="false" show-icon />
+                </template>
+                <!-- 可下载 -->
+                <el-button v-if="bidDoc.canDownload" type="primary" :loading="downloading" @click="doDownload">
+                  <el-icon><Download /></el-icon> 下载招标文件
+                </el-button>
+              </template>
+            </div>
+          </template>
+          <el-empty v-else-if="!bidDocLoading" description="该招标公示暂未上传招标文件" :image-size="60" />
+        </div>
+      </template>
     </div>
+
+    <!-- 付款凭证弹窗 -->
+    <el-dialog v-model="payDialog" title="提交付款凭证" width="420px">
+      <el-form>
+        <el-form-item label="付款凭证/流水号">
+          <el-input v-model="paymentRef" placeholder="如：银行流水号、转账截图说明等" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="payDialog = false">取消</el-button>
+        <el-button type="primary" :loading="paying" @click="doPay">提交</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -146,5 +253,38 @@ onMounted(async () => {
   border-radius: var(--sp-radius-sm);
   font-size: 14px;
   color: var(--sp-gray-700);
+}
+
+.bid-doc {
+  padding: 16px;
+  background: var(--sp-gray-50);
+  border-radius: var(--sp-radius-sm);
+  border: 1px solid var(--sp-border);
+}
+
+.bid-doc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: var(--sp-gray-900);
+  flex-wrap: wrap;
+}
+
+.bid-doc-title {
+  font-weight: 600;
+}
+
+.bid-doc-hint {
+  font-size: 12px;
+  color: var(--sp-gray-500);
+  margin: 8px 0 12px;
+}
+
+.bid-doc-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
 }
 </style>
