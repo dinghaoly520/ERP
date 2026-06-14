@@ -2,89 +2,217 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createExpert, listSpecialties } from '@/lib/api/expert';
 import { toast } from 'sonner';
-import { ArrowLeft, UserPlus } from 'lucide-react';
+import { createExpert, listSpecialties } from '@/lib/api/expert';
+import { PageHero, SectionCard } from '@/components/workbench';
+import { UserPlus, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
-const TITLES = ['教授级高级工程师', '高级工程师', '高级经济师', '高级会计师', '工程师', '注册造价工程师', '注册监理工程师'];
+const TITLES = ['教授级高级工程师','高级工程师','高级经济师','高级会计师','工程师','注册造价工程师','注册监理工程师'];
+
+type FormFields = {
+  username: string; displayName: string; password: string; specialty: string;
+  title: string; employer: string; phone: string; idNumber: string; email: string; notes: string;
+};
+
+const INITIAL: FormFields = {
+  username: '', displayName: '', password: '', specialty: '',
+  title: '', employer: '', phone: '', idNumber: '', email: '', notes: '',
+};
 
 export default function ExpertEntryPage() {
   const router = useRouter();
   const [specialties, setSpecialties] = useState<string[]>([]);
-  const [form, setForm] = useState({ username: '', displayName: '', password: '', specialty: '', title: '', employer: '', phone: '', idNumber: '', email: '', notes: '' });
+  const [form, setForm] = useState<FormFields>(INITIAL);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [serverError, setServerError] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
 
   useEffect(() => { listSpecialties().then(setSpecialties).catch(() => {}); }, []);
 
-  const set = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }));
+  const set = (k: keyof FormFields, v: string) => {
+    setForm(prev => ({ ...prev, [k]: v }));
+    if (errors[k]) setErrors(prev => { const n = { ...prev }; delete n[k]; return n; });
+    if (serverError) setServerError('');
+  };
+
+  const validate = (): boolean => {
+    const e: Partial<Record<keyof FormFields, string>> = {};
+    if (!form.username.trim()) e.username = '请输入登录账号';
+    if (!form.displayName.trim()) e.displayName = '请输入专家姓名';
+    if (!form.password.trim()) e.password = '请输入初始密码';
+    else if (form.password.length < 6) e.password = '密码至少 6 位';
+    if (!form.specialty.trim()) e.specialty = '请选择或输入专业领域';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const submit = async () => {
-    setError('');
-    if (!form.username.trim() || !form.displayName.trim() || !form.password.trim() || !form.specialty.trim()) { setError('请填写账号、姓名、初始密码和专业领域'); return; }
-    if (form.password.length < 6) { setError('初始密码至少 6 位'); return; }
+    setServerError('');
+    if (!validate()) return;
     setSaving(true);
-    try { await createExpert(form); toast.success('专家录入成功'); router.push('/expert/repository'); }
-    catch (e: any) { setError(e?.message || '录入失败，账号可能已存在'); }
+    try {
+      await createExpert(form);
+      toast.success('专家录入成功');
+      router.push('/expert/repository');
+    } catch (e: any) { setServerError(e?.message || '录入失败，账号可能已存在'); }
     setSaving(false);
   };
 
+  const input = (field: keyof FormFields) =>
+    `workbench-input w-full text-sm ${errors[field] ? 'border-red-300 focus:border-red-400' : ''}`;
+
+  const FieldError = ({ field }: { field: keyof FormFields }) =>
+    errors[field] ? <p className="text-xs font-medium text-red-600 mt-0.5">{errors[field]}</p> : null;
+
   return (
-    <div>
-      <button onClick={() => router.push('/expert/repository')} className="inline-flex items-center gap-1.5 text-[13px] text-[#64748b] hover:text-[#0756a5] mb-3">
-        <ArrowLeft size={14} /> 返回专家库
-      </button>
+    <div className="space-y-6">
+      <PageHero
+        eyebrow="专家管理中心" title="专家录入"
+        description="录入评审专家基础资料、专业方向和可用状态。录入后专家即可参与项目评审抽取。"
+        tone="blue" icon={<UserPlus size={14} />}
+      />
 
-      <div className="flex items-end justify-between gap-4 mb-8 pb-4 border-b border-[#dce3eb]">
-        <div>
-          <div className="text-[11px] font-extrabold text-[#0756a5] uppercase tracking-[0.1em]">Expert Entry</div>
-          <h1 className="mt-1 text-[24px] font-black tracking-[-0.03em] text-[#0f172a]">录入专家</h1>
-          <p className="mt-1 text-[13px] text-[#64748b]">创建评审专家账号，录入基本信息后即可参与项目抽取与评审。</p>
+      {serverError && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          <span className="mt-px shrink-0 rounded-full bg-red-200 w-4 h-4 flex items-center justify-center text-[10px] font-extrabold text-red-700">!</span>
+          <span>{serverError}</span>
         </div>
-      </div>
+      )}
 
-      <div className="max-w-3xl">
-        {error && <div className="mb-5 px-4 py-2.5 border border-[#fca5a5] bg-[#fef2f2] text-[13px] font-bold text-[#991b1b]">{error}</div>}
+      <SectionCard title="专家资料" action={
+        <button onClick={() => router.push('/expert/repository')} className="inline-flex items-center gap-1 rounded-xl border border-[#dce3eb] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">
+          <ArrowLeft size={13} />返回专家库
+        </button>
+      }>
+        <div className="space-y-6">
+          {/* ──────────── 登录凭证 ──────────── */}
+          <fieldset>
+            <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.15em] text-[#94a3b8]">
+              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md bg-[#064ea2] text-[10px] font-extrabold text-white">1</span>
+              登录凭证
+            </legend>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <label className="space-y-1">
+                <span className="text-sm font-semibold text-[#5a6d8a]">登录账号 <span className="text-red-500">*</span></span>
+                <input value={form.username} onChange={e => set('username', e.target.value)}
+                  placeholder="如 expert_zhang" className={input('username')} autoComplete="off" />
+                <FieldError field="username" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-sm font-semibold text-[#5a6d8a]">专家姓名 <span className="text-red-500">*</span></span>
+                <input value={form.displayName} onChange={e => set('displayName', e.target.value)}
+                  placeholder="真实姓名" className={input('displayName')} />
+                <FieldError field="displayName" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-sm font-semibold text-[#5a6d8a]">初始密码 <span className="text-red-500">*</span></span>
+                <div className="relative">
+                  <input value={form.password} onChange={e => set('password', e.target.value)}
+                    type={showPw ? 'text' : 'password'} placeholder="至少 6 位" className={input('password')} />
+                  <button type="button" onClick={() => setShowPw(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#5a6d8a] transition-colors">
+                    {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+                {!errors.password && <p className="text-xs text-[#94a3b8]">专家首次登录时使用，建议包含字母和数字</p>}
+                <FieldError field="password" />
+              </label>
+            </div>
+          </fieldset>
 
-        <div className="border border-[#dce3eb] bg-white px-6 py-5">
-          <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-            <Field label="登录账号" required><input value={form.username} onChange={e => set('username', e.target.value)} placeholder="如 expert_zhang" className={C} /></Field>
-            <Field label="专家姓名" required><input value={form.displayName} onChange={e => set('displayName', e.target.value)} placeholder="姓名" className={C} /></Field>
-            <Field label="初始密码" required><input value={form.password} onChange={e => set('password', e.target.value)} placeholder="至少 6 位" type="password" className={C} /></Field>
-            <Field label="专业领域" required>
-              <input value={form.specialty} onChange={e => set('specialty', e.target.value)} list="spec-list" placeholder="如 水利工程" className={C} />
-              <datalist id="spec-list">{specialties.map(s => <option key={s} value={s} />)}</datalist>
-            </Field>
-            <Field label="职称">
-              <input value={form.title} onChange={e => set('title', e.target.value)} list="title-list" placeholder="如 高级工程师" className={C} />
-              <datalist id="title-list">{TITLES.map(t => <option key={t} value={t} />)}</datalist>
-            </Field>
-            <Field label="工作单位"><input value={form.employer} onChange={e => set('employer', e.target.value)} placeholder="用于供应商回避校验" className={C} /></Field>
-            <Field label="联系电话"><input value={form.phone} onChange={e => set('phone', e.target.value)} className={C} /></Field>
-            <Field label="身份证号"><input value={form.idNumber} onChange={e => set('idNumber', e.target.value)} className={C} /></Field>
-            <Field label="邮箱"><input value={form.email} onChange={e => set('email', e.target.value)} className={C} /></Field>
-            <Field label="备注" full><input value={form.notes} onChange={e => set('notes', e.target.value)} className={C} /></Field>
-          </div>
+          <div className="border-t border-[#edf2f7]" />
 
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[#e9eef4]">
-            <button onClick={() => router.push('/expert/repository')} className="px-5 py-2 text-[13px] font-bold text-[#64748b] border border-[#dce3eb] hover:bg-[#f8fafc] transition">取消</button>
-            <button onClick={submit} disabled={saving} className="inline-flex items-center gap-1.5 px-5 py-2 text-[13px] font-bold text-white bg-[#0756a5] hover:bg-[#06428a] disabled:opacity-50 transition">
-              <UserPlus size={14} />{saving ? '保存中...' : '录入专家'}
-            </button>
+          {/* ──────────── 专业资质 ──────────── */}
+          <fieldset>
+            <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.15em] text-[#94a3b8]">
+              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md bg-[#064ea2] text-[10px] font-extrabold text-white">2</span>
+              专业资质
+            </legend>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <label className="space-y-1">
+                <span className="text-sm font-semibold text-[#5a6d8a]">专业领域 <span className="text-red-500">*</span></span>
+                <input value={form.specialty} onChange={e => set('specialty', e.target.value)}
+                  list="spec-list" placeholder="如 水利工程" className={input('specialty')} />
+                <datalist id="spec-list">{specialties.map(s => <option key={s} value={s} />)}</datalist>
+                <FieldError field="specialty" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-sm font-semibold text-[#5a6d8a]">职称</span>
+                <input value={form.title} onChange={e => set('title', e.target.value)}
+                  list="title-list" placeholder="如 高级工程师" className={input('title')} />
+                <datalist id="title-list">{TITLES.map(t => <option key={t} value={t} />)}</datalist>
+              </label>
+              <label className="space-y-1">
+                <span className="text-sm font-semibold text-[#5a6d8a]">工作单位</span>
+                <input value={form.employer} onChange={e => set('employer', e.target.value)}
+                  placeholder="用于供应商回避校验" className={input('employer')} />
+                <p className="text-xs text-[#94a3b8]">填写全称，抽取时会按单位规避同单位专家</p>
+              </label>
+            </div>
+          </fieldset>
+
+          <div className="border-t border-[#edf2f7]" />
+
+          {/* ──────────── 联系信息 ──────────── */}
+          <fieldset>
+            <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.15em] text-[#94a3b8]">
+              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-[#dce3eb] bg-[#f8fafc] text-[10px] font-extrabold text-[#5a6d8a]">3</span>
+              联系信息
+            </legend>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-sm font-semibold text-[#5a6d8a]">联系电话</span>
+                <input value={form.phone} onChange={e => set('phone', e.target.value)}
+                  type="tel" className={input('phone')} />
+              </label>
+              <label className="space-y-1">
+                <span className="text-sm font-semibold text-[#5a6d8a]">电子邮箱</span>
+                <input value={form.email} onChange={e => set('email', e.target.value)}
+                  type="email" placeholder="example@domain.com" className={input('email')} />
+              </label>
+              <label className="space-y-1 md:col-span-2">
+                <span className="text-sm font-semibold text-[#5a6d8a]">身份证号</span>
+                <input value={form.idNumber} onChange={e => set('idNumber', e.target.value)}
+                  className={`${input('idNumber')} font-mono`} />
+              </label>
+            </div>
+          </fieldset>
+
+          <div className="border-t border-[#edf2f7]" />
+
+          {/* ──────────── 补充信息 ──────────── */}
+          <fieldset>
+            <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.15em] text-[#94a3b8]">
+              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-[#dce3eb] bg-[#f8fafc] text-[10px] font-extrabold text-[#5a6d8a]">4</span>
+              补充信息
+            </legend>
+            <label className="space-y-1">
+              <span className="text-sm font-semibold text-[#5a6d8a]">备注</span>
+              <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
+                placeholder="补充说明、特殊资质说明、回避事项等"
+                rows={3} className={`${input('notes')} resize-y`} />
+            </label>
+          </fieldset>
+
+          {/* ──────────── 操作 ──────────── */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-[#edf2f7] pt-5">
+            <p className="text-xs text-[#94a3b8]">
+              <span className="text-red-500">*</span> 为必填项，录入后可在专家库调整启停状态
+            </p>
+            <div className="flex gap-3 self-end sm:self-auto">
+              <button onClick={() => router.push('/expert/repository')}
+                className="rounded-xl border border-[#dce3eb] px-5 py-2.5 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">
+                取消
+              </button>
+              <button onClick={submit} disabled={saving}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#054280] disabled:opacity-50 transition">
+                {saving ? '保存中...' : <><UserPlus size={14} />录入专家</>}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-const C = 'w-full px-3 py-2 border border-[#dce3eb] text-[13px] focus:outline-none focus:border-[#0756a5] placeholder-[#94a3b8]';
-
-function Field({ label, children, full, required }: { label: string; children: React.ReactNode; full?: boolean; required?: boolean }) {
-  return (
-    <div className={full ? 'col-span-2' : ''}>
-      <label className="block text-[12px] font-bold text-[#475569] mb-1.5">{label}{required && <span className="text-[#dc2626] ml-0.5">*</span>}</label>
-      {children}
+      </SectionCard>
     </div>
   );
 }
