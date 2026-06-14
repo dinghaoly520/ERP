@@ -57,7 +57,7 @@ export function DashboardAiPanel({ context, className }: { context: DashboardCon
           </div>
           <div>
             <h2 className="text-base font-black text-[#18243a]">AI 运营洞察</h2>
-            <p className="text-xs text-[#8a96aa]">DeepSeek 实时分析各中心运营状态</p>
+            <p className="text-xs text-[#8a96aa]">水叮当智能管理助手</p>
           </div>
         </div>
         <button
