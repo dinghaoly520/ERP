@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
@@ -19,7 +20,10 @@ type BidSubmissionData = {
 
 @Injectable()
 export class SupplierPortalService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private bidDocumentService: BidDocumentService,
+  ) {}
 
   /**
    * 校验投标文件归属：引用的 FileAsset 必须存在、由当前用户上传、且分类为 bid_document。
@@ -217,22 +221,29 @@ export class SupplierPortalService {
   // ─── Bid Projects (招标机会 — supplier-facing) ───
   // 仅返回项目公开字段 + 投标方数量。绝不暴露其他投标方身份、开标记录、
   // 专家名单与评分等评审内部信息（这些是 BidController 受角色保护的原因）。
-  async listBidProjects() {
-    return this.prisma.bidProject.findMany({
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        projectCode: true,
-        name: true,
-        procurementMethod: true,
-        openTime: true,
-        deadline: true,
-        stage: true,
-        riskNote: true,
-        createdAt: true,
-        _count: { select: { suppliers: true } },
-      },
-    });
+  async listBidProjects(page = 1, pageSize = 20) {
+    const skip = (page - 1) * pageSize;
+    const [total, items] = await Promise.all([
+      this.prisma.bidProject.count(),
+      this.prisma.bidProject.findMany({
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          projectCode: true,
+          name: true,
+          procurementMethod: true,
+          openTime: true,
+          deadline: true,
+          stage: true,
+          riskNote: true,
+          createdAt: true,
+          _count: { select: { suppliers: true } },
+        },
+      }),
+    ]);
+    return { total, page, pageSize, items };
   }
 
   async getBidProject(id: string) {
@@ -255,6 +266,38 @@ export class SupplierPortalService {
         _count: { select: { suppliers: true } },
       },
     });
+  }
+
+  /**
+   * 根据招标项目 ID 查找关联的招标文件（通过公告的 relatedProjectCode 关联），
+   * 返回当前供应商的访问权限状态。无关联文件时返回 null。
+   */
+  async getBidProjectDocument(projectId: string, supplierId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { projectCode: true },
+    });
+    if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
+
+    // 查找关联的招标公告（BID_NOTICE）
+    const announcement = await this.prisma.announcement.findFirst({
+      where: {
+        relatedProjectCode: project.projectCode,
+        type: 'BID_NOTICE',
+      },
+      select: { id: true },
+    });
+    if (!announcement) return null;
+
+    // 检查是否已上传招标文件
+    const bidDoc = await this.prisma.bidDocument.findUnique({
+      where: { announcementId: announcement.id },
+      select: { id: true },
+    });
+    if (!bidDoc) return null;
+
+    // 委托 BidDocumentService 处理权限/付费/下载状态
+    return this.bidDocumentService.getForSupplier(announcement.id, supplierId);
   }
 
   // ─── Bid Submissions ───

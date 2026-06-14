@@ -122,13 +122,25 @@ export class SupplierPortalController {
   // ─── Bid Projects (招标机会) ───
 
   @Get('bid-projects')
-  async listBidProjects() {
-    return this.portalService.listBidProjects();
+  async listBidProjects(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.portalService.listBidProjects(
+      page ? parseInt(page, 10) : 1,
+      pageSize ? parseInt(pageSize, 10) : 20,
+    );
   }
 
   @Get('bid-projects/:id')
   async getBidProject(@Param('id') id: string) {
     return this.portalService.getBidProject(id);
+  }
+
+  @Get('bid-projects/:id/bid-document')
+  async getBidProjectDocument(@Request() req: any, @Param('id') id: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getBidProjectDocument(id, supplierId);
   }
 
   // ─── Bid Submissions ───

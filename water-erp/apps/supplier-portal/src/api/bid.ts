@@ -8,4 +8,8 @@ export const bidApi = {
   getProject(id: string) {
     return api.get(`/supplier-portal/bid-projects/${id}`)
   },
+  // 招标文件（通过项目 → 公告 relatedProjectCode 关联）
+  getProjectBidDocument(projectId: string) {
+    return api.get(`/supplier-portal/bid-projects/${projectId}/bid-document`)
+  },
 }

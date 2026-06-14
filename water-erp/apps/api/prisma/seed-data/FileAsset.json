@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "id": "cmqd000000000000000000002",
+    "key": "bid-doc/2026-06-13/dummy0000000001.enc",
+    "originalName": "2026年度防汛抗旱物资储备采购招标文件.pdf",
+    "mimeType": "application/pdf",
+    "size": 2048000,
+    "category": "bid_document",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "uploaderId": null,
+    "createdAt": "2026-06-13T06:57:56.349Z"
+  }
+]
