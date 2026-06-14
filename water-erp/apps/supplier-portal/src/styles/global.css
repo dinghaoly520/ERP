@@ -35,7 +35,7 @@
   --sp-white: #ffffff;
 
   /* Surfaces */
-  --sp-bg: #f4f7fb;
+  --sp-bg: #f0f4fb;
   --sp-surface: #ffffff;
   --sp-surface-hover: #f8fafc;
   --sp-border: #dce6f3;
@@ -65,7 +65,16 @@ body {
   font-size: 14px;
   line-height: 1.6;
   color: var(--sp-gray-900);
-  background: var(--sp-bg);
+  background:
+    radial-gradient(ellipse at 10% 4%, rgba(195, 220, 252, 0.56) 0%, transparent 44%),
+    radial-gradient(ellipse at 90% 20%, rgba(210, 195, 250, 0.42) 0%, transparent 44%),
+    radial-gradient(ellipse at 42% 93%, rgba(185, 235, 228, 0.44) 0%, transparent 46%),
+    radial-gradient(ellipse at 95% 77%, rgba(252, 210, 220, 0.30) 0%, transparent 40%),
+    linear-gradient(180deg,
+      rgba(248, 250, 255, 0.90) 0%,
+      rgba(250, 248, 255, 0.91) 38%,
+      rgba(248, 251, 254, 0.91) 68%,
+      rgba(246, 249, 253, 0.91) 100%);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -141,38 +150,75 @@ a:hover { color: var(--sp-primary-light); }
   animation: spFadeIn var(--sp-duration-normal) var(--sp-ease);
 }
 
-/* ─── Page title (unified across all pages) ─── */
-.sp-page-title-row {
+/* ─── Page hero card (matching 3004 PageHero: rounded-2xl card + badge eyebrow) ─── */
+.sp-page-hero-card {
+  background: #fff;
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-lg);
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(15,47,87,0.04);
+}
+
+.sp-page-hero-inner {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  align-items: flex-end;
-  margin-bottom: 28px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--sp-border);
+  gap: 20px;
+}
+
+.sp-page-hero-body {
+  min-width: 0;
+  flex: 1;
 }
 
 .sp-page-eyebrow {
-  color: var(--sp-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--sp-border);
+  padding: 4px 14px;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  margin-bottom: 10px;
 }
+.sp-page-eyebrow.blue   { color: var(--sp-primary); border-color: #bfdbfe; background: var(--sp-primary-lighter); }
+.sp-page-eyebrow.green  { color: #065f46; border-color: #a7f3d0; background: #ecfdf5; }
+.sp-page-eyebrow.orange { color: #92400e; border-color: #fcd34d; background: #fffbeb; }
+.sp-page-eyebrow.red    { color: #991b1b; border-color: #fecaca; background: #fef2f2; }
+.sp-page-eyebrow.purple { color: #5b21b6; border-color: #ddd6fe; background: #f5f3ff; }
 
 .sp-modern-title {
-  margin-top: 2px;
-  font-size: 24px;
-  line-height: 1.15;
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.2;
   font-weight: 900;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   color: var(--sp-gray-900);
 }
 
 .sp-modern-desc {
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: 13px;
   color: var(--sp-gray-500);
+  line-height: 1.6;
+  max-width: 640px;
+}
+
+.sp-page-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .sp-page-hero-inner { flex-direction: column; align-items: stretch; }
+  .sp-page-hero-actions { justify-content: flex-start; }
+  .sp-modern-title { font-size: 18px; }
 }
 
 /* ─── Module: independent content block (replaces sp-card for real cards) ─── */

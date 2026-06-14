@@ -25,23 +25,23 @@ export default function ExpertDashboardPage() {
 
   return (
     <div>
-      {/* 欢迎横幅 */}
-      <div className="bg-gradient-to-r from-[#043f88] via-[#064ea2] to-[#0e62d0] rounded-2xl p-8 mb-6 text-white relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
+      {/* 欢迎横幅 — purple gradient matching expert identity */}
+      <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-r from-[#5b21b6] via-[#7c3aed] to-[#a78bfa] p-8 text-white">
+        <div className="absolute right-0 top-0 h-64 w-64 translate-x-1/4 -translate-y-1/2 rounded-full bg-white/5" />
         <div className="relative">
-          <p className="text-white/70 text-sm mb-1">在线开评标系统</p>
-          <h1 className="text-2xl font-bold mb-2">欢迎，{user?.displayName || '专家'}</h1>
-          <p className="text-white/70 text-sm">在线开标、专家评审、过程留痕</p>
+          <p className="mb-1 text-sm text-white/70">在线开评标系统</p>
+          <h1 className="mb-2 text-2xl font-bold">欢迎，{user?.displayName || '专家'}</h1>
+          <p className="text-sm text-white/70">在线开标、专家评审、过程留痕</p>
         </div>
       </div>
 
       {/* 统计卡片 */}
       <div className="grid grid-cols-4 gap-px bg-[oklch(0.91_0.006_264)] mb-8">
         {[
-          { label: '分配项目', value: stats?.totalProjects ?? 0, color: 'text-blue-600 bg-blue-50', Icon: Clipboard },
+          { label: '分配项目', value: stats?.totalProjects ?? 0, color: 'text-purple-600 bg-purple-50', Icon: Clipboard },
           { label: '进行中', value: stats?.signedInProjects ?? 0, color: 'text-amber-600 bg-amber-50', Icon: Clock },
           { label: '已完成', value: stats?.completedProjects ?? 0, color: 'text-emerald-600 bg-emerald-50', Icon: CheckCircle },
-          { label: '平均得分', value: stats?.averageScore ?? 0, color: 'text-blue-600 bg-blue-50', Icon: TrendingUp },
+          { label: '平均得分', value: stats?.averageScore ?? 0, color: 'text-purple-600 bg-purple-50', Icon: TrendingUp },
         ].map(card => (
           <div key={card.label} className="bg-white p-5">
             <div className="flex items-center justify-between mb-3">

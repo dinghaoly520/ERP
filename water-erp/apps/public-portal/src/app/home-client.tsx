@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { landingURL } from '@water-erp/config';
 import { fetchPublicAnnouncements, type AnnouncementItem } from '@/lib/announcements';
+import GradientText from '@/components/GradientText';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    智慧水发·蜀水云采 — Landing Page
@@ -32,7 +33,6 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
       // 登录响应已含 role；公共门户带 X-Portal: public，/auth/me 会找 token_public（不存在）→ 401，
       // 故直接用登录返回的 role 跳转，不再单独请求 /auth/me。
       const { role } = await api.post<{ role: string }>('/auth/login', { username, password });
-      toast.success('登录成功，正在跳转...');
       setTimeout(() => { window.location.href = landingURL(role); }, 600);
     } catch (e: any) { toast.error(e.message || '登录失败'); }
     setLogging(false);
@@ -186,7 +186,15 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
           <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-transparent border-t-[clamp(3px,.4vw,6px)] border-r-[clamp(3px,.5vw,8px)] border-t-[#0b59ad] border-r-[#18a56c] rounded-[50%_50%_0_0/76%_76%_0_0] z-20 pointer-events-none" />
 
           <div className="relative z-20 px-[clamp(40px,4vw,72px)] py-[clamp(56px,5vw,96px)]">
-            <h1 className="text-[clamp(40px,3.6vw,62px)] font-black leading-[1.15] tracking-[0.10em] mb-5 hero-title">智慧水发·蜀水云采</h1>
+            <GradientText
+              colors={['#ffffff', '#d0e4ff', '#c0f0e4', '#e0d8ff', '#ffffff']}
+              animationSpeed={8}
+              direction="horizontal"
+              yoyo={true}
+              className="mb-5"
+            >
+              <h1 className="text-[clamp(40px,3.6vw,62px)] font-black leading-[1.15] tracking-[0.10em] m-0">智慧水发·蜀水云采</h1>
+            </GradientText>
             <p className="text-[clamp(16px,1.2vw,20px)] text-white/80 font-medium mb-12 max-w-xl">四川省水利发展集团统一招采门户 —— 阳光透明、合规高效的电子化招标采购平台</p>
             <div className="flex gap-4">
               <button onClick={() => router.push('/procurement-portal')} className="hero-btn">

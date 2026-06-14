@@ -93,16 +93,16 @@ export default function NoticePage() {
         <MetricCard label="已归档" value={data.items.filter(item => item.status === 'ARCHIVED').length} hint="本页归档记录" tone="gray" />
       </div>
 
-      <div className="mt-6 mb-4 flex flex-wrap gap-2">
-        <button onClick={() => { setFilterType(''); setPage(1); }} className={'rounded-full px-4 py-2 text-sm font-semibold transition ' + (filterType === '' ? 'bg-[#064ea2] text-white shadow-[0_8px_20px_rgba(6,78,162,0.2)]' : 'bg-white text-[#5a6d8a] border border-[#e5ecf4] hover:text-[#064ea2]')}>全部</button>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <button onClick={() => { setFilterType(''); setPage(1); }} className={`rounded-xl px-4 py-2 text-sm font-bold transition ${filterType === '' ? 'bg-[#064ea2] text-white' : 'bg-white text-[#5a6d8a] border border-[#dce6f3] hover:border-[#bcd0e8] hover:text-[#064ea2]'}`}>全部</button>
         {(Object.keys(typeMap) as AnnouncementType[]).map(t => (
-          <button key={t} onClick={() => { setFilterType(t); setPage(1); }} className={'rounded-full px-4 py-2 text-sm font-semibold transition ' + (filterType === t ? 'bg-[#064ea2] text-white shadow-[0_8px_20px_rgba(6,78,162,0.2)]' : 'bg-white text-[#5a6d8a] border border-[#e5ecf4] hover:text-[#064ea2]')}>{typeMap[t].label}</button>
+          <button key={t} onClick={() => { setFilterType(t); setPage(1); }} className={`rounded-xl px-4 py-2 text-sm font-bold transition ${filterType === t ? 'bg-[#064ea2] text-white' : 'bg-white text-[#5a6d8a] border border-[#dce6f3] hover:border-[#bcd0e8] hover:text-[#064ea2]'}`}>{typeMap[t].label}</button>
         ))}
       </div>
 
       <DataToolbar className="mb-4">
-        <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索标题" className="flex-1 min-w-[200px] px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm focus:outline-none focus:border-[#064ea2]" />
-        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value as any); setPage(1); }} className="px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm">
+        <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索标题" className="workbench-input flex-1 text-sm" />
+        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value as any); setPage(1); }} className="workbench-input text-sm">
           <option value="">全部状态</option>
           <option value="PUBLISHED">已发布</option>
           <option value="DRAFT">草稿</option>
@@ -112,40 +112,44 @@ export default function NoticePage() {
 
       <SectionCard className="overflow-hidden p-0">
         <table className="workbench-table">
-          <thead>
-            <tr className="border-b border-[#e5ecf4] text-left text-[#5a6d8a]">
-              <th className="px-5 py-3">标题</th>
-              <th className="px-5 py-3">类型</th>
-              <th className="px-5 py-3">状态</th>
-              <th className="px-5 py-3">附件/招标文件</th>
-              <th className="px-5 py-3">浏览</th>
-              <th className="px-5 py-3 text-right">操作</th>
+          <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
+            <tr>
+              <th className="px-4 py-3">标题</th>
+              <th className="px-4 py-3">类型</th>
+              <th className="px-4 py-3">状态</th>
+              <th className="px-4 py-3">附件/招标文件</th>
+              <th className="px-4 py-3">浏览</th>
+              <th className="px-4 py-3 text-right">操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-5 py-10 text-center text-[#5a6d8a]">加载中...</td></tr>
+              <tr><td colSpan={6} className="px-4 py-16 text-center text-[#8a99ad]">加载中...</td></tr>
             ) : data.items.length === 0 ? (
-              <tr><td colSpan={6} className="px-5 py-10 text-center text-[#5a6d8a]">暂无信息</td></tr>
+              <tr><td colSpan={6} className="px-4 py-16 text-center text-[#8a99ad]">暂无信息</td></tr>
             ) : data.items.map(a => {
               const tm = typeMap[a.type] || typeMap.PLATFORM;
               const sm = statusMap[a.status] || statusMap.DRAFT;
               const noBidDoc = a.type === 'BID_NOTICE' && a.status === 'PUBLISHED' && !a.bidDocument;
               return (
-                <tr key={a.id} className="border-b border-[#e5ecf4] hover:bg-[#f8fafc]">
-                  <td className="px-5 py-3 font-semibold text-[#18243a]">{a.title}{a.isTop && <span className="ml-1 text-[10px] text-[#e74c3c]">置顶</span>}{noBidDoc && <span className="ml-2 text-[10px] text-[#e74c3c] bg-[#fef2f2] px-1.5 py-0.5 rounded">未上传招标文件</span>}</td>
-                  <td className="px-5 py-3"><span className="px-2 py-1 rounded text-xs font-semibold" style={{ color: tm.color, backgroundColor: tm.bg }}>{tm.label}</span></td>
-                  <td className="px-5 py-3"><span className="px-2 py-1 rounded text-xs font-semibold" style={{ color: sm.color, backgroundColor: sm.bg }}>{sm.label}</span></td>
-                  <td className="px-5 py-3 text-xs text-[#5a6d8a]">
+                <tr key={a.id} className="border-t border-[#edf2f7] hover:bg-[#f8fafc]">
+                  <td className="px-4 py-3">
+                    <span className="text-sm font-bold text-[#18243a]">{a.title}</span>
+                    {a.isTop && <StatusBadge tone="red" className="ml-1 !text-[10px] !px-1.5 !py-0">置顶</StatusBadge>}
+                    {noBidDoc && <span className="ml-2 rounded-md bg-[#fef2f2] px-1.5 py-0.5 text-[10px] text-[#e74c3c]">未上传招标文件</span>}
+                  </td>
+                  <td className="px-4 py-3"><StatusBadge tone={a.type === 'BID_NOTICE' ? 'blue' : a.type === 'WIN_NOTICE' ? 'green' : a.type === 'POLICY' ? 'orange' : 'gray'}>{tm.label}</StatusBadge></td>
+                  <td className="px-4 py-3"><StatusBadge tone={a.status === 'PUBLISHED' ? 'green' : a.status === 'DRAFT' ? 'gray' : 'gray'}>{sm.label}</StatusBadge></td>
+                  <td className="px-4 py-3 text-xs text-[#5a6d8a]">
                     {a.attachments && a.attachments.length > 0 && <span className="mr-2">📎 {a.attachments.length}</span>}
                     {a.bidDocument && <span className="text-[#064ea2] font-semibold">🔒 招标文件{a.bidDocument.requirePayment ? '(付费)' : ''}</span>}
                   </td>
-                  <td className="px-5 py-3 text-[#5a6d8a]">{a.viewCount}</td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="px-4 py-3 text-[#5a6d8a]">{a.viewCount}</td>
+                  <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-1.5 flex-wrap">
-                      <button onClick={() => setEditor(a)} className="px-2 py-1 text-xs text-[#064ea2] hover:bg-[#f0f6ff] rounded">编辑</button>
-                      {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="px-2 py-1 text-xs text-[#0e8c5f] hover:bg-[#e7f7ef] rounded">投标情况</button>}
-                      <button onClick={() => remove(a)} className="px-2 py-1 text-xs text-[#e74c3c] hover:bg-[#fef2f2] rounded">删除</button>
+                      <button onClick={() => setEditor(a)} className="rounded-lg border border-[#dce6f3] px-2.5 py-1 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">编辑</button>
+                      {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition">投标情况</button>}
+                      <button onClick={() => remove(a)} className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-100 transition">删除</button>
                     </div>
                   </td>
                 </tr>
@@ -154,7 +158,7 @@ export default function NoticePage() {
           </tbody>
         </table>
         {totalPages > 1 && (
-          <div className="flex justify-between items-center px-5 py-3 border-t border-[#e5ecf4]">
+          <div className="flex justify-between items-center px-4 py-3 border-t border-[#e5ecf4]">
             <span className="text-xs text-[#5a6d8a]">共 {data.total} 条，第 {page}/{totalPages} 页</span>
             <div className="flex gap-2">
               <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1 text-xs border border-[#e5ecf4] rounded hover:bg-[#f8fafc] disabled:opacity-40">上一页</button>
@@ -254,7 +258,7 @@ function EditorModal({ announcement, onClose, onSaved }: { announcement: Announc
 
         <Field label="标题"><input value={title} onChange={e => setTitle(e.target.value)} className={inputCls} /></Field>
 
-        <div className="rounded-xl border border-[#e5ecf4] bg-[#f8fafc] p-4">
+        <div className="rounded-xl border border-[#dce6f3] bg-[#f8fafc] p-4">
           <div className="text-xs font-bold text-[#064ea2] mb-3">{typeMap[type].label} · 结构化信息</div>
           <div className="grid grid-cols-2 gap-3">
             {TYPE_META[type].map(f => (

@@ -3,398 +3,103 @@ import { ref, onMounted, computed } from 'vue'
 import { useSupplierStore } from '@/stores/supplier'
 import dayjs from 'dayjs'
 
-const supplierStore = useSupplierStore()
-const loading = ref(true)
-const expandedId = ref<string | null>(null)
-
-onMounted(async () => {
-  try {
-    await Promise.all([
-      supplierStore.fetchEvaluations(),
-      supplierStore.fetchEvaluationStats(),
-    ])
-  } finally {
-    loading.value = false
-  }
-})
-
+const supplierStore = useSupplierStore(); const loading = ref(true); const expandedId = ref<string|null>(null)
+onMounted(async () => { try { await Promise.all([supplierStore.fetchEvaluations(),supplierStore.fetchEvaluationStats()]) } finally { loading.value = false } })
 const stats = computed(() => supplierStore.evaluationStats)
-
-const levelColorMap: Record<string, string> = {
-  A: '#059669', B: '#0a5eb8', C: '#d97706', D: '#dc2626',
-}
-
-const levelLabel: Record<string, string> = {
-  A: '优秀', B: '良好', C: '合格', D: '不合格',
-}
-
-const scoreDimensions = [
-  { key: 'completenessScore', label: '完整度', max: 20 },
-  { key: 'responsivenessScore', label: '响应度', max: 20 },
-  { key: 'cooperationScore', label: '合作度', max: 20 },
-  { key: 'complianceScore', label: '合规度', max: 20 },
-  { key: 'overallScore', label: '综合', max: 20 },
-]
-
-function getScorePercent(e: any, key: string, max: number) {
-  const val = Number(e[key] || 0)
-  return Math.round((val / max) * 100)
-}
-
-function getScoreColor(percent: number) {
-  if (percent >= 80) return '#059669'
-  if (percent >= 60) return '#0a5eb8'
-  if (percent >= 40) return '#d97706'
-  return '#dc2626'
-}
-
-function toggleExpand(id: string) {
-  expandedId.value = expandedId.value === id ? null : id
-}
+const levelColorMap: Record<string,string> = {A:'#059669',B:'#064ea2',C:'#d97706',D:'#dc2626'}
+const levelLabel: Record<string,string> = {A:'优秀',B:'良好',C:'合格',D:'不合格'}
+const scoreDimensions = [{key:'completenessScore',label:'完整度',max:20},{key:'responsivenessScore',label:'响应度',max:20},{key:'cooperationScore',label:'合作度',max:20},{key:'complianceScore',label:'合规度',max:20},{key:'overallScore',label:'综合',max:20}]
+function getScorePercent(e:any,key:string,max:number) { return Math.round((Number(e[key]||0)/max)*100) }
+function getScoreColor(percent:number) { if (percent>=80) return '#059669'; if (percent>=60) return '#064ea2'; if (percent>=40) return '#d97706'; return '#dc2626' }
+function toggleExpand(id:string) { expandedId.value = expandedId.value===id?null:id }
 </script>
 
 <template>
   <div class="page-container" v-loading="loading">
-    <div class="sp-page-title-row">
-      <div>
-        <div class="sp-page-eyebrow">Performance Reviews</div>
-        <h1 class="sp-modern-title">评价记录</h1>
-        <p class="sp-modern-desc">查看采购方对您企业的综合评价</p>
+    <div class="sp-page-hero-card">
+      <div class="sp-page-hero-inner">
+        <div class="sp-page-hero-body">
+          <div class="sp-page-eyebrow purple"><el-icon :size="13"><Star /></el-icon>Performance Reviews</div>
+          <h1 class="sp-modern-title">评价记录</h1>
+          <p class="sp-modern-desc">查看采购方对您企业的履约综合评价，包含完整度、响应度、合作度、合规度等维度。</p>
+        </div>
       </div>
     </div>
 
-    <!-- Stats overview -->
-    <div class="sp-stat-row" v-if="stats">
-      <div class="sp-stat-cell">
-        <div class="sp-stat-cell-value">{{ stats.total }}</div>
-        <div class="sp-stat-cell-label">评价总次数</div>
-      </div>
-      <div class="sp-stat-cell">
-        <div class="sp-stat-cell-value">{{ stats.avgScore }}</div>
-        <div class="sp-stat-cell-label">平均得分</div>
-      </div>
-      <div class="sp-stat-cell">
-        <div class="sp-stat-cell-value">{{ stats.levelCounts?.A || 0 }}</div>
-        <div class="sp-stat-cell-label">A级评价</div>
-      </div>
-      <div class="sp-stat-cell">
-        <div class="sp-stat-cell-value">{{ (stats.levelCounts?.A || 0) + (stats.levelCounts?.B || 0) }}</div>
-        <div class="sp-stat-cell-label">B级及以上</div>
-      </div>
+    <div class="eval-stats" v-if="stats">
+      <div class="eval-stat-cell"><div class="eval-stat-value">{{ stats.total }}</div><div class="eval-stat-label">评价总次数</div></div>
+      <div class="eval-stat-cell"><div class="eval-stat-value" style="color:var(--sp-primary)">{{ stats.avgScore }}</div><div class="eval-stat-label">平均得分</div></div>
+      <div class="eval-stat-cell"><div class="eval-stat-value">{{ stats.levelCounts?.A||0 }}</div><div class="eval-stat-label">A 级评价</div></div>
+      <div class="eval-stat-cell"><div class="eval-stat-value">{{ (stats.levelCounts?.A||0)+(stats.levelCounts?.B||0) }}</div><div class="eval-stat-label">B 级及以上</div></div>
     </div>
 
-    <!-- Level distribution chart -->
-    <div class="sp-module" v-if="stats && stats.total > 0" style="margin-bottom: 16px;">
-      <div class="sp-module-header">
-        <span class="sp-module-title">等级分布</span>
-      </div>
+    <div class="sp-module" v-if="stats&&stats.total>0">
+      <div class="sp-module-header"><span class="sp-module-title">等级分布</span></div>
       <div class="level-bars">
-        <div v-for="key in ['A', 'B', 'C', 'D']" :key="key" class="level-bar-row">
-          <div class="level-bar-label">
-            <span class="level-badge" :style="{ background: levelColorMap[key] }">{{ key }}</span>
-            <span class="level-name">{{ levelLabel[key] }}</span>
-          </div>
-          <div class="level-bar-track">
-            <div
-              class="level-bar-fill"
-              :style="{
-                width: stats.total > 0 ? `${(stats.levelCounts?.[key] || 0) / stats.total * 100}%` : '0%',
-                background: levelColorMap[key],
-              }"
-            ></div>
-          </div>
-          <div class="level-bar-count">{{ stats.levelCounts?.[key] || 0 }}</div>
+        <div v-for="key in ['A','B','C','D']" :key="key" class="level-bar-row">
+          <div class="level-bar-label"><span class="level-badge" :style="{background:levelColorMap[key]}">{{ key }}</span><span class="level-name">{{ levelLabel[key] }}</span></div>
+          <div class="level-bar-track"><div class="level-bar-fill" :style="{width:stats.total>0?`${(stats.levelCounts?.[key]||0)/stats.total*100}%`:'0%',background:levelColorMap[key]}"></div></div>
+          <div class="level-bar-count">{{ stats.levelCounts?.[key]||0 }}</div>
         </div>
       </div>
     </div>
 
-    <!-- Evaluation list -->
     <div class="sp-module">
-      <div class="sp-module-header">
-        <span class="sp-module-title">评价详情</span>
-      </div>
-
-      <div v-if="supplierStore.evaluations.length > 0">
-        <div
-          v-for="e in supplierStore.evaluations"
-          :key="e.id"
-          class="eval-card"
-          :class="{ expanded: expandedId === e.id }"
-        >
-          <!-- Summary row -->
+      <div class="sp-module-header"><span class="sp-module-title">评价详情</span></div>
+      <div v-if="supplierStore.evaluations.length>0">
+        <div v-for="e in supplierStore.evaluations" :key="e.id" class="eval-card" :class="{expanded:expandedId===e.id}">
           <div class="eval-summary" @click="toggleExpand(e.id)">
-            <div class="eval-left">
-              <div class="eval-level" :style="{ background: levelColorMap[e.level] || '#64748b' }">
-                {{ e.level }}
-              </div>
-              <div class="eval-info">
-                <div class="eval-score">综合评分：<strong>{{ Number(e.overallScore).toFixed(1) }}</strong> 分</div>
-                <div class="eval-evaluator">评价人：{{ e.evaluator?.displayName || '-' }}</div>
-              </div>
-            </div>
-            <div class="eval-right">
-              <div class="eval-date">{{ dayjs(e.createdAt).format('YYYY-MM-DD') }}</div>
-              <el-icon class="expand-icon" :class="{ rotated: expandedId === e.id }"><ArrowDown /></el-icon>
-            </div>
+            <div class="eval-left"><div class="eval-level" :style="{background:levelColorMap[e.level]||'#64748b'}">{{ e.level }}</div><div class="eval-info"><div class="eval-score">综合评分：<strong>{{ Number(e.overallScore).toFixed(1) }}</strong> 分</div><div class="eval-evaluator">评价人：{{ e.evaluator?.displayName||'-' }}</div></div></div>
+            <div class="eval-right"><div class="eval-date">{{ dayjs(e.createdAt).format('YYYY-MM-DD') }}</div><el-icon class="expand-icon" :class="{rotated:expandedId===e.id}"><ArrowDown /></el-icon></div>
           </div>
-
-          <!-- Expanded detail -->
-          <transition name="expand">
-            <div v-if="expandedId === e.id" class="eval-detail">
-              <!-- Score breakdown bars -->
-              <div class="score-breakdown">
-                <div v-for="dim in scoreDimensions" :key="dim.key" class="score-bar-row">
-                  <span class="score-bar-label">{{ dim.label }}</span>
-                  <div class="score-bar-track">
-                    <div
-                      class="score-bar-fill"
-                      :style="{
-                        width: getScorePercent(e, dim.key, dim.max) + '%',
-                        background: getScoreColor(getScorePercent(e, dim.key, dim.max)),
-                      }"
-                    ></div>
-                  </div>
-                  <span class="score-bar-value">{{ Number(e[dim.key] || 0).toFixed(1) }}</span>
-                </div>
-              </div>
-
-              <!-- Comment -->
-              <div v-if="e.comment" class="eval-comment">
-                <el-icon><ChatLineSquare /></el-icon>
-                <span>{{ e.comment }}</span>
-              </div>
-            </div>
-          </transition>
+          <transition name="expand"><div v-if="expandedId===e.id" class="eval-detail">
+            <div class="score-breakdown"><div v-for="dim in scoreDimensions" :key="dim.key" class="score-bar-row"><span class="score-bar-label">{{ dim.label }}</span><div class="score-bar-track"><div class="score-bar-fill" :style="{width:getScorePercent(e,dim.key,dim.max)+'%',background:getScoreColor(getScorePercent(e,dim.key,dim.max))}"></div></div><span class="score-bar-value">{{ Number(e[dim.key]||0).toFixed(1) }}</span></div></div>
+            <div v-if="e.comment" class="eval-comment"><el-icon><ChatLineSquare /></el-icon><span>{{ e.comment }}</span></div>
+          </div></transition>
         </div>
       </div>
-
-      <div v-else class="sp-empty" style="padding: 30px;">
-        <div class="sp-empty-icon">⭐</div>
-        <div class="sp-empty-text">暂无评价记录</div>
-        <div class="sp-empty-desc">参与项目后，采购方将对您进行评价</div>
-      </div>
+      <div v-else class="sp-empty" style="padding:40px"><div class="sp-empty-icon"><el-icon :size="24"><Star /></el-icon></div><div class="sp-empty-text">暂无评价记录</div><div class="sp-empty-desc">参与项目后，采购方将对您进行履约评价</div></div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Level distribution */
-.level-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.level-bar-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.level-bar-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 80px;
-  flex-shrink: 0;
-}
-
-.level-badge {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 900;
-  color: #fff;
-}
-
-.level-name {
-  font-size: 13px;
-  color: var(--sp-gray-500);
-}
-
-.level-bar-track {
-  flex: 1;
-  height: 12px;
-  border-radius: 6px;
-  background: var(--sp-gray-100);
-  overflow: hidden;
-}
-
-.level-bar-fill {
-  height: 100%;
-  border-radius: 6px;
-  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-  min-width: 0;
-}
-
-.level-bar-count {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--sp-gray-900);
-  width: 32px;
-  text-align: right;
-}
-
-/* Evaluation cards */
-.eval-card {
-  border: 1px solid var(--sp-border-light);
-  border-radius: var(--sp-radius-md);
-  margin-bottom: 12px;
-  overflow: hidden;
-  transition: all 0.2s;
-}
-
-.eval-card:hover { border-color: var(--sp-border); }
+.eval-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
+.eval-stat-cell { padding: 16px 18px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); background: #fff; }
+.eval-stat-value { font-size: 26px; font-weight: 900; color: var(--sp-gray-900); line-height: 1; font-variant-numeric: tabular-nums; }
+.eval-stat-label { margin-top: 6px; font-size: 12px; color: var(--sp-gray-500); font-weight: 600; }
+.level-bars { display: flex; flex-direction: column; gap: 12px; }
+.level-bar-row { display: flex; align-items: center; gap: 12px; }
+.level-bar-label { display: flex; align-items: center; gap: 8px; width: 80px; flex-shrink: 0; }
+.level-badge { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; color: #fff; }
+.level-name { font-size: 13px; color: var(--sp-gray-500); }
+.level-bar-track { flex: 1; height: 12px; border-radius: 6px; background: var(--sp-gray-100); overflow: hidden; }
+.level-bar-fill { height: 100%; border-radius: 6px; transition: width 0.6s cubic-bezier(.4,0,.2,1); }
+.level-bar-count { font-size: 16px; font-weight: 800; color: var(--sp-gray-900); width: 32px; text-align: right; }
+.eval-card { border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); margin-bottom: 12px; overflow: hidden; transition: all 0.2s; background: #fff; }
+.eval-card:hover { border-color: var(--sp-primary); }
 .eval-card.expanded { border-color: var(--sp-primary); }
-
-.eval-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.eval-summary:hover { background: var(--sp-gray-50); }
-
-.eval-left {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-
-.eval-level {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  font-weight: 900;
-  color: #fff;
-  flex-shrink: 0;
-}
-
+.eval-summary { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; cursor: pointer; transition: background 0.15s; }
+.eval-summary:hover { background: var(--sp-surface-hover); }
+.eval-left { display: flex; gap: 14px; align-items: center; flex: 1; min-width: 0; }
+.eval-level { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; color: #fff; flex-shrink: 0; }
 .eval-info { flex: 1; min-width: 0; }
-
-.eval-score {
-  font-size: 15px;
-  color: var(--sp-gray-700);
-  margin-bottom: 2px;
-}
-
+.eval-score { font-size: 15px; color: var(--sp-gray-700); margin-bottom: 2px; }
 .eval-evaluator { font-size: 13px; color: var(--sp-gray-400); }
-
-.eval-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
+.eval-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .eval-date { font-size: 13px; color: var(--sp-gray-400); }
-
-.expand-icon {
-  color: var(--sp-gray-400);
-  transition: transform 0.25s;
-  font-size: 16px;
-}
-
+.expand-icon { color: var(--sp-gray-400); transition: transform 0.25s; font-size: 16px; }
 .expand-icon.rotated { transform: rotate(180deg); }
-
-/* Expand animation */
-.expand-enter-active,
-.expand-leave-active {
-  transition: all 0.25s ease;
-  overflow: hidden;
-}
-
-.expand-enter-from,
-.expand-leave-to {
-  opacity: 0;
-  max-height: 0;
-}
-
-.expand-enter-to,
-.expand-leave-from {
-  opacity: 1;
-  max-height: 400px;
-}
-
-/* Score breakdown */
-.eval-detail {
-  padding: 0 20px 20px;
-  border-top: 1px solid var(--sp-border-light);
-}
-
-.score-breakdown {
-  padding-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.score-bar-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.score-bar-label {
-  width: 48px;
-  font-size: 12px;
-  color: var(--sp-gray-500);
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.score-bar-track {
-  flex: 1;
-  height: 8px;
-  border-radius: 4px;
-  background: var(--sp-gray-100);
-  overflow: hidden;
-}
-
-.score-bar-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.score-bar-value {
-  width: 36px;
-  text-align: right;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--sp-gray-900);
-  flex-shrink: 0;
-}
-
-.eval-comment {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 16px;
-  padding: 12px 14px;
-  background: var(--sp-gray-50);
-  border-radius: var(--sp-radius-sm);
-  font-size: 13px;
-  color: var(--sp-gray-600);
-  line-height: 1.6;
-}
-
-.eval-comment .el-icon {
-  flex-shrink: 0;
-  margin-top: 2px;
-  color: var(--sp-gray-400);
-}
+.eval-detail { padding: 0 20px 20px; border-top: 1px solid var(--sp-border-light); }
+.score-breakdown { padding-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.score-bar-row { display: flex; align-items: center; gap: 10px; }
+.score-bar-label { width: 48px; font-size: 12px; color: var(--sp-gray-500); font-weight: 600; flex-shrink: 0; }
+.score-bar-track { flex: 1; height: 8px; border-radius: 4px; background: var(--sp-gray-100); overflow: hidden; }
+.score-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s cubic-bezier(.4,0,.2,1); }
+.score-bar-value { width: 36px; text-align: right; font-size: 13px; font-weight: 700; color: var(--sp-gray-900); flex-shrink: 0; }
+.eval-comment { display: flex; align-items: flex-start; gap: 8px; margin-top: 16px; padding: 12px 14px; background: var(--sp-gray-50); border-radius: var(--sp-radius-sm); font-size: 13px; color: var(--sp-gray-600); line-height: 1.6; }
+.eval-comment .el-icon { flex-shrink: 0; margin-top: 2px; color: var(--sp-gray-400); }
+.expand-enter-active,.expand-leave-active { transition: all 0.25s ease; overflow: hidden; }
+.expand-enter-from,.expand-leave-to { opacity: 0; max-height: 0; }
+.expand-enter-to,.expand-leave-from { opacity: 1; max-height: 400px; }
 </style>

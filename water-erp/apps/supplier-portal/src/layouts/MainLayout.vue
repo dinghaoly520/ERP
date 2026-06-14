@@ -262,9 +262,15 @@ notifStore.fetchUnreadCount()
   height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(circle at 8% 0%, rgba(6, 78, 162, 0.10), transparent 30%),
-    radial-gradient(circle at 88% 8%, rgba(22, 132, 216, 0.08), transparent 26%),
-    linear-gradient(180deg, #f7fbff 0%, #f8fafc 100%);
+    radial-gradient(ellipse at 5% 0%, rgba(6, 78, 162, 0.08), transparent 36%),
+    radial-gradient(ellipse at 92% 6%, rgba(11, 99, 206, 0.06), transparent 30%),
+    radial-gradient(ellipse at 50% 98%, rgba(14, 98, 208, 0.04), transparent 38%),
+    linear-gradient(180deg,
+      rgba(240, 247, 255, 0.84) 0%,
+      rgba(245, 249, 254, 0.88) 50%,
+      rgba(242, 247, 253, 0.84) 100%);
+  backdrop-filter: blur(40px) saturate(1.12);
+  -webkit-backdrop-filter: blur(40px) saturate(1.12);
   color: #18243a;
 }
 
@@ -570,17 +576,20 @@ notifStore.fetchUnreadCount()
 
 /* ─── Content ─── */
 .sp-content {
+  position: relative;
+  z-index: 0;
   flex: 1;
   min-width: 0;
   overflow-y: auto;
   padding: 24px;
-  background-color: #f7f9fc;
-  background-image:
-    linear-gradient(rgba(6, 78, 162, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(6, 78, 162, 0.035) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background:
+    radial-gradient(ellipse at 5% 0%, rgba(6, 78, 162, 0.06), transparent 36%),
+    radial-gradient(ellipse at 92% 6%, rgba(11, 99, 206, 0.04), transparent 30%),
+    radial-gradient(ellipse at 50% 98%, rgba(14, 98, 208, 0.03), transparent 38%);
+  background-color: rgba(245, 249, 254, 0.92);
+  backdrop-filter: blur(20px) saturate(1.1);
+  -webkit-backdrop-filter: blur(20px) saturate(1.1);
 }
-
 /* ─── Notification popover ─── */
 .sp-notif-popover {
   margin: -12px;

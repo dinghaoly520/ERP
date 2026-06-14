@@ -145,28 +145,30 @@ async function handleChangePassword() {
   <div class="page-container" v-loading="loading">
     <template v-if="statusInfo">
       <!-- Hero -->
-      <section class="db-hero">
-        <div class="db-hero-main">
-          <div class="db-hero-eyebrow">蜀水云采 · 供应商工作台</div>
-          <h1 class="db-hero-title">{{ authStore.displayName || statusInfo.name }}，{{ new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好' }}</h1>
-          <p class="db-hero-desc">
-            当前状态
-            <span class="sp-status db-hero-status" :class="statusType[statusInfo.status] || 'pending'">{{ statusLabel[statusInfo.status] || statusInfo.status }}</span>
-            <template v-if="statusInfo.status === 'RETURNED' && statusInfo.returnReason">，{{ statusInfo.returnReason }}</template>
-            <template v-else>，关注投标机会、资质有效期和待处理消息</template>
-          </p>
-          <div class="db-hero-actions">
-            <el-button class="db-hero-btn" @click="router.push('/bids')">招标机会</el-button>
-            <el-button class="db-hero-btn" @click="router.push('/my-bids')">投标进展</el-button>
-            <el-button class="db-hero-btn" @click="router.push('/profile')">完善档案</el-button>
+      <div class="sp-page-hero-card">
+        <div class="sp-page-hero-inner">
+          <div class="sp-page-hero-body">
+            <div class="sp-page-eyebrow blue"><el-icon :size="13"><HomeFilled /></el-icon>蜀水云采 · 供应商工作台</div>
+            <h1 class="sp-modern-title">{{ authStore.displayName || statusInfo.name }}，{{ new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好' }}</h1>
+            <p class="sp-modern-desc">
+              当前状态
+              <span class="sp-status" :class="statusType[statusInfo.status] || 'pending'">{{ statusLabel[statusInfo.status] || statusInfo.status }}</span>
+              <template v-if="statusInfo.status === 'RETURNED' && statusInfo.returnReason">，{{ statusInfo.returnReason }}</template>
+              <template v-else>，关注投标机会、资质有效期和待处理消息</template>
+            </p>
+          </div>
+          <div class="sp-page-hero-actions">
+            <div class="db-hero-score">
+              <div class="db-hero-score-num">{{ completeness.score }}<small>%</small></div>
+              <div class="db-hero-score-label">资料完整度</div>
+              <div class="db-hero-score-hint">{{ completeness.missing.length ? `仍缺 ${completeness.missing.length} 项` : '已完善' }}</div>
+            </div>
+            <el-button type="primary" @click="router.push('/bids')">招标机会</el-button>
+            <el-button @click="router.push('/my-bids')">投标进展</el-button>
+            <el-button @click="router.push('/profile')">完善档案</el-button>
           </div>
         </div>
-        <div class="db-hero-score">
-          <div class="db-hero-score-num">{{ completeness.score }}<small>%</small></div>
-          <div class="db-hero-score-label">资料完整度</div>
-          <div class="db-hero-score-hint">{{ completeness.missing.length ? `仍缺 ${completeness.missing.length} 项` : '已完善' }}</div>
-        </div>
-      </section>
+      </div>
 
       <!-- Key metrics -->
       <div class="db-metrics" v-if="stats">
@@ -257,45 +259,6 @@ async function handleChangePassword() {
 </template>
 
 <style scoped>
-/* Hero — light, clean */
-.db-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px;
-  gap: 24px;
-  align-items: center;
-  padding: 28px 32px;
-  background: #fff;
-  border: 1px solid var(--sp-border);
-  border-radius: var(--sp-radius-md);
-  color: var(--sp-gray-900);
-  margin-bottom: 24px;
-}
-.db-hero-eyebrow { color: var(--sp-primary); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-.db-hero-title { margin-top: 6px; font-size: 28px; font-weight: 900; letter-spacing: -0.03em; line-height: 1.15; }
-.db-hero-desc { margin-top: 8px; color: var(--sp-gray-500); font-size: 13px; max-width: 620px; }
-.db-hero-status { margin: 0 4px; }
-.db-hero-actions { display: flex; gap: 8px; margin-top: 18px; }
-.db-hero-btn {
-  background: var(--sp-primary-lighter) !important;
-  border: 1px solid var(--sp-border) !important;
-  color: var(--sp-primary) !important;
-  border-radius: var(--sp-radius-sm) !important;
-  font-weight: 700; font-size: 13px;
-}
-.db-hero-btn:hover { background: #dbeafe !important; border-color: var(--sp-primary) !important; }
-
-.db-hero-score {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 20px 16px;
-  border: 1px solid var(--sp-border-light);
-  border-radius: var(--sp-radius-sm);
-  background: var(--sp-primary-lighter);
-}
-.db-hero-score-num { font-size: 44px; font-weight: 950; line-height: 1; color: var(--sp-primary); font-variant-numeric: tabular-nums; }
-.db-hero-score-num small { font-size: 16px; font-weight: 600; color: var(--sp-gray-400); }
-.db-hero-score-label { margin-top: 6px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--sp-gray-700); }
-.db-hero-score-hint { margin-top: 2px; font-size: 11px; color: var(--sp-gray-400); }
-
 /* Metrics row */
 .db-metrics {
   display: grid;
@@ -325,6 +288,19 @@ async function handleChangePassword() {
   font-weight: 600;
   color: var(--sp-gray-500);
 }
+
+/* Hero score */
+.db-hero-score {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 16px 20px;
+  border: 1px solid var(--sp-border-light);
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-primary-lighter);
+}
+.db-hero-score-num { font-size: 40px; font-weight: 950; line-height: 1; color: var(--sp-primary); font-variant-numeric: tabular-nums; }
+.db-hero-score-num small { font-size: 14px; font-weight: 600; color: var(--sp-gray-400); }
+.db-hero-score-label { margin-top: 4px; font-size: 12px; font-weight: 800; color: var(--sp-gray-700); }
+.db-hero-score-hint { margin-top: 2px; font-size: 11px; color: var(--sp-gray-400); }
 
 /* Two-column grid */
 .db-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
@@ -388,9 +364,7 @@ async function handleChangePassword() {
   .db-side { grid-template-columns: repeat(2,1fr); }
 }
 @media (max-width: 768px) {
-  .db-hero { grid-template-columns: 1fr; padding: 20px; }
-  .db-hero-title { font-size: 22px; }
-  .db-hero-score { flex-direction: row; gap: 16px; padding: 14px; }
+  .db-grid { grid-template-columns: 1fr; }
   .db-metrics { grid-template-columns: repeat(2, 1fr); }
   .db-side { grid-template-columns: 1fr; }
   .db-project-row { grid-template-columns: 1fr; }

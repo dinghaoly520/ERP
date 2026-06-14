@@ -506,13 +506,13 @@ export default function MallPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f7fb] text-[#18243a]" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
-      <header className="sticky top-0 z-50 border-b border-[#dce6f3] bg-white/95 backdrop-blur-xl">
-        <div className="flex h-18 items-center justify-between px-6">
+    <div className="min-h-screen glass-surface text-[#18243a]" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+      <header className="sticky top-0 z-50 border-b border-[#dbe6f3] bg-white/86 backdrop-blur-xl">
+        <div className="flex h-[68px] items-center justify-between px-6">
           <a href="http://localhost:3006" className="flex items-center gap-3 no-underline">
-            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-11 w-auto object-contain" />
+            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-10 w-auto object-contain" />
             <span>
-              <strong className="block text-xl font-black tracking-[0.12em] text-[#123a6e]" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>四川水发集团</strong>
+              <strong className="block text-lg font-black tracking-[0.10em] text-[#123a6e]" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>四川水发集团</strong>
             </span>
           </a>
 
@@ -570,7 +570,7 @@ export default function MallPage() {
         </section>
 
         <section className="mt-5 grid gap-5 lg:grid-cols-[280px_1fr]">
-          <aside className="rounded-2xl border border-[#e1e9f4] bg-white p-4 shadow-[0_10px_28px_rgba(15,35,65,.04)] lg:sticky lg:top-21 lg:self-start">
+          <aside className="rounded-2xl border border-[#e1e9f4] bg-white p-4 shadow-[0_10px_28px_rgba(15,35,65,.04)] lg:sticky lg:top-20 lg:self-start">
             <div className="mb-3 flex items-center justify-between"><h2 className="text-base font-black text-[#18243a]">集中采购目录</h2><span className="rounded-full bg-[#eef3fb] px-2 py-0.5 text-xs font-bold text-[#064ea2]">{filtered.length}项</span></div>
             <div className="space-y-3">{DIRECTORY.map(section => <div key={section.group}><div className="mb-1 text-xs font-bold text-[#8a96aa]">{section.group}</div><div className="grid gap-1">{section.children.map(child => <button key={child} onClick={() => setCategory(child)} className={`flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${category === child ? 'bg-[#064ea2] text-white shadow-[0_8px_18px_rgba(6,78,162,.2)]' : 'text-[#344563] hover:bg-[#f3f7fc] hover:text-[#064ea2]'}`}><span>{child}</span><span className={`text-xs ${category === child ? 'text-white/70' : 'text-[#8a96aa]'}`}>{child === '全部' ? items.length : items.filter(item => item.category === child || item.group === child).length}</span></button>)}</div></div>)}</div>
           </aside>
