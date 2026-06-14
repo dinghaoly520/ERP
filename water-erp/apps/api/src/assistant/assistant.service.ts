@@ -125,9 +125,30 @@ ${toolList}
       const toolCallMatch = answer.match(
         /TOOL_CALL:\s*(\{[\s\S]*?"tool"[\s\S]*?\})/,
       );
-      if (toolCallMatch) {
+      if (!toolCallMatch) {
+        // no tool call, continue with raw answer
+      } else {
+        // Try to parse JSON; if regex-cut is incomplete, walk forward to balance braces
+        let jsonStr = toolCallMatch[1];
+        let braceCount = 0;
+        for (const ch of jsonStr) {
+          if (ch === '{') braceCount++;
+          if (ch === '}') braceCount--;
+        }
+        // If braces unbalanced, extend jsonStr from original answer
+        if (braceCount !== 0) {
+          const startIdx = answer.indexOf(jsonStr);
+          let endIdx = startIdx + jsonStr.length;
+          while (braceCount > 0 && endIdx < answer.length) {
+            const ch = answer[endIdx];
+            if (ch === '{') braceCount++;
+            if (ch === '}') braceCount--;
+            endIdx++;
+          }
+          jsonStr = answer.slice(startIdx, endIdx);
+        }
         try {
-          const toolCall = JSON.parse(toolCallMatch[1]);
+          const toolCall = JSON.parse(jsonStr);
           const tool = this.toolRegistry.get(toolCall.tool);
           if (tool) {
             const result = await tool.execute(toolCall.args || {});

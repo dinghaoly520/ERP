@@ -32,12 +32,12 @@ export function DashboardAiPanel({ context, className }: { context: DashboardCon
         body: JSON.stringify(context),
         credentials: 'include',
       });
-      if (!res.ok) throw new Error('request failed');
       const data = await res.json();
       setResult(data);
+      if (data.level === 'warn') setError(true);
     } catch {
       setError(true);
-      setResult({ summary: 'AI 引擎暂时不可用，当前数据可正常查看。', level: 'warn' });
+      setResult({ summary: '网络异常，请确认 API 服务已启动并刷新页面重试。', level: 'warn' });
     } finally {
       setLoading(false);
     }
@@ -79,7 +79,7 @@ export function DashboardAiPanel({ context, className }: { context: DashboardCon
         ) : (
           <div className="space-y-3">
             <p className="text-sm leading-7 text-[#18243a]">{result?.summary}</p>
-            {!error && result?.level !== 'warn' && (
+            {!error && (
               <div className="flex items-center gap-2 rounded-xl bg-[#f5f3ff] px-3 py-2 text-xs font-bold text-[#7c3aed]">
                 <Sparkles size={12} />
                 AI 生成内容仅供参考，不替代管理判断
@@ -87,7 +87,7 @@ export function DashboardAiPanel({ context, className }: { context: DashboardCon
             )}
             {error && (
               <div className="rounded-xl bg-[#fff7ed] px-3 py-2 text-xs font-bold text-[#9a3412]">
-                连接失败，请检查 API Key 配置。
+                如持续异常，请检查 API Key 配置或网络连接。
               </div>
             )}
           </div>

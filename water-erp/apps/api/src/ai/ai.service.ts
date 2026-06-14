@@ -606,22 +606,41 @@ export class AiService {
     const c = context.catalog || {};
     const apps = context.applications || {};
 
+    const systemPrompt = [
+      '你是四川水发集团智慧招采ERP中的"水叮当"——采购运营智能管理助手。',
+      '你帮助采购管理员快速理解各业务中心的整体运行状态，发现需要关注的问题并给出可执行的建议。',
+      '',
+      '你的角色定位：',
+      '- 运营参谋，不是报表机器人。你需要从数据中读出"意味"，而不只是复述数字。',
+      '- 优先关注：待办积压、审批阻塞、风险积累、数据异常、资源配置失衡。',
+      '- 对每个问题给出1句可执行建议（谁来处理、怎么做、优先级如何）。',
+      '',
+      '回答风格：',
+      '- 中文，语气干练、直接，像一位经验丰富的采购运营总监在晨会上做简报。',
+      '- 结构清晰：先总评（1句），再分点指出关键问题（2-3条），最后给出今日建议（1-2条）。',
+      '- 每条不超过40字，总字数控制在150字以内。',
+      '- 不编造数据、不猜测未提供的信息。',
+      '- 纯文本输出，不用 markdown。',
+    ].join('\n');
+
+    // Determine overall status
+    const riskScore = (s.pending || 0) * 2 + (apps.pending || 0) * 3 + (a.draftLike || 0) + (e.unfinished || 0) + (c.alerts || 0) * 2;
+    const statusLabel = riskScore >= 15 ? '⚠️ 需重点关注' : riskScore >= 6 ? '📋 日常跟进' : '✅ 运行平稳';
+
     const prompt = [
-      '你是智慧水发·招采ERP系统的采购运营AI助手。请基于以下采购管理各业务中心的实时统计数据，用中文输出一份简洁的运营总览摘要。',
+      `平台整体状态：${statusLabel}`,
       '',
-      '数据：',
-      `- 信息发布：${a.total} 条信息，已发布 ${a.published} 条，待完善/发布 ${a.draftLike} 条`,
-      `- 供应商库：${s.total} 家，已入库 ${s.approved} 家，待审批 ${s.pending} 家，停用/黑名单风险 ${s.risk} 家`,
-      `- 专家资源：${e.total} 名专家，参与进行中项目 ${e.active} 项，未完成事项 ${e.unfinished} 项`,
-      `- 电子商城目录：${c.total} 条，有效 ${c.active} 条，待处理预警 ${c.alerts} 条`,
-      `- 商城供货审批：${apps.pending} 条待审核申请`,
+      '各中心实时数据：',
+      `【信息发布】总量${a.total}条，已发布${a.published}条，待完善${a.draftLike}条。`,
+      `【供应商库】总量${s.total}家，已入库${s.approved}家，待审批${s.pending}家，停用/黑名单${s.risk}家。`,
+      `【专家资源】${e.total}名专家，${e.active}项进行中，${e.unfinished}项未完成。`,
+      `【商城目录】${c.total}条目录，${c.active}条有效，${c.alerts}条待处理/预警。`,
+      `【供货审批】${apps.pending}条待审核申请。`,
       '',
-      '要求：',
-      '- 总共输出 100-150 字',
-      '- 先总结整体运行状态（正常/需关注/有风险）',
-      '- 再指出1-3个最需关注的问题',
-      '- 语气专业、务实、可执行',
-      '- 必须只输出纯文本，不要 markdown 标记',
+      '请按以下结构简要分析：',
+      '总评：（1句话概括当前运营态势）',
+      '关注点：（列出2-3条需要优先处理的事务及建议动作）',
+      '今日建议：（1-2条给采购管理员的本日行动建议）',
     ].join('\n');
 
     try {
@@ -636,8 +655,11 @@ export class AiService {
         body: JSON.stringify({
           model: DEEPSEEK_MODEL,
           temperature: 0.3,
-          max_tokens: 400,
-          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 600,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt },
+          ],
         }),
         signal: AbortSignal.timeout(15000),
       });
