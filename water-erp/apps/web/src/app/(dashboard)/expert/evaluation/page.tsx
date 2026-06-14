@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { listExperts, getExpertEvalStats, createExpertEvaluation } from '@/lib/api/expert';
 import type { ExpertListItem, ExpertEvalStats } from '@/lib/api/expert';
+import { PageHero, SectionCard } from '@/components/workbench';
+import { CheckCircle2 } from 'lucide-react';
 
 const levelColor: Record<string, { label: string; color: string }> = {
   A: { label: '优秀', color: '#11a874' },
@@ -65,6 +67,8 @@ export default function ExpertEvaluationPage() {
 
   return (
     <div>
+      <PageHero eyebrow="专家管理中心" title="专家评价" description="查看和维护专家履职评价结果。" tone="purple" icon={<CheckCircle2 size={14} />} />
+
       <div className="mb-6">
         <div className="mb-2 inline-flex rounded-full border border-[#ddd6fe] bg-[#f5f3ff] px-3 py-1 text-xs font-semibold text-[#7c3aed]">专家管理中心</div>
         <h1 className="text-2xl font-bold text-[#0f2f57]">专家评价</h1>

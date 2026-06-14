@@ -6,6 +6,8 @@ import {
   getSupplierList, getEvaluationStats, getSupplierEvaluations, createEvaluation,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierEvaluation, SupplierListResponse } from '@/lib/types';
+import { PageHero, SectionCard } from '@/components/workbench';
+import { CheckCircle2 } from 'lucide-react';
 
 const levelColor: Record<string, { label: string; color: string; bg: string }> = {
   A: { label: '优秀', color: '#11a874', bg: '#11a87418' },
@@ -76,6 +78,8 @@ export default function SupplierEvaluationPage() {
 
   return (
     <div>
+      <PageHero eyebrow="供应商管理中心" title="供应商评价" description="沉淀供应商履约、质量、服务等评价记录。" tone="green" icon={<CheckCircle2 size={14} />} />
+
       <div className="mb-6">
         <div className="mb-2 inline-flex rounded-full border border-[#bbf7d0] bg-[#f0fdf4] px-3 py-1 text-xs font-semibold text-[#11a874]">供应商管理中心</div>
         <h1 className="text-2xl font-bold text-[#0f2f57]">供应商评价</h1>

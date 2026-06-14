@@ -6,6 +6,8 @@ import { recommendSuppliers, getClassifications } from '@/lib/api/supplier';
 import type { SupplierRecommendation, SupplierSelectionResult } from '@/lib/api/supplier';
 import type { SupplierClassification } from '@/lib/types';
 import { Sparkles, Wand2, Copy, Download, X, Plus, FileSearch } from 'lucide-react';
+import { PageHero, SectionCard } from '@/components/workbench';
+import { Building2 } from 'lucide-react';
 
 const scoreColor = (s: number) => (s >= 85 ? '#11a874' : s >= 70 ? '#064ea2' : s >= 55 ? '#f5a623' : '#e74c3c');
 
@@ -76,6 +78,8 @@ export default function SupplierSelectionPage() {
 
   return (
     <div>
+      <PageHero eyebrow="供应商管理中心" title="供应商选取" description="基于供应商库和分类信息辅助采购项目供应商选择。" tone="green" icon={<Building2 size={14} />} />
+
       <div className="mb-6">
         <div className="mb-2 inline-flex rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-3 py-1 text-xs font-semibold text-[#064ea2]">供应商管理中心</div>
         <h1 className="text-2xl font-bold text-[#0f2f57] flex items-center gap-2"><Sparkles size={22} className="text-[#064ea2]" />供应商智能选取</h1>

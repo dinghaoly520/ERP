@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createExpert, listSpecialties } from '@/lib/api/expert';
 import { useEffect } from 'react';
+import { PageHero, SectionCard } from '@/components/workbench';
+import { UsersRound } from 'lucide-react';
 
 const TITLES = ['教授级高级工程师', '高级工程师', '高级经济师', '高级会计师', '工程师', '注册造价工程师', '注册监理工程师'];
 
@@ -38,6 +40,8 @@ export default function ExpertEntryPage() {
 
   return (
     <div>
+      <PageHero eyebrow="专家管理中心" title="专家录入" description="录入评审专家基础资料、专业方向和可用状态。" tone="purple" icon={<UsersRound size={14} />} />
+
       <div className="mb-6">
         <div className="mb-2 inline-flex rounded-full border border-[#ddd6fe] bg-[#f5f3ff] px-3 py-1 text-xs font-semibold text-[#7c3aed]">专家管理中心</div>
         <h1 className="text-2xl font-bold text-[#0f2f57]">专家录入</h1>

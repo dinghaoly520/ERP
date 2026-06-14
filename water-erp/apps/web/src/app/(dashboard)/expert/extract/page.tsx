@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { listBidProjects, previewExtraction, confirmExtraction, listSpecialties } from '@/lib/api/expert';
 import type { BidProjectOption, ExtractionPreview } from '@/lib/api/expert';
 import { Dices, Sparkles, ShieldCheck, AlertTriangle, Check } from 'lucide-react';
+import { PageHero, SectionCard } from '@/components/workbench';
+import { UsersRound } from 'lucide-react';
 
 const scoreColor = (s: number) => (s >= 85 ? '#11a874' : s >= 70 ? '#7c3aed' : s >= 55 ? '#f5a623' : '#e74c3c');
 const modeBtn = (active: boolean) =>
@@ -58,6 +60,8 @@ export default function ExpertExtractPage() {
 
   return (
     <div>
+      <PageHero eyebrow="专家管理中心" title="专家抽取" description="围绕项目评审需求完成专家抽取和分配。" tone="purple" icon={<UsersRound size={14} />} />
+
       <div className="mb-6">
         <div className="mb-2 inline-flex rounded-full border border-[#ddd6fe] bg-[#f5f3ff] px-3 py-1 text-xs font-semibold text-[#7c3aed]">专家管理中心</div>
         <h1 className="text-2xl font-bold text-[#0f2f57] flex items-center gap-2"><Dices size={22} className="text-[#7c3aed]" />专家抽取</h1>
