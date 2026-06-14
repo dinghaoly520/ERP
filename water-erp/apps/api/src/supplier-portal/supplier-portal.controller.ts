@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request, Res, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { SupplierPortalService } from './supplier-portal.service';
+import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
@@ -11,6 +12,7 @@ export class SupplierPortalController {
   constructor(
     private portalService: SupplierPortalService,
     private prisma: PrismaService,
+    private bidDocumentService: BidDocumentService,
   ) {}
 
   private async getSupplierId(userId: string): Promise<string> {
@@ -215,5 +217,29 @@ export class SupplierPortalController {
       throw new BadRequestException({ error: '新密码不少于6位', code: 'INVALID_PASSWORD' });
     }
     return this.portalService.changePassword(req.user.sub, body.oldPassword, body.newPassword);
+  }
+
+  // ─── 招标文件（加密 + 受控下载）───
+
+  @Get('bid-documents/:announcementId')
+  async getBidDocument(@Request() req: any, @Param('announcementId') announcementId: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.bidDocumentService.getForSupplier(announcementId, supplierId);
+  }
+
+  @Post('bid-documents/:announcementId/pay')
+  async payBidDocument(@Request() req: any, @Param('announcementId') announcementId: string, @Body() body: { paymentRef?: string }) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.bidDocumentService.initiatePayment(announcementId, supplierId, body.paymentRef);
+  }
+
+  @Get('bid-documents/:announcementId/download')
+  async downloadBidDocument(@Request() req: any, @Param('announcementId') announcementId: string, @Res() res: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    const { buffer, fileName, mimeType } = await this.bidDocumentService.downloadForSupplier(announcementId, supplierId);
+    res.setHeader('Content-Type', mimeType || 'application/octet-stream');
+    res.setHeader('Content-Length', String(buffer.length));
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    res.end(buffer);
   }
 }

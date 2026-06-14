@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AiService } from './ai.service';
@@ -32,5 +32,21 @@ export class AiController {
   @Roles('admin', 'bid_host', 'procurement_staff')
   async getSupplierRiskScores(@Param('projectId') projectId: string) {
     return this.aiService.getSupplierRiskScores(projectId);
+  }
+
+  @Post('supplier-selection')
+  @ApiOperation({ summary: 'AI智能推荐供应商（按采购需求）' })
+  @Roles('admin', 'procurement_staff', 'bid_host')
+  async recommendSuppliers(
+    @Body() body: { requirement?: string; classificationId?: string; maxCount?: number },
+  ) {
+    const requirement = (body?.requirement ?? '').trim();
+    if (!requirement) {
+      throw new BadRequestException({ error: '请填写采购需求', code: 'REQUIREMENT_REQUIRED' });
+    }
+    return this.aiService.recommendSuppliers(requirement, {
+      classificationId: body.classificationId,
+      maxCount: body.maxCount,
+    });
   }
 }

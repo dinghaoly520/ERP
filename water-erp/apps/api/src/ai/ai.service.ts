@@ -1,6 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import type { ComplianceItem, RiskItem, ScoreSuggestion, AiAnalysisResult } from './ai.types';
+import { SupplierSelectionAiService } from './supplier-selection-ai.service';
+import type {
+  ComplianceItem,
+  RiskItem,
+  ScoreSuggestion,
+  AiAnalysisResult,
+  SupplierRecommendation,
+  SupplierSelectionResult,
+} from './ai.types';
 
 /* =================================================================
    AI 辅助评标引擎
@@ -9,7 +17,10 @@ import type { ComplianceItem, RiskItem, ScoreSuggestion, AiAnalysisResult } from
 
 @Injectable()
 export class AiService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private selectionAi: SupplierSelectionAiService,
+  ) {}
 
   /* ━━━ 核心：对某供应商在某项目中的投标进行全方位 AI 分析 ━━━ */
 
@@ -426,5 +437,152 @@ export class AiService {
       hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
     }
     return Math.abs(hash);
+  }
+
+  /* ━━━ AI 供应商智能选取（检索 → LLM 排序 → 规则兜底） ━━━ */
+
+  async recommendSuppliers(
+    requirement: string,
+    opts: { classificationId?: string; maxCount?: number },
+  ): Promise<SupplierSelectionResult> {
+    const maxCount = Math.min(Math.max(opts.maxCount ?? 10, 1), 30);
+    const reqGrams = this.tokenize(requirement);
+
+    // 1. 检索：已入库供应商，可选分类过滤
+    const where: any = { status: 'APPROVED' };
+    if (opts.classificationId) where.classificationId = opts.classificationId;
+    const suppliers = await this.prisma.supplier.findMany({
+      where,
+      include: {
+        classification: true,
+        contacts: { where: { isPrimary: true }, take: 2 },
+        qualifications: { select: { name: true }, take: 3 },
+      },
+    });
+
+    // 2. 关键词 n-gram 重叠度评分 → 取 top 候选池
+    const scored = suppliers.map((s) => {
+      const textSet = new Set(this.tokenize(this.supplierText(s)));
+      let hits = 0;
+      for (const g of reqGrams) if (textSet.has(g)) hits++;
+      const overlap = reqGrams.length > 0 ? hits / reqGrams.length : 0;
+      return { supplier: s, overlap, hits };
+    });
+    scored.sort((a, b) => b.overlap - a.overlap || b.hits - a.hits);
+
+    const POOL = 40;
+    const pool = scored.slice(0, POOL);
+    const supplierMap = new Map(pool.map(({ supplier: s }) => [s.id, s]));
+    const candidates = pool.map(({ supplier: s }) => ({
+      id: s.id,
+      name: s.name,
+      classification: s.classification?.name,
+      businessScope: s.businessScope || '',
+      qualificationText: (s.qualifications || []).map((q) => q.name).join('；'),
+      enterpriseType: s.enterpriseType,
+      legalPerson: s.legalPerson,
+    }));
+
+    // 3. LLM 排序（无 key / 失败 → 规则兜底）
+    const llm = await this.selectionAi.rankCandidates(requirement, candidates, maxCount);
+
+    let recommendations: SupplierRecommendation[];
+    let summary: string;
+    let engine: 'deepseek' | 'rules';
+
+    if (llm && llm.recommendations.length > 0) {
+      engine = 'deepseek';
+      summary = llm.summary;
+      recommendations = llm.recommendations
+        .map((r) => this.toRecommendation(r.id, r.score, r.reason, supplierMap))
+        .filter((r): r is SupplierRecommendation => r !== null);
+    } else {
+      engine = 'rules';
+      summary = this.fallbackSummary(pool.length, !!opts.classificationId, maxCount);
+      recommendations = pool
+        .slice(0, maxCount)
+        .map(({ supplier: s, overlap }) =>
+          this.toRecommendation(s.id, Math.round(55 + overlap * 40), this.fallbackReason(s, overlap), supplierMap)!,
+        )
+        .filter(Boolean);
+    }
+
+    return {
+      requirement,
+      engine,
+      model: engine === 'deepseek'
+        ? process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash'
+        : 'WaterERP Rules Engine',
+      candidatePool: candidates.length,
+      summary,
+      recommendations,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  private supplierText(s: any): string {
+    return [
+      s.name,
+      s.classification?.name,
+      s.enterpriseType,
+      s.businessScope,
+      (s.qualifications || []).map((q: any) => q.name).join(' '),
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  /** 中文 n-gram(2/3-gram) + 英文整词 分词，用于无分词器下的重叠度匹配 */
+  private tokenize(text: string): string[] {
+    if (!text) return [];
+    const cleaned = text.replace(/[^一-龥A-Za-z0-9]/g, ' ');
+    const grams = new Set<string>();
+    for (const word of cleaned.split(/\s+/)) {
+      if (!word) continue;
+      if (/[一-龥]/.test(word)) {
+        for (let n = 2; n <= 3; n++) {
+          for (let i = 0; i + n <= word.length; i++) grams.add(word.slice(i, i + n));
+        }
+        if (word.length <= 3) grams.add(word);
+      } else {
+        grams.add(word.toLowerCase());
+      }
+    }
+    return [...grams];
+  }
+
+  private toRecommendation(
+    id: string,
+    score: number,
+    reason: string,
+    supplierMap: Map<string, any>,
+  ): SupplierRecommendation | null {
+    const s = supplierMap.get(id);
+    if (!s) return null;
+    return {
+      supplierId: s.id,
+      name: s.name,
+      classification: s.classification?.name,
+      matchScore: score,
+      reason,
+      legalPerson: s.legalPerson,
+      enterpriseType: s.enterpriseType,
+      contacts: (s.contacts || []).map((c: any) => ({ name: c.name, phone: c.phone, isPrimary: c.isPrimary })),
+    };
+  }
+
+  private fallbackSummary(poolSize: number, classified: boolean, maxCount: number): string {
+    if (poolSize === 0) return '未在供应商库中找到与采购需求匹配的候选供应商，请调整需求描述或分类后重试。';
+    const scope = classified ? '指定分类内' : '全库';
+    return `基于关键词与经营范围匹配，从${scope}候选中筛选出最多 ${maxCount} 家相关供应商（规则引擎；如需更精准的语义推荐，请确保已配置 DeepSeek AI 服务）。`;
+  }
+
+  private fallbackReason(s: any, overlap: number): string {
+    const parts: string[] = [];
+    if (s.classification?.name) parts.push(`属「${s.classification.name}」分类`);
+    if (overlap > 0.3) parts.push('经营范围与需求高度相关');
+    else if (overlap > 0.1) parts.push('经营范围部分匹配采购需求');
+    else parts.push('可纳入候选比较');
+    return parts.join('，') + '。';
   }
 }

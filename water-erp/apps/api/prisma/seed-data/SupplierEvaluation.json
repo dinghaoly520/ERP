@@ -1,0 +1,50 @@
+[
+  {
+    "id": "cmqbysdkg001skoh1h0lio5vv",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "projectId": "cmqbysdhu000bkoh1u8ikgv08",
+    "evaluatorId": "cmqbysdk0001gkoh1gx2342d6",
+    "score": "95",
+    "level": "A",
+    "completenessScore": "18.5",
+    "responsivenessScore": "19",
+    "cooperationScore": "19.5",
+    "complianceScore": "19",
+    "overallScore": "19",
+    "comment": "工程质量优秀，履约能力强，配合度高。",
+    "createdAt": "2026-06-13T06:18:29.681Z",
+    "updatedAt": "2026-06-13T06:18:29.681Z"
+  },
+  {
+    "id": "cmqbysdkg001tkoh1rbja5rad",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "projectId": null,
+    "evaluatorId": "cmqbysdk0001gkoh1gx2342d6",
+    "score": "88",
+    "level": "B",
+    "completenessScore": "17",
+    "responsivenessScore": "18",
+    "cooperationScore": "18",
+    "complianceScore": "17.5",
+    "overallScore": "17.5",
+    "comment": "整体表现良好，建议加强资料完整性。",
+    "createdAt": "2026-06-13T06:18:29.681Z",
+    "updatedAt": "2026-06-13T06:18:29.681Z"
+  },
+  {
+    "id": "cmqbysdkg001ukoh1844abmr5",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "projectId": null,
+    "evaluatorId": "cmqbysdk0001gkoh1gx2342d6",
+    "score": "92",
+    "level": "A",
+    "completenessScore": "18",
+    "responsivenessScore": "19",
+    "cooperationScore": "18.5",
+    "complianceScore": "18.5",
+    "overallScore": "18",
+    "comment": null,
+    "createdAt": "2026-06-13T06:18:29.681Z",
+    "updatedAt": "2026-06-13T06:18:29.681Z"
+  }
+]

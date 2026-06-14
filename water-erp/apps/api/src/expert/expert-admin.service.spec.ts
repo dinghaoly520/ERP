@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { ExpertAdminService } from './expert-admin.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ExpertExtractionAiService } from './expert-extraction-ai.service';
 
 describe('ExpertAdminService', () => {
   let service: ExpertAdminService;
@@ -16,12 +17,16 @@ describe('ExpertAdminService', () => {
       bidExpert: {
         findMany: jest.fn(),
       },
+      expertEvaluation: {
+        findMany: jest.fn(),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExpertAdminService,
         { provide: PrismaService, useValue: prisma },
+        { provide: ExpertExtractionAiService, useValue: { analyzeAndScore: jest.fn() } },
       ],
     }).compile();
 
@@ -38,7 +43,7 @@ describe('ExpertAdminService', () => {
       const result = await service.listExperts();
       expect(result).toHaveLength(2);
       expect(prisma.user.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { role: 'bid_expert', isActive: true } }),
+        expect.objectContaining({ where: { role: 'bid_expert' } }),
       );
     });
 
@@ -60,6 +65,7 @@ describe('ExpertAdminService', () => {
         { progress: 100, signedIn: true, project: { name: '项目A' }, scoreRecords: [] },
         { progress: 50, signedIn: false, project: { name: '项目B' }, scoreRecords: [] },
       ]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([]);
 
       const result = await service.getExpert('u1');
       expect(result.statistics.totalProjects).toBe(2);

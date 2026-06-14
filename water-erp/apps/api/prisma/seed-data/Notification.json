@@ -1,0 +1,82 @@
+[
+  {
+    "id": "cmqbysdki001vkoh11wb61rxh",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "type": "SUPPLIER_APPROVED",
+    "title": "供应商审核通过",
+    "content": "您的供应商注册申请已审核通过，企业名称：四川川水建设工程有限公司。欢迎加入供应商库！",
+    "isRead": false,
+    "link": "/profile",
+    "createdAt": "2026-06-13T06:18:29.683Z"
+  },
+  {
+    "id": "cmqbysdki001wkoh1xrt37dnu",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "type": "BID_PUBLISHED",
+    "title": "新招标公告发布",
+    "content": "2026年度水利工程物资集中采购项目已发布招标公告，截止时间：2026年6月8日。",
+    "isRead": false,
+    "link": "/bids",
+    "createdAt": "2026-06-13T06:18:29.683Z"
+  },
+  {
+    "id": "cmqbysdki001xkoh11cjspmc6",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "type": "BID_REMINDER",
+    "title": "投标截止提醒",
+    "content": "项目\"智慧水务信息化系统建设项目\"投标截止时间为明天14:00，请尽快完成提交。",
+    "isRead": false,
+    "link": "/my-bids",
+    "createdAt": "2026-06-13T06:18:29.683Z"
+  },
+  {
+    "id": "cmqbysdki001ykoh1lberpiqj",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "type": "SYSTEM",
+    "title": "资质即将到期提醒",
+    "content": "您有一项资质证书\"安全生产许可证\"将于90天后到期，请及时更新。",
+    "isRead": false,
+    "link": "/qualifications",
+    "createdAt": "2026-06-13T06:18:29.683Z"
+  },
+  {
+    "id": "cmqbysdkn0023koh10nbevzz2",
+    "userId": "cmqbysdbl0002koh10l78cjr3",
+    "type": "SYSTEM",
+    "title": "系统升级完成",
+    "content": "ERP管理平台已完成v2.0升级，新增专家工作台、供应商门户等功能模块。",
+    "isRead": false,
+    "link": "/dashboard",
+    "createdAt": "2026-06-13T06:18:29.688Z"
+  },
+  {
+    "id": "cmqbysdkn0024koh13q168rub",
+    "userId": "cmqbysdbl0002koh10l78cjr3",
+    "type": "SYSTEM",
+    "title": "新供应商注册待审核",
+    "content": "供应商\"成都华西物资供应有限公司\"提交了入库申请，请及时审核。",
+    "isRead": false,
+    "link": "/supplier",
+    "createdAt": "2026-06-13T06:18:29.688Z"
+  },
+  {
+    "id": "cmqbysdkn0025koh1wtz9p1y9",
+    "userId": "cmqbysdbl0002koh10l78cjr3",
+    "type": "SYSTEM",
+    "title": "评标进度提醒",
+    "content": "项目\"2026年度水利工程物资集中采购\"已有3位专家提交评分，当前进度85%。",
+    "isRead": false,
+    "link": "/bid",
+    "createdAt": "2026-06-13T06:18:29.688Z"
+  },
+  {
+    "id": "cmqbysdkn0026koh18iumkkje",
+    "userId": "cmqbysdbl0002koh10l78cjr3",
+    "type": "SYSTEM",
+    "title": "供应商资质到期预警",
+    "content": "有2家供应商的资质证书将在30天内到期，请通知相关供应商及时更新。",
+    "isRead": false,
+    "link": "/supplier",
+    "createdAt": "2026-06-13T06:18:29.688Z"
+  }
+]

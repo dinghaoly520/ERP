@@ -1,0 +1,3842 @@
+[
+  {
+    "id": "cmqcf2bxr0000ko1v2ifvy5gf",
+    "catalogItemId": "cmqccwae90000komt0naddsxq",
+    "price": "4403.54",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.984Z"
+  },
+  {
+    "id": "cmqcf2bxr0001ko1vi8ctjhaq",
+    "catalogItemId": "cmqccwae90000komt0naddsxq",
+    "price": "4273.39",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.984Z"
+  },
+  {
+    "id": "cmqcf2bxr0002ko1vz4ozqfho",
+    "catalogItemId": "cmqccwae90000komt0naddsxq",
+    "price": "4317.88",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.984Z"
+  },
+  {
+    "id": "cmqcf2bxr0003ko1v57aqxx7e",
+    "catalogItemId": "cmqccwae90000komt0naddsxq",
+    "price": "4361.78",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.984Z"
+  },
+  {
+    "id": "cmqcf2bxr0004ko1vq1bfif1i",
+    "catalogItemId": "cmqccwae90000komt0naddsxq",
+    "price": "4233.07",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.984Z"
+  },
+  {
+    "id": "cmqcf2bxr0005ko1vzsyr02e4",
+    "catalogItemId": "cmqccwae90000komt0naddsxq",
+    "price": "4280",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.984Z"
+  },
+  {
+    "id": "cmqcf2bxu0006ko1vxmj8ngr9",
+    "catalogItemId": "cmqccwaeb0001komt2ksxqdys",
+    "price": "377.16",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.986Z"
+  },
+  {
+    "id": "cmqcf2bxu0007ko1voibxs711",
+    "catalogItemId": "cmqccwaeb0001komt2ksxqdys",
+    "price": "368.91",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.986Z"
+  },
+  {
+    "id": "cmqcf2bxu0008ko1vg7zkmlf7",
+    "catalogItemId": "cmqccwaeb0001komt2ksxqdys",
+    "price": "375.66",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.986Z"
+  },
+  {
+    "id": "cmqcf2bxu0009ko1vf03xjpi5",
+    "catalogItemId": "cmqccwaeb0001komt2ksxqdys",
+    "price": "382.44",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.986Z"
+  },
+  {
+    "id": "cmqcf2bxu000ako1v9qcm2gsf",
+    "catalogItemId": "cmqccwaeb0001komt2ksxqdys",
+    "price": "374.11",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.986Z"
+  },
+  {
+    "id": "cmqcf2bxu000bko1vr2pzou4g",
+    "catalogItemId": "cmqccwaeb0001komt2ksxqdys",
+    "price": "380",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.986Z"
+  },
+  {
+    "id": "cmqcf2bxv000cko1v9kthvo4c",
+    "catalogItemId": "cmqccwaec0002komtwmhin7nl",
+    "price": "121.39",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.988Z"
+  },
+  {
+    "id": "cmqcf2bxv000dko1vnyut8xyh",
+    "catalogItemId": "cmqccwaec0002komtwmhin7nl",
+    "price": "124.15",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.988Z"
+  },
+  {
+    "id": "cmqcf2bxv000eko1ve06abs8s",
+    "catalogItemId": "cmqccwaec0002komtwmhin7nl",
+    "price": "126.94",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.988Z"
+  },
+  {
+    "id": "cmqcf2bxv000fko1v0co338mn",
+    "catalogItemId": "cmqccwaec0002komtwmhin7nl",
+    "price": "124.71",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.988Z"
+  },
+  {
+    "id": "cmqcf2bxv000gko1v6moaipf1",
+    "catalogItemId": "cmqccwaec0002komtwmhin7nl",
+    "price": "127.52",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.988Z"
+  },
+  {
+    "id": "cmqcf2bxv000hko1vkc6cqq2v",
+    "catalogItemId": "cmqccwaec0002komtwmhin7nl",
+    "price": "128",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.988Z"
+  },
+  {
+    "id": "cmqcf2bxx000iko1vk7hcd9wm",
+    "catalogItemId": "cmqccwaed0003komtj5nrmu9k",
+    "price": "8506.37",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.989Z"
+  },
+  {
+    "id": "cmqcf2bxx000jko1va55wvox5",
+    "catalogItemId": "cmqccwaed0003komtj5nrmu9k",
+    "price": "8620.86",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.989Z"
+  },
+  {
+    "id": "cmqcf2bxx000kko1v8x0k6k18",
+    "catalogItemId": "cmqccwaed0003komtj5nrmu9k",
+    "price": "8734.94",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.989Z"
+  },
+  {
+    "id": "cmqcf2bxx000lko1v1ozla67b",
+    "catalogItemId": "cmqccwaed0003komtj5nrmu9k",
+    "price": "8503.5",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.989Z"
+  },
+  {
+    "id": "cmqcf2bxx000mko1vytk7ptua",
+    "catalogItemId": "cmqccwaed0003komtj5nrmu9k",
+    "price": "8617.32",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.989Z"
+  },
+  {
+    "id": "cmqcf2bxx000nko1vmfth5qik",
+    "catalogItemId": "cmqccwaed0003komtj5nrmu9k",
+    "price": "8600",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.989Z"
+  },
+  {
+    "id": "cmqcf2bxy000oko1vsum7jzvg",
+    "catalogItemId": "cmqccwaee0004komt8e79c8h4",
+    "price": "35.03",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.990Z"
+  },
+  {
+    "id": "cmqcf2bxy000pko1v366mvx8l",
+    "catalogItemId": "cmqccwaee0004komt8e79c8h4",
+    "price": "35.57",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.990Z"
+  },
+  {
+    "id": "cmqcf2bxy000qko1vgedui5wk",
+    "catalogItemId": "cmqccwaee0004komt8e79c8h4",
+    "price": "34.72",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.990Z"
+  },
+  {
+    "id": "cmqcf2bxy000rko1v6si6558t",
+    "catalogItemId": "cmqccwaee0004komt8e79c8h4",
+    "price": "35.27",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.990Z"
+  },
+  {
+    "id": "cmqcf2bxy000sko1v9fjpvcw4",
+    "catalogItemId": "cmqccwaee0004komt8e79c8h4",
+    "price": "34.41",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.990Z"
+  },
+  {
+    "id": "cmqcf2bxy000tko1v1ajtu352",
+    "catalogItemId": "cmqccwaee0004komt8e79c8h4",
+    "price": "35",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.990Z"
+  },
+  {
+    "id": "cmqcf2bxz000uko1v477p0tuz",
+    "catalogItemId": "cmqccwaef0005komt9zrpb7t3",
+    "price": "11350.23",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.992Z"
+  },
+  {
+    "id": "cmqcf2bxz000vko1vei71f58x",
+    "catalogItemId": "cmqccwaef0005komt9zrpb7t3",
+    "price": "11716.59",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.992Z"
+  },
+  {
+    "id": "cmqcf2bxz000wko1vxbujzvh4",
+    "catalogItemId": "cmqccwaef0005komt9zrpb7t3",
+    "price": "12088.75",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.992Z"
+  },
+  {
+    "id": "cmqcf2bxz000xko1v755sdes3",
+    "catalogItemId": "cmqccwaef0005komt9zrpb7t3",
+    "price": "11982.37",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.992Z"
+  },
+  {
+    "id": "cmqcf2bxz000yko1vrnvnyxqa",
+    "catalogItemId": "cmqccwaef0005komt9zrpb7t3",
+    "price": "12358.29",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.992Z"
+  },
+  {
+    "id": "cmqcf2bxz000zko1vrj6lbptf",
+    "catalogItemId": "cmqccwaef0005komt9zrpb7t3",
+    "price": "12500",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.992Z"
+  },
+  {
+    "id": "cmqcf2by00010ko1vif42p54w",
+    "catalogItemId": "cmqccwaeg0006komtair50s2j",
+    "price": "3.91",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.993Z"
+  },
+  {
+    "id": "cmqcf2by00011ko1vu6oqd9r0",
+    "catalogItemId": "cmqccwaeg0006komtair50s2j",
+    "price": "3.8",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.993Z"
+  },
+  {
+    "id": "cmqcf2by00012ko1vc3yuea45",
+    "catalogItemId": "cmqccwaeg0006komtair50s2j",
+    "price": "3.85",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.993Z"
+  },
+  {
+    "id": "cmqcf2by00013ko1vu56skfzh",
+    "catalogItemId": "cmqccwaeg0006komtair50s2j",
+    "price": "3.75",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.993Z"
+  },
+  {
+    "id": "cmqcf2by00014ko1vc3iju7ae",
+    "catalogItemId": "cmqccwaeg0006komtair50s2j",
+    "price": "3.79",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.993Z"
+  },
+  {
+    "id": "cmqcf2by00015ko1v89xeah2m",
+    "catalogItemId": "cmqccwaeg0006komtair50s2j",
+    "price": "3.8",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.993Z"
+  },
+  {
+    "id": "cmqcf2by10016ko1vdofyv4bw",
+    "catalogItemId": "cmqccwaeh0007komtk2qn7xg6",
+    "price": "260.73",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.994Z"
+  },
+  {
+    "id": "cmqcf2by10017ko1vd38ze1jk",
+    "catalogItemId": "cmqccwaeh0007komtk2qn7xg6",
+    "price": "264.58",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.994Z"
+  },
+  {
+    "id": "cmqcf2by10018ko1vq3qzh8y2",
+    "catalogItemId": "cmqccwaeh0007komtk2qn7xg6",
+    "price": "258.02",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.994Z"
+  },
+  {
+    "id": "cmqcf2by10019ko1vahb4j0e4",
+    "catalogItemId": "cmqccwaeh0007komtk2qn7xg6",
+    "price": "261.87",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.994Z"
+  },
+  {
+    "id": "cmqcf2by1001ako1v2gqx9g7x",
+    "catalogItemId": "cmqccwaeh0007komtk2qn7xg6",
+    "price": "255.32",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.994Z"
+  },
+  {
+    "id": "cmqcf2by1001bko1vknnyvm7o",
+    "catalogItemId": "cmqccwaeh0007komtk2qn7xg6",
+    "price": "260",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.994Z"
+  },
+  {
+    "id": "cmqcf2by2001cko1vf37htvgx",
+    "catalogItemId": "cmqccwaeh0008komtqffczmq6",
+    "price": "64977.78",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.995Z"
+  },
+  {
+    "id": "cmqcf2by2001dko1vvunh16g6",
+    "catalogItemId": "cmqccwaeh0008komtqffczmq6",
+    "price": "64149.93",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.995Z"
+  },
+  {
+    "id": "cmqcf2by2001eko1vcl1rir90",
+    "catalogItemId": "cmqccwaeh0008komtqffczmq6",
+    "price": "65906.8",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.995Z"
+  },
+  {
+    "id": "cmqcf2by2001fko1v5boynor1",
+    "catalogItemId": "cmqccwaeh0008komtqffczmq6",
+    "price": "67687.16",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.995Z"
+  },
+  {
+    "id": "cmqcf2by2001gko1vjy2rsz6k",
+    "catalogItemId": "cmqccwaeh0008komtqffczmq6",
+    "price": "66802.79",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.995Z"
+  },
+  {
+    "id": "cmqcf2by2001hko1vsowt6m43",
+    "catalogItemId": "cmqccwaeh0008komtqffczmq6",
+    "price": "68000",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.995Z"
+  },
+  {
+    "id": "cmqcf2by3001iko1vvfkahl9c",
+    "catalogItemId": "cmqccwaei0009komtv17k8oqf",
+    "price": "2457.48",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.996Z"
+  },
+  {
+    "id": "cmqcf2by3001jko1vg83eaxnx",
+    "catalogItemId": "cmqccwaei0009komtv17k8oqf",
+    "price": "2485.88",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.996Z"
+  },
+  {
+    "id": "cmqcf2by3001kko1vxeu3nuaj",
+    "catalogItemId": "cmqccwaei0009komtv17k8oqf",
+    "price": "2514.04",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.996Z"
+  },
+  {
+    "id": "cmqcf2by3001lko1v76n4wd4v",
+    "catalogItemId": "cmqccwaei0009komtv17k8oqf",
+    "price": "2443.27",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.996Z"
+  },
+  {
+    "id": "cmqcf2by3001mko1vjp8xa94n",
+    "catalogItemId": "cmqccwaei0009komtv17k8oqf",
+    "price": "2471.26",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.996Z"
+  },
+  {
+    "id": "cmqcf2by3001nko1v0dxozjk6",
+    "catalogItemId": "cmqccwaei0009komtv17k8oqf",
+    "price": "2450",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.996Z"
+  },
+  {
+    "id": "cmqcf2by4001oko1vfq14ii5r",
+    "catalogItemId": "cmqccwaej000akomtmw4s6bd1",
+    "price": "14823.38",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.997Z"
+  },
+  {
+    "id": "cmqcf2by4001pko1vv2n1cmj1",
+    "catalogItemId": "cmqccwaej000akomtmw4s6bd1",
+    "price": "15255.31",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.997Z"
+  },
+  {
+    "id": "cmqcf2by4001qko1vy79mm2rs",
+    "catalogItemId": "cmqccwaej000akomtmw4s6bd1",
+    "price": "15086.58",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.997Z"
+  },
+  {
+    "id": "cmqcf2by4001rko1v9kxaw6c0",
+    "catalogItemId": "cmqccwaej000akomtmw4s6bd1",
+    "price": "15522.53",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.997Z"
+  },
+  {
+    "id": "cmqcf2by4001sko1vl0aorkap",
+    "catalogItemId": "cmqccwaej000akomtmw4s6bd1",
+    "price": "15341.07",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.997Z"
+  },
+  {
+    "id": "cmqcf2by4001tko1volvf6xhc",
+    "catalogItemId": "cmqccwaej000akomtmw4s6bd1",
+    "price": "15800",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.997Z"
+  },
+  {
+    "id": "cmqcf2by5001uko1vq6ewm1v1",
+    "catalogItemId": "cmqccwaek000bkomtfiuytxlp",
+    "price": "512.08",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.998Z"
+  },
+  {
+    "id": "cmqcf2by5001vko1vswg156o4",
+    "catalogItemId": "cmqccwaek000bkomtfiuytxlp",
+    "price": "501.68",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.998Z"
+  },
+  {
+    "id": "cmqcf2by5001wko1vu6dh79ky",
+    "catalogItemId": "cmqccwaek000bkomtfiuytxlp",
+    "price": "511.66",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.998Z"
+  },
+  {
+    "id": "cmqcf2by5001xko1vvs2yfkwr",
+    "catalogItemId": "cmqccwaek000bkomtfiuytxlp",
+    "price": "521.72",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.998Z"
+  },
+  {
+    "id": "cmqcf2by5001yko1vvh8zwe1r",
+    "catalogItemId": "cmqccwaek000bkomtfiuytxlp",
+    "price": "511.14",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.998Z"
+  },
+  {
+    "id": "cmqcf2by5001zko1vohc3afl1",
+    "catalogItemId": "cmqccwaek000bkomtfiuytxlp",
+    "price": "520",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.998Z"
+  },
+  {
+    "id": "cmqcf2by60020ko1v8xn8sx9h",
+    "catalogItemId": "cmqccwael000ckomthvrpbh78",
+    "price": "4069.45",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.999Z"
+  },
+  {
+    "id": "cmqcf2by60021ko1vk43q9bsh",
+    "catalogItemId": "cmqccwael000ckomthvrpbh78",
+    "price": "3953.67",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.999Z"
+  },
+  {
+    "id": "cmqcf2by60022ko1v0wh8rqo5",
+    "catalogItemId": "cmqccwael000ckomthvrpbh78",
+    "price": "3997.28",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.999Z"
+  },
+  {
+    "id": "cmqcf2by60023ko1vdwvvgl05",
+    "catalogItemId": "cmqccwael000ckomthvrpbh78",
+    "price": "3882.42",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.999Z"
+  },
+  {
+    "id": "cmqcf2by60024ko1vqrubjvfj",
+    "catalogItemId": "cmqccwael000ckomthvrpbh78",
+    "price": "3925.74",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.999Z"
+  },
+  {
+    "id": "cmqcf2by60025ko1v0lho6evn",
+    "catalogItemId": "cmqccwael000ckomthvrpbh78",
+    "price": "3920",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:07.999Z"
+  },
+  {
+    "id": "cmqcf2by70026ko1vsffs8vvo",
+    "catalogItemId": "cmqccwael000dkomt5ffl374h",
+    "price": "455.4",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.000Z"
+  },
+  {
+    "id": "cmqcf2by70027ko1vds3mcpsv",
+    "catalogItemId": "cmqccwael000dkomt5ffl374h",
+    "price": "462.97",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.000Z"
+  },
+  {
+    "id": "cmqcf2by70028ko1vhkd8sgts",
+    "catalogItemId": "cmqccwael000dkomt5ffl374h",
+    "price": "470.56",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.000Z"
+  },
+  {
+    "id": "cmqcf2by70029ko1vtoghzv2z",
+    "catalogItemId": "cmqccwael000dkomt5ffl374h",
+    "price": "459.63",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.000Z"
+  },
+  {
+    "id": "cmqcf2by7002ako1vu3s01vk3",
+    "catalogItemId": "cmqccwael000dkomt5ffl374h",
+    "price": "467.23",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.000Z"
+  },
+  {
+    "id": "cmqcf2by7002bko1vwazkek5m",
+    "catalogItemId": "cmqccwael000dkomt5ffl374h",
+    "price": "465",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.000Z"
+  },
+  {
+    "id": "cmqcf2by8002cko1v7wd8rpmz",
+    "catalogItemId": "cmqccwaem000ekomtacehv37h",
+    "price": "86.44",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.001Z"
+  },
+  {
+    "id": "cmqcf2by8002dko1vtwid4nod",
+    "catalogItemId": "cmqccwaem000ekomtacehv37h",
+    "price": "89.35",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.001Z"
+  },
+  {
+    "id": "cmqcf2by8002eko1vgm66rzwg",
+    "catalogItemId": "cmqccwaem000ekomtacehv37h",
+    "price": "92.31",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.001Z"
+  },
+  {
+    "id": "cmqcf2by8002fko1vfsezic4w",
+    "catalogItemId": "cmqccwaem000ekomtacehv37h",
+    "price": "91.61",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.001Z"
+  },
+  {
+    "id": "cmqcf2by8002gko1v9fep9t1z",
+    "catalogItemId": "cmqccwaem000ekomtacehv37h",
+    "price": "94.61",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.001Z"
+  },
+  {
+    "id": "cmqcf2by8002hko1vfczvk95t",
+    "catalogItemId": "cmqccwaem000ekomtacehv37h",
+    "price": "96",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.001Z"
+  },
+  {
+    "id": "cmqcf2by9002iko1vy8byh243",
+    "catalogItemId": "cmqccwaen000fkomtaloqgvwt",
+    "price": "2874.08",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.001Z"
+  },
+  {
+    "id": "cmqcf2by9002jko1vgqqb30q6",
+    "catalogItemId": "cmqccwaen000fkomtaloqgvwt",
+    "price": "2913.02",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.001Z"
+  },
+  {
+    "id": "cmqcf2by9002kko1vh9pwffi5",
+    "catalogItemId": "cmqccwaen000fkomtaloqgvwt",
+    "price": "2837.44",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.001Z"
+  },
+  {
+    "id": "cmqcf2by9002lko1vrx6ankrp",
+    "catalogItemId": "cmqccwaen000fkomtaloqgvwt",
+    "price": "2876.31",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.001Z"
+  },
+  {
+    "id": "cmqcf2by9002mko1v1y1w2mqg",
+    "catalogItemId": "cmqccwaen000fkomtaloqgvwt",
+    "price": "2800.94",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.001Z"
+  },
+  {
+    "id": "cmqcf2by9002nko1vjej9925z",
+    "catalogItemId": "cmqccwaen000fkomtaloqgvwt",
+    "price": "2850",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.001Z"
+  },
+  {
+    "id": "cmqcf2bya002oko1vtglgtvsu",
+    "catalogItemId": "cmqccwaeo000gkomt1cb2md7e",
+    "price": "1801.08",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.002Z"
+  },
+  {
+    "id": "cmqcf2bya002pko1vgl46ajv1",
+    "catalogItemId": "cmqccwaeo000gkomt1cb2md7e",
+    "price": "1835.57",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.002Z"
+  },
+  {
+    "id": "cmqcf2bya002qko1vy7yccf9q",
+    "catalogItemId": "cmqccwaeo000gkomt1cb2md7e",
+    "price": "1797.2",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.002Z"
+  },
+  {
+    "id": "cmqcf2bya002rko1vfwm19o3n",
+    "catalogItemId": "cmqccwaeo000gkomt1cb2md7e",
+    "price": "1831.84",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.002Z"
+  },
+  {
+    "id": "cmqcf2bya002sko1v01wpuwhx",
+    "catalogItemId": "cmqccwaeo000gkomt1cb2md7e",
+    "price": "1866.71",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.002Z"
+  },
+  {
+    "id": "cmqcf2bya002tko1vbprdnexe",
+    "catalogItemId": "cmqccwaeo000gkomt1cb2md7e",
+    "price": "1850",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.002Z"
+  },
+  {
+    "id": "cmqcf2byb002uko1vflhy0c8h",
+    "catalogItemId": "cmqccwaeo000hkomto6mubqpa",
+    "price": "131.02",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.003Z"
+  },
+  {
+    "id": "cmqcf2byb002vko1v46jom7qn",
+    "catalogItemId": "cmqccwaeo000hkomto6mubqpa",
+    "price": "132.08",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.003Z"
+  },
+  {
+    "id": "cmqcf2byb002wko1vvr32zufz",
+    "catalogItemId": "cmqccwaeo000hkomto6mubqpa",
+    "price": "133.11",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.003Z"
+  },
+  {
+    "id": "cmqcf2byb002xko1vt1cz263t",
+    "catalogItemId": "cmqccwaeo000hkomto6mubqpa",
+    "price": "128.92",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.003Z"
+  },
+  {
+    "id": "cmqcf2byb002yko1vmbx1z535",
+    "catalogItemId": "cmqccwaeo000hkomto6mubqpa",
+    "price": "129.93",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.003Z"
+  },
+  {
+    "id": "cmqcf2byb002zko1v8nv6t6gc",
+    "catalogItemId": "cmqccwaeo000hkomto6mubqpa",
+    "price": "128",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.003Z"
+  },
+  {
+    "id": "cmqcf2byc0030ko1v8zqobgs0",
+    "catalogItemId": "cmqccwaep000ikomt73k18ldt",
+    "price": "869.75",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.004Z"
+  },
+  {
+    "id": "cmqcf2byc0031ko1vce54jart",
+    "catalogItemId": "cmqccwaep000ikomt73k18ldt",
+    "price": "880.51",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.004Z"
+  },
+  {
+    "id": "cmqcf2byc0032ko1vshthtmx5",
+    "catalogItemId": "cmqccwaep000ikomt73k18ldt",
+    "price": "856.57",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.004Z"
+  },
+  {
+    "id": "cmqcf2byc0033ko1vd737t11j",
+    "catalogItemId": "cmqccwaep000ikomt73k18ldt",
+    "price": "867.29",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.004Z"
+  },
+  {
+    "id": "cmqcf2byc0034ko1vkyx0kcsy",
+    "catalogItemId": "cmqccwaep000ikomt73k18ldt",
+    "price": "877.95",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.004Z"
+  },
+  {
+    "id": "cmqcf2byc0035ko1vjcop33nz",
+    "catalogItemId": "cmqccwaep000ikomt73k18ldt",
+    "price": "860",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.004Z"
+  },
+  {
+    "id": "cmqcf2byd0036ko1vdpwa4t33",
+    "catalogItemId": "cmqccwaeq000jkomtbqvlhdro",
+    "price": "237.29",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.005Z"
+  },
+  {
+    "id": "cmqcf2byd0037ko1vgwyy68i8",
+    "catalogItemId": "cmqccwaeq000jkomtbqvlhdro",
+    "price": "231.87",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.005Z"
+  },
+  {
+    "id": "cmqcf2byd0038ko1vmzy7dft4",
+    "catalogItemId": "cmqccwaeq000jkomtbqvlhdro",
+    "price": "235.88",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.005Z"
+  },
+  {
+    "id": "cmqcf2byd0039ko1vyfjitpby",
+    "catalogItemId": "cmqccwaeq000jkomtbqvlhdro",
+    "price": "239.9",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.005Z"
+  },
+  {
+    "id": "cmqcf2byd003ako1v0elm60en",
+    "catalogItemId": "cmqccwaeq000jkomtbqvlhdro",
+    "price": "234.44",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.005Z"
+  },
+  {
+    "id": "cmqcf2byd003bko1v4rn37l28",
+    "catalogItemId": "cmqccwaeq000jkomtbqvlhdro",
+    "price": "238",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.005Z"
+  },
+  {
+    "id": "cmqcf2bye003cko1v647lrbpi",
+    "catalogItemId": "cmqccwaeq000kkomt10q8wql3",
+    "price": "677.98",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.006Z"
+  },
+  {
+    "id": "cmqcf2bye003dko1v7o1yjoov",
+    "catalogItemId": "cmqccwaeq000kkomt10q8wql3",
+    "price": "662.18",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.006Z"
+  },
+  {
+    "id": "cmqcf2bye003eko1vxb90leu8",
+    "catalogItemId": "cmqccwaeq000kkomt10q8wql3",
+    "price": "673.38",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.006Z"
+  },
+  {
+    "id": "cmqcf2bye003fko1v58tgr84e",
+    "catalogItemId": "cmqccwaeq000kkomt10q8wql3",
+    "price": "684.62",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.006Z"
+  },
+  {
+    "id": "cmqcf2bye003gko1vys0e6gb4",
+    "catalogItemId": "cmqccwaeq000kkomt10q8wql3",
+    "price": "668.74",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.006Z"
+  },
+  {
+    "id": "cmqcf2bye003hko1vvei3wvp7",
+    "catalogItemId": "cmqccwaeq000kkomt10q8wql3",
+    "price": "680",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.006Z"
+  },
+  {
+    "id": "cmqcf2bye003iko1vkwulvozz",
+    "catalogItemId": "cmqccwaer000lkomtmo1j7770",
+    "price": "7610.69",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.007Z"
+  },
+  {
+    "id": "cmqcf2bye003jko1vgns4unkh",
+    "catalogItemId": "cmqccwaer000lkomtmo1j7770",
+    "price": "7716.01",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.007Z"
+  },
+  {
+    "id": "cmqcf2bye003kko1vga727k94",
+    "catalogItemId": "cmqccwaer000lkomtmo1j7770",
+    "price": "7516.19",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.007Z"
+  },
+  {
+    "id": "cmqcf2bye003lko1vwe7rd5bk",
+    "catalogItemId": "cmqccwaer000lkomtmo1j7770",
+    "price": "7621.37",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.007Z"
+  },
+  {
+    "id": "cmqcf2bye003mko1viih6d9s5",
+    "catalogItemId": "cmqccwaer000lkomtmo1j7770",
+    "price": "7726.32",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.007Z"
+  },
+  {
+    "id": "cmqcf2bye003nko1vtqi248g2",
+    "catalogItemId": "cmqccwaer000lkomtmo1j7770",
+    "price": "7600",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.007Z"
+  },
+  {
+    "id": "cmqcf2byf003oko1v4fvvtnf9",
+    "catalogItemId": "cmqccwaes000mkomtt6cpx11m",
+    "price": "1352.59",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.008Z"
+  },
+  {
+    "id": "cmqcf2byf003pko1vc2qa3cis",
+    "catalogItemId": "cmqccwaes000mkomtt6cpx11m",
+    "price": "1377.34",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.008Z"
+  },
+  {
+    "id": "cmqcf2byf003qko1vlbdualrg",
+    "catalogItemId": "cmqccwaes000mkomtt6cpx11m",
+    "price": "1347.58",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.008Z"
+  },
+  {
+    "id": "cmqcf2byf003rko1v91wvtfta",
+    "catalogItemId": "cmqccwaes000mkomtt6cpx11m",
+    "price": "1372.42",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.008Z"
+  },
+  {
+    "id": "cmqcf2byf003sko1v8yxay2vt",
+    "catalogItemId": "cmqccwaes000mkomtt6cpx11m",
+    "price": "1397.39",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.008Z"
+  },
+  {
+    "id": "cmqcf2byf003tko1v5csw8qug",
+    "catalogItemId": "cmqccwaes000mkomtt6cpx11m",
+    "price": "1380",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.008Z"
+  },
+  {
+    "id": "cmqcf2byg003uko1vw3bt3ipc",
+    "catalogItemId": "cmqccwaet000nkomtjhej0eku",
+    "price": "29062.22",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.009Z"
+  },
+  {
+    "id": "cmqcf2byg003vko1va5c2y7tc",
+    "catalogItemId": "cmqccwaet000nkomtjhej0eku",
+    "price": "28277.55",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.009Z"
+  },
+  {
+    "id": "cmqcf2byg003wko1v1esbykwz",
+    "catalogItemId": "cmqccwaet000nkomtjhej0eku",
+    "price": "28646.73",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.009Z"
+  },
+  {
+    "id": "cmqcf2byg003xko1vnszab52i",
+    "catalogItemId": "cmqccwaet000nkomtjhej0eku",
+    "price": "29014.2",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.009Z"
+  },
+  {
+    "id": "cmqcf2byg003yko1v2mvffu4r",
+    "catalogItemId": "cmqccwaet000nkomtjhej0eku",
+    "price": "28233.64",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.009Z"
+  },
+  {
+    "id": "cmqcf2byg003zko1vic2prm2o",
+    "catalogItemId": "cmqccwaet000nkomtjhej0eku",
+    "price": "28600",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.009Z"
+  },
+  {
+    "id": "cmqcf2byh0040ko1v7waldtvk",
+    "catalogItemId": "cmqccwaet000okomtije52ie5",
+    "price": "226392.44",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.010Z"
+  },
+  {
+    "id": "cmqcf2byh0041ko1vqftyfxmq",
+    "catalogItemId": "cmqccwaet000okomtije52ie5",
+    "price": "223284.02",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.010Z"
+  },
+  {
+    "id": "cmqcf2byh0042ko1vmjcymatt",
+    "catalogItemId": "cmqccwaet000okomtije52ie5",
+    "price": "229250.96",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.010Z"
+  },
+  {
+    "id": "cmqcf2byh0043ko1vd0ggoayo",
+    "catalogItemId": "cmqccwaet000okomtije52ie5",
+    "price": "235295.13",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.010Z"
+  },
+  {
+    "id": "cmqcf2byh0044ko1vhsjk5g7p",
+    "catalogItemId": "cmqccwaet000okomtije52ie5",
+    "price": "232000.92",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.010Z"
+  },
+  {
+    "id": "cmqcf2byh0045ko1v01uf6dzl",
+    "catalogItemId": "cmqccwaet000okomtije52ie5",
+    "price": "238000",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.010Z"
+  },
+  {
+    "id": "cmqcf2byi0046ko1vbuo0c0q3",
+    "catalogItemId": "cmqccwaeu000pkomtbens01ne",
+    "price": "334163.57",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.011Z"
+  },
+  {
+    "id": "cmqcf2byi0047ko1v9ctbi7rc",
+    "catalogItemId": "cmqccwaeu000pkomtbens01ne",
+    "price": "330778.58",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.011Z"
+  },
+  {
+    "id": "cmqcf2byi0048ko1vc1rjv58x",
+    "catalogItemId": "cmqccwaeu000pkomtbens01ne",
+    "price": "340776.65",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.011Z"
+  },
+  {
+    "id": "cmqcf2byi0049ko1vtkanaws7",
+    "catalogItemId": "cmqccwaeu000pkomtbens01ne",
+    "price": "350923.57",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.011Z"
+  },
+  {
+    "id": "cmqcf2byi004ako1vx614u73r",
+    "catalogItemId": "cmqccwaeu000pkomtbens01ne",
+    "price": "347180.52",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.011Z"
+  },
+  {
+    "id": "cmqcf2byi004bko1v75nim1fd",
+    "catalogItemId": "cmqccwaeu000pkomtbens01ne",
+    "price": "356000",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.011Z"
+  },
+  {
+    "id": "cmqcf2byj004cko1v1984hbl8",
+    "catalogItemId": "cmqccwaev000qkomt75pjf5oj",
+    "price": "46485.6",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.012Z"
+  },
+  {
+    "id": "cmqcf2byj004dko1vzvkimufu",
+    "catalogItemId": "cmqccwaev000qkomt75pjf5oj",
+    "price": "47452.49",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.012Z"
+  },
+  {
+    "id": "cmqcf2byj004eko1vz7z2jgd9",
+    "catalogItemId": "cmqccwaev000qkomt75pjf5oj",
+    "price": "46532.03",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.012Z"
+  },
+  {
+    "id": "cmqcf2byj004fko1vskf8cwrt",
+    "catalogItemId": "cmqccwaev000qkomt75pjf5oj",
+    "price": "47504.14",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.012Z"
+  },
+  {
+    "id": "cmqcf2byj004gko1vq0rnkshm",
+    "catalogItemId": "cmqccwaev000qkomt75pjf5oj",
+    "price": "48484.29",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.012Z"
+  },
+  {
+    "id": "cmqcf2byj004hko1vkj58pn6r",
+    "catalogItemId": "cmqccwaev000qkomt75pjf5oj",
+    "price": "48200",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.012Z"
+  },
+  {
+    "id": "cmqcf2byk004iko1vrc2c002m",
+    "catalogItemId": "cmqccwaew000rkomtatan7ozf",
+    "price": "90874.22",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.012Z"
+  },
+  {
+    "id": "cmqcf2byk004jko1v2avit984",
+    "catalogItemId": "cmqccwaew000rkomtatan7ozf",
+    "price": "92184.58",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.012Z"
+  },
+  {
+    "id": "cmqcf2byk004kko1vub1zb5hc",
+    "catalogItemId": "cmqccwaew000rkomtatan7ozf",
+    "price": "93493.29",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.012Z"
+  },
+  {
+    "id": "cmqcf2byk004lko1vpvp91buv",
+    "catalogItemId": "cmqccwaew000rkomtatan7ozf",
+    "price": "91115.94",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.012Z"
+  },
+  {
+    "id": "cmqcf2byk004mko1v4a687qzx",
+    "catalogItemId": "cmqccwaew000rkomtatan7ozf",
+    "price": "92423.59",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.012Z"
+  },
+  {
+    "id": "cmqcf2byk004nko1vmrzqesra",
+    "catalogItemId": "cmqccwaew000rkomtatan7ozf",
+    "price": "92000",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.012Z"
+  },
+  {
+    "id": "cmqcf2byl004oko1vqu8mty77",
+    "catalogItemId": "cmqccwaew000skomt9rokbb7o",
+    "price": "634.89",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.013Z"
+  },
+  {
+    "id": "cmqcf2byl004pko1vupick0tl",
+    "catalogItemId": "cmqccwaew000skomt9rokbb7o",
+    "price": "618.01",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.013Z"
+  },
+  {
+    "id": "cmqcf2byl004qko1vpexgu0qp",
+    "catalogItemId": "cmqccwaew000skomt9rokbb7o",
+    "price": "626.12",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.013Z"
+  },
+  {
+    "id": "cmqcf2byl004rko1vlrljrn9c",
+    "catalogItemId": "cmqccwaew000skomt9rokbb7o",
+    "price": "634.2",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.013Z"
+  },
+  {
+    "id": "cmqcf2byl004sko1vz338o6qy",
+    "catalogItemId": "cmqccwaew000skomt9rokbb7o",
+    "price": "617.4",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.013Z"
+  },
+  {
+    "id": "cmqcf2byl004tko1v8dp6deqt",
+    "catalogItemId": "cmqccwaew000skomt9rokbb7o",
+    "price": "620",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.013Z"
+  },
+  {
+    "id": "cmqcf2bym004uko1vehovltlo",
+    "catalogItemId": "cmqccwaex000tkomt8nujg6bb",
+    "price": "950.62",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.014Z"
+  },
+  {
+    "id": "cmqcf2bym004vko1vcxz0n01g",
+    "catalogItemId": "cmqccwaex000tkomt8nujg6bb",
+    "price": "967.62",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.014Z"
+  },
+  {
+    "id": "cmqcf2bym004wko1vndukvmcs",
+    "catalogItemId": "cmqccwaex000tkomt8nujg6bb",
+    "price": "984.71",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.014Z"
+  },
+  {
+    "id": "cmqcf2bym004xko1v9rzlf2xj",
+    "catalogItemId": "cmqccwaex000tkomt8nujg6bb",
+    "price": "962.89",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.014Z"
+  },
+  {
+    "id": "cmqcf2bym004yko1v3ntgctow",
+    "catalogItemId": "cmqccwaex000tkomt8nujg6bb",
+    "price": "980.03",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.014Z"
+  },
+  {
+    "id": "cmqcf2bym004zko1v2xse79la",
+    "catalogItemId": "cmqccwaex000tkomt8nujg6bb",
+    "price": "980",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.014Z"
+  },
+  {
+    "id": "cmqcf2byn0050ko1v99qbns6s",
+    "catalogItemId": "cmqccwaey000ukomttwf89l8c",
+    "price": "12986.72",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.015Z"
+  },
+  {
+    "id": "cmqcf2byn0051ko1v5supv8fg",
+    "catalogItemId": "cmqccwaey000ukomttwf89l8c",
+    "price": "12836.13",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.015Z"
+  },
+  {
+    "id": "cmqcf2byn0052ko1vcmus5ojd",
+    "catalogItemId": "cmqccwaey000ukomttwf89l8c",
+    "price": "13207.19",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.015Z"
+  },
+  {
+    "id": "cmqcf2byn0053ko1vs1wzk1np",
+    "catalogItemId": "cmqccwaey000ukomttwf89l8c",
+    "price": "13583.52",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.015Z"
+  },
+  {
+    "id": "cmqcf2byn0054ko1vfu7snv0a",
+    "catalogItemId": "cmqccwaey000ukomttwf89l8c",
+    "price": "13420.25",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.015Z"
+  },
+  {
+    "id": "cmqcf2byn0055ko1vs0c9nuuf",
+    "catalogItemId": "cmqccwaey000ukomttwf89l8c",
+    "price": "13800",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.015Z"
+  },
+  {
+    "id": "cmqcf2byo0056ko1vw0a08ozn",
+    "catalogItemId": "cmqccwaez000vkomtgxxego2i",
+    "price": "3670.86",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.016Z"
+  },
+  {
+    "id": "cmqcf2byo0057ko1vjz7xv7ug",
+    "catalogItemId": "cmqccwaez000vkomtgxxego2i",
+    "price": "3711.08",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.016Z"
+  },
+  {
+    "id": "cmqcf2byo0058ko1vt0rqg2v7",
+    "catalogItemId": "cmqccwaez000vkomtgxxego2i",
+    "price": "3750.85",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.016Z"
+  },
+  {
+    "id": "cmqcf2byo0059ko1vucjaasjp",
+    "catalogItemId": "cmqccwaez000vkomtgxxego2i",
+    "price": "3643",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.016Z"
+  },
+  {
+    "id": "cmqcf2byo005ako1vkzscxa1l",
+    "catalogItemId": "cmqccwaez000vkomtgxxego2i",
+    "price": "3682.49",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.016Z"
+  },
+  {
+    "id": "cmqcf2byo005bko1vkf83e90p",
+    "catalogItemId": "cmqccwaez000vkomtgxxego2i",
+    "price": "3650",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.016Z"
+  },
+  {
+    "id": "cmqcf2byo005cko1vzm4n4gvm",
+    "catalogItemId": "cmqccwaez000wkomtuvo6a61w",
+    "price": "1442.5",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.017Z"
+  },
+  {
+    "id": "cmqcf2byo005dko1vwwyiw1gg",
+    "catalogItemId": "cmqccwaez000wkomtuvo6a61w",
+    "price": "1465.59",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.017Z"
+  },
+  {
+    "id": "cmqcf2byo005eko1v0aeublkp",
+    "catalogItemId": "cmqccwaez000wkomtuvo6a61w",
+    "price": "1430.94",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.017Z"
+  },
+  {
+    "id": "cmqcf2byo005fko1v8j0nh10d",
+    "catalogItemId": "cmqccwaez000wkomtuvo6a61w",
+    "price": "1454.06",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.017Z"
+  },
+  {
+    "id": "cmqcf2byo005gko1v08dvitbd",
+    "catalogItemId": "cmqccwaez000wkomtuvo6a61w",
+    "price": "1419.3",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.017Z"
+  },
+  {
+    "id": "cmqcf2byo005hko1v45abu9xn",
+    "catalogItemId": "cmqccwaez000wkomtuvo6a61w",
+    "price": "1450",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.017Z"
+  },
+  {
+    "id": "cmqcf2byp005iko1v1x0y6uu9",
+    "catalogItemId": "cmqccwaf0000xkomtik6dbua0",
+    "price": "26208.21",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.018Z"
+  },
+  {
+    "id": "cmqcf2byp005jko1vgvyiljjs",
+    "catalogItemId": "cmqccwaf0000xkomtik6dbua0",
+    "price": "26854.09",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.018Z"
+  },
+  {
+    "id": "cmqcf2byp005kko1vy3mk8qic",
+    "catalogItemId": "cmqccwaf0000xkomtik6dbua0",
+    "price": "27507.41",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.018Z"
+  },
+  {
+    "id": "cmqcf2byp005lko1ve4sbcizj",
+    "catalogItemId": "cmqccwaf0000xkomtik6dbua0",
+    "price": "27068.27",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.018Z"
+  },
+  {
+    "id": "cmqcf2byp005mko1vojd3360b",
+    "catalogItemId": "cmqccwaf0000xkomtik6dbua0",
+    "price": "27726.42",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.018Z"
+  },
+  {
+    "id": "cmqcf2byp005nko1v563o8ms0",
+    "catalogItemId": "cmqccwaf0000xkomtik6dbua0",
+    "price": "28000",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.018Z"
+  },
+  {
+    "id": "cmqcf2byq005oko1vj9nmjn26",
+    "catalogItemId": "cmqccwaf1000ykomtiorzxd57",
+    "price": "4929.08",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.019Z"
+  },
+  {
+    "id": "cmqcf2byq005pko1v3c7u2l89",
+    "catalogItemId": "cmqccwaf1000ykomtiorzxd57",
+    "price": "4972.14",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.019Z"
+  },
+  {
+    "id": "cmqcf2byq005qko1vquwgss7w",
+    "catalogItemId": "cmqccwaf1000ykomtiorzxd57",
+    "price": "5014.28",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.019Z"
+  },
+  {
+    "id": "cmqcf2byq005rko1vd5wsh7wy",
+    "catalogItemId": "cmqccwaf1000ykomtiorzxd57",
+    "price": "4859.01",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.019Z"
+  },
+  {
+    "id": "cmqcf2byq005sko1v32iwdrqt",
+    "catalogItemId": "cmqccwaf1000ykomtiorzxd57",
+    "price": "4900.56",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.019Z"
+  },
+  {
+    "id": "cmqcf2byq005tko1v3xlvn8a9",
+    "catalogItemId": "cmqccwaf1000ykomtiorzxd57",
+    "price": "4850",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.019Z"
+  },
+  {
+    "id": "cmqcf2byr005uko1v25q27jns",
+    "catalogItemId": "cmqccwaf2000zkomtzs2px99t",
+    "price": "6986.4",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.019Z"
+  },
+  {
+    "id": "cmqcf2byr005vko1vivhy6mxv",
+    "catalogItemId": "cmqccwaf2000zkomtzs2px99t",
+    "price": "6791.99",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.019Z"
+  },
+  {
+    "id": "cmqcf2byr005wko1vw6mt8vkp",
+    "catalogItemId": "cmqccwaf2000zkomtzs2px99t",
+    "price": "6873.11",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.019Z"
+  },
+  {
+    "id": "cmqcf2byr005xko1v2thipoug",
+    "catalogItemId": "cmqccwaf2000zkomtzs2px99t",
+    "price": "6953.62",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.019Z"
+  },
+  {
+    "id": "cmqcf2byr005yko1vyl8x0fp8",
+    "catalogItemId": "cmqccwaf2000zkomtzs2px99t",
+    "price": "6760.69",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.019Z"
+  },
+  {
+    "id": "cmqcf2byr005zko1v1zkvg5db",
+    "catalogItemId": "cmqccwaf2000zkomtzs2px99t",
+    "price": "6800",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.019Z"
+  },
+  {
+    "id": "cmqcf2bys0060ko1vu5xaagdj",
+    "catalogItemId": "cmqccwaf20010komts7yv250n",
+    "price": "825.56",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.020Z"
+  },
+  {
+    "id": "cmqcf2bys0061ko1v2qy9r7l5",
+    "catalogItemId": "cmqccwaf20010komts7yv250n",
+    "price": "805.26",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.020Z"
+  },
+  {
+    "id": "cmqcf2bys0062ko1vlssy16cj",
+    "catalogItemId": "cmqccwaf20010komts7yv250n",
+    "price": "817.71",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.020Z"
+  },
+  {
+    "id": "cmqcf2bys0063ko1v0dbqa1kz",
+    "catalogItemId": "cmqccwaf20010komts7yv250n",
+    "price": "830.16",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.020Z"
+  },
+  {
+    "id": "cmqcf2bys0064ko1v0376imlx",
+    "catalogItemId": "cmqccwaf20010komts7yv250n",
+    "price": "809.84",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.020Z"
+  },
+  {
+    "id": "cmqcf2bys0065ko1vplkpn69h",
+    "catalogItemId": "cmqccwaf20010komts7yv250n",
+    "price": "820",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.020Z"
+  },
+  {
+    "id": "cmqcf2byt0066ko1v00w6nbrn",
+    "catalogItemId": "cmqccwaf30011komtcdk5fflq",
+    "price": "7",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.021Z"
+  },
+  {
+    "id": "cmqcf2byt0067ko1vqjq0icmx",
+    "catalogItemId": "cmqccwaf30011komtcdk5fflq",
+    "price": "7.2",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.021Z"
+  },
+  {
+    "id": "cmqcf2byt0068ko1vviumshfq",
+    "catalogItemId": "cmqccwaf30011komtcdk5fflq",
+    "price": "7.11",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.021Z"
+  },
+  {
+    "id": "cmqcf2byt0069ko1vay076ob7",
+    "catalogItemId": "cmqccwaf30011komtcdk5fflq",
+    "price": "7.3",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.021Z"
+  },
+  {
+    "id": "cmqcf2byt006ako1v6kg7mai2",
+    "catalogItemId": "cmqccwaf30011komtcdk5fflq",
+    "price": "7.21",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.021Z"
+  },
+  {
+    "id": "cmqcf2byt006bko1vzsa8fgaf",
+    "catalogItemId": "cmqccwaf30011komtcdk5fflq",
+    "price": "7.42",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.021Z"
+  },
+  {
+    "id": "cmqcf2byu006cko1vnhc33vje",
+    "catalogItemId": "cmqccwaf40012komtlrhzw1li",
+    "price": "18024.54",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.022Z"
+  },
+  {
+    "id": "cmqcf2byu006dko1vn9ftr4yh",
+    "catalogItemId": "cmqccwaf40012komtlrhzw1li",
+    "price": "17697.13",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.022Z"
+  },
+  {
+    "id": "cmqcf2byu006eko1vxskvtwab",
+    "catalogItemId": "cmqccwaf40012komtlrhzw1li",
+    "price": "18088.39",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.022Z"
+  },
+  {
+    "id": "cmqcf2byu006fko1veb2tvb3t",
+    "catalogItemId": "cmqccwaf40012komtlrhzw1li",
+    "price": "18483.36",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.022Z"
+  },
+  {
+    "id": "cmqcf2byu006gko1v0lun943g",
+    "catalogItemId": "cmqccwaf40012komtlrhzw1li",
+    "price": "18147.03",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.022Z"
+  },
+  {
+    "id": "cmqcf2byu006hko1vkyd1lszd",
+    "catalogItemId": "cmqccwaf40012komtlrhzw1li",
+    "price": "18500",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.022Z"
+  },
+  {
+    "id": "cmqcf2byv006iko1v7h2mr492",
+    "catalogItemId": "cmqccwaf50013komt1n9wcehs",
+    "price": "9613.42",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.023Z"
+  },
+  {
+    "id": "cmqcf2byv006jko1vbyi0x9lq",
+    "catalogItemId": "cmqccwaf50013komt1n9wcehs",
+    "price": "9792.83",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.023Z"
+  },
+  {
+    "id": "cmqcf2byv006kko1vaukowjyj",
+    "catalogItemId": "cmqccwaf50013komt1n9wcehs",
+    "price": "9585.71",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.023Z"
+  },
+  {
+    "id": "cmqcf2byv006lko1vn48jzbkl",
+    "catalogItemId": "cmqccwaf50013komt1n9wcehs",
+    "price": "9765.82",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.023Z"
+  },
+  {
+    "id": "cmqcf2byv006mko1v5cdjwy5f",
+    "catalogItemId": "cmqccwaf50013komt1n9wcehs",
+    "price": "9947.01",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.023Z"
+  },
+  {
+    "id": "cmqcf2byv006nko1vgnq47g5h",
+    "catalogItemId": "cmqccwaf50013komt1n9wcehs",
+    "price": "9800",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.023Z"
+  },
+  {
+    "id": "cmqcf2byv006oko1v1kpeogya",
+    "catalogItemId": "cmqccwaf50014komtbaftl1kl",
+    "price": "41361.6",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.024Z"
+  },
+  {
+    "id": "cmqcf2byv006pko1vj00n0bf6",
+    "catalogItemId": "cmqccwaf50014komtbaftl1kl",
+    "price": "41983.2",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.024Z"
+  },
+  {
+    "id": "cmqcf2byv006qko1vypw2340t",
+    "catalogItemId": "cmqccwaf50014komtbaftl1kl",
+    "price": "42604.8",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.024Z"
+  },
+  {
+    "id": "cmqcf2byv006rko1v30kh083f",
+    "catalogItemId": "cmqccwaf50014komtbaftl1kl",
+    "price": "41546.4",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.024Z"
+  },
+  {
+    "id": "cmqcf2byv006sko1vh910mjzv",
+    "catalogItemId": "cmqccwaf50014komtbaftl1kl",
+    "price": "42168",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.024Z"
+  },
+  {
+    "id": "cmqcf2byv006tko1vidfk1tsn",
+    "catalogItemId": "cmqccwaf50014komtbaftl1kl",
+    "price": "42000",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.024Z"
+  },
+  {
+    "id": "cmqcf2byw006uko1v8xdjxs9k",
+    "catalogItemId": "cmqccwaf60015komtjnohbces",
+    "price": "6244.9",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.025Z"
+  },
+  {
+    "id": "cmqcf2byw006vko1vci7xqhkr",
+    "catalogItemId": "cmqccwaf60015komtjnohbces",
+    "price": "6437.13",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.025Z"
+  },
+  {
+    "id": "cmqcf2byw006wko1vjrx9j53x",
+    "catalogItemId": "cmqccwaf60015komtjnohbces",
+    "price": "6632.28",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.025Z"
+  },
+  {
+    "id": "cmqcf2byw006xko1vm84jvz7t",
+    "catalogItemId": "cmqccwaf60015komtjnohbces",
+    "price": "6566.21",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.025Z"
+  },
+  {
+    "id": "cmqcf2byw006yko1vam6jit14",
+    "catalogItemId": "cmqccwaf60015komtjnohbces",
+    "price": "6763.25",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.025Z"
+  },
+  {
+    "id": "cmqcf2byw006zko1vtow8w3eo",
+    "catalogItemId": "cmqccwaf60015komtjnohbces",
+    "price": "6800",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.025Z"
+  },
+  {
+    "id": "cmqcf2byx0070ko1vgcqfr443",
+    "catalogItemId": "cmqccwaf70016komt5pft0nnm",
+    "price": "4655.69",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.026Z"
+  },
+  {
+    "id": "cmqcf2byx0071ko1v58l676v1",
+    "catalogItemId": "cmqccwaf70016komt5pft0nnm",
+    "price": "4527.46",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.026Z"
+  },
+  {
+    "id": "cmqcf2byx0072ko1vdlxl0lke",
+    "catalogItemId": "cmqccwaf70016komt5pft0nnm",
+    "price": "4582.21",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.026Z"
+  },
+  {
+    "id": "cmqcf2byx0073ko1vfrf18ucs",
+    "catalogItemId": "cmqccwaf70016komt5pft0nnm",
+    "price": "4454.76",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.026Z"
+  },
+  {
+    "id": "cmqcf2byx0074ko1v17u25cie",
+    "catalogItemId": "cmqccwaf70016komt5pft0nnm",
+    "price": "4509.26",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.026Z"
+  },
+  {
+    "id": "cmqcf2byx0075ko1vnnm1wt7r",
+    "catalogItemId": "cmqccwaf70016komt5pft0nnm",
+    "price": "4520",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.026Z"
+  },
+  {
+    "id": "cmqcf2byy0076ko1vamdupdja",
+    "catalogItemId": "cmqccwaf80017komt3hsu8bb4",
+    "price": "4893.72",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.027Z"
+  },
+  {
+    "id": "cmqcf2byy0077ko1vb0ci11pt",
+    "catalogItemId": "cmqccwaf80017komt3hsu8bb4",
+    "price": "4780.93",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.027Z"
+  },
+  {
+    "id": "cmqcf2byy0078ko1vcplxk6es",
+    "catalogItemId": "cmqccwaf80017komt3hsu8bb4",
+    "price": "4861.06",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.027Z"
+  },
+  {
+    "id": "cmqcf2byy0079ko1v0wdp1xqh",
+    "catalogItemId": "cmqccwaf80017komt3hsu8bb4",
+    "price": "4747.74",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.027Z"
+  },
+  {
+    "id": "cmqcf2byy007ako1v403x9y8c",
+    "catalogItemId": "cmqccwaf80017komt3hsu8bb4",
+    "price": "4828.04",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.027Z"
+  },
+  {
+    "id": "cmqcf2byy007bko1vqh9dnajj",
+    "catalogItemId": "cmqccwaf80017komt3hsu8bb4",
+    "price": "4860",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.027Z"
+  },
+  {
+    "id": "cmqcf2byz007cko1vopmmrrci",
+    "catalogItemId": "cmqccwaf90018komtfcxa9sa2",
+    "price": "4130.02",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.028Z"
+  },
+  {
+    "id": "cmqcf2byz007dko1vb9cn84iu",
+    "catalogItemId": "cmqccwaf90018komtfcxa9sa2",
+    "price": "4020.69",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.028Z"
+  },
+  {
+    "id": "cmqcf2byz007eko1vaqk7lcq8",
+    "catalogItemId": "cmqccwaf90018komtfcxa9sa2",
+    "price": "4074.48",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.028Z"
+  },
+  {
+    "id": "cmqcf2byz007fko1vpm0sg78e",
+    "catalogItemId": "cmqccwaf90018komtfcxa9sa2",
+    "price": "4128.07",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.028Z"
+  },
+  {
+    "id": "cmqcf2byz007gko1vf9ufi4bm",
+    "catalogItemId": "cmqccwaf90018komtfcxa9sa2",
+    "price": "4019.21",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.028Z"
+  },
+  {
+    "id": "cmqcf2byz007hko1vdwp41lm0",
+    "catalogItemId": "cmqccwaf90018komtfcxa9sa2",
+    "price": "4050",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.028Z"
+  },
+  {
+    "id": "cmqcf2bz0007iko1v2hl9ft21",
+    "catalogItemId": "cmqccwaf90019komtt71if816",
+    "price": "337.52",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.028Z"
+  },
+  {
+    "id": "cmqcf2bz0007jko1vd0uidfbi",
+    "catalogItemId": "cmqccwaf90019komtt71if816",
+    "price": "329.96",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.028Z"
+  },
+  {
+    "id": "cmqcf2bz0007kko1vy0ata44r",
+    "catalogItemId": "cmqccwaf90019komtt71if816",
+    "price": "335.68",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.028Z"
+  },
+  {
+    "id": "cmqcf2bz0007lko1vcaru2ie7",
+    "catalogItemId": "cmqccwaf90019komtt71if816",
+    "price": "328.08",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.028Z"
+  },
+  {
+    "id": "cmqcf2bz0007mko1vu2g6zhr8",
+    "catalogItemId": "cmqccwaf90019komtt71if816",
+    "price": "333.8",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.028Z"
+  },
+  {
+    "id": "cmqcf2bz0007nko1vtje2e32x",
+    "catalogItemId": "cmqccwaf90019komtt71if816",
+    "price": "335",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.028Z"
+  },
+  {
+    "id": "cmqcf2bz1007oko1vgm7jdmlp",
+    "catalogItemId": "cmqccwafa001akomtyfqyl65b",
+    "price": "393.84",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.029Z"
+  },
+  {
+    "id": "cmqcf2bz1007pko1vc3zn0htr",
+    "catalogItemId": "cmqccwafa001akomtyfqyl65b",
+    "price": "399.44",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.029Z"
+  },
+  {
+    "id": "cmqcf2bz1007qko1vfyo452nu",
+    "catalogItemId": "cmqccwafa001akomtyfqyl65b",
+    "price": "405.02",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.029Z"
+  },
+  {
+    "id": "cmqcf2bz1007rko1vi5xpoq3m",
+    "catalogItemId": "cmqccwafa001akomtyfqyl65b",
+    "price": "394.65",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.029Z"
+  },
+  {
+    "id": "cmqcf2bz1007sko1vxe5fmnp0",
+    "catalogItemId": "cmqccwafa001akomtyfqyl65b",
+    "price": "400.23",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.029Z"
+  },
+  {
+    "id": "cmqcf2bz1007tko1vgqcrxdt0",
+    "catalogItemId": "cmqccwafa001akomtyfqyl65b",
+    "price": "398",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.029Z"
+  },
+  {
+    "id": "cmqcf2bz2007uko1vz4ffgn70",
+    "catalogItemId": "cmqccwafb001bkomtj3ytnzk0",
+    "price": "101.7",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.030Z"
+  },
+  {
+    "id": "cmqcf2bz2007vko1vjakovfx7",
+    "catalogItemId": "cmqccwafb001bkomtj3ytnzk0",
+    "price": "104.91",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.030Z"
+  },
+  {
+    "id": "cmqcf2bz2007wko1v7cy0xf1n",
+    "catalogItemId": "cmqccwafb001bkomtj3ytnzk0",
+    "price": "108.16",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.030Z"
+  },
+  {
+    "id": "cmqcf2bz2007xko1vpknj7zo4",
+    "catalogItemId": "cmqccwafb001bkomtj3ytnzk0",
+    "price": "107.12",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.030Z"
+  },
+  {
+    "id": "cmqcf2bz2007yko1vnqc74wu0",
+    "catalogItemId": "cmqccwafb001bkomtj3ytnzk0",
+    "price": "110.41",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.030Z"
+  },
+  {
+    "id": "cmqcf2bz2007zko1vh9c6p95f",
+    "catalogItemId": "cmqccwafb001bkomtj3ytnzk0",
+    "price": "112",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.030Z"
+  },
+  {
+    "id": "cmqcf2bz30080ko1vxb90yrhj",
+    "catalogItemId": "cmqccwafc001ckomt10cyadfw",
+    "price": "3095.86",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.031Z"
+  },
+  {
+    "id": "cmqcf2bz30081ko1v11kq2a5v",
+    "catalogItemId": "cmqccwafc001ckomt10cyadfw",
+    "price": "3159.24",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.031Z"
+  },
+  {
+    "id": "cmqcf2bz30082ko1v7cq0f1d0",
+    "catalogItemId": "cmqccwafc001ckomt10cyadfw",
+    "price": "3098",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.031Z"
+  },
+  {
+    "id": "cmqcf2bz30083ko1vu2p2euc8",
+    "catalogItemId": "cmqccwafc001ckomt10cyadfw",
+    "price": "3161.71",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.031Z"
+  },
+  {
+    "id": "cmqcf2bz30084ko1v1ob79qh0",
+    "catalogItemId": "cmqccwafc001ckomt10cyadfw",
+    "price": "3099.42",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.031Z"
+  },
+  {
+    "id": "cmqcf2bz30085ko1vz9s8mmkh",
+    "catalogItemId": "cmqccwafc001ckomt10cyadfw",
+    "price": "3180",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.031Z"
+  },
+  {
+    "id": "cmqcf2bz40086ko1vxz919unj",
+    "catalogItemId": "cmqccwafd001dkomtdcn26p0l",
+    "price": "32.55",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.032Z"
+  },
+  {
+    "id": "cmqcf2bz40087ko1vvkpq9kwz",
+    "catalogItemId": "cmqccwafd001dkomtdcn26p0l",
+    "price": "32.92",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.032Z"
+  },
+  {
+    "id": "cmqcf2bz40088ko1vlp4x53bo",
+    "catalogItemId": "cmqccwafd001dkomtdcn26p0l",
+    "price": "32",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.032Z"
+  },
+  {
+    "id": "cmqcf2bz40089ko1vapslt1da",
+    "catalogItemId": "cmqccwafd001dkomtdcn26p0l",
+    "price": "32.38",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.032Z"
+  },
+  {
+    "id": "cmqcf2bz4008ako1vmfawoah7",
+    "catalogItemId": "cmqccwafd001dkomtdcn26p0l",
+    "price": "31.46",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.032Z"
+  },
+  {
+    "id": "cmqcf2bz4008bko1v3v741xac",
+    "catalogItemId": "cmqccwafd001dkomtdcn26p0l",
+    "price": "32",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.032Z"
+  },
+  {
+    "id": "cmqcf2bz5008cko1v3no3h0ja",
+    "catalogItemId": "cmqccwafe001ekomtbo6tbhcp",
+    "price": "25.96",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.033Z"
+  },
+  {
+    "id": "cmqcf2bz5008dko1vl9zvcybv",
+    "catalogItemId": "cmqccwafe001ekomtbo6tbhcp",
+    "price": "25.35",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.033Z"
+  },
+  {
+    "id": "cmqcf2bz5008eko1vym2ycp5e",
+    "catalogItemId": "cmqccwafe001ekomtbo6tbhcp",
+    "price": "25.77",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.033Z"
+  },
+  {
+    "id": "cmqcf2bz5008fko1vgt78jfk1",
+    "catalogItemId": "cmqccwafe001ekomtbo6tbhcp",
+    "price": "26.19",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.033Z"
+  },
+  {
+    "id": "cmqcf2bz5008gko1vmbbe0rqs",
+    "catalogItemId": "cmqccwafe001ekomtbo6tbhcp",
+    "price": "25.57",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.033Z"
+  },
+  {
+    "id": "cmqcf2bz5008hko1v1ypdsqmq",
+    "catalogItemId": "cmqccwafe001ekomtbo6tbhcp",
+    "price": "26",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.033Z"
+  },
+  {
+    "id": "cmqcf2bz6008iko1vp4rew9c2",
+    "catalogItemId": "cmqccwaff001fkomtyhqhhvvk",
+    "price": "310.98",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.035Z"
+  },
+  {
+    "id": "cmqcf2bz6008jko1vnpia6r35",
+    "catalogItemId": "cmqccwaff001fkomtyhqhhvvk",
+    "price": "304.34",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.035Z"
+  },
+  {
+    "id": "cmqcf2bz6008kko1v1anmsm8b",
+    "catalogItemId": "cmqccwaff001fkomtyhqhhvvk",
+    "price": "310.11",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.035Z"
+  },
+  {
+    "id": "cmqcf2bz6008lko1vk547e025",
+    "catalogItemId": "cmqccwaff001fkomtyhqhhvvk",
+    "price": "315.9",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.035Z"
+  },
+  {
+    "id": "cmqcf2bz6008mko1v35dl87xw",
+    "catalogItemId": "cmqccwaff001fkomtyhqhhvvk",
+    "price": "309.18",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.035Z"
+  },
+  {
+    "id": "cmqcf2bz6008nko1vz3flydwl",
+    "catalogItemId": "cmqccwaff001fkomtyhqhhvvk",
+    "price": "315",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.035Z"
+  },
+  {
+    "id": "cmqcf2bz7008oko1vh5m7z7g7",
+    "catalogItemId": "cmqccwaff001gkomt99oa8rgg",
+    "price": "456.82",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.036Z"
+  },
+  {
+    "id": "cmqcf2bz7008pko1v70lqppar",
+    "catalogItemId": "cmqccwaff001gkomt99oa8rgg",
+    "price": "464.57",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.036Z"
+  },
+  {
+    "id": "cmqcf2bz7008qko1v0grfn4bo",
+    "catalogItemId": "cmqccwaff001gkomt99oa8rgg",
+    "price": "454.07",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.036Z"
+  },
+  {
+    "id": "cmqcf2bz7008rko1vjcpmief1",
+    "catalogItemId": "cmqccwaff001gkomt99oa8rgg",
+    "price": "461.85",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.036Z"
+  },
+  {
+    "id": "cmqcf2bz7008sko1vxkxbxric",
+    "catalogItemId": "cmqccwaff001gkomt99oa8rgg",
+    "price": "451.29",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.036Z"
+  },
+  {
+    "id": "cmqcf2bz7008tko1vk1gtmebj",
+    "catalogItemId": "cmqccwaff001gkomt99oa8rgg",
+    "price": "460",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.036Z"
+  },
+  {
+    "id": "cmqcf2bz8008uko1v3g7azbm0",
+    "catalogItemId": "cmqccwafg001hkomt4c61xrr5",
+    "price": "38.25",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.037Z"
+  },
+  {
+    "id": "cmqcf2bz8008vko1vgb0ixuu7",
+    "catalogItemId": "cmqccwafg001hkomt4c61xrr5",
+    "price": "38.67",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.037Z"
+  },
+  {
+    "id": "cmqcf2bz8008wko1vcwmzjh2g",
+    "catalogItemId": "cmqccwafg001hkomt4c61xrr5",
+    "price": "39.08",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.037Z"
+  },
+  {
+    "id": "cmqcf2bz8008xko1vo8but7y2",
+    "catalogItemId": "cmqccwafg001hkomt4c61xrr5",
+    "price": "37.96",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.037Z"
+  },
+  {
+    "id": "cmqcf2bz8008yko1vqk59rc0i",
+    "catalogItemId": "cmqccwafg001hkomt4c61xrr5",
+    "price": "38.37",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.037Z"
+  },
+  {
+    "id": "cmqcf2bz8008zko1vdhjiba4q",
+    "catalogItemId": "cmqccwafg001hkomt4c61xrr5",
+    "price": "38",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.037Z"
+  },
+  {
+    "id": "cmqcf2bz90090ko1v6vappkm7",
+    "catalogItemId": "cmqccwafh001ikomt7a8g3hrh",
+    "price": "8.54",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.038Z"
+  },
+  {
+    "id": "cmqcf2bz90091ko1v7s7lqko5",
+    "catalogItemId": "cmqccwafh001ikomt7a8g3hrh",
+    "price": "8.68",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.038Z"
+  },
+  {
+    "id": "cmqcf2bz90092ko1vielll995",
+    "catalogItemId": "cmqccwafh001ikomt7a8g3hrh",
+    "price": "8.47",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.038Z"
+  },
+  {
+    "id": "cmqcf2bz90093ko1v988sk1e5",
+    "catalogItemId": "cmqccwafh001ikomt7a8g3hrh",
+    "price": "8.6",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.038Z"
+  },
+  {
+    "id": "cmqcf2bz90094ko1v7sw7lshd",
+    "catalogItemId": "cmqccwafh001ikomt7a8g3hrh",
+    "price": "8.74",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.038Z"
+  },
+  {
+    "id": "cmqcf2bz90095ko1vd1a3nnu4",
+    "catalogItemId": "cmqccwafh001ikomt7a8g3hrh",
+    "price": "8.6",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.038Z"
+  },
+  {
+    "id": "cmqcf2bza0096ko1vu4nmfvco",
+    "catalogItemId": "cmqccwafi001jkomtkdtnefpb",
+    "price": "12972.06",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.039Z"
+  },
+  {
+    "id": "cmqcf2bza0097ko1vv5y6j5ev",
+    "catalogItemId": "cmqccwafi001jkomtkdtnefpb",
+    "price": "13117.58",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.039Z"
+  },
+  {
+    "id": "cmqcf2bza0098ko1vaxq49kn4",
+    "catalogItemId": "cmqccwafi001jkomtkdtnefpb",
+    "price": "12744.07",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.039Z"
+  },
+  {
+    "id": "cmqcf2bza0099ko1vg14dzd79",
+    "catalogItemId": "cmqccwafi001jkomtkdtnefpb",
+    "price": "12888.69",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.039Z"
+  },
+  {
+    "id": "cmqcf2bza009ako1vw5mvlorp",
+    "catalogItemId": "cmqccwafi001jkomtkdtnefpb",
+    "price": "13031.92",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.039Z"
+  },
+  {
+    "id": "cmqcf2bza009bko1vvcohq3jt",
+    "catalogItemId": "cmqccwafi001jkomtkdtnefpb",
+    "price": "12800",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.039Z"
+  },
+  {
+    "id": "cmqcf2bzb009cko1vcu62qgch",
+    "catalogItemId": "cmqccwafj001kkomt96e86e3t",
+    "price": "17278.24",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.040Z"
+  },
+  {
+    "id": "cmqcf2bzb009dko1vgmrir2p9",
+    "catalogItemId": "cmqccwafj001kkomt96e86e3t",
+    "price": "17766.55",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.040Z"
+  },
+  {
+    "id": "cmqcf2bzb009eko1vw2ng79hn",
+    "catalogItemId": "cmqccwafj001kkomt96e86e3t",
+    "price": "17549.13",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.040Z"
+  },
+  {
+    "id": "cmqcf2bzb009fko1verw82v7d",
+    "catalogItemId": "cmqccwafj001kkomt96e86e3t",
+    "price": "18041.84",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.040Z"
+  },
+  {
+    "id": "cmqcf2bzb009gko1vcny6d03n",
+    "catalogItemId": "cmqccwafj001kkomt96e86e3t",
+    "price": "18541.33",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.040Z"
+  },
+  {
+    "id": "cmqcf2bzb009hko1vwszd9il8",
+    "catalogItemId": "cmqccwafj001kkomt96e86e3t",
+    "price": "18500",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.040Z"
+  },
+  {
+    "id": "cmqcf2bzc009iko1v680l6i3b",
+    "catalogItemId": "cmqccwafk001lkomtjqwqi20t",
+    "price": "85799.8",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.041Z"
+  },
+  {
+    "id": "cmqcf2bzc009jko1vbnk94weq",
+    "catalogItemId": "cmqccwafk001lkomtjqwqi20t",
+    "price": "87289.94",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.041Z"
+  },
+  {
+    "id": "cmqcf2bzc009kko1vefk9kit7",
+    "catalogItemId": "cmqccwafk001lkomtjqwqi20t",
+    "price": "85353.29",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.041Z"
+  },
+  {
+    "id": "cmqcf2bzc009lko1v4cm9uk67",
+    "catalogItemId": "cmqccwafk001lkomtjqwqi20t",
+    "price": "86847.69",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.041Z"
+  },
+  {
+    "id": "cmqcf2bzc009mko1v0vonidd0",
+    "catalogItemId": "cmqccwafk001lkomtjqwqi20t",
+    "price": "84897.54",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.041Z"
+  },
+  {
+    "id": "cmqcf2bzc009nko1vu89v9q8l",
+    "catalogItemId": "cmqccwafk001lkomtjqwqi20t",
+    "price": "86500",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.041Z"
+  },
+  {
+    "id": "cmqcf2bzd009oko1v3tbgsucs",
+    "catalogItemId": "cmqccwafk001mkomthwh5xycn",
+    "price": "107119.31",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.042Z"
+  },
+  {
+    "id": "cmqcf2bzd009pko1vrvywt4gh",
+    "catalogItemId": "cmqccwafk001mkomthwh5xycn",
+    "price": "105499.1",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.042Z"
+  },
+  {
+    "id": "cmqcf2bzd009qko1vj2qk2861",
+    "catalogItemId": "cmqccwafk001mkomthwh5xycn",
+    "price": "108173.66",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.042Z"
+  },
+  {
+    "id": "cmqcf2bzd009rko1vanxgjkjo",
+    "catalogItemId": "cmqccwafk001mkomthwh5xycn",
+    "price": "110880.4",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.042Z"
+  },
+  {
+    "id": "cmqcf2bzd009sko1v2lezjkqh",
+    "catalogItemId": "cmqccwafk001mkomthwh5xycn",
+    "price": "109182.79",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.042Z"
+  },
+  {
+    "id": "cmqcf2bzd009tko1vtj5iswwi",
+    "catalogItemId": "cmqccwafk001mkomthwh5xycn",
+    "price": "112000",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.042Z"
+  },
+  {
+    "id": "cmqcf2bzf009uko1v6nyzfi8k",
+    "catalogItemId": "cmqccwafl001nkomtpe1fxnp9",
+    "price": "17855.58",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.043Z"
+  },
+  {
+    "id": "cmqcf2bzf009vko1vnanm5ia8",
+    "catalogItemId": "cmqccwafl001nkomtpe1fxnp9",
+    "price": "18203.23",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.043Z"
+  },
+  {
+    "id": "cmqcf2bzf009wko1vrhud00y5",
+    "catalogItemId": "cmqccwafl001nkomtpe1fxnp9",
+    "price": "18553.23",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.043Z"
+  },
+  {
+    "id": "cmqcf2bzf009xko1v51x1zqk4",
+    "catalogItemId": "cmqccwafl001nkomtpe1fxnp9",
+    "price": "18171.97",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.043Z"
+  },
+  {
+    "id": "cmqcf2bzf009yko1v3g9mo5u5",
+    "catalogItemId": "cmqccwafl001nkomtpe1fxnp9",
+    "price": "18523.51",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.043Z"
+  },
+  {
+    "id": "cmqcf2bzf009zko1v62zji90d",
+    "catalogItemId": "cmqccwafl001nkomtpe1fxnp9",
+    "price": "18500",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.043Z"
+  },
+  {
+    "id": "cmqcf2bzg00a0ko1vc3bm2zgt",
+    "catalogItemId": "cmqccwafm001okomtlyutvwn9",
+    "price": "153502.22",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.044Z"
+  },
+  {
+    "id": "cmqcf2bzg00a1ko1vm906pal1",
+    "catalogItemId": "cmqccwafm001okomtlyutvwn9",
+    "price": "158297.32",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.044Z"
+  },
+  {
+    "id": "cmqcf2bzg00a2ko1vhiafspej",
+    "catalogItemId": "cmqccwafm001okomtlyutvwn9",
+    "price": "163166.08",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.044Z"
+  },
+  {
+    "id": "cmqcf2bzg00a3ko1vygdlll31",
+    "catalogItemId": "cmqccwafm001okomtlyutvwn9",
+    "price": "161587.63",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.044Z"
+  },
+  {
+    "id": "cmqcf2bzg00a4ko1vkuvd10gt",
+    "catalogItemId": "cmqccwafm001okomtlyutvwn9",
+    "price": "166504.18",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.044Z"
+  },
+  {
+    "id": "cmqcf2bzg00a5ko1vhbtvwpv4",
+    "catalogItemId": "cmqccwafm001okomtlyutvwn9",
+    "price": "168000",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.044Z"
+  },
+  {
+    "id": "cmqcf2bzh00a6ko1vk1hx1as2",
+    "catalogItemId": "cmqccwafn001pkomtj28s2hz9",
+    "price": "37472.34",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.045Z"
+  },
+  {
+    "id": "cmqcf2bzh00a7ko1vqzokv3sb",
+    "catalogItemId": "cmqccwafn001pkomtj28s2hz9",
+    "price": "36782.47",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.045Z"
+  },
+  {
+    "id": "cmqcf2bzh00a8ko1vfpbh80ja",
+    "catalogItemId": "cmqccwafn001pkomtj28s2hz9",
+    "price": "37589.46",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.045Z"
+  },
+  {
+    "id": "cmqcf2bzh00a9ko1v6o6t0thx",
+    "catalogItemId": "cmqccwafn001pkomtj28s2hz9",
+    "price": "38403.95",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.045Z"
+  },
+  {
+    "id": "cmqcf2bzh00aako1v9mswhobe",
+    "catalogItemId": "cmqccwafn001pkomtj28s2hz9",
+    "price": "37696.05",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.045Z"
+  },
+  {
+    "id": "cmqcf2bzh00abko1v6sq3s48u",
+    "catalogItemId": "cmqccwafn001pkomtj28s2hz9",
+    "price": "38500",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.045Z"
+  },
+  {
+    "id": "cmqcf2bzi00acko1vgwv2h7oo",
+    "catalogItemId": "cmqccwafo001qkomt2v9q978w",
+    "price": "56022",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.046Z"
+  },
+  {
+    "id": "cmqcf2bzi00adko1vm6y8biwa",
+    "catalogItemId": "cmqccwafo001qkomt2v9q978w",
+    "price": "54832.45",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.046Z"
+  },
+  {
+    "id": "cmqcf2bzi00aeko1v53v6czsg",
+    "catalogItemId": "cmqccwafo001qkomt2v9q978w",
+    "price": "55849.14",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.046Z"
+  },
+  {
+    "id": "cmqcf2bzi00afko1vzpqztcp4",
+    "catalogItemId": "cmqccwafo001qkomt2v9q978w",
+    "price": "54647.54",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.046Z"
+  },
+  {
+    "id": "cmqcf2bzi00agko1v6rg1pa8n",
+    "catalogItemId": "cmqccwafo001qkomt2v9q978w",
+    "price": "55668.04",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.046Z"
+  },
+  {
+    "id": "cmqcf2bzi00ahko1vdjzgkt3e",
+    "catalogItemId": "cmqccwafo001qkomt2v9q978w",
+    "price": "56000",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.046Z"
+  },
+  {
+    "id": "cmqcf2bzj00aiko1vte0r3cny",
+    "catalogItemId": "cmqccwafp001rkomtv6u2hp0s",
+    "price": "64875.5",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.047Z"
+  },
+  {
+    "id": "cmqcf2bzj00ajko1vezqf2fzo",
+    "catalogItemId": "cmqccwafp001rkomtv6u2hp0s",
+    "price": "66480.07",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.047Z"
+  },
+  {
+    "id": "cmqcf2bzj00akko1va2v8cv8h",
+    "catalogItemId": "cmqccwafp001rkomtv6u2hp0s",
+    "price": "65459.68",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.047Z"
+  },
+  {
+    "id": "cmqcf2bzj00alko1vv2mn4z2z",
+    "catalogItemId": "cmqccwafp001rkomtv6u2hp0s",
+    "price": "67076.45",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.047Z"
+  },
+  {
+    "id": "cmqcf2bzj00amko1vycfp15oo",
+    "catalogItemId": "cmqccwafp001rkomtv6u2hp0s",
+    "price": "66017.43",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.047Z"
+  },
+  {
+    "id": "cmqcf2bzj00anko1vftajxgir",
+    "catalogItemId": "cmqccwafp001rkomtv6u2hp0s",
+    "price": "68000",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.047Z"
+  },
+  {
+    "id": "cmqcf2bzk00aoko1v07c16uog",
+    "catalogItemId": "cmqccwafq001skomtzwc330p6",
+    "price": "1754.36",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.048Z"
+  },
+  {
+    "id": "cmqcf2bzk00apko1vxrz0njv1",
+    "catalogItemId": "cmqccwafq001skomtzwc330p6",
+    "price": "1702.77",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.048Z"
+  },
+  {
+    "id": "cmqcf2bzk00aqko1vttepw87h",
+    "catalogItemId": "cmqccwafq001skomtzwc330p6",
+    "price": "1719.79",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.048Z"
+  },
+  {
+    "id": "cmqcf2bzk00arko1v2lqyqd3a",
+    "catalogItemId": "cmqccwafq001skomtzwc330p6",
+    "price": "1668.7",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.048Z"
+  },
+  {
+    "id": "cmqcf2bzk00asko1vib2bjmsa",
+    "catalogItemId": "cmqccwafq001skomtzwc330p6",
+    "price": "1685.56",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.048Z"
+  },
+  {
+    "id": "cmqcf2bzk00atko1vj2feza7c",
+    "catalogItemId": "cmqccwafq001skomtzwc330p6",
+    "price": "1680",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.048Z"
+  },
+  {
+    "id": "cmqcf2bzl00auko1vqd0b7lg4",
+    "catalogItemId": "cmqccwafr001tkomtfbdofyya",
+    "price": "9834.72",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.049Z"
+  },
+  {
+    "id": "cmqcf2bzl00avko1vi5imhtme",
+    "catalogItemId": "cmqccwafr001tkomtfbdofyya",
+    "price": "9622.35",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.049Z"
+  },
+  {
+    "id": "cmqcf2bzl00awko1vrkk3agnp",
+    "catalogItemId": "cmqccwafr001tkomtfbdofyya",
+    "price": "9796.71",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.049Z"
+  },
+  {
+    "id": "cmqcf2bzl00axko1vc90qjtg8",
+    "catalogItemId": "cmqccwafr001tkomtfbdofyya",
+    "price": "9582.46",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.049Z"
+  },
+  {
+    "id": "cmqcf2bzl00ayko1vg5qmlaz1",
+    "catalogItemId": "cmqccwafr001tkomtfbdofyya",
+    "price": "9757.41",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.049Z"
+  },
+  {
+    "id": "cmqcf2bzl00azko1v9a0tmq6i",
+    "catalogItemId": "cmqccwafr001tkomtfbdofyya",
+    "price": "9800",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.049Z"
+  },
+  {
+    "id": "cmqcf2bzm00b0ko1vfsjjb1h0",
+    "catalogItemId": "cmqccwafs001ukomt2qul0bfi",
+    "price": "5972.89",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.050Z"
+  },
+  {
+    "id": "cmqcf2bzm00b1ko1v1r20dju4",
+    "catalogItemId": "cmqccwafs001ukomt2qul0bfi",
+    "price": "6088.23",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.050Z"
+  },
+  {
+    "id": "cmqcf2bzm00b2ko1vh8rjrt2l",
+    "catalogItemId": "cmqccwafs001ukomt2qul0bfi",
+    "price": "6204.32",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.050Z"
+  },
+  {
+    "id": "cmqcf2bzm00b3ko1v60mptcm0",
+    "catalogItemId": "cmqccwafs001ukomt2qul0bfi",
+    "price": "6075.2",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.050Z"
+  },
+  {
+    "id": "cmqcf2bzm00b4ko1vvt0mpyav",
+    "catalogItemId": "cmqccwafs001ukomt2qul0bfi",
+    "price": "6191.78",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.050Z"
+  },
+  {
+    "id": "cmqcf2bzm00b5ko1v6nfbe28d",
+    "catalogItemId": "cmqccwafs001ukomt2qul0bfi",
+    "price": "6200",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.050Z"
+  },
+  {
+    "id": "cmqcf2bzn00b6ko1v1o6of2e1",
+    "catalogItemId": "cmqccwafs001vkomt5ce1w1q7",
+    "price": "30757.29",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.051Z"
+  },
+  {
+    "id": "cmqcf2bzn00b7ko1vwtfxwuzq",
+    "catalogItemId": "cmqccwafs001vkomt5ce1w1q7",
+    "price": "30364.66",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.051Z"
+  },
+  {
+    "id": "cmqcf2bzn00b8ko1v1pod6zl5",
+    "catalogItemId": "cmqccwafs001vkomt5ce1w1q7",
+    "price": "31206.39",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.051Z"
+  },
+  {
+    "id": "cmqcf2bzn00b9ko1vywjyr1mm",
+    "catalogItemId": "cmqccwafs001vkomt5ce1w1q7",
+    "price": "32059.53",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.051Z"
+  },
+  {
+    "id": "cmqcf2bzn00bako1vxupu1ly9",
+    "catalogItemId": "cmqccwafs001vkomt5ce1w1q7",
+    "price": "31639.47",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.051Z"
+  },
+  {
+    "id": "cmqcf2bzn00bbko1vl0ntq6df",
+    "catalogItemId": "cmqccwafs001vkomt5ce1w1q7",
+    "price": "32500",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.051Z"
+  },
+  {
+    "id": "cmqcf2bzo00bcko1vrveqs8nn",
+    "catalogItemId": "cmqccwaft001wkomtkdtp2jt5",
+    "price": "677.66",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.053Z"
+  },
+  {
+    "id": "cmqcf2bzo00bdko1v4eehx9sn",
+    "catalogItemId": "cmqccwaft001wkomtkdtp2jt5",
+    "price": "686.32",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.053Z"
+  },
+  {
+    "id": "cmqcf2bzo00beko1vql1jlwmc",
+    "catalogItemId": "cmqccwaft001wkomtkdtp2jt5",
+    "price": "694.94",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.053Z"
+  },
+  {
+    "id": "cmqcf2bzo00bfko1v70lrb0h6",
+    "catalogItemId": "cmqccwaft001wkomtkdtp2jt5",
+    "price": "676.2",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.053Z"
+  },
+  {
+    "id": "cmqcf2bzo00bgko1v9oaqr3q5",
+    "catalogItemId": "cmqccwaft001wkomtkdtp2jt5",
+    "price": "684.78",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.053Z"
+  },
+  {
+    "id": "cmqcf2bzo00bhko1v8o8lj3o8",
+    "catalogItemId": "cmqccwaft001wkomtkdtp2jt5",
+    "price": "680",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.053Z"
+  },
+  {
+    "id": "cmqcf2bzp00biko1vscxlv9a2",
+    "catalogItemId": "cmqccwafu001xkomtxghgqty5",
+    "price": "1281.52",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.054Z"
+  },
+  {
+    "id": "cmqcf2bzp00bjko1vtrdhvjbg",
+    "catalogItemId": "cmqccwafu001xkomtxghgqty5",
+    "price": "1251.52",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.054Z"
+  },
+  {
+    "id": "cmqcf2bzp00bkko1vp5a6ynqc",
+    "catalogItemId": "cmqccwafu001xkomtxghgqty5",
+    "price": "1272.38",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.054Z"
+  },
+  {
+    "id": "cmqcf2bzp00blko1vzk97vq9x",
+    "catalogItemId": "cmqccwafu001xkomtxghgqty5",
+    "price": "1293.29",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.054Z"
+  },
+  {
+    "id": "cmqcf2bzp00bmko1v5k2pbzqz",
+    "catalogItemId": "cmqccwafu001xkomtxghgqty5",
+    "price": "1263.14",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.054Z"
+  },
+  {
+    "id": "cmqcf2bzp00bnko1vmyzvglj1",
+    "catalogItemId": "cmqccwafu001xkomtxghgqty5",
+    "price": "1280",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.054Z"
+  },
+  {
+    "id": "cmqcf2bzq00boko1v0id99d6d",
+    "catalogItemId": "cmqccwafv001ykomtfx0jcge9",
+    "price": "85.47",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.055Z"
+  },
+  {
+    "id": "cmqcf2bzq00bpko1v2nk2mg5l",
+    "catalogItemId": "cmqccwafv001ykomtfx0jcge9",
+    "price": "83.55",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.055Z"
+  },
+  {
+    "id": "cmqcf2bzq00bqko1v5mh68hot",
+    "catalogItemId": "cmqccwafv001ykomtfx0jcge9",
+    "price": "85.03",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.055Z"
+  },
+  {
+    "id": "cmqcf2bzq00brko1vebqgjnbj",
+    "catalogItemId": "cmqccwafv001ykomtfx0jcge9",
+    "price": "86.52",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.055Z"
+  },
+  {
+    "id": "cmqcf2bzq00bsko1vktz3cctt",
+    "catalogItemId": "cmqccwafv001ykomtfx0jcge9",
+    "price": "84.58",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.055Z"
+  },
+  {
+    "id": "cmqcf2bzq00btko1v920yn4gm",
+    "catalogItemId": "cmqccwafv001ykomtfx0jcge9",
+    "price": "86",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.055Z"
+  },
+  {
+    "id": "cmqcf2bzr00buko1v5bbe2b1m",
+    "catalogItemId": "cmqccwafw001zkomtoa0mo00w",
+    "price": "169.21",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.056Z"
+  },
+  {
+    "id": "cmqcf2bzr00bvko1vu1a2f3dr",
+    "catalogItemId": "cmqccwafw001zkomtoa0mo00w",
+    "price": "164.98",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.056Z"
+  },
+  {
+    "id": "cmqcf2bzr00bwko1v22c2cbg4",
+    "catalogItemId": "cmqccwafw001zkomtoa0mo00w",
+    "price": "167.46",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.056Z"
+  },
+  {
+    "id": "cmqcf2bzr00bxko1vjt5nihai",
+    "catalogItemId": "cmqccwafw001zkomtoa0mo00w",
+    "price": "169.95",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.056Z"
+  },
+  {
+    "id": "cmqcf2bzs00byko1vv7d4imo1",
+    "catalogItemId": "cmqccwafw001zkomtoa0mo00w",
+    "price": "165.72",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.056Z"
+  },
+  {
+    "id": "cmqcf2bzs00bzko1vhr78nier",
+    "catalogItemId": "cmqccwafw001zkomtoa0mo00w",
+    "price": "168",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.056Z"
+  },
+  {
+    "id": "cmqcf2bzt00c0ko1vkzzgkcen",
+    "catalogItemId": "cmqccwafx0020komta7vkl037",
+    "price": "7053.33",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.057Z"
+  },
+  {
+    "id": "cmqcf2bzt00c1ko1vqa080u0c",
+    "catalogItemId": "cmqccwafx0020komta7vkl037",
+    "price": "7118.31",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.057Z"
+  },
+  {
+    "id": "cmqcf2bzt00c2ko1vt922u1cn",
+    "catalogItemId": "cmqccwafx0020komta7vkl037",
+    "price": "6901.34",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.057Z"
+  },
+  {
+    "id": "cmqcf2bzt00c3ko1v044zmwvs",
+    "catalogItemId": "cmqccwafx0020komta7vkl037",
+    "price": "6965.55",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.057Z"
+  },
+  {
+    "id": "cmqcf2bzt00c4ko1vhoz6yf3n",
+    "catalogItemId": "cmqccwafx0020komta7vkl037",
+    "price": "7028.58",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.057Z"
+  },
+  {
+    "id": "cmqcf2bzt00c5ko1viputvdzj",
+    "catalogItemId": "cmqccwafx0020komta7vkl037",
+    "price": "6900",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.057Z"
+  },
+  {
+    "id": "cmqcf2bzu00c6ko1v6e8mtdf6",
+    "catalogItemId": "cmqccwafy0021komtu9nhz1bw",
+    "price": "1309.88",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.058Z"
+  },
+  {
+    "id": "cmqcf2bzu00c7ko1vy7dqtea7",
+    "catalogItemId": "cmqccwafy0021komtu9nhz1bw",
+    "price": "1275.89",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.058Z"
+  },
+  {
+    "id": "cmqcf2bzu00c8ko1v6zf632d0",
+    "catalogItemId": "cmqccwafy0021komtu9nhz1bw",
+    "price": "1293.37",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.058Z"
+  },
+  {
+    "id": "cmqcf2bzu00c9ko1veyaoi3hq",
+    "catalogItemId": "cmqccwafy0021komtu9nhz1bw",
+    "price": "1259.48",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.058Z"
+  },
+  {
+    "id": "cmqcf2bzu00cako1vdes6zvcx",
+    "catalogItemId": "cmqccwafy0021komtu9nhz1bw",
+    "price": "1276.93",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.058Z"
+  },
+  {
+    "id": "cmqcf2bzu00cbko1vc2n1kbe7",
+    "catalogItemId": "cmqccwafy0021komtu9nhz1bw",
+    "price": "1280",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.058Z"
+  },
+  {
+    "id": "cmqcf2bzv00ccko1v0upnidm0",
+    "catalogItemId": "cmqccwafy0022komtyz37t82s",
+    "price": "7.51",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.059Z"
+  },
+  {
+    "id": "cmqcf2bzv00cdko1voywz8do6",
+    "catalogItemId": "cmqccwafy0022komtyz37t82s",
+    "price": "7.41",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.059Z"
+  },
+  {
+    "id": "cmqcf2bzv00ceko1vk9odj3b4",
+    "catalogItemId": "cmqccwafy0022komtyz37t82s",
+    "price": "7.61",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.059Z"
+  },
+  {
+    "id": "cmqcf2bzv00cfko1vzmecu226",
+    "catalogItemId": "cmqccwafy0022komtyz37t82s",
+    "price": "7.81",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.059Z"
+  },
+  {
+    "id": "cmqcf2bzv00cgko1ve740bici",
+    "catalogItemId": "cmqccwafy0022komtyz37t82s",
+    "price": "7.71",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.059Z"
+  },
+  {
+    "id": "cmqcf2bzv00chko1v8koyr5xe",
+    "catalogItemId": "cmqccwafy0022komtyz37t82s",
+    "price": "7.86",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.059Z"
+  },
+  {
+    "id": "cmqcf2bzw00ciko1vw42rznvu",
+    "catalogItemId": "cmqccwafz0023komtebq7jl2x",
+    "price": "253.71",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.060Z"
+  },
+  {
+    "id": "cmqcf2bzw00cjko1v3piken9j",
+    "catalogItemId": "cmqccwafz0023komtebq7jl2x",
+    "price": "249.5",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.060Z"
+  },
+  {
+    "id": "cmqcf2bzw00ckko1ve1smyn51",
+    "catalogItemId": "cmqccwafz0023komtebq7jl2x",
+    "price": "255.34",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.060Z"
+  },
+  {
+    "id": "cmqcf2bzw00clko1vqnutlge5",
+    "catalogItemId": "cmqccwafz0023komtebq7jl2x",
+    "price": "251",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.060Z"
+  },
+  {
+    "id": "cmqcf2bzw00cmko1v5m32r532",
+    "catalogItemId": "cmqccwafz0023komtebq7jl2x",
+    "price": "256.87",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.060Z"
+  },
+  {
+    "id": "cmqcf2bzw00cnko1vm69tf7rv",
+    "catalogItemId": "cmqccwafz0023komtebq7jl2x",
+    "price": "260",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.060Z"
+  },
+  {
+    "id": "cmqcf2bzx00coko1vkukcnwry",
+    "catalogItemId": "cmqccwag00024komth4c740r8",
+    "price": "3114.63",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.062Z"
+  },
+  {
+    "id": "cmqcf2bzx00cpko1vwvq3qpwz",
+    "catalogItemId": "cmqccwag00024komth4c740r8",
+    "price": "3177.81",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.062Z"
+  },
+  {
+    "id": "cmqcf2bzx00cqko1vxh0dj5jz",
+    "catalogItemId": "cmqccwag00024komth4c740r8",
+    "price": "3115.51",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.062Z"
+  },
+  {
+    "id": "cmqcf2bzx00crko1v05sv0q5h",
+    "catalogItemId": "cmqccwag00024komth4c740r8",
+    "price": "3179.01",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.062Z"
+  },
+  {
+    "id": "cmqcf2bzx00csko1v46zh709r",
+    "catalogItemId": "cmqccwag00024komth4c740r8",
+    "price": "3243.02",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.062Z"
+  },
+  {
+    "id": "cmqcf2bzx00ctko1vcbsnxste",
+    "catalogItemId": "cmqccwag00024komth4c740r8",
+    "price": "3200",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.062Z"
+  },
+  {
+    "id": "cmqcf2bzy00cuko1v4mmgg92e",
+    "catalogItemId": "cmqccwag10025komtfxcym755",
+    "price": "8538.17",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.063Z"
+  },
+  {
+    "id": "cmqcf2bzy00cvko1v98lg5eno",
+    "catalogItemId": "cmqccwag10025komtfxcym755",
+    "price": "8692.48",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.063Z"
+  },
+  {
+    "id": "cmqcf2bzy00cwko1v8le8zqib",
+    "catalogItemId": "cmqccwag10025komtfxcym755",
+    "price": "8847.57",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.063Z"
+  },
+  {
+    "id": "cmqcf2bzy00cxko1vdqqpohwu",
+    "catalogItemId": "cmqccwag10025komtfxcym755",
+    "price": "8653.5",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.063Z"
+  },
+  {
+    "id": "cmqcf2bzz00cyko1v6chz6lit",
+    "catalogItemId": "cmqccwag10025komtfxcym755",
+    "price": "8809.09",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.063Z"
+  },
+  {
+    "id": "cmqcf2bzz00czko1vj9kiz80m",
+    "catalogItemId": "cmqccwag10025komtfxcym755",
+    "price": "8800",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.063Z"
+  },
+  {
+    "id": "cmqcf2c0000d0ko1v97z9lmgp",
+    "catalogItemId": "cmqccwag10026komtqq3x0qyb",
+    "price": "3075.73",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.064Z"
+  },
+  {
+    "id": "cmqcf2c0000d1ko1vnxvbjr3g",
+    "catalogItemId": "cmqccwag10026komtqq3x0qyb",
+    "price": "3140.44",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.064Z"
+  },
+  {
+    "id": "cmqcf2c0000d2ko1vgk6jotvn",
+    "catalogItemId": "cmqccwag10026komtqq3x0qyb",
+    "price": "3205.7",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.064Z"
+  },
+  {
+    "id": "cmqcf2c0000d3ko1vci5p6uwt",
+    "catalogItemId": "cmqccwag10026komtqq3x0qyb",
+    "price": "3145.01",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.064Z"
+  },
+  {
+    "id": "cmqcf2c0000d4ko1vmicgted8",
+    "catalogItemId": "cmqccwag10026komtqq3x0qyb",
+    "price": "3210.63",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.064Z"
+  },
+  {
+    "id": "cmqcf2c0000d5ko1vx93df84z",
+    "catalogItemId": "cmqccwag10026komtqq3x0qyb",
+    "price": "3200",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.064Z"
+  },
+  {
+    "id": "cmqcf2c0100d6ko1vx1mryf8y",
+    "catalogItemId": "cmqccwag20027komtz7uvmi23",
+    "price": "153.32",
+    "recordedAt": "2026-01-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.065Z"
+  },
+  {
+    "id": "cmqcf2c0100d7ko1v1bs9aqbk",
+    "catalogItemId": "cmqccwag20027komtz7uvmi23",
+    "price": "157.72",
+    "recordedAt": "2026-02-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.065Z"
+  },
+  {
+    "id": "cmqcf2c0100d8ko1vj3wuewt1",
+    "catalogItemId": "cmqccwag20027komtz7uvmi23",
+    "price": "155.84",
+    "recordedAt": "2026-03-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.065Z"
+  },
+  {
+    "id": "cmqcf2c0100d9ko1vdwfbnwt4",
+    "catalogItemId": "cmqccwag20027komtz7uvmi23",
+    "price": "160.28",
+    "recordedAt": "2026-04-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.065Z"
+  },
+  {
+    "id": "cmqcf2c0100dako1vzx7dy9p8",
+    "catalogItemId": "cmqccwag20027komtz7uvmi23",
+    "price": "164.79",
+    "recordedAt": "2026-05-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.065Z"
+  },
+  {
+    "id": "cmqcf2c0100dbko1vtrvnavf1",
+    "catalogItemId": "cmqccwag20027komtz7uvmi23",
+    "price": "165",
+    "recordedAt": "2026-06-12T16:00:00.000Z",
+    "note": null,
+    "createdAt": "2026-06-13T13:54:08.065Z"
+  }
+]

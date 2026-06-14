@@ -58,6 +58,7 @@ async function handleLogin() {
       <div class="lp-card">
         <div class="lp-head">
           <div class="lp-brand-word">智慧水发<span class="lp-dot">·</span>蜀水云采</div>
+          <div class="lp-divider" aria-hidden="true">◆</div>
           <h1 class="lp-title">供应商门户</h1>
         </div>
 
@@ -101,7 +102,12 @@ async function handleLogin() {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=ZCOOL+XiaoWei&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+@property --lp-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
 
 .lp {
   --tint: oklch(0.975 0.02 var(--hue));
@@ -164,16 +170,19 @@ async function handleLogin() {
   gap: 12px;
 }
 .lp-brand-mark {
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
+  width: 54px;
+  height: 54px;
+  border-radius: 15px;
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  box-shadow: 0 10px 26px rgba(20, 40, 50, 0.18);
+  background: #fff;
+  padding: 5px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 20px rgba(20, 40, 50, 0.22);
 }
 .lp-brand-name {
   font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 800;
   letter-spacing: 0.05em;
   color: #fff;
@@ -268,16 +277,18 @@ async function handleLogin() {
 }
 .lp-card {
   position: relative;
-  width: min(440px, 100%);
-  padding: 36px 32px 30px;
-  border-radius: 26px;
-  background: radial-gradient(circle at 92% 0%, color-mix(in oklch, oklch(0.93 0.055 var(--hue)) 38%, transparent), transparent 36%),
-    radial-gradient(circle at 4% 96%, color-mix(in oklch, oklch(0.93 0.045 calc(var(--hue) + 80)) 32%, transparent), transparent 34%),
-    linear-gradient(160deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.54));
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  box-shadow: 0 24px 60px color-mix(in oklch, oklch(0.5 0.05 var(--hue)) 13%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  width: min(464px, 100%);
+  padding: 52px 34px 44px;
+  border-radius: 32px;
+  background: radial-gradient(circle at 92% 0%, color-mix(in oklch, oklch(0.93 0.055 var(--hue)) 42%, transparent), transparent 38%),
+    radial-gradient(circle at 4% 96%, color-mix(in oklch, oklch(0.93 0.045 calc(var(--hue) + 80)) 36%, transparent), transparent 36%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.68));
+  backdrop-filter: blur(30px) saturate(1.5);
+  -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  box-shadow: 0 38px 94px -20px color-mix(in oklch, oklch(0.26 0.06 var(--hue)) 52%, transparent),
+    0 18px 40px -10px color-mix(in oklch, oklch(0.22 0.05 var(--hue)) 40%, transparent),
+    0 0 66px -8px color-mix(in oklch, oklch(0.74 0.1 var(--hue)) 24%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
   animation: lp-rise 0.58s var(--ease) backwards;
   transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease);
 }
@@ -286,9 +297,11 @@ async function handleLogin() {
   to { opacity: 1; transform: translateY(0); }
 }
 .lp-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 32px 70px color-mix(in oklch, oklch(0.5 0.05 var(--hue)) 20%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform: translateY(-5px);
+  box-shadow: 0 52px 110px -18px color-mix(in oklch, oklch(0.26 0.06 var(--hue)) 62%, transparent),
+    0 24px 48px -10px color-mix(in oklch, oklch(0.22 0.05 var(--hue)) 46%, transparent),
+    0 0 86px -8px color-mix(in oklch, oklch(0.74 0.11 var(--hue)) 34%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 .lp-card:hover::before {
   filter: saturate(1.3) brightness(1.05);
@@ -306,41 +319,94 @@ async function handleLogin() {
   mask-composite: exclude;
   transition: filter 0.35s var(--ease);
 }
+.lp-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  pointer-events: none;
+  background: conic-gradient(from var(--lp-angle, 0deg), transparent 0%, color-mix(in oklch, oklch(0.82 0.14 var(--hue)) 36%, transparent) 6%, color-mix(in oklch, white 55%, transparent) 12%, color-mix(in oklch, oklch(0.82 0.14 var(--hue)) 36%, transparent) 19%, transparent 28%, transparent 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.85;
+  animation: lp-edge-flow 8s linear infinite;
+}
+@keyframes lp-edge-flow {
+  to {
+    --lp-angle: 360deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-card::after {
+    animation: none;
+  }
+}
 
 .lp-head {
   margin-bottom: 26px;
   text-align: center;
 }
 .lp-brand-word {
+  display: block;
+  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-size: 37px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background: radial-gradient(ellipse 100% 150% at center, color-mix(in oklch, oklch(0.3 0.12 var(--hue)) 62%, transparent) 0%, color-mix(in oklch, oklch(0.3 0.12 var(--hue)) 26%, transparent) 55%, transparent 100%);
+  text-align: center;
+  margin: 0 -34px;
+  padding: 6px 34px;
+}
+.lp-brand-word .lp-dot {
+  font-size: 28px;
+  line-height: 1;
+  margin: 0 8px;
+  opacity: 0.5;
+  color: #fff;
+}
+.lp-divider {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'ZCOOL XiaoWei', 'Microsoft YaHei', serif;
-  font-size: 24px;
-  font-weight: 400;
-  letter-spacing: 0.08em;
-  color: oklch(0.46 0.09 var(--hue));
-  margin-bottom: 10px;
-}
-.lp-brand-word .lp-dot {
-  font-size: 24px;
+  width: 168px;
+  margin: 18px auto 4px;
+  color: oklch(0.5 0.1 var(--hue));
+  font-size: 9px;
   line-height: 1;
-  margin: 0 6px;
-  opacity: 0.55;
+}
+.lp-divider::before,
+.lp-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+}
+.lp-divider::before {
+  background: linear-gradient(90deg, transparent, oklch(0.5 0.09 var(--hue)));
+  margin-right: 10px;
+}
+.lp-divider::after {
+  background: linear-gradient(270deg, transparent, oklch(0.5 0.09 var(--hue)));
+  margin-left: 10px;
 }
 .lp-title {
   margin: 0;
-  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
-  font-size: 30px;
-  font-weight: 800;
-  line-height: 1.1;
-  color: oklch(0.26 0.04 var(--hue));
-  letter-spacing: -0.01em;
+  font-family: 'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: 31px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: oklch(0.3 0.04 var(--hue));
+  letter-spacing: 0.14em;
+  text-align: center;
 }
 
 /* Element Plus 表单接管 */
 .lp-form :deep(.el-form-item) {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 .lp-form :deep(.el-form-item__label) {
   font-size: 12px;
@@ -352,7 +418,7 @@ async function handleLogin() {
   transition: color 0.2s var(--ease);
 }
 .lp-form :deep(.el-input__wrapper) {
-  height: 54px;
+  height: 60px;
   border-radius: 15px;
   background: rgba(255, 255, 255, 0.62);
   box-shadow: 0 0 0 1px var(--line) inset;
@@ -397,7 +463,7 @@ async function handleLogin() {
   position: relative;
   overflow: hidden;
   width: 100%;
-  height: 54px;
+  height: 60px;
   margin-top: 4px;
   border: 1px solid color-mix(in oklch, oklch(0.8 0.06 var(--hue)) 50%, white);
   border-radius: 15px;

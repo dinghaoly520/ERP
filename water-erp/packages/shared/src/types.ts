@@ -196,7 +196,7 @@ export interface Supplier {
   id: string;
   userId: string;
   name: string;
-  creditCode: string;
+  creditCode: string | null;
   enterpriseType: string;
   legalPerson: string;
   registeredAddress: string;

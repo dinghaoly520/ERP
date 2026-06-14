@@ -1,0 +1,62 @@
+[
+  {
+    "id": "cmqbysdhu000bkoh1u8ikgv08",
+    "projectCode": "BID-2026-0518",
+    "name": "2026年度水利工程物资集中采购",
+    "procurementMethod": "公开招标",
+    "openTime": "2026-06-08T01:30:00.000Z",
+    "deadline": "2026-06-08T01:00:00.000Z",
+    "stage": "OPENING",
+    "riskNote": "解密窗口进行中",
+    "createdAt": "2026-06-13T06:18:29.587Z",
+    "updatedAt": "2026-06-13T06:18:29.587Z"
+  },
+  {
+    "id": "cmqbysdkk001zkoh1w26vtbni",
+    "projectCode": "BID-2026-0522",
+    "name": "智慧水务信息化系统建设项目",
+    "procurementMethod": "综合评分法",
+    "openTime": "2026-07-10T06:30:00.000Z",
+    "deadline": "2026-07-10T06:00:00.000Z",
+    "stage": "SUBMIT",
+    "riskNote": "1家插件版本过旧",
+    "createdAt": "2026-06-13T06:18:29.684Z",
+    "updatedAt": "2026-06-13T06:18:29.684Z"
+  },
+  {
+    "id": "cmqbysdkl0020koh1a040lpt3",
+    "projectCode": "BID-2026-0526",
+    "name": "升钟水库灌区续建配套工程",
+    "procurementMethod": "经评审最低价法",
+    "openTime": "2026-06-05T02:00:00.000Z",
+    "deadline": "2026-06-05T01:30:00.000Z",
+    "stage": "ARCHIVED",
+    "riskNote": null,
+    "createdAt": "2026-06-13T06:18:29.686Z",
+    "updatedAt": "2026-06-13T06:18:29.686Z"
+  },
+  {
+    "id": "cmqbysdkm0021koh1pdvj2t5a",
+    "projectCode": "BID-2026-0601",
+    "name": "2026年度防汛抗旱物资储备采购",
+    "procurementMethod": "公开招标",
+    "openTime": "2026-07-20T01:00:00.000Z",
+    "deadline": "2026-07-20T00:30:00.000Z",
+    "stage": "DOWNLOAD",
+    "riskNote": null,
+    "createdAt": "2026-06-13T06:18:29.686Z",
+    "updatedAt": "2026-06-13T06:18:29.686Z"
+  },
+  {
+    "id": "cmqbysdkn0022koh18821qbqq",
+    "projectCode": "BID-2026-0605",
+    "name": "都江堰灌区现代化改造工程设备采购",
+    "procurementMethod": "竞争性磋商",
+    "openTime": "2026-07-15T02:00:00.000Z",
+    "deadline": "2026-07-15T01:30:00.000Z",
+    "stage": "SUBMIT",
+    "riskNote": null,
+    "createdAt": "2026-06-13T06:18:29.687Z",
+    "updatedAt": "2026-06-13T06:18:29.687Z"
+  }
+]
