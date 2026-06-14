@@ -103,8 +103,20 @@ const sourceStyles: Record<PriceSource, string> = {
   人工维护: 'bg-slate-100 text-slate-600',
 };
 
+// 表格/卡片短标签（≤限定字数），完整值通过 title 悬停或详情抽屉查看
+const STATUS_SHORT: Record<PriceStatus, string> = { 有效: '有效', 价格波动: '波动', 即将过期: '临期', 待复核: '待复核' };
+const SOURCE_SHORT: Record<PriceSource, string> = { 框架协议价: '协议价', 历史成交价: '成交价', 市场询价: '市场询价', 人工维护: '人工维护' };
+const CATEGORY_SHORT: Record<string, string> = { 加药消毒设备: '加药消毒', 检测监测服务: '检测监测', 物流运输服务: '物流运输' };
+const shortCategory = (c: string) => CATEGORY_SHORT[c] || c;
+
 const formatDate = (d: string | null) => (d ? d.slice(0, 10) : '长期');
 const formatPrice = (price: number) => `¥${price.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`;
+
+const AUDIT_LABELS: Record<string, string> = {
+  BUDGET_CONVERTED: '生成询价单',
+  BUDGET_EXPORTED: '导出预算清单',
+  CATALOG_EXPORTED: '导出价格清单',
+};
 
 export default function MallPage() {
   const router = useRouter();
@@ -119,6 +131,8 @@ export default function MallPage() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextSave = useRef(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; target: string; detail: any; createdAt: string }>>([]);
   const [detail, setDetail] = useState<CatalogItem | null>(null);
   const [detailHistory, setDetailHistory] = useState<{ recordedAt: string; price: number }[]>([]);
   const [aiOpen, setAiOpen] = useState(false);
@@ -186,6 +200,44 @@ export default function MallPage() {
     const { favorited } = await res.json();
     setFavoriteIds(prev => (favorited ? [...prev, item.id] : prev.filter(id => id !== item.id)));
     toast.success(favorited ? `已收藏：${item.name}` : '已取消收藏');
+  };
+
+  const triggerDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportCatalog = async () => {
+    const params = new URLSearchParams();
+    if (category !== '全部') params.set('category', category);
+    if (region !== '全部') params.set('region', region);
+    if (status !== '全部') params.set('status', status);
+    if (source !== '全部') params.set('source', source);
+    if (search.trim()) params.set('search', search.trim());
+    const res = await api(`/api/catalog/export${params.toString() ? '?' + params : ''}`);
+    if (!res.ok) { toast.error('导出失败'); return; }
+    triggerDownload(await res.blob(), `采购目录-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success('价格清单已导出为 Excel');
+  };
+
+  const exportBudget = async () => {
+    if (!currentList) { toast.error('请先选择预算清单'); return; }
+    const res = await api(`/api/budget/lists/${currentList.id}/export`);
+    if (!res.ok) { toast.error('导出失败'); return; }
+    triggerDownload(await res.blob(), `预算清单-${currentList.name}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success('预算清单已导出为 Excel');
+  };
+
+  const openAudit = async () => {
+    setAuditOpen(true);
+    const res = await api('/api/audit');
+    if (res.ok) setAuditLogs(await res.json());
   };
 
 
@@ -358,22 +410,52 @@ export default function MallPage() {
 
   const isConverted = currentList?.status === 'CONVERTED';
 
-  const addToBudget = (item: CatalogItem) => {
-    if (isConverted) { toast.error('当前清单已转换为采购立项，请新建或克隆清单后再添加'); return; }
+  const addToBudget = (item: CatalogItem, qty = 1, silent = false) => {
+    if (isConverted) { if (!silent) toast.error('当前清单已转换为采购立项，请新建或克隆清单后再添加'); return; }
     setLines(prev => {
       const idx = prev.findIndex(row => row.catalogItemId === item.id);
-      if (idx >= 0) { const next = [...prev]; next[idx] = { ...next[idx], qty: next[idx].qty + 1 }; return next; }
-      return [...prev, { id: `${item.id}-${Date.now()}`, catalogItemId: item.id, code: item.code, name: item.name, specification: item.specification, unit: item.unit, referencePrice: item.referencePrice, qty: 1 }];
+      if (idx >= 0) { const next = [...prev]; next[idx] = { ...next[idx], qty: next[idx].qty + qty }; return next; }
+      return [...prev, { id: `${item.id}-${Date.now()}`, catalogItemId: item.id, code: item.code, name: item.name, specification: item.specification, unit: item.unit, referencePrice: item.referencePrice, qty }];
     });
-    toast.success(`已加入预算清单：${item.name}`);
+    if (!silent) toast.success(`已加入预算清单：${item.name}`);
   };
 
-  const addScenarioBudget = (scenario: string) => {
-    SCENARIO_CODES[scenario]?.forEach(code => {
-      const item = items.find(row => row.code === code);
-      if (item) addToBudget(item);
-    });
-    toast.success(`已按「${scenario}」场景加入预算建议`);
+  /** 调 AI 为场景推荐目录物资（严格 JSON）；失败返回 null 由调用方兜底。 */
+  const aiScenarioBudget = async (scenario: string): Promise<{ code: string; qty: number }[] | null> => {
+    try {
+      const catalog = items.map(i => ({ code: i.code, name: i.name, unit: i.unit, price: i.referencePrice, category: i.category }));
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `采购场景：${scenario}。请从下列采购目录中为该场景挑选合适物资并给出数量建议。严格只返回一个JSON数组，不要解释或markdown代码块，元素形如 {"code":"目录编码","qty":数量,"reason":"简短理由"}，code 必须为目录中真实编码，推荐6-10项。目录：${JSON.stringify(catalog)}`,
+          context: { scenario, totalItems: catalog.length },
+        }),
+      });
+      if (!res.ok) return null;
+      const { answer } = await res.json();
+      const match = answer && String(answer).match(/\[[\s\S]*\]/);
+      if (!match) return null;
+      const arr = JSON.parse(match[0]);
+      if (!Array.isArray(arr)) return null;
+      return arr.map((x: any) => ({ code: String(x.code || ''), qty: Number(x.qty) || 1 })).filter((x: { code: string }) => x.code);
+    } catch { return null; }
+  };
+
+  const addScenarioBudget = async (scenario: string) => {
+    if (isConverted) { toast.error('当前清单已转换为采购立项，请新建或克隆清单后再添加'); return; }
+    toast.loading(`AI 正在为「${scenario}」推荐物资…`, { id: 'ai-scenario' });
+    const ai = await aiScenarioBudget(scenario);
+    const picks = ai && ai.length ? ai : (SCENARIO_CODES[scenario] || []).map(code => ({ code, qty: 1 }));
+    const source = ai && ai.length ? 'AI' : '模板';
+    let added = 0;
+    for (const p of picks) {
+      const item = items.find(row => row.code === p.code);
+      if (item) { addToBudget(item, p.qty, true); added += 1; }
+    }
+    toast.dismiss('ai-scenario');
+    if (added > 0) toast.success(`已按「${scenario}」加入 ${added} 项（${source}）`);
+    else toast.error('未能生成推荐，请稍后重试');
   };
 
   const changeQty = (lineId: string, delta: number) =>
@@ -428,7 +510,7 @@ export default function MallPage() {
   return (
     <div className="min-h-screen bg-[#f4f7fb] text-[#18243a]" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       <header className="sticky top-0 z-50 border-b border-[#dce6f3] bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-18 max-w-[1680px] items-center justify-between px-6">
+        <div className="flex h-18 items-center justify-between px-6">
           <a href="http://localhost:3006" className="flex items-center gap-3 no-underline">
             <img src="/assets/logo.jpg" alt="四川水发集团" className="h-11 w-auto object-contain" />
             <span>
@@ -438,6 +520,7 @@ export default function MallPage() {
 
           <div className="flex items-center gap-3">
             <button onClick={() => setBudgetOpen(true)} className="relative h-10 rounded-xl bg-[#064ea2] px-4 text-sm font-bold text-white shadow-[0_8px_18px_rgba(6,78,162,.2)] transition hover:bg-[#043d82]">预算清单{lines.length > 0 && <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#e74c3c] px-1 text-xs text-white">{lines.length}</span>}</button>
+            <button onClick={openAudit} className="rounded-xl border border-[#d5e0ef] bg-white px-3 py-2 text-sm font-semibold text-[#5a6d8a] transition hover:border-[#064ea2] hover:text-[#064ea2]">操作记录</button>
             <div className="flex items-center gap-2 rounded-xl bg-[#f3f7fc] px-3 py-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#064ea2] text-xs font-black text-white">{userInitial}</span>
               <div className="hidden leading-tight sm:block">
@@ -449,7 +532,7 @@ export default function MallPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1680px] px-6 py-6">
+      <main className="px-6 py-6">
         <section className="overflow-hidden rounded-[28px] border border-[#dbe6f3] bg-[#063f86] text-white shadow-[0_24px_70px_rgba(6,78,162,.18)]">
           <div className="relative px-8 py-8 lg:px-10">
             <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle_at_80%_20%,rgba(255,255,255,.24),transparent_30%),radial-gradient(circle_at_50%_80%,rgba(24,165,108,.22),transparent_34%)]" />
@@ -507,7 +590,7 @@ export default function MallPage() {
           </aside>
 
           <div className="min-w-0 space-y-5">
-            <section className="grid gap-4 xl:grid-cols-4">{focusItems.map(item => <button key={item.id} onClick={() => setDetail(item)} className="group rounded-2xl border border-[#e1e9f4] bg-white p-4 text-left shadow-[0_10px_28px_rgba(15,35,65,.04)] transition hover:-translate-y-0.5 hover:border-[#064ea2]/30 hover:shadow-[0_18px_42px_rgba(6,78,162,.10)]"><div className="mb-3 flex items-center justify-between gap-2"><span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${statusStyles[item.status]}`}>{item.status}</span><span className={`text-xs font-black ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#8a96aa]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</span></div><h3 className="line-clamp-1 text-sm font-black text-[#18243a] group-hover:text-[#064ea2]">{item.name}</h3><p className="mt-1 line-clamp-1 text-xs text-[#8a96aa]">{item.specification}</p><div className="mt-3 flex items-end justify-between"><div><span className="text-xl font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#8a96aa]">/{item.unit}</span></div><span className="text-xs font-semibold text-[#5a6d8a]">{formatDate(item.validUntil)}</span></div></button>)}</section>
+            <section className="grid gap-4 xl:grid-cols-4">{focusItems.map(item => <button key={item.id} onClick={() => setDetail(item)} className="group rounded-2xl border border-[#e1e9f4] bg-white p-4 text-left shadow-[0_10px_28px_rgba(15,35,65,.04)] transition hover:-translate-y-0.5 hover:border-[#064ea2]/30 hover:shadow-[0_18px_42px_rgba(6,78,162,.10)]"><div className="mb-3 flex items-center justify-between gap-2"><span title={item.status} className={`rounded-full border px-2 py-0.5 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span><span className={`text-xs font-black ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#8a96aa]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</span></div><h3 className="line-clamp-1 text-sm font-black text-[#18243a] group-hover:text-[#064ea2]">{item.name}</h3><p className="mt-1 line-clamp-1 text-xs text-[#8a96aa]">{item.specification}</p><div className="mt-3 flex items-end justify-between"><div><span className="text-xl font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#8a96aa]">/{item.unit}</span></div><span className="text-xs font-semibold text-[#5a6d8a]">{formatDate(item.validUntil)}</span></div></button>)}</section>
 
             {view === 'supplier' && (
               <section className="overflow-hidden rounded-2xl border border-[#e1e9f4] bg-white shadow-[0_10px_28px_rgba(15,35,65,.05)]">
@@ -524,7 +607,7 @@ export default function MallPage() {
                         <div><span className="text-lg font-black text-[#e74c3c]">¥{s.avgPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</span><span className="text-xs text-[#8a96aa]"> 均价</span></div>
                         <span className="text-xs text-[#8a96aa]">{formatPrice(s.minPrice)} ~ {formatPrice(s.maxPrice)}</span>
                       </div>
-                      <div className="mt-2 flex flex-wrap gap-1">{s.categories.slice(0, 4).map(c => <span key={c} className="rounded bg-[#f3f7fc] px-1.5 py-0.5 text-[10px] font-bold text-[#5a6d8a]">{c}</span>)}{s.categories.length > 4 && <span className="text-[10px] text-[#8a96aa]">+{s.categories.length - 4}</span>}</div>
+                      <div className="mt-2 flex flex-wrap gap-1">{s.categories.slice(0, 4).map(c => <span key={c} title={c} className="rounded bg-[#f3f7fc] px-1.5 py-0.5 text-[10px] font-bold text-[#5a6d8a]">{shortCategory(c)}</span>)}{s.categories.length > 4 && <span className="text-[10px] text-[#8a96aa]">+{s.categories.length - 4}</span>}</div>
                     </button>
                   ))}
                 </div>
@@ -537,19 +620,46 @@ export default function MallPage() {
                 <button onClick={() => setView('catalog')} className={`rounded-lg px-3 py-1 text-xs font-bold transition ${view === 'catalog' ? 'bg-[#064ea2] text-white' : 'text-[#5a6d8a] hover:text-[#064ea2]'}`}>目录视图</button>
                 <button onClick={() => setView('supplier')} className={`rounded-lg px-3 py-1 text-xs font-bold transition ${view === 'supplier' ? 'bg-[#064ea2] text-white' : 'text-[#5a6d8a] hover:text-[#064ea2]'}`}>供应商视图</button>
               </div>
-              <button onClick={() => toast.success('价格清单导出功能已预留，接入后端后生成 Excel 文件')} className="hidden rounded-xl border border-[#cdd9ea] px-4 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f7fc] md:block">导出价格清单</button>
+              <button onClick={exportCatalog} className="hidden rounded-xl border border-[#cdd9ea] px-4 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f7fc] md:block">导出价格清单</button>
             </div></div>
-              <div className="overflow-x-auto"><table className="w-full min-w-[1180px] border-collapse text-sm"><thead className="bg-[#f7faff] text-xs font-bold text-[#5a6d8a]"><tr><th className="px-4 py-3 text-left">目录编码 / 物资</th><th className="px-4 py-3 text-left">规格型号</th><th className="px-4 py-3 text-left">分类</th><th className="px-4 py-3 text-right">参考价</th><th className="px-4 py-3 text-left">价格区间</th><th className="px-4 py-3 text-left">供应商</th><th className="px-4 py-3 text-left">来源</th><th className="px-4 py-3 text-left">状态</th><th className="px-4 py-3 text-right">操作</th></tr></thead><tbody className="divide-y divide-[#eef3f8]">{loading ? (<tr><td colSpan={9} className="px-4 py-16 text-center text-sm text-[#8a96aa]">加载采购目录中…</td></tr>) : filtered.map(item => <tr key={item.id} className="transition hover:bg-[#f8fbff]"><td className="px-4 py-4"><button onClick={() => setDetail(item)} className="text-left"><div className="font-mono text-xs font-bold text-[#064ea2]">{item.code}</div><div className="mt-1 font-black text-[#18243a] hover:text-[#064ea2]">{item.name}</div></button></td><td className="max-w-[190px] px-4 py-4 text-[#344563]">{item.specification}</td><td className="px-4 py-4"><span className="rounded-full bg-[#eef3fb] px-2 py-1 text-xs font-bold text-[#064ea2]">{item.category}</span></td><td className="px-4 py-4 text-right"><span className="text-base font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#8a96aa]">/{item.unit}</span></td><td className="px-4 py-4 text-[#5a6d8a]">{formatPrice(item.priceMin)} - {formatPrice(item.priceMax)}</td><td className="max-w-[180px] px-4 py-4"><div className="truncate font-semibold text-[#18243a]">{item.supplier}</div><div className="mt-1 text-xs text-[#8a96aa]">{item.supplierType} · {item.region}</div></td><td className="px-4 py-4"><span className={`rounded-full px-2 py-1 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{item.priceSource}</span></td><td className="px-4 py-4"><span className={`rounded-full border px-2 py-1 text-xs font-bold ${statusStyles[item.status]}`}>{item.status}</span><div className={`mt-1 text-xs font-bold ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#8a96aa]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</div></td><td className="px-4 py-4 text-right"><button onClick={() => toggleFavorite(item)} className={`mr-1 text-base align-middle transition hover:scale-110 ${favoriteIds.includes(item.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(item.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(item.id) ? '★' : '☆'}</button><button onClick={() => setDetail(item)} className="mr-2 text-xs font-bold text-[#064ea2] hover:underline">详情</button><button onClick={() => addToBudget(item)} className="rounded-lg bg-[#064ea2] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#043d82]">加入预算</button></td></tr>)}</tbody></table></div>
-              {!loading && filtered.length === 0 && <div className="px-6 py-16 text-center"><div className="text-5xl">📋</div><h3 className="mt-3 text-lg font-black text-[#18243a]">未找到匹配的目录条目</h3><p className="mt-1 text-sm text-[#8a96aa]">请调整关键词、分类、区域或价格状态后重试。</p></div>}
+              <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[1180px] border-collapse text-center text-sm"><thead className="bg-[#f7faff] text-xs font-bold text-[#5a6d8a]"><tr><th className="px-4 py-3">目录编码 / 物资</th><th className="px-4 py-3">规格型号</th><th className="px-4 py-3">分类</th><th className="px-4 py-3">参考价</th><th className="px-4 py-3">价格区间</th><th className="px-4 py-3">供应商</th><th className="px-4 py-3">来源</th><th className="px-4 py-3">状态</th><th className="px-4 py-3 text-center">操作</th></tr></thead><tbody className="divide-y divide-[#eef3f8]">{loading ? (<tr><td colSpan={9} className="px-4 py-16 text-center text-sm text-[#8a96aa]">加载采购目录中…</td></tr>) : filtered.map(item => <tr key={item.id} onClick={() => setDetail(item)} className="cursor-pointer transition hover:bg-[#f8fbff] active:bg-[#eef3fb]"><td className="px-4 py-4"><button onClick={() => setDetail(item)} className="text-center"><div className="font-mono text-xs font-bold text-[#064ea2]">{item.code}</div><div className="mt-1 font-black text-[#18243a] hover:text-[#064ea2]">{item.name}</div></button></td><td className="max-w-[190px] px-4 py-4 text-[#344563]" title={item.specification}><div className="truncate">{item.specification}</div></td><td className="px-4 py-4"><span title={item.category} className="rounded-full bg-[#eef3fb] px-2 py-1 text-xs font-bold text-[#064ea2]">{shortCategory(item.category)}</span></td><td className="px-4 py-4"><span className="text-base font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#8a96aa]">/{item.unit}</span></td><td className="px-4 py-4 text-[#5a6d8a]">{formatPrice(item.priceMin)} - {formatPrice(item.priceMax)}</td><td className="max-w-[180px] px-4 py-4"><div className="truncate font-semibold text-[#18243a]" title={item.supplier}>{item.supplier}</div><div className="mt-1 text-xs text-[#8a96aa]">{item.supplierType} · {item.region}</div></td><td className="px-4 py-4"><span title={item.priceSource} className={`rounded-full px-2 py-1 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{SOURCE_SHORT[item.priceSource]}</span></td><td className="px-4 py-4"><span title={item.status} className={`rounded-full border px-2 py-1 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span><div className={`mt-1 text-xs font-bold ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#8a96aa]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</div></td><td className="px-4 py-4 text-center"><button onClick={(e) => { e.stopPropagation(); toggleFavorite(item); }} className={`mr-1 text-base align-middle transition hover:scale-110 ${favoriteIds.includes(item.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(item.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(item.id) ? '★' : '☆'}</button><button onClick={() => setDetail(item)} className="mr-2 text-xs font-bold text-[#064ea2] hover:underline">详情</button><button onClick={(e) => { e.stopPropagation(); addToBudget(item); }} className="rounded-lg bg-[#064ea2] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#043d82]">加入预算</button></td></tr>)}</tbody></table></div>
+              <div className="divide-y divide-[#eef3f8] md:hidden">
+              {loading ? (
+                <div className="px-4 py-12 text-center text-sm text-[#8a96aa]">加载采购目录中…</div>
+              ) : filtered.length === 0 ? (
+                <div className="px-4 py-12 text-center text-sm text-[#8a96aa]">未找到匹配条目，请调整筛选条件</div>
+              ) : filtered.map(item => (
+                <div key={item.id} className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <button onClick={() => setDetail(item)} className="min-w-0 flex-1 text-left">
+                      <div className="font-mono text-xs font-bold text-[#064ea2]">{item.code}</div>
+                      <div className="mt-0.5 truncate text-sm font-black text-[#18243a]">{item.name}</div>
+                      <div className="mt-0.5 truncate text-xs text-[#8a96aa]">{item.specification}</div>
+                    </button>
+                    <button onClick={() => toggleFavorite(item)} className={`shrink-0 text-lg ${favoriteIds.includes(item.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(item.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(item.id) ? '★' : '☆'}</button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span title={item.status} className={`rounded-full border px-2 py-0.5 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span>
+                    <span className={`text-xs font-bold ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#8a96aa]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</span>
+                    <span title={item.priceSource} className={`rounded-full px-2 py-0.5 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{SOURCE_SHORT[item.priceSource]}</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div><span className="text-lg font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#8a96aa]">/{item.unit}</span></div>
+                    <button onClick={(e) => { e.stopPropagation(); addToBudget(item); }} className="rounded-lg bg-[#064ea2] px-3 py-1.5 text-xs font-bold text-white transition hover:bg-[#043d82]">加入预算</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {!loading && filtered.length === 0 && <div className="px-6 py-16 text-center"><div className="text-5xl">📋</div><h3 className="mt-3 text-lg font-black text-[#18243a]">未找到匹配的目录条目</h3><p className="mt-1 text-sm text-[#8a96aa]">请调整关键词、分类、区域或价格状态后重试。</p></div>}
             </section>
           </div>
         </section>
       </main>
 
       {budgetOpen && (
-        <div className="fixed inset-0 z-[100] flex justify-end">
-          <div className="absolute inset-0 bg-[#0f1f35]/35 backdrop-blur-sm" onClick={() => setBudgetOpen(false)} />
-          <div className="relative flex h-full w-full max-w-xl flex-col bg-white shadow-2xl">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md" onClick={() => setBudgetOpen(false)} />
+          <div className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="border-b border-[#e5ecf4] px-6 py-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -613,7 +723,7 @@ export default function MallPage() {
                     <span className="text-2xl font-black text-[#e74c3c]">{formatPrice(budgetTotal)}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => toast.success('预算清单导出功能将在后续版本接入')} className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f7fc]">导出预算清单</button>
+                    <button onClick={exportBudget} className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f7fc]">导出预算清单</button>
                     {isConverted ? (
                       <button onClick={() => setBudgetOpen(false)} className="h-11 rounded-xl bg-emerald-600 text-sm font-bold text-white">已完成，关闭</button>
                     ) : (
@@ -633,16 +743,104 @@ export default function MallPage() {
         </div>
       )}
 
-      {aiOpen && <div className="fixed bottom-6 right-6 z-[120] w-[min(460px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-[#bfd4f4] bg-white shadow-[0_22px_70px_rgba(6,78,162,.22)]"><div className="flex items-center justify-between bg-[#064ea2] px-5 py-4 text-white"><div><div className="text-sm font-black">DeepSeek AI 价格助手</div><div className="text-xs text-white/70">采购价格研判 / 预算建议 / 风险说明</div></div><button onClick={() => setAiOpen(false)} className="rounded-lg px-2 py-1 text-white/80 hover:bg-white/10">✕</button></div><div className="max-h-[420px] overflow-auto p-5"><textarea value={aiQuestion} onChange={e => setAiQuestion(e.target.value)} className="min-h-20 w-full rounded-xl border border-[#cdd9ea] p-3 text-sm outline-none focus:border-[#064ea2]" placeholder="输入你的采购问题..." /><button onClick={() => askAi()} disabled={aiLoading} className="mt-3 h-10 w-full rounded-xl bg-[#064ea2] text-sm font-black text-white disabled:opacity-60">{aiLoading ? 'DeepSeek 分析中...' : '发送给 AI'}</button><div className="mt-4 max-h-[300px] overflow-auto rounded-xl bg-[#f7faff] p-4 text-sm leading-7 text-[#344563]">{aiLoading ? <div className="flex items-center gap-2 text-[#5a6d8a]"><span className="h-2 w-2 animate-pulse rounded-full bg-[#064ea2]" />正在调用 DeepSeek，请稍候...</div> : aiAnswer ? <AiMarkdown content={aiAnswer} /> : <div className="text-[#8a96aa]">可以询问：哪些价格需要复核？帮我生成管网更新预算清单；当前筛选结果有哪些价格风险？</div>}</div></div></div>}
+      {aiOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md" onClick={() => setAiOpen(false)} />
+          <div className="relative flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="relative overflow-hidden bg-gradient-to-r from-[#064ea2] to-[#123a6e] px-6 py-5 text-white">
+              <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle_at_80%_30%,rgba(255,255,255,.18),transparent_45%)]" />
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 text-2xl">💡</div>
+                  <div>
+                    <div className="text-base font-black tracking-wide">智能采购助手</div>
+                    <div className="text-xs text-white/70">集中采购目录 · 价格研判 / 预算建议 / 风险提示</div>
+                  </div>
+                </div>
+                <button onClick={() => setAiOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/15 hover:text-white">✕</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto bg-[#f7f9fc] px-5 py-5">
+              {aiLoading ? (
+                <div className="flex items-center gap-2.5 rounded-2xl rounded-tl-sm bg-white px-4 py-3 text-sm text-[#5a6d8a] shadow-sm">
+                  <span className="flex gap-1">
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-[#064ea2]" />
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-[#064ea2]" style={{ animationDelay: '150ms' }} />
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-[#064ea2]" style={{ animationDelay: '300ms' }} />
+                  </span>
+                  正在结合目录数据分析…
+                </div>
+              ) : aiAnswer ? (
+                <div className="space-y-3">
+                  {aiQuestion && (
+                    <div className="flex justify-end">
+                      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-tr-sm bg-[#064ea2] px-4 py-2.5 text-sm font-medium text-white shadow-sm">{aiQuestion}</div>
+                    </div>
+                  )}
+                  <div className="flex justify-start">
+                    <div className="max-w-[92%] rounded-2xl rounded-tl-sm bg-white px-4 py-3 text-sm leading-7 text-[#344563] shadow-sm"><AiMarkdown content={aiAnswer} /></div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="rounded-2xl bg-white p-4 text-sm leading-6 text-[#5a6d8a] shadow-sm">
+                    你好，我是集中采购目录的智能助手，可帮你做<b className="text-[#18243a]">价格研判</b>、生成<b className="text-[#18243a]">预算清单</b>、识别<b className="text-[#18243a]">价格风险</b>。试试下面的常见问题，或直接输入需求：
+                  </div>
+                  <div className="grid gap-2">
+                    {['当前筛选结果里，哪些价格需要复核？', '帮我生成「管网更新工程」的预算清单', '最近有哪些物资价格波动较大？', '电磁流量计的参考价是否合理？'].map(q => (
+                      <button key={q} onClick={() => askAi(q)} className="rounded-xl border border-[#dbe6f3] bg-white px-4 py-2.5 text-left text-sm text-[#344563] transition hover:border-[#064ea2] hover:bg-[#f3f7fc] hover:text-[#064ea2]">{q}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="border-t border-[#e5ecf4] bg-white p-4">
+              <div className="flex items-end gap-2">
+                <textarea value={aiQuestion} onChange={e => setAiQuestion(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askAi(); } }} rows={2} className="max-h-32 flex-1 resize-none rounded-xl border border-[#cdd9ea] p-3 text-sm outline-none transition focus:border-[#064ea2] focus:shadow-[0_0_0_3px_rgba(6,78,162,.1)]" placeholder="输入采购问题，Enter 发送 / Shift+Enter 换行" />
+                <button onClick={() => askAi()} disabled={aiLoading || !aiQuestion.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#064ea2] text-white transition hover:bg-[#043d82] disabled:cursor-not-allowed disabled:opacity-50" title="发送">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {detail && <div className="fixed inset-0 z-[110] flex justify-end"><div className="absolute inset-0 bg-[#0f1f35]/35 backdrop-blur-sm" onClick={() => setDetail(null)} /><div className="relative h-full w-full max-w-2xl overflow-auto bg-white shadow-2xl"><div className="border-b border-[#e5ecf4] bg-[#f8fbff] px-6 py-5"><div className="mb-3 flex items-center justify-between"><span className="font-mono text-xs font-black text-[#064ea2]">{detail.code}</span><button onClick={() => toggleFavorite(detail)} className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg transition hover:bg-white ${favoriteIds.includes(detail.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(detail.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(detail.id) ? '★' : '☆'}</button><button onClick={() => setDetail(null)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#8a96aa] transition hover:bg-white">✕</button></div><h2 className="text-2xl font-black text-[#18243a]">{detail.name}</h2><p className="mt-2 text-sm text-[#5a6d8a]">{detail.specification}</p></div><div className="space-y-5 px-6 py-5"><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">价格信息</div><div className="grid gap-4 sm:grid-cols-2"><Info label="当前参考价" value={`${formatPrice(detail.referencePrice)} / ${detail.unit}`} strong /><Info label="价格区间" value={`${formatPrice(detail.priceMin)} - ${formatPrice(detail.priceMax)}`} /><Info label="最近成交价" value={formatPrice(detail.lastDealPrice)} /><Info label="历史采购均价" value={formatPrice(detail.averagePrice)} /><Info label="价格变化" value={`${detail.changeRate > 0 ? '+' : ''}${detail.changeRate}%`} /><Info label="价格状态" value={detail.status} /></div></div><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">供应商与适用范围</div><div className="grid gap-4 sm:grid-cols-2"><Info label="供应商" value={detail.supplier} /><Info label="供应商类型" value={detail.supplierType} /><Info label="适用区域" value={detail.region} /><Info label="最小参考采购量" value={detail.minOrder} /><Info label="含税" value={detail.taxIncluded ? '是' : '否'} /><Info label="含运费" value={detail.freightIncluded ? '是' : '否'} /></div></div><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">价格依据</div><div className="grid gap-4 sm:grid-cols-2"><Info label="价格来源" value={detail.priceSource} /><Info label="更新时间" value={formatDate(detail.updatedAt)} /><Info label="有效期至" value={formatDate(detail.validUntil)} /><Info label="分类目录" value={`${detail.group} / ${detail.category}`} /></div><p className="mt-4 rounded-xl bg-[#f7faff] p-3 text-sm leading-6 text-[#5a6d8a]">{detail.remark}</p></div><div className="rounded-2xl border border-[#e1e9f4] p-5">
+      {detail && <div className="fixed inset-0 z-[110] flex items-center justify-center p-4"><div className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md" onClick={() => setDetail(null)} /><div className="relative max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white shadow-2xl"><div className="border-b border-[#e5ecf4] bg-[#f8fbff] px-6 py-5"><div className="mb-3 flex items-center justify-between"><span className="font-mono text-xs font-black text-[#064ea2]">{detail.code}</span><button onClick={() => toggleFavorite(detail)} className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg transition hover:bg-white ${favoriteIds.includes(detail.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(detail.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(detail.id) ? '★' : '☆'}</button><button onClick={() => setDetail(null)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#8a96aa] transition hover:bg-white">✕</button></div><h2 className="text-2xl font-black text-[#18243a]">{detail.name}</h2><p className="mt-2 text-sm text-[#5a6d8a]">{detail.specification}</p></div><div className="space-y-5 px-6 py-5"><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">价格信息</div><div className="grid gap-4 sm:grid-cols-2"><Info label="当前参考价" value={`${formatPrice(detail.referencePrice)} / ${detail.unit}`} strong /><Info label="价格区间" value={`${formatPrice(detail.priceMin)} - ${formatPrice(detail.priceMax)}`} /><Info label="最近成交价" value={formatPrice(detail.lastDealPrice)} /><Info label="历史采购均价" value={formatPrice(detail.averagePrice)} /><Info label="价格变化" value={`${detail.changeRate > 0 ? '+' : ''}${detail.changeRate}%`} /><Info label="价格状态" value={detail.status} /></div></div><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">供应商与适用范围</div><div className="grid gap-4 sm:grid-cols-2"><Info label="供应商" value={detail.supplier} /><Info label="供应商类型" value={detail.supplierType} /><Info label="适用区域" value={detail.region} /><Info label="最小参考采购量" value={detail.minOrder} /><Info label="含税" value={detail.taxIncluded ? '是' : '否'} /><Info label="含运费" value={detail.freightIncluded ? '是' : '否'} /></div></div><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">价格依据</div><div className="grid gap-4 sm:grid-cols-2"><Info label="价格来源" value={detail.priceSource} /><Info label="更新时间" value={formatDate(detail.updatedAt)} /><Info label="有效期至" value={formatDate(detail.validUntil)} /><Info label="分类目录" value={`${detail.group} / ${detail.category}`} /></div><p className="mt-4 rounded-xl bg-[#f7faff] p-3 text-sm leading-6 text-[#5a6d8a]">{detail.remark}</p></div><div className="rounded-2xl border border-[#e1e9f4] p-5">
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-black text-[#18243a]">价格趋势</div>
               {daysLeft !== null && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${daysLeft > 60 ? 'bg-emerald-50 text-emerald-700' : daysLeft > 30 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>{daysLeft > 30 ? '剩余有效期' : '即将过期'} {daysLeft} 天</span>}
             </div>
             <PriceChart points={detailHistory} />
           </div>
-          <div className="rounded-2xl border border-[#bfd4f4] bg-gradient-to-br from-[#f8fbff] to-white p-5"><div className="mb-3 flex items-center justify-between"><div className="text-sm font-black text-[#123a6e]">AI 价格研判</div><button onClick={() => askAi(buildDetailPrompt(detail))} className="rounded-full bg-[#064ea2] px-3 py-1 text-xs font-black text-white">调用 DeepSeek 分析</button></div><p className="text-sm leading-6 text-[#5a6d8a]">点击分析后，AI 将结合参考价、价格区间、历史均价、供应商、价格来源和有效期，生成风险结论、询价建议和预算引用说明。</p></div><div className="grid grid-cols-2 gap-3"><button onClick={() => { navigator.clipboard?.writeText(detail.code); toast.success('目录编码已复制'); }} className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f7fc]">复制目录编码</button><button onClick={() => { addToBudget(detail); setDetail(null); }} className="h-11 rounded-xl bg-[#064ea2] text-sm font-bold text-white transition hover:bg-[#043d82]">加入预算清单</button></div></div></div></div>}
+          <div className="rounded-2xl border border-[#bfd4f4] bg-gradient-to-br from-[#f8fbff] to-white p-5"><div className="mb-3 flex items-center justify-between"><div className="text-sm font-black text-[#123a6e]">AI 价格研判</div><button onClick={() => askAi(buildDetailPrompt(detail))} className="rounded-full bg-[#064ea2] px-3 py-1 text-xs font-black text-white">AI 智能分析</button></div><p className="text-sm leading-6 text-[#5a6d8a]">点击分析后，AI 将结合参考价、价格区间、历史均价、供应商、价格来源和有效期，生成风险结论、询价建议和预算引用说明。</p></div><div className="grid grid-cols-2 gap-3"><button onClick={() => { navigator.clipboard?.writeText(detail.code); toast.success('目录编码已复制'); }} className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f7fc]">复制目录编码</button><button onClick={() => { addToBudget(detail); setDetail(null); }} className="h-11 rounded-xl bg-[#064ea2] text-sm font-bold text-white transition hover:bg-[#043d82]">加入预算清单</button></div></div></div></div>}
+      {auditOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md" onClick={() => setAuditOpen(false)} />
+          <div className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#e5ecf4] px-6 py-4">
+              <div><h2 className="text-lg font-black text-[#18243a]">操作记录</h2><p className="mt-1 text-xs text-[#8a96aa]">关键操作审计留痕（生成询价单 / 导出）</p></div>
+              <button onClick={() => setAuditOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#8a96aa] hover:bg-[#f3f7fc]">✕</button>
+            </div>
+            <div className="flex-1 overflow-auto px-6 py-3">
+              {auditLogs.length === 0 ? (
+                <div className="py-16 text-center text-sm text-[#8a96aa]">暂无操作记录</div>
+              ) : auditLogs.map(log => (
+                <div key={log.id} className="border-b border-[#eef3f8] py-4">
+                  <div className="flex items-center justify-between">
+                    <span className="rounded-full bg-[#eef3fb] px-2 py-0.5 text-xs font-bold text-[#064ea2]">{AUDIT_LABELS[log.action] || log.action}</span>
+                    <span className="text-xs text-[#8a96aa]">{new Date(log.createdAt).toLocaleString('zh-CN')}</span>
+                  </div>
+                  <p className="mt-2 text-sm font-semibold text-[#18243a]">{log.target}</p>
+                  {log.detail && typeof log.detail === 'object' && Object.keys(log.detail).length > 0 && (
+                    <p className="mt-1 text-xs text-[#8a96aa]">{Object.entries(log.detail).map(([k, v]) => `${k}: ${v}`).join(' · ')}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { listBidProjects, previewExtraction, confirmExtraction, listSpecialties } from '@/lib/api/expert';
 import type { BidProjectOption, ExtractionPreview } from '@/lib/api/expert';
 import { Dices, Sparkles, ShieldCheck, AlertTriangle, Check } from 'lucide-react';
@@ -14,9 +14,10 @@ const modeBtn = (active: boolean) =>
 
 export default function ExpertExtractPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [projects, setProjects] = useState<BidProjectOption[]>([]);
   const [specialties, setSpecialties] = useState<string[]>([]);
-  const [projectId, setProjectId] = useState('');
+  const [projectId, setProjectId] = useState(searchParams.get('projectId') || '');
   const [totalNeeded, setTotalNeeded] = useState(3);
   const [alternatives, setAlternatives] = useState(2);
   const [mode, setMode] = useState<'weighted' | 'fair'>('weighted');

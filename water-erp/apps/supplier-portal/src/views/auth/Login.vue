@@ -117,7 +117,7 @@ async function handleLogin() {
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 520px);
+  grid-template-columns: minmax(0, 1fr) 640px;
   min-height: 100vh;
   isolation: isolate;
   overflow: hidden;
@@ -273,11 +273,11 @@ async function handleLogin() {
   flex-direction: column;
   justify-content: center;
   align-items: flex-end;
-  padding: 96px 6vw 40px 32px;
+  padding: 96px 150px 40px 32px;
 }
 .lp-card {
   position: relative;
-  width: min(464px, 100%);
+  width: 440px;
   padding: 52px 34px 44px;
   border-radius: 32px;
   background: radial-gradient(circle at 92% 0%, color-mix(in oklch, oklch(0.93 0.055 var(--hue)) 42%, transparent), transparent 38%),

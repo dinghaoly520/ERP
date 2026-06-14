@@ -30,13 +30,13 @@ export class BudgetController {
 
   @Get('lists/:id/export')
   @ApiOperation({ summary: '导出预算清单 Excel' })
-  async exportList(@Request() req: any, @Param('id') id: string, @Res({ passthrough: true }) res: Response) {
+  async exportList(@Request() req: any, @Param('id') id: string, @Res() res: Response) {
     const buf = await this.budgetService.exportList(req.user.sub, id);
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent('预算清单-' + new Date().toISOString().slice(0, 10) + '.xlsx')}`,
     });
-    return buf;
+    res.end(buf);
   }
 
   @Patch('lists/:id')

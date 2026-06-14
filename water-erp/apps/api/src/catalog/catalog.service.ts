@@ -170,7 +170,7 @@ export class CatalogService {
     return favs.map(f => serialize(f.catalogItem)).filter(Boolean);
   }
 
-  async exportCatalog(params: { category?: string; region?: string; status?: string; source?: string; search?: string }): Promise<Buffer> {
+  async exportCatalog(userId: string, params: { category?: string; region?: string; status?: string; source?: string; search?: string }): Promise<Buffer> {
     const items = await this.list(params);
     const wb = new Workbook();
     const ws = wb.addWorksheet('采购目录');
@@ -210,6 +210,7 @@ export class CatalogService {
     })));
     ws.getRow(1).font = { bold: true };
     ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEef3fb' } };
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_EXPORTED', target: '采购目录', detail: { filters: params, itemCount: items.length } } });
     return Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
   }
 }

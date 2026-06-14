@@ -14,6 +14,7 @@ import { AiModule } from './ai';
 import { ProcurementModule } from './procurement/procurement.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { BudgetModule } from './budget/budget.module';
+import { AuditModule } from './audit/audit.module';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -33,6 +34,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     ProcurementModule,
     CatalogModule,
     BudgetModule,
+    AuditModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

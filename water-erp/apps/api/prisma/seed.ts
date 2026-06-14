@@ -42,6 +42,7 @@ const ALL_TABLES = [
   'FileAsset', 'ProcurementProject', 'Notification', 'Announcement',
   'CatalogItem', 'SupplierClassification', 'Supplier', 'BidProject',
   'User', 'Department', 'PriceHistory',
+  'UserFavorite', 'AuditLog',
 ] as const;
 
 // 按外键依赖分三层写入（父表在前）。空快照 createMany 等价于空操作。
@@ -81,6 +82,8 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['AnnouncementAttachment', 'announcementAttachment'],
   ['BidDocument', 'bidDocument'],
   ['BidDocumentAccess', 'bidDocumentAccess'],
+  ['UserFavorite', 'userFavorite'], // Level 2：依赖 User + CatalogItem
+  ['AuditLog', 'auditLog'], // Level 2：依赖 User
 ];
 
 async function main() {

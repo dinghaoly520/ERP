@@ -103,6 +103,26 @@ export function deleteAnnouncement(id: string) {
   return api.delete<{ deleted?: boolean }>(`/announcements/${id}`);
 }
 
+/** 招标公示投标情况：参与供应商 + 是否已投标（只读） */
+export interface Participant {
+  supplierName: string;
+  classification?: string;
+  downloadStatus: string;
+  submitStatus: string;
+  submitted: boolean;
+  withdrawn: boolean;
+  submittedAt?: string | null;
+  bidPrice?: string | null;
+}
+export interface ParticipantsResult {
+  project: { name: string; projectCode: string; stage: string; deadline: string } | null;
+  suppliers: Participant[];
+  stats: { total: number; submitted: number };
+}
+export function getParticipants(id: string) {
+  return api.get<ParticipantsResult>(`/announcements/${id}/participants`);
+}
+
 /* ── 普通附件 ── */
 
 export function listAttachments(announcementId: string) {

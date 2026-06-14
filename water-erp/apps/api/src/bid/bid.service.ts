@@ -82,6 +82,64 @@ export class BidService {
     });
   }
 
+  /** 项目工作台：聚合项目 + 供应商(含投标提交) + 专家组 + 统计，供采购管理端判断开标准备 */
+  async getWorkspace(id: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { id: true, name: true, projectCode: true, procurementMethod: true, stage: true, openTime: true, deadline: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const [suppliers, experts, submissions] = await Promise.all([
+      this.prisma.bidSupplier.findMany({
+        where: { projectId: id },
+        include: { supplier: { select: { id: true, name: true, classification: { select: { name: true } } } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.bidExpert.findMany({
+        where: { projectId: id },
+        select: { id: true, expertName: true, major: true, signedIn: true, avoidanceConfirmed: true, progress: true },
+      }),
+      this.prisma.supplierBidSubmission.findMany({
+        where: { projectId: id },
+        select: { supplierId: true, status: true, submittedAt: true, bidPrice: true, deliveryPeriod: true },
+      }),
+    ]);
+    const subMap = new Map(submissions.map(s => [s.supplierId, s]));
+
+    const supplierRows = suppliers.map(s => {
+      const submission = s.supplierId ? (subMap.get(s.supplierId) ?? null) : null;
+      // 单一事实来源：有 SupplierBidSubmission 以其 status 为准；否则回退到 BidSupplier.submitStatus
+      const submitted = submission?.status === 'submitted' || (!submission && s.submitStatus === '已提交');
+      const withdrawn = submission?.status === 'withdrawn';
+      return {
+        id: s.id,
+        supplierId: s.supplierId,
+        supplierName: s.supplierName,
+        classification: s.supplier?.classification?.name,
+        downloadStatus: s.downloadStatus,
+        submitStatus: s.submitStatus,
+        decryptStatus: s.decryptStatus,
+        submission,
+        submitted,
+        withdrawn,
+      };
+    });
+
+    return {
+      project,
+      suppliers: supplierRows,
+      experts,
+      stats: {
+        supplierTotal: suppliers.length,
+        submitted: supplierRows.filter(s => s.submitted).length,
+        withdrawn: supplierRows.filter(s => s.withdrawn).length,
+        expertCount: experts.length,
+        expertSignedIn: experts.filter(e => e.signedIn).length,
+      },
+    };
+  }
+
   async createProject(dto: CreateBidProjectDto) {
     const project = await this.prisma.bidProject.create({
       data: {

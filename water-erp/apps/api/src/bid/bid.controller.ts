@@ -33,6 +33,10 @@ export class BidController {
   @ApiOperation({ summary: '项目详情' })
   getProject(@Param('id') id: string) { return this.bidService.getProject(id); }
 
+  @Get('projects/:id/workspace')
+  @ApiOperation({ summary: '项目工作台（供应商/标书/专家组聚合，开标准备判断）' })
+  getWorkspace(@Param('id') id: string) { return this.bidService.getWorkspace(id); }
+
   @Patch('projects/:id')
   @ApiOperation({ summary: '更新项目' })
   updateProject(@Param('id') id: string, @Body() dto: UpdateBidProjectDto) { return this.bidService.updateProject(id, dto); }

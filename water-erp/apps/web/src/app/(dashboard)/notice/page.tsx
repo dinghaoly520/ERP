@@ -5,8 +5,9 @@ import {
   listAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   listAttachments, addAttachment, removeAttachment, uploadFile,
   getBidDocument, uploadBidDocument, updateBidDocumentConfig, confirmBidDocPayment, removeBidDocument,
+  getParticipants,
 } from '@/lib/api/announcement';
-import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage } from '@/lib/api/announcement';
+import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage, Participant } from '@/lib/api/announcement';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { toast } from 'sonner';
@@ -26,7 +27,7 @@ const statusMap: Record<AnnouncementStatus, { label: string; color: string; bg: 
 interface MetaField { key: string; label: string; area?: boolean }
 const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   BID_NOTICE: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
+    { key: 'projectCode', label: '项目编号（关联招标项目，用于投标情况）' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
     { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
     { key: 'deadline', label: '报名/投标截止' }, { key: 'openTime', label: '开标时间' }, { key: 'contact', label: '联系方式' },
   ],
@@ -54,8 +55,7 @@ export default function NoticePage() {
   const [page, setPage] = useState(1);
 
   const [editor, setEditor] = useState<AnnouncementListItem | null | 'new'>(null);
-  const [bidDocAnn, setBidDocAnn] = useState<AnnouncementListItem | null>(null);
-  const [attAnn, setAttAnn] = useState<AnnouncementListItem | null>(null);
+  const [partAnn, setPartAnn] = useState<AnnouncementListItem | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,7 +67,6 @@ export default function NoticePage() {
   }, [filterType, filterStatus, search, page]);
 
   useEffect(() => { load(); }, [load]);
-
   const totalPages = Math.ceil(data.total / 15);
   const remove = async (a: AnnouncementListItem) => {
     if (!confirm('确认删除「' + a.title + '」？')) return;
@@ -80,7 +79,7 @@ export default function NoticePage() {
         <div>
           <div className="mb-2 inline-flex rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-3 py-1 text-xs font-semibold text-[#064ea2]">信息发布中心</div>
           <h1 className="text-2xl font-bold text-[#0f2f57]">信息发布中心</h1>
-          <p className="text-sm text-[#5a6d8a] mt-1">招标公示 · 中标公示 · 政策法规 · 平台通知 的发布与管理</p>
+          <p className="text-sm text-[#5a6d8a] mt-1">招标公示 · 中标公示 · 政策法规 · 平台通知 — 起草并配齐招标文件/附件后再发布</p>
         </div>
         <button onClick={() => setEditor('new')} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-semibold text-white hover:bg-[#054280] transition">+ 新建信息</button>
       </div>
@@ -122,9 +121,10 @@ export default function NoticePage() {
             ) : data.items.map(a => {
               const tm = typeMap[a.type] || typeMap.PLATFORM;
               const sm = statusMap[a.status] || statusMap.DRAFT;
+              const noBidDoc = a.type === 'BID_NOTICE' && a.status === 'PUBLISHED' && !a.bidDocument;
               return (
                 <tr key={a.id} className="border-b border-[#e5ecf4] hover:bg-[#f8fafc]">
-                  <td className="px-5 py-3 font-semibold text-[#18243a]">{a.title}{a.isTop && <span className="ml-1 text-[10px] text-[#e74c3c]">置顶</span>}</td>
+                  <td className="px-5 py-3 font-semibold text-[#18243a]">{a.title}{a.isTop && <span className="ml-1 text-[10px] text-[#e74c3c]">置顶</span>}{noBidDoc && <span className="ml-2 text-[10px] text-[#e74c3c] bg-[#fef2f2] px-1.5 py-0.5 rounded">未上传招标文件</span>}</td>
                   <td className="px-5 py-3"><span className="px-2 py-1 rounded text-xs font-semibold" style={{ color: tm.color, backgroundColor: tm.bg }}>{tm.label}</span></td>
                   <td className="px-5 py-3"><span className="px-2 py-1 rounded text-xs font-semibold" style={{ color: sm.color, backgroundColor: sm.bg }}>{sm.label}</span></td>
                   <td className="px-5 py-3 text-xs text-[#5a6d8a]">
@@ -135,8 +135,7 @@ export default function NoticePage() {
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-1.5 flex-wrap">
                       <button onClick={() => setEditor(a)} className="px-2 py-1 text-xs text-[#064ea2] hover:bg-[#f0f6ff] rounded">编辑</button>
-                      {a.type === 'BID_NOTICE' && <button onClick={() => setBidDocAnn(a)} className="px-2 py-1 text-xs text-[#7c3aed] hover:bg-[#f5f3ff] rounded">招标文件</button>}
-                      <button onClick={() => setAttAnn(a)} className="px-2 py-1 text-xs text-[#5a6d8a] hover:bg-[#f8fafc] rounded">附件</button>
+                      {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="px-2 py-1 text-xs text-[#0e8c5f] hover:bg-[#e7f7ef] rounded">投标情况</button>}
                       <button onClick={() => remove(a)} className="px-2 py-1 text-xs text-[#e74c3c] hover:bg-[#fef2f2] rounded">删除</button>
                     </div>
                   </td>
@@ -157,19 +156,20 @@ export default function NoticePage() {
       </div>
 
       {editor !== null && <EditorModal key={editor === 'new' ? 'new' : editor.id} announcement={editor === 'new' ? null : editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); load(); }} />}
-      {bidDocAnn && <BidDocModal announcement={bidDocAnn} onClose={() => setBidDocAnn(null)} onChanged={load} />}
-      {attAnn && <AttachmentsModal announcement={attAnn} onClose={() => setAttAnn(null)} onChanged={load} />}
+      {partAnn && <ParticipantsModal announcement={partAnn} onClose={() => setPartAnn(null)} />}
     </div>
   );
 }
 
+/* ════════════ 编辑器（合并：基本信息 + 结构化字段 + 正文 + 附件 + 招标文件；草稿优先，发布最后） ════════════ */
+
 function EditorModal({ announcement, onClose, onSaved }: { announcement: AnnouncementListItem | null; onClose: () => void; onSaved: () => void }) {
-  const isNew = !announcement;
+  const [annId, setAnnId] = useState<string | null>(announcement?.id ?? null);
   const [type, setType] = useState<AnnouncementType>(announcement?.type || 'BID_NOTICE');
   const [title, setTitle] = useState(announcement?.title || '');
   const [content, setContent] = useState(announcement?.content || '');
   const [summary, setSummary] = useState(announcement?.summary || '');
-  const [status, setStatus] = useState<AnnouncementStatus>(announcement?.status || 'PUBLISHED');
+  const [status, setStatus] = useState<AnnouncementStatus>(announcement?.status || 'DRAFT');
   const [isTop, setIsTop] = useState(announcement?.isTop ?? false);
   const [publishDate, setPublishDate] = useState(announcement?.publishDate ? announcement.publishDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
   const buildMeta = (t: AnnouncementType) => {
@@ -179,47 +179,71 @@ function EditorModal({ announcement, onClose, onSaved }: { announcement: Announc
     return out;
   };
   const [metadata, setMetadata] = useState<Record<string, string>>(() => buildMeta(announcement?.type || 'BID_NOTICE'));
-  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // 附件 + 招标文件（仅 annId 存在时可用）
+  const [attachments, setAttachments] = useState<AnnouncementAttachment[]>([]);
+  const [bidDoc, setBidDoc] = useState<BidDocumentManage | null>(null);
+
+  const loadExtras = useCallback(async () => {
+    if (!annId) return;
+    try { setAttachments(await listAttachments(annId)); } catch { /* */ }
+    if (type === 'BID_NOTICE') { try { setBidDoc(await getBidDocument(annId)); } catch { setBidDoc(null); } }
+  }, [annId, type]);
+
+  useEffect(() => { loadExtras(); }, [loadExtras]);
 
   const onTypeChange = (t: AnnouncementType) => { setType(t); setMetadata(buildMeta(t)); };
 
-  const save = async () => {
-    if (!title.trim() || !content.trim()) { toast.error('请填写标题和正文'); return; }
-    setSaving(true);
+  /** 保存（草稿或发布）。返回保存后的 id。 */
+  const save = async (targetStatus: AnnouncementStatus): Promise<string | null> => {
+    if (!title.trim() || !content.trim()) { toast.error('请填写标题和正文'); return null; }
+    setBusy(true);
     const meta: Record<string, any> = {};
     for (const f of TYPE_META[type]) if (metadata[f.key]?.trim()) meta[f.key] = metadata[f.key].trim();
-    const payload = { title, content, type, summary, status, isTop, publishDate, metadata: meta };
+    // 招标公示：把项目编号写入 relatedProjectCode，供投标情况解析
+    const payload: any = { title, content, type, summary, status: targetStatus, isTop, publishDate, metadata: meta };
+    if (type === 'BID_NOTICE') payload.relatedProjectCode = meta.projectCode || null;
     try {
-      if (isNew) await createAnnouncement(payload);
-      else await updateAnnouncement(announcement.id, payload);
-      toast.success(isNew ? '创建成功' : '已保存');
-      onSaved();
-    } catch (e: any) { toast.error(e?.message || '保存失败'); }
-    setSaving(false);
+      let saved: any;
+      if (annId) saved = await updateAnnouncement(annId, payload);
+      else saved = await createAnnouncement(payload);
+      setAnnId(saved.id);
+      setStatus(saved.status || targetStatus);
+      return saved.id;
+    } catch (e: any) { toast.error(e?.message || '保存失败'); return null; }
+    finally { setBusy(false); }
+  };
+
+  const saveDraft = async () => { const id = await save('DRAFT'); if (id) { toast.success('草稿已保存'); await loadExtras(); } };
+  const publish = async () => {
+    if (type === 'BID_NOTICE' && !bidDoc) { if (!confirm('该招标公示尚未上传招标文件，确认直接发布？')) return; }
+    const id = await save('PUBLISHED'); if (id) { toast.success('已发布'); onSaved(); }
   };
 
   return (
-    <Modal title={isNew ? '新建信息' : '编辑信息'} onClose={onClose} wide>
+    <Modal title={annId ? '编辑信息' : '新建信息'} onClose={onClose} wide>
       <div className="space-y-4">
+        {/* 提示条 */}
+        {!annId && <div className="rounded-lg border border-[#bfdbfe] bg-[#eff6ff] px-3 py-2 text-xs text-[#064ea2]">先填写基本信息并「保存草稿」后，才能上传附件与招标文件；全部配齐后再「发布」。</div>}
+
         <div className="grid grid-cols-3 gap-3">
           <Field label="类型">
-            <select value={type} onChange={e => onTypeChange(e.target.value as AnnouncementType)} className={inputCls}>
+            <select value={type} onChange={e => onTypeChange(e.target.value as AnnouncementType)} className={inputCls} disabled={!!annId}>
               {(Object.keys(typeMap) as AnnouncementType[]).map(t => <option key={t} value={t}>{typeMap[t].label}</option>)}
             </select>
           </Field>
-          <Field label="发布状态">
+          <Field label="当前状态">
             <select value={status} onChange={e => setStatus(e.target.value as AnnouncementStatus)} className={inputCls}>
-              <option value="PUBLISHED">已发布</option>
               <option value="DRAFT">草稿</option>
+              <option value="PUBLISHED">已发布</option>
               <option value="ARCHIVED">已归档</option>
             </select>
           </Field>
-          <Field label="发布日期">
-            <input type="date" value={publishDate} onChange={e => setPublishDate(e.target.value)} className={inputCls} />
-          </Field>
+          <Field label="发布日期"><input type="date" value={publishDate} onChange={e => setPublishDate(e.target.value)} className={inputCls} /></Field>
         </div>
 
-        <Field label="标题"><input value={title} onChange={e => setTitle(e.target.value)} className={inputCls} placeholder="信息标题" /></Field>
+        <Field label="标题"><input value={title} onChange={e => setTitle(e.target.value)} className={inputCls} /></Field>
 
         <div className="rounded-xl border border-[#e5ecf4] bg-[#f8fafc] p-4">
           <div className="text-xs font-bold text-[#064ea2] mb-3">{typeMap[type].label} · 结构化信息</div>
@@ -235,21 +259,66 @@ function EditorModal({ announcement, onClose, onSaved }: { announcement: Announc
           </div>
         </div>
 
-        <Field label="正文（支持 HTML）"><textarea value={content} onChange={e => setContent(e.target.value)} className={inputCls + ' h-32 resize-none font-mono text-xs'} placeholder="<p>正文内容...</p>" /></Field>
+        <Field label="正文（支持 HTML）"><textarea value={content} onChange={e => setContent(e.target.value)} className={inputCls + ' h-28 resize-none font-mono text-xs'} /></Field>
         <Field label="摘要（可选，留空则 AI 自动生成）"><input value={summary} onChange={e => setSummary(e.target.value)} className={inputCls} /></Field>
         <label className="flex items-center gap-2 text-sm text-[#5a6d8a]"><input type="checkbox" checked={isTop} onChange={e => setIsTop(e.target.checked)} className="accent-[#064ea2]" />置顶</label>
+
+        {/* 附件 */}
+        <AttachmentsSection annId={annId} attachments={attachments} onChanged={loadExtras} />
+
+        {/* 招标文件（仅招标公示） */}
+        {type === 'BID_NOTICE' && <BidDocSection annId={annId} bidDoc={bidDoc} onChanged={loadExtras} />}
       </div>
-      <div className="flex justify-end gap-3 mt-5">
-        <button onClick={onClose} className="px-4 py-2 text-sm text-[#5a6d8a] hover:bg-[#f8fafc] rounded-lg">取消</button>
-        <button onClick={save} disabled={saving} className="px-5 py-2 text-sm text-white bg-[#064ea2] hover:bg-[#054280] rounded-lg disabled:opacity-50">{saving ? '保存中...' : '保存'}</button>
+
+      <div className="flex justify-between items-center gap-3 mt-5">
+        <div className="text-xs text-[#8a96aa]">{annId ? 'ID: ' + annId.slice(-8) : '未保存'}</div>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-[#5a6d8a] hover:bg-[#f8fafc] rounded-lg">取消</button>
+          <button onClick={saveDraft} disabled={busy} className="px-4 py-2 text-sm font-semibold text-[#064ea2] border border-[#bcd0e8] hover:bg-[#f0f6ff] rounded-lg disabled:opacity-50">{busy ? '保存中...' : '保存草稿'}</button>
+          <button onClick={publish} disabled={busy} className="px-5 py-2 text-sm font-semibold text-white bg-[#11a874] hover:bg-[#0e8c5f] rounded-lg disabled:opacity-50">{busy ? '处理中...' : '发布'}</button>
+        </div>
       </div>
     </Modal>
   );
 }
 
-function BidDocModal({ announcement, onClose, onChanged }: { announcement: AnnouncementListItem; onClose: () => void; onChanged: () => void }) {
-  const [doc, setDoc] = useState<BidDocumentManage | null>(null);
-  const [loading, setLoading] = useState(true);
+/* ── 附件区（编辑器内联）── */
+function AttachmentsSection({ annId, attachments, onChanged }: { annId: string | null; attachments: AnnouncementAttachment[]; onChanged: () => void }) {
+  const [title, setTitle] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!annId) { toast.error('请先保存草稿'); e.target.value = ''; return; }
+    const f = e.target.files?.[0]; if (!f) return;
+    setUploading(true);
+    try { const asset = await uploadFile(f, 'announcement'); await addAttachment(annId, asset.id, title || f.name); setTitle(''); onChanged(); toast.success('附件已添加'); } catch (err: any) { toast.error(err?.message || '上传失败'); }
+    setUploading(false); e.target.value = '';
+  };
+  return (
+    <div className="rounded-xl border border-[#e5ecf4] p-4">
+      <div className="text-xs font-bold text-[#064ea2] mb-3">附件（公开可下载）</div>
+      {!annId ? <p className="text-xs text-[#8a96aa]">保存草稿后可上传附件</p> : (
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="附件标题（可选）" className={inputCls + ' flex-1'} />
+            <label className={'inline-flex items-center px-3 py-2 text-sm text-white bg-[#064ea2] hover:bg-[#054280] rounded-lg cursor-pointer whitespace-nowrap ' + (uploading ? 'opacity-50' : '')}>{uploading ? '上传中...' : '+ 添加'}<input type="file" className="hidden" onChange={onUpload} /></label>
+          </div>
+          {attachments.length === 0 ? <p className="text-xs text-[#8a96aa]">暂无附件</p> : attachments.map(a => (
+            <div key={a.id} className="flex items-center justify-between rounded-lg border border-[#e5ecf4] px-3 py-2">
+              <div><div className="text-sm font-semibold text-[#18243a]">{a.title}</div><div className="text-xs text-[#5a6d8a]">{a.fileAsset.originalName} · {(a.fileAsset.size / 1024).toFixed(0)} KB</div></div>
+              <div className="flex gap-3">
+                <a href={'/api/announcements/attachments/' + a.id + '/download'} target="_blank" rel="noreferrer" className="text-xs text-[#064ea2] hover:underline">预览</a>
+                <button onClick={async () => { if (confirm('删除该附件？')) { await removeAttachment(a.id); onChanged(); } }} className="text-xs text-[#e74c3c] hover:underline">删除</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── 招标文件区（编辑器内联，加密 + 受控分发）── */
+function BidDocSection({ annId, bidDoc, onChanged }: { annId: string | null; bidDoc: BidDocumentManage | null; onChanged: () => void }) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplierSearch, setSupplierSearch] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -257,202 +326,141 @@ function BidDocModal({ announcement, onClose, onChanged }: { announcement: Annou
   const [scope, setScope] = useState<'OPEN' | 'DESIGNATED' | 'INVITED'>('OPEN');
   const [requirePayment, setRequirePayment] = useState(false);
   const [price, setPrice] = useState<number | ''>('');
-  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try { const d = await getBidDocument(announcement.id); setDoc(d); if (d) { setScope(d.accessScope); setRequirePayment(d.requirePayment); setPrice(d.price ?? ''); setSelectedSuppliers(d.allowedSupplierIds); } } catch { setDoc(null); }
-    setLoading(false);
-  }, [announcement.id]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (annId && bidDoc) { setScope(bidDoc.accessScope); setRequirePayment(bidDoc.requirePayment); setPrice(bidDoc.price ?? ''); setSelected(bidDoc.allowedSupplierIds); }
+  }, [annId, bidDoc]);
   useEffect(() => {
     if (scope === 'DESIGNATED') getSupplierList({ status: 'APPROVED', search: supplierSearch || undefined, pageSize: 50 }).then(r => setSuppliers(r.items)).catch(() => {});
   }, [scope, supplierSearch]);
 
   const doUpload = async () => {
+    if (!annId) { toast.error('请先保存草稿'); return; }
     if (!file) { toast.error('请选择招标文件'); return; }
     setBusy(true);
-    try {
-      await uploadBidDocument(announcement.id, file, { title: docTitle || file.name, accessScope: scope, requirePayment, price: requirePayment ? (price || 0) : undefined, allowedSupplierIds: scope === 'DESIGNATED' ? selectedSuppliers : undefined });
-      toast.success('招标文件已加密上传');
-      setFile(null); setDocTitle('');
-      load(); onChanged();
-    } catch (e: any) { toast.error(e?.message || '上传失败'); }
+    try { await uploadBidDocument(annId, file, { title: docTitle || file.name, accessScope: scope, requirePayment, price: requirePayment ? (price || 0) : undefined, allowedSupplierIds: scope === 'DESIGNATED' ? selected : undefined }); toast.success('招标文件已加密上传'); setFile(null); setDocTitle(''); onChanged(); } catch (e: any) { toast.error(e?.message || '上传失败'); }
     setBusy(false);
   };
   const saveConfig = async () => {
+    if (!annId || !bidDoc) return;
     setBusy(true);
-    try {
-      await updateBidDocumentConfig(announcement.id, { accessScope: scope, requirePayment, price: requirePayment ? (price || 0) : undefined, allowedSupplierIds: scope === 'DESIGNATED' ? selectedSuppliers : undefined });
-      toast.success('配置已保存'); load(); onChanged();
-    } catch (e: any) { toast.error(e?.message || '保存失败'); }
+    try { await updateBidDocumentConfig(annId, { accessScope: scope, requirePayment, price: requirePayment ? (price || 0) : undefined, allowedSupplierIds: scope === 'DESIGNATED' ? selected : undefined }); toast.success('配置已保存'); onChanged(); } catch (e: any) { toast.error(e?.message || '保存失败'); }
     setBusy(false);
   };
-  const confirmPay = async (supplierId: string) => {
-    try { await confirmBidDocPayment(announcement.id, supplierId); toast.success('已确认到账'); load(); } catch (e: any) { toast.error(e?.message || '操作失败'); }
-  };
-  const removeDoc = async () => {
-    if (!doc || !confirm('确认删除该招标文件？已付费记录将一并清除。')) return;
-    try { await removeBidDocument(announcement.id); toast.success('已删除'); load(); onChanged(); } catch (e: any) { toast.error(e?.message || '删除失败'); }
-  };
+  const confirmPay = async (supplierId: string) => { if (!annId) return; try { await confirmBidDocPayment(annId, supplierId); toast.success('已确认到账'); onChanged(); } catch (e: any) { toast.error(e?.message || '失败'); } };
+  const removeDoc = async () => { if (!annId || !bidDoc || !confirm('删除招标文件？')) return; try { await removeBidDocument(annId); toast.success('已删除'); onChanged(); } catch (e: any) { toast.error(e?.message || '失败'); } };
 
-  const supplierPicker = (
+  const picker = scope === 'DESIGNATED' && (
     <div>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-[#5a6d8a]">可下载供应商（已选 {selectedSuppliers.length}）</span>
-        <input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="搜索供应商" className="px-2 py-1 border border-[#e5ecf4] rounded text-xs w-40" />
-      </div>
-      <div className="max-h-40 overflow-y-auto rounded border border-[#e5ecf4] divide-y divide-[#f1f5f9]">
+      <div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-[#5a6d8a]">可下载供应商（已选 {selected.length}）</span><input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="搜索供应商" className="px-2 py-1 border border-[#e5ecf4] rounded text-xs w-40" /></div>
+      <div className="max-h-36 overflow-y-auto rounded border border-[#e5ecf4] divide-y divide-[#f1f5f9]">
         {suppliers.map(s => (
           <label key={s.id} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-[#f8fafc] cursor-pointer">
-            <input type="checkbox" checked={selectedSuppliers.includes(s.id)} onChange={() => setSelectedSuppliers(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])} className="accent-[#064ea2]" />
+            <input type="checkbox" checked={selected.includes(s.id)} onChange={() => setSelected(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])} className="accent-[#064ea2]" />
             <span className="text-[#18243a]">{s.name}</span>
-            {s.classification?.name && <span className="text-xs text-[#5a6d8a] ml-auto">{s.classification.name}</span>}
           </label>
         ))}
-        {suppliers.length === 0 && <div className="px-3 py-3 text-xs text-[#5a6d8a]">无匹配供应商</div>}
       </div>
     </div>
   );
 
+  const configRow = (
+    <div className="grid grid-cols-3 gap-3 mb-3">
+      <Field label="访问范围"><select value={scope} onChange={e => setScope(e.target.value as any)} className={inputCls}><option value="OPEN">公开下载</option><option value="DESIGNATED">指定供应商</option><option value="INVITED">邀请招标</option></select></Field>
+      <Field label="付费下载"><select value={requirePayment ? '1' : '0'} onChange={e => setRequirePayment(e.target.value === '1')} className={inputCls}><option value="0">免费</option><option value="1">付费</option></select></Field>
+      {requirePayment && <Field label="价格（元）"><input type="number" value={price} onChange={e => setPrice(e.target.value === '' ? '' : Number(e.target.value))} className={inputCls} /></Field>}
+    </div>
+  );
+
   return (
-    <Modal title="招标文件管理（加密 · 受控分发）" onClose={onClose} wide>
-      {loading ? <p className="text-center text-[#5a6d8a] py-8">加载中...</p> : doc ? (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-[#e5ecf4] p-4">
+    <div className="rounded-xl border border-[#ddd6fe] bg-[#faf9ff] p-4">
+      <div className="text-xs font-bold text-[#7c3aed] mb-3">招标文件（AES-256-GCM 加密 · 受控分发 · 首页不公开）</div>
+      {!annId ? <p className="text-xs text-[#8a96aa]">保存草稿后可上传招标文件</p> : bidDoc ? (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-[#e5ecf4] bg-white p-3">
             <div className="flex items-center justify-between">
-              <div>
-                <strong className="text-[#18243a]">🔒 {doc.title}</strong>
-                <span className="ml-2 text-xs text-[#5a6d8a]">{doc.fileName} · {(doc.fileSize / 1024).toFixed(0)} KB</span>
-              </div>
-              <span className="text-xs px-2 py-1 rounded-full bg-[#064ea218] text-[#064ea2] font-semibold">{scopeLabel(doc.accessScope)}{doc.requirePayment ? ' · 付费 ¥' + doc.price : ''}</span>
+              <div><strong className="text-[#18243a]">🔒 {bidDoc.title}</strong><span className="ml-2 text-xs text-[#5a6d8a]">{bidDoc.fileName} · {(bidDoc.fileSize / 1024).toFixed(0)} KB · 下载 {bidDoc.downloadCount} 次</span></div>
+              <button onClick={removeDoc} className="text-xs text-[#e74c3c] hover:underline">删除</button>
             </div>
-            <p className="text-xs text-[#5a6d8a] mt-1">累计下载 {doc.downloadCount} 次 · AES-256-GCM 加密存储，首页不公开</p>
           </div>
-
-          <div className="rounded-xl border border-[#e5ecf4] p-4">
-            <div className="text-xs font-bold text-[#064ea2] mb-3">访问配置</div>
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              <Field label="访问范围">
-                <select value={scope} onChange={e => setScope(e.target.value as any)} className={inputCls}>
-                  <option value="OPEN">公开下载（全库供应商）</option>
-                  <option value="DESIGNATED">指定供应商（白名单）</option>
-                  <option value="INVITED">邀请招标（关联项目）</option>
-                </select>
-              </Field>
-              <Field label="付费下载">
-                <select value={requirePayment ? '1' : '0'} onChange={e => setRequirePayment(e.target.value === '1')} className={inputCls}>
-                  <option value="0">免费</option>
-                  <option value="1">付费</option>
-                </select>
-              </Field>
-              {requirePayment && <Field label="价格（元）"><input type="number" value={price} onChange={e => setPrice(e.target.value === '' ? '' : Number(e.target.value))} className={inputCls} /></Field>}
-            </div>
-            {scope === 'DESIGNATED' && supplierPicker}
-            <button onClick={saveConfig} disabled={busy} className="mt-3 px-4 py-1.5 text-sm text-white bg-[#064ea2] hover:bg-[#054280] rounded-lg disabled:opacity-50">{busy ? '保存中...' : '保存配置'}</button>
-          </div>
-
-          {doc.accesses.length > 0 && (
-            <div className="rounded-xl border border-[#e5ecf4] p-4">
-              <div className="text-xs font-bold text-[#064ea2] mb-3">访问与到账记录</div>
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-[#5a6d8a] border-b border-[#e5ecf4]"><th className="py-2">供应商</th><th className="py-2">付费</th><th className="py-2">下载</th><th className="py-2 text-right">操作</th></tr></thead>
-                <tbody>
-                  {doc.accesses.map(a => (
-                    <tr key={a.supplierId} className="border-b border-[#f1f5f9]">
-                      <td className="py-2 text-[#18243a]">{a.supplierName}{a.paymentRef && <span className="ml-2 text-xs text-[#5a6d8a]">凭证:{a.paymentRef}</span>}</td>
-                      <td className="py-2">{doc.requirePayment ? (a.paid ? <span className="text-[#11a874] font-semibold">已付款</span> : <span className="text-[#f5a623]">待确认</span>) : <span className="text-[#5a6d8a]">—</span>}</td>
-                      <td className="py-2 text-[#5a6d8a]">{a.downloadCount} 次</td>
-                      <td className="py-2 text-right">{doc.requirePayment && !a.paid && <button onClick={() => confirmPay(a.supplierId)} className="px-2 py-1 text-xs text-white bg-[#11a874] hover:bg-[#0e8c5f] rounded">确认到账</button>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {configRow}
+          {picker}
+          <button onClick={saveConfig} disabled={busy} className="px-4 py-1.5 text-sm text-white bg-[#7c3aed] hover:bg-[#6d28d9] rounded-lg disabled:opacity-50">{busy ? '保存中...' : '保存访问配置'}</button>
+          {bidDoc.accesses.length > 0 && (
+            <div className="rounded-lg border border-[#e5ecf4] bg-white p-3">
+              <div className="text-xs font-bold text-[#7c3aed] mb-2">访问与到账</div>
+              <table className="w-full text-sm"><tbody>
+                {bidDoc.accesses.map(a => (
+                  <tr key={a.supplierId} className="border-b border-[#f1f5f9] last:border-0">
+                    <td className="py-1.5 text-[#18243a]">{a.supplierName}{a.paymentRef && <span className="ml-1 text-xs text-[#5a6d8a]">凭证:{a.paymentRef}</span>}</td>
+                    <td className="py-1.5 text-right">{bidDoc.requirePayment ? (a.paid ? <span className="text-[#11a874] text-xs">已付款</span> : <button onClick={() => confirmPay(a.supplierId)} className="px-2 py-0.5 text-xs text-white bg-[#11a874] rounded">确认到账</button>) : <span className="text-[#5a6d8a] text-xs">{a.downloadCount} 次下载</span>}</td>
+                  </tr>
+                ))}
+              </tbody></table>
             </div>
           )}
-
-          <div className="flex justify-end"><button onClick={removeDoc} className="px-4 py-1.5 text-sm text-[#e74c3c] border border-[#fecaca] hover:bg-[#fef2f2] rounded-lg">删除招标文件</button></div>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-[#fcd34d] bg-[#fffbeb] p-3 text-xs text-[#92400e]">该招标公示尚未上传招标文件。上传后 AES-256-GCM 加密存储，首页不公开，供应商按权限在门户下载。</div>
-          <Field label="选择文件"><input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-sm" /></Field>
-          <Field label="文件标题"><input value={docTitle} onChange={e => setDocTitle(e.target.value)} className={inputCls} placeholder="留空则用文件名" /></Field>
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="访问范围">
-              <select value={scope} onChange={e => setScope(e.target.value as any)} className={inputCls}>
-                <option value="OPEN">公开下载</option>
-                <option value="DESIGNATED">指定供应商</option>
-                <option value="INVITED">邀请招标</option>
-              </select>
-            </Field>
-            <Field label="付费下载">
-              <select value={requirePayment ? '1' : '0'} onChange={e => setRequirePayment(e.target.value === '1')} className={inputCls}>
-                <option value="0">免费</option>
-                <option value="1">付费</option>
-              </select>
-            </Field>
-            {requirePayment && <Field label="价格（元）"><input type="number" value={price} onChange={e => setPrice(e.target.value === '' ? '' : Number(e.target.value))} className={inputCls} /></Field>}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="选择文件"><input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-sm w-full" /></Field>
+            <Field label="文件标题"><input value={docTitle} onChange={e => setDocTitle(e.target.value)} className={inputCls} placeholder="留空用文件名" /></Field>
           </div>
-          {scope === 'DESIGNATED' && supplierPicker}
-          <button onClick={doUpload} disabled={busy || !file} className="px-5 py-2 text-sm text-white bg-[#064ea2] hover:bg-[#054280] rounded-lg disabled:opacity-50">{busy ? '加密上传中...' : '加密上传'}</button>
+          {configRow}
+          {picker}
+          <button onClick={doUpload} disabled={busy || !file} className="px-4 py-1.5 text-sm text-white bg-[#7c3aed] hover:bg-[#6d28d9] rounded-lg disabled:opacity-50">{busy ? '加密上传中...' : '加密上传'}</button>
         </div>
       )}
-    </Modal>
+    </div>
   );
 }
 
-function AttachmentsModal({ announcement, onClose, onChanged }: { announcement: AnnouncementListItem; onClose: () => void; onChanged: () => void }) {
-  const [items, setItems] = useState<AnnouncementAttachment[]>([]);
+/* ════════════ 投标情况（只读） ════════════ */
+
+function ParticipantsModal({ announcement, onClose }: { announcement: AnnouncementListItem; onClose: () => void }) {
+  const [data, setData] = useState<{ project: any; suppliers: Participant[]; stats: { total: number; submitted: number } } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [title, setTitle] = useState('');
-  const load = useCallback(async () => { setLoading(true); try { setItems(await listAttachments(announcement.id)); } catch { /* */ } setLoading(false); }, [announcement.id]);
-  useEffect(() => { load(); }, [load]);
-  const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (!f) return;
-    setUploading(true);
-    try { const asset = await uploadFile(f, 'announcement'); await addAttachment(announcement.id, asset.id, title || f.name); setTitle(''); load(); onChanged(); toast.success('附件已添加'); } catch (err: any) { toast.error(err?.message || '上传失败'); }
-    setUploading(false); e.target.value = '';
-  };
+  useEffect(() => { getParticipants(announcement.id).then(setData).catch(() => setData(null)).finally(() => setLoading(false)); }, [announcement.id]);
+  const pct = data && data.stats.total > 0 ? Math.round((data.stats.submitted / data.stats.total) * 100) : 0;
+  const badge = (s: Participant) => s.withdrawn ? { label: '已撤回', color: '#e74c3c', bg: '#e74c3c18' } : s.submitted ? { label: '已提交', color: '#11a874', bg: '#11a87418' } : { label: '未提交', color: '#95a5a6', bg: '#95a5a618' };
   return (
-    <Modal title="附件管理（公开可下载）" onClose={onClose}>
-      <div className="mb-4 rounded-xl border border-[#e5ecf4] p-3">
-        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="附件标题（可选）" className={inputCls + ' mb-2'} />
-        <label className={'inline-flex items-center px-4 py-2 text-sm text-white bg-[#064ea2] hover:bg-[#054280] rounded-lg cursor-pointer ' + (uploading ? 'opacity-50' : '')}>
-          {uploading ? '上传中...' : '+ 添加附件'}<input type="file" className="hidden" onChange={onUpload} />
-        </label>
-      </div>
-      {loading ? <p className="text-center text-[#5a6d8a] py-4">加载中...</p> : items.length === 0 ? <p className="text-center text-[#5a6d8a] py-6 text-sm">暂无附件</p> : (
-        <div className="space-y-2">
-          {items.map(a => (
-            <div key={a.id} className="flex items-center justify-between rounded-lg border border-[#e5ecf4] px-3 py-2">
-              <div>
-                <div className="text-sm font-semibold text-[#18243a]">{a.title}</div>
-                <div className="text-xs text-[#5a6d8a]">{a.fileAsset.originalName} · {(a.fileAsset.size / 1024).toFixed(0)} KB</div>
-              </div>
-              <div className="flex gap-3">
-                <a href={'/api/announcements/attachments/' + a.id + '/download'} target="_blank" rel="noreferrer" className="text-xs text-[#064ea2] hover:underline">预览</a>
-                <button onClick={async () => { if (confirm('删除该附件？')) { await removeAttachment(a.id); load(); onChanged(); } }} className="text-xs text-[#e74c3c] hover:underline">删除</button>
-              </div>
-            </div>
-          ))}
+    <Modal title="投标情况（参与供应商 + 标书提交）" onClose={onClose} wide>
+      {loading ? <p className="text-center text-[#5a6d8a] py-8">加载中...</p> : !data || !data.project ? (
+        <div className="text-center py-8"><p className="text-[#5a6d8a]">该招标公示未关联招标项目（无项目编号），暂无投标数据。</p></div>
+      ) : (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-[#e5ecf4] p-4">
+            <div className="flex items-center justify-between"><strong className="text-[#18243a]">{data.project.name}</strong><span className="text-xs text-[#5a6d8a]">截止 {new Date(data.project.deadline).toLocaleDateString('zh-CN')}</span></div>
+            <div className="flex items-center justify-between mt-3 mb-1.5"><span className="text-sm font-semibold text-[#18243a]">提交进度</span><span className="text-sm text-[#5a6d8a]">{data.stats.submitted}/{data.stats.total} 已提交</span></div>
+            <div className="h-2 rounded-full bg-[#f1f5f9] overflow-hidden"><div className="h-full rounded-full bg-[#11a874]" style={{ width: pct + '%' }} /></div>
+          </div>
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-[#e5ecf4] text-left text-[#5a6d8a]"><th className="px-3 py-2">供应商</th><th className="px-3 py-2">分类</th><th className="px-3 py-2">下载</th><th className="px-3 py-2">标书状态</th><th className="px-3 py-2">提交时间</th><th className="px-3 py-2">报价</th></tr></thead>
+            <tbody>
+              {data.suppliers.length === 0 ? <tr><td colSpan={6} className="px-3 py-8 text-center text-[#5a6d8a]">暂无投标供应商</td></tr> : data.suppliers.map((s, i) => {
+                const b = badge(s);
+                return (<tr key={i} className="border-b border-[#f1f5f9]"><td className="px-3 py-2 font-semibold text-[#18243a]">{s.supplierName}</td><td className="px-3 py-2 text-[#5a6d8a]">{s.classification || '—'}</td><td className="px-3 py-2 text-[#5a6d8a]">{s.downloadStatus}</td><td className="px-3 py-2"><span className="px-2 py-1 rounded text-xs font-semibold" style={{ color: b.color, backgroundColor: b.bg }}>{b.label}</span></td><td className="px-3 py-2 text-[#5a6d8a]">{s.submittedAt ? new Date(s.submittedAt).toLocaleString('zh-CN') : '—'}</td><td className="px-3 py-2 text-[#5a6d8a]">{s.bidPrice || '—'}</td></tr>);
+              })}
+            </tbody>
+          </table>
+          <p className="text-xs text-[#8a96aa]">提示：开标/评标/归档在「在线开评标系统」；专家抽取在「专家管理中心」。</p>
         </div>
       )}
     </Modal>
   );
 }
 
+/* ════════════ 通用 UI ════════════ */
 const inputCls = 'w-full px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm focus:outline-none focus:border-[#064ea2]';
-function scopeLabel(s: string) { return s === 'DESIGNATED' ? '指定供应商' : s === 'INVITED' ? '邀请招标' : '公开下载'; }
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div><label className="block text-xs font-semibold text-[#5a6d8a] mb-1.5">{label}</label>{children}</div>;
 }
 function Modal({ title, onClose, wide, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className={'bg-white rounded-xl shadow-xl max-h-[90vh] overflow-y-auto ' + (wide ? 'w-full max-w-3xl' : 'w-full max-w-lg')} onClick={e => e.stopPropagation()}>
+      <div className={'bg-white rounded-xl shadow-xl max-h-[92vh] overflow-y-auto ' + (wide ? 'w-full max-w-3xl' : 'w-full max-w-lg')} onClick={e => e.stopPropagation()}>
         <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-[#e5ecf4] z-10">
           <h3 className="text-lg font-bold text-[#18243a]">{title}</h3>
           <button onClick={onClose} className="text-[#5a6d8a] hover:text-[#18243a] text-xl leading-none">×</button>

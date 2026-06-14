@@ -36,19 +36,20 @@ export class CatalogController {
   @Get('export')
   @ApiOperation({ summary: '导出采购目录 Excel' })
   async exportCatalog(
-    @Res({ passthrough: true }) res: Response,
+    @Request() req: any,
+    @Res() res: Response,
     @Query('category') category?: string,
     @Query('region') region?: string,
     @Query('status') status?: string,
     @Query('source') source?: string,
     @Query('search') search?: string,
   ) {
-    const buf = await this.catalogService.exportCatalog({ category, region, status, source, search });
+    const buf = await this.catalogService.exportCatalog(req.user.sub, { category, region, status, source, search });
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent('采购目录-' + new Date().toISOString().slice(0, 10) + '.xlsx')}`,
     });
-    return buf;
+    res.end(buf);
   }
 
   @Post(':id/favorite')

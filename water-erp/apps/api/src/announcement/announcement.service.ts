@@ -28,7 +28,7 @@ export class AnnouncementService {
         isTop: dto.isTop ?? false,
         relatedProjectCode: dto.relatedProjectCode,
         authorId,
-        status: 'PUBLISHED',
+        status: (dto.status as any) ?? 'DRAFT',
         ...(dto.metadata !== undefined && { metadata: dto.metadata as any }),
       },
       include: { attachments: { include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } } } } },
@@ -148,5 +148,49 @@ export class AnnouncementService {
       this.prisma.announcement.count({ where: { type: 'POLICY', status: 'PUBLISHED' } }),
     ]);
     return { total, published, bidNotice, winNotice, policy };
+  }
+
+  /** 招标公示的投标情况：关联项目 → 参与供应商 + 是否已投标（只读监控，不含开标/评标） */
+  async getParticipants(id: string) {
+    const ann = await this.prisma.announcement.findUnique({ where: { id }, select: { type: true, relatedProjectCode: true } });
+    if (!ann) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
+    if (!ann.relatedProjectCode) return { project: null, suppliers: [], stats: { total: 0, submitted: 0 } };
+
+    const project = await this.prisma.bidProject.findUnique({
+      where: { projectCode: ann.relatedProjectCode },
+      select: { id: true, name: true, projectCode: true, stage: true, deadline: true },
+    });
+    if (!project) return { project: null, suppliers: [], stats: { total: 0, submitted: 0 } };
+
+    const [suppliers, submissions] = await Promise.all([
+      this.prisma.bidSupplier.findMany({
+        where: { projectId: project.id },
+        include: { supplier: { select: { name: true, classification: { select: { name: true } } } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.supplierBidSubmission.findMany({
+        where: { projectId: project.id },
+        select: { supplierId: true, status: true, submittedAt: true, bidPrice: true },
+      }),
+    ]);
+    const subMap = new Map(submissions.map(s => [s.supplierId, s]));
+    const rows = suppliers.map(s => {
+      const sub = s.supplierId ? subMap.get(s.supplierId) : null;
+      return {
+        supplierName: s.supplierName,
+        classification: s.supplier?.classification?.name,
+        downloadStatus: s.downloadStatus,
+        submitStatus: s.submitStatus,
+        submitted: sub?.status === 'submitted' || (!sub && s.submitStatus === '已提交'),
+        withdrawn: sub?.status === 'withdrawn',
+        submittedAt: sub?.submittedAt,
+        bidPrice: sub?.bidPrice,
+      };
+    });
+    return {
+      project: { name: project.name, projectCode: project.projectCode, stage: project.stage, deadline: project.deadline },
+      suppliers: rows,
+      stats: { total: rows.length, submitted: rows.filter(r => r.submitted).length },
+    };
   }
 }

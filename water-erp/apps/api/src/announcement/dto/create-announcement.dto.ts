@@ -27,6 +27,9 @@ export class CreateAnnouncementDto {
 
   @IsObject() @IsOptional()
   metadata?: Record<string, any>;
+
+  @IsString() @IsOptional()
+  status?: string; // DRAFT | PUBLISHED | ARCHIVED，缺省按 DRAFT（起草后发布）
 }
 
 export class UpdateAnnouncementDto {

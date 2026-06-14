@@ -58,6 +58,13 @@ export class AnnouncementController {
     return this.announcementService.getStats();
   }
 
+  @Get(':id/participants')
+  @Roles('admin', 'bid_host', 'procurement_staff')
+  @ApiOperation({ summary: '招标公示投标情况（参与供应商 + 是否已投标）' })
+  async getParticipants(@Param('id') id: string) {
+    return this.announcementService.getParticipants(id);
+  }
+
   // ─── 普通附件 ───
 
   @Get(':id/attachments')

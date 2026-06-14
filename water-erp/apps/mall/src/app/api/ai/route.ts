@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'DeepSeek API Key 未配置，请在 apps/mall/.env.local 中设置 DEEPSEEK_API_KEY。' },
+      { error: 'AI 助手暂未启用，请联系管理员。' },
       { status: 500 },
     );
   }
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       const text = await response.text();
       return NextResponse.json(
-        { error: `DeepSeek 调用失败：${response.status} ${text.slice(0, 300)}` },
+        { error: `AI 服务暂时不可用（HTTP ${response.status}），请稍后重试。` },
         { status: 502 },
       );
     }
@@ -77,13 +77,13 @@ export async function POST(request: NextRequest) {
     const answer = data?.choices?.[0]?.message?.content;
 
     if (!answer) {
-      return NextResponse.json({ error: 'DeepSeek 未返回有效分析内容。' }, { status: 502 });
+      return NextResponse.json({ error: 'AI 未返回有效内容，请重试。' }, { status: 502 });
     }
 
     return NextResponse.json({ answer });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'DeepSeek 调用异常。' },
+      { error: 'AI 调用异常，请稍后重试。' },
       { status: 500 },
     );
   }
