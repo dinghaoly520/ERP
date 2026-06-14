@@ -1331,65 +1331,273 @@ git commit -m "feat(supplier): 绩效聚合画像 + 连续低分自动停用"
 ## Task 9：专家绩效关联 + 自动退库（审计 3.4）
 
 **Files:**
-- Modify: `apps/api/src/expert/expert-admin.service.ts:343-349`（getEvaluationStats 增强 + createEvaluation 后自动停用）
+- Create: `apps/api/src/expert/expert-deviation.ts`
+- Create: `apps/api/src/expert/expert-deviation.spec.ts`
+- Modify: `apps/api/src/expert/expert-admin.service.ts:320-349`（createEvaluation 自动停用 + getEvaluationStats 增强偏离度）
 
-**设计**：`getEvaluationStats` 增加"评分偏离度"（该项目内该专家与其他专家评分的标准差均值）。`createEvaluation` 后若专家连续 2 次评级为 D → `ExpertProfile.availability = '停用'` + 通知。
+**设计**：
+- **偏离度**= 同一"评分目标"（`scoreItemId + supplierId`）被 ≥2 位专家评分时，某专家评分与该目标组均值的绝对差，再跨该专家所有目标取平均。反映专家与群体共识的分歧程度。
+- **关联分析**= 把每位专家的偏离度按其最新履职等级（A/B/C/D）分桶取均，输出 `deviationByLevel`，可直观看出低等级专家是否偏离更大。
+- `createEvaluation` 后若专家最近 2 次评级均为 D → `ExpertProfile.availability = '停用'`。
 
-- [ ] **Step 1: 写偏离度纯函数测试**
+### Step 1: 写纯函数测试
 
 ```typescript
 // apps/api/src/expert/expert-deviation.spec.ts
-import { meanDeviation, shouldDeactivateExpert } from './expert-deviation';
+import { computeExpertMeanDeviations, shouldDeactivateExpert } from './expert-deviation';
 
-describe('meanDeviation', () => {
-  it('单专家与其他专家均分的平均偏离', () => {
-    expect(meanDeviation(80, [80, 70])).toBeCloseTo(5, 0); // |80-75| = 5
+describe('computeExpertMeanDeviations', () => {
+  it('同目标多专家：各专家偏离 = |自分 - 组均值|', () => {
+    // 目标(i1,s1)：A=80, B=70, C=90 → 组均值 80；偏离 A=0, B=10, C=10
+    const r = computeExpertMeanDeviations([
+      { expertId: 'A', scoreItemId: 'i1', supplierId: 's1', score: 80 },
+      { expertId: 'B', scoreItemId: 'i1', supplierId: 's1', score: 70 },
+      { expertId: 'C', scoreItemId: 'i1', supplierId: 's1', score: 90 },
+    ]);
+    const m = new Map(r.map(x => [x.expertId, x.meanDeviation]));
+    expect(m.get('A')).toBe(0);
+    expect(m.get('B')).toBe(10);
+    expect(m.get('C')).toBe(10);
+  });
+
+  it('仅 1 位专家的目标不参与（无共识可比）', () => {
+    const r = computeExpertMeanDeviations([
+      { expertId: 'A', scoreItemId: 'i1', supplierId: 's1', score: 80 },
+    ]);
+    expect(r).toHaveLength(0);
+  });
+
+  it('专家跨多目标：取其各目标偏离的均值 + 计数', () => {
+    // 目标1(i1,s1): A=80, B=80 → 均值80, A偏离0
+    // 目标2(i2,s1): A=90, C=70 → 均值80, A偏离10
+    // A 平均偏离 = (0+10)/2 = 5, sampleCount=2
+    const r = computeExpertMeanDeviations([
+      { expertId: 'A', scoreItemId: 'i1', supplierId: 's1', score: 80 },
+      { expertId: 'B', scoreItemId: 'i1', supplierId: 's1', score: 80 },
+      { expertId: 'A', scoreItemId: 'i2', supplierId: 's1', score: 90 },
+      { expertId: 'C', scoreItemId: 'i2', supplierId: 's1', score: 70 },
+    ]);
+    const a = r.find(x => x.expertId === 'A')!;
+    expect(a.meanDeviation).toBe(5);
+    expect(a.sampleCount).toBe(2);
+  });
+
+  it('不同供应商同名评分项视为不同目标', () => {
+    const r = computeExpertMeanDeviations([
+      { expertId: 'A', scoreItemId: 'i1', supplierId: 's1', score: 80 },
+      { expertId: 'B', scoreItemId: 'i1', supplierId: 's2', score: 60 }, // 不同 supplierId → 单独目标
+    ]);
+    expect(r).toHaveLength(0); // 两个目标各只有 1 人
+  });
+
+  it('空输入 → []', () => {
+    expect(computeExpertMeanDeviations([])).toEqual([]);
   });
 });
+
 describe('shouldDeactivateExpert', () => {
-  it('最近2次均为D → true', () => {
+  it('最近 2 次均为 D → true', () => {
     expect(shouldDeactivateExpert([{ level: 'D' }, { level: 'D' }])).toBe(true);
   });
-  it('仅1次D → false', () => {
+  it('最近 2 次中有非 D → false', () => {
+    expect(shouldDeactivateExpert([{ level: 'C' }, { level: 'D' }])).toBe(false);
+  });
+  it('不足 2 次 → false', () => {
     expect(shouldDeactivateExpert([{ level: 'D' }])).toBe(false);
   });
 });
 ```
 
-- [ ] **Step 2: 实现**
+### Step 2: 运行确认失败
+
+Run: `pnpm --filter api test -- expert-deviation`
+Expected: FAIL（模块不存在）
+
+### Step 3: 实现纯函数
 
 ```typescript
 // apps/api/src/expert/expert-deviation.ts
-export function meanDeviation(expertAvg: number, otherAvgs: number[]): number {
-  if (otherAvgs.length === 0) return 0;
-  const othersAvg = otherAvgs.reduce((s, x) => s + x, 0) / otherAvgs.length;
-  return Math.abs(expertAvg - othersAvg);
+export interface ScoreRecordInput {
+  expertId: string;       // 评分者标识（接入时用 expertUserId，使偏离可跨项目归属到人）
+  scoreItemId: string;
+  supplierId: string;
+  score: number;
+}
+export interface ExpertDeviationResult {
+  expertId: string;
+  meanDeviation: number;  // 跨其所有"≥2人目标"的平均绝对偏离
+  sampleCount: number;    // 参与的有效目标数
 }
 
-export function shouldDeactivateExpert(recent: Array<{ level: string }>): boolean {
-  if (recent.length < 2) return false;
-  return recent.slice(-2).every(e => e.level === 'D');
-}
-```
-Run: `pnpm --filter api test -- expert-deviation` → PASS
+/**
+ * 计算每位专家相对于群体共识的平均评分偏离。
+ * 按 (scoreItemId, supplierId) 分组；仅组内 ≥2 位专家时纳入（否则无共识）。
+ */
+export function computeExpertMeanDeviations(records: ScoreRecordInput[]): ExpertDeviationResult[] {
+  const groups = new Map<string, ScoreRecordInput[]>();
+  for (const r of records) {
+    const key = `${r.scoreItemId}:${r.supplierId}`;
+    const g = groups.get(key);
+    if (g) g.push(r); else groups.set(key, [r]);
+  }
 
-- [ ] **Step 3: 接入 expert-admin.service**
-
-`createEvaluation`（约 320-341）末尾加自动停用：
-```typescript
-    const recent = await this.prisma.expertEvaluation.findMany({ where: { expertUserId: dto.expertUserId }, orderBy: { createdAt: 'desc' }, take: 2, select: { level: true } });
-    if (shouldDeactivateExpert(recent)) {
-      await this.prisma.expertProfile.updateMany({ where: { userId: dto.expertUserId }, data: { availability: '停用' } });
+  const acc = new Map<string, { sum: number; count: number }>();
+  for (const g of groups.values()) {
+    if (g.length < 2) continue;
+    const mean = g.reduce((s, r) => s + r.score, 0) / g.length;
+    for (const r of g) {
+      const dev = Math.abs(r.score - mean);
+      const a = acc.get(r.expertId) ?? { sum: 0, count: 0 };
+      a.sum += dev; a.count += 1;
+      acc.set(r.expertId, a);
     }
+  }
+
+  return Array.from(acc.entries()).map(([expertId, a]) => ({
+    expertId,
+    meanDeviation: Math.round((a.sum / a.count) * 10) / 10,
+    sampleCount: a.count,
+  }));
+}
+
+/** 最近 N 次履职评价是否触发自动停用（默认看最近 2 次）。 */
+export function shouldDeactivateExpert(recent: Array<{ level: string }>, window = 2): boolean {
+  if (recent.length < window) return false;
+  return recent.slice(-window).every(e => e.level === 'D');
+}
+
+/** 数组均分（保留 1 位小数），空数组返回 null。 */
+export function meanOrNull(arr: number[]): number | null {
+  if (arr.length === 0) return null;
+  return Math.round(arr.reduce((s, x) => s + x, 0) / arr.length * 10) / 10;
+}
 ```
-`getEvaluationStats` 增加偏离度统计（按 expertUserId 聚合 + 项目内交叉对比），返回追加 `avgDeviation` 字段。
 
-- [ ] **Step 4: 测试 + Commit**
+### Step 4: 运行确认通过
 
-Run: `pnpm --filter api test -- expert-admin` → PASS
+Run: `pnpm --filter api test -- expert-deviation`
+Expected: PASS（8 用例全过）
+
+### Step 5: createEvaluation 接入自动停用
+
+在 `expert-admin.service.ts` 顶部 import：
+```typescript
+import { shouldDeactivateExpert } from './expert-deviation';
+```
+在 `createEvaluation`（约 320-341）的 `return this.prisma.expertEvaluation.create(...)` **之前**插入自动停用判定，并把 create 结果存为变量先做停用再 return：
+```typescript
+    const created = await this.prisma.expertEvaluation.create({
+      data: {
+        expertUserId: dto.expertUserId,
+        projectId: dto.projectId,
+        evaluatorId,
+        attendanceScore: dto.attendanceScore,
+        qualityScore: dto.qualityScore,
+        disciplineScore: dto.disciplineScore,
+        overallScore: overall,
+        level,
+        comment: dto.comment,
+      },
+      include: { evaluator: { select: { id: true, displayName: true } } },
+    });
+
+    // 自动停用：最近 2 次评级均为 D
+    const recent = await this.prisma.expertEvaluation.findMany({
+      where: { expertUserId: dto.expertUserId },
+      orderBy: { createdAt: 'desc' },
+      take: 2,
+      select: { level: true },
+    });
+    if (shouldDeactivateExpert(recent)) {
+      await this.prisma.expertProfile.updateMany({
+        where: { userId: dto.expertUserId },
+        data: { availability: '停用' },
+      });
+    }
+    return created;
+```
+
+### Step 6: getEvaluationStats 增强偏离度 + 等级关联
+
+在 `expert-admin.service.ts` 顶部 import 追加：
+```typescript
+import { computeExpertMeanDeviations, meanOrNull } from './expert-deviation';
+```
+替换 `getEvaluationStats`（约 343-349）整段：
+```typescript
+  async getEvaluationStats() {
+    const [evaluations, scoreRecords] = await Promise.all([
+      this.prisma.expertEvaluation.findMany({
+        select: { level: true, overallScore: true, expertUserId: true, createdAt: true },
+      }),
+      this.prisma.bidScoreRecord.findMany({
+        select: {
+          score: true, scoreItemId: true, supplierId: true,
+          expert: { select: { userId: true } },
+        },
+      }),
+    ]);
+
+    // 既有：等级分布 + 综合均分
+    const levelCounts = { A: 0, B: 0, C: 0, D: 0 };
+    for (const e of evaluations) levelCounts[e.level]++;
+    const avgScore = evaluations.length > 0
+      ? evaluations.reduce((s, e) => s + e.overallScore, 0) / evaluations.length
+      : 0;
+
+    // 新增：评分偏离度（专家以 userId 归属，可跨项目/跨评价关联）
+    const deviations = computeExpertMeanDeviations(
+      scoreRecords.map(r => ({
+        expertId: r.expert.userId,
+        scoreItemId: r.scoreItemId,
+        supplierId: r.supplierId,
+        score: Number(r.score),
+      })),
+    );
+    const devMap = new Map(deviations.map(d => [d.expertId, d.meanDeviation]));
+    const avgScoreDeviation = deviations.length > 0
+      ? Math.round(deviations.reduce((s, d) => s + d.meanDeviation, 0) / deviations.length * 10) / 10
+      : 0;
+
+    // 关联分析：每位专家最新履职等级 → 按等级汇总其偏离度均分
+    const latestLevel = new Map<string, string>();
+    for (const e of [...evaluations].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())) {
+      latestLevel.set(e.expertUserId, e.level); // 时间升序遍历，最终保留最新
+    }
+    const byLevel: Record<'A' | 'B' | 'C' | 'D', number[]> = { A: [], B: [], C: [], D: [] };
+    for (const [expertId, level] of latestLevel) {
+      const dev = devMap.get(expertId);
+      if (dev != null && level in byLevel) byLevel[level as 'A' | 'B' | 'C' | 'D'].push(dev);
+    }
+
+    return {
+      levelCounts,
+      avgScore: Math.round(avgScore * 10) / 10,
+      total: evaluations.length,
+      avgScoreDeviation,
+      deviationByLevel: {
+        A: meanOrNull(byLevel.A),
+        B: meanOrNull(byLevel.B),
+        C: meanOrNull(byLevel.C),
+        D: meanOrNull(byLevel.D),
+      },
+      expertsWithDeviation: deviations.length,
+    };
+  }
+```
+> 返回结构兼容性：新增字段为附加（`avgScoreDeviation` / `deviationByLevel` / `expertsWithDeviation`），既有 `levelCounts` / `avgScore` / `total` 保留，前端原消费不受影响。
+
+### Step 7: 测试 + Commit
+
+Run:
 ```bash
-git add apps/api/src/expert
-git commit -m "feat(expert): 绩效偏离度统计 + 连续D级自动停用"
+pnpm --filter api test -- expert-deviation
+pnpm --filter api test -- expert-admin
+```
+Expected: 全部 PASS（偏离度纯函数 8 用例 + expert-admin 既有用例无回归）
+```bash
+git add apps/api/src/expert/expert-deviation.ts apps/api/src/expert/expert-deviation.spec.ts apps/api/src/expert/expert-admin.service.ts
+git commit -m "feat(expert): 评分偏离度统计 + 偏离度×履职等级关联 + 连续D级自动停用"
 ```
 
 ---
@@ -1424,7 +1632,7 @@ Expected: 全部 PASS，构建通过，种子无报错。
 
 **2. 占位符扫描**：无 TBD/TODO；每个 Task 的代码块均含完整方法体与测试。
 
-**3. 类型一致性**：`computeArchiveDigest`、`computeRiskFactors`/`riskLevel`、`detectConflicts`/`normalizeName`、`aggregatePerformance`/`shouldAutoDisable`、`meanDeviation`/`shouldDeactivateExpert`、`buildExpiryNotification` 在定义处与调用处签名一致。`classifyDecryptOutcome`/`verifyIntegrity` 输入字段（`hasSealedKey`/`decryptOk`/`integrityOk`）与 decryptSupplier 调用一致。
+**3. 类型一致性**：`computeArchiveDigest`、`computeRiskFactors`/`riskLevel`、`detectConflicts`/`normalizeName`、`aggregatePerformance`/`shouldAutoDisable`、`computeExpertMeanDeviations`/`shouldDeactivateExpert`/`meanOrNull`、`buildExpiryNotification` 在定义处与调用处签名一致。`classifyDecryptOutcome`/`verifyIntegrity` 输入字段（`hasSealedKey`/`decryptOk`/`integrityOk`）与 decryptSupplier 调用一致。Task 9 中 `computeExpertMeanDeviations` 入参 `expertId` 接入时映射为 `r.expert.userId`（BidScoreRecord→BidExpert→userId），偏离度按人归属可跨项目关联到履职等级。
 
 **4. 已知风险/降级**：
 - Task 2 Layer B 的 MinIO 封存对象写入（submitBid 侧）未在主流程接线，避免一次性改动跨 service；decryptSupplier 已预留 sealedKey 分支，可平滑接入。
