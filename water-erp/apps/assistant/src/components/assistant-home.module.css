@@ -189,42 +189,49 @@
   width: 100%;
 }
 
-/* 流光溢彩边框 — 旋转渐变光环 */
+/* 流光溢彩边框 — 光影沿搜索框边缘流动 */
 .commandPanel::before {
   content: '';
   position: absolute;
-  inset: -3px;
-  border-radius: 27px;
-  padding: 3px;
-  background: conic-gradient(
-    from 0deg,
-    rgba(88, 164, 255, 0.7),
-    rgba(145, 132, 255, 0.6),
-    rgba(214, 171, 103, 0.5),
-    rgba(112, 216, 189, 0.5),
-    rgba(88, 164, 255, 0.7)
+  inset: -2px;
+  border-radius: 26px;
+  padding: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(88, 164, 255, 0.15),
+    rgba(145, 132, 255, 0.25) 20%,
+    rgba(74, 122, 255, 0.7) 35%,
+    rgba(214, 171, 103, 0.6) 50%,
+    rgba(112, 216, 189, 0.4) 65%,
+    rgba(88, 164, 255, 0.15) 85%,
+    rgba(88, 164, 255, 0.15)
   );
+  background-size: 300% 100%;
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
-  animation: borderFlow 4s linear infinite;
-  filter: blur(2px);
-  opacity: 0.55;
+  animation: borderShimmer 3s ease-in-out infinite;
+  opacity: 0.6;
   pointer-events: none;
   z-index: -1;
-  transition: opacity 0.3s ease, filter 0.3s ease;
+  transition: opacity 0.3s ease;
 }
 
 .commandPanel:focus-within::before {
-  opacity: 0.85;
-  filter: blur(3px);
-  animation-duration: 2.5s;
+  opacity: 0.9;
+  animation-duration: 1.8s;
 }
 
-@keyframes borderFlow {
-  0%   { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+@keyframes borderShimmer {
+  0%   { background-position: 100% 0; }
+  50%  { background-position: 0% 0; }
+  100% { background-position: 100% 0; }
+}
+
+@keyframes sendPulse {
+  0%, 100% { box-shadow: 0 10px 24px rgba(86, 108, 223, 0.28), 0 0 24px rgba(214, 171, 103, 0.16); }
+  50%      { box-shadow: 0 14px 32px rgba(86, 108, 223, 0.40), 0 0 36px rgba(214, 171, 103, 0.28); }
 }
 
 .commandBox {
@@ -245,6 +252,14 @@
   transition: box-shadow 0.25s ease, transform 0.25s ease;
   position: relative;
   z-index: 1;
+  transform: perspective(800px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* 悬浮抬升 */
+.commandBox:hover {
+  transform: perspective(800px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(-1px);
 }
 
 .commandBox:focus-within {
@@ -252,7 +267,7 @@
     0 0 0 4px rgba(149, 191, 255, 0.14),
     0 0 0 7px rgba(214, 171, 103, 0.08),
     0 12px 28px rgba(100, 126, 176, 0.12);
-  transform: translateY(-1px);
+  transform: perspective(800px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(-1px);
 }
 
 .aiInput {
@@ -269,6 +284,12 @@
 
 .aiInput::placeholder {
   color: var(--text-muted);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.commandBox:focus-within .aiInput::placeholder {
+  transform: translateX(4px);
+  opacity: 0.5;
 }
 
 .sendBtn {
@@ -296,6 +317,7 @@
   box-shadow:
     0 10px 24px rgba(86, 108, 223, 0.28),
     0 0 24px rgba(214, 171, 103, 0.16);
+  animation: sendPulse 2s ease-in-out infinite;
 }
 
 .sendBtn.active:hover {
@@ -391,13 +413,7 @@
 }
 
 .quickDesc {
-  font-size: 11px;
-  color: var(--text-muted);
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 140px;
+  display: none;
 }
 
 /* ---------- 响应式 ---------- */

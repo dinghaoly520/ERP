@@ -125,6 +125,33 @@ const copy = {
   placeholder: '输入问题 / 生成分析 / 操作业务，如：汇总本月招采风险并画趋势图',
 };
 
+function useTiltEffect(targetRef: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = targetRef.current;
+    if (!el) return;
+
+    const handleMove = (e: MouseEvent) => {
+      const rect = el.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width - 0.5;   // -0.5 .. +0.5
+      const y = (e.clientY - rect.top) / rect.height - 0.5;
+      el.style.setProperty('--tilt-y', `${x * 3}deg`);
+      el.style.setProperty('--tilt-x', `${-y * 3}deg`);
+    };
+
+    const handleLeave = () => {
+      el.style.setProperty('--tilt-x', '0deg');
+      el.style.setProperty('--tilt-y', '0deg');
+    };
+
+    el.addEventListener('mousemove', handleMove, { passive: true });
+    el.addEventListener('mouseleave', handleLeave);
+    return () => {
+      el.removeEventListener('mousemove', handleMove);
+      el.removeEventListener('mouseleave', handleLeave);
+    };
+  }, [targetRef]);
+}
+
 function useMouseSpotlight() {
   const layerRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);
@@ -168,6 +195,8 @@ export function AssistantHome({
   const [inputValue, setInputValue] = useState('');
   const [stats, setStats] = useState<QuickStats | null>(null);
   const spotlightRef = useMouseSpotlight();
+  const commandBoxRef = useRef<HTMLDivElement>(null);
+  useTiltEffect(commandBoxRef);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,7 +231,7 @@ export function AssistantHome({
 
         {/* 搜索框 */}
         <div className={styles.commandPanel}>
-          <div className={styles.commandBox}>
+          <div className={styles.commandBox} ref={commandBoxRef}>
             <textarea
               className={styles.aiInput}
               placeholder={copy.placeholder}
@@ -247,9 +276,6 @@ export function AssistantHome({
                 </span>
                 <span className={styles.quickText}>
                   <span className={styles.quickTitle}>{card.label}</span>
-                  {card.subtitle && (
-                    <span className={styles.quickDesc}>{card.subtitle}</span>
-                  )}
                 </span>
               </button>
             );
