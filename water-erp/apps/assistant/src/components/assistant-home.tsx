@@ -5,7 +5,7 @@ import styles from './assistant-home.module.css';
 import { Sparkles, Send, Loader2, BarChart3, AlertTriangle, Users, ShoppingBag, FileText, Calendar, Search } from 'lucide-react';
 
 const copy = {
-  title: '水叮当智能助手',
+  title: '智慧水发 · 蜀水云采',
   placeholder: '输入问题 / 生成分析 / 操作业务，如：汇总本月招采风险并画趋势图',
 };
 

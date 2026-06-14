@@ -123,7 +123,7 @@ export function ChatWorkspace({
         {/* Header */}
         <header className={styles.header}>
           <span className={styles.headerTitle}>
-            水叮当智能助手
+            智慧水发 · 蜀水云采
             <span className={styles.headerBadge}>SHUIDINGDANG AI</span>
           </span>
           {hasCanvas ? null : (
