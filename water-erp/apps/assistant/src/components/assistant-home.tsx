@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import styles from './assistant-home.module.css';
-import { Send, Loader2, BarChart3, AlertTriangle, Users, ShoppingBag, FileText, Calendar, Search, Bell, Shield, Zap, TrendingUp, ClipboardList } from 'lucide-react';
+import { Send, Loader2, BarChart3, AlertTriangle, Users, ShoppingBag, FileText, Calendar, Search, Bell, Shield, TrendingUp, ClipboardList } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -32,71 +32,90 @@ function buildCards(s: QuickStats | null): Card[] {
 
   if (!s) return LOADING;
 
-  const { procurement, bid, supplier, catalog, announcement, notification, focusAreas } = s;
-
+  const { procurement, bid, supplier, catalog, notification, focusAreas } = s;
   const hasAlerts = focusAreas.length > 0;
-  const hasRisk = supplier.risk > 0 || (bid.active > 0);
   const hasPending = supplier.pending > 0 || procurement.pending > 0;
 
-  // Icon selection driven by system state
-  const iconDashboard: LucideIcon = !hasAlerts ? BarChart3 : TrendingUp;
-  const iconQa: LucideIcon = hasRisk ? AlertTriangle : hasAlerts ? Search : Zap;
-  const iconRisk: LucideIcon = hasRisk ? Shield : Search;
-  const iconSupplier: LucideIcon = hasPending ? AlertTriangle : Users;
-  const iconMall: LucideIcon = catalog.items > 0 ? ShoppingBag : TrendingUp;
-  const iconToday: LucideIcon = bid.active > 0 ? Calendar : notification.unread > 0 ? Bell : Calendar;
-  const iconReport: LucideIcon = bid.total > 0 ? FileText : announcement.published > 0 ? ClipboardList : FileText;
-  const iconOps: LucideIcon = hasPending ? AlertTriangle : ClipboardList;
-
+  // Fixed category labels + dynamic subtitles from system state
   return [
     {
-      icon: iconDashboard,
-      label: procurement.total === 0 ? '启动首个采购项目' : `采购${procurement.total} · 招标${bid.active}/${bid.total}`,
-      subtitle: bid.active > 0 ? `${bid.active} 个项目在开/评标中` : procurement.pending > 0 ? `${procurement.pending} 个项目待审批` : '系统运行正常',
+      icon: hasAlerts ? TrendingUp : BarChart3,
+      label: '董事长驾驶舱',
+      subtitle: procurement.total === 0
+        ? '尚无采购项目 · 建议启动立项'
+        : bid.active > 0
+          ? `${bid.active} 个招标进行中· ${procurement.pending} 个待审批`
+          : `${procurement.total} 个采购 · ${bid.total} 个招标`,
       tool: 'global_overview', args: { action: 'stats' },
     },
     {
-      icon: iconQa,
-      label: hasAlerts ? `优先关注：${focusAreas[0]}` : '全系统运行正常',
-      subtitle: focusAreas.slice(0, 2).join(' · ') || '点击查看全局详情',
+      icon: hasAlerts ? AlertTriangle : Search,
+      label: '全系统数据问答',
+      subtitle: focusAreas.length > 0
+        ? `⚠ ${focusAreas.slice(0, 2).join(' · ')}`
+        : '系统各模块运行正常',
       tool: focusAreas.length > 0 ? 'bid' : 'global_overview',
       args: focusAreas.length > 0 ? { action: 'active' } : { action: 'stats' },
     },
     {
-      icon: iconRisk,
-      label: supplier.risk > 0 ? `${supplier.risk} 家供应商有风险` : bid.active > 0 ? `${bid.active} 个项目进行中` : '暂无风险项目',
-      subtitle: supplier.risk > 0 ? '含停用/黑名单' : bid.active > 0 ? '点击查看投标进展' : '系统运行平稳',
-      tool: 'bid', args: supplier.risk > 0 ? { action: 'risks' } : { action: 'stats' },
+      icon: hasAlerts ? Shield : Search,
+      label: '招采风险扫描',
+      subtitle: supplier.risk > 0
+        ? `⚠ ${supplier.risk} 家供应商有风险`
+        : bid.active > 0
+          ? `${bid.active} 个项目在开/评标中`
+          : '暂无风险项目',
+      tool: 'bid', args: { action: supplier.risk > 0 ? 'risks' : 'stats' },
     },
     {
-      icon: iconSupplier,
-      label: supplier.pending > 0 ? `${supplier.pending} 家待审核` : `${supplier.approved} 家已入库`,
-      subtitle: supplier.pending > 0 ? `${supplier.approved} 家已入库 · 建议尽快处理` : '供应商状态良好',
-      tool: 'supplier', args: supplier.pending > 0 ? { action: 'pending' } : { action: 'stats' },
+      icon: hasPending ? AlertTriangle : Users,
+      label: '供应商画像',
+      subtitle: supplier.pending > 0
+        ? `${supplier.approved} 家已入库 · ${supplier.pending} 家待审核`
+        : `${supplier.approved} 家已入库 · 状态良好`,
+      tool: 'supplier', args: { action: supplier.pending > 0 ? 'pending' : 'stats' },
     },
     {
-      icon: iconMall,
-      label: catalog.items > 0 ? `${catalog.items} 个目录商品` : '商城目录为空',
-      subtitle: catalog.items > 0 ? '查看价格与供货趋势' : '建议补充采购目录',
+      icon: ShoppingBag,
+      label: '商城经营分析',
+      subtitle: catalog.items > 0
+        ? `${catalog.items} 个目录商品 · 可查看价格趋势`
+        : '暂无目录数据',
       tool: 'mall', args: { action: 'stats' },
     },
     {
-      icon: iconToday,
-      label: bid.active > 0 ? `${bid.active} 个招标进行中` : notification.unread > 0 ? `${notification.unread} 条未读通知` : '暂无紧急事项',
-      subtitle: bid.active > 0 ? '开标/评标阶段需关注' : notification.unread > 0 ? '建议及时查看' : '系统运行平稳',
-      tool: bid.active > 0 ? 'bid' : 'notification', args: bid.active > 0 ? { action: 'active' } : { action: 'list' },
+      icon: bid.active > 0 ? Calendar : notification.unread > 0 ? Bell : Calendar,
+      label: '今日重点事项',
+      subtitle: bid.active > 0
+        ? `${bid.active} 个招标项目进行中`
+        : notification.unread > 0
+          ? `${notification.unread} 条未读通知`
+          : '暂无紧急事项',
+      tool: bid.active > 0 ? 'bid' : 'notification',
+      args: bid.active > 0 ? { action: 'active' } : { action: 'list' },
     },
     {
-      icon: iconReport,
-      label: bid.total > 0 ? `基于${bid.total}个招标项目生成` : announcement.published > 0 ? `基于${announcement.published}条公告生成` : '生成招采运行汇报',
-      subtitle: '智能撰稿辅助',
+      icon: FileText,
+      label: '汇报材料生成',
+      subtitle: bid.total > 0
+        ? `基于 ${bid.total} 个招标项目生成汇报`
+        : '招采运行情况汇报提纲',
       tool: 'global_overview', args: { action: 'stats' },
     },
     {
-      icon: iconOps,
-      label: supplier.pending > 0 ? `${supplier.pending} 家供应商待审核` : procurement.pending > 0 ? `${procurement.pending} 个项目待审批` : '暂无待办事项',
-      subtitle: supplier.pending > 0 ? '建议尽快完成准入审核' : procurement.pending > 0 ? '采购立项需审批' : '点击查看全局状态',
-      tool: 'supplier', args: supplier.pending > 0 ? { action: 'pending' } : procurement.pending > 0 ? { action: 'pending' } : { action: 'stats' },
+      icon: hasPending ? AlertTriangle : ClipboardList,
+      label: '业务操作助手',
+      subtitle: supplier.pending > 0
+        ? `${supplier.pending} 家供应商待审核`
+        : procurement.pending > 0
+          ? `${procurement.pending} 个采购项目待审批`
+          : '暂无待办事项',
+      tool: supplier.pending > 0 ? 'supplier' : procurement.pending > 0 ? 'procurement' : 'supplier',
+      args: supplier.pending > 0
+        ? { action: 'pending' }
+        : procurement.pending > 0
+          ? { action: 'pending' }
+          : { action: 'stats' },
     },
   ];
 }
