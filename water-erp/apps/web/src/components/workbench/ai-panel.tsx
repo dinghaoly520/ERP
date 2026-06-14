@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles, RefreshCw, ArrowRight, Lightbulb } from 'lucide-react';
+import { Sparkles, RefreshCw, ArrowRight, Lightbulb, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { statusTone, type WorkbenchTone } from '@/lib/workbench';
 
@@ -14,24 +14,47 @@ export interface DashboardContext {
   applications?: { pending: number };
 }
 
-interface InsightHighlight {
+interface ModuleInsight {
   module: string;
-  metric: string;
-  comment: string;
+  status: '健康' | '关注' | '待处理';
+  analysis: string;
   path: string;
   tone: string;
+  metrics: string[];
 }
 
 interface InsightSuggestion {
+  priority: number;
   text: string;
   path: string;
+  impact: '高' | '中' | '低';
 }
 
 interface AiInsightResult {
   overview: string;
-  highlights: InsightHighlight[];
+  moduleInsights: ModuleInsight[];
+  crossInsight: string;
+  highlights: any[];
   suggestions: InsightSuggestion[];
 }
+
+const statusIcon: Record<string, typeof CheckCircle2> = {
+  '健康': CheckCircle2,
+  '关注': AlertCircle,
+  '待处理': AlertCircle,
+};
+
+const statusColor: Record<string, string> = {
+  '健康': 'text-emerald-600 bg-emerald-50 border-emerald-200',
+  '关注': 'text-amber-600 bg-amber-50 border-amber-200',
+  '待处理': 'text-orange-600 bg-orange-50 border-orange-200',
+};
+
+const impactBadge: Record<string, string> = {
+  '高': 'bg-red-50 text-red-700 border-red-200',
+  '中': 'bg-amber-50 text-amber-700 border-amber-200',
+  '低': 'bg-slate-100 text-slate-600 border-slate-200',
+};
 
 export function DashboardAiPanel({
   context,
@@ -56,11 +79,7 @@ export function DashboardAiPanel({
 
   const fetchInsight = async () => {
     if (totalItems === 0) {
-      setResult({
-        overview: '当前各业务中心暂无数据，请按需初始化业务模块。',
-        highlights: [],
-        suggestions: [],
-      });
+      setResult(null);
       setLoading(false);
       return;
     }
@@ -74,10 +93,8 @@ export function DashboardAiPanel({
         credentials: 'include',
       });
       const data = await res.json();
-      if (data.overview && Array.isArray(data.highlights)) {
+      if (data.overview) {
         setResult(data);
-      } else if (data.summary) {
-        setResult({ overview: data.summary, highlights: [], suggestions: [] });
       } else {
         throw new Error('invalid response');
       }
@@ -101,10 +118,12 @@ export function DashboardAiPanel({
     return map[t] || 'blue';
   };
 
+  const hasData = result && (result.moduleInsights?.length > 0 || result.highlights?.length > 0);
+
   return (
     <section className={cn('rounded-2xl border bg-white shadow-sm overflow-hidden', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#edf3fb] px-6 py-4 bg-gradient-to-r from-[#faf5ff] to-[#f5f3ff]">
+      <div className="flex items-center justify-between border-b border-[#edf3fb] px-6 py-4 bg-gradient-to-r from-[#faf5ff] via-[#f5f3ff] to-[#ede9fe]">
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#7c3aed] to-[#a78bfa] text-white shadow-[0_8px_20px_rgba(124,58,237,0.24)]">
             <Sparkles size={16} strokeWidth={1.8} />
@@ -119,41 +138,95 @@ export function DashboardAiPanel({
           className="flex items-center gap-1.5 rounded-xl border border-[#ddd6fe] bg-white px-3 py-1.5 text-xs font-bold text-[#7c3aed] hover:bg-[#f5f3ff] transition disabled:opacity-40"
         >
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-          刷新
+          刷新分析
         </button>
       </div>
 
       <div className="p-6">
-        {loading ? (
+        {!ready || loading ? (
           <div className="space-y-4">
-            <div className="flex items-center gap-3 py-2">
+            <div className="flex items-center gap-3">
               <div className="h-2 w-2 animate-pulse rounded-full bg-[#7c3aed]" />
-              <div className="h-2 w-64 animate-pulse rounded-full bg-[#edf3fb]" />
+              <div className="h-2 w-56 animate-pulse rounded-full bg-[#ede9fe]" />
+              <div className="h-2 w-32 animate-pulse rounded-full bg-[#edf3fb]" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-24 animate-pulse rounded-xl bg-[#f8fafc]" />
+                <div key={i} className="h-28 animate-pulse rounded-xl bg-[#faf5ff]" />
               ))}
             </div>
           </div>
         ) : error ? (
           <div className="rounded-xl border border-[#fed7aa] bg-[#fff7ed] p-4 text-sm text-[#9a3412]">
-            AI 引擎暂时不可用，请检查 API Key 配置或稍后刷新重试。
+            AI 引擎暂时不可用，请检查网络连接或稍后刷新重试。
+          </div>
+        ) : !hasData && totalItems === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f5f3ff]">
+              <TrendingUp size={24} className="text-[#a78bfa]" />
+            </div>
+            <p className="text-sm font-bold text-[#5a6d8a]">各中心暂无业务数据</p>
+            <p className="text-xs text-[#8a96aa] max-w-sm">请先通过信息发布中心录入公告、供应商管理中心注册供应商、专家管理中心建立专家库、电子商城导入目录数据，水叮当将基于实时数据为您提供运营分析。</p>
           </div>
         ) : (
-          <div className="space-y-5">
-            {/* Overview banner */}
+          <div className="space-y-6">
+            {/* Overview */}
             {result?.overview && (
-              <div className="flex items-start gap-3 rounded-xl bg-gradient-to-r from-[#faf5ff] to-[#f5f3ff] border border-[#ede9fe] p-4">
-                <Lightbulb size={16} className="mt-0.5 flex-shrink-0 text-[#7c3aed]" />
-                <p className="text-sm leading-6 text-[#4c1d95] font-bold">{result.overview}</p>
+              <div className="flex items-start gap-3 rounded-xl bg-gradient-to-r from-[#faf5ff] via-[#f8f4ff] to-[#f0ebff] border border-[#ede9fe] p-4">
+                <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-[#7c3aed] text-white">
+                  <Lightbulb size={13} strokeWidth={2} />
+                </div>
+                <p className="text-sm leading-7 text-[#4c1d95] font-semibold">{result.overview}</p>
               </div>
             )}
 
-            {/* Highlights grid */}
-            {result?.highlights && result.highlights.length > 0 && (
+            {/* Module Analysis Cards */}
+            {result?.moduleInsights && result.moduleInsights.length > 0 && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {result.moduleInsights.map((m, i) => {
+                  const StatusIcon = statusIcon[m.status] || AlertCircle;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => router.push(m.path)}
+                      className="group flex flex-col gap-3 rounded-xl border border-[#ede9fe] bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-[#c4b5fd]"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-black text-[#18243a]">{m.module}</span>
+                        <span className={cn('inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold', statusColor[m.status])}>
+                          <StatusIcon size={11} strokeWidth={2.5} />
+                          {m.status}
+                        </span>
+                      </div>
+                      <p className="text-xs leading-6 text-[#5a6d8a]">{m.analysis}</p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-2">
+                          {m.metrics.map((metric, j) => (
+                            <span key={j} className="rounded-lg bg-[#f8fafc] px-2 py-0.5 text-[11px] font-bold text-[#5a6d8a]">{metric}</span>
+                          ))}
+                        </div>
+                        <ArrowRight size={13} className="text-[#a78bfa] opacity-0 transition group-hover:opacity-100" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Cross-Module Insight */}
+            {result?.crossInsight && (
+              <div className="flex items-start gap-3 rounded-xl bg-gradient-to-r from-[#eff6ff] to-[#f5f3ff] border border-[#bfdbfe] p-4">
+                <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#064ea2] to-[#7c3aed] text-white">
+                  <TrendingUp size={13} strokeWidth={2} />
+                </div>
+                <p className="text-sm leading-7 text-[#1e3a5f] font-semibold">{result.crossInsight}</p>
+              </div>
+            )}
+
+            {/* Legacy highlights fallback */}
+            {!result?.moduleInsights?.length && result?.highlights && result.highlights.length > 0 && (
               <div className="grid grid-cols-2 gap-3">
-                {result.highlights.map((h, i) => {
+                {result.highlights.map((h: any, i: number) => {
                   const tone = toneToWorkbenchTone(h.tone);
                   const tc = statusTone[tone];
                   return (
@@ -163,44 +236,39 @@ export function DashboardAiPanel({
                       className="group flex flex-col gap-2 rounded-xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
                       style={{ borderColor: tc.border, backgroundColor: tc.bg }}
                     >
-                      <span className="inline-flex items-center gap-1.5 self-start rounded-lg px-2 py-0.5 text-[11px] font-bold" style={{ color: tc.color, backgroundColor: 'rgba(255,255,255,0.7)' }}>
-                        {h.module}
-                      </span>
+                      <span className="inline-flex items-center gap-1.5 self-start rounded-lg px-2 py-0.5 text-[11px] font-bold" style={{ color: tc.color, backgroundColor: 'rgba(255,255,255,0.7)' }}>{h.module}</span>
                       <div className="text-lg font-black" style={{ color: tc.color }}>{h.metric}</div>
                       <p className="text-xs text-[#5a6d8a]">{h.comment}</p>
-                      <div className="mt-auto flex items-center gap-1 text-xs font-bold opacity-0 transition group-hover:opacity-100" style={{ color: tc.color }}>
-                        前往处理 <ArrowRight size={12} />
-                      </div>
                     </button>
                   );
                 })}
               </div>
             )}
 
-            {/* Suggestions */}
+            {/* Suggestions with priority & impact */}
             {result?.suggestions && result.suggestions.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-[#8a96aa]">
-                  <Lightbulb size={12} /> 今日建议
+                <div className="flex items-center gap-2 text-xs font-black text-[#5a6d8a]">
+                  <TrendingUp size={13} /> 优先级行动建议
                 </div>
                 <div className="grid gap-2">
                   {result.suggestions.map((s, i) => (
                     <button
                       key={i}
                       onClick={() => router.push(s.path)}
-                      className="flex items-center justify-between rounded-xl border border-[#ede9fe] bg-[#faf5ff] px-4 py-2.5 text-left text-sm font-bold text-[#7c3aed] transition hover:bg-[#f5f3ff] hover:border-[#c4b5fd]"
+                      className="flex items-center justify-between rounded-xl border border-[#ede9fe] bg-[#faf5ff] px-4 py-3 text-left transition hover:bg-[#f5f3ff] hover:border-[#c4b5fd]"
                     >
-                      <span>{s.text}</span>
-                      <ArrowRight size={14} />
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-[#7c3aed] text-[11px] font-black text-white">{s.priority}</span>
+                        <span className="text-sm font-bold text-[#4c1d95] truncate">{s.text}</span>
+                      </div>
+                      <span className={cn('ml-3 flex-shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold', impactBadge[s.impact])}>
+                        {s.impact}影响
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
-            )}
-
-            {/* Empty state */}
-            {!result?.highlights?.length && !result?.suggestions?.length && result?.overview && (
-              <p className="text-sm text-[#5a6d8a] text-center py-8">{result.overview}</p>
             )}
           </div>
         )}
