@@ -15,6 +15,7 @@ import { ProcurementModule } from './procurement/procurement.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { BudgetModule } from './budget/budget.module';
 import { AuditModule } from './audit/audit.module';
+import { AssistantModule } from './assistant/assistant.module';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -35,6 +36,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     CatalogModule,
     BudgetModule,
     AuditModule,
+    AssistantModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

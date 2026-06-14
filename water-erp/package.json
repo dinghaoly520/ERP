@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "concurrently -n mall,supplier,web,expert,public,bid,api -c magenta,green,blue,purple,cyan,red,yellow \"pnpm dev:mall\" \"pnpm dev:supplier\" \"pnpm dev:web\" \"pnpm dev:expert\" \"pnpm dev:public\" \"pnpm dev:bid\" \"pnpm dev:api\"",
     "dev:api": "pnpm --filter api start:dev",
+    "dev:assistant": "pnpm --filter assistant dev",
     "dev:bid": "pnpm --filter bid-portal dev",
     "dev:public": "pnpm --filter public-portal dev",
     "dev:web": "pnpm --filter web dev",
@@ -15,6 +16,7 @@
     "build": "pnpm -r build",
     "build:api": "pnpm --filter api build",
     "build:web": "pnpm --filter web build",
+    "build:assistant": "pnpm --filter assistant build",
     "build:bid": "pnpm --filter bid-portal build",
     "build:mall": "pnpm --filter mall build",
     "build:expert": "pnpm --filter expert-portal build",

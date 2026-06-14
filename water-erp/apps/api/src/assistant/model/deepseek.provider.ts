@@ -1,0 +1,67 @@
+import { Injectable } from '@nestjs/common';
+import {
+  AssistantModelProvider,
+  ChatMessage,
+  ModelResponse,
+} from './assistant-model-provider';
+
+@Injectable()
+export class DeepSeekProvider extends AssistantModelProvider {
+  private readonly baseUrl: string;
+  private readonly apiKey: string;
+  private readonly model: string;
+
+  constructor() {
+    super();
+    this.apiKey = process.env.DEEPSEEK_API_KEY || '';
+    this.baseUrl =
+      process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1';
+    this.model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+  }
+
+  async chat(
+    messages: ChatMessage[],
+    options?: { temperature?: number; maxTokens?: number },
+  ): Promise<ModelResponse> {
+    if (!this.apiKey) {
+      throw new Error('DeepSeek API Key 未配置，请在 .env 中设置 DEEPSEEK_API_KEY');
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    try {
+      const res = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages,
+          temperature: options?.temperature ?? 0.7,
+          max_tokens: options?.maxTokens ?? 4000,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          err.error?.message || `DeepSeek API 返回错误 (${res.status})`,
+        );
+      }
+
+      const data = await res.json();
+      return { text: data.choices[0].message.content };
+    } catch (e) {
+      clearTimeout(timeoutId);
+      if ((e as Error).name === 'AbortError') {
+        throw new Error('AI 请求超时，请稍后重试');
+      }
+      throw e;
+    }
+  }
+}

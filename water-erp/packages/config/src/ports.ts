@@ -7,6 +7,7 @@ export const PORTS = {
   expert: 3005,
   public: 3006,
   bid: 3007,
+  assistant: 3008,
 } as const;
 
 export type AppName = keyof typeof PORTS;

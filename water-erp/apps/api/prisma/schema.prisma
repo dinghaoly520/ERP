@@ -865,3 +865,43 @@ model AuditLog {
 
   @@index([userId, createdAt])
 }
+
+// ── 水叮当智能助手 ──
+
+model AssistantConversation {
+  id        String              @id @default(cuid())
+  title     String?
+  messages  AssistantMessage[]
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+}
+
+model AssistantMessage {
+  id             String               @id @default(cuid())
+  conversationId String
+  role           String               // user | assistant | tool
+  content        String
+  cardsJson      Json?
+  citationsJson  Json?
+  createdAt      DateTime             @default(now())
+  conversation   AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model AssistantActionLog {
+  id             String    @id @default(cuid())
+  conversationId String?
+  actionType     String
+  status         String    // pending | confirmed | cancelled | success | failed
+  targetType     String?
+  targetId       String?
+  payloadJson    Json
+  resultJson     Json?
+  riskLevel      String    // low | medium | high
+  createdAt      DateTime  @default(now())
+  confirmedAt    DateTime?
+  executedAt     DateTime?
+
+  @@index([status])
+}
