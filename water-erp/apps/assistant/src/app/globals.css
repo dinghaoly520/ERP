@@ -1,38 +1,112 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
 
 @import "tailwindcss";
 
 /* =============================================================================
    水叮当智能助手 — Design Tokens
-   借鉴 Paper 的轻玻璃化蓝青智能感，适配 ERP 工业精密 DNA
+   复刻 Paper 项目：轻玻璃化 / 蓝青 / 海军蓝 + 香槟金点缀
    ============================================================================= */
 
 :root {
-  --color-bg: oklch(0.982 0.003 264);
-  --color-surface: oklch(1 0 0);
-  --color-border: oklch(0.91 0.006 264);
-  --color-text: oklch(0.18 0.012 265);
-  --color-text-secondary: oklch(0.45 0.01 264);
-  --color-text-tertiary: oklch(0.62 0.008 264);
-  --color-blue-950: oklch(0.18 0.045 262);
-  --color-blue-700: oklch(0.42 0.14 260);
-  --color-blue-600: oklch(0.50 0.16 258);
-  --color-success: oklch(0.54 0.16 158);
-  --color-warning: oklch(0.64 0.16 82);
-  --color-danger: oklch(0.50 0.18 22);
+  /* Primary - Trust Blue */
+  --primary: #2563EB;
+  --primary-light: #3B82F6;
+  --primary-dark: #1D4ED8;
+  --primary-bg: rgba(37, 99, 235, 0.08);
 
-  /* 助手专属：玻璃质感 */
-  --glass-bg: rgba(255, 255, 255, 0.72);
-  --glass-border: rgba(73, 145, 180, 0.15);
-  --glass-shadow: 0 18px 55px rgba(53, 129, 173, 0.12);
-  --accent-blue: oklch(0.55 0.16 252);
-  --home-gradient: linear-gradient(135deg, oklch(0.985 0.004 260) 0%, oklch(0.975 0.006 258) 100%);
+  /* Accent - Champagne Gold */
+  --accent-gold: #d6ab67;
+  --accent-gold-strong: #c88e3a;
+  --accent-gold-soft: #f0dfbd;
+  --accent-gold-bg: rgba(214, 171, 103, 0.16);
+  --accent-gold-shadow: rgba(214, 171, 103, 0.2);
+
+  /* Semantic */
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --error: #EF4444;
+
+  /* Text - 深蓝商务风 */
+  --text-heading: #1a2332;
+  --text-primary: #2d3748;
+  --text-secondary: #4a5568;
+  --text-muted: #718096;
+  --text-hint: #a0aec0;
+
+  /* Border & Surface */
+  --border: #E2E8F0;
+  --border-light: #F1F5F9;
+  --surface-warm: rgba(252, 246, 235, 0.56);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(37, 99, 235, 0.08);
+  --shadow-lg: 0 8px 24px rgba(37, 99, 235, 0.12);
+
+  /* Typography */
+  --font-sans: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-heading: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  --font-xs: 12px;
+  --font-sm: 13px;
+  --font-base: 14px;
+  --font-md: 15px;
+  --font-lg: 16px;
+  --font-xl: 18px;
+  --font-2xl: 22px;
+  --font-3xl: 28px;
+  --font-4xl: 36px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Easing */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
+/* Reset & Base */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 0.8125rem;
-  color: var(--color-text);
-  background: var(--color-bg);
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-base);
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: #F8FAFC;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.15);
+  color: var(--text-primary);
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--primary-light); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

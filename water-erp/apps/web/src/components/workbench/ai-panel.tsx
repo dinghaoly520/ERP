@@ -79,12 +79,6 @@ export function DashboardAiPanel({ context, className }: { context: DashboardCon
         ) : (
           <div className="space-y-3">
             <p className="text-sm leading-7 text-[#18243a]">{result?.summary}</p>
-            {!error && (
-              <div className="flex items-center gap-2 rounded-xl bg-[#f5f3ff] px-3 py-2 text-xs font-bold text-[#7c3aed]">
-                <Sparkles size={12} />
-                AI 生成内容仅供参考，不替代管理判断
-              </div>
-            )}
             {error && (
               <div className="rounded-xl bg-[#fff7ed] px-3 py-2 text-xs font-bold text-[#9a3412]">
                 如持续异常，请检查 API Key 配置或网络连接。

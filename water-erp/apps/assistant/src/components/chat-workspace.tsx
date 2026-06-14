@@ -1,10 +1,11 @@
 'use client';
 
 import { useMemo } from 'react';
-import { PromptBox } from './prompt-box';
+import { Send, Loader2, PanelRightOpen } from 'lucide-react';
 import { MessageList } from './message-list';
 import { AnalysisCanvas } from './analysis-canvas';
 import type { Message, AssistantCard as AssistantCardType, AssistantCitation } from '@/lib/types';
+import styles from './chat-workspace.module.css';
 
 export function ChatWorkspace({
   messages,
@@ -19,11 +20,9 @@ export function ChatWorkspace({
   onConfirmAction: (id: string) => void;
   onCancelAction: (id: string) => void;
 }) {
-  // Collect all cards and citations from the last assistant message
+  // Collect cards/citations from the latest assistant message
   const { cards, citations } = useMemo(() => {
-    const lastAssistant = [...messages]
-      .reverse()
-      .find((m) => m.role === 'assistant');
+    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
     return {
       cards: (lastAssistant?.cards as AssistantCardType[]) || [],
       citations: (lastAssistant?.citations as AssistantCitation[]) || [],
@@ -32,36 +31,47 @@ export function ChatWorkspace({
 
   const hasCanvas = cards.length > 0 || citations.length > 0;
 
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const val = (e.target as HTMLTextAreaElement).value.trim();
+      if (val && !isLoading) {
+        onSend(val);
+        (e.target as HTMLTextAreaElement).value = '';
+      }
+    }
+  };
+
+  const handleSendClick = () => {
+    const textarea = document.querySelector(`.${styles.aiInput}`) as HTMLTextAreaElement;
+    if (textarea) {
+      const val = textarea.value.trim();
+      if (val && !isLoading) {
+        onSend(val);
+        textarea.value = '';
+      }
+    }
+  };
+
   return (
-    <div className="flex h-screen">
+    <div className={styles.workspace}>
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={styles.main}>
         {/* Header */}
-        <header
-          className="flex items-center justify-between px-6 py-3 border-b flex-shrink-0"
-          style={{ borderColor: 'var(--color-border)' }}
-        >
-          <div className="flex items-center gap-2">
-            <span
-              className="text-sm font-semibold"
-              style={{ color: 'var(--color-text)' }}
-            >
-              水叮当智能助手
-            </span>
-            <span
-              className="text-xs"
-              style={{ color: 'var(--color-text-tertiary)' }}
-            >
-              SHUIDINGDANG AI
-            </span>
-          </div>
+        <header className={styles.header}>
+          <span className={styles.headerTitle}>
+            水叮当智能助手
+            <span className={styles.headerBadge}>SHUIDINGDANG AI</span>
+          </span>
+          {hasCanvas ? null : (
+            <button className={styles.canvasToggle}>
+              <PanelRightOpen size={16} />
+            </button>
+          )}
         </header>
 
         {/* Messages */}
-        <div
-          className="flex-1 overflow-y-auto px-6 py-4"
-          style={{ background: 'var(--home-gradient)' }}
-        >
+        <div className={styles.messages}>
           <MessageList
             messages={messages}
             onConfirmAction={onConfirmAction}
@@ -70,9 +80,29 @@ export function ChatWorkspace({
         </div>
 
         {/* Input */}
-        <div className="px-6 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--color-border)' }}>
-          <div className="flex justify-center">
-            <PromptBox onSend={onSend} isLoading={isLoading} />
+        <div className={styles.inputBar}>
+          <div className={styles.inputWrapper}>
+            <div className={styles.commandBox}>
+              <textarea
+                className={styles.aiInput}
+                placeholder="输入问题 / 生成分析 / 操作业务..."
+                rows={1}
+                onKeyDown={handleInputKeyDown}
+                disabled={isLoading}
+              />
+              <button
+                className={`${styles.sendBtn} ${isLoading ? '' : styles.active}`}
+                onClick={handleSendClick}
+                disabled={isLoading}
+                type="button"
+              >
+                {isLoading ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Send size={16} />
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>

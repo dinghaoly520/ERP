@@ -600,11 +600,11 @@ export class AiService {
       return { summary: 'AI 引擎暂未配置（DEEPSEEK_API_KEY 缺失），无法生成运营摘要。', level: 'info' as const };
     }
 
-    const s = context.supplier || {};
-    const a = context.announcement || {};
-    const e = context.expert || {};
-    const c = context.catalog || {};
-    const apps = context.applications || {};
+    const s = context.supplier || { total: 0, approved: 0, pending: 0, risk: 0 };
+    const a = context.announcement || { total: 0, published: 0, draftLike: 0 };
+    const e = context.expert || { total: 0, active: 0, unfinished: 0 };
+    const c = context.catalog || { total: 0, active: 0, alerts: 0 };
+    const apps = context.applications || { pending: 0 };
 
     const systemPrompt = [
       '你是四川水发集团智慧招采ERP中的"水叮当"——采购运营智能管理助手。',

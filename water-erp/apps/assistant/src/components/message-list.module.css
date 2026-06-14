@@ -1,0 +1,245 @@
+/* ---------- 消息流 ---------- */
+.messageList {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+/* ---------- 消息气泡 ---------- */
+.userBubble {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.userContent {
+  max-width: 70%;
+  padding: 10px 18px;
+  border-radius: 18px 18px 4px 18px;
+  background: linear-gradient(135deg, #2d6bca 0%, #4478e8 100%);
+  color: #fff;
+  font-size: var(--font-sm);
+  line-height: 1.65;
+  box-shadow: 0 4px 12px rgba(45, 107, 202, 0.18);
+}
+
+.assistantBubble {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.assistantContent {
+  max-width: 85%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.assistantText {
+  font-size: var(--font-sm);
+  line-height: 1.75;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---------- 卡片区 ---------- */
+.cardsArea {
+  display: grid;
+  gap: 12px;
+}
+
+.metricRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+/* ---------- 指标卡 ---------- */
+.metricCard {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.64) 0%, rgba(244, 249, 255, 0.44) 100%);
+  border: 1px solid rgba(201, 217, 239, 0.38);
+  box-shadow: 0 2px 10px rgba(19, 36, 62, 0.03);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.metricLabel {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.metricValue {
+  font-family: var(--font-mono);
+  font-size: var(--font-2xl);
+  font-weight: 700;
+  color: var(--text-heading);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.metricTrend {
+  font-size: var(--font-xs);
+  font-family: var(--font-sans);
+  font-weight: 600;
+}
+
+/* ---------- 表格卡 ---------- */
+.tableCard {
+  border-radius: 16px;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.64) 0%, rgba(244, 249, 255, 0.44) 100%);
+  border: 1px solid rgba(201, 217, 239, 0.38);
+  box-shadow: 0 2px 10px rgba(19, 36, 62, 0.03);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.tableHeader {
+  padding: 10px 16px;
+  font-size: var(--font-xs);
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(240, 245, 255, 0.5);
+  border-bottom: 1px solid rgba(201, 217, 239, 0.3);
+}
+
+.tableBody {
+  overflow-x: auto;
+}
+
+.tableBody table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tableBody th {
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: left;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(201, 217, 239, 0.25);
+  white-space: nowrap;
+  background: rgba(248, 251, 255, 0.6);
+}
+
+.tableBody td {
+  font-size: var(--font-xs);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(201, 217, 239, 0.15);
+  white-space: nowrap;
+}
+
+/* ---------- 引用来源 ---------- */
+.citations {
+  padding-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.citationTag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: var(--font-xs);
+  color: var(--text-hint);
+  background: rgba(240, 245, 255, 0.7);
+  border: 1px solid rgba(201, 217, 239, 0.3);
+}
+
+/* ---------- 时间戳 ---------- */
+.timestamp {
+  font-size: 11px;
+  color: var(--text-hint);
+  margin-top: 4px;
+}
+
+/* ---------- 操作预案卡 ---------- */
+.actionCard {
+  padding: 16px;
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.64) 0%, rgba(252, 248, 240, 0.44) 100%);
+  border: 1px solid rgba(214, 171, 103, 0.3);
+  box-shadow: 0 2px 10px rgba(19, 36, 62, 0.03);
+}
+
+.actionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.actionTitle {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+.riskBadge {
+  font-size: var(--font-xs);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.actionChanges {
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  line-height: 1.8;
+}
+
+.actionButtonRow {
+  display: flex;
+  gap: 8px;
+}
+
+.confirmBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #2d6bca 0%, #6f7cff 100%);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.confirmBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(86, 108, 223, 0.22);
+}
+
+.cancelBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.cancelBtn:hover {
+  border-color: var(--text-muted);
+}
