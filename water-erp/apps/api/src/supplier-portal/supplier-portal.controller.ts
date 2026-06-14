@@ -149,7 +149,11 @@ export class SupplierPortalController {
   async saveBidDraft(
     @Request() req: any,
     @Param('projectId') projectId: string,
-    @Body() body: { bidPrice?: string; deliveryPeriod?: string; technicalFile?: string; businessFile?: string; coverLetter?: string },
+    @Body() body: {
+      bidPrice?: string; deliveryPeriod?: string;
+      technicalFile?: string; businessFile?: string; coverLetter?: string;
+      technicalFileAssetId?: string; businessFileAssetId?: string; coverLetterAssetId?: string;
+    },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.saveBidDraft(supplierId, projectId, body);
@@ -159,7 +163,11 @@ export class SupplierPortalController {
   async submitBid(
     @Request() req: any,
     @Param('projectId') projectId: string,
-    @Body() body: { bidPrice?: string; deliveryPeriod?: string; technicalFile?: string; businessFile?: string; coverLetter?: string },
+    @Body() body: {
+      bidPrice?: string; deliveryPeriod?: string;
+      technicalFile?: string; businessFile?: string; coverLetter?: string;
+      technicalFileAssetId?: string; businessFileAssetId?: string; coverLetterAssetId?: string;
+    },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.submitBid(supplierId, projectId, body);
@@ -169,6 +177,30 @@ export class SupplierPortalController {
   async withdrawSubmission(@Request() req: any, @Param('submissionId') submissionId: string) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.withdrawSubmission(supplierId, submissionId);
+  }
+
+  // ─── 开标确认（供应商侧）───
+
+  @Get('bid-submissions/:projectId/opening-record')
+  async getMyOpeningRecord(@Request() req: any, @Param('projectId') projectId: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getMyOpeningRecord(supplierId, projectId);
+  }
+
+  @Post('bid-submissions/:projectId/opening-confirm')
+  async confirmOpening(@Request() req: any, @Param('projectId') projectId: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.confirmOpening(supplierId, projectId);
+  }
+
+  @Post('bid-submissions/:projectId/opening-dispute')
+  async disputeOpening(
+    @Request() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: { reason: string },
+  ) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.disputeOpening(supplierId, projectId, body.reason);
   }
 
   // ─── Password ───

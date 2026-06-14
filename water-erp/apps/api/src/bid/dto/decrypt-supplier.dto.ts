@@ -1,15 +1,18 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class DecryptSupplierDto {
-  @IsString() @IsNotEmpty()
-  amount: string;
+  @IsString() @IsOptional()
+  amount?: string;
 
-  @IsString() @IsNotEmpty()
-  period: string;
+  @IsString() @IsOptional()
+  period?: string;
 
-  @IsString() @IsNotEmpty()
-  qualityTarget: string;
+  @IsString() @IsOptional()
+  qualityTarget?: string;
 
-  @IsString() @IsNotEmpty()
-  bondStatus: string;
+  @IsString() @IsOptional()
+  bondStatus?: string;
+
+  @IsBoolean() @IsOptional()
+  simulateDanger?: boolean;
 }

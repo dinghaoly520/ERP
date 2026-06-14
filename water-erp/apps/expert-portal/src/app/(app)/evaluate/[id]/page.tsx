@@ -95,12 +95,22 @@ export default function ExpertEvaluatePage() {
 
   const handleSubmitScores = async () => {
     if (!project || !scoringSupplier) return;
-    const items = project.scoreItems.map(si => ({
-      scoreItemId: si.id, score: scores[si.id]?.score ?? 0, reason: scores[si.id]?.reason ?? '',
+    if (expert?.reportConfirmed) { toast.warning('评审报告已确认，评分已锁定'); return; }
+    const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
+    const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回';
+    if (!canScoreActiveSupplier) {
+      toast.warning('该投标单位未解密成功或已撤回，不能评分');
+      return;
+    }
+    const scoresPayload = project.scoreItems.map(si => ({
+      scoreItemId: si.id,
+      supplierId: activeSupplier,
+      score: scores[si.id]?.score ?? 0,
+      reason: scores[si.id]?.reason ?? '',
     }));
-    if (items.some(i => i.score === 0)) { toast.warning('部分评分项得分为0，请确认后再次提交'); return; }
+    if (scoresPayload.some(i => i.score === 0)) { toast.warning('部分评分项得分为0，请确认后再次提交'); return; }
     setBusy(true);
-    try { await api.post(`/expert/projects/${projectId}/scores`, { items, supplierName: scoringSupplier }); loadProject(); toast.success('评分提交成功'); }
+    try { await api.post(`/expert/projects/${projectId}/scores`, { scores: scoresPayload, supplierName: scoringSupplier }); loadProject(); toast.success('评分提交成功'); }
     catch (e: any) { toast.error(e.message || '提交失败'); }
     setBusy(false);
   };
@@ -122,6 +132,16 @@ export default function ExpertEvaluatePage() {
   if (loading || !project) return <div className="flex items-center justify-center h-64 text-[oklch(0.55_0.01_264)]">加载中...</div>;
 
   const decryptLabel: Record<string, string> = { PENDING: '待解密', RUNNING: '解密中', SUCCESS: '已解密', DANGER: '异常' };
+  const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
+  const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回';
+  const scoreLocked = !!expert?.reportConfirmed;
+
+  const formatBytes = (n: number) => {
+    if (!n) return '—';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  };
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)]">
@@ -281,17 +301,23 @@ export default function ExpertEvaluatePage() {
 
                   {documents.canView && (
                     <div className="grid grid-cols-2 gap-4">
-                      {documents.documents.map((doc, i) => (
+                      {documents.documents.length === 0 ? (
+                        <div className="col-span-2 text-center py-10 text-[oklch(0.55_0.01_264)]">该供应商未提交可查看的投标文件</div>
+                      ) : documents.documents.map((doc, i) => (
                         <div key={i} className="flex items-center gap-4 p-4 bg-blue-50 rounded-xl border border-blue-100 hover:shadow-md transition-all">
-                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0e62d0] flex items-center justify-center text-white text-xs font-bold">{doc.type}</div>
+                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0e62d0] flex items-center justify-center text-white text-[10px] font-bold uppercase">{doc.type.replace('application/', '').replace('image/', '')}</div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-[oklch(0.18_0.012_265)] truncate">{doc.name}</h4>
+                            <h4 className="font-semibold text-[oklch(0.18_0.012_265)] truncate" title={doc.originalName}>{doc.originalName}</h4>
                             <div className="flex items-center gap-3 mt-1">
-                              <span className="text-xs text-[oklch(0.55_0.01_264)]">{doc.size}</span>
+                              <span className="text-xs text-[oklch(0.55_0.01_264)]">{formatBytes(doc.size)}</span>
                               <span className="text-xs text-emerald-600 font-semibold">{doc.status}</span>
                             </div>
                           </div>
-                          <button className="px-3 py-1.5 bg-[#064ea2] text-white text-xs rounded-lg hover:bg-[#043d82] transition"><Download size={14} strokeWidth={1.5} /> 下载</button>
+                          {doc.downloadUrl ? (
+                            <a href={doc.downloadUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-3 py-1.5 bg-[#064ea2] text-white text-xs rounded-lg hover:bg-[#043d82] transition"><Download size={14} strokeWidth={1.5} /> 预览/下载</a>
+                          ) : (
+                            <span className="text-xs text-[oklch(0.62_0.008_264)] px-3 py-1.5">待解密</span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -554,9 +580,19 @@ export default function ExpertEvaluatePage() {
                           </div>
                         </div>
                       </div>
-                      <button onClick={handleSubmitScores} disabled={busy}
+                      {scoreLocked && (
+                        <div className="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-700">
+                          评审报告已确认，评分已锁定，不可再修改。
+                        </div>
+                      )}
+                      {!canScoreActiveSupplier && !scoreLocked && (
+                        <div className="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-700">
+                          当前投标单位未解密成功或已撤回，不能提交评分。
+                        </div>
+                      )}
+                      <button onClick={handleSubmitScores} disabled={busy || !canScoreActiveSupplier || scoreLocked}
                         className="w-full py-3 bg-[#064ea2] text-white rounded-lg font-bold text-sm hover:bg-[#043d82] transition disabled:opacity-50">
-                        {busy ? '提交中...' : `提交 ${scoringSupplier} 的评分`}
+                        {busy ? '提交中...' : scoreLocked ? '评分已锁定' : `提交 ${scoringSupplier} 的评分`}
                       </button>
                     </div>
                   </div>

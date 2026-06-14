@@ -82,6 +82,12 @@ const router = createRouter({
           meta: { title: '我的投标', icon: 'DocumentChecked' },
         },
         {
+          path: 'my-bids/:projectId/opening-confirm',
+          name: 'OpeningConfirm',
+          component: () => import('@/views/bid/OpeningConfirm.vue'),
+          meta: { title: '开标确认' },
+        },
+        {
           path: 'announcements',
           name: 'Announcements',
           component: () => import('@/views/announcement/AnnouncementList.vue'),
