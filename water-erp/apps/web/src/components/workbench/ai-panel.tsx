@@ -2,9 +2,8 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles, RefreshCw, ArrowRight, Lightbulb, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Sparkles, RefreshCw, ArrowRight, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { statusTone, type WorkbenchTone } from '@/lib/workbench';
 
 export interface DashboardContext {
   supplier?: { total: number; approved: number; pending: number; risk: number };
@@ -38,22 +37,10 @@ interface AiInsightResult {
   suggestions: InsightSuggestion[];
 }
 
-const statusIcon: Record<string, typeof CheckCircle2> = {
-  '健康': CheckCircle2,
-  '关注': AlertCircle,
-  '待处理': AlertCircle,
-};
-
-const statusColor: Record<string, string> = {
-  '健康': 'text-emerald-600 bg-emerald-50 border-emerald-200',
-  '关注': 'text-amber-600 bg-amber-50 border-amber-200',
-  '待处理': 'text-orange-600 bg-orange-50 border-orange-200',
-};
-
-const impactBadge: Record<string, string> = {
-  '高': 'bg-red-50 text-red-700 border-red-200',
-  '中': 'bg-amber-50 text-amber-700 border-amber-200',
-  '低': 'bg-slate-100 text-slate-600 border-slate-200',
+const dotColor: Record<string, string> = {
+  '健康': 'bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.4)]',
+  '关注': 'bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.4)]',
+  '待处理': 'bg-orange-400 shadow-[0_0_6px_rgba(249,115,22,0.4)]',
 };
 
 export function DashboardAiPanel({
@@ -78,193 +65,130 @@ export function DashboardAiPanel({
     (context.catalog?.total ?? 0);
 
   const fetchInsight = async () => {
-    if (totalItems === 0) {
-      setResult(null);
-      setLoading(false);
-      return;
-    }
+    if (totalItems === 0) { setResult(null); setLoading(false); return; }
     setLoading(true);
     setError(false);
     try {
       const res = await fetch('/api/ai/dashboard-summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(context),
-        credentials: 'include',
+        body: JSON.stringify(context), credentials: 'include',
       });
       const data = await res.json();
-      if (data.overview) {
-        setResult(data);
-      } else {
-        throw new Error('invalid response');
-      }
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
+      if (data.overview) setResult(data);
+      else throw new Error('invalid');
+    } catch { setError(true); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => {
-    if (ready && !fetchedRef.current) {
-      fetchedRef.current = true;
-      fetchInsight();
-    }
+    if (ready && !fetchedRef.current) { fetchedRef.current = true; fetchInsight(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, totalItems]);
 
-  const toneToWorkbenchTone = (t: string): WorkbenchTone => {
-    const map: Record<string, WorkbenchTone> = { blue: 'blue', green: 'green', orange: 'orange', purple: 'purple', cyan: 'cyan', red: 'red' };
-    return map[t] || 'blue';
-  };
-
-  const hasData = result && (result.moduleInsights?.length > 0 || result.highlights?.length > 0);
+  if (!ready) return null;
 
   return (
-    <section className={cn('rounded-2xl border bg-white shadow-sm overflow-hidden', className)}>
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#edf3fb] px-6 py-4 bg-gradient-to-r from-[#faf5ff] via-[#f5f3ff] to-[#ede9fe]">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#7c3aed] to-[#a78bfa] text-white shadow-[0_8px_20px_rgba(124,58,237,0.24)]">
-            <Sparkles size={16} strokeWidth={1.8} />
-          </div>
-          <div>
-            <h2 className="text-base font-black text-[#18243a]">水叮当智能管理助手</h2>
-          </div>
+    <section className={cn('relative overflow-hidden rounded-[20px] bg-white shadow-[0_4px_24px_rgba(15,23,42,0.06)] ring-1 ring-black/[0.03]', className)}>
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between border-b border-[#f0edf6] px-6 py-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#18181b] text-white">
+            <Sparkles size={14} strokeWidth={1.6} />
+          </span>
+          <span className="text-[15px] font-semibold tracking-tight text-[#18181b]">水叮当</span>
+          <span className="hidden sm:inline text-[13px] text-[#a1a1aa]">智能运营分析</span>
         </div>
-        <button
-          onClick={fetchInsight}
-          disabled={loading}
-          className="flex items-center gap-1.5 rounded-xl border border-[#ddd6fe] bg-white px-3 py-1.5 text-xs font-bold text-[#7c3aed] hover:bg-[#f5f3ff] transition disabled:opacity-40"
-        >
+        <button onClick={fetchInsight} disabled={loading}
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-[#71717a] hover:bg-[#f4f4f5] transition disabled:opacity-40">
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-          刷新分析
+          刷新
         </button>
       </div>
 
-      <div className="p-6">
-        {!ready || loading ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="h-2 w-2 animate-pulse rounded-full bg-[#7c3aed]" />
-              <div className="h-2 w-56 animate-pulse rounded-full bg-[#ede9fe]" />
-              <div className="h-2 w-32 animate-pulse rounded-full bg-[#edf3fb]" />
+      <div className="px-6 py-5">
+        {/* ── Loading ── */}
+        {loading && (
+          <div className="space-y-4 py-2">
+            <div className="h-4 w-3/4 animate-pulse rounded bg-[#f4f4f5]" />
+            <div className="grid grid-cols-4 gap-3">
+              {[1, 2, 3, 4].map(i => <div key={i} className="h-20 animate-pulse rounded-xl bg-[#fafafa]" />)}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-28 animate-pulse rounded-xl bg-[#faf5ff]" />
-              ))}
+            <div className="space-y-2">
+              <div className="h-4 w-1/3 animate-pulse rounded bg-[#f4f4f5]" />
+              <div className="h-4 w-2/3 animate-pulse rounded bg-[#f4f4f5]" />
             </div>
           </div>
-        ) : error ? (
-          <div className="rounded-xl border border-[#fed7aa] bg-[#fff7ed] p-4 text-sm text-[#9a3412]">
-            AI 引擎暂时不可用，请检查网络连接或稍后刷新重试。
+        )}
+
+        {/* ── Error ── */}
+        {!loading && error && (
+          <div className="py-6 text-center text-sm text-[#a1a1aa]">
+            AI 引擎暂不可用，请检查网络后刷新重试
           </div>
-        ) : !hasData && totalItems === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f5f3ff]">
-              <TrendingUp size={24} className="text-[#a78bfa]" />
-            </div>
-            <p className="text-sm font-bold text-[#5a6d8a]">各中心暂无业务数据</p>
-            <p className="text-xs text-[#8a96aa] max-w-sm">请先通过信息发布中心录入公告、供应商管理中心注册供应商、专家管理中心建立专家库、电子商城导入目录数据，水叮当将基于实时数据为您提供运营分析。</p>
+        )}
+
+        {/* ── Empty ── */}
+        {!loading && !error && totalItems === 0 && (
+          <div className="py-8 text-center">
+            <p className="text-sm font-medium text-[#52525b]">暂无业务数据</p>
+            <p className="mt-1.5 text-xs text-[#a1a1aa] max-w-xs mx-auto leading-relaxed">
+              录入公告、供应商、专家和目录数据后，水叮当将自动生成运营洞察
+            </p>
           </div>
-        ) : (
-          <div className="space-y-6">
+        )}
+
+        {/* ── Content ── */}
+        {!loading && !error && totalItems > 0 && (
+          <div className="space-y-5">
             {/* Overview */}
             {result?.overview && (
-              <div className="flex items-start gap-3 rounded-xl bg-gradient-to-r from-[#faf5ff] via-[#f8f4ff] to-[#f0ebff] border border-[#ede9fe] p-4">
-                <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-[#7c3aed] text-white">
-                  <Lightbulb size={13} strokeWidth={2} />
-                </div>
-                <p className="text-sm leading-7 text-[#4c1d95] font-semibold">{result.overview}</p>
-              </div>
+              <p className="text-sm leading-7 text-[#3f3f46]">{result.overview}</p>
             )}
 
-            {/* Module Analysis Cards */}
+            {/* Module Insights — horizontal row */}
             {result?.moduleInsights && result.moduleInsights.length > 0 && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {result.moduleInsights.map((m, i) => {
-                  const StatusIcon = statusIcon[m.status] || AlertCircle;
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => router.push(m.path)}
-                      className="group flex flex-col gap-3 rounded-xl border border-[#ede9fe] bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-[#c4b5fd]"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-black text-[#18243a]">{m.module}</span>
-                        <span className={cn('inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold', statusColor[m.status])}>
-                          <StatusIcon size={11} strokeWidth={2.5} />
-                          {m.status}
-                        </span>
-                      </div>
-                      <p className="text-xs leading-6 text-[#5a6d8a]">{m.analysis}</p>
-                      <div className="flex items-center justify-between">
-                        <div className="flex gap-2">
-                          {m.metrics.map((metric, j) => (
-                            <span key={j} className="rounded-lg bg-[#f8fafc] px-2 py-0.5 text-[11px] font-bold text-[#5a6d8a]">{metric}</span>
-                          ))}
-                        </div>
-                        <ArrowRight size={13} className="text-[#a78bfa] opacity-0 transition group-hover:opacity-100" />
-                      </div>
-                    </button>
-                  );
-                })}
+              <div className="grid grid-cols-4 gap-3">
+                {result.moduleInsights.map((m, i) => (
+                  <button key={i} onClick={() => router.push(m.path)}
+                    className="group flex flex-col gap-3 rounded-xl bg-[#fafafa] px-4 py-3.5 text-left transition hover:bg-[#f4f4f5]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] font-semibold text-[#18181b]">{m.module}</span>
+                      <span className={cn('h-2 w-2 rounded-full flex-shrink-0', dotColor[m.status])} />
+                    </div>
+                    <p className="text-xs leading-5 text-[#71717a] line-clamp-3">{m.analysis}</p>
+                    <div className="mt-auto flex items-center gap-2 text-[11px] font-medium text-[#a1a1aa]">
+                      {m.metrics.slice(0, 2).map((metric, j) => (
+                        <span key={j} className="rounded-md bg-white px-2 py-0.5">{metric}</span>
+                      ))}
+                      <ArrowRight size={11} className="ml-auto opacity-0 group-hover:opacity-100 transition" />
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
 
-            {/* Cross-Module Insight */}
+            {/* Cross insight */}
             {result?.crossInsight && (
-              <div className="flex items-start gap-3 rounded-xl bg-gradient-to-r from-[#eff6ff] to-[#f5f3ff] border border-[#bfdbfe] p-4">
-                <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#064ea2] to-[#7c3aed] text-white">
-                  <TrendingUp size={13} strokeWidth={2} />
-                </div>
-                <p className="text-sm leading-7 text-[#1e3a5f] font-semibold">{result.crossInsight}</p>
+              <div className="flex items-start gap-3 rounded-xl border border-[#f4f4f5] bg-[#fafafa] px-4 py-3">
+                <TrendingUp size={14} className="mt-0.5 flex-shrink-0 text-[#a1a1aa]" />
+                <p className="text-[13px] leading-6 text-[#52525b]">{result.crossInsight}</p>
               </div>
             )}
 
-            {/* Legacy highlights fallback */}
-            {!result?.moduleInsights?.length && result?.highlights && result.highlights.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                {result.highlights.map((h: any, i: number) => {
-                  const tone = toneToWorkbenchTone(h.tone);
-                  const tc = statusTone[tone];
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => router.push(h.path)}
-                      className="group flex flex-col gap-2 rounded-xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
-                      style={{ borderColor: tc.border, backgroundColor: tc.bg }}
-                    >
-                      <span className="inline-flex items-center gap-1.5 self-start rounded-lg px-2 py-0.5 text-[11px] font-bold" style={{ color: tc.color, backgroundColor: 'rgba(255,255,255,0.7)' }}>{h.module}</span>
-                      <div className="text-lg font-black" style={{ color: tc.color }}>{h.metric}</div>
-                      <p className="text-xs text-[#5a6d8a]">{h.comment}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Suggestions with priority & impact */}
+            {/* Suggestions */}
             {result?.suggestions && result.suggestions.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-black text-[#5a6d8a]">
-                  <TrendingUp size={13} /> 优先级行动建议
-                </div>
-                <div className="grid gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-[#a1a1aa]">行动建议</span>
+                <div className="space-y-1.5">
                   {result.suggestions.map((s, i) => (
-                    <button
-                      key={i}
-                      onClick={() => router.push(s.path)}
-                      className="flex items-center justify-between rounded-xl border border-[#ede9fe] bg-[#faf5ff] px-4 py-3 text-left transition hover:bg-[#f5f3ff] hover:border-[#c4b5fd]"
-                    >
+                    <button key={i} onClick={() => router.push(s.path)}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] transition hover:bg-[#fafafa]">
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-[#7c3aed] text-[11px] font-black text-white">{s.priority}</span>
-                        <span className="text-sm font-bold text-[#4c1d95] truncate">{s.text}</span>
+                        <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-[#f4f4f5] text-[11px] font-semibold text-[#71717a]">{s.priority}</span>
+                        <span className="truncate text-[#3f3f46]">{s.text}</span>
                       </div>
-                      <span className={cn('ml-3 flex-shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold', impactBadge[s.impact])}>
-                        {s.impact}影响
-                      </span>
+                      <ArrowRight size={13} className="ml-3 flex-shrink-0 text-[#d4d4d8]" />
                     </button>
                   ))}
                 </div>
