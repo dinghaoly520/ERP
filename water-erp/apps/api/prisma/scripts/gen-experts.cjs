@@ -66,17 +66,8 @@ const DIRECTIONS = [
   { specialty: '国际贸易',     title: '高级经济师',         dept: 12, names: ['云兆丰', '冉春梅', '柏峻峰', '麻丽娟', '欧阳文'] },
 ];
 
-// ═══ 工作单位（15 家）═══
-const EMPLOYERS = [
-  '四川省水利发展集团本部', '四川省水利科学研究院',
-  '四川水发勘测设计有限公司', '四川水发建设有限公司',
-  '成都水利技术服务中心', '绵阳市水利规划设计研究院',
-  '德阳水利技术服务中心', '南充市水利电力勘察设计院',
-  '宜宾市水利技术服务中心', '泸州市水利技术服务中心',
-  '乐山市水利水电设计院', '达州市水利技术服务中心',
-  '眉山市水利技术服务中心', '遂宁市水利技术服务中心',
-  '广安市水利技术服务中心',
-];
+// ═══ 工作单位（统一）═══
+const EMPLOYER = '四川水发勘测设计研究有限公司';
 
 // ── 民族分布（按四川实际比例）──
 const ETHNICITIES = [
@@ -211,7 +202,7 @@ function gen() {
       const roll = (di * 5 + ni) % 25;
       const availability = roll === 0 ? '停用' : roll <= 3 ? '占用' : '可用';
 
-      const employer = EMPLOYERS[(di * 3 + ni * 2) % EMPLOYERS.length];
+      const employer = EMPLOYER;
       const phone = `1${[3,5,7,8,9][di % 5]}${String(280000000 + di * 137000 + ni * 7900).slice(-9)}`;
       const licenseNo = genLicenseNo(di, ni, birthYear);
 
