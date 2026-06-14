@@ -158,16 +158,34 @@ Expected: PASS（5 个用例全过）
 
 - [ ] **Step 5: 接入 archiveAll**
 
+> 注意：当前 `archiveAll`（`bid.service.ts:565-568`）的 `project` 查询只 select `{ stage, name }`，缺 `id`/`projectCode`。digest 需要这两个字段，故必须先扩展 select。
+
 在 `bid.service.ts` 顶部加 import：
 ```typescript
 import { computeArchiveDigest } from './bid-archive.digest';
 ```
-将 `bid.service.ts:583-584` 处：
+
+**5a.** 把 `bid.service.ts:565-568` 的 select：
+```typescript
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { stage: true, name: true },
+    });
+```
+扩展为：
+```typescript
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { id: true, projectCode: true, stage: true, name: true },
+    });
+```
+
+**5b.** 把 `bid.service.ts:583-584` 处：
 ```typescript
 const now = new Date();
 const hashDigest = `sha256:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 ```
-改为：
+改为（digest 入参用归档后的项目状态 `'ARCHIVED'`，而非当前 stage，使 digest 反映"归档完成"语义；`archiveItems` 已在该作用域，见 `bid.service.ts:575-577`）：
 ```typescript
 const now = new Date();
 const hashDigest = computeArchiveDigest(
@@ -175,7 +193,6 @@ const hashDigest = computeArchiveDigest(
   archiveItems,
 );
 ```
-（`project` 与 `archiveItems` 已在该作用域内存在，见 `bid.service.ts:570-577`。）
 
 - [ ] **Step 6: 运行 bid 全套测试确认无回归**
 
@@ -666,41 +683,56 @@ Expected: PASS
 ```typescript
 import { computeRiskFactors, riskLevel } from './risk-score.compute';
 ```
-替换 `ai.service.ts:410-430`：
+替换 `ai.service.ts:410-430`（整段 `getSupplierRiskScores`）。所有真实数据查询一次性预取（避免 N+1），再在 map 里查表组装：
 ```typescript
 async getSupplierRiskScores(projectId: string) {
-  const [suppliers, project, submissions] = await Promise.all([
+  const supplierIds: string[] = [];
+
+  // 1) 预取：投标方、提交、绩效均分、资质聚合、项目预算
+  const [suppliers, submissions, perfAgg, qualAgg, expiredAgg, budgetRow] = await Promise.all([
     this.prisma.bidSupplier.findMany({ where: { projectId } }),
-    this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, name: true } }),
     this.prisma.supplierBidSubmission.findMany({ where: { projectId } }),
+    this.prisma.supplierEvaluation.groupBy({
+      by: ['supplierId'],
+      _avg: { overallScore: true },
+      _count: { _all: true },
+    }),
+    this.prisma.supplierQualification.groupBy({ by: ['supplierId'], _count: { _all: true } }),
+    this.prisma.supplierQualification.groupBy({
+      by: ['supplierId'],
+      where: { validTo: { lt: new Date() } },
+      _count: { _all: true },
+    }),
+    this.prisma.procurementProject.findFirst({ where: { bidProjectId: projectId }, select: { budget: true } }),
   ]);
 
-  // 预取绩效均分（按 supplierId 聚合）
-  const perfAgg = await this.prisma.supplierEvaluation.groupBy({
-    by: ['supplierId'],
-    where: { supplierId: { in: suppliers.map(s => s.supplierId).filter(Boolean) as string[] } },
-    _avg: { overallScore: true },
-    _count: { _all: true },
-  });
-  const perfMap = new Map(perfAgg.map(a => [a.supplierId, { avg: a._avg.overallScore ? Number(a._avg.overallScore) : null, count: a._count._all }]));
+  // 仅对"已关联 supplierId"的投标方做资质/绩效查表
+  const linkedSupplierIds = suppliers.map(s => s.supplierId).filter((x): x is string => !!x);
+  const perfMap = new Map(perfAgg.filter(a => linkedSupplierIds.includes(a.supplierId)).map(a => [a.supplierId, { avg: a._avg.overallScore ? Number(a._avg.overallScore) : null, count: a._count._all }]));
+  const qualMap = new Map(qualAgg.filter(a => linkedSupplierIds.includes(a.supplierId)).map(a => [a.supplierId, a._count._all]));
+  const expiredMap = new Map(expiredAgg.filter(a => linkedSupplierIds.includes(a.supplierId)).map(a => [a.supplierId, a._count._all]));
+  const budget = budgetRow?.budget ? Number(budgetRow.budget) : null;
 
   return suppliers.map(s => {
     const sub = submissions.find(x => x.supplierId === s.supplierId);
     const fileRefs = sub ? [sub.technicalFileAssetId, sub.businessFileAssetId, sub.coverLetterAssetId] : [];
     const fileCount = fileRefs.filter(Boolean).length;
 
-    const factorsInput = {
+    const totalQual = (s.supplierId && qualMap.get(s.supplierId)) ?? 0;
+    const expiredQual = (s.supplierId && expiredMap.get(s.supplierId)) ?? 0;
+    const perf = s.supplierId ? perfMap.get(s.supplierId) : undefined;
+
+    const factors = computeRiskFactors({
       decryptStatus: s.decryptStatus,
       fileCount,
       fileTotal: 3,
-      validQualifications: 0, // 下方按需查
-      expiredQualifications: 0,
+      validQualifications: Math.max(0, totalQual - expiredQual),
+      expiredQualifications: expiredQual,
       bidPrice: sub?.bidPrice ? Number(sub.bidPrice) : null,
-      budget: null, // 项目预算从 ProcurementProject 关联取，下方查
-      perfAvg: (s.supplierId && perfMap.get(s.supplierId)?.avg) ?? null,
-      perfCount: (s.supplierId && perfMap.get(s.supplierId)?.count) ?? 0,
-    };
-    const factors = computeRiskFactors(factorsInput);
+      budget,
+      perfAvg: perf?.avg ?? null,
+      perfCount: perf?.count ?? 0,
+    });
     const overall = Math.round(factors.reduce((sum, f) => sum + f.score, 0) / factors.length);
     const dataBacked = factors.filter(f => f.backedByData).length;
     return {
@@ -714,27 +746,7 @@ async getSupplierRiskScores(projectId: string) {
   });
 }
 ```
-
-> 说明：`validQualifications`/`budget` 需按 supplierId/项目关联补充查询。为避免 N+1，在 Promise.all 预取段补两段：
-```typescript
-  // 资质聚合
-  const qualAgg = await this.prisma.supplierQualification.groupBy({
-    by: ['supplierId'],
-    where: { supplierId: { in: suppliers.map(s => s.supplierId).filter(Boolean) as string[] } },
-    _count: { _all: true },
-  });
-  const now = new Date();
-  const expiredAgg = await this.prisma.supplierQualification.groupBy({
-    by: ['supplierId'],
-    where: { supplierId: { in: suppliers.map(s => s.supplierId).filter(Boolean) as string[] }, validTo: { lt: now } },
-    _count: { _all: true },
-  });
-  // 项目预算（经 ProcurementProject 关联）
-  const budgetRow = await this.prisma.procurementProject.findFirst({
-    where: { bidProjectId: projectId }, select: { budget: true },
-  });
-```
-然后在 `factorsInput` 里：`validQualifications: (qualAgg.find(q=>q.supplierId===s.supplierId)?._count._all ?? 0) - (expiredAgg... ?? 0)`、`expiredQualifications: expiredAgg.find(...)?._count._all ?? 0`、`budget: budgetRow?.budget ? Number(budgetRow.budget) : null`。
+> 注：原方法里的 `project` 变量未使用，已移除；`hashString` 若无其它调用方可一并删除（保留无害）。
 
 - [ ] **Step 6: 运行 ai 测试 + 更新既有 spec**
 
@@ -900,8 +912,8 @@ export class NotificationService {
   ) {}
 
   private async dispatchExternal(userId: string, payload: { type: string; title: string; content: string; link?: string | null }) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true, phone: undefined } }).catch(() => null);
-    // User 无 phone 字段时 sms 始终 skip（见下 note）
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null);
+    // User 当前无 phone 字段，sms 渠道恒 skip（见 Task 4 note）
     const contact = { email: user?.email ?? null, phone: null as string | null };
     const tasks: Promise<void>[] = [];
     if (shouldDispatch('email', contact)) tasks.push(this.emailChannel.send({ userId, ...contact, ...payload }));
@@ -1110,7 +1122,7 @@ Expected: PASS
     return this.prisma.bidExpert.update({ where: { id: expert.id }, data: { avoidanceConfirmed: true } });
   }
 ```
-构造器注入 `private conflictService: ExpertConflictService`；ExpertModule providers 注册 ExpertConflictService。
+构造器注入 `private conflictService: ExpertConflictService`；ExpertModule providers 注册 ExpertConflictService。另外 `expert.service.ts` 当前只 import 了 `ForbiddenException`，需补 `BadRequestException`（confirmAvoidance 现在要抛它）。
 
 - [ ] **Step 6: 运行测试 + Commit**
 
