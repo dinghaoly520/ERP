@@ -256,8 +256,8 @@ export class BidService {
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'OPENING');
 
-    // Create opening session if DTO is provided
-    if (dto) {
+    // Create opening session only when all session fields are provided
+    if (dto?.host && dto?.supervisor && dto?.decryptWindowStart && dto?.decryptWindowEnd) {
       await this.prisma.bidOpeningSession.create({
         data: {
           projectId: id,

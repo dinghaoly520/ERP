@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
+import StartOpeningDialog from '@/components/start-opening-dialog';
 import { Unlock, Clock, Shield, Play, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 
 const decryptDefs: Record<string, { label: string; color: string; bg: string }> = {
@@ -20,6 +21,7 @@ export default function BidOpenPage() {
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState<string | null>(null);
+  const [startOpen, setStartOpen] = useState(false);
 
   const openingStatusMeta = (status?: string | null) => {
     switch (status) {
@@ -126,7 +128,7 @@ export default function BidOpenPage() {
             投标人在线解密状态
           </h2>
           {project.stage !== 'OPENING' && (
-            <button onClick={async () => { await api.post(`/bid/projects/${projectId}/open`, {}); api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject); }}
+            <button onClick={() => setStartOpen(true)}
               className="flex items-center gap-1.5 px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors">
               <Play size={13} strokeWidth={2} /> 启动开标
             </button>
@@ -230,6 +232,16 @@ export default function BidOpenPage() {
           </tbody>
         </table>
       </div>
+
+      <StartOpeningDialog
+        open={startOpen}
+        projectId={projectId}
+        onClose={() => setStartOpen(false)}
+        onStarted={() => {
+          setStartOpen(false);
+          api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
+        }}
+      />
     </div>
   );
 }

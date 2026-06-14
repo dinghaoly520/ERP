@@ -1,15 +1,19 @@
-import { IsString, IsNotEmpty, IsISO8601 } from 'class-validator';
+import { IsString, IsNotEmpty, IsISO8601, IsOptional } from 'class-validator';
 
+/**
+ * 开标会话字段全部可选：不提供时仅推进阶段 SUBMIT→OPENING，
+ * 不创建开标会话；提供时创建 BidOpeningSession。
+ */
 export class StartOpeningDto {
-  @IsString() @IsNotEmpty()
-  host: string;
+  @IsOptional() @IsString() @IsNotEmpty()
+  host?: string;
 
-  @IsString() @IsNotEmpty()
-  supervisor: string;
+  @IsOptional() @IsString() @IsNotEmpty()
+  supervisor?: string;
 
-  @IsISO8601()
-  decryptWindowStart: string;
+  @IsOptional() @IsISO8601()
+  decryptWindowStart?: string;
 
-  @IsISO8601()
-  decryptWindowEnd: string;
+  @IsOptional() @IsISO8601()
+  decryptWindowEnd?: string;
 }

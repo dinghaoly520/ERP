@@ -53,6 +53,7 @@ describe('Bid Lifecycle (e2e)', () => {
   });
 
   let createdProjectId: string;
+  let createdSupplierId: string;
 
   it('管理员可创建招标项目', () => {
     return request(app.getHttpServer())
@@ -108,6 +109,7 @@ describe('Bid Lifecycle (e2e)', () => {
       .expect(res => {
         expect(res.body).toHaveProperty('id');
         expect(res.body.submitStatus).toBe('已提交');
+        createdSupplierId = res.body.id;
       });
   });
 
@@ -131,6 +133,17 @@ describe('Bid Lifecycle (e2e)', () => {
         decryptWindowStart: '2099-12-31T09:00:00Z',
         decryptWindowEnd: '2099-12-31T12:00:00Z',
       })
+      .expect(201);
+  });
+
+  it('空 body 解密供应商不应触发校验错误（开标记录字段可选，201）', () => {
+    // 开标记录字段（amount/period/qualityTarget/bondStatus）为可选：
+    // 不提供时仅推进解密状态，不创建开标记录，且不得返回 400 校验错误
+    return request(app.getHttpServer())
+      .post(`/api/bid/projects/${createdProjectId}/decrypt/${createdSupplierId}`)
+      .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
+      .send({})
       .expect(201);
   });
 
@@ -162,5 +175,35 @@ describe('Bid Lifecycle (e2e)', () => {
         // 应至少有 open-submission、open、start-evaluation 三条日志
         expect(res.body.length).toBeGreaterThanOrEqual(3);
       });
+  });
+
+  it('空 body 启动开标不应触发校验错误（会话字段可选，201）', async () => {
+    // 开标会话字段（host/supervisor/decryptWindowStart/decryptWindowEnd）为可选：
+    // 不提供时仅推进阶段 SUBMIT→OPENING，不创建开标会话，且不得返回 400 校验错误
+    const res = await request(app.getHttpServer())
+      .post('/api/bid/projects')
+      .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
+      .send({ name: `空body开标测试-${Date.now()}`, procurementMethod: '公开招标', openTime: '2099-12-31T09:00:00Z', deadline: '2099-12-30T17:00:00Z' })
+      .expect(201);
+    const tmpId = res.body.id;
+
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${tmpId}/open-submission`)
+      .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${tmpId}/open`)
+      .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
+      .send({})
+      .expect(201);
+
+    // 清理临时项目（空 body 未创建会话，删除会话/日志为兜底）
+    await prisma.bidOpeningSession.deleteMany({ where: { projectId: tmpId } }).catch(() => {});
+    await prisma.bidSupervisionLog.deleteMany({ where: { projectId: tmpId } }).catch(() => {});
+    await prisma.bidProject.delete({ where: { id: tmpId } }).catch(() => {});
   });
 });
