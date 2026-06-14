@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Optional } from '@nestjs/common';
+import { Injectable, BadRequestException, Optional, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
@@ -11,6 +11,8 @@ import { StartOpeningDto } from './dto/start-opening.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { assertBidStageTransition, type BidStage } from './bid-state';
 import { computeArchiveDigest } from './bid-archive.digest';
+import { decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
+import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
 @Injectable()
 export class BidService {
@@ -19,6 +21,8 @@ export class BidService {
     private notificationService: NotificationService,
     @Optional() private readonly gateway?: BidGateway,
   ) {}
+
+  private readonly logger = new Logger(BidService.name);
 
   async getDashboardStats() {
     const [
@@ -322,38 +326,72 @@ export class BidService {
         data: { decryptStatus: 'RUNNING' },
       });
 
-      // Phase 2: 模拟解密结果（仅显式请求时触发，避免默认流程随机失败）
-      const isDanger = dto?.simulateDanger === true;
-      if (isDanger) {
-        const errorMsg = '标书文件校验失败：签名不匹配或文件损坏';
-        await tx.bidSupplier.update({
-          where: { id: supplierId },
-          data: { decryptStatus: 'DANGER', decryptError: errorMsg },
-        });
-        this.gateway?.notifyDecryptStatus(projectId, {
-          supplierId,
-          decryptStatus: 'DANGER',
-          supplierName: bidSupplier.supplierName,
-        });
+      // 查找该供应商的提交记录（含加密封存密钥与文件引用）
+      const submission = bidSupplier.supplierId
+        ? await this.prisma.supplierBidSubmission.findUnique({
+            where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
+          })
+        : null;
+
+      // 真实解密 + 完整性校验（如有文件引用）：读取 MinIO 文件，重算 SHA-256 与 FileAsset.sha256 比对；
+      // 若存在 sealedKey 则先做真实 AES-256-GCM 解密。DANGER 由真实校验失败触发，不再依赖 simulateDanger。
+      let decryptOk: boolean | null = null;
+      let integrityOk: boolean | null = null;
+      let errorMsg = '';
+
+      const fileRefs: Array<{ assetId?: string | null; sealedKey?: string | null }> = submission
+        ? [
+            { assetId: submission.technicalFileAssetId, sealedKey: submission.technicalSealedKey },
+            { assetId: submission.businessFileAssetId, sealedKey: submission.businessSealedKey },
+            { assetId: submission.coverLetterAssetId, sealedKey: submission.coverLetterSealedKey },
+          ]
+        : [];
+
+      for (const ref of fileRefs) {
+        if (!ref.assetId) continue;
+        const asset = await this.prisma.fileAsset.findUnique({ where: { id: ref.assetId } });
+        if (!asset) { errorMsg = `投标文件记录缺失: ${ref.assetId}`; break; }
+        try {
+          const objStream = await minioClient.getObject(MINIO_BUCKET, asset.key);
+          const buffer = await streamToBuffer(objStream);
+          // Layer B：有 sealedKey 时执行真实 AES 解密
+          if (ref.sealedKey) {
+            decryptBuffer(buffer, ref.sealedKey);
+            decryptOk = true;
+          }
+          // Layer A：完整性校验（解密后的明文 vs 存储 sha256）
+          const integrity = verifyIntegrity(buffer, asset.sha256);
+          if (integrity === false) { integrityOk = false; errorMsg = '标书文件完整性校验失败：SHA-256 不匹配（疑似篡改或损坏）'; break; }
+          if (integrity === true) integrityOk = true;
+        } catch (e) {
+          decryptOk = ref.sealedKey ? false : null;
+          errorMsg = `标书文件解密失败：${(e as Error).message}`;
+          break;
+        }
+      }
+
+      const hasSealedKey = !!submission && !!(submission.technicalSealedKey || submission.businessSealedKey || submission.coverLetterSealedKey);
+      const outcome = dto?.simulateDanger === true
+        ? 'DANGER' as const  // 保留显式模拟开关用于演练（覆盖真实结果）
+        : (errorMsg && integrityOk !== true && decryptOk !== true
+            ? 'DANGER' as const
+            : classifyDecryptOutcome({ hasSealedKey, decryptOk, integrityOk }));
+
+      if (outcome === 'DANGER') {
+        const reason = errorMsg || '标书文件校验失败：签名不匹配或文件损坏';
+        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', decryptError: reason } });
+        this.gateway?.notifyDecryptStatus(projectId, { supplierId, decryptStatus: 'DANGER', supplierName: bidSupplier.supplierName });
         await tx.bidSupervisionLog.create({
-          data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${errorMsg}`, riskFlag: '高风险' },
+          data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${reason}`, riskFlag: '高风险' },
         });
         return tx.bidSupplier.findUnique({ where: { id: supplierId } });
       }
 
-      // Phase 3: 解密成功
-      await tx.bidSupplier.update({
-        where: { id: supplierId },
-        data: { decryptStatus: 'SUCCESS' },
-      });
+      // 解密成功
+      await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'SUCCESS' } });
+      this.gateway?.notifyDecryptStatus(projectId, { supplierId, decryptStatus: 'SUCCESS', supplierName: bidSupplier.supplierName });
 
-      this.gateway?.notifyDecryptStatus(projectId, {
-        supplierId,
-        decryptStatus: 'SUCCESS',
-        supplierName: bidSupplier.supplierName,
-      });
-
-      // Phase 4: 创建开标记录（仅当开标记录字段全部提供时）——等待供应商确认，不再自动确认
+      // 创建开标记录（仅当开标记录字段全部提供时）——等待供应商确认，不自动 CONFIRMED
       if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
         await tx.bidOpeningRecord.create({
           data: {
@@ -370,14 +408,13 @@ export class BidService {
         });
       }
 
-      // Phase 5: 解密成功但保持待供应商确认状态，不自动 CONFIRMED
       const confirmed = await tx.bidSupplier.update({
         where: { id: supplierId },
         data: { confirmStatus: 'PENDING' },
       });
-
+      const legacyNote = hasSealedKey ? '' : '（legacy 记录：未加密封存，仅完成完整性校验）';
       await tx.bidSupervisionLog.create({
-        data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: '解密成功，等待供应商确认唱标信息', riskFlag: '无' },
+        data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密成功，等待供应商确认唱标信息${legacyNote}`, riskFlag: '无' },
       });
 
       return confirmed;

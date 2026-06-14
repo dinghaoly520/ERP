@@ -3,6 +3,7 @@ import { ConflictException, BadRequestException } from '@nestjs/common';
 import { BidService } from './bid.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { BidGateway } from './bid.gateway';
 import { assertBidStageTransition } from './bid-state';
 
 /* ── 纯函数测试：bid-state 状态机 ── */
@@ -487,5 +488,41 @@ describe('BidService — stage transitions', () => {
       const result = await service.submitBid('p1', { supplierName: '测试供应商' });
       expect(result).toBeDefined();
     });
+  });
+});
+
+/* ── 集成测试：decryptSupplier 真实校验（无文件引用 → SUCCESS，保持开标流程不空指针）── */
+
+describe('BidService — decryptSupplier 真实校验', () => {
+  it('无投标文件引用时仍返回 SUCCESS（保持开标流程）', async () => {
+    const tx: any = {
+      bidSupplier: {
+        findFirst: jest.fn(async () => ({ id: 'bs1', projectId: 'p1', supplierName: 'S1' })),
+        update: jest.fn(async ({ data }: any) => ({
+          id: 'bs1', supplierName: 'S1',
+          decryptStatus: data.decryptStatus ?? 'SUCCESS',
+          confirmStatus: 'PENDING',
+        })),
+        findUnique: jest.fn(async () => ({ id: 'bs1', supplierName: 'S1', decryptStatus: 'SUCCESS' })),
+      },
+      bidOpeningRecord: { create: jest.fn() },
+      bidSupervisionLog: { create: jest.fn() },
+    };
+    const prisma: any = { $transaction: jest.fn(async (cb: any) => cb(tx)) };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn() } },
+        { provide: BidGateway, useValue: { notifyDecryptStatus: jest.fn() } },
+        BidService,
+      ],
+    }).compile();
+    const service = module.get(BidService);
+
+    const res = await service.decryptSupplier('p1', 'bs1');
+    expect(res).not.toBeNull();
+    expect(res!.decryptStatus).toBe('SUCCESS');
+    expect(tx.bidSupplier.update).toHaveBeenCalled();
+    expect(tx.bidSupervisionLog.create).toHaveBeenCalled();
   });
 });
