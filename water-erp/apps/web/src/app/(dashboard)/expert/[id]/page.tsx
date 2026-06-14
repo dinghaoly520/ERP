@@ -5,18 +5,13 @@ import { useRouter, useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { ArrowLeft } from 'lucide-react';
 
-interface ScoreRecord {
-  id: string; score: number; reason: string | null;
-  scoreItem: { name: string; category: string; maxScore: number };
-}
-
+interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
 interface Assignment {
   id: string; expertName: string; major: string; progress: number;
   signedIn: boolean; avoidanceConfirmed: boolean; totalScore: number;
   project: { id: string; projectCode: string; name: string; stage: string; procurementMethod: string; openTime: string };
   scoreRecords: ScoreRecord[];
 }
-
 interface ExpertDetail {
   id: string; username: string; displayName: string; email: string | null;
   department: { id: string; name: string } | null; createdAt: string;
@@ -24,12 +19,12 @@ interface ExpertDetail {
   statistics: { totalProjects: number; completedProjects: number; signedInProjects: number };
 }
 
-const stageMap: Record<string, { label: string; color: string }> = {
-  DOWNLOAD: { label: '文件下载', color: '#0891b2' },
-  SUBMIT: { label: '加密投递', color: '#064ea2' },
-  OPENING: { label: '在线开标', color: '#d97706' },
-  EVALUATING: { label: '专家评标', color: '#7c3aed' },
-  ARCHIVED: { label: '已归档', color: '#059669' },
+const stageMap: Record<string, { label: string; color: string; bg: string }> = {
+  DOWNLOAD: { label: '文件下载', color: '#0891b2', bg: '#0891b214' },
+  SUBMIT: { label: '加密投递', color: '#0756a5', bg: '#0756a514' },
+  OPENING: { label: '在线开标', color: '#d97706', bg: '#d9770614' },
+  EVALUATING: { label: '专家评标', color: '#7c3aed', bg: '#7c3aed14' },
+  ARCHIVED: { label: '已归档', color: '#059669', bg: '#05966914' },
 };
 
 export default function ExpertDetailPage() {
@@ -40,20 +35,22 @@ export default function ExpertDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<ExpertDetail>(`/expert-admin/${expertId}`)
-      .then(setExpert).catch(() => {}).finally(() => setLoading(false));
+    api.get<ExpertDetail>(`/expert-admin/${expertId}`).then(setExpert).catch(() => {}).finally(() => setLoading(false));
   }, [expertId]);
 
-  if (loading) return <div className="py-20 text-center text-[13px] text-[#94a3b8]">加载中...</div>;
-  if (!expert) return <div className="py-20 text-center text-[13px] text-[#94a3b8]">专家不存在</div>;
+  if (loading) return <div className="py-24 text-center text-[13px] text-[#94a3b8]">加载中...</div>;
+  if (!expert) return <div className="py-24 text-center text-[13px] text-[#94a3b8]">专家不存在</div>;
 
   return (
     <div>
-      {/* Back + title */}
       <button onClick={() => router.push('/expert')} className="inline-flex items-center gap-1.5 text-[13px] text-[#64748b] hover:text-[#0756a5] mb-3">
         <ArrowLeft size={14} /> 返回专家列表
       </button>
-      <h1 className="text-[24px] font-black tracking-[-0.03em] text-[#0f172a] mb-7">{expert.displayName}</h1>
+
+      <div className="mb-7 pb-4 border-b border-[#dce3eb]">
+        <div className="text-[11px] font-extrabold text-[#0756a5] uppercase tracking-[0.1em]">Expert Profile</div>
+        <h1 className="mt-1 text-[24px] font-black tracking-[-0.03em] text-[#0f172a]">{expert.displayName}</h1>
+      </div>
 
       {/* Profile info */}
       <div className="grid grid-cols-4 border border-[#dce3eb] bg-white mb-5">
@@ -71,36 +68,38 @@ export default function ExpertDetailPage() {
       </div>
 
       {/* Assignments */}
-      <h2 className="text-[15px] font-extrabold text-[#0f172a] mb-4">评审项目</h2>
+      <div className="flex items-end justify-between gap-4 mb-4">
+        <h2 className="text-[12px] font-extrabold uppercase tracking-[0.04em] text-[#64748b]">评审项目 · {expert.assignments.length}</h2>
+      </div>
 
       {expert.assignments.length === 0 ? (
-        <div className="border border-[#dce3eb] bg-white py-12 text-center text-[13px] text-[#94a3b8]">暂无评审项目记录</div>
+        <div className="border border-[#dce3eb] bg-white py-16 text-center text-[13px] text-[#94a3b8]">暂无评审项目记录</div>
       ) : (
         <div className="border border-[#dce3eb] bg-white">
           {expert.assignments.map((a, i) => {
-            const stage = stageMap[a.project.stage] || { label: a.project.stage, color: '#94a3b8' };
+            const stage = stageMap[a.project.stage] || { label: a.project.stage, color: '#94a3b8', bg: '#94a3b814' };
             return (
               <div key={a.id} className={`px-5 py-4 ${i < expert.assignments.length - 1 ? 'border-b border-[#e9eef4]' : ''}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h3 className="text-[14px] font-extrabold text-[#0f172a]">{a.project.name}</h3>
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="min-w-0">
+                    <h3 className="text-[14px] font-extrabold text-[#0f172a] truncate">{a.project.name}</h3>
                     <p className="text-[12px] text-[#94a3b8] mt-0.5">{a.project.projectCode} · {a.project.procurementMethod}</p>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold" style={{color: stage.color, background: stage.color + '12'}}>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold flex-shrink-0" style={{color: stage.color, background: stage.bg}}>
                     <span className="w-1.5 h-1.5 rounded-full" style={{background: stage.color}} />
                     {stage.label}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-4 gap-3 text-[12px] text-[#64748b] mb-2">
-                  <span>专业：{a.major || '—'}</span>
-                  <span>签到：{a.signedIn ? '已签到' : '未签到'}</span>
-                  <span>回避确认：{a.avoidanceConfirmed ? '已确认' : '未确认'}</span>
-                  <span>总分：<strong className="text-[#0f172a]">{Number(a.totalScore)}</strong></span>
+                <div className="grid grid-cols-4 gap-3 text-[12px] text-[#64748b] mb-3">
+                  <span>专业：<strong className="text-[#0f172a]">{a.major || '—'}</strong></span>
+                  <span>签到：<strong className={a.signedIn ? 'text-[#059669]' : 'text-[#94a3b8]'}>{a.signedIn ? '已签到' : '未签到'}</strong></span>
+                  <span>回避确认：<strong className={a.avoidanceConfirmed ? 'text-[#059669]' : 'text-[#94a3b8]'}>{a.avoidanceConfirmed ? '已确认' : '未确认'}</strong></span>
+                  <span>总分：<strong className="text-[#0f172a] tabular-nums">{Number(a.totalScore)}</strong></span>
                 </div>
 
                 <div className="flex items-center gap-4 text-[12px] text-[#64748b]">
-                  <span className="tabular-nums">{a.progress}%</span>
+                  <span className="tabular-nums font-bold text-[#0f172a]">{a.progress}%</span>
                   <span>评分记录 {a.scoreRecords.length} 条</span>
                   <div className="flex-1 h-1.5 bg-[#f1f5f9] overflow-hidden">
                     <div className="h-full bg-[#0756a5] transition-all duration-500" style={{width: `${a.progress}%`}} />
