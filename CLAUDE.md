@@ -154,6 +154,7 @@ The seed also creates supplier classifications, demo suppliers, notifications, a
 - `expert: 3005`
 - `public: 3006`
 - `bid: 3007`
+- `assistant: 3008`
 
 `packages/config/src/urls.ts` maps roles to post-login portal destinations:
 
@@ -165,6 +166,8 @@ The seed also creates supplier classifications, demo suppliers, notifications, a
 - unknown roles fall back to `public`
 
 > Cookie nuance: `apps/bid-portal` reads the `token_web` cookie and sends `X-Portal: web`. The backend (`apps/api/src/auth/portal-cookie.ts`) names cookies by **role**, and `admin`/`bid_host` map to the `web` namespace (there is no `token_bid`), so the bid portal needs no backend auth change and shares the `token_web` session with `apps/web`.
+>
+> The assistant portal (`:3008`) is **public** — no auth middleware, no login required. It sends `X-Portal: assistant` for API calls but does not require a session cookie.
 
 The portals do not share component implementations. Shared cross-portal concepts live in `@water-erp/shared`: role/status types, bid stages, announcement labels, supplier status maps, scoring category labels/colors, notification icons, and brand constants.
 
