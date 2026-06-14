@@ -1,11 +1,51 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { Send, Loader2, PanelRightOpen } from 'lucide-react';
 import { MessageList } from './message-list';
 import { AnalysisCanvas } from './analysis-canvas';
 import type { Message, AssistantCard as AssistantCardType, AssistantCitation } from '@/lib/types';
 import styles from './chat-workspace.module.css';
+
+function useMouseSpotlight() {
+  const layerRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number>(0);
+  const targetRef = useRef({ x: 0.5, y: 0.5 });
+  const currentRef = useRef({ x: 0.5, y: 0.5 });
+
+  useEffect(() => {
+    const handleMove = (e: MouseEvent) => {
+      targetRef.current = {
+        x: e.clientX / window.innerWidth,
+        y: e.clientY / window.innerHeight,
+      };
+    };
+
+    const animate = () => {
+      const t = targetRef.current;
+      const c = currentRef.current;
+      c.x += (t.x - c.x) * 0.08;
+      c.y += (t.y - c.y) * 0.08;
+
+      const el = layerRef.current;
+      if (el) {
+        el.style.setProperty('--spotlight-x', `${c.x * 100}%`);
+        el.style.setProperty('--spotlight-y', `${c.y * 100}%`);
+      }
+      rafRef.current = requestAnimationFrame(animate);
+    };
+
+    window.addEventListener('mousemove', handleMove, { passive: true });
+    rafRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  return layerRef;
+}
 
 export function ChatWorkspace({
   messages,
@@ -20,6 +60,8 @@ export function ChatWorkspace({
   onConfirmAction: (id: string) => void;
   onCancelAction: (id: string) => void;
 }) {
+  const spotlightRef = useMouseSpotlight();
+
   // Collect cards/citations from the latest assistant message
   const { cards, citations } = useMemo(() => {
     const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
@@ -55,6 +97,9 @@ export function ChatWorkspace({
 
   return (
     <div className={styles.workspace}>
+      {/* 鼠标跟随光影 */}
+      <div ref={spotlightRef} className={styles.spotlightLayer} />
+
       {/* Main chat area */}
       <div className={styles.main}>
         {/* Header */}

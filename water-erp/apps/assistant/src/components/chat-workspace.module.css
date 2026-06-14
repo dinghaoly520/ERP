@@ -2,10 +2,26 @@
 .workspace {
   display: flex;
   min-height: 100vh;
+  position: relative;
   background:
     radial-gradient(circle at 12% 16%, rgba(88, 164, 255, 0.10), transparent 22%),
     radial-gradient(circle at 84% 14%, rgba(145, 132, 255, 0.08), transparent 20%),
     linear-gradient(180deg, #f7faff 0%, #edf3fb 100%);
+}
+
+/* 鼠标跟随光影层 */
+.spotlightLayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    600px circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
+    rgba(88, 164, 255, 0.12) 0%,
+    rgba(145, 132, 255, 0.06) 30%,
+    rgba(214, 171, 103, 0.04) 50%,
+    transparent 70%
+  );
 }
 
 .main {
@@ -13,6 +29,8 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
 /* ---------- 顶栏 ---------- */
