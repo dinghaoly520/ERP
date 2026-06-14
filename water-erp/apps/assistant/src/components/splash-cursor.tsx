@@ -3,15 +3,15 @@ import { useEffect, useRef } from 'react';
 
 function SplashCursor({
   SIM_RESOLUTION = 128,
-  DYE_RESOLUTION = 720,
+  DYE_RESOLUTION = 1440,
   CAPTURE_RESOLUTION = 512,
-  DENSITY_DISSIPATION = 8,
-  VELOCITY_DISSIPATION = 6,
+  DENSITY_DISSIPATION = 3.5,
+  VELOCITY_DISSIPATION = 2,
   PRESSURE = 0.1,
   PRESSURE_ITERATIONS = 20,
-  CURL = 2,
-  SPLAT_RADIUS = 0.06,
-  SPLAT_FORCE = 800,
+  CURL = 3,
+  SPLAT_RADIUS = 0.2,
+  SPLAT_FORCE = 6000,
   SHADING = true,
   COLOR_UPDATE_SPEED = 10,
   BACK_COLOR = { r: 0.5, g: 0, b: 0 },
@@ -719,9 +719,9 @@ function SplashCursor({
 
     function clickSplat(pointer: any) {
       const color = generateColor();
-      color.r *= 1.5;
-      color.g *= 1.5;
-      color.b *= 1.5;
+      color.r *= 10.0;
+      color.g *= 10.0;
+      color.b *= 10.0;
       const dx = 10 * (Math.random() - 0.5);
       const dy = 30 * (Math.random() - 0.5);
       splat(pointer.texcoordX, pointer.texcoordY, dx, dy, color);
@@ -787,27 +787,15 @@ function SplashCursor({
       return delta;
     }
 
-    // Soft pastel palette: ice-blue, lavender, mint, shell-pink, sky
-    const PASTELS: Array<[number, number, number]> = [
-      [0.12, 0.48, 0.72],  // ice blue
-      [0.38, 0.32, 0.58],  // lavender
-      [0.18, 0.55, 0.55],  // mint/teal
-      [0.55, 0.40, 0.50],  // shell pink
-      [0.30, 0.45, 0.65],  // sky blue
-    ];
-
     function generateColor(): { r: number; g: number; b: number } {
       if (!config.RAINBOW_MODE) {
         return hexToRGB(config.COLOR);
       }
-      // Pick a random pastel and add slight variation
-      const base = PASTELS[Math.floor(Math.random() * PASTELS.length)];
-      const vary = 0.92 + Math.random() * 0.08;  // ±8% brightness
-      return {
-        r: base[0] * vary,
-        g: base[1] * vary,
-        b: base[2] * vary,
-      };
+      const c = HSVtoRGB(Math.random(), 1.0, 1.0);
+      c.r *= 0.15;
+      c.g *= 0.15;
+      c.b *= 0.15;
+      return c;
     }
 
     function hexToRGB(hex: string): { r: number; g: number; b: number } {
@@ -816,7 +804,26 @@ function SplashCursor({
       const r = parseInt(val.slice(0, 2), 16) / 255;
       const g = parseInt(val.slice(2, 4), 16) / 255;
       const b = parseInt(val.slice(4, 6), 16) / 255;
-      return { r: r * 0.12, g: g * 0.12, b: b * 0.12 };
+      return { r: r * 0.15, g: g * 0.15, b: b * 0.15 };
+    }
+
+    function HSVtoRGB(h: number, s: number, v: number) {
+      let r: number, g: number, b: number, i: number, f: number;
+      i = Math.floor(h * 6);
+      f = h * 6 - i;
+      const p = v * (1 - s);
+      const q = v * (1 - f * s);
+      const t = v * (1 - (1 - f) * s);
+      switch (i % 6) {
+        case 0: r = v; g = t; b = p; break;
+        case 1: r = q; g = v; b = p; break;
+        case 2: r = p; g = v; b = t; break;
+        case 3: r = p; g = q; b = v; break;
+        case 4: r = t; g = p; b = v; break;
+        case 5: r = v; g = p; b = q; break;
+        default: r = 0; g = 0; b = 0;
+      }
+      return { r, g, b };
     }
 
     function wrap(value: number, min: number, max: number) {
