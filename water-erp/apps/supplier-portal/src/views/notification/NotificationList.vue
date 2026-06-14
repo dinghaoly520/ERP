@@ -50,17 +50,18 @@ function handlePageChange(page: number) {
 
 <template>
   <div class="page-container" v-loading="loading">
-    <div class="sp-section-header">
+    <div class="sp-page-title-row">
       <div>
-        <h1 class="page-title">消息中心</h1>
-        <p class="page-desc">查看系统通知和业务消息</p>
+        <div class="sp-page-eyebrow">Notifications</div>
+        <h1 class="sp-modern-title">消息中心</h1>
+        <p class="sp-modern-desc">查看系统通知和业务消息</p>
       </div>
       <el-button @click="handleReadAll" :disabled="store.unreadCount === 0">
         <el-icon><Check /></el-icon>全部标为已读
       </el-button>
     </div>
 
-    <div class="sp-card" v-if="store.notifications.length > 0">
+    <div v-if="store.notifications.length > 0">
       <div
         v-for="n in store.notifications"
         :key="n.id"
@@ -114,7 +115,7 @@ function handlePageChange(page: number) {
 }
 
 .notif-row:last-child { border-bottom: none; }
-.notif-row:hover { background: var(--sp-gray-50); margin: 0 -24px; padding: 16px 24px; border-radius: 8px; }
+.notif-row:hover { background: var(--sp-gray-50); }
 .notif-row.unread { background: #f0f7ff; }
 .notif-row.unread:hover { background: #e6f0ff; }
 

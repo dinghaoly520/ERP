@@ -91,9 +91,12 @@ onMounted(loadAll)
 
 <template>
   <div class="page-container" v-loading="loading">
-    <div class="page-header">
-      <h1 class="page-title">集中采购目录</h1>
-      <p class="page-desc">浏览集团集中采购目录品类，申请加入供货或新增品类（仅展示品类信息，不展示价格）</p>
+    <div class="sp-page-title-row">
+      <div>
+        <div class="sp-page-eyebrow">Procurement Catalog</div>
+        <h1 class="sp-modern-title">集中采购目录</h1>
+        <p class="sp-modern-desc">浏览集团集中采购目录品类，申请加入供货或新增品类（仅展示品类信息，不展示价格）</p>
+      </div>
     </div>
 
     <div class="catalog-layout">
@@ -208,8 +211,8 @@ onMounted(loadAll)
 .cat-sidebar {
   width: 220px;
   flex-shrink: 0;
-  background: #fff;
-  border: 1px solid var(--sp-border-light);
+  background: var(--sp-surface);
+  border: 1px solid var(--sp-border);
   border-radius: var(--sp-radius-md);
   padding: 12px;
   position: sticky;
@@ -265,8 +268,8 @@ onMounted(loadAll)
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #fff;
-  border: 1px solid var(--sp-border-light);
+  background: var(--sp-surface);
+  border: 1px solid var(--sp-border);
   border-radius: var(--sp-radius-md);
   padding: 14px 16px;
   margin-bottom: 12px;
@@ -281,8 +284,8 @@ onMounted(loadAll)
 .cat-result-count { font-size: 13px; color: var(--sp-gray-400); }
 
 .cat-table-wrap {
-  background: #fff;
-  border: 1px solid var(--sp-border-light);
+  background: var(--sp-surface);
+  border: 1px solid var(--sp-border);
   border-radius: var(--sp-radius-md);
   overflow: hidden;
 }

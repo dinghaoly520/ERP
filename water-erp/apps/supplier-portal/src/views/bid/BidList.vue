@@ -10,8 +10,6 @@ const bidStore = useBidStore()
 const loading = ref(true)
 const search = ref('')
 const filterStage = ref('')
-const currentPage = ref(1)
-const pageSize = 10
 
 const stageMap: Record<string, { label: string; color: string }> = {
   DOWNLOAD: { label: '文件下载', color: '#0891b2' },
@@ -50,22 +48,11 @@ function stageCount(stage: string) {
 
 onMounted(async () => {
   try {
-    await bidStore.fetchProjects(currentPage.value, pageSize)
+    await bidStore.fetchProjects()
   } finally {
     loading.value = false
   }
 })
-
-function handlePageChange(page: number) {
-  currentPage.value = page
-  loading.value = true
-  bidStore.fetchProjects(page, pageSize).finally(() => { loading.value = false })
-}
-
-function retry() {
-  loading.value = true
-  bidStore.fetchProjects(currentPage.value, pageSize).finally(() => { loading.value = false })
-}
 
 function isDeadlinePassed(deadline: string) {
   return new Date(deadline) < new Date()
@@ -84,20 +71,7 @@ function getCountdown(deadline: string) {
 
 <template>
   <div class="page-container bid-opportunity-page" v-loading="loading">
-    <el-alert
-      v-if="bidStore.error"
-      :title="bidStore.error"
-      type="error"
-      show-icon
-      :closable="false"
-      style="margin-bottom: 16px;"
-    >
-      <template #default>
-        <el-button size="small" type="primary" @click="retry">重试</el-button>
-      </template>
-    </el-alert>
-
-    <div class="opportunity-header">
+    <div class="sp-page-title-row">
       <div>
         <div class="sp-page-eyebrow">Tender Opportunities</div>
         <h1 class="sp-modern-title">招标机会</h1>
@@ -141,21 +115,11 @@ function getCountdown(deadline: string) {
         </div>
         <el-button type="primary" plain size="small">详情</el-button>
       </div>
-
-      <div v-if="bidStore.total > pageSize" style="display: flex; justify-content: center; padding: 8px 0 0;">
-        <el-pagination
-          v-model:current-page="currentPage"
-          :total="bidStore.total"
-          :page-size="pageSize"
-          layout="prev, pager, next"
-          @current-change="handlePageChange"
-        />
-      </div>
     </div>
 
     <div v-else class="sp-card">
       <div class="sp-empty">
-        <div class="sp-empty-icon"><el-icon :size="48"><Document /></el-icon></div>
+        <div class="sp-empty-icon">📋</div>
         <div class="sp-empty-text">暂无招标项目</div>
         <div class="sp-empty-desc">当前没有符合条件的招标项目</div>
       </div>
@@ -164,21 +128,20 @@ function getCountdown(deadline: string) {
 </template>
 
 <style scoped>
-.bid-opportunity-page { max-width: 1440px; }
-.opportunity-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+.bid-opportunity-page { /* full-width — shell provides padding */ }
 .header-stats { display: grid; grid-template-columns: repeat(3, 92px); gap: 10px; }
-.header-stats div { padding: 12px; border: 1px solid var(--sp-border); border-radius: 14px; background: rgba(255,255,255,.88); text-align: center; }
+.header-stats div { padding: 12px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); background: var(--sp-surface); text-align: center; }
 .header-stats strong { display: block; color: var(--sp-gray-900); font-size: 22px; line-height: 1; }
 .header-stats span { display: block; margin-top: 5px; color: var(--sp-gray-500); font-size: 12px; }
-.compact-filter { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--sp-border); border-radius: 18px; background: rgba(255,255,255,.92); box-shadow: var(--sp-shadow-sm); }
+.compact-filter { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; align-items: center; padding: 10px 14px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); background: var(--sp-surface); }
 .stage-tabs { display: flex; gap: 8px; overflow-x: auto; }
 .stage-tabs button { border: 1px solid var(--sp-border); border-radius: 999px; background: #fff; color: var(--sp-gray-600); padding: 8px 12px; font-weight: 800; cursor: pointer; white-space: nowrap; }
 .stage-tabs button span { margin-left: 5px; color: var(--sp-gray-400); }
 .stage-tabs button.active { border-color: var(--sp-primary); background: var(--sp-primary); color: #fff; }
 .stage-tabs button.active span { color: rgba(255,255,255,.76); }
-.opportunity-list { display: grid; gap: 10px; margin-top: 16px; }
-.opportunity-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px auto; gap: 18px; align-items: center; padding: 16px 18px; border: 1px solid var(--sp-border); border-radius: 16px; background: rgba(255,255,255,.94); box-shadow: var(--sp-shadow-xs); cursor: pointer; transition: all .18s ease; }
-.opportunity-row:hover { transform: translateY(-1px); border-color: rgba(22,132,216,.45); box-shadow: var(--sp-shadow-sm); }
+.opportunity-list { display: grid; gap: 10px; margin-top: 18px; }
+.opportunity-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px auto; gap: 18px; align-items: center; padding: 16px 18px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); background: var(--sp-surface); cursor: pointer; transition: background .15s ease; }
+.opportunity-row:hover { background: var(--sp-primary-lighter); }
 .row-title-line { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .row-title-line h3 { margin: 0; color: var(--sp-gray-900); font-size: 16px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 7px; color: var(--sp-gray-500); font-size: 12px; }
@@ -186,5 +149,5 @@ function getCountdown(deadline: string) {
 .row-deadline small { display: block; color: var(--sp-gray-400); font-size: 11px; }
 .row-deadline strong { display: block; color: var(--sp-gray-900); font-size: 14px; }
 .row-deadline.expired strong { color: var(--sp-red); }
-@media (max-width: 900px) { .opportunity-header, .compact-filter { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; } .header-stats { grid-template-columns: repeat(3, 1fr); } .opportunity-row { grid-template-columns: 1fr; } .row-deadline { padding-left: 0; border-left: 0; } }
+@media (max-width: 900px) { .compact-filter { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; } .header-stats { grid-template-columns: repeat(3, 1fr); } .opportunity-row { grid-template-columns: 1fr; } .row-deadline { padding-left: 0; border-left: 0; } }
 </style>

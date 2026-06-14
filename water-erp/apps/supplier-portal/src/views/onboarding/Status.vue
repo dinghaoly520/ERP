@@ -85,13 +85,13 @@ const currentConfig = computed(() => {
 </template>
 
 <style scoped>
-.onboarding-page { max-width: 1180px; }
-.onboarding-card { padding: 24px; border: 1px solid var(--sp-border); border-radius: 20px; background: rgba(255,255,255,.94); box-shadow: var(--sp-shadow-sm); }
+.onboarding-page { /* full-width — shell provides padding */ }
+.onboarding-card { padding: 24px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); background: var(--sp-surface); }
 .status-summary { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 16px; align-items: center; }
-.status-icon-wrap { width: 64px; height: 64px; border-radius: 18px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--status-color) 12%, white); }
+.status-icon-wrap { width: 64px; height: 64px; border-radius: var(--sp-radius-md); display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--status-color) 12%, white); }
 .status-summary h2 { margin: 0; color: var(--sp-gray-900); font-size: 24px; font-weight: 900; }
 .status-summary p { margin: 6px 0 0; color: var(--sp-gray-500); }
-.status-date { padding: 12px 16px; border-radius: 14px; background: var(--sp-gray-50); text-align: right; }
+.status-date { padding: 12px 16px; border-radius: var(--sp-radius-sm); background: var(--sp-gray-50); text-align: right; }
 .status-date span { display: block; color: var(--sp-gray-400); font-size: 12px; }
 .status-date strong { display: block; margin-top: 4px; color: var(--sp-gray-900); }
 .status-steps { display: grid; grid-template-columns: 120px minmax(40px, 1fr) 120px minmax(40px, 1fr) 120px; align-items: center; margin: 28px 0; }
@@ -101,7 +101,7 @@ const currentConfig = computed(() => {
 .step.active strong { color: var(--sp-gray-900); }
 .line { height: 2px; background: var(--sp-gray-200); }
 .line.active { background: var(--sp-primary); }
-.reason-card { margin-top: 14px; padding: 14px 16px; border-radius: 14px; }
+.reason-card { margin-top: 14px; padding: 14px 16px; border-radius: var(--sp-radius-sm); }
 .reason-card strong { display: block; margin-bottom: 4px; }
 .reason-card p { margin: 0; }
 .reason-card.error { color: var(--sp-red); background: var(--sp-red-light); }

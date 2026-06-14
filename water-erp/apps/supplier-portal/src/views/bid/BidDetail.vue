@@ -121,7 +121,7 @@ function goToSubmit() {
 
     <template v-if="project">
       <!-- Project header -->
-      <div class="sp-card project-hero">
+      <div class="project-hero">
         <div class="hero-content">
           <div class="hero-top">
             <span
@@ -283,11 +283,14 @@ function goToSubmit() {
 
 <style scoped>
 .project-hero {
-  background: linear-gradient(135deg, #0a5eb8, #0891b2);
+  background: linear-gradient(135deg, #042a58 0%, #0756a5 50%, #0a7abf 100%);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 24px;
+  border-radius: var(--sp-radius-md);
+  border: 1px solid transparent;
 }
 
 .hero-top {

@@ -1,11 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createExpert, listSpecialties } from '@/lib/api/expert';
-import { useEffect } from 'react';
-import { PageHero, SectionCard } from '@/components/workbench';
-import { UsersRound } from 'lucide-react';
+import { ArrowLeft, UserPlus } from 'lucide-react';
 
 const TITLES = ['教授级高级工程师', '高级工程师', '高级经济师', '高级会计师', '工程师', '注册造价工程师', '注册监理工程师'];
 
@@ -40,22 +38,34 @@ export default function ExpertEntryPage() {
 
   return (
     <div>
-      <PageHero eyebrow="专家管理中心" title="专家录入" description="录入评审专家基础资料、专业方向和可用状态。" tone="purple" icon={<UsersRound size={14} />} />
+      {/* Header */}
+      <button onClick={() => router.push('/expert/repository')} className="inline-flex items-center gap-1.5 text-[13px] text-[#5a6d8a] hover:text-[#0756a5] mb-4">
+        <ArrowLeft size={14} /> 返回专家库
+      </button>
 
-      <div className="bg-white rounded-2xl border border-[#e5ecf4] p-6 max-w-3xl">
-        {error && <div className="mb-4 rounded-lg border border-[#fca5a5] bg-[#fef2f2] px-4 py-2.5 text-sm text-[#c0392b]">{error}</div>}
+      <div className="mb-6">
+        <div className="text-[11px] font-extrabold text-[#0756a5] uppercase tracking-[0.1em]">Expert Management</div>
+        <h1 className="mt-1 text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">录入专家</h1>
+        <p className="mt-1 text-[13px] text-[#64748b]">创建评审专家账号，录入基本信息后即可参与项目抽取与评审。</p>
+      </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="登录账号 *">
+      {/* Form */}
+      <div className="max-w-3xl border border-[#dce3eb] bg-white px-6 py-5">
+        {error && (
+          <div className="mb-5 px-4 py-2.5 border border-[#fca5a5] bg-[#fef2f2] text-[13px] text-[#991b1b]">{error}</div>
+        )}
+
+        <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+          <Field label="登录账号" required>
             <input value={form.username} onChange={e => set('username', e.target.value)} placeholder="如 expert_zhang" className={inputCls} />
           </Field>
-          <Field label="专家姓名 *">
+          <Field label="专家姓名" required>
             <input value={form.displayName} onChange={e => set('displayName', e.target.value)} placeholder="姓名" className={inputCls} />
           </Field>
-          <Field label="初始密码 *">
-            <input value={form.password} onChange={e => set('password', e.target.value)} placeholder="至少 6 位" className={inputCls} />
+          <Field label="初始密码" required>
+            <input value={form.password} onChange={e => set('password', e.target.value)} placeholder="至少 6 位" type="password" className={inputCls} />
           </Field>
-          <Field label="专业领域 *">
+          <Field label="专业领域" required>
             <input value={form.specialty} onChange={e => set('specialty', e.target.value)} list="spec-list" placeholder="如 水利工程" className={inputCls} />
             <datalist id="spec-list">{specialties.map(s => <option key={s} value={s} />)}</datalist>
           </Field>
@@ -80,20 +90,25 @@ export default function ExpertEntryPage() {
           </Field>
         </div>
 
-        <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => router.push('/expert/repository')} className="px-5 py-2 text-sm text-[#5a6d8a] hover:bg-[#f8fafc] rounded-lg transition">取消</button>
-          <button onClick={submit} disabled={saving} className="px-5 py-2 text-sm text-white bg-[#7c3aed] hover:bg-[#6d28d9] rounded-lg disabled:opacity-50 transition">{saving ? '保存中...' : '录入专家'}</button>
+        <div className="flex justify-end gap-3 mt-7 pt-4 border-t border-[#e9eef4]">
+          <button onClick={() => router.push('/expert/repository')} className="px-5 py-2 text-[13px] font-semibold text-[#64748b] hover:bg-[#f8fafc] border border-[#dce3eb] transition">取消</button>
+          <button onClick={submit} disabled={saving} className="inline-flex items-center gap-1.5 px-5 py-2 text-[13px] font-bold text-white bg-[#0756a5] hover:bg-[#06428a] disabled:opacity-50 transition">
+            <UserPlus size={14} />{saving ? '保存中...' : '录入专家'}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-const inputCls = 'w-full px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm focus:outline-none focus:border-[#7c3aed]';
-function Field({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
+const inputCls = 'w-full px-3 py-2 border border-[#dce3eb] text-[13px] placeholder:text-[#94a3b8] focus:outline-none focus:border-[#0756a5] focus:ring-0';
+
+function Field({ label, children, full, required }: { label: string; children: React.ReactNode; full?: boolean; required?: boolean }) {
   return (
     <div className={full ? 'col-span-2' : ''}>
-      <label className="block text-xs font-semibold text-[#5a6d8a] mb-1.5">{label}</label>
+      <label className="block text-[12px] font-semibold text-[#475569] mb-1.5">
+        {label}{required && <span className="text-[#dc2626] ml-0.5">*</span>}
+      </label>
       {children}
     </div>
   );

@@ -43,6 +43,32 @@ const dotColor: Record<string, string> = {
   '待处理': 'bg-orange-400 shadow-[0_0_6px_rgba(249,115,22,0.4)]',
 };
 
+const CACHE_KEY = 'dashboard_ai_insight_v1';
+
+interface CachedInsight {
+  result: AiInsightResult;
+  contextSnapshot: string;
+}
+
+function readCache(): CachedInsight | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed?.result?.overview && parsed?.contextSnapshot) return parsed;
+  } catch { /* corrupted */ }
+  return null;
+}
+
+function writeCache(result: AiInsightResult, context: DashboardContext) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      result,
+      contextSnapshot: JSON.stringify(context),
+    }));
+  } catch { /* quota exceeded, silently skip */ }
+}
+
 export function DashboardAiPanel({
   context,
   ready = false,
@@ -56,7 +82,7 @@ export function DashboardAiPanel({
   const [result, setResult] = useState<AiInsightResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const fetchedRef = useRef(false);
+  const initializedRef = useRef(false);
 
   const totalItems =
     (context.supplier?.total ?? 0) +
@@ -64,7 +90,9 @@ export function DashboardAiPanel({
     (context.expert?.total ?? 0) +
     (context.catalog?.total ?? 0);
 
-  const fetchInsight = async () => {
+  const contextKey = JSON.stringify(context);
+
+  const fetchInsight = async (force = false) => {
     if (totalItems === 0) { setResult(null); setLoading(false); return; }
     setLoading(true);
     setError(false);
@@ -75,16 +103,28 @@ export function DashboardAiPanel({
         body: JSON.stringify(context), credentials: 'include',
       });
       const data = await res.json();
-      if (data.overview) setResult(data);
-      else throw new Error('invalid');
+      if (data.overview) {
+        setResult(data);
+        writeCache(data, context);
+      } else throw new Error('invalid');
     } catch { setError(true); }
     finally { setLoading(false); }
   };
 
   useEffect(() => {
-    if (ready && !fetchedRef.current) { fetchedRef.current = true; fetchInsight(); }
+    if (!ready || initializedRef.current) return;
+    initializedRef.current = true;
+
+    // Check cache: if context snapshot matches, reuse cached result
+    const cached = readCache();
+    if (cached && cached.contextSnapshot === contextKey) {
+      setResult(cached.result);
+      return;
+    }
+    // Data has changed (or no cache) — fetch fresh insight
+    fetchInsight();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, totalItems]);
+  }, [ready, contextKey]);
 
   if (!ready) return null;
 
@@ -99,7 +139,7 @@ export function DashboardAiPanel({
           <span className="text-[15px] font-semibold tracking-tight text-[#18181b]">水叮当</span>
           <span className="hidden sm:inline text-[13px] text-[#a1a1aa]">智能运营分析</span>
         </div>
-        <button onClick={fetchInsight} disabled={loading}
+        <button onClick={() => fetchInsight(true)} disabled={loading}
           className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-[#71717a] hover:bg-[#f4f4f5] transition disabled:opacity-40">
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           刷新

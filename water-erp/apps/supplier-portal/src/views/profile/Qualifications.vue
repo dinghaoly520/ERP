@@ -104,10 +104,11 @@ function getStatusInfo(q: any) {
 
 <template>
   <div class="page-container" v-loading="loading">
-    <div class="sp-section-header">
+    <div class="sp-page-title-row">
       <div>
-        <h1 class="page-title">资质管理</h1>
-        <p class="page-desc">管理您的企业资质材料，确保资质在有效期内</p>
+        <div class="sp-page-eyebrow">Qualifications</div>
+        <h1 class="sp-modern-title">资质管理</h1>
+        <p class="sp-modern-desc">管理您的企业资质材料，确保资质在有效期内</p>
       </div>
       <el-button type="primary" @click="openAdd">
         <el-icon><Plus /></el-icon>添加资质

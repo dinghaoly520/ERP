@@ -13,6 +13,7 @@ import { MallTool } from './tools/mall.tool';
 import { ActionPlannerService } from './actions/action-planner.service';
 import { ActionExecutorService } from './actions/action-executor.service';
 import { SYSTEM_KNOWLEDGE } from './knowledge/system-knowledge';
+import { ChatMessage } from './model/assistant-model-provider';
 import { ChatDto } from './dto/chat.dto';
 
 @Injectable()
@@ -47,7 +48,6 @@ export class AssistantService {
   }
 
   async chat(dto: ChatDto) {
-    // Find or create conversation
     const conversation = dto.conversationId
       ? await this.prisma.assistantConversation.findUnique({
           where: { id: dto.conversationId },
@@ -68,25 +68,16 @@ export class AssistantService {
       };
     }
 
-    // Save user message
     await this.prisma.assistantMessage.create({
-      data: {
-        conversationId: conversation.id,
-        role: 'user',
-        content: dto.message,
-      },
+      data: { conversationId: conversation.id, role: 'user', content: dto.message },
     });
 
-    // Build message history for model
-    const history =
-      conversation.messages?.map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })) || [];
+    const history: ChatMessage[] = conversation.messages?.map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    })) || [];
 
-    // Build tool list for system prompt
-    const toolList = this.toolRegistry
-      .list()
+    const toolList = this.toolRegistry.list()
       .map((t) => `- ${t.name}: ${t.description}`)
       .join('\n');
 
@@ -109,104 +100,28 @@ ${toolList}
       { role: 'user' as const, content: dto.message },
     ];
 
-    // Call model (first pass)
     let answer: string;
     let cards: unknown[] = [];
     const citations: unknown[] = [];
     const pendingActions: unknown[] = [];
 
+    // Quick path: direct tool dispatch from frontend quick cards
+    const directToolMatch = dto.message.match(
+      /请调用\s+(\w+)\s+工具[，,]\s*参数\s+(\{[\s\S]*?\})/,
+    );
+
     try {
-      const res = await this.model.chat(messages);
-      answer = res.text;
-
-      // Check for tool call in response
-      const toolCallMatch = answer.match(
-        /TOOL_CALL:\s*(\{[\s\S]*?"tool"[\s\S]*?\})/,
-      );
-      if (!toolCallMatch) {
-        // no tool call, continue with raw answer
+      if (directToolMatch) {
+        answer = await this.handleDirectToolCall(
+          directToolMatch, messages, cards, citations,
+        );
       } else {
-        // Try to parse JSON; if regex-cut is incomplete, walk forward to balance braces
-        let jsonStr = toolCallMatch[1];
-        let braceCount = 0;
-        for (const ch of jsonStr) {
-          if (ch === '{') braceCount++;
-          if (ch === '}') braceCount--;
-        }
-        // If braces unbalanced, extend jsonStr from original answer
-        if (braceCount !== 0) {
-          const startIdx = answer.indexOf(jsonStr);
-          let endIdx = startIdx + jsonStr.length;
-          while (braceCount > 0 && endIdx < answer.length) {
-            const ch = answer[endIdx];
-            if (ch === '{') braceCount++;
-            if (ch === '}') braceCount--;
-            endIdx++;
-          }
-          jsonStr = answer.slice(startIdx, endIdx);
-        }
-        try {
-          const toolCall = JSON.parse(jsonStr);
-          const tool = this.toolRegistry.get(toolCall.tool);
-          if (tool) {
-            const result = await tool.execute(toolCall.args || {});
-            if (result.success && result.cards) {
-              cards = result.cards;
-            }
-            if (result.citations) {
-              citations.push(...result.citations);
-            }
-            // Second model call: incorporate tool result into final answer
-            // Build a clean summary for the model — don't dump raw JSON
-            let toolSummary = '';
-            if (result.success) {
-              const cardCount = (result.cards || []).length;
-              const dataObj = result.data as Record<string, unknown> | undefined;
-              const itemCount = Array.isArray(result.data) ? result.data.length : 0;
-              if (cardCount > 0) {
-                const cardTypes = (result.cards || []).map((c: any) => c.type).join('、');
-                toolSummary = `查询成功，已生成 ${cardCount} 张卡片（类型：${cardTypes}）。卡片已在前端渲染展示，你不需要在文字中重复卡片中的数字。`;
-              } else if (itemCount > 0) {
-                toolSummary = `查询到 ${itemCount} 条记录。`;
-              } else if (dataObj) {
-                toolSummary = `查询到 1 条详情记录。`;
-              } else {
-                toolSummary = '查询成功，但结果为空。';
-              }
-            } else {
-              toolSummary = `工具调用失败: ${result.error}`;
-            }
-
-            const followUpMessages = [
-              ...messages,
-              { role: 'assistant' as const, content: answer },
-              {
-                role: 'user' as const,
-                content: `工具 ${toolCall.tool} 的查询结果：${toolSummary}
-
-请以董事长的视角，基于这些数据给出你的判断和建议。记住：
-- 【绝对不要】逐条罗列卡片中的数字——卡片已经在页面上展示了。
-- 【你要做的】提炼出最重要的 2-3 个洞察，每个用 1-2 句话讲清楚现状和含义。
-- 如果有异常或待办事项，明确提出。
-- 按照系统提示词中的回答格式规范来组织你的回答。`,
-              },
-            ];
-            try {
-              const followUp = await this.model.chat(followUpMessages);
-              answer = followUp.text;
-            } catch {
-              // Keep original answer if follow-up call fails
-            }
-          }
-        } catch {
-          // Tool call parse failed, keep raw answer
-        }
+        answer = await this.handleNormalChat(messages, cards, citations);
       }
     } catch (e) {
       answer = `抱歉，AI 服务暂时不可用：${(e as Error).message}。请检查 DeepSeek API Key 配置或稍后重试。`;
     }
 
-    // Save assistant message
     await this.prisma.assistantMessage.create({
       data: {
         conversationId: conversation.id,
@@ -217,7 +132,6 @@ ${toolList}
       },
     });
 
-    // Update conversation title on first message
     if (!conversation.messages?.length) {
       await this.prisma.assistantConversation.update({
         where: { id: conversation.id },
@@ -225,24 +139,125 @@ ${toolList}
       });
     }
 
-    return {
-      conversationId: conversation.id,
-      answer,
-      cards,
-      citations,
-      pendingActions,
-    };
+    return { conversationId: conversation.id, answer, cards, citations, pendingActions };
+  }
+
+  private async handleDirectToolCall(
+    match: RegExpMatchArray,
+    messages: ChatMessage[],
+    cards: unknown[],
+    citations: unknown[],
+  ): Promise<string> {
+    const toolName = match[1];
+    let toolArgs: Record<string, unknown> = {};
+    try {
+      toolArgs = JSON.parse(match[2]);
+    } catch { /* keep empty args */ }
+
+    const tool = this.toolRegistry.get(toolName);
+    if (!tool) {
+      const res = await this.model.chat(messages);
+      return res.text;
+    }
+
+    const result = await tool.execute(toolArgs);
+    if (result.success && result.cards) {
+      for (const c of result.cards) cards.push(c);
+    }
+    if (result.citations) {
+      for (const c of result.citations) citations.push(c);
+    }
+
+    const toolSummary = result.success
+      ? `查询成功，已生成 ${(result.cards || []).length} 张数据卡片。请基于这些卡片中的数据，按照系统提示词中的回答格式规范，给董事长一份针对性的分析与建议。`
+      : `工具调用失败: ${result.error}`;
+
+    const directMessages = [
+      ...messages,
+      {
+        role: 'user' as const,
+        content: `（系统消息）工具 ${toolName} 已执行完毕。${toolSummary}\n\n请基于卡片中的真实数据，用自然段落给出你的判断和建议。不要罗列数字，卡片已在前端渲染。`,
+      },
+    ];
+    const res = await this.model.chat(directMessages);
+    return res.text;
+  }
+
+  private async handleNormalChat(
+    messages: ChatMessage[],
+    cards: unknown[],
+    citations: unknown[],
+  ): Promise<string> {
+    const res = await this.model.chat(messages);
+    let answer = res.text;
+
+    // Check for TOOL_CALL in model response
+    const toolCallMatch = answer.match(/TOOL_CALL:\s*(\{[\s\S]*?"tool"[\s\S]*?\})/);
+    if (!toolCallMatch) return answer;
+
+    // Parse JSON — extend if braces unbalanced
+    let jsonStr = toolCallMatch[1];
+    let braceCount = 0;
+    for (const ch of jsonStr) {
+      if (ch === '{') braceCount++;
+      if (ch === '}') braceCount--;
+    }
+    if (braceCount !== 0) {
+      const startIdx = answer.indexOf(jsonStr);
+      let endIdx = startIdx + jsonStr.length;
+      while (braceCount > 0 && endIdx < answer.length) {
+        if (answer[endIdx] === '{') braceCount++;
+        if (answer[endIdx] === '}') braceCount--;
+        endIdx++;
+      }
+      jsonStr = answer.slice(startIdx, endIdx);
+    }
+
+    let toolCall: { tool: string; args: Record<string, unknown> };
+    try {
+      toolCall = JSON.parse(jsonStr);
+    } catch {
+      return answer; // parse failed, return raw
+    }
+
+    const tool = this.toolRegistry.get(toolCall.tool);
+    if (!tool) return answer;
+
+    const result = await tool.execute(toolCall.args || {});
+    if (result.success && result.cards) {
+      for (const c of result.cards) cards.push(c);
+    }
+    if (result.citations) {
+      for (const c of result.citations) citations.push(c);
+    }
+
+    // Second model call to synthesize
+    const cardCount = (result.cards || []).length;
+    const toolSummary = result.success
+      ? `查询成功，已生成 ${cardCount} 张卡片（已在页面展示）。请在回答中提炼洞察而非罗列数字。`
+      : `工具调用失败: ${result.error}`;
+
+    try {
+      const followUp = await this.model.chat([
+        ...messages,
+        { role: 'assistant' as const, content: answer },
+        {
+          role: 'user' as const,
+          content: `工具 ${toolCall.tool} 返回了数据。${toolSummary}\n\n请基于这些数据，用自然段落给出判断和建议。不要罗列卡片中已有的数字。按照系统提示词的格式规范输出。`,
+        },
+      ]);
+      answer = followUp.text;
+    } catch {
+      // keep original
+    }
+
+    return answer;
   }
 
   async listConversations() {
     return this.prisma.assistantConversation.findMany({
       orderBy: { updatedAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: { id: true, title: true, createdAt: true, updatedAt: true },
       take: 20,
     });
   }
@@ -250,39 +265,30 @@ ${toolList}
   async getConversation(id: string) {
     return this.prisma.assistantConversation.findUnique({
       where: { id },
-      include: {
-        messages: { orderBy: { createdAt: 'asc' } },
-      },
+      include: { messages: { orderBy: { createdAt: 'asc' } } },
     });
   }
 
   async confirmAction(id: string) {
-    const log = await this.prisma.assistantActionLog.findUnique({
-      where: { id },
-    });
+    const log = await this.prisma.assistantActionLog.findUnique({ where: { id } });
     if (!log) return { status: 'failed', message: '操作记录不存在' };
-    if (log.status !== 'pending')
-      return { status: 'failed', message: '操作已处理，无需重复确认' };
+    if (log.status !== 'pending') return { status: 'failed', message: '操作已处理，无需重复确认' };
 
     await this.prisma.assistantActionLog.update({
       where: { id },
       data: { status: 'confirmed', confirmedAt: new Date() },
     });
-
     return this.actionExecutor.execute(id);
   }
 
   async cancelAction(id: string) {
-    const log = await this.prisma.assistantActionLog.findUnique({
-      where: { id },
-    });
+    const log = await this.prisma.assistantActionLog.findUnique({ where: { id } });
     if (!log) return { status: 'failed', message: '操作记录不存在' };
 
     await this.prisma.assistantActionLog.update({
       where: { id },
       data: { status: 'cancelled' },
     });
-
     return { status: 'success', message: '操作已取消' };
   }
 }

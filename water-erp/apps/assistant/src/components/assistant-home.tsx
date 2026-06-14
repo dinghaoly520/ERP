@@ -10,14 +10,62 @@ const copy = {
 };
 
 const quickCards = [
-  { icon: BarChart3, title: '董事长驾驶舱', desc: '全局经营态势', prompt: '给我系统全局驾驶舱概览' },
-  { icon: Search, title: '全系统数据问答', desc: '自然语言查询', prompt: '当前系统有哪些异常需要关注？' },
-  { icon: AlertTriangle, title: '招采风险扫描', desc: '智能风险识别', prompt: '扫描所有招采项目的风险情况' },
-  { icon: Users, title: '供应商画像', desc: '风险与信用分析', prompt: '帮我分析供应商整体情况和风险排行' },
-  { icon: ShoppingBag, title: '商城经营分析', desc: '价格与供货趋势', prompt: '汇总电子商城的经营数据和价格走势' },
-  { icon: Calendar, title: '今日重点事项', desc: '开评标与审批', prompt: '今天有哪些需要关注的开评标和审批事项？' },
-  { icon: FileText, title: '汇报材料生成', desc: '智能撰稿辅助', prompt: '准备一份集团招采运行情况汇报提纲' },
-  { icon: Sparkles, title: '业务操作助手', desc: '审批与变更协同', prompt: '列出所有待审核的供应商，帮我处理' },
+  {
+    icon: BarChart3,
+    title: '董事长驾驶舱',
+    desc: '全局经营态势',
+    tool: 'global_overview',
+    args: { action: 'stats' },
+  },
+  {
+    icon: Search,
+    title: '全系统数据问答',
+    desc: '自然语言查询',
+    tool: 'global_overview',
+    args: { action: 'stats' },
+  },
+  {
+    icon: AlertTriangle,
+    title: '招采风险扫描',
+    desc: '智能风险识别',
+    tool: 'bid',
+    args: { action: 'risks' },
+  },
+  {
+    icon: Users,
+    title: '供应商画像',
+    desc: '风险与信用分析',
+    tool: 'supplier',
+    args: { action: 'stats' },
+  },
+  {
+    icon: ShoppingBag,
+    title: '商城经营分析',
+    desc: '价格与供货趋势',
+    tool: 'mall',
+    args: { action: 'stats' },
+  },
+  {
+    icon: Calendar,
+    title: '今日重点事项',
+    desc: '开评标与审批',
+    tool: 'bid',
+    args: { action: 'active' },
+  },
+  {
+    icon: FileText,
+    title: '汇报材料生成',
+    desc: '智能撰稿辅助',
+    tool: 'global_overview',
+    args: { action: 'stats' },
+  },
+  {
+    icon: Sparkles,
+    title: '业务操作助手',
+    desc: '审批与变更协同',
+    tool: 'supplier',
+    args: { action: 'pending' },
+  },
 ];
 
 function useMouseSpotlight() {
@@ -130,7 +178,10 @@ export function AssistantHome({
             <button
               key={card.title}
               className={styles.quickCard}
-              onClick={() => onSend(card.prompt)}
+              onClick={() => {
+                const argsStr = JSON.stringify(card.args);
+                onSend(`请调用 ${card.tool} 工具，参数 ${argsStr}，获取最新数据后给我一份针对性的分析与建议。`);
+              }}
               type="button"
             >
               <span className={styles.quickIcon}>

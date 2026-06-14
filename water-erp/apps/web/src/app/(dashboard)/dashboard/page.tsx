@@ -6,11 +6,10 @@ import { DashboardAiPanel, MetricCard } from '@/components/workbench';
 import type { DashboardContext } from '@/components/workbench';
 import { api } from '@/lib/api';
 import { getCatalogStats, type CatalogStats } from '@/lib/api/catalog-admin';
-import { listCatalogApplications } from '@/lib/api/catalog';
 import type { User } from '@/lib/types';
 import { numberOrZero } from '@/lib/workbench';
 import {
-  Building2, ClipboardCheck, Megaphone, ShoppingCart, UsersRound,
+  Building2, Megaphone, ShoppingCart, UsersRound,
 } from 'lucide-react';
 
 interface SupplierStats {
@@ -49,7 +48,6 @@ export default function DashboardPage() {
   const [announcementStats, setAnnouncementStats] = useState<AnnouncementStats | null>(null);
   const [experts, setExperts] = useState<ExpertItem[]>([]);
   const [catalogStats, setCatalogStats] = useState<CatalogStats | null>(null);
-  const [pendingPriceApps, setPendingPriceApps] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -62,13 +60,11 @@ export default function DashboardPage() {
       api.get<AnnouncementStats>('/announcements/stats').catch(() => null),
       api.get<ExpertItem[]>('/expert-admin').catch(() => []),
       getCatalogStats().catch(() => null),
-      listCatalogApplications({ status: 'PENDING' }).catch(() => []),
-    ]).then(([ss, as, expertList, cs, apps]) => {
+    ]).then(([ss, as, expertList, cs]) => {
       setSupplierStats(ss);
       setAnnouncementStats(as);
       setExperts(Array.isArray(expertList) ? expertList : []);
       setCatalogStats(cs);
-      setPendingPriceApps(Array.isArray(apps) ? apps.length : 0);
       setLoading(false);
     });
   }, []);
@@ -99,19 +95,17 @@ export default function DashboardPage() {
     announcement: { total: announcementTotal, published: announcementPublished, draftLike: announcementDraftLike },
     expert: { total: expertTotal, active: expertActiveCount, unfinished: expertUnfinishedCount },
     catalog: { total: mallCatalogTotal, active: mallCatalogActive, alerts: mallCatalogAlerts },
-    applications: { pending: pendingPriceApps },
-  }), [supplierTotal, supplierApproved, pendingSuppliers, supplierRisk, announcementTotal, announcementPublished, announcementDraftLike, expertTotal, expertActiveCount, expertUnfinishedCount, mallCatalogTotal, mallCatalogActive, mallCatalogAlerts, pendingPriceApps]);
+  }), [supplierTotal, supplierApproved, pendingSuppliers, supplierRisk, announcementTotal, announcementPublished, announcementDraftLike, expertTotal, expertActiveCount, expertUnfinishedCount, mallCatalogTotal, mallCatalogActive, mallCatalogAlerts]);
 
   return (
     <div className="min-h-full space-y-6">
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard label="信息发布" value={loading ? '—' : `${announcementPublished}/${announcementTotal}`} hint="已发布 / 信息总量" tone="blue" icon={<Megaphone size={18} strokeWidth={1.7} />} onClick={() => router.push('/notice')} />
         <MetricCard label="供应商资源" value={loading ? '—' : `${supplierApproved}/${supplierTotal}`} hint="已入库 / 供应商总数" tone="green" icon={<Building2 size={18} strokeWidth={1.7} />} onClick={() => router.push('/supplier/repository')} />
         <MetricCard label="专家资源" value={loading ? '—' : `${expertTotal}`} hint={`${expertAssignments} 条参与记录`} tone="purple" icon={<UsersRound size={18} strokeWidth={1.7} />} onClick={() => router.push('/expert/repository')} />
         <MetricCard label="商城目录" value={loading ? '—' : `${mallCatalogActive}/${mallCatalogTotal}`} hint="有效目录 / 目录总量" tone="cyan" icon={<ShoppingCart size={18} strokeWidth={1.7} />} onClick={() => router.push('/mall-management/catalog')} />
         <MetricCard label="供应商待审批" value={loading ? '—' : pendingSuppliers} hint="注册入库待审核" tone="orange" icon={<Building2 size={18} strokeWidth={1.7} />} onClick={() => router.push('/supplier/approval')} />
-        <MetricCard label="价格待审批" value={loading ? '—' : pendingPriceApps} hint="商城供货申请待审核" tone="red" icon={<ClipboardCheck size={18} strokeWidth={1.7} />} onClick={() => router.push('/mall-management/approval')} />
       </section>
 
       <DashboardAiPanel context={dashboardContext} ready={!loading} />

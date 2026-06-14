@@ -84,19 +84,19 @@ const profileRows = computed(() => {
 </template>
 
 <style scoped>
-.company-page { max-width: 1180px; }
+.company-page { /* full-width — shell provides padding */ }
 .page-actions { display: flex; gap: 10px; }
-.company-card { padding: 24px; border: 1px solid var(--sp-border); border-radius: 20px; background: rgba(255,255,255,.94); box-shadow: var(--sp-shadow-sm); }
+.company-card { padding: 24px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); background: var(--sp-surface); }
 .company-identity { display: flex; align-items: center; gap: 18px; padding-bottom: 20px; border-bottom: 1px solid var(--sp-border-light); }
-.company-avatar { width: 68px; height: 68px; border-radius: 18px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--sp-primary), var(--sp-cyan)); color: #fff; font-size: 30px; font-weight: 900; }
+.company-avatar { width: 68px; height: 68px; border-radius: var(--sp-radius-md); display: flex; align-items: center; justify-content: center; background: var(--sp-primary); color: #fff; font-size: 30px; font-weight: 900; }
 .company-title h2 { margin: 0; color: var(--sp-gray-900); font-size: 24px; font-weight: 900; }
 .company-subline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; color: var(--sp-gray-500); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 .info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
-.info-item { padding: 14px 16px; border-radius: 14px; background: var(--sp-gray-50); }
+.info-item { padding: 14px 16px; border-radius: var(--sp-radius-sm); background: var(--sp-gray-50); }
 .info-item.wide { grid-column: 1 / -1; }
 .info-item span { display: block; color: var(--sp-gray-400); font-size: 12px; }
 .info-item strong { display: block; margin-top: 5px; color: var(--sp-gray-900); font-size: 14px; line-height: 1.7; }
-.reason-card { margin-top: 14px; padding: 14px 16px; border-radius: 14px; }
+.reason-card { margin-top: 14px; padding: 14px 16px; border-radius: var(--sp-radius-sm); }
 .reason-card strong { margin-right: 8px; }
 .reason-card.error { color: var(--sp-red); background: var(--sp-red-light); }
 .reason-card.warning { color: #92400e; background: var(--sp-orange-light); }

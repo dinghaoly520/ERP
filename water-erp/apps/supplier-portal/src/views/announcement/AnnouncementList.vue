@@ -64,29 +64,24 @@ function handlePageChange(page: number) {
     </div>
 
     <!-- Filters -->
-    <div class="sp-filter-panel">
-      <el-row :gutter="16" align="middle">
-        <el-col :xs="24" :sm="12" :md="8">
-          <el-input v-model="search" placeholder="搜索公告标题" prefix-icon="Search" clearable size="large" @keyup.enter="handleSearch" @clear="handleSearch" />
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="16">
-          <div class="sp-chip-group">
-            <el-button
-              v-for="t in typeOptions"
-              :key="t.value"
-              :type="activeType === t.value ? 'primary' : 'default'"
-              class="sp-chip"
-              @click="activeType = t.value; handleSearch()"
-            >
-              {{ t.label }}
-            </el-button>
-          </div>
-        </el-col>
-      </el-row>
+    <div class="sp-filter-bar">
+      <el-input v-model="search" placeholder="搜索公告标题" prefix-icon="Search" clearable size="default" style="width: 260px;" @keyup.enter="handleSearch" @clear="handleSearch" />
+      <div class="sp-chip-group">
+        <el-button
+          v-for="t in typeOptions"
+          :key="t.value"
+          :type="activeType === t.value ? 'primary' : 'default'"
+          class="sp-chip"
+          size="small"
+          @click="activeType = t.value; handleSearch()"
+        >
+          {{ t.label }}
+        </el-button>
+      </div>
     </div>
 
     <!-- List -->
-    <div class="sp-card" style="margin-top: 16px;" v-if="store.announcements.length > 0">
+    <div style="margin-top:16px;" v-if="store.announcements.length > 0">
       <div
         v-for="a in store.announcements"
         :key="a.id"
@@ -150,10 +145,7 @@ function handlePageChange(page: number) {
 
 .announcement-row:last-child { border-bottom: none; }
 .announcement-row:hover {
-  background: var(--sp-primary-lighter);
-  margin: 0 -18px;
-  padding: 16px 18px;
-  border-radius: var(--sp-radius-md);
+  background: var(--sp-gray-50);
 }
 
 .announcement-row-left {

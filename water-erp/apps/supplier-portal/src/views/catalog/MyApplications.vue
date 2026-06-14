@@ -83,9 +83,12 @@ onMounted(load)
 
 <template>
   <div class="page-container" v-loading="loading">
-    <div class="page-header">
-      <h1 class="page-title">我的供货申请</h1>
-      <p class="page-desc">查看新增品类 / 加入供货 / 改报价申请的审核进度与议价记录</p>
+    <div class="sp-page-title-row">
+      <div>
+        <div class="sp-page-eyebrow">Supply Applications</div>
+        <h1 class="sp-modern-title">我的供货申请</h1>
+        <p class="sp-modern-desc">查看新增品类 / 加入供货 / 改报价申请的审核进度与议价记录</p>
+      </div>
     </div>
 
     <el-tabs v-model="activeTab" style="margin-bottom: 16px;">
@@ -188,7 +191,7 @@ onMounted(load)
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-.app-card:hover { border-color: var(--sp-border); box-shadow: 0 2px 12px rgba(10,94,184,0.06); }
+.app-card:hover { border-color: var(--sp-primary-light); }
 
 .app-card-head {
   display: flex;

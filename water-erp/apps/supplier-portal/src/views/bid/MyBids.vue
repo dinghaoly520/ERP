@@ -58,7 +58,7 @@ function canConfirmOpening(row: any) {
 
 <template>
   <div class="page-container bid-progress-page" v-loading="loading">
-    <div class="progress-header">
+    <div class="sp-page-title-row">
       <div>
         <div class="sp-page-eyebrow">Bid Progress</div>
         <h1 class="sp-modern-title">投标进展</h1>
@@ -114,21 +114,20 @@ function canConfirmOpening(row: any) {
 </template>
 
 <style scoped>
-.bid-progress-page { max-width: 1360px; }
-.progress-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+.bid-progress-page { /* full-width — shell provides padding */ }
 .progress-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
-.progress-summary div { padding: 14px 16px; border: 1px solid var(--sp-border); border-radius: 16px; background: rgba(255,255,255,.92); box-shadow: var(--sp-shadow-xs); }
+.progress-summary div { padding: 14px 16px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); background: var(--sp-surface); }
 .progress-summary strong { display: block; color: var(--sp-gray-900); font-size: 26px; line-height: 1; }
 .progress-summary span { display: block; margin-top: 6px; color: var(--sp-gray-500); font-size: 12px; }
 .progress-list { display: grid; gap: 10px; }
-.progress-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 15px 18px; border: 1px solid var(--sp-border); border-radius: 16px; background: rgba(255,255,255,.94); box-shadow: var(--sp-shadow-xs); }
+.progress-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 15px 18px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); background: var(--sp-surface); }
 .status-rail { width: 18px; display: flex; justify-content: center; align-self: stretch; }
-.status-rail span { width: 10px; height: 10px; margin-top: 8px; border-radius: 999px; background: var(--sp-gray-300); box-shadow: 0 0 0 5px var(--sp-gray-100); }
-.status-rail.green span { background: var(--sp-green); box-shadow: 0 0 0 5px var(--sp-green-light); }
-.status-rail.orange span { background: var(--sp-orange); box-shadow: 0 0 0 5px var(--sp-orange-light); }
+.status-rail span { width: 10px; height: 10px; margin-top: 8px; border-radius: 999px; background: var(--sp-gray-300); }
+.status-rail.green span { background: var(--sp-green); }
+.status-rail.orange span { background: var(--sp-orange); }
 .progress-title-line { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .progress-title-line h3 { margin: 0; color: var(--sp-gray-900); font-size: 16px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .progress-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 7px; color: var(--sp-gray-500); font-size: 12px; }
 .progress-actions { display: flex; gap: 8px; }
-@media (max-width: 768px) { .progress-header { flex-direction: column; align-items: stretch; } .progress-summary { grid-template-columns: repeat(2, 1fr); } .progress-row { grid-template-columns: 14px 1fr; } .progress-actions { grid-column: 2; } }
+@media (max-width: 768px) { .progress-summary { grid-template-columns: repeat(2, 1fr); } .progress-row { grid-template-columns: 14px 1fr; } .progress-actions { grid-column: 2; } }
 </style>

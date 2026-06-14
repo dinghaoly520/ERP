@@ -118,7 +118,20 @@ export function getExpertEvalStats() {
 
 /* ── 招标项目（抽取页选择用）── */
 
-export interface BidProjectOption { id: string; name: string; projectCode: string; stage: string; }
+export interface BidProjectOption {
+  id: string; name: string; projectCode: string; stage: string;
+  procurementMethod: string; deadline: string; _count: { suppliers: number };
+}
 export function listBidProjects() {
   return api.get<BidProjectOption[]>('/bid/projects');
+}
+
+export interface BidProjectDetail {
+  id: string; name: string; projectCode: string; stage: string;
+  procurementMethod: string; openTime: string; deadline: string; riskNote?: string | null;
+  suppliers: { supplierId: string | null; supplierName: string }[];
+  experts: { userId: string; expertName: string; major: string }[];
+}
+export function getBidProjectDetail(id: string) {
+  return api.get<BidProjectDetail>(`/bid/projects/${id}`);
 }

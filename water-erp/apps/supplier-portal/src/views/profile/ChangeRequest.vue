@@ -62,10 +62,11 @@ const statusMap: Record<string, { label: string; class: string }> = {
 
 <template>
   <div class="page-container" v-loading="loading">
-    <div class="sp-section-header">
+    <div class="sp-page-title-row">
       <div>
-        <h1 class="page-title">信息变更</h1>
-        <p class="page-desc">申请修改企业信息，提交后需等待管理员审核</p>
+        <div class="sp-page-eyebrow">Change Requests</div>
+        <h1 class="sp-modern-title">信息变更</h1>
+        <p class="sp-modern-desc">申请修改企业信息，提交后需等待管理员审核</p>
       </div>
       <el-button type="primary" @click="openDialog">
         <el-icon><EditPen /></el-icon>申请变更

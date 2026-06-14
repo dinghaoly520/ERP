@@ -55,34 +55,39 @@ function toggleExpand(id: string) {
 
 <template>
   <div class="page-container" v-loading="loading">
-    <div class="page-header">
-      <h1 class="page-title">评价记录</h1>
-      <p class="page-desc">查看采购方对您企业的综合评价</p>
+    <div class="sp-page-title-row">
+      <div>
+        <div class="sp-page-eyebrow">Performance Reviews</div>
+        <h1 class="sp-modern-title">评价记录</h1>
+        <p class="sp-modern-desc">查看采购方对您企业的综合评价</p>
+      </div>
     </div>
 
     <!-- Stats overview -->
-    <el-row :gutter="16" v-if="stats" style="margin-bottom: 20px;">
-      <el-col :xs="12" :sm="6" v-for="item in [
-        { label: '评价总次数', value: stats.total, icon: 'DataLine', color: 'blue' },
-        { label: '平均得分', value: stats.avgScore, icon: 'TrendCharts', color: 'green' },
-        { label: 'A级评价', value: stats.levelCounts?.A || 0, icon: 'Trophy', color: 'orange' },
-        { label: 'B级及以上', value: (stats.levelCounts?.A || 0) + (stats.levelCounts?.B || 0), icon: 'Medal', color: 'cyan' },
-      ]" :key="item.label">
-        <div class="sp-stat">
-          <div class="sp-stat-icon" :class="item.color">
-            <el-icon :size="24"><component :is="item.icon" /></el-icon>
-          </div>
-          <div class="sp-stat-content">
-            <div class="sp-stat-value">{{ item.value }}</div>
-            <div class="sp-stat-label">{{ item.label }}</div>
-          </div>
-        </div>
-      </el-col>
-    </el-row>
+    <div class="sp-stat-row" v-if="stats">
+      <div class="sp-stat-cell">
+        <div class="sp-stat-cell-value">{{ stats.total }}</div>
+        <div class="sp-stat-cell-label">评价总次数</div>
+      </div>
+      <div class="sp-stat-cell">
+        <div class="sp-stat-cell-value">{{ stats.avgScore }}</div>
+        <div class="sp-stat-cell-label">平均得分</div>
+      </div>
+      <div class="sp-stat-cell">
+        <div class="sp-stat-cell-value">{{ stats.levelCounts?.A || 0 }}</div>
+        <div class="sp-stat-cell-label">A级评价</div>
+      </div>
+      <div class="sp-stat-cell">
+        <div class="sp-stat-cell-value">{{ (stats.levelCounts?.A || 0) + (stats.levelCounts?.B || 0) }}</div>
+        <div class="sp-stat-cell-label">B级及以上</div>
+      </div>
+    </div>
 
     <!-- Level distribution chart -->
-    <div class="sp-card" v-if="stats && stats.total > 0" style="margin-bottom: 20px;">
-      <div class="sp-card-title" style="margin-bottom: 16px;">等级分布</div>
+    <div class="sp-module" v-if="stats && stats.total > 0" style="margin-bottom: 16px;">
+      <div class="sp-module-header">
+        <span class="sp-module-title">等级分布</span>
+      </div>
       <div class="level-bars">
         <div v-for="key in ['A', 'B', 'C', 'D']" :key="key" class="level-bar-row">
           <div class="level-bar-label">
@@ -104,9 +109,9 @@ function toggleExpand(id: string) {
     </div>
 
     <!-- Evaluation list -->
-    <div class="sp-card">
-      <div class="sp-card-header">
-        <span class="sp-card-title">评价详情</span>
+    <div class="sp-module">
+      <div class="sp-module-header">
+        <span class="sp-module-title">评价详情</span>
       </div>
 
       <div v-if="supplierStore.evaluations.length > 0">
@@ -244,7 +249,7 @@ function toggleExpand(id: string) {
 }
 
 .eval-card:hover { border-color: var(--sp-border); }
-.eval-card.expanded { border-color: var(--sp-primary); box-shadow: 0 2px 12px rgba(10, 94, 184, 0.08); }
+.eval-card.expanded { border-color: var(--sp-primary); }
 
 .eval-summary {
   display: flex;

@@ -31,9 +31,12 @@ onMounted(load)
 
 <template>
   <div class="page-container" v-loading="loading">
-    <div class="page-header">
-      <h1 class="page-title">我的供货关系</h1>
-      <p class="page-desc">已通过审核的目录品类供货关系与当前报价，如需调价请提交改报价申请</p>
+    <div class="sp-page-title-row">
+      <div>
+        <div class="sp-page-eyebrow">Supply Relations</div>
+        <h1 class="sp-modern-title">我的供货关系</h1>
+        <p class="sp-modern-desc">已通过审核的目录品类供货关系与当前报价，如需调价请提交改报价申请</p>
+      </div>
     </div>
 
     <div v-if="supply.length === 0 && !loading" class="sp-empty" style="padding: 48px;">
@@ -89,7 +92,7 @@ onMounted(load)
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-.supply-card:hover { border-color: var(--sp-border); box-shadow: 0 2px 12px rgba(10,94,184,0.06); }
+.supply-card:hover { border-color: var(--sp-primary-light); }
 .supply-card-head {
   display: flex;
   align-items: flex-start;

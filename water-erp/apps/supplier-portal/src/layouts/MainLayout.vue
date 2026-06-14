@@ -8,8 +8,8 @@ import { supplierApi } from '@/api/supplier'
 import {
   HomeFilled, Stamp, OfficeBuilding, Medal, Phone, EditPen,
   Document, DocumentChecked, Bell, ChatDotRound, Star,
-  Fold, Expand, SwitchButton, User, Lock, ArrowDown,
-  Goods, Connection, Box,
+  Fold, Expand, SwitchButton, User, Lock,
+  Goods, Connection, Box, ArrowDown,
 } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 
@@ -54,7 +54,7 @@ const menuItems = [
 ]
 
 const activeMenu = computed(() => route.path)
-const activeMenuItem = computed(() => menuItems.find((item: any) => item.path === route.path))
+const userInitial = computed(() => (authStore.displayName?.charAt(0) || 'S'))
 
 const notifPopover = ref(false)
 const recentNotifs = computed(() => notifStore.notifications.slice(0, 5))
@@ -76,8 +76,7 @@ async function handleLogout() {
 }
 
 function handleCommand(cmd: string) {
-  if (cmd === 'logout') handleLogout()
-  else if (cmd === 'profile') router.push('/profile')
+  if (cmd === 'profile') router.push('/profile')
   else if (cmd === 'password') pwdDialog.value = true
 }
 
@@ -103,139 +102,136 @@ notifStore.fetchUnreadCount()
 </script>
 
 <template>
-  <el-container class="sp-layout">
-    <!-- Sidebar -->
-    <el-aside :width="isCollapse ? '68px' : '256px'" class="sp-sidebar">
-      <div class="sp-sidebar-logo" @click="router.push('/dashboard')">
-        <img src="/logo.jpg" alt="四川水发集团" class="sp-logo-img" />
-        <transition name="sp-fade">
-          <div v-show="!isCollapse" class="sp-logo-text">
-            <span class="sp-logo-title">四川水发集团</span>
-            <span class="sp-logo-sub">供应商业务门户</span>
-          </div>
-        </transition>
+  <div class="sp-layout">
+    <!-- Header -->
+    <header class="sp-header">
+      <div class="sp-header-left">
+        <button class="sp-brand" @click="router.push('/dashboard')">
+          <img src="/logo.jpg" alt="四川水发集团" class="sp-brand-logo" />
+          <strong class="sp-brand-title">四川水发集团</strong>
+        </button>
       </div>
 
-      <el-menu
-        :default-active="activeMenu"
-        :collapse="isCollapse"
-        :collapse-transition="false"
-        background-color="transparent"
-        text-color="#5a6d8a"
-        active-text-color="#064ea2"
-        class="sp-sidebar-menu"
-        router
-      >
-        <template v-for="(item, idx) in menuItems" :key="idx">
-          <div v-if="item.divider" class="sp-menu-section" v-show="!isCollapse">
-            <span>{{ item.label }}</span>
-          </div>
-          <div v-else class="sp-menu-section-dot" v-show="isCollapse" />
-          <el-menu-item v-if="item.path" :index="item.path" class="sp-menu-item">
-            <el-icon><component :is="item.icon" /></el-icon>
-            <template #title>
-              <span>{{ item.title }}</span>
-              <el-badge v-if="item.badge && notifStore.unreadCount > 0" :value="notifStore.unreadCount" :max="99" class="sp-menu-badge" />
-            </template>
-          </el-menu-item>
-        </template>
-      </el-menu>
-    </el-aside>
-
-    <!-- Main content -->
-    <el-container class="sp-main">
-      <!-- Top bar -->
-      <el-header class="sp-header" height="68px">
-        <div class="sp-header-left">
-          <div class="sp-collapse-btn" @click="isCollapse = !isCollapse">
-            <el-icon :size="16"><component :is="isCollapse ? Expand : Fold" /></el-icon>
-          </div>
-          <div class="sp-header-title-wrap">
-            <div class="sp-header-title">{{ activeMenuItem?.title || route.meta?.title || '供应商门户' }}</div>
-          </div>
-        </div>
-
-        <div class="sp-header-right">
-          <!-- Notification bell -->
-          <el-popover
-            v-model:visible="notifPopover"
-            placement="bottom-end"
-            :width="360"
-            trigger="click"
-            @show="handleNotifOpen"
-          >
-            <template #reference>
-              <el-badge :value="notifStore.unreadCount" :max="99" :hidden="notifStore.unreadCount === 0">
-                <div class="sp-header-icon">
-                  <el-icon :size="18"><Bell /></el-icon>
-                </div>
-              </el-badge>
-            </template>
-            <div class="sp-notif-popover">
-              <div class="sp-notif-header">
-                <span class="sp-notif-title">消息通知</span>
-                <el-button link type="primary" size="small" @click="notifStore.markAllAsRead(); notifStore.fetchUnreadCount()">
-                  全部已读
-                </el-button>
+      <div class="sp-header-right">
+        <!-- Notification bell -->
+        <el-popover
+          v-model:visible="notifPopover"
+          placement="bottom-end"
+          :width="360"
+          trigger="click"
+          @show="handleNotifOpen"
+        >
+          <template #reference>
+            <el-badge :value="notifStore.unreadCount" :max="99" :hidden="notifStore.unreadCount === 0">
+              <div class="sp-header-icon">
+                <el-icon :size="18"><Bell /></el-icon>
               </div>
-              <div v-if="recentNotifs.length === 0" class="sp-notif-empty">暂无消息</div>
-              <div
-                v-for="n in recentNotifs"
-                :key="n.id"
-                class="sp-notif-item"
-                :class="{ unread: !n.isRead }"
-                @click="goToNotif(n)"
-              >
-                <div class="sp-notif-dot" v-if="!n.isRead"></div>
-                <div class="sp-notif-content">
-                  <div class="sp-notif-item-title">{{ n.title }}</div>
-                  <div class="sp-notif-item-desc">{{ n.content }}</div>
-                  <div class="sp-notif-item-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</div>
-                </div>
-              </div>
-              <div class="sp-notif-footer" @click="router.push('/notifications'); notifPopover = false">
-                查看全部消息
+            </el-badge>
+          </template>
+          <div class="sp-notif-popover">
+            <div class="sp-notif-header">
+              <span class="sp-notif-title">消息通知</span>
+              <el-button link type="primary" size="small" @click="notifStore.markAllAsRead(); notifStore.fetchUnreadCount()">
+                全部已读
+              </el-button>
+            </div>
+            <div v-if="recentNotifs.length === 0" class="sp-notif-empty">暂无消息</div>
+            <div
+              v-for="n in recentNotifs"
+              :key="n.id"
+              class="sp-notif-item"
+              :class="{ unread: !n.isRead }"
+              @click="goToNotif(n)"
+            >
+              <div class="sp-notif-dot" v-if="!n.isRead"></div>
+              <div class="sp-notif-content">
+                <div class="sp-notif-item-title">{{ n.title }}</div>
+                <div class="sp-notif-item-desc">{{ n.content }}</div>
+                <div class="sp-notif-item-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</div>
               </div>
             </div>
-          </el-popover>
-
-          <!-- User dropdown -->
-          <el-dropdown @command="handleCommand" trigger="click">
-            <div class="sp-user-bar">
-              <el-avatar :size="34" :style="{ background: 'linear-gradient(135deg, #064ea2, #0b63ce)', fontWeight: 700, fontSize: '14px' }">
-                {{ authStore.displayName?.charAt(0) || 'S' }}
-              </el-avatar>
-              <span class="sp-user-name">{{ authStore.displayName }}</span>
-              <el-icon><ArrowDown /></el-icon>
+            <div class="sp-notif-footer" @click="router.push('/notifications'); notifPopover = false">
+              查看全部消息
             </div>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="profile">
-                  <el-icon><User /></el-icon>企业信息
-                </el-dropdown-item>
-                <el-dropdown-item command="password">
-                  <el-icon><Lock /></el-icon>修改密码
-                </el-dropdown-item>
-                <el-dropdown-item command="logout" divided>
-                  <el-icon><SwitchButton /></el-icon>退出登录
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-      </el-header>
+          </div>
+        </el-popover>
 
-      <!-- Page content -->
-      <el-main class="sp-content">
+        <!-- User pill with dropdown -->
+        <el-dropdown @command="handleCommand" trigger="click">
+          <div class="sp-user-pill">
+            <span class="sp-user-avatar">{{ userInitial }}</span>
+            <span class="sp-user-name">{{ authStore.displayName }}</span>
+            <el-icon class="sp-user-arrow"><ArrowDown /></el-icon>
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="profile">
+                <el-icon><User /></el-icon>企业信息
+              </el-dropdown-item>
+              <el-dropdown-item command="password">
+                <el-icon><Lock /></el-icon>修改密码
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
+        <!-- Logout button -->
+        <button class="sp-logout-btn" @click="handleLogout">退出登录</button>
+      </div>
+    </header>
+
+    <!-- Body: sidebar + content -->
+    <div class="sp-body">
+      <!-- Sidebar -->
+      <aside class="sp-sidebar" :class="{ collapsed: isCollapse }">
+        <nav class="sp-nav">
+          <template v-for="(item, idx) in menuItems" :key="idx">
+            <!-- Section divider -->
+            <div v-if="item.divider && !isCollapse" class="sp-nav-section">
+              <span>{{ item.label }}</span>
+            </div>
+            <div v-else-if="item.divider && isCollapse" class="sp-nav-section-dot" />
+
+            <!-- Nav item -->
+            <button
+              v-else
+              class="sp-nav-item"
+              :class="{ active: activeMenu === item.path }"
+              @click="handleMenuSelect(item.path!)"
+            >
+              <span v-if="activeMenu === item.path" class="sp-nav-active-bar" />
+              <el-icon class="sp-nav-icon"><component :is="item.icon" /></el-icon>
+              <span v-show="!isCollapse" class="sp-nav-text">
+                <span class="sp-nav-title">{{ item.title }}</span>
+                <span v-if="item.desc" class="sp-nav-desc">{{ item.desc }}</span>
+              </span>
+              <el-badge
+                v-if="item.badge && notifStore.unreadCount > 0 && isCollapse"
+                :value="notifStore.unreadCount"
+                :max="99"
+                class="sp-nav-badge"
+              />
+            </button>
+          </template>
+        </nav>
+
+        <!-- Collapse toggle -->
+        <button class="sp-collapse-toggle" @click="isCollapse = !isCollapse">
+          <el-icon :size="16"><component :is="isCollapse ? Expand : Fold" /></el-icon>
+        </button>
+      </aside>
+
+      <!-- Main content -->
+      <main class="sp-content">
         <RouterView v-slot="{ Component }">
           <transition name="sp-route" mode="out-in">
             <component :is="Component" />
           </transition>
         </RouterView>
-      </el-main>
-    </el-container>
+      </main>
+    </div>
 
-    <!-- Mobile overlay -->
+    <!-- Mobile fab -->
     <div v-if="isMobile && !mobileDrawer" class="mobile-fab" @click="mobileDrawer = true">
       <el-icon :size="22"><Fold /></el-icon>
     </div>
@@ -252,112 +248,78 @@ notifStore.fetchUnreadCount()
         <el-button type="primary" :loading="pwdLoading" @click="handleChangePassword">确认修改</el-button>
       </template>
     </el-dialog>
-  </el-container>
+  </div>
 </template>
 
 <style scoped>
-.sp-layout {
-  height: 100vh;
-  overflow: hidden;
-  background: var(--sp-bg);
-}
+/* ═══════════════════════════════════════════════════════
+   Shell Layout — matching apps/web AppShell design
+   ═══════════════════════════════════════════════════════ */
 
-.sp-sidebar {
-  position: relative;
-  overflow-x: hidden;
-  overflow-y: auto;
+.sp-layout {
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-right: 1px solid #dbe6f3;
-  box-shadow: 0 18px 60px rgba(15, 47, 87, 0.08);
-  border-radius: 0 24px 24px 0;
-  margin: 12px 0 12px 0;
-  transition: width 0.25s var(--sp-ease);
+  height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(6, 78, 162, 0.10), transparent 30%),
+    radial-gradient(circle at 88% 8%, rgba(22, 132, 216, 0.08), transparent 26%),
+    linear-gradient(180deg, #f7fbff 0%, #f8fafc 100%);
+  color: #18243a;
 }
 
-.sp-sidebar::-webkit-scrollbar { width: 0; }
-
-.sp-sidebar-logo {
-  height: 68px;
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  gap: 10px;
-  border-bottom: 1px solid #edf3fb;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.sp-logo-img {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  object-fit: cover;
-  flex-shrink: 0;
-  border: 1px solid #dbeafe;
-}
-
-.sp-logo-text { display: flex; flex-direction: column; min-width: 0; }
-.sp-logo-title { color: #123a6e; font-size: 14px; font-weight: 900; line-height: 1.2; letter-spacing: 0.06em; font-family: "SimHei","黑体",sans-serif; }
-.sp-logo-sub { margin-top: 2px; color: #8a96aa; font-size: 11px; line-height: 1.2; font-weight: 600; }
-
-.sp-sidebar-menu {
-  border-right: none !important;
-  flex: 1;
-  padding: 10px 8px 18px;
-  background: transparent !important;
-}
-
-.sp-sidebar-menu:not(.el-menu--collapse) { width: 256px; }
-
-.sp-menu-section {
-  padding: 18px 12px 7px;
-  color: #8a96aa;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.sp-menu-section-dot { height: 12px; }
-
-.sp-menu-item {
-  height: 42px !important;
-  line-height: 42px !important;
-  margin: 3px 0;
-  border-radius: 14px !important;
-  color: #5a6d8a !important;
-  transition: all 0.18s var(--sp-ease);
-}
-
-.sp-menu-item:hover { background: #eff6ff !important; color: #064ea2 !important; }
-.sp-menu-item.is-active {
-  background: linear-gradient(90deg, #064ea2, #0b63ce) !important;
-  color: #fff !important;
-  box-shadow: 0 12px 28px rgba(6, 78, 162, 0.22);
-}
-.sp-menu-badge :deep(.el-badge__content) { font-size: 10px; }
-
-.sp-main { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-
+/* ─── Header ─── */
 .sp-header {
-  height: 68px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
-  z-index: 10;
+  height: 68px;
+  padding: 0 24px;
   background: rgba(255, 255, 255, 0.86);
-  border-bottom: 1px solid #dbe6f3;
-  box-shadow: 0 6px 24px rgba(4, 42, 88, 0.04);
   backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid #dbe6f3;
 }
 
 .sp-header-left,
-.sp-header-right { display: flex; align-items: center; gap: 14px; }
+.sp-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 
-.sp-collapse-btn,
+/* Brand */
+.sp-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sp-brand-logo {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+}
+
+.sp-brand-title {
+  display: block;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.10em;
+  color: #123a6e;
+  font-family: "SimHei", "黑体", sans-serif;
+}
+
+/* Header icon button */
 .sp-header-icon {
   width: 36px;
   height: 36px;
@@ -367,74 +329,406 @@ notifStore.fetchUnreadCount()
   color: #5a6d8a;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.18s var(--sp-ease);
+  transition: all 0.18s ease;
   border: 1px solid #e5ecf4;
   background: #f8fbff;
 }
 
-.sp-collapse-btn:hover,
-.sp-header-icon:hover { color: #064ea2; border-color: #bfdbfe; background: #eff6ff; }
+.sp-header-icon:hover {
+  color: #064ea2;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
 
-.sp-header-title-wrap { display: flex; flex-direction: column; }
-.sp-header-title { color: #0f2f57; font-size: 16px; font-weight: 900; line-height: 1.2; }
-
-.sp-user-bar {
+/* User pill */
+.sp-user-pill {
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  padding: 4px 10px 4px 4px;
-  border-radius: 999px;
-  transition: background 0.18s var(--sp-ease);
+  padding: 4px 12px 4px 4px;
+  border-radius: 12px;
+  transition: background 0.18s ease;
   border: 1px solid #e5ecf4;
   background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 47, 87, 0.04);
 }
 
-.sp-user-bar:hover { background: #f8fbff; border-color: #bfdbfe; }
-.sp-user-name { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 800; color: #18243a; }
+.sp-user-pill:hover {
+  background: #f8fbff;
+  border-color: #bfdbfe;
+}
 
-.sp-notif-popover { margin: -12px; max-height: 420px; overflow: auto; }
-.sp-notif-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--sp-border); }
-.sp-notif-title { font-weight: 900; font-size: 15px; }
-.sp-notif-empty { padding: 40px; text-align: center; color: var(--sp-gray-400); font-size: 13px; }
-.sp-notif-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; cursor: pointer; transition: background 0.15s; position: relative; }
-.sp-notif-item:hover { background: var(--sp-gray-50); }
-.sp-notif-item.unread { background: #f0f7ff; }
-.sp-notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sp-primary); margin-top: 6px; flex-shrink: 0; }
-.sp-notif-content { flex: 1; min-width: 0; }
-.sp-notif-item-title { font-weight: 700; font-size: 13px; color: var(--sp-gray-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sp-notif-item-desc { font-size: 12px; color: var(--sp-gray-500); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sp-notif-item-time { font-size: 11px; color: var(--sp-gray-400); margin-top: 4px; }
-.sp-notif-footer { text-align: center; padding: 12px; border-top: 1px solid var(--sp-border); color: var(--sp-primary); font-size: 13px; font-weight: 800; cursor: pointer; transition: background 0.15s; }
-.sp-notif-footer:hover { background: var(--sp-primary-lighter); }
+.sp-user-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #064ea2, #0b63ce);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
 
-.sp-content {
-  background: radial-gradient(circle at 8% 0%, rgba(6, 78, 162, 0.08), transparent 30%),
-              radial-gradient(circle at 88% 8%, rgba(22, 132, 216, 0.06), transparent 26%),
-              linear-gradient(180deg, #f7fbff 0%, #f8fafc 100%);
-  background-image:
-    linear-gradient(rgba(6, 78, 162, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(6, 78, 162, 0.025) 1px, transparent 1px);
-  background-size: 28px 28px;
+.sp-user-name {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 800;
+  color: #18243a;
+}
+
+.sp-user-arrow {
+  color: #8a96aa;
+  font-size: 12px;
+}
+
+/* Logout button */
+.sp-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 12px;
+  border: 1px solid #d5e0ef;
+  background: #fff;
+  color: #5a6d8a;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.sp-logout-btn:hover {
+  border-color: #e74c3c;
+  color: #e74c3c;
+}
+
+/* ─── Body ─── */
+.sp-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ─── Sidebar ─── */
+.sp-sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 272px;
+  margin: 12px 0 12px 12px;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid #dbe6f3;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 18px 60px rgba(15, 47, 87, 0.10);
+  transition: width 0.2s ease;
+}
+
+.sp-sidebar.collapsed {
+  width: 68px;
+}
+
+/* Nav */
+.sp-nav {
+  flex: 1;
   overflow-y: auto;
-  padding: 0;
+  padding: 12px 8px;
 }
 
-.mobile-fab { position: fixed; bottom: 24px; left: 24px; width: 48px; height: 48px; border-radius: 50%; background: var(--sp-primary); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(10, 94, 184, 0.4); cursor: pointer; z-index: 100; transition: transform 0.2s; }
-.mobile-fab:hover { transform: scale(1.1); }
+.sp-nav::-webkit-scrollbar {
+  width: 0;
+}
 
+/* Section divider */
+.sp-nav-section {
+  padding: 16px 12px 6px;
+  color: #8a96aa;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.sp-nav-section-dot {
+  height: 8px;
+}
+
+/* Nav item */
+.sp-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: #5a6d8a;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-size: 14px;
+}
+
+.sp-nav-item:hover {
+  background: #eff6ff;
+  color: #064ea2;
+}
+
+.sp-nav-item.active {
+  background: linear-gradient(90deg, #064ea2, #0b63ce);
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(6, 78, 162, 0.24);
+}
+
+.sp-nav-active-bar {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 24px;
+  border-radius: 0 3px 3px 0;
+  background: #67e8f9;
+}
+
+.sp-nav-icon {
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+.sp-sidebar.collapsed .sp-nav-icon {
+  font-size: 20px;
+}
+
+.sp-nav-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.sp-nav-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.sp-nav-desc {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sp-nav-item.active .sp-nav-desc {
+  opacity: 0.75;
+}
+
+.sp-nav-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+
+.sp-nav-badge :deep(.el-badge__content) {
+  font-size: 10px;
+}
+
+/* Collapse toggle */
+.sp-collapse-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  margin: 8px;
+  border-radius: 16px;
+  border: 1px solid #e5ecf4;
+  background: #f8fbff;
+  color: #5a6d8a;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.sp-collapse-toggle:hover {
+  border-color: #bfdbfe;
+  color: #064ea2;
+}
+
+/* ─── Content ─── */
+.sp-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 24px;
+  background-color: #f7f9fc;
+  background-image:
+    linear-gradient(rgba(6, 78, 162, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 78, 162, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ─── Notification popover ─── */
+.sp-notif-popover {
+  margin: -12px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.sp-notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #dbe7f3;
+}
+
+.sp-notif-title {
+  font-weight: 900;
+  font-size: 15px;
+}
+
+.sp-notif-empty {
+  padding: 40px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.sp-notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.sp-notif-item:hover {
+  background: #f8fafc;
+}
+
+.sp-notif-item.unread {
+  background: #f0f7ff;
+}
+
+.sp-notif-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0756a5;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.sp-notif-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.sp-notif-item-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sp-notif-item-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-notif-item-time {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.sp-notif-footer {
+  text-align: center;
+  padding: 12px;
+  border-top: 1px solid #dbe7f3;
+  color: #0756a5;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sp-notif-footer:hover {
+  background: #e8f4ff;
+}
+
+/* ─── Route transitions ─── */
 .sp-route-enter-active,
-.sp-route-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
-.sp-route-enter-from { opacity: 0; transform: translateY(6px); }
-.sp-route-leave-to { opacity: 0; transform: translateY(-4px); }
-.sp-fade-enter-active,
-.sp-fade-leave-active { transition: opacity 0.2s; }
-.sp-fade-enter-from,
-.sp-fade-leave-to { opacity: 0; }
+.sp-route-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.sp-route-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.sp-route-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* ─── Mobile ─── */
+.mobile-fab {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #0756a5;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(10, 94, 184, 0.4);
+  cursor: pointer;
+  z-index: 100;
+  transition: transform 0.2s;
+}
+
+.mobile-fab:hover {
+  transform: scale(1.1);
+}
 
 @media (max-width: 768px) {
-  .sp-sidebar { display: none; }
-  .sp-header { padding: 0 14px; }
-  .sp-user-name { display: none; }
+  .sp-sidebar {
+    display: none;
+  }
+
+  .sp-header {
+    padding: 0 14px;
+  }
+
+  .sp-user-name {
+    display: none;
+  }
 }
 </style>

@@ -142,477 +142,229 @@ async function handleChangePassword() {
 </script>
 
 <template>
-  <div class="page-container supplier-dashboard">
-    <template v-if="loading">
-      <SkeletonCard :lines="2" :avatar="true" style="margin-bottom: 18px;" />
-      <el-row :gutter="16">
-        <el-col v-for="i in 4" :key="i" :xs="12" :md="6">
-          <SkeletonCard :lines="2" />
-        </el-col>
-      </el-row>
-    </template>
-
-    <template v-else>
-      <section class="dashboard-hero" v-if="statusInfo">
-        <div class="hero-copy">
-          <div class="hero-eyebrow">蜀水云采 · 供应商工作台</div>
-          <h1>{{ authStore.displayName || statusInfo.name }}，{{ new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好' }}</h1>
-          <p>
+  <div class="page-container" v-loading="loading">
+    <template v-if="statusInfo">
+      <!-- Hero -->
+      <section class="db-hero">
+        <div class="db-hero-main">
+          <div class="db-hero-eyebrow">蜀水云采 · 供应商工作台</div>
+          <h1 class="db-hero-title">{{ authStore.displayName || statusInfo.name }}，{{ new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好' }}</h1>
+          <p class="db-hero-desc">
             当前状态
-            <span class="sp-status hero-status" :class="statusType[statusInfo.status] || 'pending'">
-              {{ statusLabel[statusInfo.status] || statusInfo.status }}
-            </span>
-            <template v-if="statusInfo.status === 'RETURNED' && statusInfo.returnReason">
-              ，请优先处理：{{ statusInfo.returnReason }}
-            </template>
-            <template v-else>
-              ，重点关注投标机会、资质有效期和待处理消息。
-            </template>
+            <span class="sp-status db-hero-status" :class="statusType[statusInfo.status] || 'pending'">{{ statusLabel[statusInfo.status] || statusInfo.status }}</span>
+            <template v-if="statusInfo.status === 'RETURNED' && statusInfo.returnReason">，{{ statusInfo.returnReason }}</template>
+            <template v-else>，关注投标机会、资质有效期和待处理消息</template>
           </p>
-          <div class="hero-actions">
-            <el-button type="primary" color="#ffffff" plain @click="router.push('/bids')">查看招标机会</el-button>
-            <el-button color="#ffffff" plain @click="router.push('/my-bids')">投标进展</el-button>
-            <el-button color="#ffffff" plain @click="router.push('/profile')">完善档案</el-button>
+          <div class="db-hero-actions">
+            <el-button class="db-hero-btn" @click="router.push('/bids')">招标机会</el-button>
+            <el-button class="db-hero-btn" @click="router.push('/my-bids')">投标进展</el-button>
+            <el-button class="db-hero-btn" @click="router.push('/profile')">完善档案</el-button>
           </div>
         </div>
-        <div class="hero-summary">
-          <div class="summary-number">{{ completeness.score }}<small>%</small></div>
-          <div class="summary-label">资料完整度</div>
-          <div class="summary-note">{{ completeness.missing.length ? `仍有 ${completeness.missing.length} 项待完善` : '资料已完善' }}</div>
+        <div class="db-hero-score">
+          <div class="db-hero-score-num">{{ completeness.score }}<small>%</small></div>
+          <div class="db-hero-score-label">资料完整度</div>
+          <div class="db-hero-score-hint">{{ completeness.missing.length ? `仍缺 ${completeness.missing.length} 项` : '已完善' }}</div>
         </div>
       </section>
 
-      <section class="dashboard-grid">
-        <div class="main-column">
-          <div class="metric-grid" v-if="stats">
-            <div v-for="item in metrics" :key="item.label" class="metric-card" @click="router.push(item.path)">
-              <div class="sp-stat-icon" :class="item.color">
-                <el-icon :size="22"><component :is="item.icon" /></el-icon>
-              </div>
-              <div>
-                <div class="metric-value">{{ item.value }}</div>
-                <div class="metric-label">{{ item.label }}</div>
-              </div>
-            </div>
-          </div>
+      <!-- Key metrics: tabular stat row -->
+      <div class="sp-stat-row" v-if="stats">
+        <div class="sp-stat-cell" v-for="item in metrics" :key="item.label" @click="router.push(item.path)" style="cursor:pointer">
+          <div class="sp-stat-cell-value">{{ item.value }}</div>
+          <div class="sp-stat-cell-label">{{ item.label }}</div>
+        </div>
+      </div>
 
-          <div class="content-card">
-            <div class="section-head">
-              <div>
-                <h2><el-icon><Document /></el-icon> 招标机会</h2>
-                <p>只展示最近项目，避免与“招标机会”页面重复。</p>
-              </div>
-              <el-button link type="primary" @click="router.push('/bids')">查看全部</el-button>
+      <!-- Two-column body -->
+      <div class="db-grid">
+        <div class="db-main">
+          <!-- Projects -->
+          <section class="db-section">
+            <div class="db-section-head">
+              <h2 class="db-section-title">招标机会</h2>
+              <el-button link type="primary" @click="router.push('/bids')">全部 →</el-button>
             </div>
-            <div v-if="visibleProjects.length === 0" class="compact-empty">暂无招标项目</div>
-            <div v-else class="project-list">
-              <div v-for="p in visibleProjects" :key="p.id" class="project-row" @click="router.push(`/bids/${p.id}`)">
-                <div class="project-main">
-                  <span class="project-title">{{ p.name }}</span>
-                  <span class="project-code">{{ p.projectCode }}</span>
+            <div v-if="visibleProjects.length === 0" class="db-empty">暂无招标项目</div>
+            <div v-else>
+              <div v-for="p in visibleProjects" :key="p.id" class="db-project-row" @click="router.push(`/bids/${p.id}`)">
+                <div class="db-project-info">
+                  <span class="db-project-name">{{ p.name }}</span>
+                  <span class="db-project-code">{{ p.projectCode }}</span>
                 </div>
-                <div class="project-side">
-                  <span class="sp-status" :style="{ background: (stageMap[p.stage]?.color || '#94a3b8') + '18', color: stageMap[p.stage]?.color || '#94a3b8' }">
-                    {{ stageMap[p.stage]?.label || p.stage }}
-                  </span>
+                <div class="db-project-meta">
+                  <span class="sp-status" :style="{ background: (stageMap[p.stage]?.color || '#94a3b8') + '14', color: stageMap[p.stage]?.color || '#94a3b8' }">{{ stageMap[p.stage]?.label || p.stage }}</span>
                   <CountdownTimer :deadline="p.deadline" />
                 </div>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div class="content-card">
-            <div class="section-head">
-              <div>
-                <h2><el-icon><Bell /></el-icon> 公告公示</h2>
-                <p>压缩展示最新公告，详情进入公告公示页查看。</p>
-              </div>
-              <el-button link type="primary" @click="router.push('/announcements')">查看全部</el-button>
+          <!-- Announcements -->
+          <section class="db-section">
+            <div class="db-section-head">
+              <h2 class="db-section-title">公告公示</h2>
+              <el-button link type="primary" @click="router.push('/announcements')">全部 →</el-button>
             </div>
-            <div v-if="visibleAnnouncements.length === 0" class="compact-empty">暂无公告</div>
-            <div v-else class="announcement-list">
-              <div v-for="a in visibleAnnouncements" :key="a.id" class="announcement-row" @click="router.push(`/announcements/${a.id}`)">
+            <div v-if="visibleAnnouncements.length === 0" class="db-empty">暂无公告</div>
+            <div v-else>
+              <div v-for="a in visibleAnnouncements" :key="a.id" class="db-ann-row" @click="router.push(`/announcements/${a.id}`)">
                 <el-tag :type="(typeTagType[a.type] as any)" size="small" effect="plain">{{ typeLabel[a.type] || a.type }}</el-tag>
-                <span class="announcement-title">{{ a.title }}</span>
-                <span class="announcement-date">{{ dayjs(a.publishDate || a.createdAt).format('MM-DD') }}</span>
+                <span class="db-ann-title">{{ a.title }}</span>
+                <span class="db-ann-date">{{ dayjs(a.publishDate || a.createdAt).format('MM-DD') }}</span>
               </div>
             </div>
-          </div>
+          </section>
         </div>
 
-        <aside class="side-column">
-          <div class="content-card profile-card">
+        <aside class="db-side">
+          <!-- Profile completeness (independent module) -->
+          <div class="sp-module">
             <ProfileCompleteness :score="completeness.score" :missing="completeness.missing" />
           </div>
 
-          <div class="content-card">
-            <div class="section-head compact">
-              <h2><el-icon><Notification /></el-icon> 今日待办</h2>
+          <!-- Tasks (independent module) -->
+          <div class="sp-module">
+            <div class="db-section-head" style="margin-bottom:12px;padding-bottom:10px">
+              <h2 class="db-section-title">今日待办</h2>
             </div>
-            <div class="task-list">
-              <div v-for="task in tasks" :key="task.title" class="task-row" @click="router.push(task.path)">
-                <div class="task-icon" :style="toneStyle(task.tone)">
-                  <el-icon><component :is="task.icon" /></el-icon>
-                </div>
+            <div class="db-task-list">
+              <div v-for="task in tasks" :key="task.title" class="db-task-row" @click="router.push(task.path)">
+                <span class="db-task-dot" :style="{background:toneStyle(task.tone).color}"></span>
                 <div>
-                  <div class="task-title">{{ task.title }}</div>
-                  <div class="task-desc">{{ task.desc }}</div>
+                  <div class="db-task-title">{{ task.title }}</div>
+                  <div class="db-task-desc">{{ task.desc }}</div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="content-card" v-if="visibleNotifications.length > 0">
-            <div class="section-head compact">
-              <h2><el-icon><ChatDotRound /></el-icon> 未读消息</h2>
+          <!-- Unread notifications (independent module) -->
+          <div class="sp-module" v-if="visibleNotifications.length > 0">
+            <div class="db-section-head" style="margin-bottom:10px;padding-bottom:10px">
+              <h2 class="db-section-title">未读消息</h2>
               <el-button link type="primary" @click="router.push('/notifications')">处理</el-button>
             </div>
-            <div class="message-list">
-              <div v-for="n in visibleNotifications" :key="n.id" class="message-row" @click="router.push('/notifications')">
-                <div class="message-title">{{ n.title }}</div>
-                <div class="message-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</div>
-              </div>
+            <div v-for="n in visibleNotifications" :key="n.id" class="db-msg-row" @click="router.push('/notifications')">
+              <span class="db-msg-title">{{ n.title }}</span>
+              <span class="db-msg-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</span>
             </div>
           </div>
         </aside>
-      </section>
+      </div>
     </template>
   </div>
 </template>
 
 <style scoped>
-.supplier-dashboard {
-  max-width: 1520px;
-  margin: 0 auto;
-  padding: 28px;
-}
-
-.dashboard-hero {
+/* Hero */
+.db-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-columns: minmax(0, 1fr) 180px;
   gap: 24px;
-  align-items: stretch;
-  min-height: 220px;
-  padding: 30px;
-  border-radius: 22px;
+  align-items: center;
+  padding: 28px 32px;
+  background: #042a58;
+  border-radius: var(--sp-radius-md);
   color: #fff;
-  background:
-    radial-gradient(circle at 82% 14%, rgba(255, 255, 255, 0.24), transparent 24%),
-    linear-gradient(135deg, #0756a5 0%, #0f83bd 100%);
-  box-shadow: 0 20px 55px rgba(7, 86, 165, 0.18);
+  margin-bottom: 24px;
 }
-
-.hero-eyebrow {
-  color: rgba(255, 255, 255, 0.68);
-  font-size: 13px;
-  font-weight: 800;
+.db-hero-eyebrow { color: rgba(255,255,255,.55); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.db-hero-title { margin-top: 6px; font-size: 28px; font-weight: 900; letter-spacing: -0.03em; line-height: 1.15; }
+.db-hero-desc { margin-top: 8px; color: rgba(255,255,255,.72); font-size: 13px; max-width: 620px; }
+.db-hero-status { background: rgba(255,255,255,.88) !important; margin: 0 4px; }
+.db-hero-actions { display: flex; gap: 8px; margin-top: 18px; }
+.db-hero-btn {
+  background: rgba(255,255,255,.12) !important;
+  border: 1px solid rgba(255,255,255,.22) !important;
+  color: #fff !important;
+  border-radius: var(--sp-radius-sm) !important;
+  font-weight: 700; font-size: 13px;
 }
+.db-hero-btn:hover { background: rgba(255,255,255,.2) !important; }
 
-.hero-copy h1 {
-  margin-top: 12px;
-  font-size: 34px;
-  font-weight: 900;
-  letter-spacing: -0.04em;
+.db-hero-score {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 20px 16px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: var(--sp-radius-sm);
+  background: rgba(255,255,255,.06);
 }
+.db-hero-score-num { font-size: 44px; font-weight: 950; line-height: 1; font-variant-numeric: tabular-nums; }
+.db-hero-score-num small { font-size: 16px; font-weight: 600; opacity: .6; }
+.db-hero-score-label { margin-top: 6px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; }
+.db-hero-score-hint { margin-top: 2px; font-size: 11px; color: rgba(255,255,255,.5); }
 
-.hero-copy p {
-  max-width: 760px;
-  margin-top: 10px;
-  color: rgba(255, 255, 255, 0.78);
-}
+/* Two-column grid */
+.db-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.db-main, .db-side { display: grid; gap: 20px; }
 
-.hero-status {
-  margin: 0 6px;
-  background: rgba(255,255,255,.9) !important;
-}
-
-.hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 24px;
-}
-
-.hero-summary {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.13);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(12px);
-}
-
-.summary-number {
-  font-size: 52px;
-  line-height: 1;
-  font-weight: 950;
-}
-
-.summary-number small {
-  font-size: 20px;
-}
-
-.summary-label {
-  margin-top: 8px;
-  font-weight: 800;
-}
-
-.summary-note {
-  margin-top: 4px;
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 12px;
-}
-
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 20px;
-  margin-top: 20px;
-  align-items: start;
-}
-
-.main-column,
-.side-column {
-  display: grid;
-  gap: 20px;
-}
-
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.metric-card,
-.content-card {
+/* Section (flat, bordered) */
+.db-section {
+  background: var(--sp-surface);
   border: 1px solid var(--sp-border);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: var(--sp-shadow-sm);
+  border-radius: var(--sp-radius-sm);
+  padding: 16px 18px;
 }
-
-.metric-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-height: 96px;
-  padding: 18px;
-  cursor: pointer;
-  transition: all .2s ease;
+.db-section-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--sp-border);
 }
+.db-section-title { font-size: 13px; font-weight: 800; color: var(--sp-gray-700); letter-spacing: 0.03em; }
+.db-empty { padding: 20px 0 8px; text-align: center; color: var(--sp-gray-400); font-size: 13px; }
 
-.metric-card:hover,
-.project-row:hover,
-.task-row:hover,
-.announcement-row:hover,
-.message-row:hover {
-  transform: translateY(-1px);
-  border-color: rgba(22, 132, 216, 0.34);
-  background: var(--sp-surface-hover);
+/* Project rows */
+.db-project-row {
+  display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; align-items: center;
+  padding: 14px 0; border-bottom: 1px solid var(--sp-border-light); cursor: pointer;
 }
+.db-project-row:last-child { border-bottom: none; }
+.db-project-row:hover { background: var(--sp-surface-hover); margin: 0 -16px; padding: 14px 16px; }
+.db-project-name { display: block; font-size: 14px; font-weight: 800; color: var(--sp-gray-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-project-code { display: block; margin-top: 2px; font-size: 11px; color: var(--sp-gray-400); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.db-project-meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
-.metric-value {
-  color: var(--sp-gray-900);
-  font-size: 28px;
-  line-height: 1;
-  font-weight: 900;
+/* Announcement rows */
+.db-ann-row {
+  display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 10px; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid var(--sp-border-light); cursor: pointer;
 }
+.db-ann-row:last-child { border-bottom: none; }
+.db-ann-row:hover { background: var(--sp-surface-hover); margin: 0 -16px; padding: 12px 16px; }
+.db-ann-title { font-size: 13px; color: var(--sp-gray-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-ann-date { font-size: 11px; color: var(--sp-gray-400); font-variant-numeric: tabular-nums; }
 
-.metric-label {
-  margin-top: 5px;
-  color: var(--sp-gray-500);
-  font-size: 13px;
+/* Task rows */
+.db-task-list { display: grid; gap: 6px; }
+.db-task-row {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px; border-radius: var(--sp-radius-sm); cursor: pointer;
 }
+.db-task-row:hover { background: var(--sp-surface-hover); }
+.db-task-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+.db-task-title { font-size: 13px; font-weight: 800; color: var(--sp-gray-900); }
+.db-task-desc { margin-top: 1px; font-size: 11px; color: var(--sp-gray-500); }
 
-.content-card {
-  padding: 20px 24px;
+/* Message rows */
+.db-msg-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--sp-border-light); cursor: pointer;
 }
+.db-msg-row:last-child { border-bottom: none; }
+.db-msg-row:hover { background: var(--sp-surface-hover); margin: 0 -16px; padding: 10px 16px; }
+.db-msg-title { font-size: 13px; font-weight: 700; color: var(--sp-gray-700); }
+.db-msg-time { font-size: 11px; color: var(--sp-gray-400); font-variant-numeric: tabular-nums; }
 
-.profile-card {
-  padding: 20px;
+@media (max-width: 1100px) {
+  .db-grid { grid-template-columns: 1fr; }
+  .db-side { grid-template-columns: repeat(2,1fr); }
 }
-
-.section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--sp-border-light);
-}
-
-.section-head.compact {
-  align-items: center;
-}
-
-.section-head h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--sp-gray-900);
-  font-size: 17px;
-  font-weight: 900;
-}
-
-.section-head p {
-  margin-top: 3px;
-  color: var(--sp-gray-500);
-  font-size: 12px;
-}
-
-.project-list,
-.announcement-list,
-.task-list,
-.message-list {
-  display: grid;
-}
-
-.project-row,
-.announcement-row,
-.task-row,
-.message-row {
-  cursor: pointer;
-  transition: all .18s ease;
-}
-
-.project-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 16px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--sp-border-light);
-}
-
-.project-row:last-child,
-.announcement-row:last-child,
-.message-row:last-child {
-  border-bottom: none;
-}
-
-.project-title {
-  display: block;
-  color: var(--sp-gray-900);
-  font-size: 15px;
-  font-weight: 850;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.project-code {
-  display: block;
-  margin-top: 4px;
-  color: var(--sp-gray-400);
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-.project-side {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.announcement-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--sp-border-light);
-}
-
-.announcement-title {
-  color: var(--sp-gray-900);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.announcement-date,
-.message-time {
-  color: var(--sp-gray-400);
-  font-size: 12px;
-}
-
-.task-list {
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.task-row {
-  display: flex;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--sp-border-light);
-  border-radius: 14px;
-  background: var(--sp-gray-50);
-}
-
-.task-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.task-title,
-.message-title {
-  color: var(--sp-gray-900);
-  font-weight: 850;
-}
-
-.task-desc {
-  margin-top: 2px;
-  color: var(--sp-gray-500);
-  font-size: 12px;
-}
-
-.message-row {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--sp-border-light);
-}
-
-.compact-empty {
-  padding: 26px 0 8px;
-  color: var(--sp-gray-400);
-  text-align: center;
-}
-
-@media (max-width: 1280px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
-  .side-column {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .profile-card {
-    grid-row: span 2;
-  }
-}
-
-@media (max-width: 900px) {
-  .supplier-dashboard {
-    padding: 16px;
-  }
-  .dashboard-hero,
-  .metric-grid,
-  .side-column {
-    grid-template-columns: 1fr;
-  }
-  .hero-summary {
-    min-height: 150px;
-  }
-  .project-row {
-    grid-template-columns: 1fr;
-  }
-  .project-side {
-    justify-content: space-between;
-  }
+@media (max-width: 768px) {
+  .db-hero { grid-template-columns: 1fr; padding: 20px; }
+  .db-hero-title { font-size: 22px; }
+  .db-hero-score { flex-direction: row; gap: 16px; padding: 14px; }
+  .db-side { grid-template-columns: 1fr; }
+  .db-project-row { grid-template-columns: 1fr; }
 }
 </style>
