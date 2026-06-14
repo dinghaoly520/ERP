@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { listExperts, getExpertEvalStats, createExpertEvaluation } from '@/lib/api/expert';
 import type { ExpertListItem, ExpertEvalStats } from '@/lib/api/expert';
+import { toast } from 'sonner';
 import { Search, X } from 'lucide-react';
 
 const levelColor: Record<string, string> = { A: '#059669', B: '#0756a5', C: '#d97706', D: '#dc2626' };
@@ -46,7 +47,7 @@ export default function ExpertEvaluationPage() {
     if (!target) return;
     setSaving(true);
     try { await createExpertEvaluation({ expertUserId: target.id, ...scores, comment: comment || undefined }); closeModal(); load(); getExpertEvalStats().then(setStats).catch(() => {}); }
-    catch (e: any) { alert(e?.message || '评价失败'); }
+    catch (e: any) { toast.error(e?.message || '评价失败'); }
     setSaving(false);
   };
 

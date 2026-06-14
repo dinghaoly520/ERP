@@ -24,7 +24,7 @@ export default function ExpertEntryPage() {
     if (!form.username.trim() || !form.displayName.trim() || !form.password.trim() || !form.specialty.trim()) { setError('请填写账号、姓名、初始密码和专业领域'); return; }
     if (form.password.length < 6) { setError('初始密码至少 6 位'); return; }
     setSaving(true);
-    try { await createExpert(form); alert('专家录入成功'); router.push('/expert/repository'); }
+    try { await createExpert(form); toast.success('专家录入成功'); router.push('/expert/repository'); }
     catch (e: any) { setError(e?.message || '录入失败，账号可能已存在'); }
     setSaving(false);
   };
