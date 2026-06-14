@@ -23,6 +23,7 @@ Run workspace commands from `water-erp/`.
 | `apps/expert-portal` | Next.js 16 App Router | 3005 | Bid expert portal |
 | `apps/public-portal` | Next.js 16 App Router | 3006 | Public-facing landing + announcements |
 | `apps/bid-portal` | Next.js 16 App Router | 3007 | 开评标管理端 — bid opening/evaluation admin backend (开标大厅/监督端/评标/归档); post-login home for `admin`/`bid_host`, reached via the public-portal "在线开评标系统" card → `:3005` login |
+| `apps/assistant` | Next.js 16 App Router | 3008 | 水叮当智能助手 — standalone AI assistant chat portal |
 | `packages/config` | TypeScript | — | Shared ports and role-to-portal routing (`@water-erp/config`) |
 | `packages/shared` | TypeScript | — | Shared domain types, labels, status maps, and brand constants (`@water-erp/shared`) |
 | `packages/ui` | package scaffold | — | Currently unused scaffold |
@@ -61,6 +62,7 @@ pnpm dev:web
 pnpm dev:expert
 pnpm dev:public
 pnpm dev:bid
+pnpm dev:assistant
 
 # Build
 pnpm build
@@ -80,6 +82,10 @@ pnpm --filter expert-portal lint
 pnpm --filter public-portal lint
 pnpm --filter mall lint
 ```
+
+### Node 24 + Turbopack Compatibility
+
+Next.js 16 defaults to Turbopack, which depends on `lightningcss` (a native Rust module). LightningCSS 1.32.0 does not support Node.js v24; Turbopack's CSS worker process crashes with exit code `0xc0000142` (DLL init failure). **Workaround:** the `dev` scripts in all Next.js apps use `--webpack` (commit `0fce920` on `dev` branch). This is a local-environment fix — do NOT merge to `main`. Remove `--webpack` when lightningcss adds Node 24 support.
 
 `packages/config` and `packages/shared` compile to `dist/`; their `package.json` `main`/`types` fields point at compiled output. Re-run their build scripts after editing either package, especially before starting/building apps that import them.
 
@@ -180,13 +186,17 @@ Main API modules and route areas:
 | `AuthModule` | register/login/logout/me | `/api/auth/*` |
 | `BidModule` | bid lifecycle, opening, scoring, clarifications, supervision, archive | `/api/bid/*` |
 | `SupplierModule` | supplier CRUD/review/classification/evaluation/change management | `/api/supplier/*` |
-| `SupplierPortalModule` | supplier-side profile, contacts, qualifications, bid submissions, password changes | `/api/supplier-portal/*` |
-| `ExpertModule` | expert workstation, sign-in/avoidance/scoring/report data | `/api/expert/*` |
-| `AiModule` | bid analysis, anomaly detection, supplier risk scoring | `/api/ai/*` |
-| `AnnouncementModule` | notices, policies, publication status | `/api/announcements/*` |
+| `SupplierPortalModule` | supplier-side profile, contacts, qualifications, bid submissions, password changes, catalog applications | `/api/supplier-portal/*` |
+| `ExpertModule` | expert workstation, sign-in/avoidance/scoring/report data (`ExpertController`) + admin management (`ExpertAdminController`) | `/api/expert/*`, `/api/expert-admin/*` |
+| `AiModule` | bid analysis, anomaly detection, supplier risk scoring, AI dashboard summary | `/api/ai/*` |
+| `AnnouncementModule` | notices, policies, publication status, bid documents | `/api/announcements/*` |
 | `NotificationModule` | in-app notifications | `/api/notifications/*` |
-| `UploadModule` | upload endpoints | `/api/upload/*` |
+| `UploadModule` | MinIO file upload/download/delete | `/api/upload/*` |
 | `ProcurementModule` | procurement project lifecycle, approval, bid initiation | `/api/procurement/*` |
+| `CatalogModule` | procurement catalog items, supplier applications/review, favorites, export | `/api/catalog/*` |
+| `BudgetModule` | budget lists CRUD, items, clone, convert | `/api/budget/*` |
+| `AuditModule` | audit log queries | `/api/audit/*` |
+| `AssistantModule` | AI chat assistant (水叮当智能助手 backend) | `/api/assistant/*` |
 
 ### File Uploads (MinIO)
 
