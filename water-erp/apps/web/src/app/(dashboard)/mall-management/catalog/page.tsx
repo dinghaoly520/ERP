@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
 import {
   changeCatalogStatus,
   getCatalogStats,
@@ -9,6 +10,7 @@ import {
   type CatalogItem,
   type CatalogStats,
 } from '@/lib/api/catalog-admin';
+import { ShoppingCart, Package } from 'lucide-react';
 
 const statuses = ['全部', '有效', '价格波动', '即将过期', '待复核', '下架', '停用'];
 
@@ -53,39 +55,32 @@ export default function CatalogManagementPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm font-semibold text-[#064ea2]">电子商城管理</p>
-        <h1 className="mt-1 text-2xl font-black text-[#18243a]">集中采购目录管理</h1>
-        <p className="mt-2 text-sm text-[#5a6d8a]">维护商城目录，支持筛选、查看、启用和下架。下架不会删除历史数据。</p>
-      </div>
+      <PageHero
+        eyebrow="电子商城管理"
+        title="集中采购目录管理"
+        description="维护商城目录，支持筛选、查看、启用和下架。下架不会删除历史数据。"
+        tone="blue"
+        icon={<ShoppingCart size={14} />}
+      />
 
       <div className="grid gap-4 md:grid-cols-5">
-        {[
-          ['目录总数', stats?.total ?? '--'],
-          ['有效目录', stats?.active ?? '--'],
-          ['下架/停用', stats?.inactive ?? '--'],
-          ['待复核/预警', stats?.review ?? '--'],
-          ['本月更新', stats?.updatedThisMonth ?? '--'],
-        ].map(([label, value]) => (
-          <div key={label as string} className="rounded-2xl border border-[#dce6f3] bg-white p-5 shadow-sm">
-            <div className="text-sm font-semibold text-[#5a6d8a]">{label}</div>
-            <div className="mt-3 text-2xl font-black text-[#123a6e]">{value}</div>
-          </div>
-        ))}
+        <MetricCard label="目录总数" value={stats?.total ?? '—'} tone="blue" icon={<Package size={18} strokeWidth={1.7} />} />
+        <MetricCard label="有效目录" value={stats?.active ?? '—'} tone="green" />
+        <MetricCard label="下架/停用" value={stats?.inactive ?? '—'} tone="gray" />
+        <MetricCard label="待复核/预警" value={stats?.review ?? '—'} tone="orange" />
+        <MetricCard label="本月更新" value={stats?.updatedThisMonth ?? '—'} tone="cyan" />
       </div>
 
-      <div className="rounded-2xl border border-[#dce6f3] bg-white p-5 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-[180px_1fr_auto]">
-          <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-xl border border-[#d5e0ef] px-3 py-2 text-sm">
-            {statuses.map(s => <option key={s}>{s}</option>)}
-          </select>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索编码、名称、规格、分类、供应商" className="rounded-xl border border-[#d5e0ef] px-3 py-2 text-sm" />
-          <button onClick={load} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white">刷新</button>
-        </div>
-      </div>
+      <DataToolbar>
+        <select value={status} onChange={e => setStatus(e.target.value)} className="workbench-input text-sm">
+          {statuses.map(s => <option key={s}>{s}</option>)}
+        </select>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索编码、名称、规格、分类、供应商" className="workbench-input flex-1 text-sm" />
+        <button onClick={load} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white">刷新</button>
+      </DataToolbar>
 
-      <div className="overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
+      <SectionCard className="overflow-hidden p-0">
+        <table className="workbench-table">
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>
               <th className="px-4 py-3">目录编码</th>
@@ -109,7 +104,7 @@ export default function CatalogManagementPage() {
                 <td className="px-4 py-3">{item.category}</td>
                 <td className="px-4 py-3 font-bold">¥{item.referencePrice.toLocaleString('zh-CN')}</td>
                 <td className="px-4 py-3">{item.supplier}</td>
-                <td className="px-4 py-3"><span className="rounded-full bg-[#f3f7fc] px-2 py-1 text-xs font-bold text-[#123a6e]">{item.status}</span></td>
+                <td className="px-4 py-3"><StatusBadge tone={item.status === "有效" ? "green" : item.status === "下架" || item.status === "停用" ? "gray" : item.status === "待复核" || item.status === "价格波动" ? "orange" : item.status === "即将过期" ? "red" : "blue"}>{item.status}</StatusBadge></td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
                     {item.status === '有效' ? (
@@ -123,7 +118,7 @@ export default function CatalogManagementPage() {
             ))}
           </tbody>
         </table>
-      </div>
+      </SectionCard>
     </div>
   );
 }

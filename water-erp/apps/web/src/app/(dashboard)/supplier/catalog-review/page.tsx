@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { DataToolbar, MetricCard, PageHero, StatusBadge } from '@/components/workbench';
+import { ClipboardCheck } from 'lucide-react';
 import {
   listCatalogApplications,
   reviewCatalogApplication,

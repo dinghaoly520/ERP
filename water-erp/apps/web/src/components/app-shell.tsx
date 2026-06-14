@@ -43,7 +43,7 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    label: '电子商城管理', path: '/mall-management', icon: ShoppingCart,
+    label: '电子商城管理', caption: '价格 / 目录 / 日志', path: '/mall-management', icon: ShoppingCart,
     children: [
       { label: '价格审批', path: '/mall-management/approval' },
       { label: '价格录入', path: '/mall-management/price-entry' },

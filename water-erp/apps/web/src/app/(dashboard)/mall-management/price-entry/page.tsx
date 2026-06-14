@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { PageHero, SectionCard } from '@/components/workbench';
+import { PenLine } from 'lucide-react';
 import {
   createCatalogItem,
   downloadImportTemplate,
@@ -75,19 +77,17 @@ export default function PriceEntryPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm font-semibold text-[#064ea2]">电子商城管理</p>
-        <h1 className="mt-1 text-2xl font-black text-[#18243a]">价格录入</h1>
-        <p className="mt-2 text-sm text-[#5a6d8a]">支持手动新增目录和 CSV/Excel 批量导入。导入时目录编码存在则更新，不存在则新增。</p>
-      </div>
+      <PageHero
+        eyebrow="电子商城管理"
+        title="价格录入"
+        description="支持手动新增目录和 CSV/Excel 批量导入。导入时目录编码存在则更新，不存在则新增。"
+        tone="blue"
+        icon={<PenLine size={14} />}
+      />
 
-      <div className="rounded-2xl border border-[#dce6f3] bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-black text-[#18243a]">批量导入</h2>
-          <button onClick={downloadTemplate} className="rounded-xl border border-[#064ea2] px-4 py-2 text-sm font-bold text-[#064ea2]">下载模板</button>
-        </div>
+      <SectionCard title="批量导入" action={<button onClick={downloadTemplate} className="rounded-xl border border-[#064ea2] px-4 py-2 text-sm font-bold text-[#064ea2]">下载模板</button>}>
         <div className="flex flex-wrap gap-3">
-          <input type="file" accept=".xlsx,.xls,.csv" onChange={e => setFile(e.target.files?.[0] || null)} className="rounded-xl border border-[#d5e0ef] px-3 py-2 text-sm" />
+          <input type="file" accept=".xlsx,.xls,.csv" onChange={e => setFile(e.target.files?.[0] || null)} className="workbench-input text-sm" />
           <button onClick={upload} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white">开始导入</button>
         </div>
         {result && (
@@ -102,10 +102,9 @@ export default function PriceEntryPage() {
             )}
           </div>
         )}
-      </div>
+      </SectionCard>
 
-      <div className="rounded-2xl border border-[#dce6f3] bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-black text-[#18243a]">手动新增目录</h2>
+      <SectionCard title="手动新增目录">
         <div className="grid gap-4 md:grid-cols-3">
           {txt('code', '目录编码')}{txt('name', '名称')}{txt('specification', '规格型号')}
           {txt('category', '分类')}{txt('group', '分组')}{txt('unit', '单位')}
@@ -121,7 +120,7 @@ export default function PriceEntryPage() {
         <button disabled={saving} onClick={submit} className="mt-5 rounded-xl bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60">
           {saving ? '保存中...' : '新增目录'}
         </button>
-      </div>
+      </SectionCard>
     </div>
   );
 }

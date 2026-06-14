@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DataToolbar, MetricCard, ModuleCard, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
 import { api } from '@/lib/api';
+import { getCatalogStats, type CatalogStats } from '@/lib/api/catalog-admin';
 import type { User } from '@/lib/types';
 import { completionTone, formatDateTime, numberOrZero, percent, statusTone } from '@/lib/workbench';
 import {
   Activity, AlertTriangle, ArrowRight, BellRing, Building2, CheckCircle2,
-  Megaphone, PlusCircle, ShieldAlert, Sparkles, UsersRound,
+  Megaphone, PlusCircle, ShieldAlert, ShoppingCart, Sparkles, UsersRound,
 } from 'lucide-react';
 
 interface SupplierStats {
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   const [supplierStats, setSupplierStats] = useState<SupplierStats | null>(null);
   const [announcementStats, setAnnouncementStats] = useState<AnnouncementStats | null>(null);
   const [experts, setExperts] = useState<ExpertItem[]>([]);
+  const [catalogStats, setCatalogStats] = useState<CatalogStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,10 +59,12 @@ export default function DashboardPage() {
       api.get<SupplierStats>('/supplier/stats').catch(() => null),
       api.get<AnnouncementStats>('/announcements/stats').catch(() => null),
       api.get<ExpertItem[]>('/expert-admin').catch(() => []),
-    ]).then(([ss, as, expertList]) => {
+      getCatalogStats().catch(() => null),
+    ]).then(([ss, as, expertList, cs]) => {
       setSupplierStats(ss);
       setAnnouncementStats(as);
       setExperts(Array.isArray(expertList) ? expertList : []);
+      setCatalogStats(cs);
       setLoading(false);
     });
   }, []);
@@ -87,6 +91,9 @@ export default function DashboardPage() {
   const announcementHealth = percent(announcementPublished, announcementTotal);
   const supplierHealth = percent(supplierApproved, supplierTotal);
   const expertHealth = percent(Math.max(expertAssignments - expertUnfinishedCount, 0), expertAssignments);
+  const mallCatalogTotal = numberOrZero(catalogStats?.total);
+  const mallCatalogActive = numberOrZero(catalogStats?.active);
+  const mallCatalogAlerts = numberOrZero(catalogStats?.review);
 
   return (
     <div className="min-h-full space-y-6">
@@ -152,17 +159,19 @@ export default function DashboardPage() {
         </SectionCard>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
+      <section className="grid gap-4 lg:grid-cols-4">
         <ModuleCard title="信息发布中心" description="公告、公示、政策制度、草稿与发布记录" tone="blue" icon={<Megaphone size={22} />} actionLabel="进入发布中心" onClick={() => router.push('/notice')} stats={<span className="text-sm text-[#5a6d8a]">已发布 {announcementPublished} 条，待完善 {announcementDraftLike} 条</span>} />
         <ModuleCard title="供应商管理中心" description="供应商审核、供应商库、评价、变更和黑名单" tone="green" icon={<Building2 size={22} />} actionLabel="管理供应商" onClick={() => router.push('/supplier/repository')} stats={<span className="text-sm text-[#5a6d8a]">已入库 {supplierApproved} 家，待审 {pendingSuppliers} 家</span>} />
         <ModuleCard title="专家管理中心" description="专家库、抽取分配、回避关系、履职评价" tone="purple" icon={<UsersRound size={22} />} actionLabel="管理专家" onClick={() => router.push('/expert/repository')} stats={<span className="text-sm text-[#5a6d8a]">专家 {expertTotal} 名，参与记录 {expertAssignments} 条</span>} />
+        <ModuleCard title="电子商城管理" description="采购目录、价格审批、价格录入与操作日志" tone="cyan" icon={<ShoppingCart size={22} />} actionLabel="进入商城后台" onClick={() => router.push('/mall-management/catalog')} stats={<span className="text-sm text-[#5a6d8a]">目录 {mallCatalogTotal} 条，有效 {mallCatalogActive} 条，异常 {mallCatalogAlerts} 条</span>} />
       </section>
 
       <SectionCard title="运营摘要" description="按业务中心汇总当前可观察状态" icon={<CheckCircle2 size={20} strokeWidth={1.7} />}>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <div className="rounded-xl bg-[#f8fbff] p-4"><span className="font-bold text-[#18243a]">发布动态</span><p className="mt-1 text-sm text-[#5a6d8a]">已发布 {announcementPublished} 条，招标公告 {numberOrZero(announcementStats?.bidNotice)} 条，中标公告 {numberOrZero(announcementStats?.winNotice)} 条。</p></div>
           <div className="rounded-xl bg-[#f8fbff] p-4"><span className="font-bold text-[#18243a]">供应商动态</span><p className="mt-1 text-sm text-[#5a6d8a]">总数 {supplierTotal} 家，已入库 {supplierApproved} 家，风险状态 {supplierRisk} 家。</p></div>
           <div className="rounded-xl bg-[#f8fbff] p-4"><span className="font-bold text-[#18243a]">专家动态</span><p className="mt-1 text-sm text-[#5a6d8a]">专家 {expertTotal} 名，当前 {expertActiveCount} 项参与记录，未完成 {expertUnfinishedCount} 项。</p></div>
+          <div className="rounded-xl bg-[#f8fbff] p-4"><span className="font-bold text-[#18243a]">商城目录</span><p className="mt-1 text-sm text-[#5a6d8a]">目录 {mallCatalogTotal} 条，有效 {mallCatalogActive} 条，待处理 {mallCatalogAlerts} 条。</p></div>
         </div>
       </SectionCard>
     </div>
