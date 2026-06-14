@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Sparkles, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -17,12 +17,32 @@ interface AiSummaryResult {
   level: 'info' | 'warn';
 }
 
-export function DashboardAiPanel({ context, className }: { context: DashboardContext; className?: string }) {
+export function DashboardAiPanel({
+  context,
+  ready = false,
+  className,
+}: {
+  context: DashboardContext;
+  ready?: boolean;
+  className?: string;
+}) {
   const [result, setResult] = useState<AiSummaryResult | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const fetchedRef = useRef(false);
+
+  const totalItems =
+    (context.supplier?.total ?? 0) +
+    (context.announcement?.total ?? 0) +
+    (context.expert?.total ?? 0) +
+    (context.catalog?.total ?? 0);
 
   const fetchSummary = async () => {
+    if (totalItems === 0) {
+      setResult({ summary: '当前各业务中心暂无数据。请先通过信息发布中心发布公告、录入供应商和专家、在电子商城中导入目录数据，系统将根据实时数据为您生成运营洞察。', level: 'info' });
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(false);
     try {
@@ -44,9 +64,12 @@ export function DashboardAiPanel({ context, className }: { context: DashboardCon
   };
 
   useEffect(() => {
-    fetchSummary();
+    if (ready && !fetchedRef.current) {
+      fetchedRef.current = true;
+      fetchSummary();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ready, totalItems]);
 
   return (
     <section className={cn('rounded-2xl border bg-white shadow-sm overflow-hidden', className)}>

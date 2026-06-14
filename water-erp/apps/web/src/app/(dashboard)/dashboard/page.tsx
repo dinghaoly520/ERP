@@ -114,7 +114,7 @@ export default function DashboardPage() {
         <MetricCard label="价格待审批" value={loading ? '—' : pendingPriceApps} hint="商城供货申请待审核" tone="red" icon={<ClipboardCheck size={18} strokeWidth={1.7} />} onClick={() => router.push('/mall-management/approval')} />
       </section>
 
-      <DashboardAiPanel context={dashboardContext} />
+      <DashboardAiPanel context={dashboardContext} ready={!loading} />
 
       <section className="grid gap-4 lg:grid-cols-4">
         <ModuleCard title="信息发布中心" description="公告、公示、政策制度、草稿与发布记录" tone="blue" icon={<Megaphone size={22} />} actionLabel="进入发布中心" onClick={() => router.push('/notice')} stats={<span className="text-sm text-[#5a6d8a]">已发布 {announcementPublished} 条，待完善 {announcementDraftLike} 条</span>} />
