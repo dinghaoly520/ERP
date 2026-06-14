@@ -19,6 +19,34 @@ export default function BidOpenPage() {
   const [projectId, setProjectId] = useState('');
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [resolving, setResolving] = useState<string | null>(null);
+
+  const openingStatusMeta = (status?: string | null) => {
+    switch (status) {
+      case '供应商已确认': return { label: '供应商已确认', color: '#11a874', bg: '#f0faf6' };
+      case '供应商提出异议': return { label: '供应商提出异议', color: '#e74c3c', bg: '#fef2f2' };
+      case '异议已处理-确认': return { label: '异议已处理', color: '#11a874', bg: '#f0faf6' };
+      case '异议已处理-退回': return { label: '异议已退回', color: '#6b7280', bg: '#f3f4f6' };
+      case '待供应商确认': return { label: '待供应商确认', color: '#f5a623', bg: '#fef6e8' };
+      default: return { label: status || '待确认', color: '#6b7280', bg: '#f3f4f6' };
+    }
+  };
+
+  const handleResolveDispute = async (recordId: string) => {
+    const result = window.prompt('请输入异议处理结果说明：', '经核实，开标信息无误。');
+    if (result === null) return;
+    const confirmStr = window.confirm('确认按"成立"处理（供应商标为已确认）？\n取消则按"异议成立"处理（供应商标为异常）。');
+    setResolving(recordId);
+    try {
+      await api.post(`/bid/projects/${projectId}/opening-records/${recordId}/resolve-dispute`, { result, confirm: confirmStr });
+      const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
+      setProject(updated);
+    } catch (e: any) {
+      window.alert(e.message || '处理失败');
+    } finally {
+      setResolving(null);
+    }
+  };
 
   useEffect(() => {
     api.get<{id:string}[]>('/bid/projects').then(ps => {
@@ -166,21 +194,39 @@ export default function BidOpenPage() {
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">质量</th>
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">保证金</th>
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">确认状态</th>
+              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">操作</th>
             </tr>
           </thead>
           <tbody>
             {project.openingRecords.length === 0 ? (
-              <tr><td colSpan={6} className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无开标记录</td></tr>
-            ) : project.openingRecords.map((r, i) => (
-              <tr key={i} className="border-b border-[oklch(0.94_0.004_264)]">
-                <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">{r.supplierName}</td>
-                <td className="px-5 py-3 font-mono font-bold text-[oklch(0.18_0.012_265)] tracking-tight">{r.amount}</td>
-                <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{r.period}</td>
-                <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{r.qualityTarget}</td>
-                <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{r.bondStatus}</td>
-                <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{r.confirmStatus}</td>
-              </tr>
-            ))}
+              <tr><td colSpan={7} className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无开标记录</td></tr>
+            ) : project.openingRecords.map((r, i) => {
+              const sm = openingStatusMeta(r.confirmStatus);
+              return (
+                <tr key={i} className="border-b border-[oklch(0.94_0.004_264)] align-top">
+                  <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">
+                    {r.supplierName}
+                    {r.objectionReason && <div className="text-[11px] text-[oklch(0.50_0.18_22)] mt-1 font-normal">异议：{r.objectionReason}</div>}
+                    {r.handleResult && <div className="text-[11px] text-[oklch(0.55_0.01_264)] mt-1 font-normal">处理：{r.handleResult}</div>}
+                  </td>
+                  <td className="px-5 py-3 font-mono font-bold text-[oklch(0.18_0.012_265)] tracking-tight">{r.amount}</td>
+                  <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{r.period}</td>
+                  <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{r.qualityTarget}</td>
+                  <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{r.bondStatus}</td>
+                  <td className="px-5 py-3">
+                    <span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{ color: sm.color, backgroundColor: sm.bg }}>{sm.label}</span>
+                  </td>
+                  <td className="px-5 py-3">
+                    {r.confirmStatus === '供应商提出异议' && (
+                      <button onClick={() => handleResolveDispute(r.id)} disabled={resolving === r.id}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] tracking-tight transition-colors disabled:opacity-50">
+                        <Shield size={12} strokeWidth={1.5} /> {resolving === r.id ? '处理中…' : '处理异议'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

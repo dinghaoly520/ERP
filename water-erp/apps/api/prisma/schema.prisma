@@ -65,6 +65,7 @@ enum ConfirmStatus {
   CONFIRMED
   PENDING
   EXCEPTION
+  DISPUTED
 }
 
 enum ScoreCategory {
@@ -98,6 +99,7 @@ model BidProject {
   clarifications      BidClarification[]
   supervisionLogs     BidSupervisionLog[]
   archiveItems        BidArchiveItem[]
+  evaluationResults   BidEvaluationResult[]
   supplierSubmissions SupplierBidSubmission[]
   procurementProject  ProcurementProject?
   createdAt           DateTime                @default(now())
@@ -143,17 +145,26 @@ model BidOpeningSession {
 }
 
 model BidOpeningRecord {
-  id            String     @id @default(cuid())
-  projectId     String
-  supplierName  String
-  amount        String
-  period        String
-  qualityTarget String
-  bondStatus    String
-  decryptResult String
-  confirmStatus String
-  project       BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt     DateTime   @default(now())
+  id              String     @id @default(cuid())
+  projectId       String
+  supplierName    String
+  amount          String
+  period          String
+  qualityTarget   String
+  bondStatus      String
+  decryptResult   String
+  confirmStatus   String
+  // 供应商开标确认闭环：关联投标记录、异议原因、确认/处理时间与结果
+  bidSupplierId   String?
+  objectionReason String?
+  confirmedAt     DateTime?
+  handledAt       DateTime?
+  handledBy       String?
+  handleResult    String?
+  project         BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt       DateTime   @default(now())
+
+  @@index([bidSupplierId])
 }
 
 model BidExpert {
@@ -166,6 +177,8 @@ model BidExpert {
   avoidanceConfirmed Boolean          @default(false)
   progress           Int              @default(0)
   totalScore         Decimal          @default("0") @db.Decimal(5, 1)
+  reportConfirmed    Boolean          @default(false)
+  reportConfirmedAt  DateTime?
   user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   project            BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scoreRecords       BidScoreRecord[]
@@ -240,6 +253,22 @@ model BidArchiveItem {
   project    BidProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
+}
+
+model BidEvaluationResult {
+  id           String     @id @default(cuid())
+  projectId    String
+  supplierId   String
+  supplierName String
+  totalScore   Decimal    @db.Decimal(6, 2)
+  averageScore Decimal    @db.Decimal(6, 2)
+  rank         Int
+  recommended  Boolean    @default(false)
+  generatedAt  DateTime   @default(now())
+  project      BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, supplierId])
+  @@index([projectId, rank])
 }
 
 // ── 专家管理 ──
@@ -543,18 +572,22 @@ model BidDocumentAccess {
 // ── 供应商标书提交 ──
 
 model SupplierBidSubmission {
-  id             String    @id @default(cuid())
-  supplierId     String
-  projectId      String
-  bidPrice       String?
-  deliveryPeriod String?
-  technicalFile  String?
-  businessFile   String?
-  coverLetter    String?
-  status         String    @default("draft") // draft, submitted, withdrawn
-  submittedAt    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  supplierId            String
+  projectId             String
+  bidPrice              String?
+  deliveryPeriod        String?
+  technicalFile         String?
+  businessFile          String?
+  coverLetter           String?
+  // 可验证、可授权的真实文件引用（指向 FileAsset.id）；保留旧字符串字段以兼容存量数据
+  technicalFileAssetId  String?
+  businessFileAssetId   String?
+  coverLetterAssetId    String?
+  status                String    @default("draft") // draft, submitted, withdrawn
+  submittedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   supplier Supplier   @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   project  BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -562,6 +595,9 @@ model SupplierBidSubmission {
   @@unique([supplierId, projectId])
   @@index([supplierId])
   @@index([projectId])
+  @@index([technicalFileAssetId])
+  @@index([businessFileAssetId])
+  @@index([coverLetterAssetId])
 }
 
 // ── 文件资产 ──

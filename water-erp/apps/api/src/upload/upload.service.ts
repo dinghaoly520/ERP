@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenException, OnModuleInit } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET, ensureBucket } from './minio.client';
@@ -122,11 +122,18 @@ export class UploadService implements OnModuleInit {
 
   /**
    * 以流的方式返回文件内容（鉴权下载）。受全局 AuthGuard 保护。
+   * 在流出文件前校验访问权限：上传者本人、采购/开评标管理角色可直接访问；
+   * 评审专家仅可访问其被分配项目中、且对应投标供应商已解密成功的投标文件。
    */
-  async streamFile(id: string, res: any) {
+  async streamFile(id: string, user: { sub: string; role: string }, res: any) {
     const asset = await this.prisma.fileAsset.findUnique({ where: { id } });
     if (!asset) {
       throw new NotFoundException({ error: '文件不存在', code: 'NOT_FOUND' });
+    }
+
+    const canAccess = await this.canAccessFile(asset, user);
+    if (!canAccess) {
+      throw new ForbiddenException({ error: '无权访问该文件', code: 'FILE_FORBIDDEN' });
     }
 
     res.setHeader('Content-Type', asset.mimeType);
@@ -139,6 +146,44 @@ export class UploadService implements OnModuleInit {
     const dataStream = await minioClient.getObject(MINIO_BUCKET, asset.key);
     dataStream.pipe(res);
     return dataStream;
+  }
+
+  /**
+   * 文件访问权限判定：
+   * - 上传者本人：允许
+   * - admin / bid_host / procurement_staff：允许（管理评审角色）
+   * - bid_expert：仅当被分配到某项目，且该文件属于该项目某供应商提交的投标文件，
+   *   且对应 BidSupplier 已解密成功时允许
+   * - 其他：拒绝
+   */
+  private async canAccessFile(asset: { id: string; uploaderId: string | null }, user: { sub: string; role: string }): Promise<boolean> {
+    if (asset.uploaderId && asset.uploaderId === user.sub) return true;
+    if (['admin', 'bid_host', 'procurement_staff'].includes(user.role)) return true;
+
+    if (user.role === 'bid_expert') {
+      // 从 asset 反查其所属项目（通过引用该 asset 的 SupplierBidSubmission），
+      // 再校验专家是否被分配到【该】项目——避免对多项目专家取到错误项目导致误判。
+      const submission = await this.prisma.supplierBidSubmission.findFirst({
+        where: {
+          OR: [
+            { technicalFileAssetId: asset.id },
+            { businessFileAssetId: asset.id },
+            { coverLetterAssetId: asset.id },
+          ],
+        },
+      });
+      if (!submission) return false;
+      const expert = await this.prisma.bidExpert.findFirst({
+        where: { userId: user.sub, projectId: submission.projectId },
+      });
+      if (!expert) return false;
+      const decrypted = await this.prisma.bidSupplier.findFirst({
+        where: { projectId: submission.projectId, supplierId: submission.supplierId, decryptStatus: 'SUCCESS' },
+      });
+      return !!decrypted;
+    }
+
+    return false;
   }
 
   /**

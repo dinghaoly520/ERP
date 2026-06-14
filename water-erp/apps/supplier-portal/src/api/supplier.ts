@@ -70,6 +70,17 @@ export const supplierApi = {
     return api.post(`/supplier-portal/bid-submissions/${submissionId}/withdraw`)
   },
 
+  // 开标确认（供应商侧）
+  getOpeningRecord(projectId: string) {
+    return api.get(`/supplier-portal/bid-submissions/${projectId}/opening-record`)
+  },
+  confirmOpening(projectId: string) {
+    return api.post(`/supplier-portal/bid-submissions/${projectId}/opening-confirm`)
+  },
+  disputeOpening(projectId: string, reason: string) {
+    return api.post(`/supplier-portal/bid-submissions/${projectId}/opening-dispute`, { reason })
+  },
+
   // Password
   changePassword(oldPassword: string, newPassword: string) {
     return api.post('/supplier-portal/change-password', { oldPassword, newPassword })

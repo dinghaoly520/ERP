@@ -30,7 +30,9 @@ describe('ExpertService', () => {
         update: jest.fn(),
       },
       bidProject: { findUnique: jest.fn() },
-      bidSupplier: { findFirst: jest.fn() },
+      bidSupplier: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      supplierBidSubmission: { findUnique: jest.fn() },
+      fileAsset: { findMany: jest.fn() },
       bidScoreRecord: {
         findMany: jest.fn(),
         deleteMany: jest.fn(),
@@ -143,6 +145,115 @@ describe('ExpertService', () => {
 
       await expect(service.getReport('user-1', 'proj-1'))
         .rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('submitScores', () => {
+    const signedExpert = { ...mockExpert, signedIn: true, avoidanceConfirmed: true };
+
+    beforeEach(() => {
+      prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'item-1', maxScore: 100 }]);
+    });
+
+    it('rejects supplier ids outside the project', async () => {
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+
+      await expect(service.submitScores('user-1', 'proj-1', {
+        supplierName: '外部供应商',
+        scores: [{ supplierId: 'supplier-other', scoreItemId: 'item-1', score: 80 }],
+      })).rejects.toMatchObject({ response: { code: 'SUPPLIER_NOT_IN_PROJECT' } });
+    });
+
+    it('rejects suppliers that are not decrypted successfully', async () => {
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'supplier-1', decryptStatus: 'PENDING', submitStatus: '已提交' }]);
+
+      await expect(service.submitScores('user-1', 'proj-1', {
+        supplierName: '未解密供应商',
+        scores: [{ supplierId: 'supplier-1', scoreItemId: 'item-1', score: 80 }],
+      })).rejects.toMatchObject({ response: { code: 'SUPPLIER_NOT_DECRYPTED' } });
+    });
+
+    it('rejects scoring after report is confirmed (locked)', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, reportConfirmed: true });
+      await expect(service.submitScores('user-1', 'proj-1', {
+        supplierName: '已锁',
+        scores: [{ supplierId: 'supplier-1', scoreItemId: 'item-1', score: 80 }],
+      })).rejects.toMatchObject({ response: { code: 'SCORE_LOCKED' } });
+    });
+  });
+
+  describe('confirmReport', () => {
+    it('locks scoring by setting reportConfirmed and reportConfirmedAt', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, progress: 100 });
+      prisma.bidExpert.update.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await service.confirmReport('user-1', 'proj-1', '确认完成');
+
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ progress: 100, reportConfirmed: true, reportConfirmedAt: expect.any(Date) }),
+        }),
+      );
+    });
+  });
+
+  describe('getDecryptedDocuments', () => {
+    const signedExpert = { ...mockExpert, signedIn: true, avoidanceConfirmed: true };
+
+    beforeEach(() => {
+      prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
+    });
+
+    it('returns real uploaded file assets with download urls after decrypt success', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({
+        id: 'bs-1', supplierId: 'supplier-1', supplierName: '川水建设', decryptStatus: 'SUCCESS',
+      });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        technicalFileAssetId: 'fa-1', businessFileAssetId: 'fa-2', coverLetterAssetId: null,
+      });
+      prisma.fileAsset.findMany.mockResolvedValue([
+        { id: 'fa-1', originalName: '技术方案.pdf', mimeType: 'application/pdf', size: 131072, sha256: 'hash1' },
+        { id: 'fa-2', originalName: '商务文件.pdf', mimeType: 'application/pdf', size: 65536, sha256: 'hash2' },
+      ]);
+
+      const result = await service.getDecryptedDocuments('user-1', 'proj-1', 'bs-1');
+
+      expect(result.canView).toBe(true);
+      expect(result.documents.length).toBe(2);
+      expect(result.documents[0].downloadUrl).toBe('/api/upload/files/fa-1');
+      expect(result.documents[0].sha256).toBe('hash1');
+    });
+
+    it('hides download urls and sha256 when supplier is not decrypted', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({
+        id: 'bs-1', supplierId: 'supplier-1', supplierName: '川水建设', decryptStatus: 'PENDING',
+      });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({ technicalFileAssetId: 'fa-1' });
+      prisma.fileAsset.findMany.mockResolvedValue([
+        { id: 'fa-1', originalName: '技术方案.pdf', mimeType: 'application/pdf', size: 131072, sha256: 'hash1' },
+      ]);
+
+      const result = await service.getDecryptedDocuments('user-1', 'proj-1', 'bs-1');
+
+      expect(result.canView).toBe(false);
+      expect(result.documents[0].downloadUrl).toBeUndefined();
+      expect(result.documents[0].sha256).toBeUndefined();
+      expect(result.documents[0].status).toBe('加密中');
+    });
+
+    it('returns empty document list when no submission exists', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({
+        id: 'bs-1', supplierId: null, supplierName: '管理员录入供应商', decryptStatus: 'SUCCESS',
+      });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+      prisma.fileAsset.findMany.mockResolvedValue([]);
+
+      const result = await service.getDecryptedDocuments('user-1', 'proj-1', 'bs-1');
+
+      expect(result.documents).toEqual([]);
     });
   });
 

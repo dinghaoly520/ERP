@@ -77,17 +77,21 @@ export default function BidArchivePage() {
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">资料名称</th>
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">责任端</th>
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">状态</th>
+                <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">归档时间</th>
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">哈希摘要</th>
               </tr>
             </thead>
             <tbody>
-              {aItems.map(a => {
+              {aItems.length === 0 ? (
+                <tr><td colSpan={5} className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">尚未生成归档清单，点击「一键归档」将自动生成标准材料清单并归档。</td></tr>
+              ) : aItems.map(a => {
                 const s = statusDefs[a.status] || { label: a.status, color: '#94a3b8' };
                 return (
                   <tr key={a.id} className="border-b border-[oklch(0.94_0.004_264)]">
                     <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">{a.name}</td>
                     <td className="px-5 py-3 text-[12px] text-[oklch(0.55_0.01_264)]">{a.ownerRole}</td>
                     <td className="px-5 py-3"><span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{ color: s.color, backgroundColor: `${s.color}18` }}>{s.label}</span></td>
+                    <td className="px-5 py-3 text-[12px] text-[oklch(0.62_0.008_264)]">{a.archivedAt ? new Date(a.archivedAt).toLocaleString('zh-CN') : '—'}</td>
                     <td className="px-5 py-3 text-[12px] text-[oklch(0.62_0.008_264)] font-mono">{a.hashDigest || '—'}</td>
                   </tr>
                 );

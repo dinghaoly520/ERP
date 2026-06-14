@@ -5,9 +5,41 @@ import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 
+/** 供应商投标提交/草稿共用的可持久化字段 */
+type BidSubmissionData = {
+  bidPrice?: string;
+  deliveryPeriod?: string;
+  technicalFile?: string;
+  businessFile?: string;
+  coverLetter?: string;
+  technicalFileAssetId?: string;
+  businessFileAssetId?: string;
+  coverLetterAssetId?: string;
+};
+
 @Injectable()
 export class SupplierPortalService {
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * 校验投标文件归属：引用的 FileAsset 必须存在、由当前用户上传、且分类为 bid_document。
+   * 防止供应商盗用他人/其他分类文件作为投标文件。
+   */
+  private async assertBidFileAssetsOwnedByUser(userId: string, assetIds: (string | undefined | null)[]) {
+    const ids = Array.from(new Set(assetIds.filter((id): id is string => !!id)));
+    if (ids.length === 0) return;
+    const assets = await this.prisma.fileAsset.findMany({ where: { id: { in: ids } } });
+    if (assets.length !== ids.length) {
+      throw new BadRequestException({ error: '投标文件不存在', code: 'FILE_NOT_FOUND' });
+    }
+    const invalid = assets.find(a => a.uploaderId !== userId || a.category !== 'bid_document');
+    if (invalid) {
+      throw new BadRequestException({
+        error: '投标文件无权使用或分类错误',
+        code: invalid.uploaderId !== userId ? 'FILE_NOT_OWNED' : 'INVALID_BID_FILE',
+      });
+    }
+  }
 
   // ─── Profile ───
 
@@ -251,13 +283,31 @@ export class SupplierPortalService {
     return { supplier, project };
   }
 
-  async submitBid(supplierId: string, projectId: string, data: {
-    bidPrice?: string;
-    deliveryPeriod?: string;
-    technicalFile?: string;
-    businessFile?: string;
-    coverLetter?: string;
-  }) {
+  private async assertCanSaveBidDraft(supplierId: string, projectId: string) {
+    const [supplier, project] = await Promise.all([
+      this.prisma.supplier.findUnique({ where: { id: supplierId } }),
+      this.prisma.bidProject.findUnique({
+        where: { id: projectId },
+        select: { id: true, stage: true, deadline: true },
+      }),
+    ]);
+
+    if (!supplier) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
+    if (supplier.status !== 'APPROVED') {
+      throw new BadRequestException({ error: '供应商未通过审核，无法保存投标草稿', code: 'NOT_APPROVED' });
+    }
+    if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
+    if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
+      throw new BadRequestException({ error: '当前项目不允许保存投标草稿', code: 'PROJECT_NOT_DRAFTABLE' });
+    }
+    if (project.deadline.getTime() < Date.now()) {
+      throw new BadRequestException({ error: '投递截止时间已过', code: 'DEADLINE_PASSED' });
+    }
+
+    return { supplier, project };
+  }
+
+  async submitBid(supplierId: string, projectId: string, data: BidSubmissionData) {
     // Check if already submitted
     const existing = await this.prisma.supplierBidSubmission.findUnique({
       where: { supplierId_projectId: { supplierId, projectId } },
@@ -267,12 +317,18 @@ export class SupplierPortalService {
     }
 
     const { supplier } = await this.assertCanSubmitBid(supplierId, projectId);
+    await this.assertBidFileAssetsOwnedByUser(supplier.userId, [
+      data.technicalFileAssetId,
+      data.businessFileAssetId,
+      data.coverLetterAssetId,
+    ]);
 
     const now = new Date();
 
+    let submission;
     if (existing) {
       // Update draft to submitted
-      return this.prisma.supplierBidSubmission.update({
+      submission = await this.prisma.supplierBidSubmission.update({
         where: { id: existing.id },
         data: {
           ...data,
@@ -280,18 +336,18 @@ export class SupplierPortalService {
           submittedAt: now,
         },
       });
+    } else {
+      // Create new submission
+      submission = await this.prisma.supplierBidSubmission.create({
+        data: {
+          supplierId,
+          projectId,
+          ...data,
+          status: 'submitted',
+          submittedAt: now,
+        },
+      });
     }
-
-    // Create new submission
-    const submission = await this.prisma.supplierBidSubmission.create({
-      data: {
-        supplierId,
-        projectId,
-        ...data,
-        status: 'submitted',
-        submittedAt: now,
-      },
-    });
 
     // Also create/update BidSupplier record for bid management
     const existingBidSupplier = await this.prisma.bidSupplier.findFirst({
@@ -321,13 +377,14 @@ export class SupplierPortalService {
     return submission;
   }
 
-  async saveBidDraft(supplierId: string, projectId: string, data: {
-    bidPrice?: string;
-    deliveryPeriod?: string;
-    technicalFile?: string;
-    businessFile?: string;
-    coverLetter?: string;
-  }) {
+  async saveBidDraft(supplierId: string, projectId: string, data: BidSubmissionData) {
+    const { supplier } = await this.assertCanSaveBidDraft(supplierId, projectId);
+    await this.assertBidFileAssetsOwnedByUser(supplier.userId, [
+      data.technicalFileAssetId,
+      data.businessFileAssetId,
+      data.coverLetterAssetId,
+    ]);
+
     const existing = await this.prisma.supplierBidSubmission.findUnique({
       where: { supplierId_projectId: { supplierId, projectId } },
     });
@@ -376,10 +433,96 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '只能撤回已提交的标书', code: 'INVALID_STATUS' });
     }
 
-    return this.prisma.supplierBidSubmission.update({
-      where: { id: submissionId },
-      data: { status: 'withdrawn' },
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: submission.projectId },
+      select: { stage: true, name: true },
     });
+    if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
+    if (project.stage !== 'SUBMIT') {
+      throw new BadRequestException({ error: '项目已进入开标或后续阶段，无法撤回', code: 'PROJECT_ALREADY_OPENING' });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.supplierBidSubmission.update({
+        where: { id: submissionId },
+        data: { status: 'withdrawn' },
+      });
+
+      await tx.bidSupplier.updateMany({
+        where: { projectId: submission.projectId, supplierId },
+        data: { submitStatus: '已撤回', encryptStatus: '已撤回' },
+      });
+
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId: submission.projectId,
+          time: new Date(),
+          role: '供应商',
+          target: supplierId,
+          action: '撤回投标',
+          result: '供应商在投递截止前撤回标书',
+          riskFlag: '无',
+        },
+      });
+
+      return updated;
+    });
+  }
+
+  // ─── 开标确认（供应商侧）───
+
+  async getMyOpeningRecord(supplierId: string, projectId: string) {
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { supplierId, projectId } });
+    if (!bidSupplier) return null;
+    return this.prisma.bidOpeningRecord.findFirst({
+      where: { projectId, bidSupplierId: bidSupplier.id },
+    });
+  }
+
+  async confirmOpening(supplierId: string, projectId: string) {
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { supplierId, projectId } });
+    if (!bidSupplier) throw new BadRequestException({ error: '投标记录不存在', code: 'BID_SUPPLIER_NOT_FOUND' });
+    if (bidSupplier.decryptStatus !== 'SUCCESS') {
+      throw new BadRequestException({ error: '标书尚未解密成功', code: 'NOT_DECRYPTED' });
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bidOpeningRecord.updateMany({
+        where: { projectId, bidSupplierId: bidSupplier.id },
+        data: { confirmStatus: '供应商已确认', confirmedAt: new Date() },
+      });
+      await tx.bidSupplier.update({ where: { id: bidSupplier.id }, data: { confirmStatus: 'CONFIRMED' } });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '供应商', target: bidSupplier.supplierName,
+          action: '确认唱标信息', result: '供应商确认开标记录无误', riskFlag: '无',
+        },
+      });
+    });
+    return { success: true };
+  }
+
+  async disputeOpening(supplierId: string, projectId: string, reason: string) {
+    if (!reason?.trim()) {
+      throw new BadRequestException({ error: '请填写异议原因', code: 'MISSING_REASON' });
+    }
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { supplierId, projectId } });
+    if (!bidSupplier) throw new BadRequestException({ error: '投标记录不存在', code: 'BID_SUPPLIER_NOT_FOUND' });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bidOpeningRecord.updateMany({
+        where: { projectId, bidSupplierId: bidSupplier.id },
+        data: { confirmStatus: '供应商提出异议', objectionReason: reason },
+      });
+      await tx.bidSupplier.update({ where: { id: bidSupplier.id }, data: { confirmStatus: 'DISPUTED' } });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '供应商', target: bidSupplier.supplierName,
+          action: '提出开标异议', result: reason, riskFlag: '中风险',
+        },
+      });
+    });
+    return { success: true };
   }
 
   // ─── Dashboard Stats ───

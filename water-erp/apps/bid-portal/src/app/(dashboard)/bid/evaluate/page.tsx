@@ -8,12 +8,19 @@ import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import { Users, FileText, ClipboardCheck } from 'lucide-react';
 
+type EvalResult = {
+  id: string; supplierName: string; totalScore: string; averageScore: string;
+  rank: number; recommended: boolean; generatedAt: string;
+};
+
 export default function BidEvaluatePage() {
   const [projectId, setProjectId] = useState('');
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeSupplier, setActiveSupplier] = useState('');
   const [scores, setScores] = useState<Record<string, string>>({});
+  const [results, setResults] = useState<EvalResult[]>([]);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     api.get<{id:string}[]>('/bid/projects').then(ps => { if (ps.length) setProjectId(ps[0].id); });
@@ -27,9 +34,23 @@ export default function BidEvaluatePage() {
       setActiveSupplier(p.suppliers[0]?.supplierName || '');
       setLoading(false);
     });
+    api.get<EvalResult[]>(`/bid/projects/${projectId}/evaluation-results`).then(setResults).catch(() => setResults([]));
   }, [projectId]);
 
   const reload = () => { if (projectId) api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject); };
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const r = await api.post<EvalResult[]>(`/bid/projects/${projectId}/evaluation-results/generate`, {});
+      setResults(r);
+      toast.success('评标结果已生成');
+    } catch (e: any) {
+      toast.error(e.message || '生成失败');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleSubmitScore = async (scoreItemId: string, expertId: string) => {
     const v = scores[`${expertId}-${scoreItemId}`];
@@ -136,6 +157,48 @@ export default function BidEvaluatePage() {
             <span className="text-xl font-bold font-mono text-[oklch(0.42_0.14_260)] tracking-tight">{totalMax}</span>
           </div>
         </div>
+      </div>
+
+      {/* 评标结果汇总 */}
+      <div className="bg-white border border-[oklch(0.91_0.006_264)] mt-8">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
+          <div>
+            <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>评标结果汇总</h2>
+            <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">需所有专家确认评审报告后方可生成；按平均分排名，第一名推荐为中标候选人。</p>
+          </div>
+          <button onClick={handleGenerate} disabled={generating}
+            className="px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50">
+            {generating ? '生成中…' : '生成评标结果'}
+          </button>
+        </div>
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
+              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">排名</th>
+              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">投标单位</th>
+              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">总分</th>
+              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">平均分</th>
+              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">推荐</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.length === 0 ? (
+              <tr><td colSpan={5} className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂未生成评标结果</td></tr>
+            ) : results.map(r => (
+              <tr key={r.id} className="border-b border-[oklch(0.94_0.004_264)]">
+                <td className="px-5 py-3 font-mono font-bold text-[oklch(0.18_0.012_265)]">{r.rank}</td>
+                <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">{r.supplierName}</td>
+                <td className="px-5 py-3 font-mono text-[oklch(0.18_0.012_265)]">{r.totalScore}</td>
+                <td className="px-5 py-3 font-mono font-bold text-[oklch(0.42_0.14_260)]">{r.averageScore}</td>
+                <td className="px-5 py-3">
+                  {r.recommended
+                    ? <span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide text-[#11a874] bg-[#f0faf6]">第一中标候选人</span>
+                    : <span className="text-[11px] text-[oklch(0.62_0.008_264)]">—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

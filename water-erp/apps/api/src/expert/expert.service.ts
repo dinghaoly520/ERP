@@ -155,20 +155,44 @@ export class ExpertService {
     });
     if (!supplier) throw new NotFoundException('供应商不存在');
 
-    // 模拟解密后的文档列表
-    const documents = [
-      { name: '投标函', type: 'PDF', size: '256KB', status: supplier.decryptStatus === 'SUCCESS' ? '已解密' : '加密中' },
-      { name: '技术方案', type: 'PDF', size: '1.2MB', status: supplier.decryptStatus === 'SUCCESS' ? '已解密' : '加密中' },
-      { name: '商务报价', type: 'PDF', size: '512KB', status: supplier.decryptStatus === 'SUCCESS' ? '已解密' : '加密中' },
-      { name: '资质文件', type: 'PDF', size: '3.8MB', status: supplier.decryptStatus === 'SUCCESS' ? '已解密' : '加密中' },
-      { name: '项目团队', type: 'PDF', size: '890KB', status: supplier.decryptStatus === 'SUCCESS' ? '已解密' : '加密中' },
-      { name: '合同草案', type: 'DOCX', size: '340KB', status: supplier.decryptStatus === 'SUCCESS' ? '已解密' : '加密中' },
+    // 读取供应商真实提交的投标文件；未解密成功时不暴露下载地址与指纹
+    const canView = supplier.decryptStatus === 'SUCCESS';
+    const submission = supplier.supplierId
+      ? await this.prisma.supplierBidSubmission.findUnique({
+          where: { supplierId_projectId: { supplierId: supplier.supplierId, projectId } },
+        })
+      : null;
+
+    const assetRefs: Array<[string, string | undefined | null]> = [
+      ['技术方案', submission?.technicalFileAssetId],
+      ['商务文件', submission?.businessFileAssetId],
+      ['投标函', submission?.coverLetterAssetId],
     ];
+    const assetIds = assetRefs.map(([, id]) => id).filter((id): id is string => !!id);
+    const assets = assetIds.length
+      ? await this.prisma.fileAsset.findMany({ where: { id: { in: assetIds } } })
+      : [];
+    const assetMap = new Map(assets.map(a => [a.id, a]));
+
+    const documents = assetRefs
+      .filter(([, id]) => id)
+      .map(([label, id]) => {
+        const asset = assetMap.get(id!);
+        return {
+          name: label,
+          originalName: asset?.originalName ?? label,
+          type: asset?.mimeType ?? 'unknown',
+          size: asset?.size ?? 0,
+          status: canView ? '已解密' : '加密中',
+          downloadUrl: canView && asset ? `/api/upload/files/${asset.id}` : undefined,
+          sha256: canView ? asset?.sha256 : undefined,
+        };
+      });
 
     return {
       supplier: { id: supplier.id, name: supplier.supplierName, decryptStatus: supplier.decryptStatus },
       documents,
-      canView: supplier.decryptStatus === 'SUCCESS',
+      canView,
     };
   }
 
@@ -191,6 +215,9 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
+    if (expert.reportConfirmed) {
+      throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
+    }
     if (!expert.signedIn || !expert.avoidanceConfirmed) {
       throw new ForbiddenException('请先完成身份核验和回避确认');
     }
@@ -212,6 +239,19 @@ export class ExpertService {
       select: { id: true, maxScore: true },
     });
     const maxScoreMap = new Map(scoreItems.map(si => [si.id, Number(si.maxScore)]));
+
+    const supplierIds = Array.from(new Set(dto.scores.map(s => s.supplierId)));
+    const bidSuppliers = await this.prisma.bidSupplier.findMany({
+      where: { id: { in: supplierIds }, projectId },
+      select: { id: true, decryptStatus: true, submitStatus: true },
+    });
+    if (bidSuppliers.length !== supplierIds.length) {
+      throw new BadRequestException({ error: '评分供应商不属于当前项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
+    }
+    const invalidSupplier = bidSuppliers.find(s => s.decryptStatus !== 'SUCCESS' || s.submitStatus === '已撤回');
+    if (invalidSupplier) {
+      throw new BadRequestException({ error: '存在未解密成功或已撤回的供应商，无法评分', code: 'SUPPLIER_NOT_DECRYPTED' });
+    }
 
     for (const item of dto.scores) {
       const maxScore = maxScoreMap.get(item.scoreItemId);
@@ -254,13 +294,18 @@ export class ExpertService {
 
     // 更新专家的进度和总分
     const allScoreItems = await this.prisma.bidScoreItem.findMany({ where: { projectId } });
-    const totalItems = allScoreItems.length * (await this.prisma.bidSupplier.count({ where: { projectId } }));
-    const scoredItems = await this.prisma.bidScoreRecord.count({ where: { expertId: expert.id } });
+    const activeSupplierCount = await this.prisma.bidSupplier.count({
+      where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+    });
+    const totalItems = allScoreItems.length * activeSupplierCount;
+    const scoredItems = await this.prisma.bidScoreRecord.count({
+      where: { expertId: expert.id, scoreItem: { projectId } },
+    });
     const progress = totalItems > 0 ? Math.round((scoredItems / totalItems) * 100) : 0;
 
     // 计算总分
     const allRecords = await this.prisma.bidScoreRecord.findMany({
-      where: { expertId: expert.id },
+      where: { expertId: expert.id, scoreItem: { projectId } },
     });
     const totalScore = allRecords.reduce((sum, r) => sum + Number(r.score), 0);
 
@@ -411,7 +456,7 @@ export class ExpertService {
 
     return this.prisma.bidExpert.update({
       where: { id: expert.id },
-      data: { progress: 100 },
+      data: { progress: 100, reportConfirmed: true, reportConfirmedAt: new Date() },
     });
   }
 }

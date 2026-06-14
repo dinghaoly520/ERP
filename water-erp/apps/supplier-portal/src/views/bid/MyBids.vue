@@ -38,11 +38,21 @@ async function handleWithdraw(submissionId: string) {
   await ElMessageBox.confirm('确定要撤回此标书吗？撤回后可重新提交。', '确认撤回', { type: 'warning' })
   try {
     await supplierApi.withdrawSubmission(submissionId)
-    ElMessage.success('标书已撤回')
+    ElMessage.success('投标已撤回')
     await supplierStore.fetchBidSubmissions()
-  } catch {
-    ElMessage.error('撤回失败')
+  } catch (err: any) {
+    const msg = err?.response?.data?.error || '撤回失败'
+    ElMessage.error(msg)
   }
+}
+
+function canWithdraw(row: any) {
+  return row.status === 'submitted' && row.project?.stage === 'SUBMIT'
+}
+
+function canConfirmOpening(row: any) {
+  const stage = row.project?.stage
+  return row.status === 'submitted' && (stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED')
 }
 </script>
 
@@ -86,7 +96,8 @@ async function handleWithdraw(submissionId: string) {
         </div>
         <div class="progress-actions">
           <el-button type="primary" plain size="small" @click="router.push(`/bids/${row.projectId}`)">项目详情</el-button>
-          <el-button v-if="row.status === 'submitted'" type="warning" plain size="small" @click="handleWithdraw(row.id)">撤回</el-button>
+          <el-button v-if="canConfirmOpening(row)" type="success" plain size="small" @click="router.push(`/my-bids/${row.projectId}/opening-confirm`)">开标确认</el-button>
+          <el-button v-if="canWithdraw(row)" type="warning" plain size="small" @click="handleWithdraw(row.id)">撤回</el-button>
         </div>
       </div>
     </div>
