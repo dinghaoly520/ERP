@@ -525,6 +525,314 @@ export class SupplierPortalService {
     return { success: true };
   }
 
+  // ─── 集中采购目录（脱敏浏览：只暴露品类/规格/单位，绝不暴露价格）───
+
+  /** 脱敏视图：剥离所有价格字段，附加供应商数量。 */
+  private toCatalogPublicView(item: any, supplierCount = 0) {
+    return {
+      id: item.id,
+      code: item.code,
+      name: item.name,
+      specification: item.specification,
+      category: item.category,
+      group: item.group,
+      unit: item.unit,
+      region: item.region,
+      status: item.status,
+      supplierCount, // 仅数量，不含供应商名称/价格
+    };
+  }
+
+  async listCatalogCategories() {
+    const rows = await this.prisma.catalogItem.findMany({
+      select: { group: true, category: true },
+      distinct: ['group', 'category'],
+      orderBy: [{ group: 'asc' }, { category: 'asc' }],
+    });
+    const map = new Map<string, string[]>();
+    for (const r of rows) {
+      if (!r.group) continue;
+      if (!map.has(r.group)) map.set(r.group, []);
+      if (r.category && !map.get(r.group)!.includes(r.category)) {
+        map.get(r.group)!.push(r.category);
+      }
+    }
+    return Array.from(map.entries()).map(([group, categories]) => ({ group, categories }));
+  }
+
+  async listCatalogItems(params: { category?: string; group?: string; search?: string }) {
+    const where: any = {};
+    if (params.group && params.group !== '全部') where.group = params.group;
+    if (params.category && params.category !== '全部') where.category = params.category;
+    if (params.search?.trim()) {
+      const kw = params.search.trim();
+      where.OR = [
+        { code: { contains: kw, mode: 'insensitive' } },
+        { name: { contains: kw, mode: 'insensitive' } },
+        { specification: { contains: kw, mode: 'insensitive' } },
+      ];
+    }
+    const items = await this.prisma.catalogItem.findMany({ where, orderBy: { code: 'asc' } });
+    if (items.length === 0) return [];
+    const counts = await this.prisma.catalogSupplier.groupBy({
+      by: ['catalogItemId'],
+      where: { catalogItemId: { in: items.map(i => i.id) }, status: 'ACTIVE' },
+      _count: { _all: true },
+    });
+    const countMap = new Map(counts.map(c => [c.catalogItemId, c._count._all]));
+    return items.map(i => this.toCatalogPublicView(i, countMap.get(i.id) ?? 0));
+  }
+
+  async getCatalogItem(id: string) {
+    const item = await this.prisma.catalogItem.findUnique({ where: { id } });
+    if (!item) throw new BadRequestException({ error: '目录条目不存在', code: 'NOT_FOUND' });
+    const supplierCount = await this.prisma.catalogSupplier.count({
+      where: { catalogItemId: id, status: 'ACTIVE' },
+    });
+    return this.toCatalogPublicView(item, supplierCount);
+  }
+
+  /** 我对某个品类的供货/申请状态（供前端按钮置灰用）。 */
+  async getCatalogItemSupplyStatus(supplierId: string, itemId: string) {
+    const [active, inProgress] = await Promise.all([
+      this.prisma.catalogSupplier.findUnique({
+        where: { catalogItemId_supplierId: { catalogItemId: itemId, supplierId } },
+        select: { id: true, status: true, quotedPrice: true },
+      }),
+      this.prisma.supplierCatalogApplication.findFirst({
+        where: {
+          supplierId,
+          catalogItemId: itemId,
+          status: { in: ['PENDING', 'COUNTERED', 'RETURNED'] },
+        },
+        orderBy: { updatedAt: 'desc' },
+        select: { id: true, type: true, status: true },
+      }),
+    ]);
+    return {
+      hasActiveSupply: !!active && active.status === 'ACTIVE',
+      activeSupplyId: active?.id ?? null,
+      inProgressApplication: inProgress,
+      canApplyJoin: !active && !inProgress,
+      canUpdateQuote: !!active && active.status === 'ACTIVE' && !inProgress,
+    };
+  }
+
+  // ─── 目录供货申请（新增品类 / 加入供货 / 改报价，含议价）───
+
+  async listMyCatalogApplications(supplierId: string) {
+    const apps = await this.prisma.supplierCatalogApplication.findMany({
+      where: { supplierId },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        catalogItem: {
+          select: { id: true, code: true, name: true, specification: true, category: true, group: true, unit: true },
+        },
+      },
+    });
+    return apps.map(a => ({
+      ...a,
+      quotedPrice: a.quotedPrice != null ? Number(a.quotedPrice) : null,
+      counterPrice: a.counterPrice != null ? Number(a.counterPrice) : null,
+    }));
+  }
+
+  async createCatalogApplication(supplierId: string, input: {
+    type: string;
+    catalogItemId?: string;
+    proposedName?: string;
+    proposedSpec?: string;
+    proposedCategory?: string;
+    proposedGroup?: string;
+    proposedUnit?: string;
+    quotedPrice?: string | number;
+    deliveryPeriod?: string;
+    region?: string;
+    minOrder?: string;
+    taxIncluded?: boolean;
+    freightIncluded?: boolean;
+    qualificationNote?: string;
+    attachmentFileAssetId?: string;
+  }) {
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId } });
+    if (!supplier) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
+    if (supplier.status !== 'APPROVED') {
+      throw new BadRequestException({ error: '只有已入库供应商可提交供货申请', code: 'NOT_APPROVED' });
+    }
+
+    const type = input.type;
+    if (!['NEW_ITEM', 'JOIN_EXISTING', 'UPDATE_QUOTE'].includes(type)) {
+      throw new BadRequestException({ error: '申请类型无效', code: 'INVALID_TYPE' });
+    }
+    if (input.quotedPrice == null || Number(input.quotedPrice) <= 0) {
+      throw new BadRequestException({ error: '请填写有效报价', code: 'MISSING_QUOTE' });
+    }
+
+    // —— 类型相关校验 + 防重复（decision #5）——
+    if (type === 'NEW_ITEM') {
+      if (!input.proposedName?.trim() || !input.proposedCategory?.trim() || !input.proposedGroup?.trim() || !input.proposedUnit?.trim()) {
+        throw new BadRequestException({ error: '新增品类需填写物资名称/分类/组别/单位', code: 'MISSING_PROPOSED_FIELDS' });
+      }
+      const dup = await this.prisma.supplierCatalogApplication.findFirst({
+        where: {
+          supplierId,
+          type: 'NEW_ITEM',
+          status: { in: ['PENDING', 'COUNTERED', 'RETURNED'] },
+          proposedName: input.proposedName.trim(),
+        },
+      });
+      if (dup) throw new BadRequestException({ error: '该物资已有进行中的新增申请', code: 'DUPLICATE_APPLICATION' });
+    } else {
+      // JOIN_EXISTING / UPDATE_QUOTE 必须指向已有目录条目
+      if (!input.catalogItemId) {
+        throw new BadRequestException({ error: '请选择目标目录条目', code: 'MISSING_CATALOG_ITEM' });
+      }
+      const item = await this.prisma.catalogItem.findUnique({ where: { id: input.catalogItemId } });
+      if (!item) throw new BadRequestException({ error: '目录条目不存在', code: 'CATALOG_ITEM_NOT_FOUND' });
+
+      const active = await this.prisma.catalogSupplier.findUnique({
+        where: { catalogItemId_supplierId: { catalogItemId: input.catalogItemId, supplierId } },
+      });
+      const inProgress = await this.prisma.supplierCatalogApplication.findFirst({
+        where: {
+          supplierId, catalogItemId: input.catalogItemId,
+          status: { in: ['PENDING', 'COUNTERED', 'RETURNED'] },
+        },
+      });
+
+      if (type === 'JOIN_EXISTING') {
+        if (active) throw new BadRequestException({ error: '您已是该品类的准入供应商，如需改价请提交改报价申请', code: 'ALREADY_SUPPLYING' });
+        if (inProgress) throw new BadRequestException({ error: '该品类已有进行中的申请', code: 'DUPLICATE_APPLICATION' });
+      } else {
+        // UPDATE_QUOTE：必须已有 ACTIVE 关系
+        if (!active || active.status !== 'ACTIVE') {
+          throw new BadRequestException({ error: '仅已准入的供应商可申请改报价', code: 'NO_ACTIVE_SUPPLY' });
+        }
+        if (inProgress && inProgress.type === 'UPDATE_QUOTE') {
+          throw new BadRequestException({ error: '该品类已有进行中的改报价申请', code: 'DUPLICATE_APPLICATION' });
+        }
+      }
+    }
+
+    return this.prisma.supplierCatalogApplication.create({
+      data: {
+        supplierId,
+        type,
+        catalogItemId: type === 'NEW_ITEM' ? null : input.catalogItemId,
+        proposedName: type === 'NEW_ITEM' ? input.proposedName!.trim() : null,
+        proposedSpec: type === 'NEW_ITEM' ? input.proposedSpec?.trim() ?? null : null,
+        proposedCategory: type === 'NEW_ITEM' ? input.proposedCategory!.trim() : null,
+        proposedGroup: type === 'NEW_ITEM' ? input.proposedGroup!.trim() : null,
+        proposedUnit: type === 'NEW_ITEM' ? input.proposedUnit!.trim() : null,
+        quotedPrice: Number(input.quotedPrice),
+        deliveryPeriod: input.deliveryPeriod?.trim() || null,
+        region: input.region?.trim() || null,
+        minOrder: input.minOrder?.trim() || null,
+        taxIncluded: input.taxIncluded ?? true,
+        freightIncluded: input.freightIncluded ?? false,
+        qualificationNote: input.qualificationNote?.trim() || null,
+        attachmentFileAssetId: input.attachmentFileAssetId || null,
+        status: 'PENDING',
+      },
+    });
+  }
+
+  /** 供应商编辑并重新提交（RETURNED 补正 / COUNTERED 再报价）。→ PENDING */
+  async updateMyCatalogApplication(
+    supplierId: string,
+    userId: string,
+    applicationId: string,
+    input: Partial<{
+      proposedName: string; proposedSpec: string; proposedCategory: string;
+      proposedGroup: string; proposedUnit: string;
+      quotedPrice: string | number; deliveryPeriod: string; region: string;
+      minOrder: string; taxIncluded: boolean; freightIncluded: boolean;
+      qualificationNote: string; attachmentFileAssetId: string;
+    }>,
+  ) {
+    const app = await this.prisma.supplierCatalogApplication.findUnique({ where: { id: applicationId } });
+    if (!app || app.supplierId !== supplierId) {
+      throw new BadRequestException({ error: '申请不存在', code: 'NOT_FOUND' });
+    }
+    if (!['RETURNED', 'COUNTERED'].includes(app.status)) {
+      throw new BadRequestException({ error: '当前状态不可编辑，仅退回/议价中的申请可重新提交', code: 'INVALID_STATUS' });
+    }
+    const data: any = { status: 'PENDING', reviewerNote: null };
+    if (input.quotedPrice != null && Number(input.quotedPrice) > 0) data.quotedPrice = Number(input.quotedPrice);
+    if (input.proposedName != null) data.proposedName = input.proposedName.trim();
+    if (input.proposedSpec != null) data.proposedSpec = input.proposedSpec.trim();
+    if (input.proposedCategory != null) data.proposedCategory = input.proposedCategory.trim();
+    if (input.proposedGroup != null) data.proposedGroup = input.proposedGroup.trim();
+    if (input.proposedUnit != null) data.proposedUnit = input.proposedUnit.trim();
+    if (input.deliveryPeriod != null) data.deliveryPeriod = input.deliveryPeriod.trim() || null;
+    if (input.region != null) data.region = input.region.trim() || null;
+    if (input.minOrder != null) data.minOrder = input.minOrder.trim() || null;
+    if (input.taxIncluded != null) data.taxIncluded = input.taxIncluded;
+    if (input.freightIncluded != null) data.freightIncluded = input.freightIncluded;
+    if (input.qualificationNote != null) data.qualificationNote = input.qualificationNote.trim() || null;
+    if (input.attachmentFileAssetId != null) data.attachmentFileAssetId = input.attachmentFileAssetId || null;
+    const updated = await this.prisma.supplierCatalogApplication.update({ where: { id: applicationId }, data });
+    await this.notifyReviewer(app, '供货申请已重新提交', `供应商已重新提交申请并改价至 ¥${Number(updated.quotedPrice)}，请审核。`);
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_APPLICATION_RESUBMITTED', target: '目录供货申请', detail: { applicationId, status: app.status } } });
+    return updated;
+  }
+
+  /** 供应商接受议价反报价。COUNTERED → PENDING（quotedPrice 落为 counterPrice，待管理员最终通过）。 */
+  async acceptCatalogCounter(supplierId: string, userId: string, applicationId: string) {
+    const app = await this.prisma.supplierCatalogApplication.findUnique({ where: { id: applicationId } });
+    if (!app || app.supplierId !== supplierId) {
+      throw new BadRequestException({ error: '申请不存在', code: 'NOT_FOUND' });
+    }
+    if (app.status !== 'COUNTERED' || app.counterPrice == null) {
+      throw new BadRequestException({ error: '该申请不在议价状态', code: 'INVALID_STATUS' });
+    }
+    const updated = await this.prisma.supplierCatalogApplication.update({
+      where: { id: applicationId },
+      data: { quotedPrice: Number(app.counterPrice), status: 'PENDING' },
+    });
+    await this.notifyReviewer(app, '供应商已接受议价', `供应商已接受反报价 ¥${Number(app.counterPrice)}，请进行最终审核。`);
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_COUNTER_ACCEPTED', target: '目录供货申请', detail: { applicationId, counterPrice: Number(app.counterPrice) } } });
+    return updated;
+  }
+
+  /** 供应商撤回申请。任意非终态 → WITHDRAWN。 */
+  async withdrawCatalogApplication(supplierId: string, userId: string, applicationId: string) {
+    const app = await this.prisma.supplierCatalogApplication.findUnique({ where: { id: applicationId } });
+    if (!app || app.supplierId !== supplierId) {
+      throw new BadRequestException({ error: '申请不存在', code: 'NOT_FOUND' });
+    }
+    if (['APPROVED', 'REJECTED', 'WITHDRAWN'].includes(app.status)) {
+      throw new BadRequestException({ error: '该申请已结束，不可撤回', code: 'INVALID_STATUS' });
+    }
+    const updated = await this.prisma.supplierCatalogApplication.update({
+      where: { id: applicationId },
+      data: { status: 'WITHDRAWN' },
+    });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_APPLICATION_WITHDRAWN', target: '目录供货申请', detail: { applicationId } } });
+    return updated;
+  }
+
+  /** 通知审核管理员（议价/退回的发起人）。若无 reviewedBy 则静默跳过。 */
+  private async notifyReviewer(app: any, title: string, content: string) {
+    if (!app.reviewedBy) return;
+    await this.prisma.notification.create({ data: { userId: app.reviewedBy, type: 'CATALOG_APPLICATION', title, content, link: '/supplier/catalog-review' } });
+  }
+
+  // ─── 我的已准入供货关系 ───
+
+  async listMyCatalogSupply(supplierId: string) {
+    const rows = await this.prisma.catalogSupplier.findMany({
+      where: { supplierId },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        catalogItem: {
+          select: { id: true, code: true, name: true, specification: true, category: true, group: true, unit: true },
+        },
+      },
+    });
+    return rows.map(r => ({ ...r, quotedPrice: Number(r.quotedPrice) }));
+  }
+
   // ─── Dashboard Stats ───
 
   async getDashboardStats(userId: string) {

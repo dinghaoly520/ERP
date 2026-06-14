@@ -29,6 +29,7 @@ const navItems: NavItem[] = [
       { label: '供应商库', path: '/supplier/repository' },
       { label: '供应商选取', path: '/supplier/selection' },
       { label: '供应商评价', path: '/supplier/evaluation' },
+      { label: '目录供货审核', path: '/supplier/catalog-review' },
     ],
   },
   {
