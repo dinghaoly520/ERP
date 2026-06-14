@@ -872,7 +872,7 @@ function SplashCursor({
     function generateColor(): [number, number, number] {
       const c = SOFT_COLORS[Math.floor(Math.random() * SOFT_COLORS.length)];
       // Scale down by 8x for very light additive accumulation
-      return [c[0] * 0.035, c[1] * 0.035, c[2] * 0.035];
+      return [c[0] * 0.06, c[1] * 0.06, c[2] * 0.06];
     }
 
     function wrap(value: number, min: number, max: number) {
