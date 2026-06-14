@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './assistant-home.module.css';
-import { Sparkles, Send, Loader2, Search, BarChart3, AlertTriangle, Users, ShoppingBag, FileText, Calendar } from 'lucide-react';
+import { Sparkles, Send, Loader2, BarChart3, AlertTriangle, Users, ShoppingBag, FileText, Calendar, Search } from 'lucide-react';
 
 const copy = {
   title: '水叮当智能助手',
@@ -87,7 +87,7 @@ export function AssistantHome({
         {/* 品牌区 */}
         <div className={styles.brandRow}>
           <div className={styles.logoShell}>
-            <Sparkles size={30} color="#2d6bca" strokeWidth={1.8} />
+            <img src="/logo.jpg" alt="Logo" className={styles.logoImage} />
           </div>
           <h1 className={styles.title}>{copy.title}</h1>
         </div>

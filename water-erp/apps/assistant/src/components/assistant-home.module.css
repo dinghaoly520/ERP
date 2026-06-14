@@ -112,14 +112,31 @@
   box-shadow:
     0 16px 34px rgba(37, 99, 168, 0.08),
     0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+  animation: logoBreathe 3.5s ease-in-out infinite;
+  overflow: hidden;
 }
 
-.logoIcon {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.logoImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 22px;
+}
+
+@keyframes logoBreathe {
+  0%, 100% {
+    box-shadow:
+      0 16px 34px rgba(37, 99, 168, 0.08),
+      0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 22px 46px rgba(37, 99, 168, 0.18),
+      0 0 28px rgba(214, 171, 103, 0.14),
+      0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+    transform: scale(1.04);
+  }
 }
 
 .title {
