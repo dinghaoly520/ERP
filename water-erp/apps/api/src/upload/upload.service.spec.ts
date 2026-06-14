@@ -50,19 +50,48 @@ describe('UploadService — download permission', () => {
     expect(minioClient.getObject).not.toHaveBeenCalled();
   });
 
-  it('allows an expert assigned to the project whose supplier is decrypted', async () => {
+  it('allows an expert assigned to the project that owns the asset', async () => {
     prisma.fileAsset.findUnique.mockResolvedValue(asset);
+    prisma.supplierBidSubmission.findFirst.mockResolvedValue({ supplierId: 's1', projectId: 'p1' });
     prisma.bidExpert.findFirst.mockResolvedValue({ projectId: 'p1' });
-    prisma.supplierBidSubmission.findFirst.mockResolvedValue({ supplierId: 's1' });
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1' });
 
     await service.streamFile('fa-1', { sub: 'u-exp', role: 'bid_expert' }, res);
+
+    // 专家必须按 asset 所属项目精确匹配，而非取任意一条 expert 记录
+    expect(prisma.bidExpert.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ userId: 'u-exp', projectId: 'p1' }) }),
+    );
     expect(minioClient.getObject).toHaveBeenCalled();
   });
 
-  it('denies an expert not assigned to any project referencing the asset', async () => {
+  it('allows a multi-project expert to view an asset from their other project', async () => {
+    // 专家同时被分配到 p1 与 p2；该 asset 属于 p2
     prisma.fileAsset.findUnique.mockResolvedValue(asset);
-    prisma.bidExpert.findFirst.mockResolvedValue(null);
+    prisma.supplierBidSubmission.findFirst.mockResolvedValue({ supplierId: 's1', projectId: 'p2' });
+    prisma.bidExpert.findFirst.mockResolvedValue({ projectId: 'p2' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1' });
+
+    await service.streamFile('fa-1', { sub: 'u-exp', role: 'bid_expert' }, res);
+
+    expect(prisma.bidExpert.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ projectId: 'p2' }) }),
+    );
+    expect(minioClient.getObject).toHaveBeenCalled();
+  });
+
+  it('denies an expert assigned to a different project than the asset', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue(asset);
+    prisma.supplierBidSubmission.findFirst.mockResolvedValue({ supplierId: 's1', projectId: 'p2' });
+    prisma.bidExpert.findFirst.mockResolvedValue(null); // 专家不在 p2
+
+    await expect(service.streamFile('fa-1', { sub: 'u-exp', role: 'bid_expert' }, res))
+      .rejects.toThrow(ForbiddenException);
+  });
+
+  it('denies an expert when no submission references the asset', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue(asset);
+    prisma.supplierBidSubmission.findFirst.mockResolvedValue(null);
 
     await expect(service.streamFile('fa-1', { sub: 'u-exp', role: 'bid_expert' }, res))
       .rejects.toThrow(ForbiddenException);

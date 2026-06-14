@@ -161,11 +161,10 @@ export class UploadService implements OnModuleInit {
     if (['admin', 'bid_host', 'procurement_staff'].includes(user.role)) return true;
 
     if (user.role === 'bid_expert') {
-      const expert = await this.prisma.bidExpert.findFirst({ where: { userId: user.sub } });
-      if (!expert) return false;
+      // 从 asset 反查其所属项目（通过引用该 asset 的 SupplierBidSubmission），
+      // 再校验专家是否被分配到【该】项目——避免对多项目专家取到错误项目导致误判。
       const submission = await this.prisma.supplierBidSubmission.findFirst({
         where: {
-          projectId: expert.projectId,
           OR: [
             { technicalFileAssetId: asset.id },
             { businessFileAssetId: asset.id },
@@ -174,8 +173,12 @@ export class UploadService implements OnModuleInit {
         },
       });
       if (!submission) return false;
+      const expert = await this.prisma.bidExpert.findFirst({
+        where: { userId: user.sub, projectId: submission.projectId },
+      });
+      if (!expert) return false;
       const decrypted = await this.prisma.bidSupplier.findFirst({
-        where: { projectId: expert.projectId, supplierId: submission.supplierId, decryptStatus: 'SUCCESS' },
+        where: { projectId: submission.projectId, supplierId: submission.supplierId, decryptStatus: 'SUCCESS' },
       });
       return !!decrypted;
     }
