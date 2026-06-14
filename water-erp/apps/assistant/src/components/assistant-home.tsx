@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './assistant-home.module.css';
 import { Sparkles, Send, Loader2, Search, BarChart3, AlertTriangle, Users, ShoppingBag, FileText, Calendar } from 'lucide-react';
 
@@ -22,6 +22,48 @@ const quickCards = [
   { icon: Sparkles, title: '业务操作助手', desc: '审批与变更协同', prompt: '列出所有待审核的供应商，帮我处理' },
 ];
 
+function useMouseSpotlight() {
+  const layerRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number>(0);
+  const targetRef = useRef({ x: 0.5, y: 0.5 });
+  const currentRef = useRef({ x: 0.5, y: 0.5 });
+
+  useEffect(() => {
+    const handleMove = (e: MouseEvent) => {
+      targetRef.current = {
+        x: e.clientX / window.innerWidth,
+        y: e.clientY / window.innerHeight,
+      };
+    };
+
+    const animate = () => {
+      const t = targetRef.current;
+      const c = currentRef.current;
+      // 平滑插值
+      const speed = 0.08;
+      c.x += (t.x - c.x) * speed;
+      c.y += (t.y - c.y) * speed;
+
+      const el = layerRef.current;
+      if (el) {
+        el.style.setProperty('--spotlight-x', `${c.x * 100}%`);
+        el.style.setProperty('--spotlight-y', `${c.y * 100}%`);
+      }
+      rafRef.current = requestAnimationFrame(animate);
+    };
+
+    window.addEventListener('mousemove', handleMove, { passive: true });
+    rafRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  return layerRef;
+}
+
 export function AssistantHome({
   onSend,
   isLoading,
@@ -30,16 +72,19 @@ export function AssistantHome({
   isLoading?: boolean;
 }) {
   const [inputValue, setInputValue] = useState('');
+  const spotlightRef = useMouseSpotlight();
 
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     const trimmed = inputValue.trim();
     if (!trimmed || isLoading) return;
     onSend(trimmed);
     setInputValue('');
-  };
+  }, [inputValue, isLoading, onSend]);
 
   return (
     <div className={styles.home}>
+      {/* 鼠标跟随光影 */}
+      <div ref={spotlightRef} className={styles.spotlightLayer} />
       <section className={styles.hero}>
         {/* 品牌区 */}
         <div className={styles.brandRow}>

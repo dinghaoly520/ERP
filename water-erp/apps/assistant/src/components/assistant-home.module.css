@@ -3,7 +3,7 @@
    玻璃质感 + 极光背景 + 海军蓝/香槟金双色调
    ========================================================================== */
 
-/* ---------- 极光背景 ---------- */
+/* ---------- 极光背景 + 鼠标光影跟随 ---------- */
 .home {
   min-height: 100vh;
   display: flex;
@@ -18,6 +18,22 @@
     radial-gradient(circle at 72% 76%, rgba(112, 216, 189, 0.12), transparent 20%),
     radial-gradient(circle at 22% 84%, rgba(255, 190, 222, 0.10), transparent 18%),
     linear-gradient(180deg, #f7faff 0%, #edf3fb 100%);
+}
+
+/* 鼠标跟随光影层 */
+.spotlightLayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    600px circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
+    rgba(88, 164, 255, 0.14) 0%,
+    rgba(145, 132, 255, 0.08) 30%,
+    rgba(214, 171, 103, 0.06) 50%,
+    transparent 70%
+  );
+  transition: opacity 0.4s ease;
 }
 
 /* 浮动极光光晕 */
