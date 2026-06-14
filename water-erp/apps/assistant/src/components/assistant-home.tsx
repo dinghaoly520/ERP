@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import styles from './assistant-home.module.css';
-import { Send, Loader2, BarChart3, AlertTriangle, Users, ShoppingBag, FileText, Calendar, Search, Bell, Shield, TrendingUp, ClipboardList } from 'lucide-react';
+import { Send, Loader2, Gauge, Search, ShieldAlert, Users, ShoppingBag, CalendarClock, ScrollText, Wrench } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -27,19 +27,16 @@ type Card = {
 
 function buildCards(s: QuickStats | null): Card[] {
   const LOADING: Card[] = Array.from({ length: 8 }, () => ({
-    icon: BarChart3, label: '加载中...', subtitle: '', tool: 'global_overview', args: { action: 'stats' },
+    icon: Gauge, label: '加载中...', subtitle: '', tool: 'global_overview', args: { action: 'stats' },
   }));
 
   if (!s) return LOADING;
 
   const { procurement, bid, supplier, catalog, notification, focusAreas } = s;
-  const hasAlerts = focusAreas.length > 0;
-  const hasPending = supplier.pending > 0 || procurement.pending > 0;
 
-  // Fixed category labels + dynamic subtitles from system state
   return [
     {
-      icon: hasAlerts ? TrendingUp : BarChart3,
+      icon: Gauge,
       label: '董事长驾驶舱',
       subtitle: procurement.total === 0
         ? '尚无采购项目 · 建议启动立项'
@@ -49,7 +46,7 @@ function buildCards(s: QuickStats | null): Card[] {
       tool: 'global_overview', args: { action: 'stats' },
     },
     {
-      icon: hasAlerts ? AlertTriangle : Search,
+      icon: Search,
       label: '全系统数据问答',
       subtitle: focusAreas.length > 0
         ? `⚠ ${focusAreas.slice(0, 2).join(' · ')}`
@@ -58,7 +55,7 @@ function buildCards(s: QuickStats | null): Card[] {
       args: focusAreas.length > 0 ? { action: 'active' } : { action: 'stats' },
     },
     {
-      icon: hasAlerts ? Shield : Search,
+      icon: ShieldAlert,
       label: '招采风险扫描',
       subtitle: supplier.risk > 0
         ? `⚠ ${supplier.risk} 家供应商有风险`
@@ -68,7 +65,7 @@ function buildCards(s: QuickStats | null): Card[] {
       tool: 'bid', args: { action: supplier.risk > 0 ? 'risks' : 'stats' },
     },
     {
-      icon: hasPending ? AlertTriangle : Users,
+      icon: Users,
       label: '供应商画像',
       subtitle: supplier.pending > 0
         ? `${supplier.approved} 家已入库 · ${supplier.pending} 家待审核`
@@ -84,7 +81,7 @@ function buildCards(s: QuickStats | null): Card[] {
       tool: 'mall', args: { action: 'stats' },
     },
     {
-      icon: bid.active > 0 ? Calendar : notification.unread > 0 ? Bell : Calendar,
+      icon: CalendarClock,
       label: '今日重点事项',
       subtitle: bid.active > 0
         ? `${bid.active} 个招标项目进行中`
@@ -95,7 +92,7 @@ function buildCards(s: QuickStats | null): Card[] {
       args: bid.active > 0 ? { action: 'active' } : { action: 'list' },
     },
     {
-      icon: FileText,
+      icon: ScrollText,
       label: '汇报材料生成',
       subtitle: bid.total > 0
         ? `基于 ${bid.total} 个招标项目生成汇报`
@@ -103,7 +100,7 @@ function buildCards(s: QuickStats | null): Card[] {
       tool: 'global_overview', args: { action: 'stats' },
     },
     {
-      icon: hasPending ? AlertTriangle : ClipboardList,
+      icon: Wrench,
       label: '业务操作助手',
       subtitle: supplier.pending > 0
         ? `${supplier.pending} 家供应商待审核`
