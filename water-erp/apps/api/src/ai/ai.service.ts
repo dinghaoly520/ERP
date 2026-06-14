@@ -595,60 +595,53 @@ export class AiService {
     catalog?: { total: number; active: number; alerts: number };
     applications?: { pending: number };
   }) {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
-      return { summary: 'AI 引擎暂未配置（DEEPSEEK_API_KEY 缺失），无法生成运营摘要。', level: 'info' as const };
-    }
-
     const s = context.supplier || { total: 0, approved: 0, pending: 0, risk: 0 };
     const a = context.announcement || { total: 0, published: 0, draftLike: 0 };
     const e = context.expert || { total: 0, active: 0, unfinished: 0 };
     const c = context.catalog || { total: 0, active: 0, alerts: 0 };
     const apps = context.applications || { pending: 0 };
 
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      return this.fallbackInsight(s, a, e, c, apps);
+    }
+
     const systemPrompt = [
       '你是四川水发集团智慧招采ERP中的"水叮当"——采购运营智能管理助手。',
-      '你的用户是采购管理员，TA需要你快速判断：当前各业务线是否健康、哪里需要优先处理、今天应该做什么。',
+      '你必须只输出一个合法的JSON对象，不要输出任何其他文字或代码块标记。',
       '',
-      '系统业务模块说明：',
-      '- 信息发布中心：管理招标/中标公告、政策法规、平台通知，发布后供应商可见。',
-      '- 供应商管理中心：管理供应商注册审批、入库、评价、停用和黑名单。',
-      '- 专家管理中心：管理评标专家库、抽取分配、回避、履职评价。',
-      '- 电子商城管理：管理集中采购目录、价格审批、价格录入，供应商提交供货申请由管理员审核。',
-      '- 首页待办：聚合待审批供应商、待完善公告、待处理商城申请等需操作的事项。',
+      'JSON 结构如下：',
+      '{',
+      '  "overview": "一句话总体态势（30字内）",',
+      '  "highlights": [',
+      '    {"module":"模块名","metric":"展示数字","comment":"一句话分析（20字内）","path":"跳转路径","tone":"blue|green|orange|purple|cyan"},',
+      '  ],',
+      '  "suggestions": [{"text":"建议内容（20字内）","path":"跳转路径"}]',
+      '}',
       '',
-      '分析规则：',
-      '- 待审批>0 或 待完善>0 → 指出当前积压量，建议立即处理。',
-      '- 停用/黑名单>0 → 提示关注风险供应商状态。',
-      '- 有效目录少 → 提示补充商城目录以支撑价格参考。',
-      '- 各模块数据都有基础量 → 肯定运行平稳，无需夸大问题。',
-      '- 不要因为某个模块数据为零就判定"系统空载"，采购管理是渐进过程，',
-      '  只需客观指出该模块当前无活跃数据，建议按需启用。',
+      'highlight 可用 path 映射（必须使用这些路径，不要编造）：',
+      '- 供应商审批 → /supplier/approval',
+      '- 供应商库 → /supplier/repository',
+      '- 信息发布 → /notice',
+      '- 专家库 → /expert/repository',
+      '- 专家评价 → /expert/evaluation',
+      '- 商城目录 → /mall-management/catalog',
+      '- 价格审批 → /mall-management/approval',
+      '- 价格录入 → /mall-management/price-entry',
       '',
-      '输出格式（纯文本，每条≤40字，总≤150字）：',
-      '总评：[1句概括当前态势]',
-      '关注：[2-3条，格式"模块名：问题简述→建议动作"]',
-      '建议：[1-2条今日行动建议]',
+      'tone 规则：待办积压→orange，正常→green或blue，专家→purple，商城→cyan',
+      'highlights 生成2-4条，只选取当前最有价值的模块。数据为零的模块不要放入。',
+      'suggestions 生成1-3条，每条必须可执行。',
+      '纯JSON输出，不要markdown代码块。',
     ].join('\n');
 
-    // Determine overall status
-    const riskScore = (s.pending || 0) * 2 + (apps.pending || 0) * 3 + (a.draftLike || 0) + (e.unfinished || 0) + (c.alerts || 0) * 2;
-    const statusLabel = riskScore >= 15 ? '⚠️ 需重点关注' : riskScore >= 6 ? '📋 日常跟进' : '✅ 运行平稳';
-
-    const prompt = [
-      `平台整体状态：${statusLabel}`,
-      '',
-      '各中心实时数据：',
-      `【信息发布】总量${a.total}条，已发布${a.published}条，待完善${a.draftLike}条。`,
-      `【供应商库】总量${s.total}家，已入库${s.approved}家，待审批${s.pending}家，停用/黑名单${s.risk}家。`,
-      `【专家资源】${e.total}名专家，${e.active}项进行中，${e.unfinished}项未完成。`,
-      `【商城目录】${c.total}条目录，${c.active}条有效，${c.alerts}条待处理/预警。`,
-      `【供货审批】${apps.pending}条待审核申请。`,
-      '',
-      '请按以下结构简要分析：',
-      '总评：（1句话概括当前运营态势）',
-      '关注点：（列出2-3条需要优先处理的事务及建议动作）',
-      '今日建议：（1-2条给采购管理员的本日行动建议）',
+    const userPrompt = [
+      '实时运营数据：',
+      `· 信息发布：总量${a.total}，已发布${a.published}，待完善${a.draftLike}`,
+      `· 供应商库：总量${s.total}，已入库${s.approved}，待审批${s.pending}`,
+      `· 专家资源：${e.total}名，进行中${e.active}项，未完成${e.unfinished}项`,
+      `· 商城目录：${c.total}条，有效${c.active}条，待处理${c.alerts}条`,
+      `· 供货审批：${apps.pending}条待审核`,
     ].join('\n');
 
     try {
@@ -656,31 +649,57 @@ export class AiService {
       const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
       const res = await fetch(`${DEEPSEEK_URL.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: DEEPSEEK_MODEL,
-          temperature: 0.3,
-          max_tokens: 600,
+          model: DEEPSEEK_MODEL, temperature: 0.2, max_tokens: 800,
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt },
+            { role: 'user', content: userPrompt },
           ],
         }),
         signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) {
         this.logger.warn(`DeepSeek dashboard-summary failed: ${res.status}`);
-        return { summary: 'AI 引擎暂时不可用，请稍后刷新页面重试。', level: 'warn' as const };
+        return this.fallbackInsight(s, a, e, c, apps);
       }
       const data = await res.json();
       const text = (data?.choices?.[0]?.message?.content || '').trim();
-      return { summary: text || 'AI 未能生成有效摘要，请稍后重试。', level: 'info' as const };
+      const parsed = JSON.parse(text);
+      return {
+        overview: parsed.overview || '运营态势正常',
+        highlights: Array.isArray(parsed.highlights) ? parsed.highlights.filter((h: any) => h.module && h.path) : [],
+        suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions.filter((s: any) => s.text && s.path) : [],
+      };
     } catch (err: any) {
       this.logger.warn(`DeepSeek dashboard-summary error: ${err.message}`);
-      return { summary: 'AI 引擎连接超时或不可用，当前数据统计可正常查看。', level: 'warn' as const };
+      return this.fallbackInsight(s, a, e, c, apps);
     }
+  }
+
+  private fallbackInsight(s: any, a: any, e: any, c: any, apps: any) {
+    const highlights: any[] = [];
+    if (s.pending > 0) highlights.push({ module: '供应商审批', metric: `${s.pending}家待审核`, comment: '建议尽快审核入库', path: '/supplier/approval', tone: 'orange' });
+    if (s.approved > 0) highlights.push({ module: '供应商库', metric: `${s.approved}/${s.total}家`, comment: '供应商资源正常运转', path: '/supplier/repository', tone: 'green' });
+    if (a.draftLike > 0) highlights.push({ module: '信息发布', metric: `${a.draftLike}条待完善`, comment: '建议尽快完成发布', path: '/notice', tone: 'orange' });
+    if (a.published > 0) highlights.push({ module: '信息发布', metric: `${a.published}条已发布`, comment: '发布节奏正常', path: '/notice', tone: 'blue' });
+    if (e.active > 0) highlights.push({ module: '专家参与', metric: `${e.active}项进行中`, comment: '专家评审有序推进', path: '/expert/repository', tone: 'purple' });
+    if (e.unfinished > 0) highlights.push({ module: '专家履职', metric: `${e.unfinished}项未完成`, comment: '关注履职评价进度', path: '/expert/evaluation', tone: 'purple' });
+    if (c.active > 0) highlights.push({ module: '商城目录', metric: `${c.active}条有效`, comment: '目录价格可参考', path: '/mall-management/catalog', tone: 'cyan' });
+    if (c.alerts > 0) highlights.push({ module: '商城目录', metric: `${c.alerts}条待复核`, comment: '建议尽快更新价格', path: '/mall-management/catalog', tone: 'orange' });
+    if (apps.pending > 0) highlights.push({ module: '价格审批', metric: `${apps.pending}条待审核`, comment: '供货申请需及时处理', path: '/mall-management/approval', tone: 'orange' });
+
+    const suggestions: any[] = [];
+    if (s.pending > 0) suggestions.push({ text: `处理${s.pending}家待审批供应商入库`, path: '/supplier/approval' });
+    if (a.draftLike > 0) suggestions.push({ text: `完成${a.draftLike}条待完善信息的发布`, path: '/notice' });
+    if (c.alerts > 0) suggestions.push({ text: `复核${c.alerts}条商城目录价格`, path: '/mall-management/catalog' });
+    if (apps.pending > 0) suggestions.push({ text: `审核${apps.pending}条商城供货申请`, path: '/mall-management/approval' });
+    if (e.unfinished > 0) suggestions.push({ text: '跟进专家履职评价', path: '/expert/evaluation' });
+
+    return {
+      overview: highlights.length > 0 ? '系统运行正常，以下模块需要关注' : '各中心暂无活跃数据，请按需初始化业务模块',
+      highlights: highlights.slice(0, 4),
+      suggestions: suggestions.slice(0, 3),
+    };
   }
 }
