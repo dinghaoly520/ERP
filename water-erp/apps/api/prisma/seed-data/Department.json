@@ -5,5 +5,54 @@
     "code": "PROC",
     "createdAt": "2026-06-13T06:18:29.299Z",
     "updatedAt": "2026-06-13T06:18:29.299Z"
+  },
+  {
+    "id": "seeddept001",
+    "name": "工程技术中心",
+    "code": "ENG",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept003",
+    "name": "财务审计中心",
+    "code": "FIN",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept004",
+    "name": "安全质量中心",
+    "code": "QHSE",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept005",
+    "name": "法务风控中心",
+    "code": "LEGAL",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept006",
+    "name": "市场经营中心",
+    "code": "MKT",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept007",
+    "name": "综合管理中心",
+    "code": "ADMIN",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept002",
+    "name": "采购管理中心",
+    "code": "PROCM",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
   }
 ]
