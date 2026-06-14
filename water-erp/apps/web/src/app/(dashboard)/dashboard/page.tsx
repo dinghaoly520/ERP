@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import { MetricCard, ModuleCard, SectionCard } from '@/components/workbench';
 import { api } from '@/lib/api';
 import { getCatalogStats, type CatalogStats } from '@/lib/api/catalog-admin';
+import { listCatalogApplications } from '@/lib/api/catalog';
 import type { User } from '@/lib/types';
 import { completionTone, numberOrZero, percent, statusTone } from '@/lib/workbench';
 import {
-  Activity, AlertTriangle, BellRing, Building2,
-  Megaphone, ShieldAlert, ShoppingCart, UsersRound,
+  Activity, AlertTriangle, Building2, ClipboardCheck,
+  Megaphone, ShoppingCart, UsersRound,
 } from 'lucide-react';
 
 interface SupplierStats {
@@ -48,6 +49,7 @@ export default function DashboardPage() {
   const [announcementStats, setAnnouncementStats] = useState<AnnouncementStats | null>(null);
   const [experts, setExperts] = useState<ExpertItem[]>([]);
   const [catalogStats, setCatalogStats] = useState<CatalogStats | null>(null);
+  const [pendingPriceApps, setPendingPriceApps] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,11 +62,13 @@ export default function DashboardPage() {
       api.get<AnnouncementStats>('/announcements/stats').catch(() => null),
       api.get<ExpertItem[]>('/expert-admin').catch(() => []),
       getCatalogStats().catch(() => null),
-    ]).then(([ss, as, expertList, cs]) => {
+      listCatalogApplications({ status: 'PENDING' }).catch(() => []),
+    ]).then(([ss, as, expertList, cs, apps]) => {
       setSupplierStats(ss);
       setAnnouncementStats(as);
       setExperts(Array.isArray(expertList) ? expertList : []);
       setCatalogStats(cs);
+      setPendingPriceApps(Array.isArray(apps) ? apps.length : 0);
       setLoading(false);
     });
   }, []);
@@ -80,8 +84,6 @@ export default function DashboardPage() {
   const pendingSuppliers = numberOrZero(supplierStats?.pending);
   const announcementDraftLike = Math.max(numberOrZero(announcementStats?.total) - numberOrZero(announcementStats?.published), 0);
   const supplierRisk = numberOrZero(supplierStats?.disabled) + numberOrZero(supplierStats?.blacklist);
-  const totalTodos = pendingSuppliers + announcementDraftLike + expertUnfinishedCount;
-  const alertCount = supplierRisk + (expertUnfinishedCount > 0 ? 1 : 0);
   const announcementTotal = numberOrZero(announcementStats?.total);
   const announcementPublished = numberOrZero(announcementStats?.published);
   const supplierTotal = numberOrZero(supplierStats?.total);
@@ -103,8 +105,8 @@ export default function DashboardPage() {
         <MetricCard label="供应商资源" value={loading ? '—' : `${supplierApproved}/${supplierTotal}`} hint="已入库 / 供应商总数" tone="green" icon={<Building2 size={18} strokeWidth={1.7} />} onClick={() => router.push('/supplier/repository')} />
         <MetricCard label="专家资源" value={loading ? '—' : `${expertTotal}`} hint={`${expertAssignments} 条参与记录`} tone="purple" icon={<UsersRound size={18} strokeWidth={1.7} />} onClick={() => router.push('/expert/repository')} />
         <MetricCard label="商城目录" value={loading ? '—' : `${mallCatalogActive}/${mallCatalogTotal}`} hint="有效目录 / 目录总量" tone="cyan" icon={<ShoppingCart size={18} strokeWidth={1.7} />} onClick={() => router.push('/mall-management/catalog')} />
-        <MetricCard label="待处理事项" value={loading ? '—' : totalTodos} hint="待发布、待审核、专家未完成" tone="orange" icon={<BellRing size={18} strokeWidth={1.7} />} onClick={() => router.push('/supplier/approval')} />
-        <MetricCard label="风险预警" value={loading ? '—' : alertCount} hint="异常供应商与专家提醒" tone="red" icon={<ShieldAlert size={18} strokeWidth={1.7} />} onClick={() => router.push('/dashboard#risk')} />
+        <MetricCard label="供应商待审批" value={loading ? '—' : pendingSuppliers} hint="注册入库待审核" tone="orange" icon={<Building2 size={18} strokeWidth={1.7} />} onClick={() => router.push('/supplier/approval')} />
+        <MetricCard label="价格待审批" value={loading ? '—' : pendingPriceApps} hint="商城供货申请待审核" tone="red" icon={<ClipboardCheck size={18} strokeWidth={1.7} />} onClick={() => router.push('/mall-management/approval')} />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
@@ -134,6 +136,7 @@ export default function DashboardPage() {
             <button onClick={() => router.push('/supplier/approval')} className="w-full rounded-xl border border-[#fed7aa] bg-[#fff7ed] p-4 text-left text-sm text-[#9a3412] hover:bg-[#ffedd5]"><strong>供应商待审：</strong>{pendingSuppliers} 家供应商等待资料审核。</button>
             <button onClick={() => router.push('/notice')} className="w-full rounded-xl border border-[#bfdbfe] bg-[#eff6ff] p-4 text-left text-sm text-[#064ea2] hover:bg-[#dbeafe]"><strong>信息发布效率：</strong>{announcementDraftLike} 条信息需要完善或发布。</button>
             <button onClick={() => router.push('/expert/repository')} className="w-full rounded-xl border border-[#ddd6fe] bg-[#f5f3ff] p-4 text-left text-sm text-[#5b21b6] hover:bg-[#ede9fe]"><strong>专家履职提醒：</strong>{expertUnfinishedCount} 项专家事项未完成。</button>
+            <button onClick={() => router.push('/mall-management/approval')} className="w-full rounded-xl border border-[#fecaca] bg-[#fef2f2] p-4 text-left text-sm text-[#991b1b] hover:bg-[#fee2e2]"><strong>价格审批待处理：</strong>{pendingPriceApps} 条供货申请等待审核。</button>
           </div>
         </SectionCard>
       </section>
