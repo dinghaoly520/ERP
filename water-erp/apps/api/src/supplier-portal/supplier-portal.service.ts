@@ -251,6 +251,30 @@ export class SupplierPortalService {
     return { supplier, project };
   }
 
+  private async assertCanSaveBidDraft(supplierId: string, projectId: string) {
+    const [supplier, project] = await Promise.all([
+      this.prisma.supplier.findUnique({ where: { id: supplierId } }),
+      this.prisma.bidProject.findUnique({
+        where: { id: projectId },
+        select: { id: true, stage: true, deadline: true },
+      }),
+    ]);
+
+    if (!supplier) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
+    if (supplier.status !== 'APPROVED') {
+      throw new BadRequestException({ error: '供应商未通过审核，无法保存投标草稿', code: 'NOT_APPROVED' });
+    }
+    if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
+    if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
+      throw new BadRequestException({ error: '当前项目不允许保存投标草稿', code: 'PROJECT_NOT_DRAFTABLE' });
+    }
+    if (project.deadline.getTime() < Date.now()) {
+      throw new BadRequestException({ error: '投递截止时间已过', code: 'DEADLINE_PASSED' });
+    }
+
+    return { supplier, project };
+  }
+
   async submitBid(supplierId: string, projectId: string, data: {
     bidPrice?: string;
     deliveryPeriod?: string;
@@ -270,9 +294,10 @@ export class SupplierPortalService {
 
     const now = new Date();
 
+    let submission;
     if (existing) {
       // Update draft to submitted
-      return this.prisma.supplierBidSubmission.update({
+      submission = await this.prisma.supplierBidSubmission.update({
         where: { id: existing.id },
         data: {
           ...data,
@@ -280,18 +305,18 @@ export class SupplierPortalService {
           submittedAt: now,
         },
       });
+    } else {
+      // Create new submission
+      submission = await this.prisma.supplierBidSubmission.create({
+        data: {
+          supplierId,
+          projectId,
+          ...data,
+          status: 'submitted',
+          submittedAt: now,
+        },
+      });
     }
-
-    // Create new submission
-    const submission = await this.prisma.supplierBidSubmission.create({
-      data: {
-        supplierId,
-        projectId,
-        ...data,
-        status: 'submitted',
-        submittedAt: now,
-      },
-    });
 
     // Also create/update BidSupplier record for bid management
     const existingBidSupplier = await this.prisma.bidSupplier.findFirst({
@@ -328,6 +353,8 @@ export class SupplierPortalService {
     businessFile?: string;
     coverLetter?: string;
   }) {
+    await this.assertCanSaveBidDraft(supplierId, projectId);
+
     const existing = await this.prisma.supplierBidSubmission.findUnique({
       where: { supplierId_projectId: { supplierId, projectId } },
     });
@@ -376,9 +403,39 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '只能撤回已提交的标书', code: 'INVALID_STATUS' });
     }
 
-    return this.prisma.supplierBidSubmission.update({
-      where: { id: submissionId },
-      data: { status: 'withdrawn' },
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: submission.projectId },
+      select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
+    if (project.stage !== 'SUBMIT') {
+      throw new BadRequestException({ error: '项目已进入开标或后续阶段，无法撤回', code: 'PROJECT_ALREADY_OPENING' });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.supplierBidSubmission.update({
+        where: { id: submissionId },
+        data: { status: 'withdrawn' },
+      });
+
+      await tx.bidSupplier.updateMany({
+        where: { projectId: submission.projectId, supplierId },
+        data: { submitStatus: '已撤回', encryptStatus: '已撤回' },
+      });
+
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId: submission.projectId,
+          time: new Date(),
+          role: '供应商',
+          target: supplierId,
+          action: '撤回投标',
+          result: '供应商在投递截止前撤回标书',
+          riskFlag: '无',
+        },
+      });
+
+      return updated;
     });
   }
 

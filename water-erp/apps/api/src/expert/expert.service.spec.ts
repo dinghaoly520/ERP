@@ -30,7 +30,7 @@ describe('ExpertService', () => {
         update: jest.fn(),
       },
       bidProject: { findUnique: jest.fn() },
-      bidSupplier: { findFirst: jest.fn() },
+      bidSupplier: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidScoreRecord: {
         findMany: jest.fn(),
         deleteMany: jest.fn(),
@@ -143,6 +143,34 @@ describe('ExpertService', () => {
 
       await expect(service.getReport('user-1', 'proj-1'))
         .rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('submitScores', () => {
+    const signedExpert = { ...mockExpert, signedIn: true, avoidanceConfirmed: true };
+
+    beforeEach(() => {
+      prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'item-1', maxScore: 100 }]);
+    });
+
+    it('rejects supplier ids outside the project', async () => {
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+
+      await expect(service.submitScores('user-1', 'proj-1', {
+        supplierName: '外部供应商',
+        scores: [{ supplierId: 'supplier-other', scoreItemId: 'item-1', score: 80 }],
+      })).rejects.toMatchObject({ response: { code: 'SUPPLIER_NOT_IN_PROJECT' } });
+    });
+
+    it('rejects suppliers that are not decrypted successfully', async () => {
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'supplier-1', decryptStatus: 'PENDING', submitStatus: '已提交' }]);
+
+      await expect(service.submitScores('user-1', 'proj-1', {
+        supplierName: '未解密供应商',
+        scores: [{ supplierId: 'supplier-1', scoreItemId: 'item-1', score: 80 }],
+      })).rejects.toMatchObject({ response: { code: 'SUPPLIER_NOT_DECRYPTED' } });
     });
   });
 

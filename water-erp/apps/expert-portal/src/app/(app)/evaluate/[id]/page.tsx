@@ -95,12 +95,21 @@ export default function ExpertEvaluatePage() {
 
   const handleSubmitScores = async () => {
     if (!project || !scoringSupplier) return;
-    const items = project.scoreItems.map(si => ({
-      scoreItemId: si.id, score: scores[si.id]?.score ?? 0, reason: scores[si.id]?.reason ?? '',
+    const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
+    const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回';
+    if (!canScoreActiveSupplier) {
+      toast.warning('该投标单位未解密成功或已撤回，不能评分');
+      return;
+    }
+    const scoresPayload = project.scoreItems.map(si => ({
+      scoreItemId: si.id,
+      supplierId: activeSupplier,
+      score: scores[si.id]?.score ?? 0,
+      reason: scores[si.id]?.reason ?? '',
     }));
-    if (items.some(i => i.score === 0)) { toast.warning('部分评分项得分为0，请确认后再次提交'); return; }
+    if (scoresPayload.some(i => i.score === 0)) { toast.warning('部分评分项得分为0，请确认后再次提交'); return; }
     setBusy(true);
-    try { await api.post(`/expert/projects/${projectId}/scores`, { items, supplierName: scoringSupplier }); loadProject(); toast.success('评分提交成功'); }
+    try { await api.post(`/expert/projects/${projectId}/scores`, { scores: scoresPayload, supplierName: scoringSupplier }); loadProject(); toast.success('评分提交成功'); }
     catch (e: any) { toast.error(e.message || '提交失败'); }
     setBusy(false);
   };
@@ -122,6 +131,8 @@ export default function ExpertEvaluatePage() {
   if (loading || !project) return <div className="flex items-center justify-center h-64 text-[oklch(0.55_0.01_264)]">加载中...</div>;
 
   const decryptLabel: Record<string, string> = { PENDING: '待解密', RUNNING: '解密中', SUCCESS: '已解密', DANGER: '异常' };
+  const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
+  const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回';
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)]">
@@ -554,7 +565,12 @@ export default function ExpertEvaluatePage() {
                           </div>
                         </div>
                       </div>
-                      <button onClick={handleSubmitScores} disabled={busy}
+                      {!canScoreActiveSupplier && (
+                        <div className="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-700">
+                          当前投标单位未解密成功或已撤回，不能提交评分。
+                        </div>
+                      )}
+                      <button onClick={handleSubmitScores} disabled={busy || !canScoreActiveSupplier}
                         className="w-full py-3 bg-[#064ea2] text-white rounded-lg font-bold text-sm hover:bg-[#043d82] transition disabled:opacity-50">
                         {busy ? '提交中...' : `提交 ${scoringSupplier} 的评分`}
                       </button>

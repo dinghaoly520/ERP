@@ -257,8 +257,8 @@ export class BidService {
         data: { decryptStatus: 'RUNNING' },
       });
 
-      // Phase 2: 模拟解密结果（约 5% 概率出现 DANGER）
-      const isDanger = Math.random() < 0.05;
+      // Phase 2: 模拟解密结果（仅显式请求时触发，避免默认流程随机失败）
+      const isDanger = dto?.simulateDanger === true;
       if (isDanger) {
         const errorMsg = '标书文件校验失败：签名不匹配或文件损坏';
         await tx.bidSupplier.update({
@@ -277,8 +277,8 @@ export class BidService {
         data: { decryptStatus: 'SUCCESS' },
       });
 
-      // Phase 4: 创建开标记录（if DTO provided）
-      if (dto) {
+      // Phase 4: 创建开标记录（仅当开标记录字段全部提供时）
+      if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
         await tx.bidOpeningRecord.create({
           data: {
             projectId,

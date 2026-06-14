@@ -38,8 +38,10 @@ describe('SupplierPortalService', () => {
       bidSupplier: {
         findFirst: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
         create: jest.fn(),
       },
+      bidSupervisionLog: { create: jest.fn() },
       supplierChangeRecord: { count: jest.fn() },
       supplierQualification: { count: jest.fn() },
       notification: { count: jest.fn() },
@@ -168,21 +170,95 @@ describe('SupplierPortalService', () => {
         .rejects.toMatchObject({ response: { code: 'NOT_APPROVED' } });
     });
 
-    it('allows valid submission', async () => {
+    it('syncs BidSupplier when an existing draft is submitted', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'draft',
+      });
       prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'project-1', stage: 'SUBMIT',
         deadline: new Date(Date.now() + 3600_000),
       });
-      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
-      prisma.supplierBidSubmission.create.mockResolvedValue({
+      prisma.supplierBidSubmission.update.mockResolvedValue({
         id: 'sub-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'submitted',
       });
       prisma.bidSupplier.findFirst.mockResolvedValue(null);
       prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-1', supplierId: 'supplier-1' });
 
       const result = await service.submitBid('supplier-1', 'project-1', { bidPrice: '100' });
+
       expect(result.status).toBe('submitted');
+      expect(prisma.bidSupplier.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            projectId: 'project-1',
+            supplierId: 'supplier-1',
+            supplierName: '测试供应商',
+            submitStatus: '已提交',
+          }),
+        }),
+      );
+    });
+
+  });
+
+  describe('saveBidDraft', () => {
+    it('rejects draft save for non-APPROVED suppliers', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-2', name: '待审供应商', status: 'PENDING' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000),
+      });
+
+      await expect(service.saveBidDraft('supplier-2', 'project-1', { bidPrice: '100' }))
+        .rejects.toMatchObject({ response: { code: 'NOT_APPROVED' } });
+    });
+
+    it('rejects draft save after project leaves draftable stages', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', stage: 'OPENING', deadline: new Date(Date.now() + 3600_000),
+      });
+
+      await expect(service.saveBidDraft('supplier-1', 'project-1', { bidPrice: '100' }))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_DRAFTABLE' } });
+    });
+  });
+
+  describe('withdrawSubmission', () => {
+    it('syncs linked BidSupplier status when a submitted bid is withdrawn in SUBMIT stage', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'submitted',
+      });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'SUBMIT', name: '测试项目' });
+      prisma.supplierBidSubmission.update.mockResolvedValue({
+        id: 'sub-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'withdrawn',
+      });
+      prisma.bidSupplier.updateMany.mockResolvedValue({ count: 1 });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));
+
+      const result = await service.withdrawSubmission('supplier-1', 'sub-1');
+
+      expect(result.status).toBe('withdrawn');
+      expect(prisma.bidSupplier.updateMany).toHaveBeenCalledWith({
+        where: { projectId: 'project-1', supplierId: 'supplier-1' },
+        data: { submitStatus: '已撤回', encryptStatus: '已撤回' },
+      });
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ action: '撤回投标', projectId: 'project-1' }),
+        }),
+      );
+    });
+
+    it('rejects withdrawal once project is OPENING or later', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'submitted',
+      });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'OPENING', name: '测试项目' });
+
+      await expect(service.withdrawSubmission('supplier-1', 'sub-1'))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_ALREADY_OPENING' } });
     });
   });
 

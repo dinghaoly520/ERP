@@ -75,7 +75,8 @@ describe('BidService — stage transitions', () => {
       bidScoreRecord: { upsert: jest.fn() },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn() },
-      bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn() },
+      bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
+      bidOpeningRecord: { create: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn() },
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
@@ -150,6 +151,39 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD' });
 
       await expect(service.startOpening('p1')).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('decryptSupplier', () => {
+    beforeEach(() => {
+      prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1', projectId: 'p1', supplierName: '测试供应商' });
+      prisma.bidSupplier.update.mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' });
+      prisma.bidSupplier.findUnique.mockResolvedValue({ id: 'bs-1', decryptStatus: 'DANGER' });
+      prisma.bidOpeningRecord.create.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+    });
+
+    it('succeeds deterministically by default', async () => {
+      const result = await service.decryptSupplier('p1', 'bs-1', {} as any);
+
+      expect(result).toBeDefined();
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith({
+        where: { id: 'bs-1' },
+        data: { decryptStatus: 'SUCCESS' },
+      });
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ decryptStatus: 'DANGER' }) }),
+      );
+    });
+
+    it('simulates danger only when explicitly requested', async () => {
+      await service.decryptSupplier('p1', 'bs-1', { simulateDanger: true } as any);
+
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith({
+        where: { id: 'bs-1' },
+        data: expect.objectContaining({ decryptStatus: 'DANGER' }),
+      });
     });
   });
 

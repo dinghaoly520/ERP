@@ -213,6 +213,19 @@ export class ExpertService {
     });
     const maxScoreMap = new Map(scoreItems.map(si => [si.id, Number(si.maxScore)]));
 
+    const supplierIds = Array.from(new Set(dto.scores.map(s => s.supplierId)));
+    const bidSuppliers = await this.prisma.bidSupplier.findMany({
+      where: { id: { in: supplierIds }, projectId },
+      select: { id: true, decryptStatus: true, submitStatus: true },
+    });
+    if (bidSuppliers.length !== supplierIds.length) {
+      throw new BadRequestException({ error: '评分供应商不属于当前项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
+    }
+    const invalidSupplier = bidSuppliers.find(s => s.decryptStatus !== 'SUCCESS' || s.submitStatus === '已撤回');
+    if (invalidSupplier) {
+      throw new BadRequestException({ error: '存在未解密成功或已撤回的供应商，无法评分', code: 'SUPPLIER_NOT_DECRYPTED' });
+    }
+
     for (const item of dto.scores) {
       const maxScore = maxScoreMap.get(item.scoreItemId);
       if (maxScore !== undefined && item.score > maxScore) {
@@ -254,13 +267,18 @@ export class ExpertService {
 
     // 更新专家的进度和总分
     const allScoreItems = await this.prisma.bidScoreItem.findMany({ where: { projectId } });
-    const totalItems = allScoreItems.length * (await this.prisma.bidSupplier.count({ where: { projectId } }));
-    const scoredItems = await this.prisma.bidScoreRecord.count({ where: { expertId: expert.id } });
+    const activeSupplierCount = await this.prisma.bidSupplier.count({
+      where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+    });
+    const totalItems = allScoreItems.length * activeSupplierCount;
+    const scoredItems = await this.prisma.bidScoreRecord.count({
+      where: { expertId: expert.id, scoreItem: { projectId } },
+    });
     const progress = totalItems > 0 ? Math.round((scoredItems / totalItems) * 100) : 0;
 
     // 计算总分
     const allRecords = await this.prisma.bidScoreRecord.findMany({
-      where: { expertId: expert.id },
+      where: { expertId: expert.id, scoreItem: { projectId } },
     });
     const totalScore = allRecords.reduce((sum, r) => sum + Number(r.score), 0);
 
