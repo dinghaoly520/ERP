@@ -283,6 +283,9 @@ model ExpertProfile {
   employer     String? // 工作单位（用于供应商回避校验）
   phone        String?
   idNumber     String? // 身份证号
+  ethnicity    String? // 民族
+  education    String? // 学历（博士/硕士/本科/大专/...）
+  licenseNo    String? // 执业资格证号
   availability String   @default("可用") // 可用 / 占用 / 停用
   notes        String?
   createdAt    DateTime @default(now())
