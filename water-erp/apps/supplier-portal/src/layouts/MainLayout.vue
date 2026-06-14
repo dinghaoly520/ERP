@@ -8,8 +8,8 @@ import { supplierApi } from '@/api/supplier'
 import {
   HomeFilled, Stamp, OfficeBuilding, Medal, Phone, EditPen,
   Document, DocumentChecked, Bell, ChatDotRound, Star,
-  Fold, Expand, SwitchButton, User, Setting, Notification,
-  Search, Lock, ArrowDown, Goods, Connection, Box,
+  Fold, Expand, SwitchButton, User, Lock, ArrowDown,
+  Goods, Connection, Box,
 } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 
@@ -25,7 +25,6 @@ const pwdDialog = ref(false)
 const pwdLoading = ref(false)
 const pwdForm = ref({ old: '', newPwd: '', confirm: '' })
 
-// Responsive detection
 function checkMobile() {
   isMobile.value = window.innerWidth < 768
   if (isMobile.value) isCollapse.value = true
@@ -33,7 +32,6 @@ function checkMobile() {
 checkMobile()
 window.addEventListener('resize', checkMobile)
 
-// Sidebar navigation
 const menuItems = [
   { path: '/dashboard', title: '业务工作台', icon: HomeFilled, desc: '状态与待办总览' },
   { divider: true, label: '投标中心' },
@@ -58,7 +56,6 @@ const menuItems = [
 const activeMenu = computed(() => route.path)
 const activeMenuItem = computed(() => menuItems.find((item: any) => item.path === route.path))
 
-// Notification popover
 const notifPopover = ref(false)
 const recentNotifs = computed(() => notifStore.notifications.slice(0, 5))
 
@@ -102,19 +99,18 @@ function handleMenuSelect(path: string) {
   router.push(path)
 }
 
-// Fetch unread count on mount
 notifStore.fetchUnreadCount()
 </script>
 
 <template>
   <el-container class="sp-layout">
     <!-- Sidebar -->
-    <el-aside :width="isCollapse ? '68px' : '224px'" class="sp-sidebar">
+    <el-aside :width="isCollapse ? '68px' : '256px'" class="sp-sidebar">
       <div class="sp-sidebar-logo" @click="router.push('/dashboard')">
         <img src="/logo.jpg" alt="四川水发集团" class="sp-logo-img" />
         <transition name="sp-fade">
           <div v-show="!isCollapse" class="sp-logo-text">
-            <span class="sp-logo-title">蜀水云采</span>
+            <span class="sp-logo-title">四川水发集团</span>
             <span class="sp-logo-sub">供应商业务门户</span>
           </div>
         </transition>
@@ -125,20 +121,16 @@ notifStore.fetchUnreadCount()
         :collapse="isCollapse"
         :collapse-transition="false"
         background-color="transparent"
-        text-color="rgba(255,255,255,0.65)"
-        active-text-color="#ffffff"
+        text-color="#5a6d8a"
+        active-text-color="#064ea2"
         class="sp-sidebar-menu"
         router
       >
         <template v-for="(item, idx) in menuItems" :key="idx">
-          <!-- Divider -->
           <div v-if="item.divider" class="sp-menu-section" v-show="!isCollapse">
             <span>{{ item.label }}</span>
           </div>
-          <div v-else class="sp-menu-section-dot" v-show="isCollapse">
-            <!-- spacer -->
-          </div>
-          <!-- Menu item -->
+          <div v-else class="sp-menu-section-dot" v-show="isCollapse" />
           <el-menu-item v-if="item.path" :index="item.path" class="sp-menu-item">
             <el-icon><component :is="item.icon" /></el-icon>
             <template #title>
@@ -153,23 +145,17 @@ notifStore.fetchUnreadCount()
     <!-- Main content -->
     <el-container class="sp-main">
       <!-- Top bar -->
-      <el-header class="sp-header" height="64px">
+      <el-header class="sp-header" height="68px">
         <div class="sp-header-left">
-          <el-icon class="sp-collapse-btn" @click="isCollapse = !isCollapse">
-            <component :is="isCollapse ? Expand : Fold" />
-          </el-icon>
+          <div class="sp-collapse-btn" @click="isCollapse = !isCollapse">
+            <el-icon :size="16"><component :is="isCollapse ? Expand : Fold" /></el-icon>
+          </div>
           <div class="sp-header-title-wrap">
-            <div class="sp-header-kicker">SUPPLIER PORTAL</div>
             <div class="sp-header-title">{{ activeMenuItem?.title || route.meta?.title || '供应商门户' }}</div>
           </div>
         </div>
 
         <div class="sp-header-right">
-          <el-button class="sp-header-search" @click="router.push('/bids')">
-            <el-icon><Search /></el-icon>
-            <span>查找招标机会</span>
-          </el-button>
-
           <!-- Notification bell -->
           <el-popover
             v-model:visible="notifPopover"
@@ -180,7 +166,9 @@ notifStore.fetchUnreadCount()
           >
             <template #reference>
               <el-badge :value="notifStore.unreadCount" :max="99" :hidden="notifStore.unreadCount === 0">
-                <el-icon class="sp-header-icon"><Bell /></el-icon>
+                <div class="sp-header-icon">
+                  <el-icon :size="18"><Bell /></el-icon>
+                </div>
               </el-badge>
             </template>
             <div class="sp-notif-popover">
@@ -214,7 +202,7 @@ notifStore.fetchUnreadCount()
           <!-- User dropdown -->
           <el-dropdown @command="handleCommand" trigger="click">
             <div class="sp-user-bar">
-              <el-avatar :size="34" :style="{ background: 'var(--sp-primary)', fontWeight: 700, fontSize: '14px' }">
+              <el-avatar :size="34" :style="{ background: 'linear-gradient(135deg, #064ea2, #0b63ce)', fontWeight: 700, fontSize: '14px' }">
                 {{ authStore.displayName?.charAt(0) || 'S' }}
               </el-avatar>
               <span class="sp-user-name">{{ authStore.displayName }}</span>
@@ -280,23 +268,23 @@ notifStore.fetchUnreadCount()
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(49, 208, 255, 0.22), transparent 28%),
-    linear-gradient(180deg, #042a58 0%, #064ea2 62%, #087d9f 100%);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 12px 0 32px rgba(4, 42, 88, 0.12);
+  background: #fff;
+  border-right: 1px solid #dbe6f3;
+  box-shadow: 0 18px 60px rgba(15, 47, 87, 0.08);
+  border-radius: 0 24px 24px 0;
+  margin: 12px 0 12px 0;
   transition: width 0.25s var(--sp-ease);
 }
 
 .sp-sidebar::-webkit-scrollbar { width: 0; }
 
 .sp-sidebar-logo {
-  height: 64px;
+  height: 68px;
   display: flex;
   align-items: center;
-  padding: 0 14px;
+  padding: 0 16px;
   gap: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  border-bottom: 1px solid #edf3fb;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -307,28 +295,29 @@ notifStore.fetchUnreadCount()
   border-radius: 12px;
   object-fit: cover;
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  border: 1px solid #dbeafe;
 }
 
 .sp-logo-text { display: flex; flex-direction: column; min-width: 0; }
-.sp-logo-title { color: #fff; font-size: 16px; font-weight: 900; line-height: 1.2; letter-spacing: 0.08em; }
-.sp-logo-sub { margin-top: 2px; color: rgba(255,255,255,.58); font-size: 11px; line-height: 1.2; }
+.sp-logo-title { color: #123a6e; font-size: 14px; font-weight: 900; line-height: 1.2; letter-spacing: 0.06em; font-family: "SimHei","黑体",sans-serif; }
+.sp-logo-sub { margin-top: 2px; color: #8a96aa; font-size: 11px; line-height: 1.2; font-weight: 600; }
 
 .sp-sidebar-menu {
-  border-right: none;
+  border-right: none !important;
   flex: 1;
   padding: 10px 8px 18px;
+  background: transparent !important;
 }
 
-.sp-sidebar-menu:not(.el-menu--collapse) { width: 224px; }
+.sp-sidebar-menu:not(.el-menu--collapse) { width: 256px; }
 
 .sp-menu-section {
-  padding: 18px 10px 7px;
-  color: rgba(255, 255, 255, 0.42);
+  padding: 18px 12px 7px;
+  color: #8a96aa;
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .sp-menu-section-dot { height: 12px; }
@@ -337,25 +326,30 @@ notifStore.fetchUnreadCount()
   height: 42px !important;
   line-height: 42px !important;
   margin: 3px 0;
-  border-radius: 12px !important;
+  border-radius: 14px !important;
+  color: #5a6d8a !important;
   transition: all 0.18s var(--sp-ease);
 }
 
-.sp-menu-item:hover { background: rgba(255, 255, 255, 0.11) !important; }
-.sp-menu-item.is-active { background: rgba(255, 255, 255, 0.18) !important; box-shadow: inset 3px 0 0 #7dd3fc; }
+.sp-menu-item:hover { background: #eff6ff !important; color: #064ea2 !important; }
+.sp-menu-item.is-active {
+  background: linear-gradient(90deg, #064ea2, #0b63ce) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 28px rgba(6, 78, 162, 0.22);
+}
 .sp-menu-badge :deep(.el-badge__content) { font-size: 10px; }
 
 .sp-main { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 
 .sp-header {
-  height: 64px;
+  height: 68px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 28px;
   z-index: 10;
-  background: rgba(255, 255, 255, 0.88);
-  border-bottom: 1px solid rgba(219, 231, 243, 0.9);
+  background: rgba(255, 255, 255, 0.86);
+  border-bottom: 1px solid #dbe6f3;
   box-shadow: 0 6px 24px rgba(4, 42, 88, 0.04);
   backdrop-filter: blur(16px);
 }
@@ -370,18 +364,19 @@ notifStore.fetchUnreadCount()
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--sp-gray-500);
+  color: #5a6d8a;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.18s var(--sp-ease);
+  border: 1px solid #e5ecf4;
+  background: #f8fbff;
 }
 
 .sp-collapse-btn:hover,
-.sp-header-icon:hover { color: var(--sp-primary); background: var(--sp-primary-lighter); }
+.sp-header-icon:hover { color: #064ea2; border-color: #bfdbfe; background: #eff6ff; }
 
-.sp-header-kicker { color: var(--sp-primary); font-size: 10px; font-weight: 900; letter-spacing: 0.14em; line-height: 1.1; }
-.sp-header-title { margin-top: 2px; color: var(--sp-gray-900); font-size: 16px; font-weight: 900; line-height: 1.2; }
-.sp-header-search { height: 34px; border-radius: var(--sp-radius-full) !important; font-weight: 800; }
+.sp-header-title-wrap { display: flex; flex-direction: column; }
+.sp-header-title { color: #0f2f57; font-size: 16px; font-weight: 900; line-height: 1.2; }
 
 .sp-user-bar {
   display: flex;
@@ -391,10 +386,12 @@ notifStore.fetchUnreadCount()
   padding: 4px 10px 4px 4px;
   border-radius: 999px;
   transition: background 0.18s var(--sp-ease);
+  border: 1px solid #e5ecf4;
+  background: #fff;
 }
 
-.sp-user-bar:hover { background: var(--sp-gray-100); }
-.sp-user-name { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 800; color: var(--sp-gray-900); }
+.sp-user-bar:hover { background: #f8fbff; border-color: #bfdbfe; }
+.sp-user-name { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 800; color: #18243a; }
 
 .sp-notif-popover { margin: -12px; max-height: 420px; overflow: auto; }
 .sp-notif-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--sp-border); }
@@ -411,7 +408,17 @@ notifStore.fetchUnreadCount()
 .sp-notif-footer { text-align: center; padding: 12px; border-top: 1px solid var(--sp-border); color: var(--sp-primary); font-size: 13px; font-weight: 800; cursor: pointer; transition: background 0.15s; }
 .sp-notif-footer:hover { background: var(--sp-primary-lighter); }
 
-.sp-content { background: transparent; overflow-y: auto; padding: 0; }
+.sp-content {
+  background: radial-gradient(circle at 8% 0%, rgba(6, 78, 162, 0.08), transparent 30%),
+              radial-gradient(circle at 88% 8%, rgba(22, 132, 216, 0.06), transparent 26%),
+              linear-gradient(180deg, #f7fbff 0%, #f8fafc 100%);
+  background-image:
+    linear-gradient(rgba(6, 78, 162, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 78, 162, 0.025) 1px, transparent 1px);
+  background-size: 28px 28px;
+  overflow-y: auto;
+  padding: 0;
+}
 
 .mobile-fab { position: fixed; bottom: 24px; left: 24px; width: 48px; height: 48px; border-radius: 50%; background: var(--sp-primary); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(10, 94, 184, 0.4); cursor: pointer; z-index: 100; transition: transform 0.2s; }
 .mobile-fab:hover { transform: scale(1.1); }
@@ -428,8 +435,6 @@ notifStore.fetchUnreadCount()
 @media (max-width: 768px) {
   .sp-sidebar { display: none; }
   .sp-header { padding: 0 14px; }
-  .sp-header-search span,
-  .sp-user-name,
-  .sp-header-kicker { display: none; }
+  .sp-user-name { display: none; }
 }
 </style>

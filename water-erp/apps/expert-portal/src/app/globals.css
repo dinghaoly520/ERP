@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
-/* 专家评审工作站 — Water Blue Color System */
+/* 专家评审工作站 — Purple Workbench Color System */
 
 :root {
-  --color-primary: #064ea2;
-  --color-primary-hover: #043d82;
+  --color-primary: #7c3aed;
+  --color-primary-hover: #6d28d9;
   --color-bg: oklch(0.982 0.003 264);
   --color-surface: oklch(1 0 0);
   --color-border: oklch(0.91 0.006 264);
@@ -22,3 +22,42 @@ body {
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
 }
+
+.workbench-input {
+  border: 1px solid #dbe6f3;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.625rem 0.75rem;
+  color: #18243a;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.workbench-input:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+}
+
+.workbench-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.workbench-table thead tr {
+  border-bottom: 1px solid #e5ecf4;
+  color: #5a6d8a;
+  text-align: left;
+}
+
+.workbench-table th,
+.workbench-table td {
+  padding: 0.875rem 1.25rem;
+}
+
+.workbench-table tbody tr {
+  border-bottom: 1px solid #eef3f8;
+}
+
+.workbench-table tbody tr:last-child { border-bottom: 0; }
+.workbench-table tbody tr:hover { background: #f8fbff; }
