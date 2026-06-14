@@ -10,6 +10,7 @@ import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { assertBidStageTransition, type BidStage } from './bid-state';
+import { computeArchiveDigest } from './bid-archive.digest';
 
 @Injectable()
 export class BidService {
@@ -564,7 +565,7 @@ export class BidService {
   async archiveAll(id: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true },
+      select: { id: true, projectCode: true, stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'ARCHIVED');
@@ -581,7 +582,10 @@ export class BidService {
     }
 
     const now = new Date();
-    const hashDigest = `sha256:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    const hashDigest = computeArchiveDigest(
+      { id: project.id, projectCode: project.projectCode, name: project.name, stage: 'ARCHIVED' },
+      archiveItems,
+    );
 
     // 事务：归档项更新 + 项目状态变更 + 监督日志 原子执行
     await this.prisma.$transaction([
