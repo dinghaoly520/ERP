@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request, Res, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, Request, Res, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { SupplierPortalService } from './supplier-portal.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
@@ -241,5 +241,72 @@ export class SupplierPortalController {
     res.setHeader('Content-Length', String(buffer.length));
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
     res.end(buffer);
+  }
+
+  // ─── 集中采购目录（脱敏浏览：仅品类，不含价格）───
+
+  @Get('catalog/categories')
+  async listCatalogCategories() {
+    return this.portalService.listCatalogCategories();
+  }
+
+  @Get('catalog/items')
+  async listCatalogItems(
+    @Query('category') category?: string,
+    @Query('group') group?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.portalService.listCatalogItems({ category, group, search });
+  }
+
+  @Get('catalog/items/:id')
+  async getCatalogItem(@Param('id') id: string) {
+    return this.portalService.getCatalogItem(id);
+  }
+
+  @Get('catalog/items/:id/supply-status')
+  async getCatalogItemSupplyStatus(@Request() req: any, @Param('id') id: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getCatalogItemSupplyStatus(supplierId, id);
+  }
+
+  // ─── 目录供货申请 ───
+
+  @Get('catalog-applications')
+  async listMyCatalogApplications(@Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.listMyCatalogApplications(supplierId);
+  }
+
+  @Post('catalog-applications')
+  async createCatalogApplication(@Request() req: any, @Body() body: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.createCatalogApplication(supplierId, body);
+  }
+
+  @Patch('catalog-applications/:id')
+  async updateCatalogApplication(@Request() req: any, @Param('id') id: string, @Body() body: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.updateMyCatalogApplication(supplierId, req.user.sub, id, body);
+  }
+
+  @Post('catalog-applications/:id/accept-counter')
+  async acceptCatalogCounter(@Request() req: any, @Param('id') id: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.acceptCatalogCounter(supplierId, req.user.sub, id);
+  }
+
+  @Post('catalog-applications/:id/withdraw')
+  async withdrawCatalogApplication(@Request() req: any, @Param('id') id: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.withdrawCatalogApplication(supplierId, req.user.sub, id);
+  }
+
+  // ─── 我的已准入供货关系 ───
+
+  @Get('catalog-supply')
+  async listMyCatalogSupply(@Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.listMyCatalogSupply(supplierId);
   }
 }

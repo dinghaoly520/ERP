@@ -64,6 +64,24 @@ const router = createRouter({
           meta: { title: '招标信息', icon: 'Document' },
         },
         {
+          path: 'catalog',
+          name: 'CatalogList',
+          component: () => import('@/views/catalog/CatalogList.vue'),
+          meta: { title: '采购目录', icon: 'Goods' },
+        },
+        {
+          path: 'catalog-applications',
+          name: 'CatalogApplications',
+          component: () => import('@/views/catalog/MyApplications.vue'),
+          meta: { title: '供货申请' },
+        },
+        {
+          path: 'supply',
+          name: 'MySupply',
+          component: () => import('@/views/catalog/MySupply.vue'),
+          meta: { title: '我的供货' },
+        },
+        {
           path: 'bids/:id',
           name: 'BidDetail',
           component: () => import('@/views/bid/BidDetail.vue'),
