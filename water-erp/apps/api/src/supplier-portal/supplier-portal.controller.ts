@@ -147,7 +147,11 @@ export class SupplierPortalController {
   async saveBidDraft(
     @Request() req: any,
     @Param('projectId') projectId: string,
-    @Body() body: { bidPrice?: string; deliveryPeriod?: string; technicalFile?: string; businessFile?: string; coverLetter?: string },
+    @Body() body: {
+      bidPrice?: string; deliveryPeriod?: string;
+      technicalFile?: string; businessFile?: string; coverLetter?: string;
+      technicalFileAssetId?: string; businessFileAssetId?: string; coverLetterAssetId?: string;
+    },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.saveBidDraft(supplierId, projectId, body);
@@ -157,7 +161,11 @@ export class SupplierPortalController {
   async submitBid(
     @Request() req: any,
     @Param('projectId') projectId: string,
-    @Body() body: { bidPrice?: string; deliveryPeriod?: string; technicalFile?: string; businessFile?: string; coverLetter?: string },
+    @Body() body: {
+      bidPrice?: string; deliveryPeriod?: string;
+      technicalFile?: string; businessFile?: string; coverLetter?: string;
+      technicalFileAssetId?: string; businessFileAssetId?: string; coverLetterAssetId?: string;
+    },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.submitBid(supplierId, projectId, body);

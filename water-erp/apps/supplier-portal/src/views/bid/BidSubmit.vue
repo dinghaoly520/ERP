@@ -21,8 +21,8 @@ const projectId = computed(() => route.params.id as string)
 const form = ref({
   bidPrice: '',
   deliveryPeriod: '',
-  technicalFile: '',
-  businessFile: '',
+  technicalFileAssetId: '',
+  businessFileAssetId: '',
   coverLetter: '',
 })
 
@@ -31,8 +31,8 @@ const existingSubmission = ref<any>(null)
 const techFileMeta = ref<FileAssetResponse | null>(null)
 const bizFileMeta = ref<FileAssetResponse | null>(null)
 
-/** el-upload 自定义上传：落 MinIO，回写表单字段为鉴权代理下载 URL */
-async function handleFileUpload(options: any, field: 'technicalFile' | 'businessFile') {
+/** el-upload 自定义上传：落 MinIO（分类 bid_document），回写表单字段为可校验的 FileAsset.id */
+async function handleFileUpload(options: any, field: 'technicalFileAssetId' | 'businessFileAssetId') {
   const file = options.file as File
   if (file.size > 50 * 1024 * 1024) {
     ElMessage.error('文件不能超过 50MB')
@@ -41,8 +41,8 @@ async function handleFileUpload(options: any, field: 'technicalFile' | 'business
   }
   try {
     const res = await uploadFile(file, 'bid_document')
-    form.value[field] = res.url
-    if (field === 'technicalFile') techFileMeta.value = res
+    form.value[field] = res.id
+    if (field === 'technicalFileAssetId') techFileMeta.value = res
     else bizFileMeta.value = res
     options.onSuccess(res)
     ElMessage.success('文件上传成功')
@@ -50,8 +50,8 @@ async function handleFileUpload(options: any, field: 'technicalFile' | 'business
     options.onError(e)
   }
 }
-const uploadTech = (o: any) => handleFileUpload(o, 'technicalFile')
-const uploadBiz = (o: any) => handleFileUpload(o, 'businessFile')
+const uploadTech = (o: any) => handleFileUpload(o, 'technicalFileAssetId')
+const uploadBiz = (o: any) => handleFileUpload(o, 'businessFileAssetId')
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -73,8 +73,8 @@ onMounted(async () => {
         form.value = {
           bidPrice: sub.bidPrice || '',
           deliveryPeriod: sub.deliveryPeriod || '',
-          technicalFile: sub.technicalFile || '',
-          businessFile: sub.businessFile || '',
+          technicalFileAssetId: sub.technicalFileAssetId || '',
+          businessFileAssetId: sub.businessFileAssetId || '',
           coverLetter: sub.coverLetter || '',
         }
       }
@@ -206,7 +206,7 @@ async function handleSubmit() {
               </el-upload>
               <span class="file-hint">支持 PDF 格式，不超过 50MB</span>
               <span v-if="techFileMeta" class="file-name">{{ techFileMeta.originalName }}（{{ formatSize(techFileMeta.size) }}）</span>
-              <span v-else-if="form.technicalFile" class="file-name">已上传文件</span>
+              <span v-else-if="form.technicalFileAssetId" class="file-name">已上传文件</span>
             </div>
           </el-form-item>
 
@@ -219,7 +219,7 @@ async function handleSubmit() {
               </el-upload>
               <span class="file-hint">支持 PDF 格式，不超过 50MB</span>
               <span v-if="bizFileMeta" class="file-name">{{ bizFileMeta.originalName }}（{{ formatSize(bizFileMeta.size) }}）</span>
-              <span v-else-if="form.businessFile" class="file-name">已上传文件</span>
+              <span v-else-if="form.businessFileAssetId" class="file-name">已上传文件</span>
             </div>
           </el-form-item>
 

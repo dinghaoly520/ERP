@@ -5,9 +5,41 @@ import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 
+/** 供应商投标提交/草稿共用的可持久化字段 */
+type BidSubmissionData = {
+  bidPrice?: string;
+  deliveryPeriod?: string;
+  technicalFile?: string;
+  businessFile?: string;
+  coverLetter?: string;
+  technicalFileAssetId?: string;
+  businessFileAssetId?: string;
+  coverLetterAssetId?: string;
+};
+
 @Injectable()
 export class SupplierPortalService {
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * 校验投标文件归属：引用的 FileAsset 必须存在、由当前用户上传、且分类为 bid_document。
+   * 防止供应商盗用他人/其他分类文件作为投标文件。
+   */
+  private async assertBidFileAssetsOwnedByUser(userId: string, assetIds: (string | undefined | null)[]) {
+    const ids = Array.from(new Set(assetIds.filter((id): id is string => !!id)));
+    if (ids.length === 0) return;
+    const assets = await this.prisma.fileAsset.findMany({ where: { id: { in: ids } } });
+    if (assets.length !== ids.length) {
+      throw new BadRequestException({ error: '投标文件不存在', code: 'FILE_NOT_FOUND' });
+    }
+    const invalid = assets.find(a => a.uploaderId !== userId || a.category !== 'bid_document');
+    if (invalid) {
+      throw new BadRequestException({
+        error: '投标文件无权使用或分类错误',
+        code: invalid.uploaderId !== userId ? 'FILE_NOT_OWNED' : 'INVALID_BID_FILE',
+      });
+    }
+  }
 
   // ─── Profile ───
 
@@ -275,13 +307,7 @@ export class SupplierPortalService {
     return { supplier, project };
   }
 
-  async submitBid(supplierId: string, projectId: string, data: {
-    bidPrice?: string;
-    deliveryPeriod?: string;
-    technicalFile?: string;
-    businessFile?: string;
-    coverLetter?: string;
-  }) {
+  async submitBid(supplierId: string, projectId: string, data: BidSubmissionData) {
     // Check if already submitted
     const existing = await this.prisma.supplierBidSubmission.findUnique({
       where: { supplierId_projectId: { supplierId, projectId } },
@@ -291,6 +317,11 @@ export class SupplierPortalService {
     }
 
     const { supplier } = await this.assertCanSubmitBid(supplierId, projectId);
+    await this.assertBidFileAssetsOwnedByUser(supplier.userId, [
+      data.technicalFileAssetId,
+      data.businessFileAssetId,
+      data.coverLetterAssetId,
+    ]);
 
     const now = new Date();
 
@@ -346,14 +377,13 @@ export class SupplierPortalService {
     return submission;
   }
 
-  async saveBidDraft(supplierId: string, projectId: string, data: {
-    bidPrice?: string;
-    deliveryPeriod?: string;
-    technicalFile?: string;
-    businessFile?: string;
-    coverLetter?: string;
-  }) {
-    await this.assertCanSaveBidDraft(supplierId, projectId);
+  async saveBidDraft(supplierId: string, projectId: string, data: BidSubmissionData) {
+    const { supplier } = await this.assertCanSaveBidDraft(supplierId, projectId);
+    await this.assertBidFileAssetsOwnedByUser(supplier.userId, [
+      data.technicalFileAssetId,
+      data.businessFileAssetId,
+      data.coverLetterAssetId,
+    ]);
 
     const existing = await this.prisma.supplierBidSubmission.findUnique({
       where: { supplierId_projectId: { supplierId, projectId } },

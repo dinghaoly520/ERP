@@ -1,0 +1,76 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { UploadService } from './upload.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { minioClient } from './minio.client';
+
+describe('UploadService — download permission', () => {
+  let service: UploadService;
+  let prisma: any;
+  let res: any;
+
+  const asset = {
+    id: 'fa-1', key: 'uploads/x.pdf', originalName: 'x.pdf',
+    mimeType: 'application/pdf', size: 100, sha256: 'hash', category: 'bid_document', uploaderId: 'u-supplier',
+  };
+
+  beforeEach(async () => {
+    prisma = {
+      fileAsset: { findUnique: jest.fn(), create: jest.fn(), delete: jest.fn() },
+      bidExpert: { findFirst: jest.fn() },
+      supplierBidSubmission: { findFirst: jest.fn() },
+      bidSupplier: { findFirst: jest.fn() },
+    };
+    res = { setHeader: jest.fn() };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [UploadService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+
+    service = module.get<UploadService>(UploadService);
+    jest.spyOn(minioClient, 'getObject').mockClear().mockResolvedValue({ pipe: jest.fn() } as any);
+  });
+
+  it('allows the uploader to stream their own file', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue(asset);
+    await service.streamFile('fa-1', { sub: 'u-supplier', role: 'supplier' }, res);
+    expect(minioClient.getObject).toHaveBeenCalled();
+  });
+
+  it('allows admin/bid_host/procurement_staff regardless of ownership', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue(asset);
+    await service.streamFile('fa-1', { sub: 'u-host', role: 'bid_host' }, res);
+    expect(minioClient.getObject).toHaveBeenCalled();
+  });
+
+  it('denies an unrelated supplier (403)', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue(asset);
+    await expect(service.streamFile('fa-1', { sub: 'u-other', role: 'supplier' }, res))
+      .rejects.toThrow(ForbiddenException);
+    expect(minioClient.getObject).not.toHaveBeenCalled();
+  });
+
+  it('allows an expert assigned to the project whose supplier is decrypted', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue(asset);
+    prisma.bidExpert.findFirst.mockResolvedValue({ projectId: 'p1' });
+    prisma.supplierBidSubmission.findFirst.mockResolvedValue({ supplierId: 's1' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1' });
+
+    await service.streamFile('fa-1', { sub: 'u-exp', role: 'bid_expert' }, res);
+    expect(minioClient.getObject).toHaveBeenCalled();
+  });
+
+  it('denies an expert not assigned to any project referencing the asset', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue(asset);
+    prisma.bidExpert.findFirst.mockResolvedValue(null);
+
+    await expect(service.streamFile('fa-1', { sub: 'u-exp', role: 'bid_expert' }, res))
+      .rejects.toThrow(ForbiddenException);
+  });
+
+  it('throws NotFound for missing file', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue(null);
+    await expect(service.streamFile('missing', { sub: 'u', role: 'admin' }, res))
+      .rejects.toThrow(NotFoundException);
+  });
+});

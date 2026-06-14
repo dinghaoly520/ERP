@@ -134,6 +134,13 @@ export default function ExpertEvaluatePage() {
   const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
   const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回';
 
+  const formatBytes = (n: number) => {
+    if (!n) return '—';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)]">
       {/* 顶部导航 */}
@@ -292,17 +299,23 @@ export default function ExpertEvaluatePage() {
 
                   {documents.canView && (
                     <div className="grid grid-cols-2 gap-4">
-                      {documents.documents.map((doc, i) => (
+                      {documents.documents.length === 0 ? (
+                        <div className="col-span-2 text-center py-10 text-[oklch(0.55_0.01_264)]">该供应商未提交可查看的投标文件</div>
+                      ) : documents.documents.map((doc, i) => (
                         <div key={i} className="flex items-center gap-4 p-4 bg-blue-50 rounded-xl border border-blue-100 hover:shadow-md transition-all">
-                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0e62d0] flex items-center justify-center text-white text-xs font-bold">{doc.type}</div>
+                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0e62d0] flex items-center justify-center text-white text-[10px] font-bold uppercase">{doc.type.replace('application/', '').replace('image/', '')}</div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-[oklch(0.18_0.012_265)] truncate">{doc.name}</h4>
+                            <h4 className="font-semibold text-[oklch(0.18_0.012_265)] truncate" title={doc.originalName}>{doc.originalName}</h4>
                             <div className="flex items-center gap-3 mt-1">
-                              <span className="text-xs text-[oklch(0.55_0.01_264)]">{doc.size}</span>
+                              <span className="text-xs text-[oklch(0.55_0.01_264)]">{formatBytes(doc.size)}</span>
                               <span className="text-xs text-emerald-600 font-semibold">{doc.status}</span>
                             </div>
                           </div>
-                          <button className="px-3 py-1.5 bg-[#064ea2] text-white text-xs rounded-lg hover:bg-[#043d82] transition"><Download size={14} strokeWidth={1.5} /> 下载</button>
+                          {doc.downloadUrl ? (
+                            <a href={doc.downloadUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-3 py-1.5 bg-[#064ea2] text-white text-xs rounded-lg hover:bg-[#043d82] transition"><Download size={14} strokeWidth={1.5} /> 预览/下载</a>
+                          ) : (
+                            <span className="text-xs text-[oklch(0.62_0.008_264)] px-3 py-1.5">待解密</span>
+                          )}
                         </div>
                       ))}
                     </div>

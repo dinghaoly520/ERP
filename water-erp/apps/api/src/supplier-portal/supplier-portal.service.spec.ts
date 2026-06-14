@@ -41,6 +41,7 @@ describe('SupplierPortalService', () => {
         updateMany: jest.fn(),
         create: jest.fn(),
       },
+      fileAsset: { findMany: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
       supplierChangeRecord: { count: jest.fn() },
       supplierQualification: { count: jest.fn() },
@@ -200,6 +201,66 @@ describe('SupplierPortalService', () => {
       );
     });
 
+  });
+
+  describe('submitBid file asset ownership', () => {
+    beforeEach(() => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED', userId: 'user-1' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', stage: 'SUBMIT',
+        deadline: new Date(Date.now() + 3600_000),
+      });
+      prisma.supplierBidSubmission.create.mockResolvedValue({ id: 'sub-1', status: 'submitted' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+      prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-1' });
+    });
+
+    it('rejects file assets uploaded by another user', async () => {
+      prisma.fileAsset.findMany.mockResolvedValue([
+        { id: 'fa-1', uploaderId: 'user-OTHER', category: 'bid_document' },
+      ]);
+
+      await expect(service.submitBid('supplier-1', 'project-1', { technicalFileAssetId: 'fa-1' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_NOT_OWNED' } });
+    });
+
+    it('rejects file assets that are not bid_document category', async () => {
+      prisma.fileAsset.findMany.mockResolvedValue([
+        { id: 'fa-2', uploaderId: 'user-1', category: 'qualification' },
+      ]);
+
+      await expect(service.submitBid('supplier-1', 'project-1', { technicalFileAssetId: 'fa-2' }))
+        .rejects.toMatchObject({ response: { code: 'INVALID_BID_FILE' } });
+    });
+
+    it('rejects when a referenced asset does not exist', async () => {
+      prisma.fileAsset.findMany.mockResolvedValue([]);
+
+      await expect(service.submitBid('supplier-1', 'project-1', { technicalFileAssetId: 'fa-missing' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_NOT_FOUND' } });
+    });
+
+    it('allows submission with valid owned bid_document assets', async () => {
+      prisma.fileAsset.findMany.mockResolvedValue([
+        { id: 'fa-1', uploaderId: 'user-1', category: 'bid_document' },
+        { id: 'fa-2', uploaderId: 'user-1', category: 'bid_document' },
+      ]);
+
+      const result = await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-1', businessFileAssetId: 'fa-2',
+      });
+
+      expect(result.status).toBe('submitted');
+      expect(prisma.supplierBidSubmission.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            technicalFileAssetId: 'fa-1',
+            businessFileAssetId: 'fa-2',
+          }),
+        }),
+      );
+    });
   });
 
   describe('saveBidDraft', () => {

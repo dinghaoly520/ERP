@@ -155,20 +155,44 @@ export class ExpertService {
     });
     if (!supplier) throw new NotFoundException('供应商不存在');
 
-    // 模拟解密后的文档列表
-    const documents = [
-      { name: '投标函', type: 'PDF', size: '256KB', status: supplier.decryptStatus === 'SUCCESS' ? '已解密' : '加密中' },
-      { name: '技术方案', type: 'PDF', size: '1.2MB', status: supplier.decryptStatus === 'SUCCESS' ? '已解密' : '加密中' },
-      { name: '商务报价', type: 'PDF', size: '512KB', status: supplier.decryptStatus === 'SUCCESS' ? '已解密' : '加密中' },
-      { name: '资质文件', type: 'PDF', size: '3.8MB', status: supplier.decryptStatus === 'SUCCESS' ? '已解密' : '加密中' },
-      { name: '项目团队', type: 'PDF', size: '890KB', status: supplier.decryptStatus === 'SUCCESS' ? '已解密' : '加密中' },
-      { name: '合同草案', type: 'DOCX', size: '340KB', status: supplier.decryptStatus === 'SUCCESS' ? '已解密' : '加密中' },
+    // 读取供应商真实提交的投标文件；未解密成功时不暴露下载地址与指纹
+    const canView = supplier.decryptStatus === 'SUCCESS';
+    const submission = supplier.supplierId
+      ? await this.prisma.supplierBidSubmission.findUnique({
+          where: { supplierId_projectId: { supplierId: supplier.supplierId, projectId } },
+        })
+      : null;
+
+    const assetRefs: Array<[string, string | undefined | null]> = [
+      ['技术方案', submission?.technicalFileAssetId],
+      ['商务文件', submission?.businessFileAssetId],
+      ['投标函', submission?.coverLetterAssetId],
     ];
+    const assetIds = assetRefs.map(([, id]) => id).filter((id): id is string => !!id);
+    const assets = assetIds.length
+      ? await this.prisma.fileAsset.findMany({ where: { id: { in: assetIds } } })
+      : [];
+    const assetMap = new Map(assets.map(a => [a.id, a]));
+
+    const documents = assetRefs
+      .filter(([, id]) => id)
+      .map(([label, id]) => {
+        const asset = assetMap.get(id!);
+        return {
+          name: label,
+          originalName: asset?.originalName ?? label,
+          type: asset?.mimeType ?? 'unknown',
+          size: asset?.size ?? 0,
+          status: canView ? '已解密' : '加密中',
+          downloadUrl: canView && asset ? `/api/upload/files/${asset.id}` : undefined,
+          sha256: canView ? asset?.sha256 : undefined,
+        };
+      });
 
     return {
       supplier: { id: supplier.id, name: supplier.supplierName, decryptStatus: supplier.decryptStatus },
       documents,
-      canView: supplier.decryptStatus === 'SUCCESS',
+      canView,
     };
   }
 

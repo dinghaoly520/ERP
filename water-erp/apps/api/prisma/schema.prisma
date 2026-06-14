@@ -427,18 +427,22 @@ model Announcement {
 // ── 供应商标书提交 ──
 
 model SupplierBidSubmission {
-  id             String    @id @default(cuid())
-  supplierId     String
-  projectId      String
-  bidPrice       String?
-  deliveryPeriod String?
-  technicalFile  String?
-  businessFile   String?
-  coverLetter    String?
-  status         String    @default("draft") // draft, submitted, withdrawn
-  submittedAt    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  supplierId            String
+  projectId             String
+  bidPrice              String?
+  deliveryPeriod        String?
+  technicalFile         String?
+  businessFile          String?
+  coverLetter           String?
+  // 可验证、可授权的真实文件引用（指向 FileAsset.id）；保留旧字符串字段以兼容存量数据
+  technicalFileAssetId  String?
+  businessFileAssetId   String?
+  coverLetterAssetId    String?
+  status                String    @default("draft") // draft, submitted, withdrawn
+  submittedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   supplier Supplier   @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   project  BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -446,6 +450,9 @@ model SupplierBidSubmission {
   @@unique([supplierId, projectId])
   @@index([supplierId])
   @@index([projectId])
+  @@index([technicalFileAssetId])
+  @@index([businessFileAssetId])
+  @@index([coverLetterAssetId])
 }
 
 // ── 文件资产 ──

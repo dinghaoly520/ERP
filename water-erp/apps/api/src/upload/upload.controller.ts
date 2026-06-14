@@ -52,8 +52,8 @@ export class UploadController {
   @Get('files/:id')
   @ApiCookieAuth('token')
   @ApiOperation({ summary: '下载/预览文件（鉴权）' })
-  async download(@Param('id') id: string, @Res() res: any) {
-    return this.uploadService.streamFile(id, res);
+  async download(@Param('id') id: string, @Request() req: any, @Res() res: any) {
+    return this.uploadService.streamFile(id, req.user, res);
   }
 
   @Delete(':key')

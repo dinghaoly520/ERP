@@ -143,7 +143,15 @@ export interface ExpertProjectDetail extends BidProjectDetail {
 
 export interface DecryptedDocuments {
   supplier: { id: string; name: string; decryptStatus: string };
-  documents: { name: string; type: string; size: string; status: string }[];
+  documents: {
+    name: string;
+    originalName: string;
+    type: string;
+    size: number;
+    status: string;
+    downloadUrl?: string;
+    sha256?: string;
+  }[];
   canView: boolean;
 }
 
