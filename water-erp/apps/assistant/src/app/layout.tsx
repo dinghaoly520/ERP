@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Toaster } from 'sonner';
+import SplashCursor from '@/components/splash-cursor';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default function RootLayout({
       <body>
         {children}
         <Toaster position="top-center" richColors closeButton />
+        <SplashCursor />
       </body>
     </html>
   );

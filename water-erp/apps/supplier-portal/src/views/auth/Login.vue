@@ -31,7 +31,6 @@ async function handleLogin() {
   try {
     const ok = await authStore.login(form.username, form.password)
     if (ok) {
-      ElMessage.success('登录成功')
       router.push('/dashboard')
     } else {
       ElMessage.error('用户名或密码错误')
@@ -349,25 +348,42 @@ async function handleLogin() {
   text-align: center;
 }
 .lp-brand-word {
+  position: relative;
   display: block;
   font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
   font-size: 37px;
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.01em;
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  background: radial-gradient(ellipse 72% 150% at center, color-mix(in oklch, oklch(0.34 0.15 var(--hue)) 62%, transparent) 0%, color-mix(in oklch, oklch(0.34 0.15 var(--hue)) 28%, transparent) 42%, transparent 72%);
+  background: linear-gradient(90deg, #ffffff 0%, #d0e4ff 20%, #c0f0e4 40%, #e0d8ff 60%, #d0e4ff 80%, #ffffff 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   text-align: center;
   margin: 0 -34px;
   padding: 6px 34px;
+  animation: lp-brand-shimmer 8s linear infinite;
+}
+.lp-brand-word::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse 72% 150% at center, color-mix(in oklch, oklch(0.34 0.15 var(--hue)) 62%, transparent) 0%, color-mix(in oklch, oklch(0.34 0.15 var(--hue)) 28%, transparent) 42%, transparent 72%);
 }
 .lp-brand-word .lp-dot {
   font-size: 28px;
   line-height: 1;
   margin: 0 8px;
   opacity: 0.5;
+  -webkit-text-fill-color: #fff;
   color: #fff;
+}
+@keyframes lp-brand-shimmer {
+  0% { background-position: 0% center; }
+  100% { background-position: 300% center; }
 }
 .lp-divider {
   display: flex;
@@ -409,7 +425,7 @@ async function handleLogin() {
   margin-bottom: 20px;
 }
 .lp-form :deep(.el-form-item__label) {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.06em;
   color: color-mix(in oklch, var(--ink) 82%, #000);
@@ -435,7 +451,7 @@ async function handleLogin() {
 .lp-form :deep(.el-input__inner) {
   color: var(--ink);
   font-family: inherit;
-  font-size: 14.5px;
+  font-size: 16px;
 }
 .lp-form :deep(.el-input__inner::placeholder) {
   color: oklch(0.66 0.018 var(--hue));
@@ -472,7 +488,7 @@ async function handleLogin() {
   box-shadow: 0 10px 24px color-mix(in oklch, oklch(0.5 0.05 var(--hue)) 14%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.65);
   font-family: inherit;
   font-weight: 800;
-  font-size: 15px;
+  font-size: 16px;
   letter-spacing: 0.16em;
   cursor: pointer;
   transition: transform 0.2s var(--ease), filter 0.2s var(--ease), box-shadow 0.2s var(--ease);

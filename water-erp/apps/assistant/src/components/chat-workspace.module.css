@@ -61,8 +61,17 @@
   font-family: var(--font-heading);
   font-size: var(--font-md);
   font-weight: 700;
-  color: var(--text-heading);
   letter-spacing: -0.01em;
+  background: linear-gradient(90deg, var(--text-heading) 0%, #d0e4ff 20%, #c0f0e4 40%, #e0d8ff 60%, #d0e4ff 80%, var(--text-heading) 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: header-shimmer 8s linear infinite;
+}
+@keyframes header-shimmer {
+  0% { background-position: 0% center; }
+  100% { background-position: 300% center; }
 }
 
 .headerBadge {
@@ -70,6 +79,7 @@
   color: var(--text-muted);
   margin-left: 8px;
   font-weight: 500;
+  -webkit-text-fill-color: var(--text-muted);
 }
 
 /* ---------- 消息区 ---------- */

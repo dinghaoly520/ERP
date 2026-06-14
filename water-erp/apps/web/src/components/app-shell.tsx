@@ -199,7 +199,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <main className="workbench-grid-bg flex-1 overflow-y-auto p-6">
+          <main className="flex-1 overflow-y-auto p-6">
             {children}
           </main>
         </div>

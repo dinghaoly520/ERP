@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '../lib/types';
 import {
-  LayoutDashboard, ClipboardList, UserCircle, LogOut,
+  LayoutDashboard, ClipboardList, UserCircle,
   PanelLeftClose, PanelLeft,
 } from 'lucide-react';
 
@@ -39,24 +39,29 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return pathname.startsWith(path);
   };
 
+  const registeredName = user?.displayName?.trim() || user?.username || '专家';
+  const userInitial = registeredName.slice(0, 1);
+
   return (
-    <div className="flex h-screen flex-col overflow-hidden text-[#18243a]" style={{ background: 'radial-gradient(circle at 8% 0%, rgba(14, 98, 208, 0.14), transparent 30%), radial-gradient(circle at 88% 8%, rgba(124, 58, 237, 0.12), transparent 26%), linear-gradient(180deg, #f7fbff 0%, #f8fafc 100%)' }}>
+    <div className="flex h-screen flex-col overflow-hidden workbench-page-bg text-[#18243a]">
       <header className="sticky top-0 z-50 flex-shrink-0 border-b border-[#dbe6f3] bg-white/86 backdrop-blur-xl">
         <div className="flex h-[68px] items-center justify-between px-6">
           <button onClick={() => router.push('/')} className="flex items-center gap-3 text-left">
             <img src="/assets/logo.jpg" alt="四川水发集团" className="h-10 w-auto object-contain" />
-            <strong className="block text-lg font-black tracking-[0.10em] text-[#123a6e]" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>
-              四川水发集团
-            </strong>
+            <div>
+              <strong className="block text-lg font-black tracking-[0.10em] text-[#123a6e]" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>
+                四川水发集团
+              </strong>
+            </div>
           </button>
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 rounded-xl border border-[#e5ecf4] bg-white px-3 py-2 shadow-sm">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#7c3aed] to-[#a78bfa] text-xs font-black text-white">
-                {user?.displayName?.trim()?.slice(0, 1) || user?.username?.slice(0, 1) || 'E'}
+                {userInitial}
               </span>
               <div className="hidden leading-tight sm:block">
-                <div className="text-sm font-black text-[#18243a]">{user?.displayName?.trim() || user?.username || '专家'}</div>
+                <div className="text-sm font-black text-[#18243a]">{registeredName}</div>
               </div>
             </div>
             <button
@@ -103,10 +108,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <main className="flex-1 overflow-y-auto p-6" style={{
-            backgroundImage: 'linear-gradient(rgba(124,58,237,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(124,58,237,0.03) 1px, transparent 1px)',
-            backgroundSize: '28px 28px',
-          }}>
+          <main className="flex-1 overflow-y-auto p-6">
             {children}
           </main>
         </div>

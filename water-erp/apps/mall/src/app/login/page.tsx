@@ -41,8 +41,10 @@ const LP_CSS = `
 @keyframes lp-edge-flow{to{--lp-angle:360deg}}
 @media(prefers-reduced-motion:reduce){.lp-card::after{animation:none}}
 .lp-head{margin-bottom:28px;text-align:center}
-.lp-brand-word{display:block;font-family:"Plus Jakarta Sans","Microsoft YaHei",sans-serif;font-size:37px;font-weight:800;line-height:1.1;letter-spacing:-.01em;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.2);background:radial-gradient(ellipse 72% 150% at center,color-mix(in oklch,oklch(0.34 0.15 var(--hue)) 62%,transparent) 0%,color-mix(in oklch,oklch(0.34 0.15 var(--hue)) 28%,transparent) 42%,transparent 72%);text-align:center;margin:0 -34px;padding:6px 34px}
-.lp-brand-word .lp-dot{font-size:28px;line-height:1;margin:0 8px;opacity:.5;color:#fff}
+.lp-brand-word{position:relative;display:block;font-family:"Plus Jakarta Sans","Microsoft YaHei",sans-serif;font-size:37px;font-weight:800;line-height:1.1;letter-spacing:-.01em;background:linear-gradient(90deg,#ffffff 0%,#d0e4ff 20%,#c0f0e4 40%,#e0d8ff 60%,#d0e4ff 80%,#ffffff 100%);background-size:300% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;margin:0 -34px;padding:6px 34px;animation:lp-brand-shimmer 8s linear infinite}
+.lp-brand-word::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse 72% 150% at center,color-mix(in oklch,oklch(0.34 0.15 var(--hue)) 62%,transparent) 0%,color-mix(in oklch,oklch(0.34 0.15 var(--hue)) 28%,transparent) 42%,transparent 72%)}
+.lp-brand-word .lp-dot{font-size:28px;line-height:1;margin:0 8px;opacity:.5;-webkit-text-fill-color:#fff;color:#fff}
+@keyframes lp-brand-shimmer{0%{background-position:0% center}100%{background-position:300% center}}
 .lp-divider{display:flex;align-items:center;justify-content:center;width:168px;margin:18px auto 4px;color:oklch(0.5 0.1 var(--hue));font-size:9px;line-height:1}
 .lp-divider::before,.lp-divider::after{content:"";flex:1;height:1px}
 .lp-divider::before{background:linear-gradient(90deg,transparent,oklch(0.5 0.09 var(--hue)));margin-right:10px}
@@ -50,16 +52,16 @@ const LP_CSS = `
 .lp-title{margin:0;font-family:"Songti SC","STSong","SimSun","Noto Serif SC","Source Han Serif SC",serif;font-size:31px;font-weight:600;line-height:1.2;color:oklch(0.3 0.04 var(--hue));letter-spacing:.14em;text-align:center}
 .lp-form{display:grid;gap:20px}
 .lp-field{display:grid;gap:8px}
-.lp-field label{font-size:12px;font-weight:800;letter-spacing:.06em;color:color-mix(in oklch,var(--ink) 82%,#000);transition:color .2s var(--ease)}
+.lp-field label{font-size:13px;font-weight:800;letter-spacing:.06em;color:color-mix(in oklch,var(--ink) 82%,#000);transition:color .2s var(--ease)}
 .lp-input-wrap{position:relative}
 .lp-input-icon{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:oklch(0.58 0.06 var(--hue));opacity:.9;pointer-events:none;transition:color .2s var(--ease),transform .2s var(--ease)}
-.lp-input{width:100%;height:60px;border:1px solid var(--line);border-radius:15px;padding:0 16px 0 46px;outline:none;color:var(--ink);background:rgba(255,255,255,.62);font-family:inherit;font-size:14.5px;transition:border .2s var(--ease),box-shadow .2s var(--ease),background .2s var(--ease)}
+.lp-input{width:100%;height:60px;border:1px solid var(--line);border-radius:15px;padding:0 16px 0 46px;outline:none;color:var(--ink);background:rgba(255,255,255,.62);font-family:inherit;font-size:16px;transition:border .2s var(--ease),box-shadow .2s var(--ease),background .2s var(--ease)}
 .lp-input::placeholder{color:oklch(0.66 0.018 var(--hue))}
 .lp-input:hover{border-color:oklch(0.7 0.06 var(--hue));background:rgba(255,255,255,.74)}
 .lp-input:focus{border-color:oklch(0.66 0.08 var(--hue));box-shadow:0 0 0 4px color-mix(in oklch,oklch(0.78 0.08 var(--hue)) 16%,transparent);background:#fff}
 .lp-field:focus-within label{color:oklch(0.5 0.1 var(--hue))}
 .lp-input-wrap:focus-within .lp-input-icon{color:oklch(0.5 0.1 var(--hue));transform:translateY(-50%) scale(1.12)}
-.lp-primary{display:inline-flex;align-items:center;justify-content:center;position:relative;overflow:hidden;width:100%;height:60px;margin-top:6px;border:1px solid color-mix(in oklch,oklch(0.8 0.06 var(--hue)) 50%,white);border-radius:15px;color:oklch(0.32 0.07 var(--hue));background:linear-gradient(135deg,oklch(0.93 0.055 var(--hue)),oklch(0.91 0.048 calc(var(--hue) + 24)));box-shadow:0 10px 24px color-mix(in oklch,oklch(0.5 0.05 var(--hue)) 14%,transparent),inset 0 1px 0 rgba(255,255,255,.65);font-family:inherit;font-weight:800;font-size:15px;letter-spacing:.16em;cursor:pointer;transition:transform .2s var(--ease),filter .2s var(--ease),box-shadow .2s var(--ease)}
+.lp-primary{display:inline-flex;align-items:center;justify-content:center;position:relative;overflow:hidden;width:100%;height:60px;margin-top:6px;border:1px solid color-mix(in oklch,oklch(0.8 0.06 var(--hue)) 50%,white);border-radius:15px;color:oklch(0.32 0.07 var(--hue));background:linear-gradient(135deg,oklch(0.93 0.055 var(--hue)),oklch(0.91 0.048 calc(var(--hue) + 24)));box-shadow:0 10px 24px color-mix(in oklch,oklch(0.5 0.05 var(--hue)) 14%,transparent),inset 0 1px 0 rgba(255,255,255,.65);font-family:inherit;font-weight:800;font-size:16px;letter-spacing:.16em;cursor:pointer;transition:transform .2s var(--ease),filter .2s var(--ease),box-shadow .2s var(--ease)}
 .lp-primary::after{content:"";position:absolute;top:0;left:-130%;width:55%;height:100%;background:linear-gradient(120deg,transparent,rgba(255,255,255,.6),transparent);transform:skewX(-18deg);pointer-events:none;transition:left .65s var(--ease)}
 .lp-primary:hover{transform:translateY(-2px);filter:brightness(1.03);box-shadow:0 14px 30px color-mix(in oklch,oklch(0.5 0.06 var(--hue)) 20%,transparent),inset 0 1px 0 rgba(255,255,255,.65)}
 .lp-primary:hover::after{left:130%}
@@ -103,7 +105,6 @@ export default function MallLoginPage() {
       });
       const data = await res.json();
       if (data.error) { toast.error(data.error); setLoading(false); return; }
-      toast.success('登录成功');
       router.push('/');
     } catch {
       toast.error('请求失败，请重试');

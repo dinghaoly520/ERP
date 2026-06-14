@@ -1,28 +1,59 @@
 @import "tailwindcss";
 
-/* 专家评审工作站 — Purple Workbench Color System */
+/* =============================================================================
+   智慧水发 — 专家评审工作站 (Purple Workbench Color System)
+   Design DNA: Industrial Precision · Hairline Dividers · Frosted Glass
+   ============================================================================= */
 
 :root {
   --color-primary: #7c3aed;
   --color-primary-hover: #6d28d9;
+  --color-primary-light: #ede9fe;
+  --color-primary-border: #c4b5fd;
   --color-bg: oklch(0.982 0.003 264);
   --color-surface: oklch(1 0 0);
   --color-border: oklch(0.91 0.006 264);
   --color-text: oklch(0.18 0.012 265);
   --color-text-secondary: oklch(0.45 0.01 264);
+  --color-text-tertiary: oklch(0.62 0.008 264);
   --color-success: oklch(0.54 0.16 158);
   --color-warning: oklch(0.64 0.16 82);
-  --color-danger:  oklch(0.50 0.18 22);
+  --color-danger: oklch(0.50 0.18 22);
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   font-size: 0.875rem;
   color: var(--color-text);
-  background: var(--color-bg);
+  background:
+    radial-gradient(ellipse at 8% 4%, rgba(200, 180, 248, 0.52) 0%, transparent 44%),
+    radial-gradient(ellipse at 92% 12%, rgba(190, 180, 245, 0.38) 0%, transparent 42%),
+    radial-gradient(ellipse at 34% 95%, rgba(185, 235, 228, 0.40) 0%, transparent 46%),
+    radial-gradient(ellipse at 96% 80%, rgba(250, 205, 215, 0.28) 0%, transparent 40%),
+    linear-gradient(135deg,
+      rgba(243, 238, 254, 0.60) 0%,
+      rgba(248, 246, 255, 0.68) 30%,
+      rgba(244, 241, 253, 0.64) 60%,
+      rgba(240, 237, 252, 0.60) 100%);
   -webkit-font-smoothing: antialiased;
 }
 
+/* ─── Workbench page background — frosted glass + radial accents ─── */
+.workbench-page-bg {
+  background:
+    radial-gradient(ellipse at 5% 0%, rgba(124, 58, 237, 0.08), transparent 38%),
+    radial-gradient(ellipse at 90% 8%, rgba(109, 40, 217, 0.05), transparent 32%),
+    radial-gradient(ellipse at 50% 98%, rgba(139, 92, 246, 0.04), transparent 40%),
+    linear-gradient(180deg,
+      rgba(245, 243, 255, 0.82) 0%,
+      rgba(248, 246, 254, 0.86) 50%,
+      rgba(243, 240, 252, 0.82) 100%);
+  backdrop-filter: blur(44px) saturate(1.12);
+  -webkit-backdrop-filter: blur(44px) saturate(1.12);
+}
+
+
+/* ─── Input — crisp bordered field ─── */
 .workbench-input {
   border: 1px solid #dbe6f3;
   border-radius: 0.75rem;
@@ -38,6 +69,7 @@ body {
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
 }
 
+/* ─── Table — industrial data display ─── */
 .workbench-table {
   width: 100%;
   border-collapse: collapse;

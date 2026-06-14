@@ -3,7 +3,7 @@
 :root {
   --color-primary: #064ea2;
   --color-primary-hover: #043d82;
-  --color-bg: #f5f7fa;
+  --color-bg: #f0f4fb;
   --color-surface: #fff;
   --color-border: #e5ecf4;
   --color-text: #18243a;
@@ -13,6 +13,22 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: var(--color-text);
-  background: var(--color-bg);
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(195, 220, 252, 0.56) 0%, transparent 44%),
+    radial-gradient(ellipse at 88% 18%, rgba(210, 195, 250, 0.42) 0%, transparent 44%),
+    radial-gradient(ellipse at 42% 94%, rgba(185, 235, 228, 0.44) 0%, transparent 46%),
+    radial-gradient(ellipse at 94% 74%, rgba(252, 210, 220, 0.30) 0%, transparent 40%),
+    linear-gradient(180deg,
+      rgba(248, 250, 255, 0.90) 0%,
+      rgba(250, 248, 255, 0.91) 38%,
+      rgba(248, 251, 254, 0.91) 68%,
+      rgba(246, 249, 253, 0.91) 100%);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Frosted glass surface — for root containers sitting above the pastel body gradient */
+.glass-surface {
+  background: rgba(255, 255, 255, 0.34);
+  backdrop-filter: blur(44px) saturate(1.18);
+  -webkit-backdrop-filter: blur(44px) saturate(1.18);
 }
