@@ -67,13 +67,7 @@ export default function ExpertEvaluationPage() {
 
   return (
     <div>
-      <PageHero eyebrow="专家管理中心" title="专家评价" description="查看和维护专家履职评价结果。" tone="purple" icon={<CheckCircle2 size={14} />} />
-
-      <div className="mb-6">
-        <div className="mb-2 inline-flex rounded-full border border-[#ddd6fe] bg-[#f5f3ff] px-3 py-1 text-xs font-semibold text-[#7c3aed]">专家管理中心</div>
-        <h1 className="text-2xl font-bold text-[#0f2f57]">专家评价</h1>
-        <p className="text-sm text-[#5a6d8a] mt-1">评审专家履职评价：出勤纪律 / 评审质量 / 廉洁纪律</p>
-      </div>
+      <PageHero eyebrow="专家管理中心" title="专家评价" description="评审专家履职评价：出勤纪律 / 评审质量 / 廉洁纪律。" tone="purple" icon={<CheckCircle2 size={14} />} />
 
       {/* 等级分布 */}
       <div className="grid grid-cols-4 gap-4 mb-6">

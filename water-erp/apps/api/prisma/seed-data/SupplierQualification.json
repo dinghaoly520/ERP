@@ -2640,6 +2640,42 @@
     "updatedAt": "2026-06-13T11:02:26.312Z"
   },
   {
+    "id": "cmqc8xj9201ekko8fx6hq05iz",
+    "supplierId": "cmqc8r6hc01eikoeko9pb3z0n",
+    "type": "资质证书",
+    "name": "持证等级: 工程设计综合资质甲级；",
+    "fileUrl": "",
+    "validFrom": null,
+    "validTo": null,
+    "status": "有效",
+    "createdAt": "2026-06-13T11:02:26.486Z",
+    "updatedAt": "2026-06-13T11:02:26.486Z"
+  },
+  {
+    "id": "cmqc8xj9401epko8foc94wjel",
+    "supplierId": "cmqc8r6he01enkoekicqwxrk4",
+    "type": "资质证书",
+    "name": "持证等级: 工程设计综合资质甲级；",
+    "fileUrl": "",
+    "validFrom": null,
+    "validTo": null,
+    "status": "有效",
+    "createdAt": "2026-06-13T11:02:26.489Z",
+    "updatedAt": "2026-06-13T11:02:26.489Z"
+  },
+  {
+    "id": "cmqc8xj9701euko8fob6oul0l",
+    "supplierId": "cmqc8r6hg01eskoekaef255q1",
+    "type": "资质证书",
+    "name": "持证等级: 乙级",
+    "fileUrl": "",
+    "validFrom": null,
+    "validTo": null,
+    "status": "有效",
+    "createdAt": "2026-06-13T11:02:26.492Z",
+    "updatedAt": "2026-06-13T11:02:26.492Z"
+  },
+  {
     "id": "cmqc8xj4b0167ko8f6p3exaix",
     "supplierId": "cmqc8r6cb0163koeksbnzlw8f",
     "type": "资质证书",
@@ -3082,42 +3118,6 @@
     "status": "有效",
     "createdAt": "2026-06-13T11:02:26.484Z",
     "updatedAt": "2026-06-13T11:02:26.484Z"
-  },
-  {
-    "id": "cmqc8xj9201ekko8fx6hq05iz",
-    "supplierId": "cmqc8r6hc01eikoeko9pb3z0n",
-    "type": "资质证书",
-    "name": "持证等级: 工程设计综合资质甲级；",
-    "fileUrl": "",
-    "validFrom": null,
-    "validTo": null,
-    "status": "有效",
-    "createdAt": "2026-06-13T11:02:26.486Z",
-    "updatedAt": "2026-06-13T11:02:26.486Z"
-  },
-  {
-    "id": "cmqc8xj9401epko8foc94wjel",
-    "supplierId": "cmqc8r6he01enkoekicqwxrk4",
-    "type": "资质证书",
-    "name": "持证等级: 工程设计综合资质甲级；",
-    "fileUrl": "",
-    "validFrom": null,
-    "validTo": null,
-    "status": "有效",
-    "createdAt": "2026-06-13T11:02:26.489Z",
-    "updatedAt": "2026-06-13T11:02:26.489Z"
-  },
-  {
-    "id": "cmqc8xj9701euko8fob6oul0l",
-    "supplierId": "cmqc8r6hg01eskoekaef255q1",
-    "type": "资质证书",
-    "name": "持证等级: 乙级",
-    "fileUrl": "",
-    "validFrom": null,
-    "validTo": null,
-    "status": "有效",
-    "createdAt": "2026-06-13T11:02:26.492Z",
-    "updatedAt": "2026-06-13T11:02:26.492Z"
   },
   {
     "id": "cmqc8xj9a01ezko8fyv536yb1",

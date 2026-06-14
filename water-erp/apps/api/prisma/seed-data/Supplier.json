@@ -2363,6 +2363,23 @@
     "updatedAt": "2026-06-13T11:02:26.083Z"
   },
   {
+    "id": "cmqc8r6ep019gkoek72p9imri",
+    "userId": "cmqc8r6ep019ekoekk0irwlk4",
+    "name": "中国地质科学院岩溶地质研究所",
+    "normalizedName": "中国地质科学院岩溶地质研究所",
+    "creditCode": null,
+    "enterpriseType": "",
+    "legalPerson": "",
+    "registeredAddress": "",
+    "businessScope": "推荐业务范围: 岩溶地质勘探及分析评价",
+    "status": "APPROVED",
+    "classificationId": "cmqc8r5rq0001koeku7tn9d65",
+    "rejectReason": null,
+    "returnReason": null,
+    "createdAt": "2026-06-13T10:57:29.906Z",
+    "updatedAt": "2026-06-13T11:02:26.377Z"
+  },
+  {
     "id": "cmqc8r66t00svkoekgc2bz92p",
     "userId": "cmqc8r66t00stkoekavvpuulo",
     "name": "成都东华卓越科技有限公司",
@@ -3859,21 +3876,21 @@
     "updatedAt": "2026-06-13T11:02:26.374Z"
   },
   {
-    "id": "cmqc8r6ep019gkoek72p9imri",
-    "userId": "cmqc8r6ep019ekoekk0irwlk4",
-    "name": "中国地质科学院岩溶地质研究所",
-    "normalizedName": "中国地质科学院岩溶地质研究所",
+    "id": "cmqc8r6ic01gfkoekaqraz0zv",
+    "userId": "cmqc8r6ic01gdkoekumzntg15",
+    "name": "成都一仓科技有限公司",
+    "normalizedName": "成都一仓科技有限公司",
     "creditCode": null,
     "enterpriseType": "",
     "legalPerson": "",
     "registeredAddress": "",
-    "businessScope": "推荐业务范围: 岩溶地质勘探及分析评价",
+    "businessScope": "推荐业务范围: 水环境、水温分析研究",
     "status": "APPROVED",
-    "classificationId": "cmqc8r5rq0001koeku7tn9d65",
+    "classificationId": "cmqc8r5rw0009koek1q4l965w",
     "rejectReason": null,
     "returnReason": null,
-    "createdAt": "2026-06-13T10:57:29.906Z",
-    "updatedAt": "2026-06-13T11:02:26.377Z"
+    "createdAt": "2026-06-13T10:57:30.037Z",
+    "updatedAt": "2026-06-13T11:02:26.527Z"
   },
   {
     "id": "cmqc8r6er019jkoek8fmwaj10",
@@ -4843,23 +4860,6 @@
     "returnReason": null,
     "createdAt": "2026-06-13T10:57:30.035Z",
     "updatedAt": "2026-06-13T11:02:26.525Z"
-  },
-  {
-    "id": "cmqc8r6ic01gfkoekaqraz0zv",
-    "userId": "cmqc8r6ic01gdkoekumzntg15",
-    "name": "成都一仓科技有限公司",
-    "normalizedName": "成都一仓科技有限公司",
-    "creditCode": null,
-    "enterpriseType": "",
-    "legalPerson": "",
-    "registeredAddress": "",
-    "businessScope": "推荐业务范围: 水环境、水温分析研究",
-    "status": "APPROVED",
-    "classificationId": "cmqc8r5rw0009koek1q4l965w",
-    "rejectReason": null,
-    "returnReason": null,
-    "createdAt": "2026-06-13T10:57:30.037Z",
-    "updatedAt": "2026-06-13T11:02:26.527Z"
   },
   {
     "id": "cmqc8r6ie01gikoekmlq9132u",

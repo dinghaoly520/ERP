@@ -44,6 +44,8 @@ const ALL_TABLES = [
   'User', 'Department', 'PriceHistory',
   'UserFavorite', 'AuditLog',
   'SupplierCatalogApplication', 'CatalogSupplier',
+  'AssistantConversation', 'AssistantMessage', 'AssistantActionLog',
+  'BidEvaluationResult',
 ] as const;
 
 // 按外键依赖分三层写入（父表在前）。空快照 createMany 等价于空操作。
@@ -69,6 +71,7 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['BidOpeningSession', 'bidOpeningSession'],
   ['BidArchiveItem', 'bidArchiveItem'],
   ['BudgetList', 'budgetList'],
+  ['AssistantConversation', 'assistantConversation'],
   // Level 2 —— 依赖 Level 1
   ['SupplierContact', 'supplierContact'],
   ['SupplierQualification', 'supplierQualification'],
@@ -87,6 +90,9 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['AuditLog', 'auditLog'], // Level 2：依赖 User
   ['SupplierCatalogApplication', 'supplierCatalogApplication'], // Level 2：依赖 Supplier + CatalogItem
   ['CatalogSupplier', 'catalogSupplier'], // Level 2：依赖 CatalogItem + Supplier
+  ['AssistantMessage', 'assistantMessage'], // Level 2：依赖 AssistantConversation
+  ['AssistantActionLog', 'assistantActionLog'], // Level 2：依赖 AssistantConversation（可选）
+  ['BidEvaluationResult', 'bidEvaluationResult'], // Level 2：依赖 BidProject
 ];
 
 async function main() {
