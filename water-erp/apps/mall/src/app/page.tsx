@@ -165,7 +165,8 @@ export default function MallPage() {
       .then(async r => {
         if (!r.ok) return;
         const data = await r.json().catch(() => null);
-        setItems(Array.isArray(data) ? (data as CatalogItem[]) : []);
+        const nextItems = Array.isArray(data) ? (data as CatalogItem[]) : [];
+        setItems(nextItems.filter(item => item.status === '有效'));
       })
       .finally(() => setLoading(false));
   }, []);
