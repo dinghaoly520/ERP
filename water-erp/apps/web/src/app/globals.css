@@ -28,3 +28,61 @@ body {
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
 }
+
+.workbench-page-bg {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(14, 98, 208, 0.14), transparent 30%),
+    radial-gradient(circle at 88% 8%, rgba(8, 145, 178, 0.12), transparent 26%),
+    linear-gradient(180deg, #f7fbff 0%, #f8fafc 100%);
+}
+
+.workbench-grid-bg {
+  background-image:
+    linear-gradient(rgba(6, 78, 162, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 78, 162, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.workbench-input {
+  border: 1px solid #dbe6f3;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.625rem 0.75rem;
+  color: #18243a;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.workbench-input:focus {
+  border-color: #0b63ce;
+  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.12);
+}
+
+.workbench-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.workbench-table thead tr {
+  border-bottom: 1px solid #e5ecf4;
+  color: #5a6d8a;
+  text-align: left;
+}
+
+.workbench-table th,
+.workbench-table td {
+  padding: 0.875rem 1.25rem;
+}
+
+.workbench-table tbody tr {
+  border-bottom: 1px solid #eef3f8;
+}
+
+.workbench-table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+.workbench-table tbody tr:hover {
+  background: #f8fbff;
+}
