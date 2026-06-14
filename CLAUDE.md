@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The active codebase is the pnpm workspace in `water-erp/`. The top-level `water_erp_web/` directory is a legacy/static prototype and is not the current development target.
 
+> **Other instruction files:** the root `AGENTS.md` is **stale** — it documents an old layout (wrong ports, only four portals, no `bid-portal`/`mall`, three migrations). This `CLAUDE.md` is the source of truth; do not trust `AGENTS.md`. `water-erp/ACCOUNTS.md` repeats the seed accounts grouped by portal, and `water-erp/.impeccable.md` holds the design system (see Frontend Conventions).
+
 ## Monorepo Structure
 
 Run workspace commands from `water-erp/`.
@@ -114,15 +116,19 @@ DATABASE_URL=postgresql://water_erp:water_erp_dev@localhost:5432/water_erp
 JWT_SECRET=water-erp-jwt-secret
 ```
 
+Uploads require MinIO. `apps/api/src/upload/minio.client.ts` reads `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, and `MINIO_BUCKET` from env, falling back to the `docker-compose.yml` defaults (`localhost:9000`, bucket `water-erp`, credentials `water_erp_minio` / `water_erp_minio_dev`). Only add these to `.env` if you run MinIO outside the bundled compose stack.
+
 Seed data creates demo accounts. Passwords follow the `<username>@2026` convention. Each portal keeps an independent login session (cookies are named per portal: `token_web`, `token_expert`, `token_supplier`, `token_mall`), so you must log in separately at each portal:
+
+> **Seed mechanism:** `pnpm db:seed` is **idempotent and destructive** — `apps/api/prisma/seed.ts` does `TRUNCATE ... RESTART IDENTITY CASCADE` on all business tables, then reloads from JSON snapshots in `apps/api/prisma/seed-data/*.json` (one file per table, e.g. `User.json`, `ExpertProfile.json`). It is **NOT** imperative upserts in `seed.ts`. To change seed data, edit the JSON snapshots (not seed.ts logic). Snapshots were originally dumped from a real DB via `apps/api/prisma/scripts/dump-seed.ts`; to refresh them, modify the DB then re-dump. Helper scripts under `apps/api/prisma/scripts/` generate specific snapshot slices — e.g. `gen-experts.cjs` regenerates the expert pool (currently 65 generated experts across 13 specialties + the 3 demo experts, all with 某-style anonymized names and `XXX水利技术服务中心` employers).
 
 - `caigou / caigou@2026` — 采购管理员（procurement_staff，web 门户 :3004）
 - `lizhuren / lizhuren@2026` — 开标主持人（bid_host，开评标管理端 :3007）
 - `supplier1 / supplier1@2026` — 供应商（已入库，supplier 门户 :3003）
 - `supplier2 / supplier2@2026` — 供应商（待审核，supplier 门户 :3003）
-- `wangjg / wangjg@2026` — 专家·王建国（expert 门户 :3005）
-- `liuxm / liuxm@2026` — 专家·刘晓梅（expert 门户 :3005）
-- `chenzq / chenzq@2026` — 专家·陈志强（expert 门户 :3005）
+- `wangjg / wangjg@2026` — 专家·王某国（expert 门户 :3005）
+- `liuxm / liuxm@2026` — 专家·刘某梅（expert 门户 :3005）
+- `chenzq / chenzq@2026` — 专家·陈某强（expert 门户 :3005）
 - `mall / mall@2026` — 商城采购员（mall 门户 :3002）
 
 > The `admin` account was removed in favor of per-portal accounts. The `admin` role still exists in the schema/RBAC (e.g. on `BidController`), it just has no seeded user.
@@ -182,6 +188,14 @@ Main API modules and route areas:
 | `UploadModule` | upload endpoints | `/api/upload/*` |
 | `ProcurementModule` | procurement project lifecycle, approval, bid initiation | `/api/procurement/*` |
 
+### File Uploads (MinIO)
+
+`UploadModule` persists files to **MinIO** (not the local disk) and records each in the `FileAsset` model (`key`, `originalName`, `mimeType`, `size`, `sha256`, `category`, nullable `uploaderId`).
+
+- `POST /api/upload?category=qualification|bid_document|announcement|profile|general` — multipart `file`, hard-capped at **50 MB** by the `FileInterceptor` limit (larger uploads are rejected before streaming to MinIO).
+- `GET /api/upload/files/:id` — auth-gated streaming download/preview by `FileAsset.id`.
+- `DELETE /api/upload/:key` — remove by object `key`.
+
 ### Auth and Role-Based Access Control
 
 Login rejects inactive users (`!user.isActive`) and returns HTTP 401 on failure (not 200).
@@ -231,6 +245,8 @@ Core model areas:
 - Bid lifecycle: `BidProject`, `BidSupplier`, `BidOpeningSession`, `BidOpeningRecord`, `BidExpert`, `BidScoreItem`, `BidScoreRecord`, `BidClarification`, `BidSupervisionLog`, `BidArchiveItem`.
 - Supplier lifecycle: `Supplier`, contacts, qualifications, classifications, evaluations, and field-level `SupplierChangeRecord` requests.
 - Supplier bidding: `SupplierBidSubmission` with one submission per supplier/project.
+- File storage: `FileAsset` (MinIO objects keyed by `key`; see File Uploads).
+- Procurement: `ProcurementProject` with its own `ProcurementStatus` lifecycle (`DRAFT → PENDING_REVIEW → …`), separate from `BidProject` — a procurement project initiates a bid.
 - Announcements and notifications.
 
 Important enums include `BidStage` (`DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED`), `SupplierStatus` (`PENDING`, `RETURNED`, `APPROVED`, `REJECTED`, `DISABLED`, `BLACKLIST`), scoring categories (`QUALIFICATION`, `RESPONSIVE`, `BUSINESS`, `TECHNICAL`, `PRICE`), and bid decrypt/confirm states.
@@ -242,6 +258,7 @@ Important enums include `BidStage` (`DOWNLOAD → SUBMIT → OPENING → EVALUAT
 - Portal API clients use thin wrappers around `/api` and include credentials for cookie auth where applicable.
 - Next.js portals use React 19 and Tailwind CSS v4; supplier portal uses Vue 3, Vite, Element Plus, Pinia, and Vue Router.
 - Shared domain types/constants should be added to `packages/shared` when multiple portals need the same vocabulary; app-specific view models should remain local to the portal.
+- **Design system:** `water-erp/.impeccable.md` is the design DNA — an industrial-precision aesthetic (1px hairline dividers, monospace numerals, layered navy→ice blues, Lucide 1.5px-stroke icons) with explicit anti-patterns (no rounded-card admin templates, no gradient buttons, no emoji-as-icons). Match it when building UI, and reuse the `@water-erp/shared` brand constants for color tokens.
 
 ### Prisma Migration Notes
 
