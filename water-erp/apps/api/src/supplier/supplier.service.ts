@@ -8,6 +8,7 @@ import { CreateQualificationDto } from './dto/create-qualification.dto';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { CreateClassificationDto, UpdateClassificationDto } from './dto/create-classification.dto';
 import { isSupplierChangeAllowedField } from './supplier-change-fields';
+import { shouldAutoDisable, aggregatePerformance } from './supplier-performance';
 
 @Injectable()
 export class SupplierService {
@@ -474,7 +475,7 @@ export class SupplierService {
       level = 'D';
     }
 
-    return this.prisma.supplierEvaluation.create({
+    const created = await this.prisma.supplierEvaluation.create({
       data: {
         supplierId,
         projectId: dto.projectId,
@@ -489,6 +490,38 @@ export class SupplierService {
         comment: dto.comment,
       },
     });
+
+    // 自动淘汰：最近 3 次综合得分均 ≤60 → 停用并通知供应商
+    const recent = await this.prisma.supplierEvaluation.findMany({
+      where: { supplierId },
+      orderBy: { createdAt: 'desc' },
+      take: 3,
+      select: { overallScore: true },
+    });
+    if (shouldAutoDisable(recent.map(r => ({ overallScore: Number(r.overallScore) })), 60)) {
+      await this.prisma.supplier.update({ where: { id: supplierId }, data: { status: 'DISABLED' } });
+      await this.notificationService.create({
+        userId: supplier.userId,
+        type: 'SUPPLIER_DISABLED',
+        title: '供应商已自动停用',
+        content: '因近期绩效综合得分持续偏低，您的供应商账号已被自动停用。如有异议请联系采购管理员。',
+        link: '/supplier',
+      }).catch(() => {});
+    }
+
+    return created;
+  }
+
+  /** 供应商绩效画像：历史均分、趋势、等级分布。 */
+  async getSupplierPerformanceProfile(supplierId: string) {
+    const evals = await this.prisma.supplierEvaluation.findMany({
+      where: { supplierId },
+      orderBy: { createdAt: 'asc' },
+      select: { overallScore: true, level: true, createdAt: true },
+    });
+    return aggregatePerformance(
+      evals.map(e => ({ overallScore: Number(e.overallScore), level: e.level, createdAt: e.createdAt })),
+    );
   }
 
   async getEvaluationStats() {
