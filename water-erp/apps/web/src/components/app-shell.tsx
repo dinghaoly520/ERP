@@ -103,21 +103,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <strong className="block text-lg font-black tracking-[0.10em] text-[#123a6e]" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>
                 四川水发集团
               </strong>
-              <span className="text-xs font-semibold text-[#5a6d8a]">采购管理运营工作台</span>
             </div>
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="hidden rounded-full border border-[#dbeafe] bg-[#eff6ff] px-3 py-1 text-xs font-bold text-[#064ea2] sm:block">
-              3004 采购管理系统
-            </div>
             <div className="flex items-center gap-2 rounded-xl border border-[#e5ecf4] bg-white px-3 py-2 shadow-sm">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-xs font-black text-white">
                 {userInitial}
               </span>
               <div className="hidden leading-tight sm:block">
                 <div className="text-sm font-black text-[#18243a]">{registeredName}</div>
-                <div className="text-[11px] font-semibold text-[#8a96aa]">采购管理员</div>
               </div>
             </div>
             <button
@@ -132,12 +127,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex flex-1 overflow-hidden">
         <aside className={`${collapsed ? 'w-[68px]' : 'w-[272px]'} m-3 mr-0 flex flex-shrink-0 flex-col overflow-hidden rounded-[24px] border border-[#dbe6f3] bg-white/88 shadow-[0_18px_60px_rgba(15,47,87,0.10)] backdrop-blur transition-all duration-200`}>
-          {!collapsed && (
-            <div className="border-b border-[#edf3fb] p-4">
-              <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#8a96aa]">Navigation</div>
-              <div className="mt-1 text-sm font-black text-[#0f2f57]">采购业务中心</div>
-            </div>
-          )}
           <nav className="flex-1 overflow-y-auto px-2 py-3">
             {navItems.map(item => {
               const hasChildren = !!item.children?.length;
