@@ -469,6 +469,62 @@ export class SupplierPortalService {
     });
   }
 
+  // ─── 开标确认（供应商侧）───
+
+  async getMyOpeningRecord(supplierId: string, projectId: string) {
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { supplierId, projectId } });
+    if (!bidSupplier) return null;
+    return this.prisma.bidOpeningRecord.findFirst({
+      where: { projectId, bidSupplierId: bidSupplier.id },
+    });
+  }
+
+  async confirmOpening(supplierId: string, projectId: string) {
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { supplierId, projectId } });
+    if (!bidSupplier) throw new BadRequestException({ error: '投标记录不存在', code: 'BID_SUPPLIER_NOT_FOUND' });
+    if (bidSupplier.decryptStatus !== 'SUCCESS') {
+      throw new BadRequestException({ error: '标书尚未解密成功', code: 'NOT_DECRYPTED' });
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bidOpeningRecord.updateMany({
+        where: { projectId, bidSupplierId: bidSupplier.id },
+        data: { confirmStatus: '供应商已确认', confirmedAt: new Date() },
+      });
+      await tx.bidSupplier.update({ where: { id: bidSupplier.id }, data: { confirmStatus: 'CONFIRMED' } });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '供应商', target: bidSupplier.supplierName,
+          action: '确认唱标信息', result: '供应商确认开标记录无误', riskFlag: '无',
+        },
+      });
+    });
+    return { success: true };
+  }
+
+  async disputeOpening(supplierId: string, projectId: string, reason: string) {
+    if (!reason?.trim()) {
+      throw new BadRequestException({ error: '请填写异议原因', code: 'MISSING_REASON' });
+    }
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { supplierId, projectId } });
+    if (!bidSupplier) throw new BadRequestException({ error: '投标记录不存在', code: 'BID_SUPPLIER_NOT_FOUND' });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bidOpeningRecord.updateMany({
+        where: { projectId, bidSupplierId: bidSupplier.id },
+        data: { confirmStatus: '供应商提出异议', objectionReason: reason },
+      });
+      await tx.bidSupplier.update({ where: { id: bidSupplier.id }, data: { confirmStatus: 'DISPUTED' } });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '供应商', target: bidSupplier.supplierName,
+          action: '提出开标异议', result: reason, riskFlag: '中风险',
+        },
+      });
+    });
+    return { success: true };
+  }
+
   // ─── Dashboard Stats ───
 
   async getDashboardStats(userId: string) {

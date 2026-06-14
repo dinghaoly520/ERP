@@ -65,6 +65,14 @@ export class BidController {
   @ApiOperation({ summary: '开标记录' })
   listOpeningRecords(@Param('id') id: string) { return this.bidService.listOpeningRecords(id); }
 
+  @Post('projects/:id/opening-records/:recordId/resolve-dispute')
+  @ApiOperation({ summary: '处理开标异议' })
+  resolveOpeningDispute(
+    @Param('id') id: string,
+    @Param('recordId') recordId: string,
+    @Body() dto: { result: string; confirm: boolean },
+  ) { return this.bidService.resolveOpeningDispute(id, recordId, dto); }
+
   @Get('projects/:id/experts')
   @ApiOperation({ summary: '评标专家列表' })
   listExperts(@Param('id') id: string) { return this.bidService.listExperts(id); }

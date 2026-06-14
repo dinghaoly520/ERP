@@ -41,6 +41,7 @@ describe('SupplierPortalService', () => {
         updateMany: jest.fn(),
         create: jest.fn(),
       },
+      bidOpeningRecord: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
       fileAsset: { findMany: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
       supplierChangeRecord: { count: jest.fn() },
@@ -260,6 +261,61 @@ describe('SupplierPortalService', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('opening confirmation', () => {
+    const decryptedSupplier = {
+      id: 'bs-1', supplierId: 'supplier-1', projectId: 'project-1',
+      supplierName: '测试供应商', decryptStatus: 'SUCCESS',
+    };
+
+    it('confirmOpening marks record and BidSupplier as confirmed', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
+      prisma.bidSupplier.update.mockResolvedValue(decryptedSupplier);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
+
+      const result = await service.confirmOpening('supplier-1', 'project-1');
+
+      expect(result.success).toBe(true);
+      expect(prisma.bidOpeningRecord.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ confirmStatus: '供应商已确认' }) }),
+      );
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ confirmStatus: 'CONFIRMED' }) }),
+      );
+    });
+
+    it('confirmOpening rejects when supplier not decrypted', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ ...decryptedSupplier, decryptStatus: 'PENDING' });
+
+      await expect(service.confirmOpening('supplier-1', 'project-1'))
+        .rejects.toMatchObject({ response: { code: 'NOT_DECRYPTED' } });
+    });
+
+    it('disputeOpening marks record disputed with reason and BidSupplier DISPUTED', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
+      prisma.bidSupplier.update.mockResolvedValue(decryptedSupplier);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
+
+      const result = await service.disputeOpening('supplier-1', 'project-1', '报价与提交不一致');
+
+      expect(result.success).toBe(true);
+      expect(prisma.bidOpeningRecord.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ confirmStatus: '供应商提出异议', objectionReason: '报价与提交不一致' }) }),
+      );
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ confirmStatus: 'DISPUTED' }) }),
+      );
+    });
+
+    it('disputeOpening requires a reason', async () => {
+      await expect(service.disputeOpening('supplier-1', 'project-1', ''))
+        .rejects.toMatchObject({ response: { code: 'MISSING_REASON' } });
     });
   });
 

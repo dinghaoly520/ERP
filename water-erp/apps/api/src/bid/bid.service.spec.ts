@@ -76,7 +76,7 @@ describe('BidService — stage transitions', () => {
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn() },
       bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
-      bidOpeningRecord: { create: jest.fn() },
+      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn() },
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
@@ -184,6 +184,67 @@ describe('BidService — stage transitions', () => {
         where: { id: 'bs-1' },
         data: expect.objectContaining({ decryptStatus: 'DANGER' }),
       });
+    });
+
+    it('creates a pending opening record and leaves BidSupplier confirmStatus PENDING', async () => {
+      await service.decryptSupplier('p1', 'bs-1', {
+        amount: '100', period: '30天', qualityTarget: '合格', bondStatus: '已缴纳',
+      } as any);
+
+      expect(prisma.bidOpeningRecord.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ bidSupplierId: 'bs-1', confirmStatus: '待供应商确认' }),
+        }),
+      );
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ confirmStatus: 'PENDING' }) }),
+      );
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ confirmStatus: 'CONFIRMED' }) }),
+      );
+    });
+  });
+
+  describe('resolveOpeningDispute', () => {
+    it('updates record handle result and BidSupplier status on confirm', async () => {
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        id: 'r1', projectId: 'p1', supplierName: '测试供应商', bidSupplierId: 'bs-1',
+      });
+      prisma.bidOpeningRecord.update.mockResolvedValue({});
+      prisma.bidOpeningRecord.findUnique.mockResolvedValue({ id: 'r1', confirmStatus: '异议已处理-确认' });
+      prisma.bidSupplier.update.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await service.resolveOpeningDispute('p1', 'r1', { result: '经核实无误', confirm: true });
+
+      expect(prisma.bidOpeningRecord.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'r1' }, data: expect.objectContaining({ handleResult: '经核实无误', confirmStatus: '异议已处理-确认' }) }),
+      );
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ confirmStatus: 'CONFIRMED' }) }),
+      );
+    });
+
+    it('sets BidSupplier EXCEPTION when dispute is not confirmed', async () => {
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        id: 'r1', projectId: 'p1', supplierName: '测试供应商', bidSupplierId: 'bs-1',
+      });
+      prisma.bidOpeningRecord.update.mockResolvedValue({});
+      prisma.bidOpeningRecord.findUnique.mockResolvedValue({ id: 'r1' });
+      prisma.bidSupplier.update.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await service.resolveOpeningDispute('p1', 'r1', { result: '异议成立', confirm: false });
+
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ confirmStatus: 'EXCEPTION' }) }),
+      );
+    });
+
+    it('rejects when record not found', async () => {
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+      await expect(service.resolveOpeningDispute('p1', 'r1', { result: 'x', confirm: true }))
+        .rejects.toThrow(BadRequestException);
     });
   });
 

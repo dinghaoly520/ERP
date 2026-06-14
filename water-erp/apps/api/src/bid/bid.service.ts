@@ -277,7 +277,7 @@ export class BidService {
         data: { decryptStatus: 'SUCCESS' },
       });
 
-      // Phase 4: 创建开标记录（仅当开标记录字段全部提供时）
+      // Phase 4: 创建开标记录（仅当开标记录字段全部提供时）——等待供应商确认，不再自动确认
       if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
         await tx.bidOpeningRecord.create({
           data: {
@@ -288,19 +288,20 @@ export class BidService {
             qualityTarget: dto.qualityTarget,
             bondStatus: dto.bondStatus,
             decryptResult: '解密成功',
-            confirmStatus: '待确认',
+            confirmStatus: '待供应商确认',
+            bidSupplierId: supplierId,
           },
         });
       }
 
-      // Phase 5: 确认
+      // Phase 5: 解密成功但保持待供应商确认状态，不自动 CONFIRMED
       const confirmed = await tx.bidSupplier.update({
         where: { id: supplierId },
-        data: { confirmStatus: 'CONFIRMED' },
+        data: { confirmStatus: 'PENDING' },
       });
 
       await tx.bidSupervisionLog.create({
-        data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: '解密成功并确认', riskFlag: '无' },
+        data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: '解密成功，等待供应商确认唱标信息', riskFlag: '无' },
       });
 
       return confirmed;
@@ -309,6 +310,31 @@ export class BidService {
 
   listOpeningRecords(projectId: string) {
     return this.prisma.bidOpeningRecord.findMany({ where: { projectId } });
+  }
+
+  async resolveOpeningDispute(projectId: string, recordId: string, dto: { result: string; confirm: boolean }) {
+    const record = await this.prisma.bidOpeningRecord.findFirst({ where: { id: recordId, projectId } });
+    if (!record) throw new BadRequestException({ error: '开标记录不存在', code: 'NOT_FOUND' });
+
+    const now = new Date();
+    const confirmStatus = dto.confirm ? '异议已处理-确认' : '异议已处理-退回';
+    await this.prisma.bidOpeningRecord.update({
+      where: { id: recordId },
+      data: { confirmStatus, handleResult: dto.result, handledAt: now },
+    });
+    if (record.bidSupplierId) {
+      await this.prisma.bidSupplier.update({
+        where: { id: record.bidSupplierId },
+        data: { confirmStatus: dto.confirm ? 'CONFIRMED' : 'EXCEPTION' },
+      });
+    }
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: now, role: '开标主持人', target: record.supplierName,
+        action: '处理开标异议', result: dto.result, riskFlag: '中风险',
+      },
+    });
+    return this.prisma.bidOpeningRecord.findUnique({ where: { id: recordId } });
   }
 
   listExperts(projectId: string) {

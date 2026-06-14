@@ -61,6 +61,7 @@ enum ConfirmStatus {
   CONFIRMED
   PENDING
   EXCEPTION
+  DISPUTED
 }
 
 enum ScoreCategory {
@@ -139,17 +140,26 @@ model BidOpeningSession {
 }
 
 model BidOpeningRecord {
-  id            String     @id @default(cuid())
-  projectId     String
-  supplierName  String
-  amount        String
-  period        String
-  qualityTarget String
-  bondStatus    String
-  decryptResult String
-  confirmStatus String
-  project       BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt     DateTime   @default(now())
+  id              String     @id @default(cuid())
+  projectId       String
+  supplierName    String
+  amount          String
+  period          String
+  qualityTarget   String
+  bondStatus      String
+  decryptResult   String
+  confirmStatus   String
+  // 供应商开标确认闭环：关联投标记录、异议原因、确认/处理时间与结果
+  bidSupplierId   String?
+  objectionReason String?
+  confirmedAt     DateTime?
+  handledAt       DateTime?
+  handledBy       String?
+  handleResult    String?
+  project         BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt       DateTime   @default(now())
+
+  @@index([bidSupplierId])
 }
 
 model BidExpert {

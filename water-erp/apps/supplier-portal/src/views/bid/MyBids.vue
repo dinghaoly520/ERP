@@ -49,6 +49,11 @@ async function handleWithdraw(submissionId: string) {
 function canWithdraw(row: any) {
   return row.status === 'submitted' && row.project?.stage === 'SUBMIT'
 }
+
+function canConfirmOpening(row: any) {
+  const stage = row.project?.stage
+  return row.status === 'submitted' && (stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED')
+}
 </script>
 
 <template>
@@ -91,6 +96,7 @@ function canWithdraw(row: any) {
         </div>
         <div class="progress-actions">
           <el-button type="primary" plain size="small" @click="router.push(`/bids/${row.projectId}`)">项目详情</el-button>
+          <el-button v-if="canConfirmOpening(row)" type="success" plain size="small" @click="router.push(`/my-bids/${row.projectId}/opening-confirm`)">开标确认</el-button>
           <el-button v-if="canWithdraw(row)" type="warning" plain size="small" @click="handleWithdraw(row.id)">撤回</el-button>
         </div>
       </div>

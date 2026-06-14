@@ -95,7 +95,12 @@ export interface BidClarification {
 export interface BidProjectDetail extends BidProject {
   suppliers: BidSupplier[];
   openingSession?: { host: string; supervisor: string; status: string; decryptWindowStart: string; decryptWindowEnd: string; remainingSeconds: number };
-  openingRecords: { supplierName: string; amount: string; period: string; qualityTarget: string; bondStatus: string; decryptResult: string; confirmStatus: string }[];
+  openingRecords: {
+    id: string; supplierName: string; amount: string; period: string; qualityTarget: string;
+    bondStatus: string; decryptResult: string; confirmStatus: string;
+    bidSupplierId?: string | null; objectionReason?: string | null;
+    confirmedAt?: string | null; handledAt?: string | null; handledBy?: string | null; handleResult?: string | null;
+  }[];
   experts: BidExpert[];
   scoreItems: BidScoreItem[];
   clarifications: BidClarification[];
