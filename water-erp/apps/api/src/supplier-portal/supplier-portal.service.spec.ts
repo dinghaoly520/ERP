@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SupplierPortalService } from './supplier-portal.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { BidDocumentService } from '../announcement/bid-document.service';
 
 describe('SupplierPortalService', () => {
   let service: SupplierPortalService;
@@ -27,7 +28,7 @@ describe('SupplierPortalService', () => {
   beforeEach(async () => {
     prisma = {
       supplier: { findUnique: jest.fn() },
-      bidProject: { findUnique: jest.fn(), findMany: jest.fn() },
+      bidProject: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       supplierEvaluation: { count: jest.fn() },
       supplierBidSubmission: {
         count: jest.fn(),
@@ -48,10 +49,16 @@ describe('SupplierPortalService', () => {
       supplierQualification: { count: jest.fn() },
       notification: { count: jest.fn() },
       user: { findUnique: jest.fn() },
+      announcement: { findFirst: jest.fn() },
+      bidDocument: { findUnique: jest.fn() },
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [SupplierPortalService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        SupplierPortalService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: BidDocumentService, useValue: { getForSupplier: jest.fn() } },
+      ],
     }).compile();
 
     service = module.get<SupplierPortalService>(SupplierPortalService);
@@ -381,11 +388,14 @@ describe('SupplierPortalService', () => {
 
   describe('listBidProjects', () => {
     it('返回招标项目列表，仅公开字段 + 投标方数量', async () => {
+      prisma.bidProject.count.mockResolvedValue(1);
       prisma.bidProject.findMany.mockResolvedValue([{ id: 'p1', name: '项目一', stage: 'SUBMIT' }]);
 
       const result = await service.listBidProjects();
 
-      expect(result).toHaveLength(1);
+      expect(result.items).toHaveLength(1);
+      expect(result.total).toBe(1);
+      expect(result.page).toBe(1);
       const select = prisma.bidProject.findMany.mock.calls[0][0].select;
       expect(select._count).toEqual({ select: { suppliers: true } });
       // 不得拉取其他投标方身份或评审内部数据

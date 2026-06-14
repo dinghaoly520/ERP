@@ -10,6 +10,8 @@ const bidStore = useBidStore()
 const loading = ref(true)
 const search = ref('')
 const filterStage = ref('')
+const currentPage = ref(1)
+const pageSize = 10
 
 const stageMap: Record<string, { label: string; color: string }> = {
   DOWNLOAD: { label: '文件下载', color: '#0891b2' },
@@ -48,11 +50,22 @@ function stageCount(stage: string) {
 
 onMounted(async () => {
   try {
-    await bidStore.fetchProjects()
+    await bidStore.fetchProjects(currentPage.value, pageSize)
   } finally {
     loading.value = false
   }
 })
+
+function handlePageChange(page: number) {
+  currentPage.value = page
+  loading.value = true
+  bidStore.fetchProjects(page, pageSize).finally(() => { loading.value = false })
+}
+
+function retry() {
+  loading.value = true
+  bidStore.fetchProjects(currentPage.value, pageSize).finally(() => { loading.value = false })
+}
 
 function isDeadlinePassed(deadline: string) {
   return new Date(deadline) < new Date()
@@ -71,6 +84,19 @@ function getCountdown(deadline: string) {
 
 <template>
   <div class="page-container bid-opportunity-page" v-loading="loading">
+    <el-alert
+      v-if="bidStore.error"
+      :title="bidStore.error"
+      type="error"
+      show-icon
+      :closable="false"
+      style="margin-bottom: 16px;"
+    >
+      <template #default>
+        <el-button size="small" type="primary" @click="retry">重试</el-button>
+      </template>
+    </el-alert>
+
     <div class="opportunity-header">
       <div>
         <div class="sp-page-eyebrow">Tender Opportunities</div>
@@ -115,11 +141,21 @@ function getCountdown(deadline: string) {
         </div>
         <el-button type="primary" plain size="small">详情</el-button>
       </div>
+
+      <div v-if="bidStore.total > pageSize" style="display: flex; justify-content: center; padding: 8px 0 0;">
+        <el-pagination
+          v-model:current-page="currentPage"
+          :total="bidStore.total"
+          :page-size="pageSize"
+          layout="prev, pager, next"
+          @current-change="handlePageChange"
+        />
+      </div>
     </div>
 
     <div v-else class="sp-card">
       <div class="sp-empty">
-        <div class="sp-empty-icon">📋</div>
+        <div class="sp-empty-icon"><el-icon :size="48"><Document /></el-icon></div>
         <div class="sp-empty-text">暂无招标项目</div>
         <div class="sp-empty-desc">当前没有符合条件的招标项目</div>
       </div>

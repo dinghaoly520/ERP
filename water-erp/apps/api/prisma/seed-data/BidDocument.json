@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "id": "cmqd000000000000000000001",
+    "announcementId": "cmqc073p90002kowtjnnyz3uq",
+    "fileAssetId": "cmqd000000000000000000002",
+    "title": "2026年度防汛抗旱物资储备采购招标文件",
+    "accessScope": "OPEN",
+    "requirePayment": false,
+    "price": null,
+    "decryptKey": "0000000000000000000000000000000000000000000000000000000000000000:000000000000000000000000:00000000000000000000000000000000",
+    "bidProjectId": null,
+    "downloadCount": 0,
+    "createdAt": "2026-06-13T06:57:56.349Z",
+    "updatedAt": "2026-06-13T06:57:56.349Z"
+  }
+]

@@ -104,7 +104,7 @@ function canConfirmOpening(row: any) {
 
     <div v-else class="sp-card">
       <div class="sp-empty">
-        <div class="sp-empty-icon">📄</div>
+        <div class="sp-empty-icon"><el-icon :size="48"><Document /></el-icon></div>
         <div class="sp-empty-text">暂无投标记录</div>
         <div class="sp-empty-desc">浏览招标项目并提交您的标书</div>
         <el-button type="primary" style="margin-top: 16px;" @click="router.push('/bids')">浏览招标机会</el-button>
