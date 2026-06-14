@@ -56,8 +56,7 @@ export function DashboardAiPanel({ context, className }: { context: DashboardCon
             <Sparkles size={16} strokeWidth={1.8} />
           </div>
           <div>
-            <h2 className="text-base font-black text-[#18243a]">AI 运营洞察</h2>
-            <p className="text-xs text-[#8a96aa]">水叮当智能管理助手</p>
+            <h2 className="text-base font-black text-[#18243a]">水叮当智能管理助手</h2>
           </div>
         </div>
         <button
