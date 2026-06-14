@@ -78,13 +78,7 @@ export default function SupplierEvaluationPage() {
 
   return (
     <div>
-      <PageHero eyebrow="供应商管理中心" title="供应商评价" description="沉淀供应商履约、质量、服务等评价记录。" tone="green" icon={<CheckCircle2 size={14} />} />
-
-      <div className="mb-6">
-        <div className="mb-2 inline-flex rounded-full border border-[#bbf7d0] bg-[#f0fdf4] px-3 py-1 text-xs font-semibold text-[#11a874]">供应商管理中心</div>
-        <h1 className="text-2xl font-bold text-[#0f2f57]">供应商评价</h1>
-        <p className="text-sm text-[#5a6d8a] mt-1">供应商履约评价：完整性 / 响应性 / 配合度 / 合规性 / 综合满意度</p>
-      </div>
+      <PageHero eyebrow="供应商管理中心" title="供应商评价" description="供应商履约评价：完整性 / 响应性 / 配合度 / 合规性 / 综合满意度。" tone="green" icon={<CheckCircle2 size={14} />} />
 
       {/* 评价等级分布 */}
       <div className="grid grid-cols-4 gap-4 mb-6">

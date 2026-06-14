@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { DataToolbar, MetricCard, PageHero, StatusBadge } from '@/components/workbench';
-import { ClipboardCheck } from 'lucide-react';
+import { Building2, ClipboardCheck } from 'lucide-react';
 import {
   listCatalogApplications,
   reviewCatalogApplication,
@@ -76,11 +76,7 @@ export default function CatalogReviewPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <div className="mb-2 inline-flex rounded-full border border-[#bbd7f5] bg-[#f0f6ff] px-3 py-1 text-xs font-semibold text-[#064ea2]">供应商管理中心</div>
-        <h1 className="text-2xl font-bold text-[#0f2f57]">目录供货审核</h1>
-        <p className="text-sm text-[#5a6d8a] mt-1">审核供应商的「新增品类 / 加入供货 / 改报价」申请，支持议价改价后通过</p>
-      </div>
+      <PageHero eyebrow="供应商管理中心" title="目录供货审核" description="审核供应商的「新增品类 / 加入供货 / 改报价」申请，支持议价改价后通过。" tone="green" icon={<Building2 size={14} />} />
 
       {/* 待办计数 */}
       <div className="grid grid-cols-3 gap-4 mb-6">
