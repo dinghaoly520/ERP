@@ -38,4 +38,16 @@ export class BidGateway {
   notifyStageChange(projectId: string, stage: string) {
     this.server.to(`project:${projectId}`).emit('stage:change', { stage });
   }
+
+  notifyScoreUpdate(projectId: string, data: { expertId: string; supplierId: string; scoreItemId: string; score: number }) {
+    this.server.to(`project:${projectId}`).emit('score:update', data);
+  }
+
+  notifyClarification(projectId: string, data: { id: string; question: string; issuer: string; supplierName: string; status: string }) {
+    this.server.to(`project:${projectId}`).emit('clarification:new', data);
+  }
+
+  notifyEvaluationProgress(projectId: string, data: { expertId: string; progress: number; totalScore: number }) {
+    this.server.to(`project:${projectId}`).emit('evaluation:progress', data);
+  }
 }

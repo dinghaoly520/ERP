@@ -534,7 +534,7 @@ export class BidService {
     }
 
     // 利用唯一约束 upsert：存在则更新，不存在则创建
-    return this.prisma.bidScoreRecord.upsert({
+    const record = await this.prisma.bidScoreRecord.upsert({
       where: {
         expertId_scoreItemId_supplierId: {
           expertId: dto.expertId,
@@ -551,6 +551,13 @@ export class BidService {
         reason: dto.reason,
       },
     });
+    this.gateway?.notifyScoreUpdate(projectId, {
+      expertId: dto.expertId,
+      supplierId: dto.supplierId,
+      scoreItemId: dto.scoreItemId,
+      score: Number(dto.score),
+    });
+    return record;
   }
 
   listScores(projectId: string) {
@@ -567,6 +574,15 @@ export class BidService {
   createClarification(projectId: string, dto: CreateClarificationDto) {
     return this.prisma.bidClarification.create({
       data: { projectId, question: dto.question, issuer: dto.issuer, supplierName: dto.supplierName },
+    }).then((created) => {
+      this.gateway?.notifyClarification(projectId, {
+        id: created.id,
+        question: dto.question,
+        issuer: dto.issuer,
+        supplierName: dto.supplierName,
+        status: '待回复',
+      });
+      return created;
     });
   }
 
