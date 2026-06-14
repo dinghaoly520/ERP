@@ -189,6 +189,51 @@
   width: 100%;
 }
 
+/* 流光溢彩边框 — 光影沿搜索框边缘流动 */
+.commandPanel::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 26px;
+  padding: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(88, 164, 255, 0.15),
+    rgba(145, 132, 255, 0.25) 20%,
+    rgba(74, 122, 255, 0.7) 35%,
+    rgba(214, 171, 103, 0.6) 50%,
+    rgba(112, 216, 189, 0.4) 65%,
+    rgba(88, 164, 255, 0.15) 85%,
+    rgba(88, 164, 255, 0.15)
+  );
+  background-size: 300% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: borderShimmer 3s ease-in-out infinite;
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+.commandPanel:focus-within::before {
+  opacity: 0.9;
+  animation-duration: 1.8s;
+}
+
+@keyframes borderShimmer {
+  0%   { background-position: 100% 0; }
+  50%  { background-position: 0% 0; }
+  100% { background-position: 100% 0; }
+}
+
+@keyframes sendPulse {
+  0%, 100% { box-shadow: 0 10px 24px rgba(86, 108, 223, 0.28), 0 0 24px rgba(214, 171, 103, 0.16); }
+  50%      { box-shadow: 0 14px 32px rgba(86, 108, 223, 0.40), 0 0 36px rgba(214, 171, 103, 0.28); }
+}
+
 .commandBox {
   display: flex;
   align-items: center;
@@ -204,7 +249,16 @@
     0 0 0 1px rgba(206, 220, 239, 0.22);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  transition: box-shadow 0.3s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.commandBox:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 14px 32px rgba(114, 140, 181, 0.12),
+    0 0 0 1px rgba(206, 220, 239, 0.35);
 }
 
 .commandBox:focus-within {
@@ -212,7 +266,6 @@
     0 0 0 4px rgba(149, 191, 255, 0.14),
     0 0 0 7px rgba(214, 171, 103, 0.08),
     0 12px 28px rgba(100, 126, 176, 0.12);
-  transform: translateY(-1px);
 }
 
 .aiInput {
@@ -229,6 +282,11 @@
 
 .aiInput::placeholder {
   color: var(--text-muted);
+  transition: opacity 0.3s ease;
+}
+
+.commandBox:focus-within .aiInput::placeholder {
+  opacity: 0.45;
 }
 
 .sendBtn {
@@ -256,6 +314,7 @@
   box-shadow:
     0 10px 24px rgba(86, 108, 223, 0.28),
     0 0 24px rgba(214, 171, 103, 0.16);
+  animation: sendPulse 2s ease-in-out infinite;
 }
 
 .sendBtn.active:hover {
@@ -328,13 +387,11 @@
   align-items: center;
   justify-content: center;
   border-radius: 16px;
-  color: #3d6fdb;
-  background:
-    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 48%),
-    linear-gradient(145deg, rgba(236, 244, 255, 0.96) 0%, rgba(222, 235, 255, 0.84) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 12px 24px rgba(72, 117, 191, 0.08);
+  color: var(--primary);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(201, 217, 239, 0.45);
 }
 
 .quickText {
@@ -351,9 +408,7 @@
 }
 
 .quickDesc {
-  font-size: var(--font-xs);
-  color: var(--text-muted);
-  display: none; /* 4列布局下隐藏描述，保持简洁 */
+  display: none;
 }
 
 /* ---------- 响应式 ---------- */

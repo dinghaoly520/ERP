@@ -13,7 +13,6 @@ const selectedGroup = ref<string>('')
 const selectedCategory = ref<string>('')
 const search = ref('')
 
-// 申请弹窗
 const dialogVisible = ref(false)
 const dialogMode = ref<'NEW_ITEM' | 'JOIN_EXISTING' | 'UPDATE_QUOTE' | 'edit'>('JOIN_EXISTING')
 const dialogItem = ref<any>(null)
@@ -30,9 +29,7 @@ async function loadAll() {
     myApplications.value = apps as any
     mySupply.value = supply as any
     await loadItems()
-  } finally {
-    loading.value = false
-  }
+  } finally { loading.value = false }
 }
 
 async function loadItems() {
@@ -43,9 +40,7 @@ async function loadItems() {
       category: selectedCategory.value || undefined,
       search: search.value.trim() || undefined,
     }) as any
-  } finally {
-    loading.value = false
-  }
+  } finally { loading.value = false }
 }
 
 function onSearch() { loadItems() }
@@ -62,29 +57,20 @@ function resetFilters() {
   selectedGroup.value = ''; selectedCategory.value = ''; search.value = ''; loadItems()
 }
 
-// 基于本地数据计算每条物资的供货/申请状态（避免逐条请求）
 function itemStatus(item: any) {
   const active = mySupply.value.find(s => s.catalogItemId === item.id)
   const inProgress = myApplications.value.find(
     a => a.catalogItemId === item.id && ['PENDING', 'COUNTERED', 'RETURNED'].includes(a.status),
   )
-  return {
-    hasActiveSupply: !!active,
-    inProgress,
-    canApplyJoin: !active && !inProgress,
-    canUpdateQuote: !!active && !inProgress,
-  }
+  return { hasActiveSupply: !!active, inProgress, canApplyJoin: !active && !inProgress, canUpdateQuote: !!active && !inProgress }
 }
 
 function openJoin(item: any) { dialogMode.value = 'JOIN_EXISTING'; dialogItem.value = item; dialogVisible.value = true }
 function openUpdate(item: any) { dialogMode.value = 'UPDATE_QUOTE'; dialogItem.value = item; dialogVisible.value = true }
 function openNewItem() { dialogMode.value = 'NEW_ITEM'; dialogItem.value = null; dialogVisible.value = true }
-
 function onDialogSuccess() { loadAll() }
 
-const statusTagType: Record<string, string> = {
-  '有效': 'success', '价格波动': 'warning', '即将过期': 'warning', '待复核': 'info',
-}
+const statusTagType: Record<string, string> = { '有效': 'success', '价格波动': 'warning', '即将过期': 'warning', '待复核': 'info' }
 
 onMounted(loadAll)
 </script>
@@ -95,12 +81,12 @@ onMounted(loadAll)
       <div>
         <div class="sp-page-eyebrow">Procurement Catalog</div>
         <h1 class="sp-modern-title">集中采购目录</h1>
-        <p class="sp-modern-desc">浏览集团集中采购目录品类，申请加入供货或新增品类（仅展示品类信息，不展示价格）</p>
+        <p class="sp-modern-desc">浏览集团集中采购目录品类，申请加入供货或调整报价。</p>
       </div>
     </div>
 
     <div class="catalog-layout">
-      <!-- 品类树 -->
+      <!-- Category tree -->
       <aside class="cat-sidebar">
         <div class="cat-sidebar-title">品类导航</div>
         <div class="cat-tree">
@@ -111,30 +97,24 @@ onMounted(loadAll)
             </div>
             <transition name="cat-sub">
               <div v-if="selectedGroup === node.group" class="cat-sub">
-                <div
-                  v-for="c in node.categories" :key="c"
+                <div v-for="c in node.categories" :key="c"
                   class="cat-leaf" :class="{ active: selectedCategory === c }"
-                  @click.stop="selectCategory(c)"
-                >{{ c }}</div>
+                  @click.stop="selectCategory(c)">{{ c }}</div>
               </div>
             </transition>
           </div>
         </div>
       </aside>
 
-      <!-- 物资列表 -->
+      <!-- Item list -->
       <section class="cat-main">
         <div class="cat-toolbar">
-          <el-input
-            v-model="search" placeholder="搜索物资 / 规格 / 编码" clearable
-            style="width: 280px;" :prefix-icon="'Search'" @keyup.enter="onSearch" @clear="onSearch"
-          />
-          <el-button @click="onSearch">搜索</el-button>
+          <el-input v-model="search" placeholder="搜索物资 / 规格 / 编码" clearable
+            style="width: 280px;" :prefix-icon="'Search'" @keyup.enter="onSearch" @clear="onSearch" />
+          <el-button type="primary" @click="onSearch">搜索</el-button>
           <el-button @click="resetFilters">重置</el-button>
           <div style="flex: 1;" />
-          <el-button type="primary" @click="openNewItem">
-            <el-icon style="margin-right: 4px;"><Plus /></el-icon>新增品类申请
-          </el-button>
+          <el-button type="primary" @click="openNewItem">新增品类申请</el-button>
         </div>
 
         <div class="cat-filter-bar" v-if="selectedGroup || selectedCategory || search">
@@ -192,102 +172,52 @@ onMounted(loadAll)
       </section>
     </div>
 
-    <ApplicationDialog
-      v-model="dialogVisible"
-      :mode="dialogMode"
-      :item="dialogItem"
-      @success="onDialogSuccess"
-    />
+    <ApplicationDialog v-model="dialogVisible" :mode="dialogMode" :item="dialogItem" @success="onDialogSuccess" />
   </div>
 </template>
 
 <style scoped>
-.catalog-layout {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-}
+.catalog-layout { display: flex; gap: 16px; align-items: flex-start; }
 
 .cat-sidebar {
-  width: 220px;
-  flex-shrink: 0;
-  background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
-  border-radius: var(--sp-radius-md);
-  padding: 12px;
-  position: sticky;
-  top: 16px;
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
+  width: 220px; flex-shrink: 0;
+  background: #fff; border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-md); padding: 14px;
+  position: sticky; top: 16px;
+  max-height: calc(100vh - 120px); overflow-y: auto;
 }
-.cat-sidebar-title {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--sp-gray-500);
-  padding: 4px 8px 10px;
-  letter-spacing: 0.05em;
-}
+.cat-sidebar-title { font-size: 12px; font-weight: 800; color: var(--sp-gray-500); padding: 4px 8px 10px; letter-spacing: 0.05em; text-transform: uppercase; }
 .cat-node { margin-bottom: 2px; }
 .cat-group {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 9px 12px;
-  border-radius: var(--sp-radius-sm);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--sp-gray-700);
-  cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-radius: var(--sp-radius-sm);
+  font-size: 14px; font-weight: 700; color: var(--sp-gray-700); cursor: pointer;
   transition: all 0.15s;
 }
 .cat-group:hover { background: var(--sp-gray-50); color: var(--sp-primary); }
 .cat-group.active { background: var(--sp-primary); color: #fff; }
 .cat-group.active .cat-count { background: rgba(255,255,255,0.25); color: #fff; }
-.cat-count {
-  font-size: 11px;
-  font-weight: 700;
-  background: var(--sp-gray-100);
-  color: var(--sp-gray-500);
-  padding: 1px 7px;
-  border-radius: 10px;
-}
+.cat-count { font-size: 11px; font-weight: 700; background: var(--sp-gray-100); color: var(--sp-gray-500); padding: 1px 8px; border-radius: 10px; }
 .cat-sub { padding: 4px 0 6px 8px; }
 .cat-leaf {
-  padding: 7px 14px;
-  font-size: 13px;
-  color: var(--sp-gray-600);
-  border-radius: var(--sp-radius-sm);
-  cursor: pointer;
-  transition: all 0.15s;
+  padding: 7px 14px; font-size: 13px; color: var(--sp-gray-600);
+  border-radius: var(--sp-radius-sm); cursor: pointer; transition: all 0.15s;
 }
 .cat-leaf:hover { background: var(--sp-gray-50); color: var(--sp-primary); }
 .cat-leaf.active { color: var(--sp-primary); font-weight: 700; background: var(--sp-primary-lighter); }
 
 .cat-main { flex: 1; min-width: 0; }
 .cat-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
-  border-radius: var(--sp-radius-md);
-  padding: 14px 16px;
-  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 10px;
+  background: #fff; border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-md); padding: 14px 16px; margin-bottom: 12px;
 }
-.cat-filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 0 4px;
-}
+.cat-filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 0 4px; }
 .cat-result-count { font-size: 13px; color: var(--sp-gray-400); }
 
 .cat-table-wrap {
-  background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
-  border-radius: var(--sp-radius-md);
-  overflow: hidden;
+  background: #fff; border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-md); overflow: hidden;
 }
 .cell-code { font-family: monospace; font-size: 12px; color: var(--sp-primary); font-weight: 700; }
 .cell-name { font-size: 14px; color: var(--sp-gray-900); font-weight: 600; margin-top: 2px; }

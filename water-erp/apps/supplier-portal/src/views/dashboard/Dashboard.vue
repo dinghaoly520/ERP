@@ -168,11 +168,11 @@ async function handleChangePassword() {
         </div>
       </section>
 
-      <!-- Key metrics: tabular stat row -->
-      <div class="sp-stat-row" v-if="stats">
-        <div class="sp-stat-cell" v-for="item in metrics" :key="item.label" @click="router.push(item.path)" style="cursor:pointer">
-          <div class="sp-stat-cell-value">{{ item.value }}</div>
-          <div class="sp-stat-cell-label">{{ item.label }}</div>
+      <!-- Key metrics -->
+      <div class="db-metrics" v-if="stats">
+        <div class="db-metric" v-for="item in metrics" :key="item.label" @click="router.push(item.path)" style="cursor:pointer">
+          <div class="db-metric-value">{{ item.value }}</div>
+          <div class="db-metric-label">{{ item.label }}</div>
         </div>
       </div>
 
@@ -218,15 +218,15 @@ async function handleChangePassword() {
         </div>
 
         <aside class="db-side">
-          <!-- Profile completeness (independent module) -->
+          <!-- Profile completeness -->
           <div class="sp-module">
             <ProfileCompleteness :score="completeness.score" :missing="completeness.missing" />
           </div>
 
-          <!-- Tasks (independent module) -->
+          <!-- Tasks -->
           <div class="sp-module">
-            <div class="db-section-head" style="margin-bottom:12px;padding-bottom:10px">
-              <h2 class="db-section-title">今日待办</h2>
+            <div class="sp-module-header">
+              <h2 class="sp-module-title">今日待办</h2>
             </div>
             <div class="db-task-list">
               <div v-for="task in tasks" :key="task.title" class="db-task-row" @click="router.push(task.path)">
@@ -239,10 +239,10 @@ async function handleChangePassword() {
             </div>
           </div>
 
-          <!-- Unread notifications (independent module) -->
+          <!-- Unread notifications -->
           <div class="sp-module" v-if="visibleNotifications.length > 0">
-            <div class="db-section-head" style="margin-bottom:10px;padding-bottom:10px">
-              <h2 class="db-section-title">未读消息</h2>
+            <div class="sp-module-header">
+              <h2 class="sp-module-title">未读消息</h2>
               <el-button link type="primary" @click="router.push('/notifications')">处理</el-button>
             </div>
             <div v-for="n in visibleNotifications" :key="n.id" class="db-msg-row" @click="router.push('/notifications')">
@@ -257,64 +257,94 @@ async function handleChangePassword() {
 </template>
 
 <style scoped>
-/* Hero */
+/* Hero — light, clean */
 .db-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 180px;
   gap: 24px;
   align-items: center;
   padding: 28px 32px;
-  background: #042a58;
+  background: #fff;
+  border: 1px solid var(--sp-border);
   border-radius: var(--sp-radius-md);
-  color: #fff;
+  color: var(--sp-gray-900);
   margin-bottom: 24px;
 }
-.db-hero-eyebrow { color: rgba(255,255,255,.55); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.db-hero-eyebrow { color: var(--sp-primary); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 .db-hero-title { margin-top: 6px; font-size: 28px; font-weight: 900; letter-spacing: -0.03em; line-height: 1.15; }
-.db-hero-desc { margin-top: 8px; color: rgba(255,255,255,.72); font-size: 13px; max-width: 620px; }
-.db-hero-status { background: rgba(255,255,255,.88) !important; margin: 0 4px; }
+.db-hero-desc { margin-top: 8px; color: var(--sp-gray-500); font-size: 13px; max-width: 620px; }
+.db-hero-status { margin: 0 4px; }
 .db-hero-actions { display: flex; gap: 8px; margin-top: 18px; }
 .db-hero-btn {
-  background: rgba(255,255,255,.12) !important;
-  border: 1px solid rgba(255,255,255,.22) !important;
-  color: #fff !important;
+  background: var(--sp-primary-lighter) !important;
+  border: 1px solid var(--sp-border) !important;
+  color: var(--sp-primary) !important;
   border-radius: var(--sp-radius-sm) !important;
   font-weight: 700; font-size: 13px;
 }
-.db-hero-btn:hover { background: rgba(255,255,255,.2) !important; }
+.db-hero-btn:hover { background: #dbeafe !important; border-color: var(--sp-primary) !important; }
 
 .db-hero-score {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 20px 16px;
-  border: 1px solid rgba(255,255,255,.14);
+  border: 1px solid var(--sp-border-light);
   border-radius: var(--sp-radius-sm);
-  background: rgba(255,255,255,.06);
+  background: var(--sp-primary-lighter);
 }
-.db-hero-score-num { font-size: 44px; font-weight: 950; line-height: 1; font-variant-numeric: tabular-nums; }
-.db-hero-score-num small { font-size: 16px; font-weight: 600; opacity: .6; }
-.db-hero-score-label { margin-top: 6px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; }
-.db-hero-score-hint { margin-top: 2px; font-size: 11px; color: rgba(255,255,255,.5); }
+.db-hero-score-num { font-size: 44px; font-weight: 950; line-height: 1; color: var(--sp-primary); font-variant-numeric: tabular-nums; }
+.db-hero-score-num small { font-size: 16px; font-weight: 600; color: var(--sp-gray-400); }
+.db-hero-score-label { margin-top: 6px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--sp-gray-700); }
+.db-hero-score-hint { margin-top: 2px; font-size: 11px; color: var(--sp-gray-400); }
+
+/* Metrics row */
+.db-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.db-metric {
+  background: #fff;
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-md);
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.db-metric:hover { border-color: var(--sp-primary); }
+.db-metric-value {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--sp-gray-900);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.db-metric-label {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sp-gray-500);
+}
 
 /* Two-column grid */
 .db-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
-.db-main, .db-side { display: grid; gap: 20px; }
+.db-main, .db-side { display: grid; gap: 16px; }
 
-/* Section (flat, bordered) */
+/* Section */
 .db-section {
-  background: var(--sp-surface);
+  background: #fff;
   border: 1px solid var(--sp-border);
-  border-radius: var(--sp-radius-sm);
+  border-radius: var(--sp-radius-md);
   padding: 16px 18px;
 }
 .db-section-head {
   display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 12px; padding-bottom: 12px;
-  border-bottom: 1px solid var(--sp-border);
+  border-bottom: 1px solid var(--sp-border-light);
 }
 .db-section-title { font-size: 13px; font-weight: 800; color: var(--sp-gray-700); letter-spacing: 0.03em; }
 .db-empty { padding: 20px 0 8px; text-align: center; color: var(--sp-gray-400); font-size: 13px; }
 
-/* Project rows */
 .db-project-row {
   display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; align-items: center;
   padding: 14px 0; border-bottom: 1px solid var(--sp-border-light); cursor: pointer;
@@ -322,10 +352,9 @@ async function handleChangePassword() {
 .db-project-row:last-child { border-bottom: none; }
 .db-project-row:hover { background: var(--sp-surface-hover); margin: 0 -16px; padding: 14px 16px; }
 .db-project-name { display: block; font-size: 14px; font-weight: 800; color: var(--sp-gray-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.db-project-code { display: block; margin-top: 2px; font-size: 11px; color: var(--sp-gray-400); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.db-project-code { display: block; margin-top: 2px; font-size: 11px; color: var(--sp-gray-400); font-family: monospace; }
 .db-project-meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
-/* Announcement rows */
 .db-ann-row {
   display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 10px; align-items: center;
   padding: 12px 0; border-bottom: 1px solid var(--sp-border-light); cursor: pointer;
@@ -335,7 +364,6 @@ async function handleChangePassword() {
 .db-ann-title { font-size: 13px; color: var(--sp-gray-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-ann-date { font-size: 11px; color: var(--sp-gray-400); font-variant-numeric: tabular-nums; }
 
-/* Task rows */
 .db-task-list { display: grid; gap: 6px; }
 .db-task-row {
   display: flex; gap: 10px; align-items: flex-start;
@@ -346,7 +374,6 @@ async function handleChangePassword() {
 .db-task-title { font-size: 13px; font-weight: 800; color: var(--sp-gray-900); }
 .db-task-desc { margin-top: 1px; font-size: 11px; color: var(--sp-gray-500); }
 
-/* Message rows */
 .db-msg-row {
   display: flex; justify-content: space-between; align-items: center;
   padding: 10px 0; border-bottom: 1px solid var(--sp-border-light); cursor: pointer;
@@ -364,6 +391,7 @@ async function handleChangePassword() {
   .db-hero { grid-template-columns: 1fr; padding: 20px; }
   .db-hero-title { font-size: 22px; }
   .db-hero-score { flex-direction: row; gap: 16px; padding: 14px; }
+  .db-metrics { grid-template-columns: repeat(2, 1fr); }
   .db-side { grid-template-columns: 1fr; }
   .db-project-row { grid-template-columns: 1fr; }
 }

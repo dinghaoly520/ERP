@@ -5,10 +5,10 @@
 
 :root {
   /* Primary palette — Sichuan Water / procurement trust */
-  --sp-primary: #0756a5;
-  --sp-primary-light: #1684d8;
-  --sp-primary-lighter: #e8f4ff;
-  --sp-primary-dark: #042a58;
+  --sp-primary: #064ea2;
+  --sp-primary-light: #0b63ce;
+  --sp-primary-lighter: #eff6ff;
+  --sp-primary-dark: #054280;
 
   /* Water brand accents */
   --sp-cyan: #06a8c9;
@@ -38,14 +38,14 @@
   --sp-bg: #f4f7fb;
   --sp-surface: #ffffff;
   --sp-surface-hover: #f8fafc;
-  --sp-border: #dce3eb;
-  --sp-border-light: #e9eef4;
+  --sp-border: #dce6f3;
+  --sp-border-light: #edf2f7;
 
-  /* Radius — industrial precision: sharp, minimal */
-  --sp-radius-sm: 3px;
-  --sp-radius-md: 5px;
-  --sp-radius-lg: 7px;
-  --sp-radius-xl: 10px;
+  /* Radius — rounded-xl/rounded-2xl (matching 3004 mall-management style) */
+  --sp-radius-sm: 10px;
+  --sp-radius-md: 14px;
+  --sp-radius-lg: 16px;
+  --sp-radius-xl: 20px;
   --sp-radius-full: 999px;
 
   /* Transitions */
@@ -91,9 +91,9 @@ a:hover { color: var(--sp-primary-light); }
   --el-button-text-color: var(--sp-primary);
 }
 .el-button--default { box-shadow: none; border-radius: var(--sp-radius-sm); }
-.el-button--success { --el-button-bg-color: var(--sp-green); --el-button-border-color: var(--sp-green); }
-.el-button--warning { --el-button-bg-color: var(--sp-orange); --el-button-border-color: var(--sp-orange); }
-.el-button--danger { --el-button-bg-color: var(--sp-red); --el-button-border-color: var(--sp-red); }
+.el-button--success { --el-button-bg-color: var(--sp-green); --el-button-border-color: var(--sp-green); border-radius: var(--sp-radius-sm); }
+.el-button--warning { --el-button-bg-color: var(--sp-orange); --el-button-border-color: var(--sp-orange); border-radius: var(--sp-radius-sm); }
+.el-button--danger { --el-button-bg-color: var(--sp-red); --el-button-border-color: var(--sp-red); border-radius: var(--sp-radius-sm); }
 
 .el-input__wrapper,
 .el-textarea__inner {
@@ -102,14 +102,14 @@ a:hover { color: var(--sp-primary-light); }
 }
 
 .el-card {
-  border-radius: var(--sp-radius-sm) !important;
+  border-radius: var(--sp-radius-md) !important;
   border: 1px solid var(--sp-border) !important;
   box-shadow: none !important;
 }
 
 .el-table {
   --el-table-border-color: var(--sp-border-light);
-  --el-table-header-bg-color: var(--sp-gray-50);
+  --el-table-header-bg-color: #f3f7fc;
   --el-table-header-text-color: var(--sp-gray-700);
   --el-table-row-hover-bg-color: var(--sp-primary-lighter);
   border-radius: 0;
@@ -118,14 +118,16 @@ a:hover { color: var(--sp-primary-light); }
   font-weight: 600;
   font-size: 12px;
   letter-spacing: 0.04em;
-  color: var(--sp-gray-500);
+  color: #5a6d8a;
   border-bottom: 1px solid var(--sp-border);
 }
 
 .el-dialog { border-radius: var(--sp-radius-md) !important; }
 .el-dialog__header { border-bottom: 1px solid var(--sp-border); padding-bottom: 12px; }
 
-.el-tag { border-radius: var(--sp-radius-sm) !important; font-weight: 600; }
+.el-tag { border-radius: 8px !important; font-weight: 600; }
+.el-tag--primary { --el-tag-bg-color: var(--sp-primary-lighter); --el-tag-border-color: #bfdbfe; --el-tag-text-color: var(--sp-primary); }
+.el-tag--success { --el-tag-bg-color: #ecfdf5; --el-tag-border-color: #a7f3d0; --el-tag-text-color: #065f46; }
 
 .el-form-item__label { font-weight: 600; color: var(--sp-gray-600); font-size: 13px; }
 
@@ -395,7 +397,7 @@ a:hover { color: var(--sp-primary-light); }
   border-radius: var(--sp-radius-md);
   padding: 28px;
   color: #fff;
-  background: linear-gradient(135deg, #042a58 0%, #0756a5 40%, #0a7abf 100%);
+  background: linear-gradient(135deg, #054280 0%, #064ea2 40%, #0b63ce 100%);
 }
 
 /* ─── Hairline list row ─── */

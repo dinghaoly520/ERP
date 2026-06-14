@@ -1,72 +1,126 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import styles from './assistant-home.module.css';
-import { Sparkles, Send, Loader2, BarChart3, AlertTriangle, Users, ShoppingBag, FileText, Calendar, Search } from 'lucide-react';
+import { Send, Loader2, Gauge, Search, ShieldAlert, Users, ShoppingBag, CalendarClock, ScrollText, Wrench } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { api } from '@/lib/api';
+
+type QuickStats = {
+  procurement: { total: number; pending: number };
+  bid: { total: number; active: number };
+  supplier: { total: number; approved: number; pending: number; risk: number };
+  expert: { total: number; available: number };
+  announcement: { published: number };
+  catalog: { items: number };
+  notification: { unread: number };
+  focusAreas: string[];
+};
+
+type Card = {
+  icon: LucideIcon;
+  label: string;
+  subtitle: string;
+  tool: string;
+  args: Record<string, unknown>;
+};
+
+function buildCards(s: QuickStats | null): Card[] {
+  const LOADING: Card[] = Array.from({ length: 8 }, () => ({
+    icon: Gauge, label: '加载中...', subtitle: '', tool: 'global_overview', args: { action: 'stats' },
+  }));
+
+  if (!s) return LOADING;
+
+  const { procurement, bid, supplier, catalog, notification, focusAreas } = s;
+
+  return [
+    {
+      icon: Gauge,
+      label: '董事长驾驶舱',
+      subtitle: procurement.total === 0
+        ? '尚无采购项目 · 建议启动立项'
+        : bid.active > 0
+          ? `${bid.active} 个招标进行中· ${procurement.pending} 个待审批`
+          : `${procurement.total} 个采购 · ${bid.total} 个招标`,
+      tool: 'global_overview', args: { action: 'stats' },
+    },
+    {
+      icon: Search,
+      label: '全系统数据问答',
+      subtitle: focusAreas.length > 0
+        ? `⚠ ${focusAreas.slice(0, 2).join(' · ')}`
+        : '系统各模块运行正常',
+      tool: focusAreas.length > 0 ? 'bid' : 'global_overview',
+      args: focusAreas.length > 0 ? { action: 'active' } : { action: 'stats' },
+    },
+    {
+      icon: ShieldAlert,
+      label: '招采风险扫描',
+      subtitle: supplier.risk > 0
+        ? `⚠ ${supplier.risk} 家供应商有风险`
+        : bid.active > 0
+          ? `${bid.active} 个项目在开/评标中`
+          : '暂无风险项目',
+      tool: 'bid', args: { action: supplier.risk > 0 ? 'risks' : 'stats' },
+    },
+    {
+      icon: Users,
+      label: '供应商画像',
+      subtitle: supplier.pending > 0
+        ? `${supplier.approved} 家已入库 · ${supplier.pending} 家待审核`
+        : `${supplier.approved} 家已入库 · 状态良好`,
+      tool: 'supplier', args: { action: supplier.pending > 0 ? 'pending' : 'stats' },
+    },
+    {
+      icon: ShoppingBag,
+      label: '商城经营分析',
+      subtitle: catalog.items > 0
+        ? `${catalog.items} 个目录商品 · 可查看价格趋势`
+        : '暂无目录数据',
+      tool: 'mall', args: { action: 'stats' },
+    },
+    {
+      icon: CalendarClock,
+      label: '今日重点事项',
+      subtitle: bid.active > 0
+        ? `${bid.active} 个招标项目进行中`
+        : notification.unread > 0
+          ? `${notification.unread} 条未读通知`
+          : '暂无紧急事项',
+      tool: bid.active > 0 ? 'bid' : 'notification',
+      args: bid.active > 0 ? { action: 'active' } : { action: 'list' },
+    },
+    {
+      icon: ScrollText,
+      label: '汇报材料生成',
+      subtitle: bid.total > 0
+        ? `基于 ${bid.total} 个招标项目生成汇报`
+        : '招采运行情况汇报提纲',
+      tool: 'global_overview', args: { action: 'stats' },
+    },
+    {
+      icon: Wrench,
+      label: '业务操作助手',
+      subtitle: supplier.pending > 0
+        ? `${supplier.pending} 家供应商待审核`
+        : procurement.pending > 0
+          ? `${procurement.pending} 个采购项目待审批`
+          : '暂无待办事项',
+      tool: supplier.pending > 0 ? 'supplier' : procurement.pending > 0 ? 'procurement' : 'supplier',
+      args: supplier.pending > 0
+        ? { action: 'pending' }
+        : procurement.pending > 0
+          ? { action: 'pending' }
+          : { action: 'stats' },
+    },
+  ];
+}
 
 const copy = {
   title: '智慧水发 · 蜀水云采',
   placeholder: '输入问题 / 生成分析 / 操作业务，如：汇总本月招采风险并画趋势图',
 };
-
-const quickCards = [
-  {
-    icon: BarChart3,
-    title: '董事长驾驶舱',
-    desc: '全局经营态势',
-    tool: 'global_overview',
-    args: { action: 'stats' },
-  },
-  {
-    icon: Search,
-    title: '全系统数据问答',
-    desc: '自然语言查询',
-    tool: 'global_overview',
-    args: { action: 'stats' },
-  },
-  {
-    icon: AlertTriangle,
-    title: '招采风险扫描',
-    desc: '智能风险识别',
-    tool: 'bid',
-    args: { action: 'risks' },
-  },
-  {
-    icon: Users,
-    title: '供应商画像',
-    desc: '风险与信用分析',
-    tool: 'supplier',
-    args: { action: 'stats' },
-  },
-  {
-    icon: ShoppingBag,
-    title: '商城经营分析',
-    desc: '价格与供货趋势',
-    tool: 'mall',
-    args: { action: 'stats' },
-  },
-  {
-    icon: Calendar,
-    title: '今日重点事项',
-    desc: '开评标与审批',
-    tool: 'bid',
-    args: { action: 'active' },
-  },
-  {
-    icon: FileText,
-    title: '汇报材料生成',
-    desc: '智能撰稿辅助',
-    tool: 'global_overview',
-    args: { action: 'stats' },
-  },
-  {
-    icon: Sparkles,
-    title: '业务操作助手',
-    desc: '审批与变更协同',
-    tool: 'supplier',
-    args: { action: 'pending' },
-  },
-];
 
 function useMouseSpotlight() {
   const layerRef = useRef<HTMLDivElement>(null);
@@ -76,20 +130,13 @@ function useMouseSpotlight() {
 
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
-      targetRef.current = {
-        x: e.clientX / window.innerWidth,
-        y: e.clientY / window.innerHeight,
-      };
+      targetRef.current = { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight };
     };
-
     const animate = () => {
       const t = targetRef.current;
       const c = currentRef.current;
-      // 平滑插值
-      const speed = 0.08;
-      c.x += (t.x - c.x) * speed;
-      c.y += (t.y - c.y) * speed;
-
+      c.x += (t.x - c.x) * 0.08;
+      c.y += (t.y - c.y) * 0.08;
       const el = layerRef.current;
       if (el) {
         el.style.setProperty('--spotlight-x', `${c.x * 100}%`);
@@ -97,10 +144,8 @@ function useMouseSpotlight() {
       }
       rafRef.current = requestAnimationFrame(animate);
     };
-
     window.addEventListener('mousemove', handleMove, { passive: true });
     rafRef.current = requestAnimationFrame(animate);
-
     return () => {
       window.removeEventListener('mousemove', handleMove);
       cancelAnimationFrame(rafRef.current);
@@ -118,7 +163,20 @@ export function AssistantHome({
   isLoading?: boolean;
 }) {
   const [inputValue, setInputValue] = useState('');
+  const [stats, setStats] = useState<QuickStats | null>(null);
   const spotlightRef = useMouseSpotlight();
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get<QuickStats>('/assistant/quick-stats').then((s) => {
+      if (!cancelled) setStats(s);
+    }).catch(() => {
+      // cards stay at loading state
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const cards = useMemo(() => buildCards(stats), [stats]);
 
   const handleSend = useCallback(() => {
     const trimmed = inputValue.trim();
@@ -129,7 +187,6 @@ export function AssistantHome({
 
   return (
     <div className={styles.home}>
-      {/* 鼠标跟随光影 */}
       <div ref={spotlightRef} className={styles.spotlightLayer} />
       <section className={styles.hero}>
         {/* 品牌区 */}
@@ -163,35 +220,34 @@ export function AssistantHome({
               disabled={!inputValue.trim() || isLoading}
               type="button"
             >
-              {isLoading ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Send size={18} />
-              )}
+              {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
             </button>
           </div>
         </div>
 
-        {/* 快捷入口 */}
+        {/* 快捷入口 — 实时状态动态生成 */}
         <div className={styles.quickCards}>
-          {quickCards.map((card) => (
-            <button
-              key={card.title}
-              className={styles.quickCard}
-              onClick={() => {
-                const argsStr = JSON.stringify(card.args);
-                onSend(`请调用 ${card.tool} 工具，参数 ${argsStr}，获取最新数据后给我一份针对性的分析与建议。`);
-              }}
-              type="button"
-            >
-              <span className={styles.quickIcon}>
-                <card.icon size={24} strokeWidth={1.8} />
-              </span>
-              <span className={styles.quickText}>
-                <span className={styles.quickTitle}>{card.title}</span>
-              </span>
-            </button>
-          ))}
+          {cards.map((card, idx) => {
+            const IconComponent = card.icon;
+            return (
+              <button
+                key={idx}
+                className={styles.quickCard}
+                onClick={() => {
+                  const argsStr = JSON.stringify(card.args);
+                  onSend(`请调用 ${card.tool} 工具，参数 ${argsStr}，获取最新数据后给我一份针对性的分析与建议。`);
+                }}
+                type="button"
+              >
+                <span className={styles.quickIcon}>
+                  <IconComponent size={24} strokeWidth={1.8} />
+                </span>
+                <span className={styles.quickText}>
+                  <span className={styles.quickTitle}>{card.label}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
       </section>
     </div>
