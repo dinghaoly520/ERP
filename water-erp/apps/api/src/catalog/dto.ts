@@ -98,10 +98,12 @@ export class CatalogItemAdminDto {
   region!: string;
 
   @IsOptional()
+  @Type(() => Boolean)
   @IsBoolean()
   taxIncluded?: boolean;
 
   @IsOptional()
+  @Type(() => Boolean)
   @IsBoolean()
   freightIncluded?: boolean;
 
@@ -120,6 +122,7 @@ export class CatalogItemAdminDto {
   @IsIn(CATALOG_STATUSES)
   status?: CatalogStatus;
 
+  @IsOptional()
   @ValidateIf((_, value) => value !== null && value !== undefined && value !== '')
   @IsDateString()
   validUntil?: string | null;

@@ -2,12 +2,12 @@ import { BadRequestException } from '@nestjs/common';
 import { Readable } from 'stream';
 import { Workbook } from 'exceljs';
 
-import { CatalogStatus } from './dto';
+import type { CatalogItemAdminDto, CatalogStatus } from './dto';
 
 export interface CatalogImportRowResult {
   rowNumber: number;
   code: string;
-  data?: Record<string, unknown>;
+  data?: CatalogItemAdminDto;
   errors: string[];
 }
 
@@ -76,7 +76,10 @@ const REQUIRED_FIELDS = [
   'region',
 ];
 
-const NUMBER_FIELDS = [
+const NUMBER_FIELDS: Array<keyof Pick<
+  CatalogItemAdminDto,
+  'referencePrice' | 'priceMin' | 'priceMax' | 'lastDealPrice' | 'averagePrice' | 'changeRate'
+>> = [
   'referencePrice',
   'priceMin',
   'priceMax',
@@ -85,7 +88,20 @@ const NUMBER_FIELDS = [
   'changeRate',
 ];
 
-const STRING_FIELDS = [
+const STRING_FIELDS: Array<keyof Pick<
+  CatalogItemAdminDto,
+  | 'code'
+  | 'name'
+  | 'specification'
+  | 'category'
+  | 'group'
+  | 'unit'
+  | 'supplier'
+  | 'supplierType'
+  | 'priceSource'
+  | 'region'
+  | 'minOrder'
+>> = [
   'code',
   'name',
   'specification',
@@ -166,7 +182,7 @@ export function normalizeCatalogImportRow(
     errors.push('referencePrice必须是数字');
   }
 
-  const data: Record<string, unknown> = {};
+  const data = {} as CatalogItemAdminDto;
 
   for (const field of STRING_FIELDS) {
     data[field] = cellText(normalized[field]);
