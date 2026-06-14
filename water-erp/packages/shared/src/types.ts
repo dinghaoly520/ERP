@@ -92,6 +92,8 @@ export interface BidClarification {
   supplierName: string;
   status: string;
   reply?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface BidProjectDetail extends BidProject {

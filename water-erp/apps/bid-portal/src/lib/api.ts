@@ -44,3 +44,4 @@ export const api = {
 };
 
 export * from './api/supplier';
+export * from './api/bid';

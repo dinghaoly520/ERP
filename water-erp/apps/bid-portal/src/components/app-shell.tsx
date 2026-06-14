@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
 import {
-  LayoutDashboard, Unlock, Shield, ClipboardCheck, Archive,
+  LayoutDashboard, Unlock, Shield, ClipboardCheck, Archive, MessageSquare,
   LogOut, PanelLeftClose, PanelLeft,
 } from 'lucide-react';
 
@@ -21,6 +21,7 @@ const navItems: NavItem[] = [
   { label: '监督端', path: '/bid/supervise', icon: Shield },
   { label: '评标端', path: '/bid/evaluate', icon: ClipboardCheck },
   { label: '归档端', path: '/bid/archive', icon: Archive },
+  { label: '澄清答疑', path: '/bid/clarifications', icon: MessageSquare },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -48,14 +49,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden bg-[#f7f9fc]">
       {/* ── Sidebar — deep violet, "在线开评标系统" 品牌色 ── */}
-      <aside className={`${collapsed ? 'w-[56px]' : 'w-56'} bg-[#1e1b4b] text-white flex flex-col flex-shrink-0 transition-all duration-200 overflow-hidden`}>
+      <aside className={`${collapsed ? 'w-[56px]' : 'w-56'} bg-[oklch(0.18_0.045_262)] text-white flex flex-col flex-shrink-0 transition-all duration-200 overflow-hidden`}>
         {/* Logo + Brand */}
         <div className="h-[72px] flex items-center gap-3 px-4 border-b border-white/[0.08] cursor-pointer flex-shrink-0" onClick={() => router.push('/bid')}>
           <img src="/assets/logo.jpg" alt="四川水发集团" className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
           {!collapsed && (
             <div className="flex flex-col gap-0 overflow-hidden">
               <span className="text-[13px] font-bold tracking-tight text-white leading-tight whitespace-nowrap">四川水发集团</span>
-              <span className="text-[9px] text-violet-300/60 font-medium whitespace-nowrap">智慧水发 · 开评标管理端</span>
+              <span className="text-[9px] text-[oklch(0.75_0.06_262)]/60 font-medium whitespace-nowrap">智慧水发 · 开评标管理端</span>
             </div>
           )}
         </div>
@@ -68,12 +69,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               onClick={() => router.push(item.path)}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 mb-1 text-[13px] transition-colors relative rounded-lg ${
                 isActive(item.path)
-                  ? 'bg-[#7c3aed] text-white font-semibold shadow-[0_8px_20px_rgba(124,58,237,0.30)]'
+                  ? 'bg-[oklch(0.42_0.14_260)] text-white font-semibold'
                   : 'text-white/55 hover:text-white/90 hover:bg-white/[0.05]'
               }`}
             >
               {isActive(item.path) && (
-                <div className="w-[3px] h-4 bg-[#c4b5fd] rounded-r absolute left-0" />
+                <div className="w-[3px] h-4 bg-[oklch(0.75_0.08_260)] rounded-r absolute left-0" />
               )}
               <div className="flex-shrink-0"><item.icon size={collapsed ? 18 : 16} strokeWidth={1.5} /></div>
               {!collapsed && <span className="tracking-tight">{item.label}</span>}

@@ -9,7 +9,7 @@ import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import {
   UserCircle, CheckCircle, Clock, ShieldCheck, FileCheck,
-  ChevronDown, ChevronRight, AlertTriangle,
+  ChevronDown, ChevronRight, AlertTriangle, Play,
 } from 'lucide-react';
 
 /* ── 局部类型（共享包 BidExpert 不含 scoreRecords，但 API 通过 Prisma include 返回）── */
@@ -154,6 +154,7 @@ export default function BidEvaluatePage() {
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<EvalResult[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [startingEvaluation, setStartingEvaluation] = useState(false);
   const [expandedExpert, setExpandedExpert] = useState<string | null>(null);
 
   /* ── 数据加载 ── */
@@ -191,6 +192,20 @@ export default function BidEvaluatePage() {
       toast.error(e.message || '生成失败');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleStartEvaluation = async () => {
+    setStartingEvaluation(true);
+    try {
+      await api.post(`/bid/projects/${projectId}/start-evaluation`, {});
+      const updated = await api.get<BidProjectEvalDetail>(`/bid/projects/${projectId}`);
+      setProject(updated);
+      toast.success('评标已启动，项目进入评标阶段');
+    } catch (e: any) {
+      toast.error(e.message || '启动评标失败');
+    } finally {
+      setStartingEvaluation(false);
     }
   };
 
@@ -280,6 +295,33 @@ export default function BidEvaluatePage() {
         </div>
         <ProjectSelector value={projectId} onChange={setProjectId} />
       </div>
+
+      {/* ═══ 阶段操作：开标阶段 → 启动评标 ═══ */}
+      {project.stage === 'OPENING' && (
+        <div className="mb-8 bg-[oklch(0.97_0.015_250)] border-l-[3px] border-[oklch(0.42_0.14_260)] border border-[oklch(0.88_0.04_258)] p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Play size={16} strokeWidth={1.5} className="text-[oklch(0.42_0.14_260)]" />
+            <div>
+              <span
+                className="text-[12px] font-semibold text-[oklch(0.42_0.14_260)] tracking-tight"
+                style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}
+              >
+                当前阶段：在线开标
+              </span>
+              <span className="text-[12px] text-[oklch(0.55_0.01_264)] ml-2">
+                — 所有供应商完成解密后，可启动专家评标
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={handleStartEvaluation}
+            disabled={startingEvaluation}
+            className="px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50"
+          >
+            {startingEvaluation ? '启动中…' : '启动评标'}
+          </button>
+        </div>
+      )}
 
       {/* ═══ Section 1: 专家组状态卡片 ═══ */}
       <div className="mb-8">

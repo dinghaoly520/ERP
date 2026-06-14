@@ -6,23 +6,74 @@ import type { BidProjectDetail } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
-import { Archive, CheckCircle, AlertTriangle, Package } from 'lucide-react';
-
-const statusDefs: Record<string, { label: string; color: string }> = {
-  ARCHIVED: { label: '已归档', color: '#11a874' },
-  PENDING_CONFIRM: { label: '待确认', color: '#f5a623' },
-  NOT_STARTED: { label: '未开始', color: '#8a9aaa' },
-};
+import { STATUS_COLOR } from '@water-erp/shared';
+import { Archive, CheckCircle, AlertTriangle, Package, Download } from 'lucide-react';
 
 export default function BidArchivePage() {
   const [projectId, setProjectId] = useState('');
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [archiving, setArchiving] = useState(false);
 
   const load = () => {
     if (!projectId) return;
     setLoading(true);
     api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(p => { setProject(p); setLoading(false); });
+  };
+
+  const handleExportArchive = () => {
+    if (!project) return;
+
+    const BOM = '﻿';
+    const lines: string[] = [];
+
+    const esc = (v: unknown) => {
+      const s = String(v ?? '');
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+
+    // Section 1: 招标项目基础信息
+    lines.push('招标项目基础信息');
+    lines.push(['项目编号', '项目名称', '采购方式', '开标时间', '截标时间', '当前阶段', '风险备注'].map(esc).join(','));
+    lines.push([
+      project.projectCode, project.name, project.procurementMethod,
+      project.openTime, project.deadline, project.stage, project.riskNote || '',
+    ].map(esc).join(','));
+    lines.push('');
+
+    // Section 2: 投标供应商名单
+    lines.push('投标供应商名单');
+    lines.push(['供应商名称', '下载状态', '提交状态', '加密状态', '回执编号', '解密状态', '确认状态'].map(esc).join(','));
+    for (const s of project.suppliers) {
+      lines.push([
+        s.supplierName, s.downloadStatus, s.submitStatus, s.encryptStatus,
+        s.receiptNo || '', s.decryptStatus, s.confirmStatus,
+      ].map(esc).join(','));
+    }
+    lines.push('');
+
+    // Section 3: 开标记录表
+    lines.push('开标记录表');
+    lines.push(['供应商名称', '报价金额', '工期', '质量目标', '保证金状态', '解密结果', '确认状态', '异议原因', '处理结果'].map(esc).join(','));
+    for (const r of project.openingRecords) {
+      lines.push([
+        r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus,
+        r.decryptResult, r.confirmStatus, r.objectionReason || '', r.handleResult || '',
+      ].map(esc).join(','));
+    }
+
+    const csv = BOM + lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `归档包_${project.projectCode}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('归档包导出成功');
   };
 
   useEffect(() => {
@@ -60,10 +111,30 @@ export default function BidArchivePage() {
           <div className="text-[2rem] font-bold font-mono text-[oklch(0.42_0.14_260)] tracking-tight">{rate}%</div>
           <div className="text-[11px] text-[oklch(0.62_0.008_264)] uppercase tracking-wider">归档率</div>
         </div>
-        <button onClick={async () => { await api.post(`/bid/projects/${projectId}/archive-all`, {}); toast.success('归档完成'); load(); }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors">
-          <Package size={14} strokeWidth={1.5} /> 一键归档
+        <div className="flex items-center gap-2">
+        <button
+          disabled={project.stage === 'ARCHIVED' || archiving}
+          onClick={async () => {
+            setArchiving(true);
+            try {
+              await api.post(`/bid/projects/${projectId}/archive-all`, {});
+              toast.success('归档完成');
+              load();
+            } catch {
+              toast.error('归档失败，请重试');
+            } finally {
+              setArchiving(false);
+            }
+          }}
+          className="flex items-center gap-2 px-5 py-2.5 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          <Package size={14} strokeWidth={1.5} /> {archiving ? '归档中…' : project.stage === 'ARCHIVED' ? '已归档' : '一键归档'}
         </button>
+        <button
+          onClick={handleExportArchive}
+          className="flex items-center gap-2 px-5 py-2.5 border border-[oklch(0.42_0.14_260)] text-[oklch(0.42_0.14_260)] text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.42_0.14_260)] hover:text-white transition-colors">
+          <Download size={14} strokeWidth={1.5} /> 导出归档包
+        </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-[2fr_1fr] gap-6">
@@ -85,7 +156,7 @@ export default function BidArchivePage() {
               {aItems.length === 0 ? (
                 <tr><td colSpan={5} className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">尚未生成归档清单，点击「一键归档」将自动生成标准材料清单并归档。</td></tr>
               ) : aItems.map(a => {
-                const s = statusDefs[a.status] || { label: a.status, color: '#94a3b8' };
+                const s = STATUS_COLOR[a.status] || { label: a.status, color: '#94a3b8' };
                 return (
                   <tr key={a.id} className="border-b border-[oklch(0.94_0.004_264)]">
                     <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">{a.name}</td>
@@ -106,7 +177,7 @@ export default function BidArchivePage() {
             {aItems.filter(a => a.status !== 'ARCHIVED').map(a => (
               <div key={a.id} className="flex items-start gap-2 bg-[oklch(0.96_0.04_85)] border border-[oklch(0.88_0.06_82)] p-3">
                 <AlertTriangle size={14} strokeWidth={1.5} className="text-[oklch(0.64_0.16_82)] mt-0.5 flex-shrink-0" />
-                <span className="text-[12px] text-[oklch(0.18_0.012_265)] tracking-tight">{a.name} — {statusDefs[a.status]?.label}</span>
+                <span className="text-[12px] text-[oklch(0.18_0.012_265)] tracking-tight">{a.name} — {STATUS_COLOR[a.status]?.label}</span>
               </div>
             ))}
             {archived > 0 && (

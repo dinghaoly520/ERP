@@ -5,11 +5,38 @@ import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
-import { Shield, AlertTriangle, Eye } from 'lucide-react';
+import { Shield, AlertTriangle, Eye, Download } from 'lucide-react';
+import { toast } from 'sonner';
+import { useBidWebSocket } from '@/hooks/use-bid-websocket';
+
+function exportSupervisionCSV(logs: Array<{ time: string; role: string; target: string; action: string; result: string; riskFlag: string }>) {
+  const BOM = '﻿';
+  const headers = ['时间', '角色', '对象', '操作', '结果', '风险标识'];
+  const escapeCSV = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const rows = logs.map(l => [
+    new Date(l.time).toLocaleString('zh-CN'),
+    l.role,
+    l.target,
+    l.action,
+    l.result,
+    l.riskFlag,
+  ].map(escapeCSV).join(','));
+  const csv = BOM + [headers.join(','), ...rows].join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `监督日志_${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+  toast.success('导出成功');
+}
 
 export default function BidSupervisePage() {
   const [projectId, setProjectId] = useState('');
   const [project, setProject] = useState<BidProjectDetail | null>(null);
+  const [supervisionLogs, setSupervisionLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,6 +48,23 @@ export default function BidSupervisePage() {
     setLoading(true);
     api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(p => { setProject(p); setLoading(false); });
   }, [projectId]);
+
+  useEffect(() => {
+    if (project?.supervisionLogs) {
+      setSupervisionLogs(project.supervisionLogs);
+    }
+  }, [project]);
+
+  useBidWebSocket(projectId || undefined, {
+    onSupervisionLog: (data) => {
+      setSupervisionLogs(prev => [data, ...prev]);
+    },
+    onStageChange: () => {
+      if (projectId) {
+        api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(p => { setProject(p); });
+      }
+    },
+  });
 
   if (loading) return <TableSkeleton rows={6} cols={6} />;
   if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20">暂无项目数据</div>;
@@ -54,7 +98,7 @@ export default function BidSupervisePage() {
             过程时间线
           </h2>
           <div className="space-y-3">
-            {project.supervisionLogs.map((log, i) => (
+            {supervisionLogs.map((log, i) => (
               <div key={log.id} className={`flex items-start gap-3 ${i === 0 ? '' : 'pt-3 border-t border-[oklch(0.94_0.004_264)]'}`}>
                 <div className={`w-1.5 h-1.5 mt-2 flex-shrink-0 ${log.riskFlag && log.riskFlag !== '无' ? 'bg-[oklch(0.50_0.18_22)]' : 'bg-[oklch(0.42_0.14_260)]'}`} />
                 <div className="flex-1 min-w-0">
@@ -87,8 +131,17 @@ export default function BidSupervisePage() {
 
       {/* Log table */}
       <div className="bg-white border border-[oklch(0.91_0.006_264)]">
-        <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
+        <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)] flex items-center justify-between">
           <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>监督日志</h2>
+          {supervisionLogs.length > 0 && (
+            <button
+              onClick={() => exportSupervisionCSV(supervisionLogs)}
+              className="flex items-center gap-1.5 text-[12px] text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.30_0.12_260)] transition-colors"
+            >
+              <Download size={14} strokeWidth={1.5} />
+              导出 CSV
+            </button>
+          )}
         </div>
         <table className="w-full text-[13px]">
           <thead>
@@ -102,7 +155,7 @@ export default function BidSupervisePage() {
             </tr>
           </thead>
           <tbody>
-            {project.supervisionLogs.map(log => (
+            {supervisionLogs.map(log => (
               <tr key={log.id} className="border-b border-[oklch(0.94_0.004_264)]">
                 <td className="px-5 py-3 text-[12px] text-[oklch(0.55_0.01_264)] font-mono">{new Date(log.time).toLocaleString('zh-CN')}</td>
                 <td className="px-5 py-3 text-[12px]">{log.role}</td>

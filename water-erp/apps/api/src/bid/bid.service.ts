@@ -1,6 +1,7 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { BidGateway } from './bid.gateway';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { SubmitBidDto } from './dto/submit-bid.dto';
@@ -15,6 +16,7 @@ export class BidService {
   constructor(
     private prisma: PrismaService,
     private notificationService: NotificationService,
+    @Optional() private readonly gateway?: BidGateway,
   ) {}
 
   async getDashboardStats() {
@@ -275,6 +277,8 @@ export class BidService {
       data: { stage: 'OPENING' },
     });
 
+    this.gateway?.notifyStageChange(id, 'OPENING');
+
     await this.prisma.bidSupervisionLog.create({
       data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action: '启动开标 (SUBMIT→OPENING)', result: '阶段变更成功', riskFlag: '无' },
     });
@@ -294,6 +298,8 @@ export class BidService {
       where: { id },
       data: { stage: 'EVALUATING' },
     });
+
+    this.gateway?.notifyStageChange(id, 'EVALUATING');
 
     await this.prisma.bidSupervisionLog.create({
       data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '启动评标 (OPENING→EVALUATING)', result: '阶段变更成功', riskFlag: '无' },
@@ -323,6 +329,11 @@ export class BidService {
           where: { id: supplierId },
           data: { decryptStatus: 'DANGER', decryptError: errorMsg },
         });
+        this.gateway?.notifyDecryptStatus(projectId, {
+          supplierId,
+          decryptStatus: 'DANGER',
+          supplierName: bidSupplier.supplierName,
+        });
         await tx.bidSupervisionLog.create({
           data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${errorMsg}`, riskFlag: '高风险' },
         });
@@ -333,6 +344,12 @@ export class BidService {
       await tx.bidSupplier.update({
         where: { id: supplierId },
         data: { decryptStatus: 'SUCCESS' },
+      });
+
+      this.gateway?.notifyDecryptStatus(projectId, {
+        supplierId,
+        decryptStatus: 'SUCCESS',
+        supplierName: bidSupplier.supplierName,
       });
 
       // Phase 4: 创建开标记录（仅当开标记录字段全部提供时）——等待供应商确认，不再自动确认

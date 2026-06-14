@@ -6,13 +6,17 @@ import type { BidProjectDetail } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import StartOpeningDialog from '@/components/start-opening-dialog';
-import { Unlock, Clock, Shield, Play, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import DisputeDialog from '@/components/dispute-dialog';
+import AdminSubmitBidDialog from '@/components/admin-submit-bid-dialog';
+import { Unlock, Clock, Shield, Play, CheckCircle, XCircle, AlertTriangle, ChevronRight, UserPlus } from 'lucide-react';
+import { useBidWebSocket } from '@/hooks/use-bid-websocket';
+import { DECRYPT_LABEL, SEMANTIC } from '@water-erp/shared';
 
-const decryptDefs: Record<string, { label: string; color: string; bg: string }> = {
-  PENDING: { label: '待解密', color: '#f5a623', bg: '#fef6e8' },
-  RUNNING: { label: '解密中', color: '#064ea2', bg: '#eef4fc' },
-  SUCCESS: { label: '解密成功', color: '#11a874', bg: '#f0faf6' },
-  DANGER:  { label: '异常', color: '#e74c3c', bg: '#fef2f2' },
+const decryptColors: Record<string, { color: string; bg: string }> = {
+  PENDING: { color: SEMANTIC.warning, bg: '#fef6e8' },
+  RUNNING: { color: SEMANTIC.info, bg: '#eef4fc' },
+  SUCCESS: { color: SEMANTIC.success, bg: '#f0faf6' },
+  DANGER:  { color: SEMANTIC.danger, bg: '#fef2f2' },
 };
 
 export default function BidOpenPage() {
@@ -20,8 +24,10 @@ export default function BidOpenPage() {
   const [projectId, setProjectId] = useState('');
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [resolving, setResolving] = useState<string | null>(null);
+  const [dispute, setDispute] = useState<{recordId: string; supplierName: string; objectionReason?: string} | null>(null);
   const [startOpen, setStartOpen] = useState(false);
+  const [openingSubmission, setOpeningSubmission] = useState(false);
+  const [showAdminSubmit, setShowAdminSubmit] = useState(false);
 
   const openingStatusMeta = (status?: string | null) => {
     switch (status) {
@@ -34,20 +40,12 @@ export default function BidOpenPage() {
     }
   };
 
-  const handleResolveDispute = async (recordId: string) => {
-    const result = window.prompt('请输入异议处理结果说明：', '经核实，开标信息无误。');
-    if (result === null) return;
-    const confirmStr = window.confirm('确认按"成立"处理（供应商标为已确认）？\n取消则按"异议成立"处理（供应商标为异常）。');
-    setResolving(recordId);
-    try {
-      await api.post(`/bid/projects/${projectId}/opening-records/${recordId}/resolve-dispute`, { result, confirm: confirmStr });
-      const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
-      setProject(updated);
-    } catch (e: any) {
-      window.alert(e.message || '处理失败');
-    } finally {
-      setResolving(null);
-    }
+  const handleResolveDispute = async (result: string, confirm: boolean) => {
+    if (!dispute) return;
+    await api.post(`/bid/projects/${projectId}/opening-records/${dispute.recordId}/resolve-dispute`, { result, confirm });
+    const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
+    setProject(updated);
+    setDispute(null);
   };
 
   useEffect(() => {
@@ -63,16 +61,49 @@ export default function BidOpenPage() {
     api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(p => { setProject(p); setLoading(false); });
   }, [projectId]);
 
-  // Auto-refresh
-  useEffect(() => {
-    if (!projectId || !project || project.stage !== 'OPENING') return;
-    const t = setInterval(() => api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject), 5000);
-    return () => clearInterval(t);
-  }, [projectId, project?.stage]);
+  // WebSocket for live updates — replaces polling
+  useBidWebSocket(projectId, {
+    onDecrypt: (data) => {
+      setProject(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          suppliers: prev.suppliers.map(s =>
+            s.id === data.supplierId ? { ...s, decryptStatus: data.decryptStatus } : s,
+          ),
+        };
+      });
+    },
+    onStageChange: () => {
+      if (projectId) {
+        api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
+      }
+    },
+  });
 
   const handleDecrypt = async (sid: string) => {
     await api.post(`/bid/projects/${projectId}/decrypt/${sid}`, {});
     api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
+  };
+
+  const handleOpenSubmission = async () => {
+    setOpeningSubmission(true);
+    try {
+      await api.post(`/bid/projects/${projectId}/open-submission`, {});
+      const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
+      setProject(updated);
+    } catch (e: any) {
+      window.alert(e.message || '操作失败');
+    } finally {
+      setOpeningSubmission(false);
+    }
+  };
+
+  const handleAdminSubmit = async (supplierName: string) => {
+    await api.post(`/bid/projects/${projectId}/suppliers`, { supplierName });
+    setShowAdminSubmit(false);
+    const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
+    setProject(updated);
   };
 
   if (loading) return <TableSkeleton rows={8} cols={6} />;
@@ -127,12 +158,24 @@ export default function BidOpenPage() {
           <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
             投标人在线解密状态
           </h2>
-          {project.stage !== 'OPENING' && (
-            <button onClick={() => setStartOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors">
-              <Play size={13} strokeWidth={2} /> 启动开标
+          <div className="flex items-center gap-2">
+            {project.stage === 'DOWNLOAD' && (
+              <button onClick={handleOpenSubmission} disabled={openingSubmission}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[oklch(0.54_0.16_158)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.14_150)] transition-colors disabled:opacity-50">
+                <ChevronRight size={13} strokeWidth={2} /> {openingSubmission ? '处理中…' : '开放投递'}
+              </button>
+            )}
+            {project.stage !== 'OPENING' && (
+              <button onClick={() => setStartOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors">
+                <Play size={13} strokeWidth={2} /> 启动开标
+              </button>
+            )}
+            <button onClick={() => setShowAdminSubmit(true)}
+              className="flex items-center gap-1.5 px-4 py-2 border border-[oklch(0.91_0.006_264)] text-[oklch(0.42_0.14_260)] text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.96_0.006_264)] transition-colors">
+              <UserPlus size={13} strokeWidth={1.5} /> 代供应商提交
             </button>
-          )}
+          </div>
         </div>
         <table className="w-full text-[13px]">
           <thead>
@@ -147,14 +190,15 @@ export default function BidOpenPage() {
           </thead>
           <tbody>
             {project.suppliers.map(s => {
-              const d = decryptDefs[s.decryptStatus] || decryptDefs.PENDING;
+              const c = decryptColors[s.decryptStatus] || decryptColors.PENDING;
+              const label = DECRYPT_LABEL[s.decryptStatus] || DECRYPT_LABEL.PENDING;
               return (
                 <tr key={s.id} className="border-b border-[oklch(0.94_0.004_264)] hover:bg-[oklch(0.992_0.003_264)] transition-colors">
                   <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">{s.supplierName}</td>
                   <td className="px-5 py-3 font-mono text-[oklch(0.42_0.14_260)] tracking-tight">{s.receiptNo || '—'}</td>
                   <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{s.encryptStatus}</td>
                   <td className="px-5 py-3">
-                    <span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{ color: d.color, backgroundColor: d.bg }}>{d.label}</span>
+                    <span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{ color: c.color, backgroundColor: c.bg }}>{label}</span>
                   </td>
                   <td className="px-5 py-3">
                     {s.confirmStatus === 'CONFIRMED' ? (
@@ -220,9 +264,9 @@ export default function BidOpenPage() {
                   </td>
                   <td className="px-5 py-3">
                     {r.confirmStatus === '供应商提出异议' && (
-                      <button onClick={() => handleResolveDispute(r.id)} disabled={resolving === r.id}
+                      <button onClick={() => setDispute({ recordId: r.id, supplierName: r.supplierName, objectionReason: r.objectionReason ?? undefined })} disabled={!!dispute}
                         className="flex items-center gap-1 text-[11px] font-semibold text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] tracking-tight transition-colors disabled:opacity-50">
-                        <Shield size={12} strokeWidth={1.5} /> {resolving === r.id ? '处理中…' : '处理异议'}
+                        <Shield size={12} strokeWidth={1.5} /> {dispute?.recordId === r.id ? '处理中…' : '处理异议'}
                       </button>
                     )}
                   </td>
@@ -241,6 +285,23 @@ export default function BidOpenPage() {
           setStartOpen(false);
           api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
         }}
+      />
+      {dispute && (
+        <DisputeDialog
+          open={!!dispute}
+          recordId={dispute.recordId}
+          supplierName={dispute.supplierName}
+          objectionReason={dispute.objectionReason}
+          onClose={() => setDispute(null)}
+          onResolved={handleResolveDispute}
+        />
+      )}
+      <AdminSubmitBidDialog
+        open={showAdminSubmit}
+        projectId={projectId}
+        projectStage={project.stage}
+        onClose={() => setShowAdminSubmit(false)}
+        onSubmit={handleAdminSubmit}
       />
     </div>
   );
