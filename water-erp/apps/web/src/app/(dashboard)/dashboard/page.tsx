@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { DataToolbar, MetricCard, ModuleCard, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
+import { MetricCard, ModuleCard, SectionCard } from '@/components/workbench';
 import { api } from '@/lib/api';
 import { getCatalogStats, type CatalogStats } from '@/lib/api/catalog-admin';
 import type { User } from '@/lib/types';
-import { completionTone, formatDateTime, numberOrZero, percent, statusTone } from '@/lib/workbench';
+import { completionTone, numberOrZero, percent, statusTone } from '@/lib/workbench';
 import {
-  Activity, AlertTriangle, ArrowRight, BellRing, Building2, CheckCircle2,
-  Megaphone, PlusCircle, ShieldAlert, ShoppingCart, Sparkles, UsersRound,
+  Activity, AlertTriangle, BellRing, Building2, CheckCircle2,
+  Megaphone, ShieldAlert, ShoppingCart, UsersRound,
 } from 'lucide-react';
 
 interface SupplierStats {
@@ -97,28 +97,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-full space-y-6">
-      <PageHero
-        eyebrow="采购运营总览"
-        title={`欢迎回来，${user?.displayName || '采购管理员'}`}
-        description="聚焦信息发布、供应商资源、专家履职和风险效率状态，用真实业务数据辅助日常管理判断。"
-        icon={<Sparkles size={14} strokeWidth={1.8} />}
-        actions={(
-          <>
-            <button onClick={() => router.push('/notice')} className="inline-flex items-center gap-2 rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white shadow-[0_10px_24px_rgba(6,78,162,0.20)] hover:bg-[#053f85]">
-              <PlusCircle size={16} /> 新建信息
-            </button>
-            <button onClick={() => router.push('/supplier/approval')} className="inline-flex items-center gap-2 rounded-xl border border-[#dbeafe] bg-white px-4 py-2 text-sm font-bold text-[#064ea2] hover:bg-[#eff6ff]">
-              处理审核 <ArrowRight size={16} />
-            </button>
-          </>
-        )}
-      >
-        <DataToolbar className="bg-gradient-to-r from-[#f8fbff] to-[#ecfeff]">
-          <StatusBadge tone="cyan">运行态势</StatusBadge>
-          <span className="text-sm text-[#5a6d8a]">数据更新时间：{formatDateTime(new Date())}</span>
-          <span className="text-sm text-[#5a6d8a]">当前聚合 {totalTodos} 项待处理、{alertCount} 项风险提醒</span>
-        </DataToolbar>
-      </PageHero>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <MetricCard label="信息发布" value={loading ? '—' : `${announcementPublished}/${announcementTotal}`} hint="已发布 / 信息总量" tone="blue" icon={<Megaphone size={18} strokeWidth={1.7} />} onClick={() => router.push('/notice')} />
