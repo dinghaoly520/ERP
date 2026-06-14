@@ -9,7 +9,7 @@ import {
   HomeFilled, Stamp, OfficeBuilding, Medal, Phone, EditPen,
   Document, DocumentChecked, Bell, ChatDotRound, Star,
   Fold, Expand, SwitchButton, User, Setting, Notification,
-  Search, Lock, ArrowDown,
+  Search, Lock, ArrowDown, Goods, Connection, Box,
 } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 
@@ -39,6 +39,10 @@ const menuItems = [
   { divider: true, label: '投标中心' },
   { path: '/bids', title: '招标机会', icon: Document, desc: '发现可参与项目' },
   { path: '/my-bids', title: '投标进展', icon: DocumentChecked, desc: '跟踪已投项目' },
+  { divider: true, label: '供货合作' },
+  { path: '/catalog', title: '采购目录', icon: Goods, desc: '浏览品类并申请供货' },
+  { path: '/catalog-applications', title: '供货申请', icon: Connection, desc: '申请进度与议价' },
+  { path: '/supply', title: '我的供货', icon: Box, desc: '已准入品类与报价' },
   { divider: true, label: '企业档案' },
   { path: '/onboarding', title: '入驻状态', icon: Stamp, desc: '审核与补正进度' },
   { path: '/profile', title: '企业信息', icon: OfficeBuilding, desc: '主体资料维护' },

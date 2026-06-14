@@ -365,6 +365,8 @@ model Supplier {
   bidSuppliers   BidSupplier[]
   bidSubmissions SupplierBidSubmission[]
   bidDocumentAccesses BidDocumentAccess[]
+  catalogApplications SupplierCatalogApplication[]
+  catalogSupplies     CatalogSupplier[]
 
   @@index([status])
   @@index([creditCode])
@@ -691,6 +693,8 @@ model CatalogItem {
   budgetItems     BudgetItem[]
   priceHistory    PriceHistory[]
   favoritedBy         UserFavorite[]
+  catalogApplications SupplierCatalogApplication[]
+  catalogSuppliers    CatalogSupplier[]
 
   @@index([category])
   @@index([group])
@@ -764,6 +768,88 @@ model UserFavorite {
   @@id([userId, catalogItemId])
   @@index([userId])
   @@index([catalogItemId])
+}
+
+// ── 供应商目录/供货申请（新增品类 / 加入供货 / 改报价，含议价回环）──
+
+model SupplierCatalogApplication {
+  id          String   @id @default(cuid())
+  supplierId  String
+  type        String   // NEW_ITEM(新增品类) | JOIN_EXISTING(加入已有供货) | UPDATE_QUOTE(改报价)
+
+  // JOIN_EXISTING / UPDATE_QUOTE 指向已有目录条目
+  catalogItemId   String?
+
+  // NEW_ITEM 拟增物资信息
+  proposedName     String?
+  proposedSpec     String?
+  proposedCategory String?
+  proposedGroup    String?
+  proposedUnit     String?
+
+  // 报价与供货条件
+  quotedPrice     Decimal? @db.Decimal(12, 2)
+  deliveryPeriod  String?
+  region          String?
+  minOrder        String?
+  taxIncluded     Boolean  @default(true)
+  freightIncluded Boolean  @default(false)
+
+  // 议价：管理员反报价
+  counterPrice    Decimal? @db.Decimal(12, 2)
+  counterNote     String?
+
+  // 资质说明 + 证明附件（FileAsset.id）
+  qualificationNote     String?
+  attachmentFileAssetId String?
+
+  // 状态机：PENDING | COUNTERED | RETURNED | APPROVED | REJECTED | WITHDRAWN
+  status        String    @default("PENDING")
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  rejectReason  String?
+  reviewerNote  String?
+
+  // NEW_ITEM 通过时管理员填写的官方参考价（写入新建 CatalogItem）
+  approvedReferencePrice Decimal? @db.Decimal(12, 2)
+  approvedPriceMin       Decimal? @db.Decimal(12, 2)
+  approvedPriceMax       Decimal? @db.Decimal(12, 2)
+  approvedValidUntil     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  supplier    Supplier     @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  catalogItem CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+
+  @@index([supplierId, status])
+  @@index([status, type])
+  @@index([catalogItemId])
+  @@index([supplierId, catalogItemId, status])
+}
+
+// ── 品类↔供应商准入关系（审核通过的产物，当前供货态）──
+
+model CatalogSupplier {
+  id            String   @id @default(cuid())
+  catalogItemId String
+  supplierId    String
+  quotedPrice   Decimal  @db.Decimal(12, 2)
+  deliveryPeriod String?
+  region         String?
+  minOrder       String?
+  taxIncluded    Boolean  @default(true)
+  freightIncluded Boolean @default(false)
+  status         String   @default("ACTIVE") // ACTIVE | SUSPENDED | DISABLED
+  sourceApplicationId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  catalogItem CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  supplier    Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([catalogItemId, supplierId])
+  @@index([catalogItemId, status])
 }
 
 // ── 操作审计日志 ──

@@ -84,6 +84,36 @@ export class CatalogController {
     return this.catalogService.adminAuditLogs();
   }
 
+  // ── 供应商目录供货申请（管理员审核）──
+
+  @Get('applications')
+  @Roles('procurement_staff', 'admin')
+  @ApiOperation({ summary: '供货申请审核列表' })
+  async applications(@Query('status') status?: string, @Query('type') type?: string) {
+    return this.catalogService.listApplications({ status, type });
+  }
+
+  @Get('applications/:id')
+  @Roles('procurement_staff', 'admin')
+  @ApiOperation({ summary: '供货申请详情' })
+  async application(@Param('id') id: string) {
+    return this.catalogService.getApplication(id);
+  }
+
+  @Post('applications/:id/review')
+  @Roles('procurement_staff', 'admin')
+  @ApiOperation({ summary: '审核供货申请（通过/拒绝/退回/议价）' })
+  async review(@Request() req: any, @Param('id') id: string, @Body() body: any) {
+    return this.catalogService.reviewApplication(req.user.sub, id, body);
+  }
+
+  @Get('items/:itemId/suppliers')
+  @Roles('procurement_staff', 'admin')
+  @ApiOperation({ summary: '某目录条目的准入供应商（含报价）' })
+  async itemSuppliers(@Param('itemId') itemId: string) {
+    return this.catalogService.listItemSuppliers(itemId);
+  }
+
   // ── Public / shared endpoints ──
 
   @Get('suppliers')
