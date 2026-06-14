@@ -8,50 +8,92 @@
   },
   {
     "id": "seeddept001",
-    "name": "工程技术中心",
-    "code": "ENG",
-    "createdAt": "2026-06-13T06:20:00.000Z",
-    "updatedAt": "2026-06-13T06:20:00.000Z"
-  },
-  {
-    "id": "seeddept003",
-    "name": "财务审计中心",
-    "code": "FIN",
-    "createdAt": "2026-06-13T06:20:00.000Z",
-    "updatedAt": "2026-06-13T06:20:00.000Z"
-  },
-  {
-    "id": "seeddept004",
-    "name": "安全质量中心",
-    "code": "QHSE",
-    "createdAt": "2026-06-13T06:20:00.000Z",
-    "updatedAt": "2026-06-13T06:20:00.000Z"
-  },
-  {
-    "id": "seeddept005",
-    "name": "法务风控中心",
-    "code": "LEGAL",
-    "createdAt": "2026-06-13T06:20:00.000Z",
-    "updatedAt": "2026-06-13T06:20:00.000Z"
-  },
-  {
-    "id": "seeddept006",
-    "name": "市场经营中心",
-    "code": "MKT",
-    "createdAt": "2026-06-13T06:20:00.000Z",
-    "updatedAt": "2026-06-13T06:20:00.000Z"
-  },
-  {
-    "id": "seeddept007",
-    "name": "综合管理中心",
-    "code": "ADMIN",
+    "name": "工程建设管理分公司",
+    "code": "GCGL",
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
   {
     "id": "seeddept002",
-    "name": "采购管理中心",
-    "code": "PROCM",
+    "name": "水资源规划院",
+    "code": "GHY",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept003",
+    "name": "工程设计院",
+    "code": "SJY",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept004",
+    "name": "施工设计院",
+    "code": "SGJ",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept005",
+    "name": "生态环保设计院",
+    "code": "STY",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept006",
+    "name": "移民设计院",
+    "code": "YMY",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept007",
+    "name": "机电设计院",
+    "code": "JDY",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept008",
+    "name": "造价咨询院",
+    "code": "ZJY",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept009",
+    "name": "工程勘察院",
+    "code": "KCY",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept010",
+    "name": "数字信息化院",
+    "code": "XXY",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept011",
+    "name": "水电科研院",
+    "code": "SDY",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept012",
+    "name": "川西分公司",
+    "code": "CXGS",
+    "createdAt": "2026-06-13T06:20:00.000Z",
+    "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "seeddept013",
+    "name": "华北分公司",
+    "code": "HBGS",
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   }
