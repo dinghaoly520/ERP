@@ -189,6 +189,44 @@
   width: 100%;
 }
 
+/* 流光溢彩边框 — 旋转渐变光环 */
+.commandPanel::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 27px;
+  padding: 3px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(88, 164, 255, 0.7),
+    rgba(145, 132, 255, 0.6),
+    rgba(214, 171, 103, 0.5),
+    rgba(112, 216, 189, 0.5),
+    rgba(88, 164, 255, 0.7)
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: borderFlow 4s linear infinite;
+  filter: blur(2px);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: -1;
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+
+.commandPanel:focus-within::before {
+  opacity: 0.85;
+  filter: blur(3px);
+  animation-duration: 2.5s;
+}
+
+@keyframes borderFlow {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 .commandBox {
   display: flex;
   align-items: center;
@@ -205,6 +243,8 @@
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   transition: box-shadow 0.25s ease, transform 0.25s ease;
+  position: relative;
+  z-index: 1;
 }
 
 .commandBox:focus-within {
@@ -351,9 +391,13 @@
 }
 
 .quickDesc {
-  font-size: var(--font-xs);
+  font-size: 11px;
   color: var(--text-muted);
-  display: none; /* 4列布局下隐藏描述，保持简洁 */
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
 }
 
 /* ---------- 响应式 ---------- */

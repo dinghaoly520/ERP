@@ -39,4 +39,10 @@ export class AssistantController {
   async cancelAction(@Param('id') id: string) {
     return this.assistantService.cancelAction(id);
   }
+
+  @Get('quick-stats')
+  @ApiOperation({ summary: '首页快捷入口实时状态' })
+  async getQuickStats() {
+    return this.assistantService.getQuickStats();
+  }
 }

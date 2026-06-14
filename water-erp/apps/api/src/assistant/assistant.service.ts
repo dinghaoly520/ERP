@@ -254,6 +254,59 @@ ${toolList}
     return answer;
   }
 
+  async getQuickStats() {
+    const [
+      procurementTotal,
+      procurementPending,
+      bidTotal,
+      bidActive,
+      supplierTotal,
+      supplierApproved,
+      supplierPending,
+      supplierRisk,
+      expertTotal,
+      expertAvailable,
+      announcementPublished,
+      catalogItemCount,
+      notificationUnread,
+    ] = await Promise.all([
+      this.prisma.procurementProject.count(),
+      this.prisma.procurementProject.count({ where: { status: 'PENDING_REVIEW' } }),
+      this.prisma.bidProject.count(),
+      this.prisma.bidProject.count({ where: { stage: { in: ['OPENING', 'EVALUATING'] } } }),
+      this.prisma.supplier.count(),
+      this.prisma.supplier.count({ where: { status: 'APPROVED' } }),
+      this.prisma.supplier.count({ where: { status: 'PENDING' } }),
+      this.prisma.supplier.count({ where: { status: { in: ['DISABLED', 'BLACKLIST'] } } }),
+      this.prisma.expertProfile.count(),
+      this.prisma.expertProfile.count({ where: { availability: '可用' } }),
+      this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
+      this.prisma.catalogItem.count(),
+      this.prisma.notification.count({ where: { isRead: false } }),
+    ]);
+
+    // Detect the most notable system state for each dimension
+    const focusAreas: string[] = [];
+    if (procurementTotal === 0) focusAreas.push('采购立项为空');
+    if (procurementPending > 0) focusAreas.push(`${procurementPending}个项目待审批`);
+    if (bidActive > 0) focusAreas.push(`${bidActive}个招标进行中`);
+    if (supplierPending > 0) focusAreas.push(`${supplierPending}家供应商待审核`);
+    if (supplierRisk > 0) focusAreas.push(`${supplierRisk}家供应商有风险`);
+    if (notificationUnread > 0) focusAreas.push(`${notificationUnread}条未读通知`);
+
+    return {
+      procurement: { total: procurementTotal, pending: procurementPending },
+      bid: { total: bidTotal, active: bidActive },
+      supplier: { total: supplierTotal, approved: supplierApproved, pending: supplierPending, risk: supplierRisk },
+      expert: { total: expertTotal, available: expertAvailable },
+      announcement: { published: announcementPublished },
+      catalog: { items: catalogItemCount },
+      notification: { unread: notificationUnread },
+      focusAreas: focusAreas.slice(0, 4),
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   async listConversations() {
     return this.prisma.assistantConversation.findMany({
       orderBy: { updatedAt: 'desc' },
