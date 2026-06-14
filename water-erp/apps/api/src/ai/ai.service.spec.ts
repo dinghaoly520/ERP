@@ -42,6 +42,10 @@ describe('AiService', () => {
       bidProject: { findUnique: jest.fn() },
       bidSupplier: { findUnique: jest.fn() },
       bidScoreRecord: { findMany: jest.fn() },
+      supplierBidSubmission: { findMany: jest.fn() },
+      supplierEvaluation: { groupBy: jest.fn() },
+      supplierQualification: { groupBy: jest.fn() },
+      procurementProject: { findFirst: jest.fn() },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -189,22 +193,38 @@ describe('AiService', () => {
   });
 
   describe('getSupplierRiskScores', () => {
-    it('应返回每个供应商的风险评分', async () => {
+    it('应返回每个供应商的风险评分（基于真实数据因子）', async () => {
       prisma.bidSupplier.findMany = jest.fn().mockResolvedValue([
-        { id: 's1', supplierName: '川水建设', submitStatus: '已提交', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
-        { id: 's2', supplierName: '智水科技', submitStatus: '未提交', decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION' },
+        { id: 's1', supplierName: '川水建设', supplierId: 'sup-1', submitStatus: '已提交', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
+        { id: 's2', supplierName: '智水科技', supplierId: 'sup-2', submitStatus: '未提交', decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION' },
       ]);
+      prisma.supplierBidSubmission.findMany = jest.fn().mockResolvedValue([
+        { supplierId: 'sup-1', bidPrice: '950000', technicalFileAssetId: 'a1', businessFileAssetId: 'a2', coverLetterAssetId: 'a3' },
+      ]);
+      prisma.supplierEvaluation.groupBy = jest.fn().mockResolvedValue([
+        { supplierId: 'sup-1', _avg: { overallScore: 88 }, _count: { _all: 5 } },
+      ]);
+      prisma.supplierQualification.groupBy = jest.fn().mockResolvedValue([
+        { supplierId: 'sup-1', _count: { _all: 4 } },
+      ]);
+      prisma.procurementProject.findFirst = jest.fn().mockResolvedValue({ budget: 1000000 });
 
       const result = await service.getSupplierRiskScores('proj-1');
 
       expect(result).toHaveLength(2);
       expect(result[0].supplierName).toBe('川水建设');
       expect(result[1].supplierName).toBe('智水科技');
+      // 川水建设（解密成功+文件齐全+履约均分88+报价接近预算）应高于智水科技（解密异常+无文件）
       expect(result[0].overallRiskScore).toBeGreaterThan(result[1].overallRiskScore);
       result.forEach((s: any) => {
         expect(s.factors).toHaveLength(5);
         expect(s.level).toMatch(/低风险|中风险|高风险/);
+        expect(typeof s.confidence).toBe('number');
+        expect(s.confidence).toBeGreaterThanOrEqual(0);
+        expect(s.confidence).toBeLessThanOrEqual(100);
       });
+      // 川水建设有真实数据支撑（文件/解密/履约/资质/报价）→ confidence 高
+      expect(result[0].confidence).toBeGreaterThan(50);
     });
   });
 });

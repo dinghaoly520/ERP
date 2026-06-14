@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
+import { ExpertConflictService } from './expert-conflict.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
@@ -10,6 +11,7 @@ export class ExpertService {
   constructor(
     private prisma: PrismaService,
     private aiService: AiService,
+    private conflictService: ExpertConflictService,
   ) {}
 
   /* ── 个人资料 ── */
@@ -132,6 +134,16 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
+
+    // 自动利益冲突检测：工作单位 vs 投标供应商名称（归一化匹配）
+    const conflicts = await this.conflictService.detectForProject(projectId, userId);
+    if (conflicts.length > 0) {
+      throw new BadRequestException({
+        error: '检测到潜在利益冲突，请申请回避或联系监督员',
+        code: 'AVOIDANCE_CONFLICT',
+        conflicts,
+      });
+    }
 
     return this.prisma.bidExpert.update({
       where: { id: expert.id },

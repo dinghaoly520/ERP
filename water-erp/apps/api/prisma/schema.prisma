@@ -591,6 +591,10 @@ model SupplierBidSubmission {
   technicalFileAssetId  String?
   businessFileAssetId   String?
   coverLetterAssetId    String?
+  // Layer B：新提交的投标文件 AES-256-GCM 加密封存密钥（key:iv:authTag hex）。legacy 存量数据为 null。
+  technicalSealedKey    String?
+  businessSealedKey     String?
+  coverLetterSealedKey  String?
   status                String    @default("draft") // draft, submitted, withdrawn
   submittedAt           DateTime?
   createdAt             DateTime  @default(now())

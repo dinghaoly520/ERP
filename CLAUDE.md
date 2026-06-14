@@ -193,13 +193,14 @@ Main API modules and route areas:
 | `ExpertModule` | expert workstation, sign-in/avoidance/scoring/report data (`ExpertController`) + admin management (`ExpertAdminController`) | `/api/expert/*`, `/api/expert-admin/*` |
 | `AiModule` | bid analysis, anomaly detection, supplier risk scoring, AI dashboard summary | `/api/ai/*` |
 | `AnnouncementModule` | notices, policies, publication status, bid documents | `/api/announcements/*` |
-| `NotificationModule` | in-app notifications | `/api/notifications/*` |
+| `NotificationModule` | in-app notifications + multi-channel dispatch (Email via nodemailer/SMTP-gated, SMS stub) | `/api/notifications/*` |
 | `UploadModule` | MinIO file upload/download/delete | `/api/upload/*` |
 | `ProcurementModule` | procurement project lifecycle, approval, bid initiation | `/api/procurement/*` |
 | `CatalogModule` | procurement catalog items, supplier applications/review, favorites, export | `/api/catalog/*` |
 | `BudgetModule` | budget lists CRUD, items, clone, convert | `/api/budget/*` |
 | `AuditModule` | audit log queries | `/api/audit/*` |
 | `AssistantModule` | AI chat assistant (水叮当智能助手 backend) | `/api/assistant/*` |
+| `SchedulerModule` | cron jobs (qualification-expiry scan → notification); no HTTP routes | — |
 
 ### File Uploads (MinIO)
 

@@ -8,6 +8,7 @@ import type { CreateExpertDto } from './dto/create-expert.dto';
 import type { ExtractPreviewDto } from './dto/extract-preview.dto';
 import type { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
 import type { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
+import { computeExpertMeanDeviations, meanOrNull, shouldDeactivateExpert } from './expert-deviation';
 
 @Injectable()
 export class ExpertAdminService {
@@ -324,7 +325,7 @@ export class ExpertAdminService {
     const overall = Math.round((dto.attendanceScore + dto.qualityScore + dto.disciplineScore) / 3);
     const level = overall >= 90 ? 'A' : overall >= 80 ? 'B' : overall >= 60 ? 'C' : 'D';
 
-    return this.prisma.expertEvaluation.create({
+    const created = await this.prisma.expertEvaluation.create({
       data: {
         expertUserId: dto.expertUserId,
         projectId: dto.projectId,
@@ -338,14 +339,82 @@ export class ExpertAdminService {
       },
       include: { evaluator: { select: { id: true, displayName: true } } },
     });
+
+    // 自动停用：最近 2 次评级均为 D → ExpertProfile.availability='停用'
+    const recent = await this.prisma.expertEvaluation.findMany({
+      where: { expertUserId: dto.expertUserId },
+      orderBy: { createdAt: 'desc' },
+      take: 2,
+      select: { level: true },
+    });
+    if (shouldDeactivateExpert(recent)) {
+      await this.prisma.expertProfile.updateMany({
+        where: { userId: dto.expertUserId },
+        data: { availability: '停用' },
+      });
+    }
+
+    return created;
   }
 
   async getEvaluationStats() {
-    const evaluations = await this.prisma.expertEvaluation.findMany({ select: { level: true, overallScore: true } });
+    const [evaluations, scoreRecords] = await Promise.all([
+      this.prisma.expertEvaluation.findMany({
+        select: { level: true, overallScore: true, expertUserId: true, createdAt: true },
+      }),
+      this.prisma.bidScoreRecord.findMany({
+        select: {
+          score: true, scoreItemId: true, supplierId: true,
+          expert: { select: { userId: true } },
+        },
+      }),
+    ]);
+
+    // 既有：等级分布 + 综合均分
     const levelCounts = { A: 0, B: 0, C: 0, D: 0 };
     for (const e of evaluations) levelCounts[e.level]++;
-    const avgScore = evaluations.length > 0 ? evaluations.reduce((s, e) => s + e.overallScore, 0) / evaluations.length : 0;
-    return { levelCounts, avgScore: Math.round(avgScore * 10) / 10, total: evaluations.length };
+    const avgScore = evaluations.length > 0
+      ? evaluations.reduce((s, e) => s + e.overallScore, 0) / evaluations.length
+      : 0;
+
+    // 评分偏离度（专家以 userId 归属，可跨项目/跨评价关联到履职等级）
+    const deviations = computeExpertMeanDeviations(
+      scoreRecords.map(r => ({
+        expertId: r.expert.userId,
+        scoreItemId: r.scoreItemId,
+        supplierId: r.supplierId,
+        score: Number(r.score),
+      })),
+    );
+    const devMap = new Map(deviations.map(d => [d.expertId, d.meanDeviation]));
+    const avgScoreDeviation = deviations.length > 0
+      ? Math.round(deviations.reduce((s, d) => s + d.meanDeviation, 0) / deviations.length * 10) / 10
+      : 0;
+
+    // 关联分析：每位专家最新履职等级 → 按等级汇总其偏离度均分
+    const latestLevel = new Map<string, string>();
+    for (const e of [...evaluations].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())) {
+      latestLevel.set(e.expertUserId, e.level); // 时间升序遍历，最终保留最新
+    }
+    const byLevel: Record<'A' | 'B' | 'C' | 'D', number[]> = { A: [], B: [], C: [], D: [] };
+    for (const [expertId, level] of latestLevel) {
+      const dev = devMap.get(expertId);
+      if (dev != null && level in byLevel) byLevel[level as 'A' | 'B' | 'C' | 'D'].push(dev);
+    }
+
+    return {
+      levelCounts,
+      avgScore: Math.round(avgScore * 10) / 10,
+      total: evaluations.length,
+      avgScoreDeviation,
+      deviationByLevel: {
+        A: meanOrNull(byLevel.A),
+        B: meanOrNull(byLevel.B),
+        C: meanOrNull(byLevel.C),
+        D: meanOrNull(byLevel.D),
+      },
+      expertsWithDeviation: deviations.length,
+    };
   }
 
   /* ── 抽取辅助 ── */

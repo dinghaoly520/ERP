@@ -9,6 +9,7 @@ import type {
   SupplierRecommendation,
   SupplierSelectionResult,
 } from './ai.types';
+import { computeRiskFactors, riskLevel } from './risk-score.compute';
 
 /* =================================================================
    AI 辅助评标引擎
@@ -408,23 +409,60 @@ export class AiService {
   /* ━━━ 供应商风险评分（管理端用） ━━━ */
 
   async getSupplierRiskScores(projectId: string) {
-    const suppliers = await this.prisma.bidSupplier.findMany({ where: { projectId } });
+    // 预取：投标方、提交、绩效均分、资质聚合（全部/过期）、项目预算
+    const [suppliers, submissions, perfAgg, qualAgg, expiredAgg, budgetRow] = await Promise.all([
+      this.prisma.bidSupplier.findMany({ where: { projectId } }),
+      this.prisma.supplierBidSubmission.findMany({ where: { projectId } }),
+      this.prisma.supplierEvaluation.groupBy({
+        by: ['supplierId'],
+        _avg: { overallScore: true },
+        _count: { _all: true },
+      }),
+      this.prisma.supplierQualification.groupBy({ by: ['supplierId'], _count: { _all: true } }),
+      this.prisma.supplierQualification.groupBy({
+        by: ['supplierId'],
+        where: { validTo: { lt: new Date() } },
+        _count: { _all: true },
+      }),
+      this.prisma.procurementProject.findFirst({ where: { bidProjectId: projectId }, select: { budget: true } }),
+    ]);
+
+    // 仅对"已关联 supplierId"的投标方做资质/绩效查表
+    const linkedSupplierIds = suppliers.map(s => s.supplierId).filter((x): x is string => !!x);
+    const perfMap = new Map(perfAgg.filter(a => linkedSupplierIds.includes(a.supplierId)).map(a => [a.supplierId, { avg: a._avg.overallScore ? Number(a._avg.overallScore) : null, count: a._count._all }]));
+    const qualMap = new Map(qualAgg.filter(a => linkedSupplierIds.includes(a.supplierId)).map(a => [a.supplierId, a._count._all]));
+    const expiredMap = new Map(expiredAgg.filter(a => linkedSupplierIds.includes(a.supplierId)).map(a => [a.supplierId, a._count._all]));
+    const budget = budgetRow?.budget ? Number(budgetRow.budget) : null;
+
     return suppliers.map(s => {
-      const seed = this.hashString(s.supplierName);
-      const riskFactors = [
-        { name: '文件完整性', score: s.submitStatus === '已提交' ? 90 + (seed % 10) : 50 + (seed % 20) },
-        { name: '解密状态', score: s.decryptStatus === 'SUCCESS' ? 100 : s.decryptStatus === 'DANGER' ? 20 : 50 },
-        { name: '资质合规', score: s.confirmStatus === 'CONFIRMED' ? 95 : 65 + (seed % 20) },
-        { name: '报价风险', score: 70 + (seed % 25) },
-        { name: '历史履约', score: 75 + (seed % 20) },
-      ];
-      const overall = Math.round(riskFactors.reduce((sum, f) => sum + f.score, 0) / riskFactors.length);
+      const sub = submissions.find(x => x.supplierId === s.supplierId);
+      const fileRefs = sub ? [sub.technicalFileAssetId, sub.businessFileAssetId, sub.coverLetterAssetId] : [];
+      const fileCount = fileRefs.filter(Boolean).length;
+
+      const totalQual = s.supplierId ? (qualMap.get(s.supplierId) ?? 0) : 0;
+      const expiredQual = s.supplierId ? (expiredMap.get(s.supplierId) ?? 0) : 0;
+      const perf = s.supplierId ? perfMap.get(s.supplierId) : undefined;
+
+      const factors = computeRiskFactors({
+        decryptStatus: s.decryptStatus,
+        fileCount,
+        fileTotal: 3,
+        validQualifications: Math.max(0, totalQual - expiredQual),
+        expiredQualifications: expiredQual,
+        bidPrice: sub?.bidPrice ? Number(sub.bidPrice) : null,
+        budget,
+        perfAvg: perf?.avg ?? null,
+        perfCount: perf?.count ?? 0,
+      });
+      const overall = Math.round(factors.reduce((sum, f) => sum + f.score, 0) / factors.length);
+      const dataBacked = factors.filter(f => f.backedByData).length;
       return {
         id: s.id,
         supplierName: s.supplierName,
         overallRiskScore: overall,
-        level: overall >= 85 ? '低风险' : overall >= 65 ? '中风险' : '高风险',
-        factors: riskFactors,
+        level: riskLevel(overall),
+        factors: factors.map(f => ({ name: f.name, score: f.score, detail: f.detail })),
+        confidence: Math.round((dataBacked / factors.length) * 100),
       };
     });
   }
