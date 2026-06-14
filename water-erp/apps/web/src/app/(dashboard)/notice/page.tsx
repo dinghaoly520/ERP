@@ -11,6 +11,8 @@ import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Announ
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { toast } from 'sonner';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
+import { FileText, Megaphone as MegaphoneIcon, PlusCircle } from 'lucide-react';
 
 const typeMap: Record<AnnouncementType, { label: string; color: string; bg: string }> = {
   BID_NOTICE: { label: '招标公示', color: '#064ea2', bg: '#064ea218' },
@@ -75,23 +77,30 @@ export default function NoticePage() {
 
   return (
     <div>
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <div className="mb-2 inline-flex rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-3 py-1 text-xs font-semibold text-[#064ea2]">信息发布中心</div>
-          <h1 className="text-2xl font-bold text-[#0f2f57]">信息发布中心</h1>
-          <p className="text-sm text-[#5a6d8a] mt-1">招标公示 · 中标公示 · 政策法规 · 平台通知 — 起草并配齐招标文件/附件后再发布</p>
-        </div>
-        <button onClick={() => setEditor('new')} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-semibold text-white hover:bg-[#054280] transition">+ 新建信息</button>
+      <PageHero
+        eyebrow="信息发布中心"
+        title="信息发布中心"
+        description="招标公示、中标公示、政策法规、平台通知；起草并配齐招标文件/附件后再发布。"
+        tone="blue"
+        icon={<MegaphoneIcon size={14} />}
+        actions={<button onClick={() => setEditor('new')} className="inline-flex items-center gap-2 rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white hover:bg-[#054280]"><PlusCircle size={16} /> 新建信息</button>}
+      />
+
+      <div className="mt-6 grid gap-4 md:grid-cols-4">
+        <MetricCard label="信息总数" value={data.total} hint="当前筛选条件下总量" tone="blue" icon={<FileText size={18} />} />
+        <MetricCard label="已发布" value={data.items.filter(item => item.status === 'PUBLISHED').length} hint="本页已发布记录" tone="green" />
+        <MetricCard label="草稿" value={data.items.filter(item => item.status === 'DRAFT').length} hint="本页草稿记录" tone="orange" />
+        <MetricCard label="已归档" value={data.items.filter(item => item.status === 'ARCHIVED').length} hint="本页归档记录" tone="gray" />
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mt-6 mb-4 flex flex-wrap gap-2">
         <button onClick={() => { setFilterType(''); setPage(1); }} className={'rounded-full px-4 py-2 text-sm font-semibold transition ' + (filterType === '' ? 'bg-[#064ea2] text-white shadow-[0_8px_20px_rgba(6,78,162,0.2)]' : 'bg-white text-[#5a6d8a] border border-[#e5ecf4] hover:text-[#064ea2]')}>全部</button>
         {(Object.keys(typeMap) as AnnouncementType[]).map(t => (
           <button key={t} onClick={() => { setFilterType(t); setPage(1); }} className={'rounded-full px-4 py-2 text-sm font-semibold transition ' + (filterType === t ? 'bg-[#064ea2] text-white shadow-[0_8px_20px_rgba(6,78,162,0.2)]' : 'bg-white text-[#5a6d8a] border border-[#e5ecf4] hover:text-[#064ea2]')}>{typeMap[t].label}</button>
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-[#e5ecf4] p-4 mb-4 flex gap-3 items-center flex-wrap">
+      <DataToolbar className="mb-4">
         <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索标题" className="flex-1 min-w-[200px] px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm focus:outline-none focus:border-[#064ea2]" />
         <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value as any); setPage(1); }} className="px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm">
           <option value="">全部状态</option>
@@ -99,10 +108,10 @@ export default function NoticePage() {
           <option value="DRAFT">草稿</option>
           <option value="ARCHIVED">已归档</option>
         </select>
-      </div>
+      </DataToolbar>
 
-      <div className="bg-white rounded-xl border border-[#e5ecf4]">
-        <table className="w-full text-sm">
+      <SectionCard className="overflow-hidden p-0">
+        <table className="workbench-table">
           <thead>
             <tr className="border-b border-[#e5ecf4] text-left text-[#5a6d8a]">
               <th className="px-5 py-3">标题</th>
@@ -153,7 +162,7 @@ export default function NoticePage() {
             </div>
           </div>
         )}
-      </div>
+      </SectionCard>
 
       {editor !== null && <EditorModal key={editor === 'new' ? 'new' : editor.id} announcement={editor === 'new' ? null : editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); load(); }} />}
       {partAnn && <ParticipantsModal announcement={partAnn} onClose={() => setPartAnn(null)} />}

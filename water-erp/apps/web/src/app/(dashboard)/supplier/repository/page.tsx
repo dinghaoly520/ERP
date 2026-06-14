@@ -7,6 +7,8 @@ import {
   updateSupplierStatus, createClassification, updateClassification, deleteClassification,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierClassification, SupplierListResponse } from '@/lib/types';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
+import { Building2, Layers } from 'lucide-react';
 
 const statusMap: Record<string, { label: string; color: string; bg: string }> = {
   PENDING: { label: '待审核', color: '#f5a623', bg: '#f5a62318' },
@@ -97,30 +99,20 @@ export default function SupplierRepositoryPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <div className="mb-2 inline-flex rounded-full border border-[#bbf7d0] bg-[#f0fdf4] px-3 py-1 text-xs font-semibold text-[#11a874]">供应商管理中心</div>
-          <h1 className="text-2xl font-bold text-[#0f2f57]">供应商库</h1>
-          <p className="text-sm text-[#5a6d8a] mt-1">全量供应商目录、分类管理与状态维护</p>
-        </div>
-        <button onClick={() => setShowClassMgr(v => !v)} className="rounded-xl border border-[#d5e0ef] bg-white px-4 py-2 text-sm font-semibold text-[#064ea2] hover:bg-[#f0f6ff] transition">
-          {showClassMgr ? '收起分类管理' : '分类管理'}
-        </button>
-      </div>
+      <PageHero
+        eyebrow="供应商管理中心"
+        title="供应商库"
+        description="全量供应商目录、分类管理与状态维护；所有统计来自供应商真实接口。"
+        tone="green"
+        icon={<Building2 size={14} />}
+        actions={<button onClick={() => setShowClassMgr(v => !v)} className="inline-flex items-center gap-2 rounded-xl border border-[#bbf7d0] bg-white px-4 py-2 text-sm font-bold text-[#11a874] hover:bg-[#f0fdf4]"><Layers size={16} /> {showClassMgr ? '收起分类管理' : '分类管理'}</button>}
+      />
 
-      {/* 统计 */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        {[
-          { label: '供应商总数', value: stats.total, color: '#064ea2' },
-          { label: '已入库', value: stats.approved, color: '#11a874' },
-          { label: '已停用', value: stats.disabled, color: '#95a5a6' },
-          { label: '黑名单', value: stats.blacklist, color: '#c0392b' },
-        ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border border-[#e5ecf4] p-5">
-            <p className="text-xs text-[#5a6d8a] mb-1">{s.label}</p>
-            <p className="text-3xl font-bold" style={{ color: s.color }}>{s.value}</p>
-          </div>
-        ))}
+      <div className="mt-6 mb-6 grid gap-4 md:grid-cols-4">
+        <MetricCard label="供应商总数" value={stats.total} tone="blue" />
+        <MetricCard label="已入库" value={stats.approved} tone="green" />
+        <MetricCard label="已停用" value={stats.disabled} tone="gray" />
+        <MetricCard label="黑名单" value={stats.blacklist} tone="red" />
       </div>
 
       {/* 分类管理面板 */}
@@ -186,7 +178,7 @@ export default function SupplierRepositoryPage() {
       </div>
 
       {/* 搜索 & 分类筛选 */}
-      <div className="bg-white rounded-xl border border-[#e5ecf4] p-4 mb-4 flex gap-3 items-center flex-wrap">
+      <DataToolbar className="mb-4">
         <input
           value={search}
           onChange={e => { setSearch(e.target.value); setPage(1); }}
@@ -198,9 +190,7 @@ export default function SupplierRepositoryPage() {
           {classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <button onClick={() => { setSearch(''); setFilterStatus(''); setFilterClassification(''); setPage(1); }} className="px-4 py-2 text-sm text-[#5a6d8a] hover:text-[#064ea2] transition">重置</button>
-      </div>
-
-      {/* 列表 */}
+      </DataToolbar>
       <div className="bg-white rounded-xl border border-[#e5ecf4]">
         <table className="w-full text-sm">
           <thead>

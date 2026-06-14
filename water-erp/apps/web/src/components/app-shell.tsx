@@ -14,16 +14,17 @@ interface NavChild {
 }
 interface NavItem {
   label: string;
+  caption?: string;
   path?: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   children?: NavChild[];
 }
 
 const navItems: NavItem[] = [
-  { label: '首页驾驶舱', path: '/dashboard', icon: LayoutDashboard },
-  { label: '信息发布中心', path: '/notice', icon: Megaphone },
+  { label: '首页驾驶舱', caption: '运营总览', path: '/dashboard', icon: LayoutDashboard },
+  { label: '信息发布中心', caption: '公告 / 公示 / 政策', path: '/notice', icon: Megaphone },
   {
-    label: '供应商管理中心', path: '/supplier', icon: Building2,
+    label: '供应商管理中心', caption: '审批 / 库 / 评价', path: '/supplier', icon: Building2,
     children: [
       { label: '供应商审批', path: '/supplier/approval' },
       { label: '供应商库', path: '/supplier/repository' },
@@ -33,7 +34,7 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    label: '专家管理中心', path: '/expert', icon: UsersRound,
+    label: '专家管理中心', caption: '录入 / 抽取 / 履职', path: '/expert', icon: UsersRound,
     children: [
       { label: '专家录入', path: '/expert/entry' },
       { label: '专家库', path: '/expert/repository' },
@@ -42,7 +43,7 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    label: '电子商城管理', path: '/mall-management', icon: ShoppingCart,
+    label: '电子商城管理', caption: '价格 / 目录 / 日志', path: '/mall-management', icon: ShoppingCart,
     children: [
       { label: '价格审批', path: '/mall-management/approval' },
       { label: '价格录入', path: '/mall-management/price-entry' },
@@ -60,7 +61,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
 
-  // 展开状态：初始展开当前路由所在的分组
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
     const s = new Set<string>();
     for (const item of navItems) {
@@ -68,7 +68,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
     return s;
   });
-  // 路由切换到某分组子项时，自动展开该分组
+
   useEffect(() => {
     for (const item of navItems) {
       if (item.children && item.path && pathname.startsWith(item.path + '/') && !openGroups.has(item.path)) {
@@ -94,29 +94,30 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const userInitial = registeredName.slice(0, 1);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#f7f9fc]">
-      {/* ── Top header — mall-style, full width ── */}
-      <header className="sticky top-0 z-50 flex-shrink-0 border-b border-[#dce6f3] bg-white/95 backdrop-blur-xl">
-        <div className="flex h-[72px] items-center justify-between px-6">
-          {/* Brand */}
-          <button onClick={() => router.push('/dashboard')} className="flex items-center gap-3">
-            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-11 w-auto object-contain" />
-            <strong
-              className="block text-xl font-black tracking-[0.12em] text-[#123a6e]"
-              style={{ fontFamily: '"SimHei","黑体",sans-serif' }}
-            >
-              四川水发集团
-            </strong>
+    <div className="flex h-screen flex-col overflow-hidden workbench-page-bg text-[#18243a]">
+      <header className="sticky top-0 z-50 flex-shrink-0 border-b border-[#dbe6f3] bg-white/86 backdrop-blur-xl">
+        <div className="flex h-[68px] items-center justify-between px-6">
+          <button onClick={() => router.push('/dashboard')} className="flex items-center gap-3 text-left">
+            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-10 w-auto object-contain" />
+            <div>
+              <strong className="block text-lg font-black tracking-[0.10em] text-[#123a6e]" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>
+                四川水发集团
+              </strong>
+              <span className="text-xs font-semibold text-[#5a6d8a]">采购管理运营工作台</span>
+            </div>
           </button>
 
-          {/* Actions */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-xl bg-[#f3f7fc] px-3 py-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#064ea2] text-xs font-black text-white">
+            <div className="hidden rounded-full border border-[#dbeafe] bg-[#eff6ff] px-3 py-1 text-xs font-bold text-[#064ea2] sm:block">
+              3004 采购管理系统
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-[#e5ecf4] bg-white px-3 py-2 shadow-sm">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-xs font-black text-white">
                 {userInitial}
               </span>
               <div className="hidden leading-tight sm:block">
                 <div className="text-sm font-black text-[#18243a]">{registeredName}</div>
+                <div className="text-[11px] font-semibold text-[#8a96aa]">采购管理员</div>
               </div>
             </div>
             <button
@@ -129,13 +130,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* ── Body: sidebar + main ── */}
       <div className="flex flex-1 overflow-hidden">
-        <aside
-          className={`${collapsed ? 'w-[56px]' : 'w-56'} bg-[#0d2a4a] text-white flex flex-col flex-shrink-0 transition-all duration-200 overflow-hidden`}
-        >
-          {/* Nav items */}
-          <nav className="flex-1 overflow-y-auto py-3 px-2">
+        <aside className={`${collapsed ? 'w-[68px]' : 'w-[272px]'} m-3 mr-0 flex flex-shrink-0 flex-col overflow-hidden rounded-[24px] border border-[#dbe6f3] bg-white/88 shadow-[0_18px_60px_rgba(15,47,87,0.10)] backdrop-blur transition-all duration-200`}>
+          {!collapsed && (
+            <div className="border-b border-[#edf3fb] p-4">
+              <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#8a96aa]">Navigation</div>
+              <div className="mt-1 text-sm font-black text-[#0f2f57]">采购业务中心</div>
+            </div>
+          )}
+          <nav className="flex-1 overflow-y-auto px-2 py-3">
             {navItems.map(item => {
               const hasChildren = !!item.children?.length;
               const groupActive = hasChildren && item.path !== undefined && isActive(item.path);
@@ -143,7 +146,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
               const onGroupClick = () => {
                 if (collapsed || !item.children?.length) {
-                  // 折叠态：直接进入首个子页
                   router.push(item.children![0].path);
                   return;
                 }
@@ -156,40 +158,38 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               };
 
               return (
-                <div key={item.path} className="mb-1">
+                <div key={item.path} className="mb-1.5">
                   <button
                     onClick={hasChildren ? onGroupClick : () => router.push(item.path!)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] transition-colors relative rounded-lg ${
+                    className={`relative flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-all ${
                       (hasChildren ? groupActive : isActive(item.path!))
-                        ? 'bg-[#064ea2] text-white font-semibold shadow-[0_8px_20px_rgba(6,78,162,0.28)]'
-                        : 'text-white/50 hover:text-white/85 hover:bg-white/[0.05]'
+                        ? 'bg-gradient-to-r from-[#064ea2] to-[#0b63ce] text-white shadow-[0_12px_28px_rgba(6,78,162,0.24)]'
+                        : 'text-[#5a6d8a] hover:bg-[#eff6ff] hover:text-[#064ea2]'
                     }`}
                   >
-                    {isActive(item.path!) && (
-                      <div className="w-[3px] h-4 bg-[#7dd3fc] rounded-r absolute left-0" />
+                    {isActive(item.path!) && <div className="absolute left-0 h-6 w-[3px] rounded-r bg-[#67e8f9]" />}
+                    <div className="flex-shrink-0"><item.icon size={collapsed ? 20 : 18} strokeWidth={1.7} /></div>
+                    {!collapsed && (
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black tracking-tight">{item.label}</span>
+                        {item.caption && <span className="mt-0.5 block truncate text-[11px] opacity-70">{item.caption}</span>}
+                      </span>
                     )}
-                    <div className="flex-shrink-0"><item.icon size={collapsed ? 18 : 16} strokeWidth={1.5} /></div>
-                    {!collapsed && <span className="tracking-tight flex-1 text-left">{item.label}</span>}
                     {hasChildren && !collapsed && (
-                      <ChevronDown
-                        size={14}
-                        strokeWidth={2}
-                        className={`flex-shrink-0 text-white/40 transition-transform ${groupOpen ? 'rotate-180' : ''}`}
-                      />
+                      <ChevronDown size={14} strokeWidth={2} className={`flex-shrink-0 opacity-60 transition-transform ${groupOpen ? 'rotate-180' : ''}`} />
                     )}
                   </button>
 
-                  {/* 子菜单 */}
                   {hasChildren && !collapsed && groupOpen && (
-                    <div className="mt-0.5 ml-3 pl-3 border-l border-white/[0.08]">
+                    <div className="ml-5 mt-1.5 border-l border-[#dbeafe] pl-3">
                       {item.children!.map(child => (
                         <button
                           key={child.path}
                           onClick={() => router.push(child.path)}
-                          className={`w-full flex items-center px-3 py-2 my-0.5 text-[12.5px] rounded-lg transition-colors ${
+                          className={`my-0.5 flex w-full items-center rounded-xl px-3 py-2 text-[12.5px] transition-colors ${
                             pathname === child.path
-                              ? 'bg-white/[0.08] text-white font-semibold'
-                              : 'text-white/45 hover:text-white/80 hover:bg-white/[0.04]'
+                              ? 'bg-[#eff6ff] font-bold text-[#064ea2]'
+                              : 'text-[#6b7c95] hover:bg-[#f8fbff] hover:text-[#064ea2]'
                           }`}
                         >
                           {child.label}
@@ -202,18 +202,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          {/* Collapse toggle */}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="h-10 flex items-center justify-center border-t border-white/[0.06] text-white/30 hover:text-white/60 transition-colors"
+            className="m-2 flex h-11 items-center justify-center rounded-2xl border border-[#e5ecf4] bg-[#f8fbff] text-[#5a6d8a] transition-colors hover:border-[#bfdbfe] hover:text-[#064ea2]"
           >
-            {collapsed ? <PanelLeft size={16} strokeWidth={1.5} /> : <PanelLeftClose size={16} strokeWidth={1.5} />}
+            {collapsed ? <PanelLeft size={16} strokeWidth={1.7} /> : <PanelLeftClose size={16} strokeWidth={1.7} />}
           </button>
         </aside>
 
-        {/* Main content area */}
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <main className="flex-1 overflow-y-auto p-6">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <main className="workbench-grid-bg flex-1 overflow-y-auto p-6">
             {children}
           </main>
         </div>

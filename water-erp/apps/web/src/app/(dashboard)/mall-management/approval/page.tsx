@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { type CatalogApplication, listCatalogApplications, reviewCatalogApplication } from '@/lib/api/catalog';
-import { CheckCircle, XCircle, RotateCcw, MessageSquare, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { DataToolbar, MetricCard, PageHero, StatusBadge } from '@/components/workbench';
+import { CheckCircle, XCircle, RotateCcw, MessageSquare, Eye, ChevronDown, ChevronUp, ClipboardCheck } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: '待审批', COUNTERED: '议价中', RETURNED: '已退回',
@@ -118,43 +119,34 @@ export default function PriceApprovalPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm font-semibold text-[#064ea2]">电子商城管理</p>
-        <h1 className="mt-1 text-2xl font-black text-[#18243a]">价格审批</h1>
-        <p className="mt-2 text-sm text-[#5a6d8a]">处理供应商提交的目录报价、新增品类和供货申请，支持审核、议价、退回补正。</p>
-      </div>
+      <PageHero
+        eyebrow="电子商城管理"
+        title="价格审批"
+        description="处理供应商提交的目录报价、新增品类和供货申请，支持审核、议价、退回补正。"
+        tone="blue"
+        icon={<ClipboardCheck size={14} />}
+      />
 
       <div className="grid gap-4 md:grid-cols-4">
-        {[
-          ['待审批', stats.pending, 'bg-blue-50 border-blue-200 text-blue-700'],
-          ['议价中', stats.countered, 'bg-purple-50 border-purple-200 text-purple-700'],
-          ['已退回', stats.returned, 'bg-amber-50 border-amber-200 text-amber-700'],
-          ['本月已通过', stats.approved, 'bg-emerald-50 border-emerald-200 text-emerald-700'],
-        ].map(([label, value, cls]) => (
-          <div key={label as string} className={`rounded-2xl border p-5 shadow-sm bg-white`}>
-            <div className="text-sm font-semibold text-[#5a6d8a]">{label}</div>
-            <div className={`mt-3 text-3xl font-black`} style={{ color: (cls as string).match(/text-\w+-\d+/)?.[0] ? undefined : '#123a6e' }}>
-              <span className={(cls as string).split(' ').filter(c => c.startsWith('text-')).join(' ')}>{String(value)}</span>
-            </div>
-          </div>
-        ))}
+        <MetricCard label="待审批" value={stats.pending} tone="blue" />
+        <MetricCard label="议价中" value={stats.countered} tone="purple" />
+        <MetricCard label="已退回" value={stats.returned} tone="orange" />
+        <MetricCard label="本月已通过" value={stats.approved} tone="green" />
       </div>
 
-      <div className="rounded-2xl border border-[#dce6f3] bg-white p-5 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-[140px_140px_1fr_auto]">
-          <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-xl border border-[#d5e0ef] px-3 py-2 text-sm font-medium">
-            <option value="PENDING">待审批</option><option value="COUNTERED">议价中</option><option value="RETURNED">已退回</option>
-            <option value="APPROVED">已通过</option><option value="REJECTED">已拒绝</option><option value="WITHDRAWN">已撤回</option>
-            <option value="全部">全部状态</option>
-          </select>
-          <select value={type} onChange={e => setType(e.target.value)} className="rounded-xl border border-[#d5e0ef] px-3 py-2 text-sm font-medium">
-            <option value="全部">全部类型</option><option value="NEW_ITEM">新增品类</option>
-            <option value="JOIN_EXISTING">加入供货</option><option value="UPDATE_QUOTE">报价调整</option>
-          </select>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索供应商/目录/申请ID" className="rounded-xl border border-[#d5e0ef] px-3 py-2 text-sm" />
-          <button onClick={load} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white">刷新</button>
-        </div>
-      </div>
+      <DataToolbar>
+        <select value={status} onChange={e => setStatus(e.target.value)} className="workbench-input text-sm font-medium">
+          <option value="PENDING">待审批</option><option value="COUNTERED">议价中</option><option value="RETURNED">已退回</option>
+          <option value="APPROVED">已通过</option><option value="REJECTED">已拒绝</option><option value="WITHDRAWN">已撤回</option>
+          <option value="全部">全部状态</option>
+        </select>
+        <select value={type} onChange={e => setType(e.target.value)} className="workbench-input text-sm font-medium">
+          <option value="全部">全部类型</option><option value="NEW_ITEM">新增品类</option>
+          <option value="JOIN_EXISTING">加入供货</option><option value="UPDATE_QUOTE">报价调整</option>
+        </select>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索供应商/目录/申请ID" className="workbench-input flex-1 text-sm" />
+        <button onClick={load} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white">刷新</button>
+      </DataToolbar>
 
       {loading ? (
         <div className="rounded-2xl border border-[#dce6f3] bg-white p-10 text-center text-[#8a99ad] shadow-sm">加载中...</div>
@@ -176,7 +168,7 @@ export default function PriceApprovalPage() {
           <div key={app.id} className="rounded-2xl border border-[#dce6f3] bg-white shadow-sm overflow-hidden">
             {/* Summary row */}
             <div className="flex items-center gap-4 px-5 py-4 cursor-pointer" onClick={() => toggleExpand(app.id)}>
-              <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-bold ${statusBadge[app.status]}`}>{STATUS_LABELS[app.status]}</span>
+              <StatusBadge tone={app.status === "APPROVED" ? "green" : app.status === "PENDING" ? "blue" : app.status === "COUNTERED" ? "purple" : app.status === "RETURNED" ? "orange" : app.status === "REJECTED" ? "red" : "gray"}>{STATUS_LABELS[app.status]}</StatusBadge>
               <span className="rounded-full bg-[#f3f7fc] px-2 py-0.5 text-xs font-bold text-[#5a6d8a]">{TYPE_LABELS[app.type] || app.type}</span>
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-[#18243a] text-sm truncate">
