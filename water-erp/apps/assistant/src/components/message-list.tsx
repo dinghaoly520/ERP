@@ -11,57 +11,6 @@ const RISK_COLORS: Record<string, { text: string; bg: string }> = {
 };
 const RISK_LABELS: Record<string, string> = { low: '低风险', medium: '中风险', high: '高风险' };
 
-function MetricCards({ cards }: { cards: Array<{ type: string; title: string; value: string; trend?: string }> }) {
-  return (
-    <div className={styles.metricRow}>
-      {cards.map((c, i) => (
-        <div key={i} className={styles.metricCard}>
-          <div className={styles.metricLabel}>{c.title}</div>
-          <div className={styles.metricValue}>
-            {c.value}
-            {c.trend && (
-              <span
-                className={styles.metricTrend}
-                style={{ color: c.trend.startsWith('+') ? 'var(--success)' : 'var(--error)' }}
-              >
-                {c.trend}
-              </span>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function TableCard({ card }: { card: { title: string; columns: Array<{ key: string; label: string }>; rows: unknown[] } }) {
-  return (
-    <div className={styles.tableCard}>
-      <div className={styles.tableHeader}>{card.title}</div>
-      <div className={styles.tableBody}>
-        <table>
-          <thead>
-            <tr>
-              {card.columns.map((c) => (
-                <th key={c.key}>{c.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {(card.rows as Array<Record<string, unknown>>).map((row, i) => (
-              <tr key={i}>
-                {card.columns.map((c) => (
-                  <td key={c.key}>{String(row[c.key] ?? '-')}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 export function MessageList({
   messages,
   onConfirmAction,
@@ -90,22 +39,6 @@ export function MessageList({
               <div className={styles.assistantContent}>
                 {/* 文本 */}
                 <div className={styles.assistantText}>{msg.content}</div>
-
-                {/* 指标卡 */}
-                {msg.cards && msg.cards.filter((c) => c.type === 'metric').length > 0 && (
-                  <MetricCards cards={msg.cards.filter((c) => c.type === 'metric') as Array<{ type: string; title: string; value: string; trend?: string }>} />
-                )}
-
-                {/* 表格卡 */}
-                {msg.cards && msg.cards.filter((c) => c.type === 'table').length > 0 && (
-                  <div className={styles.cardsArea}>
-                    {msg.cards
-                      .filter((c) => c.type === 'table')
-                      .map((card, i) => (
-                        <TableCard key={i} card={card as { title: string; columns: Array<{ key: string; label: string }>; rows: unknown[] }} />
-                      ))}
-                  </div>
-                )}
 
                 {/* 操作预案卡 */}
                 {msg.pendingActions && msg.pendingActions.length > 0 && (

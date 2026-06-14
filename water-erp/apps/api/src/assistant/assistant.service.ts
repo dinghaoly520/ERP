@@ -99,11 +99,9 @@ ${toolList}
 - 当用户询问数据/统计/列表/详情/分析问题时，你必须调用相应的工具获取真实数据。
 - 工具调用格式（放在回答最前面，独占一行）：
   TOOL_CALL: {"tool": "<工具名>", "args": {"action": "<action>", ...}}
-- 每次回答最多调用一个工具。先获取数据，再基于数据组织中文回答。
-- 获取到工具返回的数据后，用中文组织成简洁易读的回答。
-- 如果工具返回了 cards（指标卡、表格），请在回答中提及这些数据，但不需要重复展示所有细节——卡片会由前端单独渲染。
-- 涉及修改/审批/删除/禁用/退回时，不要直接执行，而是说明需要操作预案并解释风险。
-- 回复用中文，简洁专业。`;
+- 每次回答调用一个或者多个工具。先获取数据，再基于数据提炼洞察。
+- 卡片已在前端渲染，文字回答只做判断和建议，不重复罗列数字。
+- 涉及修改/审批/删除/禁用/退回时，说明操作预案和风险，不要直接执行。`;
 
     const messages = [
       { role: 'system' as const, content: fullSystemPrompt },
@@ -159,18 +157,38 @@ ${toolList}
               citations.push(...result.citations);
             }
             // Second model call: incorporate tool result into final answer
-            const toolResultText = result.success
-              ? JSON.stringify(
-                  result.data || result.cards || { summary: '查询成功' },
-                )
-              : `工具调用失败: ${result.error}`;
+            // Build a clean summary for the model — don't dump raw JSON
+            let toolSummary = '';
+            if (result.success) {
+              const cardCount = (result.cards || []).length;
+              const dataObj = result.data as Record<string, unknown> | undefined;
+              const itemCount = Array.isArray(result.data) ? result.data.length : 0;
+              if (cardCount > 0) {
+                const cardTypes = (result.cards || []).map((c: any) => c.type).join('、');
+                toolSummary = `查询成功，已生成 ${cardCount} 张卡片（类型：${cardTypes}）。卡片已在前端渲染展示，你不需要在文字中重复卡片中的数字。`;
+              } else if (itemCount > 0) {
+                toolSummary = `查询到 ${itemCount} 条记录。`;
+              } else if (dataObj) {
+                toolSummary = `查询到 1 条详情记录。`;
+              } else {
+                toolSummary = '查询成功，但结果为空。';
+              }
+            } else {
+              toolSummary = `工具调用失败: ${result.error}`;
+            }
 
             const followUpMessages = [
               ...messages,
               { role: 'assistant' as const, content: answer },
               {
                 role: 'user' as const,
-                content: `工具 ${toolCall.tool} 返回了以下数据：\n${toolResultText}\n\n请用中文组织一个简洁、专业的回答给董事长。`,
+                content: `工具 ${toolCall.tool} 的查询结果：${toolSummary}
+
+请以董事长的视角，基于这些数据给出你的判断和建议。记住：
+- 【绝对不要】逐条罗列卡片中的数字——卡片已经在页面上展示了。
+- 【你要做的】提炼出最重要的 2-3 个洞察，每个用 1-2 句话讲清楚现状和含义。
+- 如果有异常或待办事项，明确提出。
+- 按照系统提示词中的回答格式规范来组织你的回答。`,
               },
             ];
             try {
