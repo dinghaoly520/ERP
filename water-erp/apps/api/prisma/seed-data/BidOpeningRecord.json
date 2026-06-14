@@ -9,6 +9,12 @@
     "bondStatus": "已缴纳",
     "decryptResult": "解密成功",
     "confirmStatus": "已确认",
+    "bidSupplierId": null,
+    "objectionReason": null,
+    "confirmedAt": null,
+    "handledAt": null,
+    "handledBy": null,
+    "handleResult": null,
     "createdAt": "2026-06-13T06:18:29.587Z"
   },
   {
@@ -21,6 +27,12 @@
     "bondStatus": "已缴纳",
     "decryptResult": "解密成功",
     "confirmStatus": "已确认",
+    "bidSupplierId": null,
+    "objectionReason": null,
+    "confirmedAt": null,
+    "handledAt": null,
+    "handledBy": null,
+    "handleResult": null,
     "createdAt": "2026-06-13T06:18:29.587Z"
   },
   {
@@ -33,6 +45,12 @@
     "bondStatus": "电子保函",
     "decryptResult": "解密中",
     "confirmStatus": "待确认",
+    "bidSupplierId": null,
+    "objectionReason": null,
+    "confirmedAt": null,
+    "handledAt": null,
+    "handledBy": null,
+    "handleResult": null,
     "createdAt": "2026-06-13T06:18:29.587Z"
   }
 ]

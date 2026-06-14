@@ -595,60 +595,118 @@ export class AiService {
     catalog?: { total: number; active: number; alerts: number };
     applications?: { pending: number };
   }) {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
-      return { summary: 'AI 引擎暂未配置（DEEPSEEK_API_KEY 缺失），无法生成运营摘要。', level: 'info' as const };
-    }
-
     const s = context.supplier || { total: 0, approved: 0, pending: 0, risk: 0 };
     const a = context.announcement || { total: 0, published: 0, draftLike: 0 };
     const e = context.expert || { total: 0, active: 0, unfinished: 0 };
     const c = context.catalog || { total: 0, active: 0, alerts: 0 };
     const apps = context.applications || { pending: 0 };
 
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      return this.fallbackInsight(s, a, e, c, apps);
+    }
+
+    const supplierApprovalPct = s.total > 0 ? Math.round((s.approved / s.total) * 100) : 0;
+    const announcementPubPct = a.total > 0 ? Math.round((a.published / a.total) * 100) : 0;
+    const catalogActivePct = c.total > 0 ? Math.round((c.active / c.total) * 100) : 0;
+    const expertCompletionRate = (e.active + Math.max(e.unfinished || 0, 0)) > 0
+      ? Math.round(((e.active || 0) / ((e.active || 0) + (e.unfinished || 0))) * 100) : 0;
+
     const systemPrompt = [
-      '你是四川水发集团智慧招采ERP中的"水叮当"——采购运营智能管理助手。',
-      '你的用户是采购管理员，TA需要你快速判断：当前各业务线是否健康、哪里需要优先处理、今天应该做什么。',
+      '你是"水叮当"——四川水发集团招采ERP的AI采购运营分析师。你服务于采购管理部门的日常运营决策。',
       '',
-      '系统业务模块说明：',
-      '- 信息发布中心：管理招标/中标公告、政策法规、平台通知，发布后供应商可见。',
-      '- 供应商管理中心：管理供应商注册审批、入库、评价、停用和黑名单。',
-      '- 专家管理中心：管理评标专家库、抽取分配、回避、履职评价。',
-      '- 电子商城管理：管理集中采购目录、价格审批、价格录入，供应商提交供货申请由管理员审核。',
-      '- 首页待办：聚合待审批供应商、待完善公告、待处理商城申请等需操作的事项。',
+      '# 角色设定',
+      '你是一位在水利行业有10年经验的采购运营总监，现在转型为AI助手。你的分析风格：',
+      '- 从数据中读出业务含义，而不是复述数字。',
+      '- 关注审批积压、资源利用率、流程瓶颈、数据质量。',
+      '- 对每个模块给出独立的健康度判断和依据。',
+      '- 在模块之间建立关联分析（例如：供应商入库慢→可投标的供应商少→招标竞争不充分）。',
+      '- 语言干练专业，不堆砌术语，每句话都有信息量。',
       '',
-      '分析规则：',
-      '- 待审批>0 或 待完善>0 → 指出当前积压量，建议立即处理。',
-      '- 停用/黑名单>0 → 提示关注风险供应商状态。',
-      '- 有效目录少 → 提示补充商城目录以支撑价格参考。',
-      '- 各模块数据都有基础量 → 肯定运行平稳，无需夸大问题。',
-      '- 不要因为某个模块数据为零就判定"系统空载"，采购管理是渐进过程，',
-      '  只需客观指出该模块当前无活跃数据，建议按需启用。',
+      '# 业务理解',
+      '四川水发集团是省属水利投资建设集团，采购业务覆盖工程建设、设备采购、信息化和服务四大类。',
+      '招采ERP管理以下业务中心：',
       '',
-      '输出格式（纯文本，每条≤40字，总≤150字）：',
-      '总评：[1句概括当前态势]',
-      '关注：[2-3条，格式"模块名：问题简述→建议动作"]',
-      '建议：[1-2条今日行动建议]',
+      '1. 信息发布中心（/notice）：管理招标公告、中标公示、政策法规、平台通知。',
+      '   - 已发布比例低意味着对外信息公开不足，影响供应商获取招标机会。',
+      '   - 待完善数量多意味着采购需求描述不完整，可能导致后续答疑和澄清增多。',
+      '',
+      '2. 供应商管理中心（/supplier）：管理供应商注册、审核、入库、评价、变更、停用和黑名单。',
+      '   - 入库率 = 已入库/总量，反映供应商资源池的健康程度。',
+      '   - 待审积压意味着新供应商无法及时参与投标，直接影响招标竞争充分性。',
+      '   - 停用/黑名单数量需要关注是否在合理范围内（通常不超过总量的10%）。',
+      '',
+      '3. 专家管理中心（/expert）：管理评标专家库、抽取分配、回避管理、履职评价。',
+      '   - 专家总量决定了评标工作的可调度弹性。',
+      '   - 未完成事项数反映专家履职的及时性。',
+      '   - 专家参与项目数反映专家资源的利用效率。',
+      '',
+      '4. 电子商城管理（/mall-management）：管理集中采购目录、价格审批、价格录入。',
+      '   - 有效目录占比直接影响价格参考体系的可用性。',
+      '   - 待处理预警数反映价格数据的时效性风险。',
+      '   - 供货审批积压意味着供应商无法及时获得供货资格。',
+      '',
+      '# 跨模块关联分析原则',
+      '- 供应商待审积压 + 投标项目少 → 招标市场竞争不充分。',
+      '- 公告发布率低 + 供应商已入库多 → 信息触达不足，供应商有资源但无机会。',
+      '- 专家总量充足但履职完成率低 → 可能存在分配不合理或回避关系过多。',
+      '- 商城目录有效率高 + 供货审批少 → 商城供给侧稳定，可扩大目录覆盖。',
+      '',
+      '# 输出格式（必须严格返回JSON，无任何其他文字）',
+      '{',
+      '  "overview": "一段80-120字的运营总评，包含对各模块的独立判断和之间的关联分析，语气专业",',
+      '  "moduleInsights": [',
+      '    {',
+      '      "module": "模块名称",',
+      '      "status": "健康|关注|待处理",',
+      '      "analysis": "40-60字的详细分析，包含数据解读和业务影响",',
+      '      "path": "/supplier/approval",',
+      '      "tone": "blue|green|orange|purple|cyan",',
+      '      "metrics": ["关键数字1", "关键数字2"]',
+      '    }',
+      '  ],',
+      '  "crossInsight": "50-80字的跨模块关联洞察，指出最值得关注的系统性问题",',
+      '  "suggestions": [',
+      '    {"priority": 1, "text": "具体可执行的行动建议", "path": "/supplier/approval", "impact": "高|中|低"},',
+      '    {"priority": 2, "text": "具体可执行的行动建议", "path": "/notice", "impact": "中"}',
+      '  ]',
+      '}',
+      '',
+      '# 关键路径映射',
+      '信息发布中心→/notice  供应商审批→/supplier/approval  供应商库→/supplier/repository',
+      '专家库→/expert/repository  专家评价→/expert/evaluation  商城目录→/mall-management/catalog',
+      '价格审批→/mall-management/approval  价格录入→/mall-management/price-entry',
+      '',
+      '# tone 规则：积压/异常→orange，健康→green，信息→blue，专家→purple，商城→cyan',
+      'moduleInsights 必须覆盖4个模块，不要遗漏。metrics 字段放2个最有意义的数字。',
     ].join('\n');
 
-    // Determine overall status
-    const riskScore = (s.pending || 0) * 2 + (apps.pending || 0) * 3 + (a.draftLike || 0) + (e.unfinished || 0) + (c.alerts || 0) * 2;
-    const statusLabel = riskScore >= 15 ? '⚠️ 需重点关注' : riskScore >= 6 ? '📋 日常跟进' : '✅ 运行平稳';
-
-    const prompt = [
-      `平台整体状态：${statusLabel}`,
+    const userPrompt = [
+      '# 当前运营数据快照',
       '',
-      '各中心实时数据：',
-      `【信息发布】总量${a.total}条，已发布${a.published}条，待完善${a.draftLike}条。`,
-      `【供应商库】总量${s.total}家，已入库${s.approved}家，待审批${s.pending}家，停用/黑名单${s.risk}家。`,
-      `【专家资源】${e.total}名专家，${e.active}项进行中，${e.unfinished}项未完成。`,
-      `【商城目录】${c.total}条目录，${c.active}条有效，${c.alerts}条待处理/预警。`,
-      `【供货审批】${apps.pending}条待审核申请。`,
+      '## 信息发布中心',
+      `总量 ${a.total} 条 | 已发布 ${a.published} 条（占比 ${announcementPubPct}%）| 待完善/草稿 ${a.draftLike} 条`,
+      a.draftLike > 0 ? `→ 有 ${a.draftLike} 条信息尚未完成发布流程，可能处于草稿或待审核状态。` : '→ 信息发布通道畅通，无积压。',
       '',
-      '请按以下结构简要分析：',
-      '总评：（1句话概括当前运营态势）',
-      '关注点：（列出2-3条需要优先处理的事务及建议动作）',
-      '今日建议：（1-2条给采购管理员的本日行动建议）',
+      '## 供应商管理中心',
+      `总量 ${s.total} 家 | 已入库 ${s.approved} 家（入库率 ${supplierApprovalPct}%）| 待审批 ${s.pending} 家 | 停用/黑名单 ${s.risk} 家`,
+      s.pending > 0 ? `→ ${s.pending} 家供应商等待入库审核，是当前供应商管理的核心待办事项。` : '',
+      s.risk > 0 ? `→ 有 ${s.risk} 家供应商处于停用或黑名单状态，需要确认是否需要清理或恢复。` : '',
+      '',
+      '## 专家管理中心',
+      `总量 ${e.total} 名 | 进行中项目 ${e.active} 项 | 未完成事项 ${e.unfinished} 项 | 履职完成率 ${expertCompletionRate}%`,
+      e.unfinished > 0 ? `→ ${e.unfinished} 项专家事项待完成，可能影响评审进度。` : '→ 专家履职情况良好。',
+      '',
+      '## 电子商城管理',
+      `目录总量 ${c.total} 条 | 有效 ${c.active} 条（占比 ${catalogActivePct}%）| 待处理/预警 ${c.alerts} 条 | 供货审批待办 ${apps.pending} 条`,
+      c.alerts > 0 ? `→ ${c.alerts} 条目录存在价格波动、临期或待复核状态，影响价格参考准确性。` : '',
+      apps.pending > 0 ? `→ ${apps.pending} 条供应商供货申请等待审批。` : '→ 无待审批供货申请。',
+      '',
+      '# 分析要求',
+      '请以采购运营总监的视角，对上述四个模块进行逐一分析和跨模块关联洞察。',
+      '每个模块的分析需要引用具体数字，说明业务含义和潜在影响。',
+      '跨模块洞察需要找到两个以上模块之间的关联性问题。',
+      '建议需要按优先级排列，每条附上预期影响（高/中/低）。',
     ].join('\n');
 
     try {
@@ -656,31 +714,143 @@ export class AiService {
       const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
       const res = await fetch(`${DEEPSEEK_URL.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: DEEPSEEK_MODEL,
-          temperature: 0.3,
-          max_tokens: 600,
+          model: DEEPSEEK_MODEL, temperature: 0.3, max_tokens: 1600,
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt },
+            { role: 'user', content: userPrompt },
           ],
         }),
         signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) {
         this.logger.warn(`DeepSeek dashboard-summary failed: ${res.status}`);
-        return { summary: 'AI 引擎暂时不可用，请稍后刷新页面重试。', level: 'warn' as const };
+        return this.fallbackInsight(s, a, e, c, apps);
       }
       const data = await res.json();
       const text = (data?.choices?.[0]?.message?.content || '').trim();
-      return { summary: text || 'AI 未能生成有效摘要，请稍后重试。', level: 'info' as const };
+      const parsed = JSON.parse(text);
+      return {
+        overview: parsed.overview || '运营态势正常',
+        moduleInsights: Array.isArray(parsed.moduleInsights) ? parsed.moduleInsights.filter((m: any) => m.module && m.analysis) : [],
+        crossInsight: parsed.crossInsight || '',
+        highlights: Array.isArray(parsed.highlights) ? parsed.highlights.filter((h: any) => h.module && h.path) : [],
+        suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions.filter((s: any) => s.text && s.path) : [],
+      };
     } catch (err: any) {
       this.logger.warn(`DeepSeek dashboard-summary error: ${err.message}`);
-      return { summary: 'AI 引擎连接超时或不可用，当前数据统计可正常查看。', level: 'warn' as const };
+      return this.fallbackInsight(s, a, e, c, apps);
     }
+  }
+
+  private fallbackInsight(s: any, a: any, e: any, c: any, apps: any) {
+    const approvalPct = s.total > 0 ? Math.round((s.approved / s.total) * 100) : 0;
+    const pubPct = a.total > 0 ? Math.round((a.published / a.total) * 100) : 0;
+    const catalogPct = c.total > 0 ? Math.round((c.active / c.total) * 100) : 0;
+    const totalIssues = s.pending + a.draftLike + e.unfinished + c.alerts + apps.pending;
+    const hasSupplierRisk = s.risk > 0;
+
+    const moduleInsights: any[] = [
+      {
+        module: '信息发布中心',
+        status: a.draftLike > 3 ? '待处理' : a.draftLike > 0 ? '关注' : '健康',
+        analysis: a.total === 0
+          ? '信息发布中心暂无数据，建议尽快发布集团首条招标公告或政策文件，启动信息发布流程。'
+          : a.draftLike > 3
+            ? `信息发布总量${a.total}条，但仍有${a.draftLike}条处于草稿或待发布状态（发布率仅${pubPct}%），信息发布效率偏低。公告未发布意味着供应商无法获取招标机会，直接影响项目推进节奏。`
+            : a.draftLike > 0
+              ? `信息发布总量${a.total}条，已发布${a.published}条，发布率${pubPct}%。有${a.draftLike}条待完善，建议尽快完成剩余信息的发布流程以保持信息透明度。`
+              : `信息发布总量${a.total}条，全部已发布，发布率100%。信息发布通道畅通，供应商可及时获取招标信息。`,
+        path: '/notice',
+        tone: a.draftLike > 3 ? 'orange' : a.draftLike > 0 ? 'blue' : 'green',
+        metrics: [`总量${a.total}条`, pubPct > 0 ? `发布率${pubPct}%` : '暂无数据'],
+      },
+      {
+        module: '供应商管理中心',
+        status: s.pending > 2 ? '待处理' : s.pending > 0 ? '关注' : hasSupplierRisk ? '关注' : '健康',
+        analysis: s.total === 0
+          ? '供应商库暂无数据。供应商是招标采购的基础资源，建议尽快通过注册审核或批量导入方式建立首批供应商档案。'
+          : s.pending > 2
+            ? `供应商总量${s.total}家，入库率${approvalPct}%，当前有${s.pending}家供应商等待入库审核，审批积压较为明显。审核延迟将导致这些供应商无法参与当前招标项目，建议优先处理。`
+            : s.pending > 0
+              ? `供应商总量${s.total}家，已入库${s.approved}家，入库率${approvalPct}%。有${s.pending}家待审批，供应商资源池总体健康。`
+              : hasSupplierRisk
+                ? `供应商总量${s.total}家，入库率${approvalPct}%。但存在${s.risk}家停用或黑名单供应商，需要定期复核状态。`
+                : `供应商总量${s.total}家，已入库${s.approved}家，入库率${approvalPct}%。资源池健康，审批通道畅通。`,
+        path: s.pending > 0 ? '/supplier/approval' : '/supplier/repository',
+        tone: s.pending > 2 ? 'orange' : 'green',
+        metrics: [`总量${s.total}家`, `入库率${approvalPct}%`],
+      },
+      {
+        module: '专家管理中心',
+        status: e.unfinished > 2 ? '待处理' : e.unfinished > 0 ? '关注' : '健康',
+        analysis: e.total === 0
+          ? '专家库暂无数据。评标专家是招标评审的核心资源，建议尽快录入首批专家信息，并建立专业分类体系。'
+          : e.unfinished > 2
+            ? `专家${e.total}名，当前${e.active}项评审进行中，但有${e.unfinished}项履职事项未完成。履职延迟可能影响评审质量评价和后续专家抽取。`
+            : e.unfinished > 0
+              ? `专家${e.total}名，${e.active}项评审进行中，${e.unfinished}项未完成。资源充足，需关注个别专家的履职及时性。`
+              : `专家${e.total}名，${e.active}项评审进行中。专家评审工作有序推进，履职情况良好。`,
+        path: e.unfinished > 0 ? '/expert/evaluation' : '/expert/repository',
+        tone: e.unfinished > 2 ? 'orange' : e.unfinished > 0 ? 'purple' : 'green',
+        metrics: [`${e.total}名专家`, `${e.active}项进行中`],
+      },
+      {
+        module: '电子商城管理',
+        status: c.alerts > 3 || apps.pending > 2 ? '待处理' : c.alerts > 0 || apps.pending > 0 ? '关注' : '健康',
+        analysis: c.total === 0
+          ? '电子商城目录暂无数据。集中采购目录是价格参考体系的核心，建议尽快通过价格录入或批量导入方式建立目录数据库。'
+          : c.alerts > 3
+            ? `目录总量${c.total}条，有效${c.active}条（有效率${catalogPct}%），但有${c.alerts}条存在价格波动、临期或待复核预警。价格数据时效性不足将影响预算编制的准确性。`
+            : c.alerts > 0 || apps.pending > 0
+              ? `目录总量${c.total}条，有效${c.active}条。${c.alerts > 0 ? `${c.alerts}条待复核，` : ''}${apps.pending > 0 ? `${apps.pending}条供货审批待处理，` : ''}建议及时维护价格数据。`
+              : `目录总量${c.total}条，有效${c.active}条（有效率${catalogPct}%）。价格数据时效性良好，可支撑预算编制和价格参考。`,
+        path: c.alerts > 0 ? '/mall-management/catalog' : apps.pending > 0 ? '/mall-management/approval' : '/mall-management/catalog',
+        tone: c.alerts > 3 || apps.pending > 2 ? 'orange' : c.alerts > 0 || apps.pending > 0 ? 'cyan' : 'green',
+        metrics: [`有效${c.active}条`, catalogPct > 0 ? `有效率${catalogPct}%` : '暂无数据'],
+      },
+    ];
+
+    const crossParts: string[] = [];
+    if (s.pending > 0 && a.total > 0) {
+      crossParts.push('供应商审批积压可能导致可投标供应商不足，影响招标项目的竞争充分性');
+    }
+    if (a.draftLike > 0 && a.published > 0) {
+      crossParts.push(`信息发布率达${pubPct}%，但仍有${a.draftLike}条待完善，建议优先完成涉及当前招标项目的信息发布`);
+    }
+    if (e.active > 0 && e.unfinished > 0) {
+      crossParts.push(`专家${e.active}项评审进行中但${e.unfinished}项未完成，建议排查是否存在分配不均或回避流程过长的问题`);
+    }
+    if (c.active > 0 && apps.pending > 0) {
+      crossParts.push(`商城目录${c.active}条有效，${apps.pending}条供货申请待审，应尽快完成审批以扩大有效供应商覆盖面`);
+    }
+    const crossInsight = crossParts.length > 0
+      ? crossParts.join('。')
+      : '各模块间暂无明显的关联性问题，建议按常规流程推进各项业务';
+
+    const suggestions: any[] = [];
+    if (s.pending > 0) suggestions.push({ priority: 1, text: `处理${s.pending}家待审批供应商的入库审核，确保新供应商能及时参与招标`, path: '/supplier/approval', impact: '高' });
+    if (a.draftLike > 0) suggestions.push({ priority: suggestions.length + 1, text: `完成${a.draftLike}条待完善公告的编辑和发布，提高信息透明度`, path: '/notice', impact: '高' });
+    if (apps.pending > 0) suggestions.push({ priority: suggestions.length + 1, text: `审核${apps.pending}条商城供货申请，扩大目录供应商覆盖范围`, path: '/mall-management/approval', impact: '中' });
+    if (c.alerts > 0) suggestions.push({ priority: suggestions.length + 1, text: `复核${c.alerts}条目录的价格波动或临期状态，确保价格参考体系可靠`, path: '/mall-management/catalog', impact: '中' });
+    if (e.unfinished > 0) suggestions.push({ priority: suggestions.length + 1, text: `跟进${e.unfinished}项专家未完成事项，保障评审工作的完整性和及时性`, path: '/expert/evaluation', impact: '中' });
+    if (c.total > 0 && c.active / Math.max(c.total, 1) > 0.8 && suggestions.length < 3) {
+      suggestions.push({ priority: suggestions.length + 1, text: '考虑扩大商城目录品类覆盖范围，丰富价格参考数据维度', path: '/mall-management/price-entry', impact: '低' });
+    }
+    if (s.approved > 0 && s.pending === 0 && suggestions.length < 3) {
+      suggestions.push({ priority: suggestions.length + 1, text: '对已入库供应商进行分类梳理和绩效评价，优化资源池结构', path: '/supplier/evaluation', impact: '低' });
+    }
+
+    const overviewParts: string[] = [];
+    if (s.total > 0) overviewParts.push(`供应商库${s.total}家（入库率${approvalPct}%）`);
+    if (a.total > 0) overviewParts.push(`信息发布${a.total}条（发布率${pubPct}%）`);
+    if (e.total > 0) overviewParts.push(`专家${e.total}名（${e.active}项进行中）`);
+    if (c.total > 0) overviewParts.push(`商城目录${c.total}条（有效率${catalogPct}%）`);
+    const overview = overviewParts.length > 0
+      ? `各中心运行概况：${overviewParts.join('，')}。` + (totalIssues > 0 ? `当前共有${totalIssues}项待处理事项需要关注。` : '各模块运行平稳，无积压事项。')
+      : '各业务中心暂无活跃数据。建议按实际业务需求逐步初始化：信息发布中心录入首条公告、供应商管理中心注册首批供应商、专家管理中心建立专家库、电子商城导入目录数据。';
+
+    return { overview, moduleInsights, crossInsight, highlights: [], suggestions: suggestions.slice(0, 4) };
   }
 }

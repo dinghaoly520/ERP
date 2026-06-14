@@ -9,6 +9,8 @@
     "avoidanceConfirmed": true,
     "progress": 92,
     "totalScore": "91.6",
+    "reportConfirmed": false,
+    "reportConfirmedAt": null,
     "createdAt": "2026-06-13T06:18:29.587Z",
     "updatedAt": "2026-06-13T06:18:29.587Z"
   },
@@ -22,6 +24,8 @@
     "avoidanceConfirmed": true,
     "progress": 86,
     "totalScore": "89.4",
+    "reportConfirmed": false,
+    "reportConfirmedAt": null,
     "createdAt": "2026-06-13T06:18:29.587Z",
     "updatedAt": "2026-06-13T06:18:29.587Z"
   },
@@ -35,6 +39,8 @@
     "avoidanceConfirmed": true,
     "progress": 78,
     "totalScore": "88.1",
+    "reportConfirmed": false,
+    "reportConfirmedAt": null,
     "createdAt": "2026-06-13T06:18:29.587Z",
     "updatedAt": "2026-06-13T06:18:29.587Z"
   }

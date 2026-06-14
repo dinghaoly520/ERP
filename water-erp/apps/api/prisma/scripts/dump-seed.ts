@@ -62,6 +62,14 @@ const TABLES: ReadonlyArray<[file: string, delegate: keyof PrismaClient]> = [
   ['AnnouncementAttachment', 'announcementAttachment'],
   ['BidDocument', 'bidDocument'],
   ['BidDocumentAccess', 'bidDocumentAccess'],
+  ['AuditLog', 'auditLog'],
+  ['CatalogSupplier', 'catalogSupplier'],
+  ['SupplierCatalogApplication', 'supplierCatalogApplication'],
+  ['UserFavorite', 'userFavorite'],
+  ['AssistantConversation', 'assistantConversation'],
+  ['AssistantMessage', 'assistantMessage'],
+  ['AssistantActionLog', 'assistantActionLog'],
+  ['BidEvaluationResult', 'bidEvaluationResult'],
 ];
 
 async function main() {

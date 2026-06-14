@@ -42,12 +42,6 @@ export default function ExpertEntryPage() {
     <div>
       <PageHero eyebrow="专家管理中心" title="专家录入" description="录入评审专家基础资料、专业方向和可用状态。" tone="purple" icon={<UsersRound size={14} />} />
 
-      <div className="mb-6">
-        <div className="mb-2 inline-flex rounded-full border border-[#ddd6fe] bg-[#f5f3ff] px-3 py-1 text-xs font-semibold text-[#7c3aed]">专家管理中心</div>
-        <h1 className="text-2xl font-bold text-[#0f2f57]">专家录入</h1>
-        <p className="text-sm text-[#5a6d8a] mt-1">录入评审专家基本信息与专业领域，纳入专家库</p>
-      </div>
-
       <div className="bg-white rounded-2xl border border-[#e5ecf4] p-6 max-w-3xl">
         {error && <div className="mb-4 rounded-lg border border-[#fca5a5] bg-[#fef2f2] px-4 py-2.5 text-sm text-[#c0392b]">{error}</div>}
 
