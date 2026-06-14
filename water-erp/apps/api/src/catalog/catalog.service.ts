@@ -71,6 +71,7 @@ export class CatalogService {
     status?: string;
     source?: string;
     search?: string;
+    includeInactive?: boolean;
   }) {
     const filters: any[] = [];
     if (params.category && params.category !== '全部') {
@@ -81,6 +82,8 @@ export class CatalogService {
     }
     if (params.status && params.status !== '全部') filters.push({ status: params.status });
     if (params.source && params.source !== '全部') filters.push({ priceSource: params.source });
+    // Mall default: only show active items. Admin may pass includeInactive=true.
+    if (!params.includeInactive && !params.status) filters.push({ status: '有效' });
     if (params.search) {
       const kw = params.search.trim();
       if (kw) {
@@ -168,6 +171,166 @@ export class CatalogService {
       include: { catalogItem: true },
     });
     return favs.map(f => serialize(f.catalogItem)).filter(Boolean);
+  }
+
+  // ── Admin operations ──
+
+  private catalogDataDto(dto: any) {
+    return {
+      code: dto.code.trim(),
+      name: dto.name.trim(),
+      specification: dto.specification.trim(),
+      category: dto.category.trim(),
+      group: dto.group.trim(),
+      unit: dto.unit.trim(),
+      referencePrice: dto.referencePrice,
+      priceMin: dto.priceMin,
+      priceMax: dto.priceMax,
+      lastDealPrice: dto.lastDealPrice,
+      averagePrice: dto.averagePrice,
+      supplier: dto.supplier.trim(),
+      supplierType: dto.supplierType.trim(),
+      priceSource: dto.priceSource.trim(),
+      region: dto.region.trim(),
+      taxIncluded: dto.taxIncluded ?? true,
+      freightIncluded: dto.freightIncluded ?? false,
+      changeRate: dto.changeRate,
+      minOrder: dto.minOrder.trim(),
+      remark: dto.remark?.trim() || null,
+      status: dto.status || '有效',
+      validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
+    };
+  }
+
+  private validatePriceRangeDto(dto: any) {
+    if (dto.priceMin > dto.referencePrice || dto.referencePrice > dto.priceMax) {
+      throw new BadRequestException({ error: '参考价必须位于价格下限和价格上限之间', code: 'INVALID_PRICE_RANGE' });
+    }
+  }
+
+  async stats() {
+    const [total, active, inactive, review, updatedThisMonth] = await Promise.all([
+      this.prisma.catalogItem.count(),
+      this.prisma.catalogItem.count({ where: { status: '有效' } }),
+      this.prisma.catalogItem.count({ where: { status: { in: ['下架', '停用'] } } }),
+      this.prisma.catalogItem.count({ where: { status: { in: ['待复核', '价格波动', '即将过期'] } } }),
+      this.prisma.catalogItem.count({ where: { updatedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
+    ]);
+    return { total, active, inactive, review, updatedThisMonth };
+  }
+
+  async createAdminItem(userId: string, dto: any) {
+    this.validatePriceRangeDto(dto);
+    const data = this.catalogDataDto(dto);
+    const created = await this.prisma.catalogItem.create({ data });
+    await this.prisma.priceHistory.create({ data: { catalogItemId: created.id, price: data.referencePrice, recordedAt: new Date(), note: '手动新增' } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_CREATED', target: created.code, detail: { itemId: created.id, name: created.name } } });
+    return serialize(created);
+  }
+
+  async updateAdminItem(userId: string, id: string, dto: any) {
+    this.validatePriceRangeDto(dto);
+    const existing = await this.prisma.catalogItem.findUnique({ where: { id } });
+    if (!existing) throw new BadRequestException({ error: '目录条目不存在', code: 'NOT_FOUND' });
+    const data = this.catalogDataDto(dto);
+    const oldPrice = Number(existing.referencePrice);
+    const newPrice = Number(data.referencePrice);
+    const updated = await this.prisma.catalogItem.update({ where: { id }, data });
+    const priceChanged = oldPrice !== newPrice;
+    if (priceChanged) {
+      await this.prisma.priceHistory.create({ data: { catalogItemId: id, price: newPrice, recordedAt: new Date(), note: '手动调价' } });
+    }
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: priceChanged ? 'CATALOG_PRICE_CHANGED' : 'CATALOG_UPDATED',
+        target: updated.code,
+        detail: { itemId: id, oldPrice, newPrice, changedFields: Object.keys(data) },
+      },
+    });
+    return serialize(updated);
+  }
+
+  async changeStatus(userId: string, id: string, dto: { status: string; reason?: string }) {
+    const existing = await this.prisma.catalogItem.findUnique({ where: { id } });
+    if (!existing) throw new BadRequestException({ error: '目录条目不存在', code: 'NOT_FOUND' });
+    const updated = await this.prisma.catalogItem.update({ where: { id }, data: { status: dto.status } });
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'CATALOG_STATUS_CHANGED',
+        target: updated.code,
+        detail: { itemId: id, from: existing.status, to: dto.status, reason: dto.reason || null },
+      },
+    });
+    return serialize(updated);
+  }
+
+  async adminAuditLogs() {
+    const actions = ['CATALOG_CREATED', 'CATALOG_UPDATED', 'CATALOG_PRICE_CHANGED', 'CATALOG_STATUS_CHANGED', 'CATALOG_IMPORTED', 'CATALOG_TEMPLATE_DOWNLOADED', 'CATALOG_EXPORTED'];
+    const rows = await this.prisma.auditLog.findMany({
+      where: { action: { in: actions } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: { user: { select: { username: true, displayName: true } } },
+    });
+    return rows.map((r: any) => ({
+      id: r.id,
+      action: r.action,
+      target: r.target,
+      detail: r.detail,
+      user: r.user,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async importTemplate(userId: string): Promise<Buffer> {
+    const wb = new Workbook();
+    const ws = wb.addWorksheet('电子商城目录导入模板');
+    const cols = ['目录编码', '物资名称', '规格型号', '分类', '分组', '单位', '参考价', '价格下限', '价格上限',
+      '最近成交价', '历史均价', '供应商', '供应商类型', '价格来源', '区域', '含税', '含运费',
+      '价格变化率', '最小起订量', '状态', '有效期', '备注'];
+    ws.columns = cols.map(h => ({ header: h, key: h, width: 18 }));
+    ws.addRow({
+      目录编码: 'CAT-DEMO-001', 物资名称: '示例物资', 规格型号: 'DN300', 分类: '管材', 分组: '工程材料',
+      单位: '米', 参考价: 120, 价格下限: 100, 价格上限: 140, 最近成交价: 118, 历史均价: 119,
+      供应商: '示例供应商', 供应商类型: '协议供应商', 价格来源: '人工维护', 区域: '全省',
+      含税: '是', 含运费: '否', 价格变化率: 0, 最小起订量: '10米', 状态: '有效', 有效期: '2026-12-31',
+      备注: '示例行，导入前请删除',
+    });
+    ws.getRow(1).font = { bold: true };
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_TEMPLATE_DOWNLOADED', target: '电子商城导入模板', detail: {} } });
+    return Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
+  }
+
+  async importItems(userId: string, file: Express.Multer.File) {
+    if (!file) throw new BadRequestException({ error: '请选择导入文件', code: 'FILE_REQUIRED' });
+    if (file.size > 5 * 1024 * 1024) throw new BadRequestException({ error: '文件大小不能超过 5MB', code: 'FILE_TOO_LARGE' });
+    const { parseCatalogImport } = await import('./catalog-import');
+    const parsed = await parseCatalogImport(file.buffer, file.originalname);
+    let created = 0;
+    let updated = 0;
+    const failedRows = parsed.rows.filter(r => r.errors.length).map(r => ({ rowNumber: r.rowNumber, code: r.code, errors: r.errors }));
+    for (const row of parsed.rows.filter(r => r.data)) {
+      const dto = row.data!;
+      const existing = await this.prisma.catalogItem.findUnique({ where: { code: dto.code } });
+      const data = this.catalogDataDto(dto);
+      if (existing) {
+        const oldPrice = Number(existing.referencePrice);
+        const saved = await this.prisma.catalogItem.update({ where: { id: existing.id }, data });
+        updated += 1;
+        if (oldPrice !== Number(data.referencePrice)) {
+          await this.prisma.priceHistory.create({ data: { catalogItemId: saved.id, price: data.referencePrice, recordedAt: new Date(), note: '批量导入更新' } });
+        }
+      } else {
+        const saved = await this.prisma.catalogItem.create({ data });
+        created += 1;
+        await this.prisma.priceHistory.create({ data: { catalogItemId: saved.id, price: data.referencePrice, recordedAt: new Date(), note: '批量导入新增' } });
+      }
+    }
+    const result = { totalRows: parsed.rows.length, created, updated, failed: failedRows.length, failedRows };
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_IMPORTED', target: file.originalname, detail: result } });
+    return result;
   }
 
   async exportCatalog(userId: string, params: { category?: string; region?: string; status?: string; source?: string; search?: string }): Promise<Buffer> {
