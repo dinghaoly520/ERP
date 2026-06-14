@@ -3,6 +3,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { ExpertService } from './expert.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
+import { ExpertConflictService } from './expert-conflict.service';
 
 describe('ExpertService', () => {
   let service: ExpertService;
@@ -53,6 +54,7 @@ describe('ExpertService', () => {
         ExpertService,
         { provide: PrismaService, useValue: prisma },
         { provide: AiService, useValue: ai },
+        { provide: ExpertConflictService, useValue: { detectForProject: jest.fn().mockResolvedValue([]) } },
       ],
     }).compile();
 
