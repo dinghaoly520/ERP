@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import {
   LayoutDashboard, Building2, Megaphone, UsersRound,
-  PanelLeftClose, PanelLeft, ChevronDown,
+  PanelLeftClose, PanelLeft, ChevronDown, ShoppingCart,
 } from 'lucide-react';
 
 interface NavChild {
@@ -38,6 +38,15 @@ const navItems: NavItem[] = [
       { label: '专家库', path: '/expert/repository' },
       { label: '专家抽取', path: '/expert/extract' },
       { label: '专家评价', path: '/expert/evaluation' },
+    ],
+  },
+  {
+    label: '电子商城管理', path: '/mall-management', icon: ShoppingCart,
+    children: [
+      { label: '价格审批', path: '/mall-management/approval' },
+      { label: '价格录入', path: '/mall-management/price-entry' },
+      { label: '集中采购目录管理', path: '/mall-management/catalog' },
+      { label: '同步与操作日志', path: '/mall-management/logs' },
     ],
   },
 ];
