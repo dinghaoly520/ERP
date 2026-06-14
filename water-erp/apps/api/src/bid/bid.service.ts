@@ -341,6 +341,68 @@ export class BidService {
     return this.prisma.bidExpert.findMany({ where: { projectId }, include: { scoreRecords: true } });
   }
 
+  listEvaluationResults(projectId: string) {
+    return this.prisma.bidEvaluationResult.findMany({ where: { projectId }, orderBy: { rank: 'asc' } });
+  }
+
+  async generateEvaluationResults(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      include: { experts: true, suppliers: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'EVALUATING') {
+      throw new BadRequestException({ error: '项目不在评标阶段', code: 'PROJECT_NOT_EVALUATING' });
+    }
+    if (project.experts.some(e => !e.reportConfirmed)) {
+      throw new BadRequestException({ error: '仍有专家未确认评审报告', code: 'EXPERT_REPORTS_NOT_CONFIRMED' });
+    }
+
+    const activeSuppliers = project.suppliers.filter(
+      s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED',
+    );
+
+    const ranked = [];
+    for (const supplier of activeSuppliers) {
+      const records = await this.prisma.bidScoreRecord.findMany({
+        where: { supplierId: supplier.id, expert: { projectId } },
+      });
+      const totalScore = records.reduce((sum, r) => sum + Number(r.score), 0);
+      const averageScore = project.experts.length > 0 ? totalScore / project.experts.length : 0;
+      ranked.push({
+        supplierId: supplier.id,
+        supplierName: supplier.supplierName,
+        totalScore,
+        averageScore,
+      });
+    }
+    ranked.sort((a, b) => b.averageScore - a.averageScore);
+
+    await this.prisma.bidEvaluationResult.deleteMany({ where: { projectId } });
+    if (ranked.length > 0) {
+      await this.prisma.bidEvaluationResult.createMany({
+        data: ranked.map((r, index) => ({
+          projectId,
+          supplierId: r.supplierId,
+          supplierName: r.supplierName,
+          totalScore: r.totalScore,
+          averageScore: r.averageScore,
+          rank: index + 1,
+          recommended: index === 0,
+        })),
+      });
+    }
+
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '系统', target: project.name,
+        action: '生成评标结果', result: `生成${ranked.length}家供应商排名`, riskFlag: '无',
+      },
+    });
+
+    return this.listEvaluationResults(projectId);
+  }
+
   async submitScore(projectId: string, dto: CreateScoreDto) {
     // 校验 expert 属于该项目
     const expert = await this.prisma.bidExpert.findFirst({
@@ -403,6 +465,27 @@ export class BidService {
     return this.prisma.bidArchiveItem.findMany({ where: { projectId } });
   }
 
+  /** 一键归档前自动补齐标准归档材料清单（幂等：已存在则跳过） */
+  private async ensureArchiveItems(projectId: string) {
+    const standards = [
+      { name: '招标项目基础信息', ownerRole: '系统' },
+      { name: '投标供应商名单', ownerRole: '开标主持人' },
+      { name: '开标记录表', ownerRole: '开标主持人' },
+      { name: '供应商确认/异议记录', ownerRole: '供应商' },
+      { name: '专家评分明细', ownerRole: '评审专家' },
+      { name: '评标结果汇总', ownerRole: '评审委员会' },
+      { name: '监督日志', ownerRole: '监督人' },
+    ];
+    for (const item of standards) {
+      const exists = await this.prisma.bidArchiveItem.findFirst({ where: { projectId, name: item.name } });
+      if (!exists) {
+        await this.prisma.bidArchiveItem.create({
+          data: { projectId, name: item.name, ownerRole: item.ownerRole, status: 'PENDING_CONFIRM' },
+        });
+      }
+    }
+  }
+
   async archiveAll(id: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
@@ -410,6 +493,9 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'ARCHIVED');
+
+    // 自动补齐标准归档材料，避免“无可归档项”阻塞
+    await this.ensureArchiveItems(id);
 
     const archiveItems = await this.prisma.bidArchiveItem.findMany({
       where: { projectId: id, status: { not: 'ARCHIVED' } },

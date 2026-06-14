@@ -72,12 +72,13 @@ describe('BidService — stage transitions', () => {
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
       bidExpert: { groupBy: jest.fn(), findFirst: jest.fn() },
       bidScoreItem: { findFirst: jest.fn() },
-      bidScoreRecord: { upsert: jest.fn() },
+      bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn() },
       bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
-      bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn() },
+      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn() },
+      bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
     };
@@ -248,7 +249,79 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  describe('generateEvaluationResults', () => {
+    it('rejects until all experts confirm reports', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目',
+        experts: [{ id: 'e1', reportConfirmed: false }, { id: 'e2', reportConfirmed: true }],
+        suppliers: [],
+      });
+
+      await expect(service.generateEvaluationResults('p1'))
+        .rejects.toMatchObject({ response: { code: 'EXPERT_REPORTS_NOT_CONFIRMED' } });
+    });
+
+    it('rejects when project is not EVALUATING', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', name: 'x', experts: [], suppliers: [] });
+      await expect(service.generateEvaluationResults('p1'))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_EVALUATING' } });
+    });
+
+    it('ranks suppliers by average score and recommends the top supplier', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目',
+        experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }],
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's3', supplierName: '丙', decryptStatus: 'SUCCESS', submitStatus: '已撤回', confirmStatus: 'CONFIRMED' },
+        ],
+      });
+      prisma.bidScoreRecord.findMany.mockImplementation((args: any) =>
+        Promise.resolve(args.where.supplierId === 's1' ? [{ score: 90 }, { score: 80 }] : [{ score: 70 }, { score: 60 }]),
+      );
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({ count: 2 });
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([
+        { supplierName: '甲', rank: 1, recommended: true, averageScore: 85 },
+        { supplierName: '乙', rank: 2, recommended: false, averageScore: 65 },
+      ]);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const results = await service.generateEvaluationResults('p1');
+
+      expect(prisma.bidEvaluationResult.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({ supplierId: 's1', rank: 1, recommended: true }),
+            expect.objectContaining({ supplierId: 's2', rank: 2, recommended: false }),
+          ]),
+        }),
+      );
+      // 撤回供应商 s3 不参与结果
+      const created = prisma.bidEvaluationResult.createMany.mock.calls[0][0].data as any[];
+      expect(created.find((r: any) => r.supplierId === 's3')).toBeUndefined();
+      expect(results[0].supplierName).toBe('甲');
+    });
+  });
+
   describe('archiveAll', () => {
+    it('auto-creates standard archive items when none exist', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' });
+      prisma.bidArchiveItem.findFirst.mockResolvedValue(null);
+      prisma.bidArchiveItem.create.mockResolvedValue({});
+      prisma.bidArchiveItem.findMany.mockResolvedValue([{ id: 'a1', status: 'PENDING_CONFIRM' }]);
+      prisma.bidArchiveItem.updateMany.mockResolvedValue({ count: 7 });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.$transaction = jest.fn(async (ops: any[]) => Promise.all(ops));
+
+      await service.archiveAll('p1');
+
+      expect(prisma.bidArchiveItem.create).toHaveBeenCalled();
+      expect(prisma.bidArchiveItem.create.mock.calls.length).toBeGreaterThanOrEqual(7);
+    });
+
     it('uses transaction for atomic archive + stage update + supervision log', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' });
       prisma.bidArchiveItem.findMany.mockResolvedValue([

@@ -55,6 +55,8 @@ export interface BidExpert {
   avoidanceConfirmed: boolean;
   progress: number;
   totalScore: number;
+  reportConfirmed?: boolean;
+  reportConfirmedAt?: string | null;
 }
 
 export interface BidScoreItem {

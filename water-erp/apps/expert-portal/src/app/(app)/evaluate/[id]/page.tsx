@@ -95,6 +95,7 @@ export default function ExpertEvaluatePage() {
 
   const handleSubmitScores = async () => {
     if (!project || !scoringSupplier) return;
+    if (expert?.reportConfirmed) { toast.warning('评审报告已确认，评分已锁定'); return; }
     const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
     const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回';
     if (!canScoreActiveSupplier) {
@@ -133,6 +134,7 @@ export default function ExpertEvaluatePage() {
   const decryptLabel: Record<string, string> = { PENDING: '待解密', RUNNING: '解密中', SUCCESS: '已解密', DANGER: '异常' };
   const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
   const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回';
+  const scoreLocked = !!expert?.reportConfirmed;
 
   const formatBytes = (n: number) => {
     if (!n) return '—';
@@ -578,14 +580,19 @@ export default function ExpertEvaluatePage() {
                           </div>
                         </div>
                       </div>
-                      {!canScoreActiveSupplier && (
+                      {scoreLocked && (
+                        <div className="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-700">
+                          评审报告已确认，评分已锁定，不可再修改。
+                        </div>
+                      )}
+                      {!canScoreActiveSupplier && !scoreLocked && (
                         <div className="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-700">
                           当前投标单位未解密成功或已撤回，不能提交评分。
                         </div>
                       )}
-                      <button onClick={handleSubmitScores} disabled={busy || !canScoreActiveSupplier}
+                      <button onClick={handleSubmitScores} disabled={busy || !canScoreActiveSupplier || scoreLocked}
                         className="w-full py-3 bg-[#064ea2] text-white rounded-lg font-bold text-sm hover:bg-[#043d82] transition disabled:opacity-50">
-                        {busy ? '提交中...' : `提交 ${scoringSupplier} 的评分`}
+                        {busy ? '提交中...' : scoreLocked ? '评分已锁定' : `提交 ${scoringSupplier} 的评分`}
                       </button>
                     </div>
                   </div>

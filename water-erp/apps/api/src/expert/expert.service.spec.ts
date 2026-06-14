@@ -174,6 +174,30 @@ describe('ExpertService', () => {
         scores: [{ supplierId: 'supplier-1', scoreItemId: 'item-1', score: 80 }],
       })).rejects.toMatchObject({ response: { code: 'SUPPLIER_NOT_DECRYPTED' } });
     });
+
+    it('rejects scoring after report is confirmed (locked)', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, reportConfirmed: true });
+      await expect(service.submitScores('user-1', 'proj-1', {
+        supplierName: '已锁',
+        scores: [{ supplierId: 'supplier-1', scoreItemId: 'item-1', score: 80 }],
+      })).rejects.toMatchObject({ response: { code: 'SCORE_LOCKED' } });
+    });
+  });
+
+  describe('confirmReport', () => {
+    it('locks scoring by setting reportConfirmed and reportConfirmedAt', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, progress: 100 });
+      prisma.bidExpert.update.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await service.confirmReport('user-1', 'proj-1', '确认完成');
+
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ progress: 100, reportConfirmed: true, reportConfirmedAt: expect.any(Date) }),
+        }),
+      );
+    });
   });
 
   describe('getDecryptedDocuments', () => {

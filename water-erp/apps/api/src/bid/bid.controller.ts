@@ -77,6 +77,14 @@ export class BidController {
   @ApiOperation({ summary: '评标专家列表' })
   listExperts(@Param('id') id: string) { return this.bidService.listExperts(id); }
 
+  @Get('projects/:id/evaluation-results')
+  @ApiOperation({ summary: '评标结果汇总' })
+  listEvaluationResults(@Param('id') id: string) { return this.bidService.listEvaluationResults(id); }
+
+  @Post('projects/:id/evaluation-results/generate')
+  @ApiOperation({ summary: '生成评标结果与候选人' })
+  generateEvaluationResults(@Param('id') id: string) { return this.bidService.generateEvaluationResults(id); }
+
   @Post('projects/:id/scores')
   @ApiOperation({ summary: '提交评分' })
   submitScore(@Param('id') id: string, @Body() dto: CreateScoreDto) { return this.bidService.submitScore(id, dto); }

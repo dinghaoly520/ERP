@@ -215,6 +215,9 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
+    if (expert.reportConfirmed) {
+      throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
+    }
     if (!expert.signedIn || !expert.avoidanceConfirmed) {
       throw new ForbiddenException('请先完成身份核验和回避确认');
     }
@@ -453,7 +456,7 @@ export class ExpertService {
 
     return this.prisma.bidExpert.update({
       where: { id: expert.id },
-      data: { progress: 100 },
+      data: { progress: 100, reportConfirmed: true, reportConfirmedAt: new Date() },
     });
   }
 }
