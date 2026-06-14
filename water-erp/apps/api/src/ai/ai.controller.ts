@@ -49,4 +49,19 @@ export class AiController {
       maxCount: body.maxCount,
     });
   }
+
+  @Post('dashboard-summary')
+  @ApiOperation({ summary: 'AI采购运营总览摘要' })
+  @Roles('admin', 'procurement_staff')
+  async dashboardSummary(
+    @Body() body: {
+      supplier?: { total: number; approved: number; pending: number; risk: number };
+      announcement?: { total: number; published: number; draftLike: number };
+      expert?: { total: number; active: number; unfinished: number };
+      catalog?: { total: number; active: number; alerts: number };
+      applications?: { pending: number };
+    },
+  ) {
+    return this.aiService.dashboardSummary(body);
+  }
 }

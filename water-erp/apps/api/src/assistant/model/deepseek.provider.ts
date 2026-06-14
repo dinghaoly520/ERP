@@ -14,8 +14,8 @@ export class DeepSeekProvider extends AssistantModelProvider {
   constructor() {
     super();
     this.apiKey = process.env.DEEPSEEK_API_KEY || '';
-    this.baseUrl =
-      process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1';
+    const apiUrl = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com';
+    this.baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
     this.model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
   }
 
@@ -31,7 +31,7 @@ export class DeepSeekProvider extends AssistantModelProvider {
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-      const res = await fetch(`${this.baseUrl}/chat/completions`, {
+      const res = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

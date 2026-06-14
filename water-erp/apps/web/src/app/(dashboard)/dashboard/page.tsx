@@ -2,15 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MetricCard, ModuleCard, SectionCard } from '@/components/workbench';
+import { DashboardAiPanel, MetricCard, ModuleCard } from '@/components/workbench';
+import type { DashboardContext } from '@/components/workbench';
 import { api } from '@/lib/api';
 import { getCatalogStats, type CatalogStats } from '@/lib/api/catalog-admin';
 import { listCatalogApplications } from '@/lib/api/catalog';
 import type { User } from '@/lib/types';
-import { completionTone, numberOrZero, percent, statusTone } from '@/lib/workbench';
+import { numberOrZero } from '@/lib/workbench';
 import {
-  Activity, AlertTriangle, Building2, ClipboardCheck,
-  Megaphone, ShoppingCart, UsersRound,
+  Building2, ClipboardCheck, Megaphone, ShoppingCart, UsersRound,
 } from 'lucide-react';
 
 interface SupplierStats {
@@ -90,12 +90,17 @@ export default function DashboardPage() {
   const supplierApproved = numberOrZero(supplierStats?.approved);
   const expertTotal = experts.length;
   const expertAssignments = experts.reduce((sum, expert) => sum + (expert.bidExperts || []).length, 0);
-  const announcementHealth = percent(announcementPublished, announcementTotal);
-  const supplierHealth = percent(supplierApproved, supplierTotal);
-  const expertHealth = percent(Math.max(expertAssignments - expertUnfinishedCount, 0), expertAssignments);
   const mallCatalogTotal = numberOrZero(catalogStats?.total);
   const mallCatalogActive = numberOrZero(catalogStats?.active);
   const mallCatalogAlerts = numberOrZero(catalogStats?.review);
+
+  const dashboardContext = useMemo((): DashboardContext => ({
+    supplier: { total: supplierTotal, approved: supplierApproved, pending: pendingSuppliers, risk: supplierRisk },
+    announcement: { total: announcementTotal, published: announcementPublished, draftLike: announcementDraftLike },
+    expert: { total: expertTotal, active: expertActiveCount, unfinished: expertUnfinishedCount },
+    catalog: { total: mallCatalogTotal, active: mallCatalogActive, alerts: mallCatalogAlerts },
+    applications: { pending: pendingPriceApps },
+  }), [supplierTotal, supplierApproved, pendingSuppliers, supplierRisk, announcementTotal, announcementPublished, announcementDraftLike, expertTotal, expertActiveCount, expertUnfinishedCount, mallCatalogTotal, mallCatalogActive, mallCatalogAlerts, pendingPriceApps]);
 
   return (
     <div className="min-h-full space-y-6">
@@ -109,37 +114,7 @@ export default function DashboardPage() {
         <MetricCard label="价格待审批" value={loading ? '—' : pendingPriceApps} hint="商城供货申请待审核" tone="red" icon={<ClipboardCheck size={18} strokeWidth={1.7} />} onClick={() => router.push('/mall-management/approval')} />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
-        <SectionCard title="业务运行健康度" description="以现有真实统计计算各业务中心当前运行状态" icon={<Activity size={20} strokeWidth={1.7} />}>
-          <div className="space-y-5">
-            {[
-              { label: '信息发布健康度', value: announcementHealth, detail: `${announcementPublished} / ${announcementTotal} 已发布`, tone: completionTone(announcementHealth) },
-              { label: '供应商库健康度', value: supplierHealth, detail: `${supplierApproved} / ${supplierTotal} 已入库`, tone: completionTone(supplierHealth) },
-              { label: '专家履职健康度', value: expertHealth, detail: `${expertUnfinishedCount} 项未完成`, tone: completionTone(expertHealth) },
-            ].map(item => (
-              <div key={item.label}>
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="font-bold text-[#18243a]">{item.label}</span>
-                  <span className="text-[#5a6d8a]">{item.detail}</span>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-[#edf4fb]">
-                  <div className={`h-full rounded-full bg-gradient-to-r ${statusTone[item.tone].gradient}`} style={{ width: `${item.value}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-
-        <SectionCard id="risk" title="风险与效率摘要" description="优先处理会影响采购运营连续性的事项" icon={<AlertTriangle size={20} strokeWidth={1.7} />}>
-          <div className="space-y-3">
-            <button onClick={() => router.push('/supplier/repository')} className="w-full rounded-xl border border-[#fecaca] bg-[#fef2f2] p-4 text-left text-sm text-[#991b1b] hover:bg-[#fee2e2]"><strong>异常/黑名单供应商：</strong>当前 {supplierRisk} 家供应商处于停用或黑名单状态。</button>
-            <button onClick={() => router.push('/supplier/approval')} className="w-full rounded-xl border border-[#fed7aa] bg-[#fff7ed] p-4 text-left text-sm text-[#9a3412] hover:bg-[#ffedd5]"><strong>供应商待审：</strong>{pendingSuppliers} 家供应商等待资料审核。</button>
-            <button onClick={() => router.push('/notice')} className="w-full rounded-xl border border-[#bfdbfe] bg-[#eff6ff] p-4 text-left text-sm text-[#064ea2] hover:bg-[#dbeafe]"><strong>信息发布效率：</strong>{announcementDraftLike} 条信息需要完善或发布。</button>
-            <button onClick={() => router.push('/expert/repository')} className="w-full rounded-xl border border-[#ddd6fe] bg-[#f5f3ff] p-4 text-left text-sm text-[#5b21b6] hover:bg-[#ede9fe]"><strong>专家履职提醒：</strong>{expertUnfinishedCount} 项专家事项未完成。</button>
-            <button onClick={() => router.push('/mall-management/approval')} className="w-full rounded-xl border border-[#fecaca] bg-[#fef2f2] p-4 text-left text-sm text-[#991b1b] hover:bg-[#fee2e2]"><strong>价格审批待处理：</strong>{pendingPriceApps} 条供货申请等待审核。</button>
-          </div>
-        </SectionCard>
-      </section>
+      <DashboardAiPanel context={dashboardContext} />
 
       <section className="grid gap-4 lg:grid-cols-4">
         <ModuleCard title="信息发布中心" description="公告、公示、政策制度、草稿与发布记录" tone="blue" icon={<Megaphone size={22} />} actionLabel="进入发布中心" onClick={() => router.push('/notice')} stats={<span className="text-sm text-[#5a6d8a]">已发布 {announcementPublished} 条，待完善 {announcementDraftLike} 条</span>} />

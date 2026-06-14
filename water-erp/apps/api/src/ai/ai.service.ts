@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupplierSelectionAiService } from './supplier-selection-ai.service';
 import type {
@@ -584,5 +584,73 @@ export class AiService {
     else if (overlap > 0.1) parts.push('经营范围部分匹配采购需求');
     else parts.push('可纳入候选比较');
     return parts.join('，') + '。';
+  }
+
+  private readonly logger = new Logger(AiService.name);
+
+  async dashboardSummary(context: {
+    supplier?: { total: number; approved: number; pending: number; risk: number };
+    announcement?: { total: number; published: number; draftLike: number };
+    expert?: { total: number; active: number; unfinished: number };
+    catalog?: { total: number; active: number; alerts: number };
+    applications?: { pending: number };
+  }) {
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      return { summary: 'AI 引擎暂未配置（DEEPSEEK_API_KEY 缺失），无法生成运营摘要。', level: 'info' as const };
+    }
+
+    const s = context.supplier || {};
+    const a = context.announcement || {};
+    const e = context.expert || {};
+    const c = context.catalog || {};
+    const apps = context.applications || {};
+
+    const prompt = [
+      '你是智慧水发·招采ERP系统的采购运营AI助手。请基于以下采购管理各业务中心的实时统计数据，用中文输出一份简洁的运营总览摘要。',
+      '',
+      '数据：',
+      `- 信息发布：${a.total} 条信息，已发布 ${a.published} 条，待完善/发布 ${a.draftLike} 条`,
+      `- 供应商库：${s.total} 家，已入库 ${s.approved} 家，待审批 ${s.pending} 家，停用/黑名单风险 ${s.risk} 家`,
+      `- 专家资源：${e.total} 名专家，参与进行中项目 ${e.active} 项，未完成事项 ${e.unfinished} 项`,
+      `- 电子商城目录：${c.total} 条，有效 ${c.active} 条，待处理预警 ${c.alerts} 条`,
+      `- 商城供货审批：${apps.pending} 条待审核申请`,
+      '',
+      '要求：',
+      '- 总共输出 100-150 字',
+      '- 先总结整体运行状态（正常/需关注/有风险）',
+      '- 再指出1-3个最需关注的问题',
+      '- 语气专业、务实、可执行',
+      '- 必须只输出纯文本，不要 markdown 标记',
+    ].join('\n');
+
+    try {
+      const DEEPSEEK_URL = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com';
+      const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
+      const res = await fetch(`${DEEPSEEK_URL.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: DEEPSEEK_MODEL,
+          temperature: 0.3,
+          max_tokens: 400,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) {
+        this.logger.warn(`DeepSeek dashboard-summary failed: ${res.status}`);
+        return { summary: 'AI 引擎暂时不可用，请稍后刷新页面重试。', level: 'warn' as const };
+      }
+      const data = await res.json();
+      const text = (data?.choices?.[0]?.message?.content || '').trim();
+      return { summary: text || 'AI 未能生成有效摘要，请稍后重试。', level: 'info' as const };
+    } catch (err: any) {
+      this.logger.warn(`DeepSeek dashboard-summary error: ${err.message}`);
+      return { summary: 'AI 引擎连接超时或不可用，当前数据统计可正常查看。', level: 'warn' as const };
+    }
   }
 }
