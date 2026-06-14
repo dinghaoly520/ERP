@@ -98,11 +98,6 @@ button {
   color: var(--text-primary);
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--primary-light); border-radius: var(--radius-full); }
-::-webkit-scrollbar-thumb:hover { background: var(--primary); }
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
