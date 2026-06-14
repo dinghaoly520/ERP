@@ -5,13 +5,13 @@ function SplashCursor({
   SIM_RESOLUTION = 128,
   DYE_RESOLUTION = 720,
   CAPTURE_RESOLUTION = 512,
-  DENSITY_DISSIPATION = 5,
-  VELOCITY_DISSIPATION = 4,
+  DENSITY_DISSIPATION = 8,
+  VELOCITY_DISSIPATION = 6,
   PRESSURE = 0.1,
   PRESSURE_ITERATIONS = 20,
   CURL = 2,
-  SPLAT_RADIUS = 0.1,
-  SPLAT_FORCE = 2000,
+  SPLAT_RADIUS = 0.06,
+  SPLAT_FORCE = 800,
   SHADING = true,
   COLOR_UPDATE_SPEED = 10,
   BACK_COLOR = { r: 0.5, g: 0, b: 0 },
@@ -719,9 +719,9 @@ function SplashCursor({
 
     function clickSplat(pointer: any) {
       const color = generateColor();
-      color.r *= 3.0;
-      color.g *= 3.0;
-      color.b *= 3.0;
+      color.r *= 1.5;
+      color.g *= 1.5;
+      color.b *= 1.5;
       const dx = 10 * (Math.random() - 0.5);
       const dy = 30 * (Math.random() - 0.5);
       splat(pointer.texcoordX, pointer.texcoordY, dx, dy, color);
@@ -787,15 +787,27 @@ function SplashCursor({
       return delta;
     }
 
+    // Soft pastel palette: ice-blue, lavender, mint, shell-pink, sky
+    const PASTELS: Array<[number, number, number]> = [
+      [0.12, 0.48, 0.72],  // ice blue
+      [0.38, 0.32, 0.58],  // lavender
+      [0.18, 0.55, 0.55],  // mint/teal
+      [0.55, 0.40, 0.50],  // shell pink
+      [0.30, 0.45, 0.65],  // sky blue
+    ];
+
     function generateColor(): { r: number; g: number; b: number } {
       if (!config.RAINBOW_MODE) {
         return hexToRGB(config.COLOR);
       }
-      const c = HSVtoRGB(Math.random(), 0.4, 1.0);
-      c.r *= 0.45;
-      c.g *= 0.45;
-      c.b *= 0.45;
-      return c;
+      // Pick a random pastel and add slight variation
+      const base = PASTELS[Math.floor(Math.random() * PASTELS.length)];
+      const vary = 0.92 + Math.random() * 0.08;  // ±8% brightness
+      return {
+        r: base[0] * vary,
+        g: base[1] * vary,
+        b: base[2] * vary,
+      };
     }
 
     function hexToRGB(hex: string): { r: number; g: number; b: number } {
@@ -804,25 +816,7 @@ function SplashCursor({
       const r = parseInt(val.slice(0, 2), 16) / 255;
       const g = parseInt(val.slice(2, 4), 16) / 255;
       const b = parseInt(val.slice(4, 6), 16) / 255;
-      return { r: r * 0.45, g: g * 0.45, b: b * 0.45 };
-    }
-
-    function HSVtoRGB(h: number, s: number, v: number) {
-      let r = 0, g = 0, b = 0, i: number, f: number;
-      i = Math.floor(h * 6);
-      f = h * 6 - i;
-      const p_local = v * (1 - s);
-      const q_local = v * (1 - f * s);
-      const t_local = v * (1 - (1 - f) * s);
-      switch (i % 6) {
-        case 0: r = v; g = t_local; b = p_local; break;
-        case 1: r = q_local; g = v; b = p_local; break;
-        case 2: r = p_local; g = v; b = t_local; break;
-        case 3: r = p_local; g = q_local; b = v; break;
-        case 4: r = t_local; g = p_local; b = v; break;
-        case 5: r = v; g = p_local; b = q_local; break;
-      }
-      return { r, g, b };
+      return { r: r * 0.12, g: g * 0.12, b: b * 0.12 };
     }
 
     function wrap(value: number, min: number, max: number) {
