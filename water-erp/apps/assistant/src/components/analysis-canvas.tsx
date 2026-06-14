@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PanelRightOpen, PanelRightClose } from 'lucide-react';
 import type { AssistantCard as AssistantCardType, AssistantCitation } from '@/lib/types';
 
@@ -12,7 +12,16 @@ export function AnalysisCanvas({
   citations: AssistantCitation[];
 }) {
   const [open, setOpen] = useState(true);
+  const prevCardCount = useRef(cards.length);
   const displayCards = cards.filter((c) => c.type !== 'actionPlan');
+
+  // Auto-open when new cards arrive
+  useEffect(() => {
+    if (cards.length > prevCardCount.current) {
+      setOpen(true);
+    }
+    prevCardCount.current = cards.length;
+  }, [cards.length]);
 
   if (!open) {
     return (

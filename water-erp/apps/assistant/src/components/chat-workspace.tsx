@@ -62,13 +62,31 @@ export function ChatWorkspace({
 }) {
   const spotlightRef = useMouseSpotlight();
 
-  // Collect cards/citations from the latest assistant message
+  // Accumulate all cards/citations from the entire conversation, deduped by title
   const { cards, citations } = useMemo(() => {
-    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
-    return {
-      cards: (lastAssistant?.cards as AssistantCardType[]) || [],
-      citations: (lastAssistant?.citations as AssistantCitation[]) || [],
-    };
+    const cardMap = new Map<string, AssistantCardType>();
+    const citationSet = new Set<string>();
+    const allCitations: AssistantCitation[] = [];
+    for (const msg of messages) {
+      if (msg.role === 'assistant') {
+        if (msg.cards) {
+          for (const c of msg.cards as AssistantCardType[]) {
+            const key = c.title || JSON.stringify(c);
+            if (!cardMap.has(key)) cardMap.set(key, c);
+          }
+        }
+        if (msg.citations) {
+          for (const cit of msg.citations as AssistantCitation[]) {
+            const key = `${cit.type}:${cit.title}`;
+            if (!citationSet.has(key)) {
+              citationSet.add(key);
+              allCitations.push(cit);
+            }
+          }
+        }
+      }
+    }
+    return { cards: Array.from(cardMap.values()), citations: allCitations };
   }, [messages]);
 
   const hasCanvas = cards.length > 0 || citations.length > 0;
