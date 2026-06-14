@@ -5,13 +5,13 @@ function SplashCursor({
   SIM_RESOLUTION = 128,
   DYE_RESOLUTION = 1440,
   CAPTURE_RESOLUTION = 512,
-  DENSITY_DISSIPATION = 3.5,
-  VELOCITY_DISSIPATION = 2,
+  DENSITY_DISSIPATION = 6,
+  VELOCITY_DISSIPATION = 4,
   PRESSURE = 0.1,
   PRESSURE_ITERATIONS = 20,
   CURL = 3,
-  SPLAT_RADIUS = 0.2,
-  SPLAT_FORCE = 6000,
+  SPLAT_RADIUS = 0.04,
+  SPLAT_FORCE = 1200,
   SHADING = true,
   COLOR_UPDATE_SPEED = 10,
   BACK_COLOR = { r: 0.5, g: 0, b: 0 },
@@ -719,9 +719,9 @@ function SplashCursor({
 
     function clickSplat(pointer: any) {
       const color = generateColor();
-      color.r *= 10.0;
-      color.g *= 10.0;
-      color.b *= 10.0;
+      color.r *= 2.0;
+      color.g *= 2.0;
+      color.b *= 2.0;
       const dx = 10 * (Math.random() - 0.5);
       const dy = 30 * (Math.random() - 0.5);
       splat(pointer.texcoordX, pointer.texcoordY, dx, dy, color);
@@ -791,10 +791,10 @@ function SplashCursor({
       if (!config.RAINBOW_MODE) {
         return hexToRGB(config.COLOR);
       }
-      const c = HSVtoRGB(Math.random(), 1.0, 1.0);
-      c.r *= 0.15;
-      c.g *= 0.15;
-      c.b *= 0.15;
+      const c = HSVtoRGB(Math.random(), 0.15, 1.0);
+      c.r *= 0.06;
+      c.g *= 0.06;
+      c.b *= 0.06;
       return c;
     }
 
@@ -804,7 +804,7 @@ function SplashCursor({
       const r = parseInt(val.slice(0, 2), 16) / 255;
       const g = parseInt(val.slice(2, 4), 16) / 255;
       const b = parseInt(val.slice(4, 6), 16) / 255;
-      return { r: r * 0.15, g: g * 0.15, b: b * 0.15 };
+      return { r: r * 0.06, g: g * 0.06, b: b * 0.06 };
     }
 
     function HSVtoRGB(h: number, s: number, v: number) {
