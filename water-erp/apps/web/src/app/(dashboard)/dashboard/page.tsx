@@ -120,10 +120,11 @@ export default function DashboardPage() {
         </DataToolbar>
       </PageHero>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <MetricCard label="信息发布" value={loading ? '—' : `${announcementPublished}/${announcementTotal}`} hint="已发布 / 信息总量" tone="blue" icon={<Megaphone size={18} strokeWidth={1.7} />} onClick={() => router.push('/notice')} />
         <MetricCard label="供应商资源" value={loading ? '—' : `${supplierApproved}/${supplierTotal}`} hint="已入库 / 供应商总数" tone="green" icon={<Building2 size={18} strokeWidth={1.7} />} onClick={() => router.push('/supplier/repository')} />
         <MetricCard label="专家资源" value={loading ? '—' : `${expertTotal}`} hint={`${expertAssignments} 条参与记录`} tone="purple" icon={<UsersRound size={18} strokeWidth={1.7} />} onClick={() => router.push('/expert/repository')} />
+        <MetricCard label="商城目录" value={loading ? '—' : `${mallCatalogActive}/${mallCatalogTotal}`} hint="有效目录 / 目录总量" tone="cyan" icon={<ShoppingCart size={18} strokeWidth={1.7} />} onClick={() => router.push('/mall-management/catalog')} />
         <MetricCard label="待处理事项" value={loading ? '—' : totalTodos} hint="待发布、待审核、专家未完成" tone="orange" icon={<BellRing size={18} strokeWidth={1.7} />} onClick={() => router.push('/supplier/approval')} />
         <MetricCard label="风险预警" value={loading ? '—' : alertCount} hint="异常供应商与专家提醒" tone="red" icon={<ShieldAlert size={18} strokeWidth={1.7} />} onClick={() => router.push('/dashboard#risk')} />
       </section>
