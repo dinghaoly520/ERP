@@ -6,8 +6,6 @@ import { Sparkles, Send, Loader2, Search, BarChart3, AlertTriangle, Users, Shopp
 
 const copy = {
   title: '水叮当智能助手',
-  subtitle: 'SHUIDINGDANG AI',
-  helper: '全系统数据洞察、业务分析、风险扫描与协同操作 — 董事长专属智能指挥台',
   placeholder: '输入问题 / 生成分析 / 操作业务，如：汇总本月招采风险并画趋势图',
 };
 
@@ -92,11 +90,6 @@ export function AssistantHome({
             <Sparkles size={30} color="#2d6bca" strokeWidth={1.8} />
           </div>
           <h1 className={styles.title}>{copy.title}</h1>
-          <div className={styles.subtitleRow}>
-            <span className={styles.subtitleAccent} />
-            <p className={styles.subtitle}>{copy.subtitle}</p>
-          </div>
-          <p className={styles.helper}>{copy.helper}</p>
         </div>
 
         {/* 搜索框 */}
