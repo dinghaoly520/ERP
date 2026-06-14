@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { DashboardAiPanel, MetricCard, ModuleCard } from '@/components/workbench';
+import { DashboardAiPanel, MetricCard } from '@/components/workbench';
 import type { DashboardContext } from '@/components/workbench';
 import { api } from '@/lib/api';
 import { getCatalogStats, type CatalogStats } from '@/lib/api/catalog-admin';
@@ -115,13 +115,6 @@ export default function DashboardPage() {
       </section>
 
       <DashboardAiPanel context={dashboardContext} ready={!loading} />
-
-      <section className="grid gap-4 lg:grid-cols-4">
-        <ModuleCard title="信息发布中心" description="公告、公示、政策制度、草稿与发布记录" tone="blue" icon={<Megaphone size={22} />} actionLabel="进入发布中心" onClick={() => router.push('/notice')} stats={<span className="text-sm text-[#5a6d8a]">已发布 {announcementPublished} 条，待完善 {announcementDraftLike} 条</span>} />
-        <ModuleCard title="供应商管理中心" description="供应商审核、供应商库、评价、变更和黑名单" tone="green" icon={<Building2 size={22} />} actionLabel="管理供应商" onClick={() => router.push('/supplier/repository')} stats={<span className="text-sm text-[#5a6d8a]">已入库 {supplierApproved} 家，待审 {pendingSuppliers} 家</span>} />
-        <ModuleCard title="专家管理中心" description="专家库、抽取分配、回避关系、履职评价" tone="purple" icon={<UsersRound size={22} />} actionLabel="管理专家" onClick={() => router.push('/expert/repository')} stats={<span className="text-sm text-[#5a6d8a]">专家 {expertTotal} 名，参与记录 {expertAssignments} 条</span>} />
-        <ModuleCard title="电子商城管理" description="采购目录、价格审批、价格录入与操作日志" tone="cyan" icon={<ShoppingCart size={22} />} actionLabel="进入商城后台" onClick={() => router.push('/mall-management/catalog')} stats={<span className="text-sm text-[#5a6d8a]">目录 {mallCatalogTotal} 条，有效 {mallCatalogActive} 条，异常 {mallCatalogAlerts} 条</span>} />
-      </section>
     </div>
   );
 }
