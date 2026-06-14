@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import PriceChart from './price-chart';
+import { MallAssistantEntry } from './assistant/mall-assistant-entry';
+import type { MallAssistantContext } from './assistant/types';
 
 type PriceStatus = '有效' | '价格波动' | '即将过期' | '待复核';
 type PriceSource = '框架协议价' | '历史成交价' | '市场询价' | '人工维护';
@@ -135,10 +137,7 @@ export default function MallPage() {
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; target: string; detail: any; createdAt: string }>>([]);
   const [detail, setDetail] = useState<CatalogItem | null>(null);
   const [detailHistory, setDetailHistory] = useState<{ recordedAt: string; price: number }[]>([]);
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiQuestion, setAiQuestion] = useState('');
-  const [aiAnswer, setAiAnswer] = useState('');
-  const [aiLoading, setAiLoading] = useState(false);
+  const [assistantInitialQuestion, setAssistantInitialQuestion] = useState('');
   const [currentUser, setCurrentUser] = useState<{ username?: string; displayName?: string; role?: string } | null>(null);
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -285,6 +284,34 @@ export default function MallPage() {
     changeRate: item.changeRate,
   })), [filtered]);
 
+  const assistantContext: MallAssistantContext = useMemo(() => ({
+    totalItems: items.length,
+    currentFilters: { category, region, status, source, search },
+    riskSummary: aiRiskSummary,
+    visibleItems: aiContextItems,
+    budget: lines.map(row => ({ code: row.code, name: row.name, qty: row.qty, unit: row.unit, referencePrice: row.referencePrice })),
+    selectedItem: detail ? {
+      id: detail.id,
+      code: detail.code,
+      name: detail.name,
+      specification: detail.specification,
+      category: detail.category,
+      referencePrice: detail.referencePrice,
+      unit: detail.unit,
+      priceRange: `${detail.priceMin}-${detail.priceMax}`,
+      averagePrice: detail.averagePrice,
+      supplier: detail.supplier,
+      supplierType: detail.supplierType,
+      priceSource: detail.priceSource,
+      region: detail.region,
+      validUntil: detail.validUntil,
+      status: detail.status,
+      changeRate: detail.changeRate,
+      minOrder: detail.minOrder,
+      remark: detail.remark,
+    } : null,
+  }), [aiContextItems, aiRiskSummary, category, detail, items.length, lines, region, search, source, status]);
+
   const getAiAdvice = (item: CatalogItem) => {
     if (item.status === '待复核') return { title: '暂不建议引用', className: 'bg-red-50 text-red-700 border-red-200' };
     if (item.status === '价格波动' || Math.abs(item.changeRate) >= 6) return { title: '建议二次询价', className: 'bg-orange-50 text-orange-700 border-orange-200' };
@@ -294,40 +321,10 @@ export default function MallPage() {
 
   const buildDetailPrompt = (item: CatalogItem) => `请对目录条目「${item.name}」做价格研判：参考价${formatPrice(item.referencePrice)}/${item.unit}，价格区间${formatPrice(item.priceMin)}-${formatPrice(item.priceMax)}，历史均价${formatPrice(item.averagePrice)}，价格变化${item.changeRate}%，来源${item.priceSource}，状态${item.status}，供应商${item.supplier}。请给出结论、风险点和采购建议。`;
 
-  const askAi = async (message = aiQuestion) => {
+  const openAssistantWithQuestion = (message: string) => {
     const question = message.trim();
-    if (!question) {
-      toast.error('请输入需要 AI 分析的问题');
-      return;
-    }
-    setAiOpen(true);
-    setAiQuestion(question);
-    setAiLoading(true);
-    setAiAnswer('');
-    try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: question,
-          context: {
-            totalItems: items.length,
-            currentFilters: { category, region, status, source, search },
-            riskSummary: aiRiskSummary,
-            visibleItems: aiContextItems,
-            budget: lines.map(row => ({ code: row.code, name: row.name, qty: row.qty, unit: row.unit, referencePrice: row.referencePrice })),
-          },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'AI 调用失败');
-      setAiAnswer(data.answer);
-    } catch (error) {
-      setAiAnswer(error instanceof Error ? error.message : 'AI 调用失败，请稍后重试。');
-      toast.error('AI 调用失败');
-    } finally {
-      setAiLoading(false);
-    }
+    if (!question) return;
+    setAssistantInitialQuestion(question);
   };
 
   const api = (path: string, init?: RequestInit) =>
@@ -547,23 +544,11 @@ export default function MallPage() {
           </div>
         </section>
 
-        <section className="mt-5 rounded-2xl border border-[#bfd4f4] bg-gradient-to-br from-white to-[#f4f8ff] p-5 shadow-[0_12px_34px_rgba(6,78,162,.07)]">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-xl font-black text-[#123a6e]">智能采购价格助手</h2>
-            </div>
-            <div className="grid grid-cols-4 gap-2 text-center">
-              <div className="rounded-xl bg-emerald-50 px-3 py-2"><div className="text-lg font-black text-emerald-700">{aiRiskSummary.safe}</div><div className="text-[11px] font-bold text-emerald-700">可参考</div></div>
-              <div className="rounded-xl bg-orange-50 px-3 py-2"><div className="text-lg font-black text-orange-700">{aiRiskSummary.inquiry}</div><div className="text-[11px] font-bold text-orange-700">需询价</div></div>
-              <div className="rounded-xl bg-amber-50 px-3 py-2"><div className="text-lg font-black text-amber-700">{aiRiskSummary.expiring}</div><div className="text-[11px] font-bold text-amber-700">将过期</div></div>
-              <div className="rounded-xl bg-red-50 px-3 py-2"><div className="text-lg font-black text-red-700">{aiRiskSummary.review}</div><div className="text-[11px] font-bold text-red-700">待复核</div></div>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-col gap-3 lg:flex-row">
-            <input value={aiQuestion} onChange={e => setAiQuestion(e.target.value)} placeholder="问 AI：帮我分析当前筛选结果、生成管网更新预算清单、哪些价格需要复核？" className="h-11 flex-1 rounded-xl border border-[#cdd9ea] bg-white px-4 text-sm outline-none focus:border-[#064ea2]" />
-            <button onClick={() => askAi()} disabled={aiLoading} className="h-11 rounded-xl bg-[#064ea2] px-5 text-sm font-black text-white transition hover:bg-[#043d82] disabled:opacity-60">{aiLoading ? 'AI 分析中...' : 'AI 分析'}</button>
-          </div>
-        </section>
+        <MallAssistantEntry
+          context={assistantContext}
+          initialQuestion={assistantInitialQuestion}
+          onInitialQuestionConsumed={() => setAssistantInitialQuestion('')}
+        />
 
         <section className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
           {[
@@ -743,68 +728,6 @@ export default function MallPage() {
         </div>
       )}
 
-      {aiOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md" onClick={() => setAiOpen(false)} />
-          <div className="relative flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="relative overflow-hidden bg-gradient-to-r from-[#064ea2] to-[#123a6e] px-6 py-5 text-white">
-              <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle_at_80%_30%,rgba(255,255,255,.18),transparent_45%)]" />
-              <div className="relative flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 text-2xl">💡</div>
-                  <div>
-                    <div className="text-base font-black tracking-wide">智能采购助手</div>
-                    <div className="text-xs text-white/70">集中采购目录 · 价格研判 / 预算建议 / 风险提示</div>
-                  </div>
-                </div>
-                <button onClick={() => setAiOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/15 hover:text-white">✕</button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-auto bg-[#f7f9fc] px-5 py-5">
-              {aiLoading ? (
-                <div className="flex items-center gap-2.5 rounded-2xl rounded-tl-sm bg-white px-4 py-3 text-sm text-[#5a6d8a] shadow-sm">
-                  <span className="flex gap-1">
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-[#064ea2]" />
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-[#064ea2]" style={{ animationDelay: '150ms' }} />
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-[#064ea2]" style={{ animationDelay: '300ms' }} />
-                  </span>
-                  正在结合目录数据分析…
-                </div>
-              ) : aiAnswer ? (
-                <div className="space-y-3">
-                  {aiQuestion && (
-                    <div className="flex justify-end">
-                      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-tr-sm bg-[#064ea2] px-4 py-2.5 text-sm font-medium text-white shadow-sm">{aiQuestion}</div>
-                    </div>
-                  )}
-                  <div className="flex justify-start">
-                    <div className="max-w-[92%] rounded-2xl rounded-tl-sm bg-white px-4 py-3 text-sm leading-7 text-[#344563] shadow-sm"><AiMarkdown content={aiAnswer} /></div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="rounded-2xl bg-white p-4 text-sm leading-6 text-[#5a6d8a] shadow-sm">
-                    你好，我是集中采购目录的智能助手，可帮你做<b className="text-[#18243a]">价格研判</b>、生成<b className="text-[#18243a]">预算清单</b>、识别<b className="text-[#18243a]">价格风险</b>。试试下面的常见问题，或直接输入需求：
-                  </div>
-                  <div className="grid gap-2">
-                    {['当前筛选结果里，哪些价格需要复核？', '帮我生成「管网更新工程」的预算清单', '最近有哪些物资价格波动较大？', '电磁流量计的参考价是否合理？'].map(q => (
-                      <button key={q} onClick={() => askAi(q)} className="rounded-xl border border-[#dbe6f3] bg-white px-4 py-2.5 text-left text-sm text-[#344563] transition hover:border-[#064ea2] hover:bg-[#f3f7fc] hover:text-[#064ea2]">{q}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="border-t border-[#e5ecf4] bg-white p-4">
-              <div className="flex items-end gap-2">
-                <textarea value={aiQuestion} onChange={e => setAiQuestion(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askAi(); } }} rows={2} className="max-h-32 flex-1 resize-none rounded-xl border border-[#cdd9ea] p-3 text-sm outline-none transition focus:border-[#064ea2] focus:shadow-[0_0_0_3px_rgba(6,78,162,.1)]" placeholder="输入采购问题，Enter 发送 / Shift+Enter 换行" />
-                <button onClick={() => askAi()} disabled={aiLoading || !aiQuestion.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#064ea2] text-white transition hover:bg-[#043d82] disabled:cursor-not-allowed disabled:opacity-50" title="发送">
-                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {detail && <div className="fixed inset-0 z-[110] flex items-center justify-center p-4"><div className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md" onClick={() => setDetail(null)} /><div className="relative max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white shadow-2xl"><div className="border-b border-[#e5ecf4] bg-[#f8fbff] px-6 py-5"><div className="mb-3 flex items-center justify-between"><span className="font-mono text-xs font-black text-[#064ea2]">{detail.code}</span><button onClick={() => toggleFavorite(detail)} className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg transition hover:bg-white ${favoriteIds.includes(detail.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(detail.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(detail.id) ? '★' : '☆'}</button><button onClick={() => setDetail(null)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#8a96aa] transition hover:bg-white">✕</button></div><h2 className="text-2xl font-black text-[#18243a]">{detail.name}</h2><p className="mt-2 text-sm text-[#5a6d8a]">{detail.specification}</p></div><div className="space-y-5 px-6 py-5"><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">价格信息</div><div className="grid gap-4 sm:grid-cols-2"><Info label="当前参考价" value={`${formatPrice(detail.referencePrice)} / ${detail.unit}`} strong /><Info label="价格区间" value={`${formatPrice(detail.priceMin)} - ${formatPrice(detail.priceMax)}`} /><Info label="最近成交价" value={formatPrice(detail.lastDealPrice)} /><Info label="历史采购均价" value={formatPrice(detail.averagePrice)} /><Info label="价格变化" value={`${detail.changeRate > 0 ? '+' : ''}${detail.changeRate}%`} /><Info label="价格状态" value={detail.status} /></div></div><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">供应商与适用范围</div><div className="grid gap-4 sm:grid-cols-2"><Info label="供应商" value={detail.supplier} /><Info label="供应商类型" value={detail.supplierType} /><Info label="适用区域" value={detail.region} /><Info label="最小参考采购量" value={detail.minOrder} /><Info label="含税" value={detail.taxIncluded ? '是' : '否'} /><Info label="含运费" value={detail.freightIncluded ? '是' : '否'} /></div></div><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">价格依据</div><div className="grid gap-4 sm:grid-cols-2"><Info label="价格来源" value={detail.priceSource} /><Info label="更新时间" value={formatDate(detail.updatedAt)} /><Info label="有效期至" value={formatDate(detail.validUntil)} /><Info label="分类目录" value={`${detail.group} / ${detail.category}`} /></div><p className="mt-4 rounded-xl bg-[#f7faff] p-3 text-sm leading-6 text-[#5a6d8a]">{detail.remark}</p></div><div className="rounded-2xl border border-[#e1e9f4] p-5">
             <div className="mb-3 flex items-center justify-between">
@@ -813,7 +736,7 @@ export default function MallPage() {
             </div>
             <PriceChart points={detailHistory} />
           </div>
-          <div className="rounded-2xl border border-[#bfd4f4] bg-gradient-to-br from-[#f8fbff] to-white p-5"><div className="mb-3 flex items-center justify-between"><div className="text-sm font-black text-[#123a6e]">AI 价格研判</div><button onClick={() => askAi(buildDetailPrompt(detail))} className="rounded-full bg-[#064ea2] px-3 py-1 text-xs font-black text-white">AI 智能分析</button></div><p className="text-sm leading-6 text-[#5a6d8a]">点击分析后，AI 将结合参考价、价格区间、历史均价、供应商、价格来源和有效期，生成风险结论、询价建议和预算引用说明。</p></div><div className="grid grid-cols-2 gap-3"><button onClick={() => { navigator.clipboard?.writeText(detail.code); toast.success('目录编码已复制'); }} className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f7fc]">复制目录编码</button><button onClick={() => { addToBudget(detail); setDetail(null); }} className="h-11 rounded-xl bg-[#064ea2] text-sm font-bold text-white transition hover:bg-[#043d82]">加入预算清单</button></div></div></div></div>}
+          <div className="rounded-2xl border border-[#bfd4f4] bg-gradient-to-br from-[#f8fbff] to-white p-5"><div className="mb-3 flex items-center justify-between"><div className="text-sm font-black text-[#123a6e]">AI 价格研判</div><button onClick={() => openAssistantWithQuestion(buildDetailPrompt(detail))} className="rounded-full bg-[#064ea2] px-3 py-1 text-xs font-black text-white">AI 智能分析</button></div><p className="text-sm leading-6 text-[#5a6d8a]">点击分析后，AI 将结合参考价、价格区间、历史均价、供应商、价格来源和有效期，生成风险结论、询价建议和预算引用说明。</p></div><div className="grid grid-cols-2 gap-3"><button onClick={() => { navigator.clipboard?.writeText(detail.code); toast.success('目录编码已复制'); }} className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f7fc]">复制目录编码</button><button onClick={() => { addToBudget(detail); setDetail(null); }} className="h-11 rounded-xl bg-[#064ea2] text-sm font-bold text-white transition hover:bg-[#043d82]">加入预算清单</button></div></div></div></div>}
       {auditOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md" onClick={() => setAuditOpen(false)} />
@@ -845,81 +768,6 @@ export default function MallPage() {
   );
 }
 
-function AiMarkdown({ content }: { content: string }) {
-  const lines = content.split('\n');
-  const blocks: React.ReactNode[] = [];
-  let tableBuffer: string[] = [];
-  let listBuffer: string[] = [];
-
-  const inline = (text: string) => text
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/^[-*]\s+/, '')
-    .trim();
-
-  const flushList = () => {
-    if (!listBuffer.length) return;
-    blocks.push(
-      <ul key={`list-${blocks.length}`} className="my-3 space-y-1.5 rounded-xl bg-white/70 p-3 text-sm text-[#344563]">
-        {listBuffer.map((item, idx) => <li key={idx} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#064ea2]" /><span>{inline(item)}</span></li>)}
-      </ul>,
-    );
-    listBuffer = [];
-  };
-
-  const flushTable = () => {
-    if (tableBuffer.length < 2) {
-      tableBuffer = [];
-      return;
-    }
-    const rows = tableBuffer
-      .filter(row => !/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(row))
-      .map(row => row.split('|').map(cell => inline(cell)).filter(Boolean));
-    const [head, ...body] = rows;
-    blocks.push(
-      <div key={`table-${blocks.length}`} className="my-4 overflow-x-auto rounded-xl border border-[#dfe8f5] bg-white">
-        <table className="min-w-full text-left text-xs">
-          <thead className="bg-[#eef5ff] text-[#123a6e]">
-            <tr>{head.map((cell, idx) => <th key={idx} className="whitespace-nowrap px-3 py-2 font-black">{cell}</th>)}</tr>
-          </thead>
-          <tbody className="divide-y divide-[#edf2f8]">
-            {body.map((row, idx) => <tr key={idx}>{row.map((cell, cellIdx) => <td key={cellIdx} className="max-w-[220px] px-3 py-2 align-top text-[#344563]">{cell}</td>)}</tr>)}
-          </tbody>
-        </table>
-      </div>,
-    );
-    tableBuffer = [];
-  };
-
-  lines.forEach((line, idx) => {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      flushList();
-      flushTable();
-      return;
-    }
-    if (trimmed.startsWith('|')) {
-      flushList();
-      tableBuffer.push(trimmed);
-      return;
-    }
-    flushTable();
-    if (/^[-*]\s+/.test(trimmed)) {
-      listBuffer.push(trimmed);
-      return;
-    }
-    flushList();
-    if (/^#{1,4}\s+/.test(trimmed)) {
-      blocks.push(<h3 key={idx} className="mt-4 mb-2 border-l-4 border-[#064ea2] pl-3 text-base font-black text-[#123a6e]">{inline(trimmed.replace(/^#{1,4}\s+/, ''))}</h3>);
-      return;
-    }
-    if (/^---+$/.test(trimmed)) return;
-    blocks.push(<p key={idx} className="my-2 text-sm leading-7 text-[#344563]">{inline(trimmed)}</p>);
-  });
-
-  flushList();
-  flushTable();
-  return <div>{blocks}</div>;
-}
 
 function Info({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return <div><div className="text-xs font-bold text-[#8a96aa]">{label}</div><div className={`mt-1 text-sm ${strong ? 'text-xl font-black text-[#e74c3c]' : 'font-semibold text-[#18243a]'}`}>{value}</div></div>;
