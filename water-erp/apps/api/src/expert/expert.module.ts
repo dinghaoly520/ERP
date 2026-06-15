@@ -7,10 +7,12 @@ import { ExpertExtractionAiService } from './expert-extraction-ai.service';
 import { ExpertConflictService } from './expert-conflict.service';
 import { AuthModule } from '../auth/auth.module';
 import { AiModule } from '../ai';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-  imports: [AuthModule, AiModule],
+  imports: [AuthModule, AiModule, NotificationModule],
   controllers: [ExpertController, ExpertAdminController],
   providers: [ExpertService, ExpertAdminService, ExpertExtractionAiService, ExpertConflictService],
+  exports: [ExpertAdminService],
 })
 export class ExpertModule {}

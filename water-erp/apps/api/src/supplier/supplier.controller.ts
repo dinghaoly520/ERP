@@ -97,6 +97,13 @@ export class SupplierController {
     return this.supplierService.deleteClassification(id);
   }
 
+  @Get('eliminate-candidates')
+  @UseGuards(ProcurementGuard)
+  @ApiOperation({ summary: '供应商淘汰候选扫描（预警，不自动停用）' })
+  async reviewEliminationCandidates() {
+    return this.supplierService.reviewEliminationCandidates();
+  }
+
   // ─── 动态路由 ───
 
   @Get(':id')
@@ -204,5 +211,19 @@ export class SupplierController {
   @ApiOperation({ summary: '发起评价' })
   async createEvaluation(@Param('id') id: string, @Body() dto: CreateEvaluationDto, @Request() req: any) {
     return this.supplierService.createEvaluation(id, req.user.sub, dto);
+  }
+
+  @Get(':id/portrait')
+  @UseGuards(ProcurementGuard)
+  @ApiOperation({ summary: '供应商画像' })
+  async getPortrait(@Param('id') id: string) {
+    return this.supplierService.getSupplierPortrait(id);
+  }
+
+  @Post(':id/eliminate')
+  @UseGuards(ProcurementGuard)
+  @ApiOperation({ summary: '人工确认供应商淘汰' })
+  async confirmEliminate(@Param('id') id: string, @Body() body: { reason: string }) {
+    return this.supplierService.confirmEliminate(id, body.reason);
   }
 }

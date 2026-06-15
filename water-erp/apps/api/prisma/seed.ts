@@ -30,7 +30,7 @@ function load<T = Record<string, unknown>[]>(name: string): T {
   return JSON.parse(readFileSync(join(dataDir, `${name}.json`), 'utf-8')) as T;
 }
 
-// 所有业务表名（共 31 张，不含 Prisma 内部的 _prisma_migrations）。
+// 所有业务表名（共 32 张，不含 Prisma 内部的 _prisma_migrations）。
 const ALL_TABLES = [
   'BudgetItem', 'BudgetList',
   'BidDocumentAccess', 'BidDocument', 'AnnouncementAttachment',
@@ -39,7 +39,7 @@ const ALL_TABLES = [
   'SupplierEvaluation', 'SupplierQualification',
   'ExpertEvaluation', 'ExpertProfile', 'BidExpert', 'BidScoreItem',
   'BidArchiveItem', 'BidOpeningSession', 'BidSupplier',
-  'FileAsset', 'ProcurementProject', 'Notification', 'Announcement',
+  'FileAsset', 'ProcurementProject', 'Notification', 'NotificationDeliveryLog', 'Announcement',
   'CatalogItem', 'SupplierClassification', 'Supplier', 'BidProject',
   'User', 'Department', 'PriceHistory',
   'UserFavorite', 'AuditLog',

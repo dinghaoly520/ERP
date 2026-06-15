@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { NotificationChannel, DispatchPayload } from './notification-channel.interface';
+import type { NotificationChannel, DispatchPayload, ChannelSendResult } from './notification-channel.interface';
 
 @Injectable()
 export class EmailChannel implements NotificationChannel {
@@ -26,15 +26,17 @@ export class EmailChannel implements NotificationChannel {
     }
   }
 
-  async send(p: DispatchPayload): Promise<void> {
+  async send(p: DispatchPayload): Promise<ChannelSendResult> {
     if (!this.transporter) {
       this.logger.log(`[Email-降级] → ${p.email}: ${p.title}`);
-      return;
+      return { status: 'skipped', error: 'SMTP 未配置' };
     }
     try {
       await this.transporter.sendMail({ to: p.email!, subject: p.title, text: p.content });
+      return { status: 'sent' };
     } catch (e) {
       this.logger.warn(`Email 发送失败: ${(e as Error).message}`);
+      return { status: 'failed', error: (e as Error).message };
     }
   }
 }

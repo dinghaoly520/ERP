@@ -51,6 +51,12 @@ export class ExpertAdminController {
     return this.expertAdminService.confirmExtraction(dto.projectId, dto);
   }
 
+  @Get('retire-candidates')
+  @ApiOperation({ summary: '专家退库候选扫描（预警，不自动停用）' })
+  reviewRetirementCandidates() {
+    return this.expertAdminService.reviewRetirementCandidates();
+  }
+
   // ── 动态 :id 路由 ──
 
   @Get(':id')
@@ -69,6 +75,18 @@ export class ExpertAdminController {
   @ApiOperation({ summary: '更新专家资料' })
   updateProfile(@Param('id') id: string, @Body() dto: Partial<CreateExpertDto>) {
     return this.expertAdminService.updateProfile(id, dto);
+  }
+
+  @Get(':id/portrait')
+  @ApiOperation({ summary: '专家画像' })
+  getPortrait(@Param('id') id: string) {
+    return this.expertAdminService.getExpertPortrait(id);
+  }
+
+  @Post(':id/retire')
+  @ApiOperation({ summary: '人工确认专家退库' })
+  confirmRetire(@Param('id') id: string, @Body() body: { reason: string }) {
+    return this.expertAdminService.confirmRetire(id, body.reason);
   }
 
   @Post('evaluations')

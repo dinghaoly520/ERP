@@ -12,7 +12,13 @@ export interface DispatchPayload {
 
 export interface NotificationChannel {
   name: ChannelName;
-  send(payload: DispatchPayload): Promise<void>;
+  send(payload: DispatchPayload): Promise<ChannelSendResult>;
+}
+
+/** 单渠道投递结果，供 NotificationDeliveryLog 记录。 */
+export interface ChannelSendResult {
+  status: 'sent' | 'skipped' | 'failed';
+  error?: string;
 }
 
 /** 根据用户联系方式判断某渠道是否应分发。 */

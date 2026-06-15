@@ -93,6 +93,7 @@ model BidProject {
   deadline            DateTime
   stage               BidStage                @default(DOWNLOAD)
   riskNote            String?
+  encryptionKeyId     String?                  // Track C: 项目数据密钥引用
   suppliers           BidSupplier[]
   openingSession      BidOpeningSession?
   openingRecords      BidOpeningRecord[]
@@ -288,6 +289,8 @@ model ExpertProfile {
   licenseNo    String? // 执业资格证号
   availability String   @default("可用") // 可用 / 占用 / 停用
   notes        String?
+  retiredAt    DateTime?                      // Track D: 退库时间（人工确认后写入）
+  retireReason String?                        // Track D: 退库原因
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -478,6 +481,21 @@ model Notification {
   @@index([userId, isRead])
 }
 
+// ── 通知投递日志（Track A：多渠道投递记录） ──
+
+model NotificationDeliveryLog {
+  id             String   @id @default(cuid())
+  notificationId String?  // 关联站内信 id（in-app 渠道写入后回填）
+  userId         String
+  channel        String   // in_app | email | sms
+  status         String   // sent | failed | skipped
+  error          String?
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, channel, createdAt])
+}
+
 // ── 公告管理 ──
 
 enum AnnouncementType {
@@ -622,6 +640,10 @@ model FileAsset {
   sha256       String
   category     String
   uploaderId   String?
+  encrypted       Boolean   @default(false)   // Track C: 标书静态加密标记
+  encryptionKeyId String?                      // Track C: 项目数据密钥引用
+  iv              String?                      // Track C: AES-GCM iv (base64)
+  authTag         String?                      // Track C: AES-GCM authTag (base64)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

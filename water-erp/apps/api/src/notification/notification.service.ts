@@ -13,17 +13,30 @@ export class NotificationService {
     private smsChannel: SmsChannel,
   ) {}
 
+  /** 写一条投递日志（Track A：多渠道投递可观测性）。失败不阻断主流程。 */
+  private async logDelivery(userId: string, notificationId: string | null, channel: string, r: { status: string; error?: string }) {
+    await this.prisma.notificationDeliveryLog.create({
+      data: { userId, notificationId, channel, status: r.status, error: r.error ?? null },
+    }).catch(() => {});
+  }
+
   /** 站内信创建后，按用户联系方式异步分发到 Email/SMS（失败不阻断主流程）。 */
-  private async dispatchExternal(userId: string, payload: { type: string; title: string; content: string; link?: string | null }) {
+  private async dispatchExternal(userId: string, notificationId: string, payload: { type: string; title: string; content: string; link?: string | null }) {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null);
     // User 当前无 phone 字段，sms 渠道恒 skip（待加 User.phone 后生效）
     const contact = { email: user?.email ?? null, phone: null as string | null };
-    const tasks: Promise<void>[] = [];
+    const tasks: Promise<unknown>[] = [];
     if (shouldDispatch('email', contact)) {
-      tasks.push(this.emailChannel.send({ userId, ...contact, ...payload }));
+      tasks.push(
+        this.emailChannel.send({ userId, ...contact, ...payload })
+          .then(r => this.logDelivery(userId, notificationId, 'email', r)),
+      );
     }
     if (shouldDispatch('sms', contact)) {
-      tasks.push(this.smsChannel.send({ userId, ...contact, ...payload }));
+      tasks.push(
+        this.smsChannel.send({ userId, ...contact, ...payload })
+          .then(r => this.logDelivery(userId, notificationId, 'sms', r)),
+      );
     }
     await Promise.allSettled(tasks);
   }
@@ -38,7 +51,9 @@ export class NotificationService {
         link: dto.link,
       },
     });
-    void this.dispatchExternal(dto.userId, { type: dto.type, title: dto.title, content: dto.content, link: dto.link });
+    // 站内信视为已投递；记录 in_app 投递日志后异步分发外部渠道
+    await this.logDelivery(dto.userId, n.id, 'in_app', { status: 'sent' });
+    void this.dispatchExternal(dto.userId, n.id, { type: dto.type, title: dto.title, content: dto.content, link: dto.link });
     return n;
   }
 
@@ -64,9 +79,14 @@ export class NotificationService {
       ),
     );
 
-    // 多渠道异步分发（失败不阻断）
+    // 多渠道异步分发（失败不阻断）；每条站内信先记 in_app 投递日志
     void Promise.allSettled(
-      users.map(u => this.dispatchExternal(u.id, { type: dto.type, title: dto.title, content: dto.content, link: dto.link })),
+      notifications.map(n =>
+        (async () => {
+          await this.logDelivery(n.userId, n.id, 'in_app', { status: 'sent' });
+          await this.dispatchExternal(n.userId, n.id, { type: dto.type, title: dto.title, content: dto.content, link: dto.link });
+        })(),
+      ),
     );
 
     return notifications;

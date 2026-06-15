@@ -9,12 +9,15 @@ import type { ExtractPreviewDto } from './dto/extract-preview.dto';
 import type { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
 import type { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
 import { computeExpertMeanDeviations, meanOrNull, shouldDeactivateExpert } from './expert-deviation';
+import { buildExpertPortrait } from './expert-portrait.util';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class ExpertAdminService {
   constructor(
     private prisma: PrismaService,
     private extractionAi: ExpertExtractionAiService,
+    private notification: NotificationService,
   ) {}
 
   /* ── 专家库 ── */
@@ -340,20 +343,8 @@ export class ExpertAdminService {
       include: { evaluator: { select: { id: true, displayName: true } } },
     });
 
-    // 自动停用：最近 2 次评级均为 D → ExpertProfile.availability='停用'
-    const recent = await this.prisma.expertEvaluation.findMany({
-      where: { expertUserId: dto.expertUserId },
-      orderBy: { createdAt: 'desc' },
-      take: 2,
-      select: { level: true },
-    });
-    if (shouldDeactivateExpert(recent)) {
-      await this.prisma.expertProfile.updateMany({
-        where: { userId: dto.expertUserId },
-        data: { availability: '停用' },
-      });
-    }
-
+    // 决策 #3：不自动停用。连续 D 级由 reviewRetirementCandidates()（cron + 人工）产出预警，
+    // 实际退库须经 admin 调 confirmRetire() 确认。此处仅返回评价结果。
     return created;
   }
 
@@ -415,6 +406,114 @@ export class ExpertAdminService {
       },
       expertsWithDeviation: deviations.length,
     };
+  }
+
+  /* ── 专家画像（Track D §3.4） ── */
+
+  /** 单专家画像：参与/完成率/均分/偏离度/评价趋势/常委标记。 */
+  async getExpertPortrait(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, displayName: true },
+    });
+    if (!user) throw new NotFoundException('专家不存在');
+
+    const [assignments, scoreRecords, evals] = await Promise.all([
+      this.prisma.bidExpert.findMany({
+        where: { userId },
+        select: { progress: true, totalScore: true },
+      }),
+      this.prisma.bidScoreRecord.findMany({
+        where: { expert: { userId } },
+        select: { score: true, scoreItemId: true, supplierId: true, expert: { select: { userId: true } } },
+      }),
+      this.prisma.expertEvaluation.findMany({
+        where: { expertUserId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { level: true, overallScore: true, createdAt: true },
+      }),
+    ]);
+
+    const deviations = computeExpertMeanDeviations(
+      scoreRecords.map(r => ({
+        expertId: r.expert.userId,
+        scoreItemId: r.scoreItemId,
+        supplierId: r.supplierId,
+        score: Number(r.score),
+      })),
+    );
+    const myDeviation = deviations.find(d => d.expertId === userId) ?? null;
+
+    return buildExpertPortrait({
+      userId,
+      displayName: user.displayName,
+      assignments: assignments.map(a => ({ progress: a.progress, totalScore: Number(a.totalScore) })),
+      deviation: myDeviation,
+      recentEvals: evals,
+    });
+  }
+
+  /* ── 退库预警 + 人工确认（决策 #3：只预警，不自动改状态） ── */
+
+  /** 扫描退库候选（连续 D 级 或 近 12 个月无分配），通知管理员；不修改 availability。 */
+  async reviewRetirementCandidates() {
+    const experts = await this.prisma.user.findMany({
+      where: { role: 'bid_expert', isActive: true, expertProfile: { availability: { not: '停用' } } },
+      include: { expertProfile: { select: { specialty: true } } },
+    });
+
+    const cutoff = new Date(Date.now() - 365 * 24 * 3600 * 1000);
+    const candidates: Array<{ userId: string; displayName: string; specialty?: string; reason: string }> = [];
+
+    for (const e of experts) {
+      const recent = await this.prisma.expertEvaluation.findMany({
+        where: { expertUserId: e.id },
+        orderBy: { createdAt: 'desc' },
+        take: 2,
+        select: { level: true },
+      });
+      let reason: string | null = null;
+      if (shouldDeactivateExpert(recent)) {
+        reason = '最近 2 次履职评价均为 D 级';
+      } else {
+        const recentAssign = await this.prisma.bidExpert.findFirst({
+          where: { userId: e.id, createdAt: { gte: cutoff } },
+          select: { id: true },
+        });
+        if (!recentAssign) reason = '近 12 个月无评标分配';
+      }
+      if (reason) {
+        candidates.push({ userId: e.id, displayName: e.displayName, specialty: e.expertProfile?.specialty, reason });
+      }
+    }
+
+    if (candidates.length > 0) {
+      const names = candidates.map(c => `${c.displayName}（${c.reason}）`).join('；');
+      const payload = {
+        type: 'EXPERT_RETIRE_CANDIDATE',
+        title: '专家退库预警',
+        content: `${candidates.length} 名专家进入退库候选，请人工复核：${names}`,
+        link: '/expert-admin',
+      };
+      await Promise.all([
+        this.notification.sendToRole('admin', payload),
+        this.notification.sendToRole('bid_host', payload),
+      ]);
+    }
+
+    return candidates;
+  }
+
+  /** 人工确认退库：写入停用 + retiredAt + retireReason。 */
+  async confirmRetire(userId: string, reason: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('专家不存在');
+    await this.prisma.expertProfile.updateMany({
+      where: { userId },
+      data: { availability: '停用', retiredAt: new Date(), retireReason: reason },
+    });
+    return { success: true };
   }
 
   /* ── 抽取辅助 ── */

@@ -3,6 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { ExpertAdminService } from './expert-admin.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
+import { NotificationService } from '../notification/notification.service';
 
 describe('ExpertAdminService', () => {
   let service: ExpertAdminService;
@@ -27,6 +28,7 @@ describe('ExpertAdminService', () => {
         ExpertAdminService,
         { provide: PrismaService, useValue: prisma },
         { provide: ExpertExtractionAiService, useValue: { analyzeAndScore: jest.fn() } },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn() } },
       ],
     }).compile();
 

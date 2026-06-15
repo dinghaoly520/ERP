@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { hashSync } from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
@@ -9,6 +9,7 @@ import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { CreateClassificationDto, UpdateClassificationDto } from './dto/create-classification.dto';
 import { isSupplierChangeAllowedField } from './supplier-change-fields';
 import { shouldAutoDisable, aggregatePerformance } from './supplier-performance';
+import { buildSupplierPortrait } from './supplier-portrait.util';
 
 @Injectable()
 export class SupplierService {
@@ -491,25 +492,101 @@ export class SupplierService {
       },
     });
 
-    // 自动淘汰：最近 3 次综合得分均 ≤60 → 停用并通知供应商
-    const recent = await this.prisma.supplierEvaluation.findMany({
-      where: { supplierId },
-      orderBy: { createdAt: 'desc' },
-      take: 3,
-      select: { overallScore: true },
+    // 决策 #3：不自动停用。连续低分由 reviewEliminationCandidates()（cron + 人工）产出预警，
+    // 实际淘汰须经 admin 调 confirmEliminate() 确认。此处仅返回评价结果。
+    return created;
+  }
+
+  /* ── 供应商画像（Track E §3.3） ── */
+
+  /** 综合画像：参与次数、中标率、绩效均分/趋势、价格偏离度（数据可得时）。 */
+  async getSupplierPortrait(supplierId: string) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true, name: true },
     });
-    if (shouldAutoDisable(recent.map(r => ({ overallScore: Number(r.overallScore) })), 60)) {
-      await this.prisma.supplier.update({ where: { id: supplierId }, data: { status: 'DISABLED' } });
-      await this.notificationService.create({
-        userId: supplier.userId,
-        type: 'SUPPLIER_DISABLED',
-        title: '供应商已自动停用',
-        content: '因近期绩效综合得分持续偏低，您的供应商账号已被自动停用。如有异议请联系采购管理员。',
-        link: '/supplier',
-      }).catch(() => {});
+    if (!supplier) throw new NotFoundException('供应商不存在');
+
+    const [bidSuppliers, evaluations] = await Promise.all([
+      this.prisma.bidSupplier.findMany({
+        where: { supplierId },
+        select: { id: true, projectId: true },
+      }),
+      this.prisma.supplierEvaluation.findMany({
+        where: { supplierId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { score: true, level: true, createdAt: true },
+      }),
+    ]);
+
+    // 逐项目查中标结果（recommended）以判定是否中标。
+    // 注意 BidEvaluationResult.supplierId 引用的是 BidSupplier.id（投标记录 id），非 Supplier.id。
+    const participations: Array<{ won: boolean }> = [];
+    for (const bs of bidSuppliers) {
+      const result = await this.prisma.bidEvaluationResult.findFirst({
+        where: { projectId: bs.projectId, supplierId: bs.id },
+        select: { recommended: true },
+      }).catch(() => null);
+      participations.push({ won: !!result?.recommended });
     }
 
-    return created;
+    return buildSupplierPortrait({
+      supplierId,
+      name: supplier.name,
+      participations,
+      evaluations: evaluations.map(e => ({ overallScore: Number(e.score), level: e.level, createdAt: e.createdAt })),
+    });
+  }
+
+  /* ── 淘汰预警 + 人工确认（决策 #3：只预警，不自动改状态） ── */
+
+  /** 扫描淘汰候选（最近 3 次绩效均 ≤60），通知管理员；不修改 status。 */
+  async reviewEliminationCandidates() {
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { status: 'APPROVED' },
+      select: { id: true, name: true },
+    });
+
+    const candidates: Array<{ supplierId: string; name: string; reason: string }> = [];
+    for (const s of suppliers) {
+      const recent = await this.prisma.supplierEvaluation.findMany({
+        where: { supplierId: s.id },
+        orderBy: { createdAt: 'desc' },
+        take: 3,
+        select: { score: true },
+      });
+      if (shouldAutoDisable(recent.map(r => ({ overallScore: Number(r.score) })), 60)) {
+        candidates.push({ supplierId: s.id, name: s.name, reason: '最近 3 次绩效综合得分均 ≤ 60' });
+      }
+    }
+
+    if (candidates.length > 0) {
+      const names = candidates.map(c => `${c.name}（${c.reason}）`).join('；');
+      const payload = {
+        type: 'SUPPLIER_ELIMINATE_CANDIDATE',
+        title: '供应商淘汰预警',
+        content: `${candidates.length} 家供应商进入淘汰候选，请人工复核：${names}`,
+        link: '/supplier',
+      };
+      await Promise.all([
+        this.notificationService.sendToRole('admin', payload),
+        this.notificationService.sendToRole('procurement_staff', payload),
+      ]);
+    }
+
+    return candidates;
+  }
+
+  /** 人工确认淘汰：置 status=DISABLED。 */
+  async confirmEliminate(supplierId: string, reason: string) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true, status: true },
+    });
+    if (!supplier) throw new NotFoundException('供应商不存在');
+    await this.prisma.supplier.update({ where: { id: supplierId }, data: { status: 'DISABLED' } });
+    return { success: true };
   }
 
   /** 供应商绩效画像：历史均分、趋势、等级分布。 */
