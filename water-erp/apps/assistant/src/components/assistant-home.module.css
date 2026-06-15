@@ -13,11 +13,17 @@
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(circle at 12% 16%, rgba(88, 164, 255, 0.16), transparent 24%),
-    radial-gradient(circle at 84% 14%, rgba(145, 132, 255, 0.14), transparent 22%),
-    radial-gradient(circle at 72% 76%, rgba(112, 216, 189, 0.12), transparent 20%),
-    radial-gradient(circle at 22% 84%, rgba(255, 190, 222, 0.10), transparent 18%),
+    radial-gradient(circle at 12% 16%, rgba(88, 164, 255, 0.08), transparent 24%),
+    radial-gradient(circle at 84% 14%, rgba(145, 132, 255, 0.06), transparent 22%),
+    radial-gradient(circle at 72% 76%, rgba(112, 216, 189, 0.06), transparent 20%),
     linear-gradient(180deg, #f7faff 0%, #edf3fb 100%);
+}
+
+.spotlightCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
 }
 
 /* 浮动极光光晕 */
@@ -90,14 +96,13 @@
   align-items: center;
   justify-content: center;
   border-radius: 22px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(236, 242, 255, 0.92) 100%);
-  border: 1px solid rgba(205, 220, 238, 0.92);
   box-shadow:
-    0 16px 34px rgba(37, 99, 168, 0.08),
-    0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+    0 16px 34px rgba(37, 99, 168, 0.08);
   animation: logoBreathe 3.5s ease-in-out infinite;
   overflow: hidden;
+  padding: 0;
+  background: transparent;
+  border: none;
 }
 
 .logoImage {
@@ -105,20 +110,19 @@
   height: 100%;
   object-fit: cover;
   border-radius: 22px;
+  display: block;
 }
 
 @keyframes logoBreathe {
   0%, 100% {
     box-shadow:
-      0 16px 34px rgba(37, 99, 168, 0.08),
-      0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+      0 16px 34px rgba(37, 99, 168, 0.08);
     transform: scale(1);
   }
   50% {
     box-shadow:
       0 22px 46px rgba(37, 99, 168, 0.18),
-      0 0 28px rgba(214, 171, 103, 0.14),
-      0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+      0 0 28px rgba(214, 171, 103, 0.14);
     transform: scale(1.04);
   }
 }
@@ -130,38 +134,6 @@
   line-height: 1.15;
   letter-spacing: 0.10em;
   font-weight: 900;
-}
-
-.subtitleRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  justify-content: center;
-  margin-top: 4px;
-}
-
-.subtitleAccent {
-  width: 46px;
-  height: 2px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(62, 118, 214, 0.9) 0%, rgba(214, 171, 103, 0.74) 100%);
-  flex-shrink: 0;
-}
-
-.subtitle {
-  margin: 0;
-  font-size: var(--font-md);
-  color: var(--text-secondary);
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.helper {
-  margin: 8px auto 0;
-  max-width: 520px;
-  font-size: var(--font-sm);
-  color: var(--text-muted);
-  line-height: 1.75;
 }
 
 /* ---------- 指令面板（搜索框）---------- */
@@ -387,10 +359,6 @@
   font-weight: 700;
   color: var(--text-heading);
   line-height: 1.3;
-}
-
-.quickDesc {
-  display: none;
 }
 
 /* ---------- 响应式 ---------- */

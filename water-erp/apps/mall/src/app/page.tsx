@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import PriceChart from './price-chart';
 import { MallAssistantEntry } from './assistant/mall-assistant-entry';
 import type { MallAssistantContext } from './assistant/types';
+import { useCountUp, useDataChanged, useScrollAwareHeader, Skeleton, EmptyState, AnimatedBadge, StaggerContainer, StaggerItem } from './interactions';
 
 type PriceStatus = '有效' | '价格波动' | '即将过期' | '待复核';
 type PriceSource = '框架协议价' | '历史成交价' | '市场询价' | '人工维护';
@@ -123,6 +125,8 @@ const AUDIT_LABELS: Record<string, string> = {
 
 export default function MallPage() {
   const router = useRouter();
+  const headerVisible = useScrollAwareHeader({ threshold: 80 });
+  const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('全部');
   const [region, setRegion] = useState('全部');
@@ -146,6 +150,8 @@ export default function MallPage() {
   const [suppliers, setSuppliers] = useState<SupplierAgg[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     fetch('/api/auth/me', { headers: { 'X-Portal': 'mall' }, credentials: 'include' })
@@ -514,7 +520,11 @@ export default function MallPage() {
 
   return (
     <div className="min-h-screen glass-surface text-[#18243a]" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
-      <header className="sticky top-0 z-50 border-b border-[#dbe6f3] bg-white/86 backdrop-blur-xl">
+      <motion.header
+        className="sticky top-0 z-50 border-b border-[#dbe6f3] bg-white/86 backdrop-blur-xl"
+        animate={{ y: headerVisible ? 0 : -72 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      >
         <div className="flex h-[68px] items-center justify-between px-6">
           <a href="http://localhost:3002" className="flex items-center gap-3 no-underline">
             <img src="/assets/logo.jpg" alt="智慧水发 · 蜀水云采" className="h-10 w-auto object-contain" />
@@ -535,10 +545,36 @@ export default function MallPage() {
           </a>
 
           <div className="flex items-center gap-3">
-            <button onClick={() => setBudgetOpen(true)} className="relative h-10 rounded-xl bg-[#064ea2] px-4 text-sm font-bold text-white shadow-[0_8px_18px_rgba(6,78,162,.2)] transition hover:bg-[#043d82]">预算清单{lines.length > 0 && <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#e74c3c] px-1 text-xs text-white">{lines.length}</span>}</button>
+            <motion.button
+              onClick={() => setBudgetOpen(true)}
+              className="relative h-10 rounded-xl bg-[#064ea2] px-4 text-sm font-bold text-white shadow-[0_8px_18px_rgba(6,78,162,.2)] transition hover:bg-[#043d82]"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              预算清单
+              <AnimatePresence>
+                {lines.length > 0 && (
+                  <motion.span
+                    key="badge"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                    className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#e74c3c] px-1 text-xs text-white"
+                  >
+                    {lines.length}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
             <button onClick={openAudit} className="rounded-xl border border-[#d5e0ef] bg-white px-3 py-2 text-sm font-semibold text-[#5a6d8a] transition hover:border-[#064ea2] hover:text-[#064ea2]">操作记录</button>
             <div className="flex items-center gap-2 rounded-xl bg-[#f3f7fc] px-3 py-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#064ea2] text-xs font-black text-white">{userInitial}</span>
+              <motion.span
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#064ea2] text-xs font-black text-white"
+                whileHover={{ rotate: 5, scale: 1.1 }}
+              >
+                {userInitial}
+              </motion.span>
               <div className="hidden leading-tight sm:block">
                 <div className="text-sm font-black text-[#18243a]">{registeredName}</div>
               </div>
@@ -546,19 +582,74 @@ export default function MallPage() {
             <button onClick={handleLogout} className="rounded-xl border border-[#d5e0ef] bg-white px-3 py-2 text-sm font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c]">退出登录</button>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       <main className="px-6 py-6">
+        {/* ===== Hero Banner ===== */}
         <section className="overflow-hidden rounded-[28px] border border-[#dbe6f3] bg-[#063f86] text-white shadow-[0_24px_70px_rgba(6,78,162,.18)]">
           <div className="relative px-8 py-8 lg:px-10">
-            <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle_at_80%_20%,rgba(255,255,255,.24),transparent_30%),radial-gradient(circle_at_50%_80%,rgba(24,165,108,.22),transparent_34%)]" />
+            <motion.div
+              className="absolute right-0 top-0 h-full w-1/2"
+              animate={{ x: [0, '2%', '-1%', 0], y: [0, '-1%', '1%', 0], rotate: [0, 1, -1, 0] }}
+              transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut' }}
+              style={{
+                background: 'radial-gradient(circle at 80% 20%, rgba(255,255,255,.24), transparent 30%), radial-gradient(circle at 50% 80%, rgba(24,165,108,.22), transparent 34%)',
+              }}
+            />
             <div className="relative w-full">
-              <h1 className="mb-3 text-3xl font-black tracking-wide lg:text-4xl">集中采购目录</h1>
+              <motion.h1
+                className="mb-3 text-3xl font-black tracking-wide lg:text-4xl"
+                initial={{ backgroundPosition: '-200% 0' }}
+                animate={{ backgroundPosition: '200% 0' }}
+                transition={{ duration: 2, ease: 'easeInOut' }}
+                style={{
+                  background: 'linear-gradient(90deg, #fff 0%, rgba(255,255,255,.5) 50%, #fff 100%)',
+                  backgroundSize: '200% 100%',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                集中采购目录
+              </motion.h1>
               <p className="max-w-2xl text-sm leading-7 text-white/75">统一展示协议价、历史成交价与市场参考价，辅助预算编制、采购立项和询价比价。</p>
               <div className="relative mt-6 w-full">
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索物资 / 规格 / 编码 / 供应商" className="h-12 w-full rounded-xl border border-white/20 bg-white/95 pl-11 pr-4 text-sm text-[#18243a] outline-none transition placeholder:text-[#8a96aa] focus:border-white focus:bg-white focus:shadow-[0_0_0_4px_rgba(255,255,255,.18)]" />
-                <svg className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5a6d8a]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Escape') { setSearch(''); (e.target as HTMLInputElement).blur(); } }}
+                  placeholder={`搜索物资 / 规格 / 编码 / 供应商${typeof window !== 'undefined' && window.innerWidth > 768 ? '（按 / 聚焦）' : ''}`}
+                  className="h-12 w-full rounded-xl border border-white/20 bg-white/95 py-0 pl-11 pr-10 text-sm text-[#18243a] outline-none transition placeholder:text-[#8a96aa] focus:border-white focus:bg-white focus:shadow-[0_0_0_4px_rgba(255,255,255,.18)]"
+                />
+                <motion.svg
+                  className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2"
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
+                  animate={{ color: search.trim() ? '#fff' : '#5a6d8a', scale: search.trim() ? 1.1 : 1 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </motion.svg>
+                {search.trim() && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    type="button"
+                    onClick={() => setSearch('')}
+                    className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-[#bcc6d4] transition hover:bg-white/20 hover:text-[#5a6d8a]"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 1l10 10M11 1L1 11"/></svg>
+                  </motion.button>
+                )}
               </div>
+              {search.trim() && (
+                <motion.p
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-2 text-xs text-white/60"
+                >
+                  {filtered.length > 0 ? `找到 ${filtered.length} 项匹配物资` : '未找到匹配项'}
+                </motion.p>
+              )}
             </div>
           </div>
         </section>
@@ -569,60 +660,190 @@ export default function MallPage() {
           onInitialQuestionConsumed={() => setAssistantInitialQuestion('')}
         />
 
-        <section className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <motion.section
+          className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4"
+          initial="hidden"
+          animate="show"
+          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.1 } } }}
+        >
           {[
-            ['目录物资', stats.total.toLocaleString(), '纳入集团集中采购目录'],
-            ['协议供应商', stats.suppliers.toLocaleString(), '已入库或框架协议供应商'],
-            ['本月更新', stats.updated.toLocaleString(), '近30天维护价格条目'],
-            ['价格预警', stats.alerts.toLocaleString(), '波动、过期或待复核条目'],
-          ].map(([label, value, desc], idx) => <div key={label} className="rounded-2xl border border-[#e1e9f4] bg-white p-5 shadow-[0_10px_28px_rgba(15,35,65,.05)]"><div className="text-sm font-bold text-[#5a6d8a]">{label}</div><div className={`mt-2 text-3xl font-black ${idx === 3 ? 'text-[#e67e22]' : 'text-[#064ea2]'}`}>{value}</div><div className="mt-1 text-xs text-[#8a96aa]">{desc}</div></div>)}
-        </section>
+            ['目录物资', stats.total, '纳入集团集中采购目录'],
+            ['协议供应商', stats.suppliers, '已入库或框架协议供应商'],
+            ['本月更新', stats.updated, '近30天维护价格条目'],
+            ['价格预警', stats.alerts, '波动、过期或待复核条目'],
+          ].map(([label, value, desc], idx) => (
+            <StatsCard
+              key={label}
+              label={label as string}
+              value={value as number}
+              desc={desc as string}
+              warn={idx === 3}
+              changed={true}
+            />
+          ))}
+        </motion.section>
 
         <section className="mt-5 rounded-2xl border border-[#e1e9f4] bg-white p-4 shadow-[0_10px_28px_rgba(15,35,65,.04)]">
-          <div className="grid gap-3 md:grid-cols-4">
-            <select value={region} onChange={e => setRegion(e.target.value)} className="h-11 rounded-xl border border-[#cdd9ea] bg-white px-3 text-sm outline-none focus:border-[#064ea2]">{REGIONS.map(v => <option key={v}>{v}</option>)}</select>
-            <select value={status} onChange={e => setStatus(e.target.value as typeof status)} className="h-11 rounded-xl border border-[#cdd9ea] bg-white px-3 text-sm outline-none focus:border-[#064ea2]">{STATUSES.map(v => <option key={v}>{v}</option>)}</select>
-            <select value={source} onChange={e => setSource(e.target.value as typeof source)} className="h-11 rounded-xl border border-[#cdd9ea] bg-white px-3 text-sm outline-none focus:border-[#064ea2]">{SOURCES.map(v => <option key={v}>{v}</option>)}</select>
-            <button onClick={() => { setSearch(''); setCategory('全部'); setRegion('全部'); setStatus('全部'); setSource('全部'); }} className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#5a6d8a] transition hover:border-[#064ea2] hover:text-[#064ea2]">重置筛选</button>
+          <div className="flex flex-wrap items-center gap-3 md:grid md:grid-cols-4">
+            {[
+              ['region', region, setRegion, REGIONS] as const,
+              ['status', status, setStatus, STATUSES] as const,
+              ['source', source, setSource, SOURCES] as const,
+            ].map(([name, val, setter, options]) => {
+              const hasValue = (val as string) !== '全部';
+              const SelectCmp = (
+                <motion.select
+                  value={val as string}
+                  onChange={e => setter(e.target.value as never)}
+                  className={`h-11 rounded-xl border bg-white px-3 text-sm outline-none transition focus:border-[#064ea2] ${hasValue ? 'border-[#064ea2] ring-1 ring-[#064ea2]/20' : 'border-[#cdd9ea]'}`}
+                  animate={hasValue ? { borderColor: '#064ea2' } : { borderColor: '#cdd9ea' }}
+                >
+                  {options.map(v => <option key={v as string}>{v as string}</option>)}
+                </motion.select>
+              );
+              return hasValue ? (
+                <div key={name} className="relative">
+                  <span className="absolute -left-1 -top-1 flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#064ea2]/30" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-[#064ea2]" />
+                  </span>
+                  {SelectCmp}
+                </div>
+              ) : <div key={name}>{SelectCmp}</div>;
+            })}
+            <motion.button
+              onClick={() => { setSearch(''); setCategory('全部'); setRegion('全部'); setStatus('全部'); setSource('全部'); }}
+              className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#5a6d8a] transition hover:border-[#064ea2] hover:text-[#064ea2]"
+              whileTap={{ scale: 0.96 }}
+            >
+              重置筛选
+            </motion.button>
           </div>
+          <motion.p
+            className="mt-2 text-xs font-semibold text-[#5a6d8a]"
+            key={filtered.length}
+            initial={{ opacity: 0.6 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            当前显示 <span className={filtered.length === 0 ? 'text-[#e74c3c]' : 'text-[#064ea2] font-bold'}>{filtered.length}</span> 项
+            {filtered.length === 0 && <span className="ml-1 text-[#e74c3c]">— 请调整筛选条件</span>}
+          </motion.p>
         </section>
 
         <section className="mt-5 grid gap-5 lg:grid-cols-[280px_1fr]">
           <aside className="rounded-2xl border border-[#e1e9f4] bg-white p-4 shadow-[0_10px_28px_rgba(15,35,65,.04)] lg:sticky lg:top-20 lg:self-start">
-            <div className="mb-3 flex items-center justify-between"><h2 className="text-base font-black text-[#18243a]">集中采购目录</h2><span className="rounded-full bg-[#eef3fb] px-2 py-0.5 text-xs font-bold text-[#064ea2]">{filtered.length}项</span></div>
-            <div className="space-y-3">{DIRECTORY.map(section => <div key={section.group}><div className="mb-1 text-xs font-bold text-[#8a96aa]">{section.group}</div><div className="grid gap-1">{section.children.map(child => <button key={child} onClick={() => setCategory(child)} className={`flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${category === child ? 'bg-[#064ea2] text-white shadow-[0_8px_18px_rgba(6,78,162,.2)]' : 'text-[#344563] hover:bg-[#f3f7fc] hover:text-[#064ea2]'}`}><span>{child}</span><span className={`text-xs ${category === child ? 'text-white/70' : 'text-[#8a96aa]'}`}>{child === '全部' ? items.length : items.filter(item => item.category === child || item.group === child).length}</span></button>)}</div></div>)}</div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-black text-[#18243a]">集中采购目录</h2>
+              <motion.span
+                className="rounded-full bg-[#eef3fb] px-2 py-0.5 text-xs font-bold text-[#064ea2]"
+                key={filtered.length}
+                initial={{ scale: 1.2 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+              >
+                {filtered.length}项
+              </motion.span>
+            </div>
+            <LayoutGroup>
+              <div className="space-y-3">
+                {DIRECTORY.map(section => (
+                  <CategoryGroup
+                    key={section.group}
+                    section={section}
+                    selectedCategory={category}
+                    onSelect={setCategory}
+                    items={items}
+                    searchActive={!!search.trim()}
+                    searchTerm={search.trim()}
+                    filtered={filtered}
+                  />
+                ))}
+              </div>
+            </LayoutGroup>
           </aside>
 
           <div className="min-w-0 space-y-5">
-            <section className="grid gap-4 xl:grid-cols-4">{focusItems.map(item => <button key={item.id} onClick={() => setDetail(item)} className="group rounded-2xl border border-[#e1e9f4] bg-white p-4 text-left shadow-[0_10px_28px_rgba(15,35,65,.04)] transition hover:-translate-y-0.5 hover:border-[#064ea2]/30 hover:shadow-[0_18px_42px_rgba(6,78,162,.10)]"><div className="mb-3 flex items-center justify-between gap-2"><span title={item.status} className={`rounded-full border px-2 py-0.5 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span><span className={`text-xs font-black ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#8a96aa]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</span></div><h3 className="line-clamp-1 text-sm font-black text-[#18243a] group-hover:text-[#064ea2]">{item.name}</h3><p className="mt-1 line-clamp-1 text-xs text-[#8a96aa]">{item.specification}</p><div className="mt-3 flex items-end justify-between"><div><span className="text-xl font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#8a96aa]">/{item.unit}</span></div><span className="text-xs font-semibold text-[#5a6d8a]">{formatDate(item.validUntil)}</span></div></button>)}</section>
-
-            {view === 'supplier' && (
-              <section className="overflow-hidden rounded-2xl border border-[#e1e9f4] bg-white shadow-[0_10px_28px_rgba(15,35,65,.05)]">
-                <div className="border-b border-[#e8eef6] px-5 py-4"><h2 className="text-lg font-black text-[#18243a]">供应商目录</h2><p className="mt-1 text-xs text-[#8a96aa]">共 {suppliers.length} 家供应商，点击查看其在目录中的物资</p></div>
-                <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
-                  {suppliers.map(s => (
-                    <button key={s.supplier} onClick={() => browseSupplier(s.supplier)} className="group rounded-2xl border border-[#e1e9f4] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#064ea2]/30 hover:shadow-[0_18px_42px_rgba(6,78,162,.10)]">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="line-clamp-2 text-sm font-black text-[#18243a] group-hover:text-[#064ea2]">{s.supplier}</h3>
-                        <span className="shrink-0 rounded-full bg-[#eef3fb] px-2 py-0.5 text-xs font-bold text-[#064ea2]">{s.itemCount}项</span>
-                      </div>
-                      <div className="mt-1 text-xs text-[#8a96aa]">{s.supplierType} · {s.regions.join(' / ')}</div>
-                      <div className="mt-3 flex items-end justify-between">
-                        <div><span className="text-lg font-black text-[#e74c3c]">¥{s.avgPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</span><span className="text-xs text-[#8a96aa]"> 均价</span></div>
-                        <span className="text-xs text-[#8a96aa]">{formatPrice(s.minPrice)} ~ {formatPrice(s.maxPrice)}</span>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-1">{s.categories.slice(0, 4).map(c => <span key={c} title={c} className="rounded bg-[#f3f7fc] px-1.5 py-0.5 text-[10px] font-bold text-[#5a6d8a]">{shortCategory(c)}</span>)}{s.categories.length > 4 && <span className="text-[10px] text-[#8a96aa]">+{s.categories.length - 4}</span>}</div>
-                    </button>
-                  ))}
-                </div>
-              </section>
+            {focusItems.length > 0 && (
+              <motion.section
+                className="grid gap-4 xl:grid-cols-4"
+                initial="hidden"
+                animate="show"
+                variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.15 } } }}
+              >
+                {focusItems.map(item => (
+                  <FocusCard key={item.id} item={item} onSelect={setDetail} formatPrice={formatPrice} formatDate={formatDate} statusStyles={statusStyles} STATUS_SHORT={STATUS_SHORT} />
+                ))}
+              </motion.section>
             )}
+
+            <AnimatePresence mode="wait">
+              {view === 'supplier' && (
+                <motion.section
+                  key="supplier-view"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden rounded-2xl border border-[#e1e9f4] bg-white shadow-[0_10px_28px_rgba(15,35,65,.05)]"
+                >
+                  <div className="border-b border-[#e8eef6] px-5 py-4">
+                    <h2 className="text-lg font-black text-[#18243a]">供应商目录</h2>
+                    <p className="mt-1 text-xs text-[#8a96aa]">共 {suppliers.length} 家供应商，点击查看其在目录中的物资</p>
+                  </div>
+                  <motion.div
+                    className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3"
+                    initial="hidden"
+                    animate="show"
+                    variants={{ hidden: {}, show: { transition: { staggerChildren: 0.04 } } }}
+                  >
+                    {suppliers.map(s => (
+                      <motion.button
+                        key={s.supplier}
+                        variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } } }}
+                        onClick={() => browseSupplier(s.supplier)}
+                        className="group rounded-2xl border border-[#e1e9f4] bg-white p-4 text-left"
+                        whileHover={{ y: -4, borderColor: 'rgba(6,78,162,.3)', boxShadow: '0 18px 42px rgba(6,78,162,.1)' }}
+                        whileTap={{ scale: 0.97 }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="line-clamp-2 text-sm font-black text-[#18243a] group-hover:text-[#064ea2]">{s.supplier}</h3>
+                          <span className="shrink-0 rounded-full bg-[#eef3fb] px-2 py-0.5 text-xs font-bold text-[#064ea2]">{s.itemCount}项</span>
+                        </div>
+                        <div className="mt-1 text-xs text-[#8a96aa]">{s.supplierType} · {s.regions.join(' / ')}</div>
+                        <div className="mt-3 flex items-end justify-between">
+                          <div><span className="text-lg font-black text-[#e74c3c]">¥{s.avgPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</span><span className="text-xs text-[#8a96aa]"> 均价</span></div>
+                          <span className="text-xs text-[#8a96aa]">{formatPrice(s.minPrice)} ~ {formatPrice(s.maxPrice)}</span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1">{s.categories.slice(0, 4).map(c => <span key={c} title={c} className="rounded bg-[#f3f7fc] px-1.5 py-0.5 text-[10px] font-bold text-[#5a6d8a]">{shortCategory(c)}</span>)}{s.categories.length > 4 && <span className="text-[10px] text-[#8a96aa]">+{s.categories.length - 4}</span>}</div>
+                      </motion.button>
+                    ))}
+                  </motion.div>
+                </motion.section>
+              )}
+            </AnimatePresence>
             <section className={`${view === 'supplier' ? 'hidden' : ''} overflow-hidden rounded-2xl border border-[#e1e9f4] bg-white shadow-[0_10px_28px_rgba(15,35,65,.05)]`}>
               <div className="flex items-center justify-between border-b border-[#e8eef6] px-5 py-4"><div><h2 className="text-lg font-black text-[#18243a]">目录清单</h2><p className="mt-1 text-xs text-[#8a96aa]">参考价用于预算编制与询价比价，最终采购价格以采购文件及成交结果为准。</p></div><div className="flex items-center gap-3">
               <button onClick={() => setShowFavoritesOnly(v => !v)} className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${showFavoritesOnly ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-[#cdd9ea] text-[#5a6d8a] hover:bg-[#f3f7fc]'}`}>★ 我的收藏{favoriteIds.length > 0 ? ` (${favoriteIds.length})` : ''}</button>
-              <div className="flex items-center gap-1 rounded-xl border border-[#cdd9ea] p-1">
-                <button onClick={() => setView('catalog')} className={`rounded-lg px-3 py-1 text-xs font-bold transition ${view === 'catalog' ? 'bg-[#064ea2] text-white' : 'text-[#5a6d8a] hover:text-[#064ea2]'}`}>目录视图</button>
-                <button onClick={() => setView('supplier')} className={`rounded-lg px-3 py-1 text-xs font-bold transition ${view === 'supplier' ? 'bg-[#064ea2] text-white' : 'text-[#5a6d8a] hover:text-[#064ea2]'}`}>供应商视图</button>
+              <div className="flex items-center gap-1 rounded-xl border border-[#cdd9ea] p-1 relative">
+                <div className="relative z-20 flex">
+                  <motion.button
+                    onClick={() => setView('catalog')}
+                    className={`relative rounded-lg px-3 py-1 text-xs font-bold transition-colors ${view === 'catalog' ? 'text-white' : 'text-[#5a6d8a] hover:text-[#064ea2]'}`}
+                    whileTap={{ scale: 0.95 }}
+                  >目录视图</motion.button>
+                  <motion.button
+                    onClick={() => setView('supplier')}
+                    className={`relative rounded-lg px-3 py-1 text-xs font-bold transition-colors ${view === 'supplier' ? 'text-white' : 'text-[#5a6d8a] hover:text-[#064ea2]'}`}
+                    whileTap={{ scale: 0.95 }}
+                  >供应商视图</motion.button>
+                </div>
+                <motion.div
+                  className="absolute z-[1] rounded-lg bg-[#064ea2]"
+                  layoutId="view-toggle"
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  style={{ width: 'calc(50% - 2px)', height: 'calc(100% - 2px)', top: 1, left: view === 'catalog' ? 1 : '50%' }}
+                />
               </div>
               <button onClick={exportCatalog} className="hidden rounded-xl border border-[#cdd9ea] px-4 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f7fc] md:block">导出价格清单</button>
             </div></div>
@@ -660,10 +881,34 @@ export default function MallPage() {
         </section>
       </main>
 
-      {budgetOpen && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md" onClick={() => setBudgetOpen(false)} />
-          <div className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      {mounted && createPortal(
+        <AnimatePresence>
+          {budgetOpen && (
+            <motion.div
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <motion.div
+                className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setBudgetOpen(false)}
+              />
+              <motion.div
+                className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                initial={{ opacity: 0, y: 40, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 30, scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                drag="y"
+                dragConstraints={{ top: 0 }}
+                dragElastic={0.1}
+                onDragEnd={(_, info) => { if (info.offset.y > 100) setBudgetOpen(false); }}
+              >
             <div className="border-b border-[#e5ecf4] px-6 py-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -743,24 +988,73 @@ export default function MallPage() {
                 {!isConverted && <button onClick={() => setBudgetOpen(false)} className="mt-3 text-sm font-bold text-[#064ea2] hover:underline">返回目录选择物资</button>}
               </div>
             )}
-          </div>
-        </div>,
+          </motion.div>
+        </motion.div>
+        )}
+        </AnimatePresence>,
         document.body,
       )}
 
 
-      {detail && createPortal(<div className="fixed inset-0 z-[110] flex items-center justify-center p-4"><div className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md" onClick={() => setDetail(null)} /><div className="relative max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white shadow-2xl"><div className="border-b border-[#e5ecf4] bg-[#f8fbff] px-6 py-5"><div className="mb-3 flex items-center justify-between"><span className="font-mono text-xs font-black text-[#064ea2]">{detail.code}</span><button onClick={() => toggleFavorite(detail)} className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg transition hover:bg-white ${favoriteIds.includes(detail.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(detail.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(detail.id) ? '★' : '☆'}</button><button onClick={() => setDetail(null)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#8a96aa] transition hover:bg-white">✕</button></div><h2 className="text-2xl font-black text-[#18243a]">{detail.name}</h2><p className="mt-2 text-sm text-[#5a6d8a]">{detail.specification}</p></div><div className="space-y-5 px-6 py-5"><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">价格信息</div><div className="grid gap-4 sm:grid-cols-2"><Info label="当前参考价" value={`${formatPrice(detail.referencePrice)} / ${detail.unit}`} strong /><Info label="价格区间" value={`${formatPrice(detail.priceMin)} - ${formatPrice(detail.priceMax)}`} /><Info label="最近成交价" value={formatPrice(detail.lastDealPrice)} /><Info label="历史采购均价" value={formatPrice(detail.averagePrice)} /><Info label="价格变化" value={`${detail.changeRate > 0 ? '+' : ''}${detail.changeRate}%`} /><Info label="价格状态" value={detail.status} /></div></div><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">供应商与适用范围</div><div className="grid gap-4 sm:grid-cols-2"><Info label="供应商" value={detail.supplier} /><Info label="供应商类型" value={detail.supplierType} /><Info label="适用区域" value={detail.region} /><Info label="最小参考采购量" value={detail.minOrder} /><Info label="含税" value={detail.taxIncluded ? '是' : '否'} /><Info label="含运费" value={detail.freightIncluded ? '是' : '否'} /></div></div><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">价格依据</div><div className="grid gap-4 sm:grid-cols-2"><Info label="价格来源" value={detail.priceSource} /><Info label="更新时间" value={formatDate(detail.updatedAt)} /><Info label="有效期至" value={formatDate(detail.validUntil)} /><Info label="分类目录" value={`${detail.group} / ${detail.category}`} /></div><p className="mt-4 rounded-xl bg-[#f7faff] p-3 text-sm leading-6 text-[#5a6d8a]">{detail.remark}</p></div><div className="rounded-2xl border border-[#e1e9f4] p-5">
+      {mounted && createPortal(
+        <AnimatePresence>
+          {detail && (
+            <motion.div
+              className="fixed inset-0 z-[110] flex items-center justify-center p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <motion.div
+                className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setDetail(null)}
+              />
+              <motion.div
+                className="relative max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white shadow-2xl"
+                initial={{ opacity: 0, x: 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 30 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                drag="x"
+                dragConstraints={{ left: 0 }}
+                dragElastic={0.1}
+                onDragEnd={(_, info) => { if (info.offset.x > 120) setDetail(null); }}
+              ><div className="border-b border-[#e5ecf4] bg-[#f8fbff] px-6 py-5"><div className="mb-3 flex items-center justify-between"><span className="font-mono text-xs font-black text-[#064ea2]">{detail.code}</span><button onClick={() => toggleFavorite(detail)} className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg transition hover:bg-white ${favoriteIds.includes(detail.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(detail.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(detail.id) ? '★' : '☆'}</button><button onClick={() => setDetail(null)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#8a96aa] transition hover:bg-white">✕</button></div><h2 className="text-2xl font-black text-[#18243a]">{detail.name}</h2><p className="mt-2 text-sm text-[#5a6d8a]">{detail.specification}</p></div><div className="space-y-5 px-6 py-5"><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">价格信息</div><div className="grid gap-4 sm:grid-cols-2"><Info label="当前参考价" value={`${formatPrice(detail.referencePrice)} / ${detail.unit}`} strong /><Info label="价格区间" value={`${formatPrice(detail.priceMin)} - ${formatPrice(detail.priceMax)}`} /><Info label="最近成交价" value={formatPrice(detail.lastDealPrice)} /><Info label="历史采购均价" value={formatPrice(detail.averagePrice)} /><Info label="价格变化" value={`${detail.changeRate > 0 ? '+' : ''}${detail.changeRate}%`} /><Info label="价格状态" value={detail.status} /></div></div><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">供应商与适用范围</div><div className="grid gap-4 sm:grid-cols-2"><Info label="供应商" value={detail.supplier} /><Info label="供应商类型" value={detail.supplierType} /><Info label="适用区域" value={detail.region} /><Info label="最小参考采购量" value={detail.minOrder} /><Info label="含税" value={detail.taxIncluded ? '是' : '否'} /><Info label="含运费" value={detail.freightIncluded ? '是' : '否'} /></div></div><div className="rounded-2xl border border-[#e1e9f4] p-5"><div className="mb-3 text-sm font-black text-[#18243a]">价格依据</div><div className="grid gap-4 sm:grid-cols-2"><Info label="价格来源" value={detail.priceSource} /><Info label="更新时间" value={formatDate(detail.updatedAt)} /><Info label="有效期至" value={formatDate(detail.validUntil)} /><Info label="分类目录" value={`${detail.group} / ${detail.category}`} /></div><p className="mt-4 rounded-xl bg-[#f7faff] p-3 text-sm leading-6 text-[#5a6d8a]">{detail.remark}</p></div><div className="rounded-2xl border border-[#e1e9f4] p-5">
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-black text-[#18243a]">价格趋势</div>
               {daysLeft !== null && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${daysLeft > 60 ? 'bg-emerald-50 text-emerald-700' : daysLeft > 30 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>{daysLeft > 30 ? '剩余有效期' : '即将过期'} {daysLeft} 天</span>}
             </div>
             <PriceChart points={detailHistory} />
           </div>
-          <div className="rounded-2xl border border-[#bfd4f4] bg-gradient-to-br from-[#f8fbff] to-white p-5"><div className="mb-3 flex items-center justify-between"><div className="text-sm font-black text-[#123a6e]">AI 价格研判</div><button onClick={() => openAssistantWithQuestion(buildDetailPrompt(detail))} className="rounded-full bg-[#064ea2] px-3 py-1 text-xs font-black text-white">AI 智能分析</button></div><p className="text-sm leading-6 text-[#5a6d8a]">点击分析后，AI 将结合参考价、价格区间、历史均价、供应商、价格来源和有效期，生成风险结论、询价建议和预算引用说明。</p></div><div className="grid grid-cols-2 gap-3"><button onClick={() => { navigator.clipboard?.writeText(detail.code); toast.success('目录编码已复制'); }} className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f7fc]">复制目录编码</button><button onClick={() => { addToBudget(detail); setDetail(null); }} className="h-11 rounded-xl bg-[#064ea2] text-sm font-bold text-white transition hover:bg-[#043d82]">加入预算清单</button></div></div></div></div>, document.body)}
-      {auditOpen && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md" onClick={() => setAuditOpen(false)} />
-          <div className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div className="rounded-2xl border border-[#bfd4f4] bg-gradient-to-br from-[#f8fbff] to-white p-5"><div className="mb-3 flex items-center justify-between"><div className="text-sm font-black text-[#123a6e]">AI 价格研判</div><button onClick={() => openAssistantWithQuestion(buildDetailPrompt(detail))} className="rounded-full bg-[#064ea2] px-3 py-1 text-xs font-black text-white">AI 智能分析</button></div><p className="text-sm leading-6 text-[#5a6d8a]">点击分析后，AI 将结合参考价、价格区间、历史均价、供应商、价格来源和有效期，生成风险结论、询价建议和预算引用说明。</p></div><div className="grid grid-cols-2 gap-3"><button onClick={() => { navigator.clipboard?.writeText(detail.code); toast.success('目录编码已复制'); }} className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f7fc]">复制目录编码</button><button onClick={() => { addToBudget(detail); setDetail(null); }} className="h-11 rounded-xl bg-[#064ea2] text-sm font-bold text-white transition hover:bg-[#043d82]">加入预算清单</button></div></div></motion.div></motion.div>)}</AnimatePresence>, document.body)}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {auditOpen && (
+            <motion.div
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <motion.div
+                className="absolute inset-0 bg-[#0f1f35]/40 backdrop-blur-md"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setAuditOpen(false)}
+              />
+              <motion.div
+                className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.96 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              >
             <div className="flex items-center justify-between border-b border-[#e5ecf4] px-6 py-4">
               <div><h2 className="text-lg font-black text-[#18243a]">操作记录</h2><p className="mt-1 text-xs text-[#8a96aa]">关键操作审计留痕（生成询价单 / 导出）</p></div>
               <button onClick={() => setAuditOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#8a96aa] hover:bg-[#f3f7fc]">✕</button>
@@ -781,8 +1075,7 @@ export default function MallPage() {
                 </div>
               ))}
             </div>
-          </div>
-        </div>,
+            </motion.div></motion.div>)}</AnimatePresence>,
         document.body,
       )}
     </div>
@@ -792,4 +1085,126 @@ export default function MallPage() {
 
 function Info({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return <div><div className="text-xs font-bold text-[#8a96aa]">{label}</div><div className={`mt-1 text-sm ${strong ? 'text-xl font-black text-[#e74c3c]' : 'font-semibold text-[#18243a]'}`}>{value}</div></div>;
+}
+
+/** Stats card with animated count-up */
+function StatsCard({ label, value, desc, warn, changed }: { label: string; value: number; desc: string; warn?: boolean; changed?: boolean }) {
+  const display = useCountUp(value, { duration: 0.8, spring: true });
+  return (
+    <motion.div
+      variants={{ hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } } }}
+      className="rounded-2xl border border-[#e1e9f4] bg-white p-5 shadow-[0_10px_28px_rgba(15,35,65,.05)]"
+      whileHover={{ y: -4, boxShadow: '0 18px 40px rgba(15,35,65,.08)' }}
+    >
+      <div className="text-sm font-bold text-[#5a6d8a]">{label}</div>
+      <motion.div
+        className={`mt-2 text-3xl font-black ${warn ? 'text-[#e67e22]' : 'text-[#064ea2]'}`}
+        animate={changed ? { scale: [1, 1.05, 1] } : {}}
+        transition={{ duration: 0.4 }}
+      >
+        <motion.span>{display}</motion.span>
+      </motion.div>
+      <div className="mt-1 text-xs text-[#8a96aa]">{desc}</div>
+    </motion.div>
+  );
+}
+
+/** Focus item card */
+function FocusCard({ item, onSelect, formatPrice, formatDate, statusStyles, STATUS_SHORT }: {
+  item: CatalogItem; onSelect: (item: CatalogItem) => void;
+  formatPrice: (p: number) => string; formatDate: (d: string | null) => string;
+  statusStyles: Record<PriceStatus, string>; STATUS_SHORT: Record<PriceStatus, string>;
+}) {
+  return (
+    <motion.button
+      variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } } }}
+      onClick={() => onSelect(item)}
+      className="group rounded-2xl border border-[#e1e9f4] bg-white p-4 text-left shadow-[0_10px_28px_rgba(15,35,65,.04)]"
+      whileHover={{ y: -4, borderColor: 'rgba(6,78,162,.3)', boxShadow: '0 18px 42px rgba(6,78,162,.1)' }}
+      whileTap={{ scale: 0.97 }}
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span title={item.status} className={`rounded-full border px-2 py-0.5 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span>
+        <span className={`text-xs font-black ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#8a96aa]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</span>
+      </div>
+      <h3 className="line-clamp-1 text-sm font-black text-[#18243a] group-hover:text-[#064ea2]">{item.name}</h3>
+      <p className="mt-1 line-clamp-1 text-xs text-[#8a96aa]">{item.specification}</p>
+      <div className="mt-3 flex items-end justify-between">
+        <div><span className="text-xl font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#8a96aa]">/{item.unit}</span></div>
+        <span className="text-xs font-semibold text-[#5a6d8a]">{formatDate(item.validUntil)}</span>
+      </div>
+    </motion.button>
+  );
+}
+
+/** Collapsible category group */
+function CategoryGroup({ section, selectedCategory, onSelect, items, searchActive, searchTerm, filtered }: {
+  section: { group: string; children: string[] };
+  selectedCategory: string; onSelect: (cat: string) => void;
+  items: CatalogItem[]; searchActive: boolean; searchTerm: string; filtered: CatalogItem[];
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const hasSearchMatch = searchActive && section.children.some(
+    child => child === '全部' ? items.some(i => i.name.includes(searchTerm) || i.code.includes(searchTerm)) :
+    items.some(i => (i.category === child || i.group === child) && (i.name.includes(searchTerm) || i.code.includes(searchTerm)))
+  );
+  return (
+    <div key={section.group}>
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className={`mb-1 flex w-full items-center gap-1 text-xs font-bold ${hasSearchMatch ? 'text-[#064ea2]' : 'text-[#8a96aa]'} transition`}
+      >
+        <motion.svg
+          animate={{ rotate: collapsed ? -90 : 0 }}
+          transition={{ duration: 0.2 }}
+          className="h-3 w-3 shrink-0"
+          viewBox="0 0 12 12" fill="none"
+        >
+          <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </motion.svg>
+        {section.group}
+      </button>
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <div className="grid gap-1">
+              <LayoutGroup>
+                {section.children.map(child => {
+                  const count = child === '全部' ? items.length : items.filter(item => item.category === child || item.group === child).length;
+                  const active = selectedCategory === child;
+                  const hasMatch = searchActive && (
+                    child === '全部'
+                      ? items.some(i => i.name.includes(searchTerm) || i.code.includes(searchTerm))
+                      : items.some(i => (i.category === child || i.group === child) && (i.name.includes(searchTerm) || i.code.includes(searchTerm)))
+                  );
+                  return (
+                    <motion.button
+                      key={child}
+                      layout
+                      onClick={() => onSelect(child)}
+                      className={`flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${
+                        active
+                          ? 'bg-[#064ea2] text-white shadow-[0_8px_18px_rgba(6,78,162,.2)]'
+                          : hasMatch ? 'bg-[#eef6ff] text-[#064ea2] border-l-[3px] border-l-[#064ea2] pl-[9px]'
+                          : 'text-[#344563] hover:bg-[#f3f7fc] hover:text-[#064ea2]'
+                      }`}
+                    >
+                      <span>{child}</span>
+                      <span className={`text-xs ${active ? 'text-white/70' : 'text-[#8a96aa]'}`}>{count}</span>
+                    </motion.button>
+                  );
+                })}
+              </LayoutGroup>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }

@@ -9,7 +9,7 @@ import { uploadFile, type FileAssetResponse } from '@/api/upload'
 import dayjs from 'dayjs'
 
 const route = useRoute(); const router = useRouter(); const bidStore = useBidStore(); const supplierStore = useSupplierStore()
-const loading = ref(true); const submitting = ref(false); const saving = ref(false)
+const loading = ref(true); const error = ref(false); const submitting = ref(false); const saving = ref(false)
 const projectId = computed(() => route.params.id as string)
 const form = ref({ bidPrice: '', deliveryPeriod: '', technicalFileAssetId: '', businessFileAssetId: '', coverLetter: '' })
 const project = computed(() => bidStore.currentProject)
@@ -25,8 +25,9 @@ const uploadTech = (o: any) => handleFileUpload(o, 'technicalFileAssetId'); cons
 function formatSize(bytes: number): string { if (bytes<1024) return `${bytes} B`; if (bytes<1024*1024) return `${(bytes/1024).toFixed(1)} KB`; return `${(bytes/1024/1024).toFixed(1)} MB` }
 
 onMounted(async () => {
-  try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); try { const sub = await supplierApi.getBidSubmission(projectId.value) as any; if (sub) { existingSubmission.value = sub; form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', technicalFileAssetId: sub.technicalFileAssetId||'', businessFileAssetId: sub.businessFileAssetId||'', coverLetter: sub.coverLetter||'' } } } catch {} } finally { loading.value = false }
+  try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); try { const sub = await supplierApi.getBidSubmission(projectId.value) as any; if (sub) { existingSubmission.value = sub; form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', technicalFileAssetId: sub.technicalFileAssetId||'', businessFileAssetId: sub.businessFileAssetId||'', coverLetter: sub.coverLetter||'' } } } catch {} } catch { error.value = true } finally { loading.value = false }
 })
+async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); try { const sub = await supplierApi.getBidSubmission(projectId.value) as any; if (sub) { existingSubmission.value = sub; form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', technicalFileAssetId: sub.technicalFileAssetId||'', businessFileAssetId: sub.businessFileAssetId||'', coverLetter: sub.coverLetter||'' } } } catch {} } catch { error.value = true } finally { loading.value = false } }
 const isApproved = computed(() => supplierStore.profile?.status === 'APPROVED')
 const canSubmit = computed(() => { if (!project.value||!isApproved.value) return false; return (project.value.stage==='DOWNLOAD'||project.value.stage==='SUBMIT') && new Date(project.value.deadline) > new Date() })
 async function saveDraft() { saving.value = true; try { await supplierApi.saveBidDraft(projectId.value, form.value); ElMessage.success('草稿已保存') } catch { ElMessage.error('保存失败') } finally { saving.value = false } }
@@ -41,7 +42,13 @@ async function handleSubmit() {
 <template>
   <div class="page-container" v-loading="loading">
     <el-button link @click="router.push(`/bids/${projectId}`)" style="margin-bottom:16px"><el-icon><ArrowLeft /></el-icon>返回项目详情</el-button>
-    <template v-if="project">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <template v-else-if="project">
       <el-alert v-if="!canSubmit" type="error" :closable="false" show-icon style="margin-bottom:20px"><template #title>{{ !isApproved?'供应商账号尚未通过审核，无法投标':'该项目当前不可投标' }}</template></el-alert>
       <el-alert v-if="canSubmit" type="warning" :closable="false" show-icon style="margin-bottom:20px"><template #title>投标截止：{{ dayjs(project.deadline).format('YYYY年MM月DD日 HH:mm') }}，请在截止前完成提交。</template></el-alert>
 

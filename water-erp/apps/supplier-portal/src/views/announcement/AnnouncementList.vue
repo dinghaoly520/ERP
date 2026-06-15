@@ -4,12 +4,13 @@ import { useRouter } from 'vue-router'
 import { useAnnouncementStore } from '@/stores/announcement'
 import dayjs from 'dayjs'
 
-const router = useRouter(); const store = useAnnouncementStore(); const loading = ref(true); const activeType = ref(''); const search = ref(''); const currentPage = ref(1)
+const router = useRouter(); const store = useAnnouncementStore(); const loading = ref(true); const error = ref(false); const activeType = ref(''); const search = ref(''); const currentPage = ref(1)
 
 const typeOptions = [{label:'全部',value:''},{label:'招标公告',value:'BID_NOTICE'},{label:'中标公示',value:'WIN_NOTICE'},{label:'政策法规',value:'POLICY'},{label:'平台通知',value:'PLATFORM'}]
 const typeTagMap: Record<string,{label:string;type:string}> = {BID_NOTICE:{label:'招标公告',type:'primary'},WIN_NOTICE:{label:'中标公示',type:'success'},POLICY:{label:'政策法规',type:'warning'},PLATFORM:{label:'平台通知',type:'info'}}
 
-async function fetchData() { loading.value = true; try { await store.fetchAnnouncements({type:activeType.value||undefined,search:search.value||undefined,page:currentPage.value,pageSize:10}) } finally { loading.value = false } }
+async function fetchData() { loading.value = true; error.value = false; try { await store.fetchAnnouncements({type:activeType.value||undefined,search:search.value||undefined,page:currentPage.value,pageSize:10}) } catch { error.value = true } finally { loading.value = false } }
+function retryLoad() { fetchData() }
 onMounted(fetchData)
 function handleSearch() { currentPage.value = 1; fetchData() }
 function handlePageChange(page:number) { currentPage.value = page; fetchData() }
@@ -17,6 +18,13 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 
 <template>
   <div class="page-container" v-loading="loading">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <template v-else>
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
@@ -41,6 +49,7 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
     </div>
 
     <div v-else class="sp-empty-panel"><el-icon :size="32"><Bell /></el-icon><p class="sp-empty-text">暂无公告</p><p class="sp-empty-desc">当前没有符合条件的公告信息</p></div>
+    </template>
   </div>
 </template>
 

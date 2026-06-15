@@ -19,6 +19,7 @@ const bidStore = useBidStore()
 const authStore = useAuthStore()
 
 const loading = ref(true)
+const error = ref(false)
 const pwdDialog = ref(false)
 const pwdLoading = ref(false)
 const pwdForm = ref({ old: '', newPwd: '', confirm: '' })
@@ -31,10 +32,29 @@ onMounted(async () => {
       bidStore.fetchProjects(1, 5),
       notifStore.fetchNotifications(1, 5),
     ])
+  } catch {
+    error.value = true
   } finally {
     loading.value = false
   }
 })
+
+async function retryLoad() {
+  error.value = false
+  loading.value = true
+  try {
+    await Promise.all([
+      supplierStore.fetchDashboardStats(),
+      supplierStore.fetchStatus(),
+      bidStore.fetchProjects(1, 5),
+      notifStore.fetchNotifications(1, 5),
+    ])
+  } catch {
+    error.value = true
+  } finally {
+    loading.value = false
+  }
+}
 
 const stats = computed(() => supplierStore.dashboardStats)
 const statusInfo = computed(() => supplierStore.status)
@@ -132,8 +152,32 @@ async function handleChangePassword() {
 </script>
 
 <template>
-  <div class="page-container" v-loading="loading">
-    <template v-if="statusInfo">
+  <div class="page-container">
+    <!-- Error state -->
+    <div v-if="error && !loading" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+
+    <!-- Skeleton loading -->
+    <div v-else-if="loading">
+      <SkeletonCard :lines="2" />
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:20px">
+        <SkeletonCard v-for="i in 4" :key="i" :lines="1" />
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 360px;gap:20px;margin-top:20px">
+        <div style="display:grid;gap:20px">
+          <SkeletonCard :lines="3" v-for="i in 2" :key="i" />
+        </div>
+        <div style="display:grid;gap:20px">
+          <SkeletonCard :lines="2" v-for="i in 2" :key="i" />
+        </div>
+      </div>
+    </div>
+
+    <template v-else-if="statusInfo">
       <!-- Hero -->
       <div class="sp-page-hero-card">
         <div class="sp-page-hero-inner">

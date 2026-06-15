@@ -6,8 +6,9 @@ import { UploadFilled } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { uploadFile, type FileAssetResponse } from '@/api/upload'
 
-const supplierStore = useSupplierStore(); const loading = ref(true); const dialogVisible = ref(false); const dialogLoading = ref(false); const uploading = ref(false); const uploadedMeta = ref<FileAssetResponse|null>(null); const form = ref({type:'',name:'',fileUrl:'',validFrom:'',validTo:''})
-onMounted(async () => { try { await supplierStore.fetchQualifications() } finally { loading.value = false } })
+const supplierStore = useSupplierStore(); const loading = ref(true); const error = ref(false); const dialogVisible = ref(false); const dialogLoading = ref(false); const uploading = ref(false); const uploadedMeta = ref<FileAssetResponse|null>(null); const form = ref({type:'',name:'',fileUrl:'',validFrom:'',validTo:''})
+onMounted(async () => { try { await supplierStore.fetchQualifications() } catch { error.value = true } finally { loading.value = false } })
+async function retryLoad() { error.value = false; loading.value = true; try { await supplierStore.fetchQualifications() } catch { error.value = true } finally { loading.value = false } }
 const qualTypes = ['营业执照','资质证书','安全生产许可证','质量管理体系认证','环境管理体系认证','职业健康安全管理体系认证','其他']
 
 function openAdd() { form.value = {type:'',name:'',fileUrl:'',validFrom:'',validTo:''}; uploadedMeta.value = null; dialogVisible.value = true }
@@ -31,7 +32,13 @@ function getStatusInfo(q:any) { if (!q.validTo) return {label:'长期有效',cls
       </div>
     </div>
 
-    <el-row :gutter="16" v-if="supplierStore.qualifications.length>0">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <el-row :gutter="16" v-else-if="supplierStore.qualifications.length>0">
       <el-col :xs="24" :sm="12" :lg="8" v-for="q in supplierStore.qualifications" :key="q.id">
         <div class="sp-card qual-card">
           <div class="qual-card-top"><el-tag effect="plain" size="small">{{ q.type }}</el-tag><span class="sp-status" :class="getStatusInfo(q).cls">{{ getStatusInfo(q).label }}</span></div>

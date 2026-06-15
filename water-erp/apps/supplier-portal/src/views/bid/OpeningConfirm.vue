@@ -5,8 +5,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { supplierApi } from '@/api/supplier'
 
 const route = useRoute(); const router = useRouter(); const projectId = computed(() => route.params.projectId as string)
-const loading = ref(true); const acting = ref(false); const record = ref<any>(null)
-async function load() { loading.value = true; try { record.value = await supplierApi.getOpeningRecord(projectId.value) as any } catch { record.value = null } finally { loading.value = false } }
+const loading = ref(true); const error = ref(false); const acting = ref(false); const record = ref<any>(null)
+async function load() { loading.value = true; error.value = false; try { record.value = await supplierApi.getOpeningRecord(projectId.value) as any } catch { error.value = true } finally { loading.value = false } }
+async function retryLoad() { await load() }
 onMounted(load)
 
 const statusLabel: Record<string, { text: string; type: string }> = { '待供应商确认':{text:'待您确认',type:'warning'}, '供应商已确认':{text:'已确认',type:'success'}, '供应商提出异议':{text:'已提出异议',type:'danger'}, '异议已处理-确认':{text:'异议已处理',type:'success'}, '异议已处理-退回':{text:'异议已退回',type:'info'}, '待确认':{text:'待确认',type:'warning'} }
@@ -19,7 +20,13 @@ async function handleDispute() { let reason=''; try{const res=await ElMessageBox
 <template>
   <div class="page-container" v-loading="loading">
     <el-button link @click="router.push('/my-bids')" style="margin-bottom:16px"><el-icon><ArrowLeft /></el-icon>返回投标进展</el-button>
-    <template v-if="record">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <template v-else-if="record">
       <div class="detail-card">
         <div class="card-header"><span class="card-title">开标记录确认</span><el-tag :type="(statusLabel[record.confirmStatus]?.type as any)||'info'" effect="plain">{{ statusLabel[record.confirmStatus]?.text||record.confirmStatus||'暂无' }}</el-tag></div>
         <el-descriptions :column="2" border size="default"><el-descriptions-item label="投标单位">{{ record.supplierName }}</el-descriptions-item><el-descriptions-item label="解密结果">{{ record.decryptResult }}</el-descriptions-item><el-descriptions-item label="报价">{{ record.amount }}</el-descriptions-item><el-descriptions-item label="工期">{{ record.period }}</el-descriptions-item><el-descriptions-item label="质量目标">{{ record.qualityTarget }}</el-descriptions-item><el-descriptions-item label="保证金">{{ record.bondStatus }}</el-descriptions-item><el-descriptions-item v-if="record.objectionReason" label="异议原因" :span="2">{{ record.objectionReason }}</el-descriptions-item><el-descriptions-item v-if="record.handleResult" label="处理结果" :span="2">{{ record.handleResult }}</el-descriptions-item></el-descriptions>

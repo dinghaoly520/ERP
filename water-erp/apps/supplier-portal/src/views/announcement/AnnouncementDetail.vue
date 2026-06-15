@@ -7,7 +7,7 @@ import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 
 const route = useRoute(); const router = useRouter(); const store = useAnnouncementStore()
-const loading = ref(true); const id = computed(() => route.params.id as string)
+const loading = ref(true); const error = ref(false); const id = computed(() => route.params.id as string)
 const typeLabel: Record<string,string> = {BID_NOTICE:'招标公告',WIN_NOTICE:'中标公示',POLICY:'政策法规',PLATFORM:'平台通知'}
 const typeTagType: Record<string,string> = {BID_NOTICE:'primary',WIN_NOTICE:'success',POLICY:'warning',PLATFORM:'info'}
 
@@ -18,14 +18,21 @@ async function loadBidDoc() { if (!isBidNotice.value) return; bidDocLoading.valu
 async function doPay() { paying.value = true; try { await announcementApi.payBidDocument(id.value, paymentRef.value||undefined); ElMessage.success('付款凭证已提交'); payDialog.value = false; paymentRef.value = ''; await loadBidDoc() } catch (e:any) { ElMessage.error(e?.message||'提交失败') } paying.value = false }
 async function doDownload() { downloading.value = true; try { const {blob,fileName} = await announcementApi.downloadBidDocument(id.value); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName; a.click(); URL.revokeObjectURL(url); await loadBidDoc() } catch (e:any) { ElMessage.error(e?.message||'下载失败') } downloading.value = false }
 function scopeHint(scope:string) { if (scope==='DESIGNATED') return '仅指定供应商可下载'; if (scope==='INVITED') return '仅受邀供应商可下载'; return '全库供应商可下载' }
-onMounted(async () => { try { await store.fetchAnnouncement(id.value); await loadBidDoc() } finally { loading.value = false } })
+onMounted(async () => { try { await store.fetchAnnouncement(id.value); await loadBidDoc() } catch { error.value = true } finally { loading.value = false } })
+async function retryLoad() { error.value = false; loading.value = true; try { await store.fetchAnnouncement(id.value); await loadBidDoc() } catch { error.value = true } finally { loading.value = false } }
 </script>
 
 <template>
   <div class="page-container" v-loading="loading">
     <el-button link @click="router.push('/announcements')" style="margin-bottom:16px"><el-icon><ArrowLeft /></el-icon>返回公告列表</el-button>
 
-    <div class="detail-card" v-if="store.currentAnnouncement">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <div class="detail-card" v-else-if="store.currentAnnouncement">
       <div class="detail-header">
         <el-tag :type="(typeTagType[store.currentAnnouncement.type] as any)" effect="plain" size="large">{{ typeLabel[store.currentAnnouncement.type]||store.currentAnnouncement.type }}</el-tag>
         <div class="detail-meta"><span v-if="store.currentAnnouncement.isTop" class="top-badge">置顶</span><span>发布时间：{{ dayjs(store.currentAnnouncement.publishDate||store.currentAnnouncement.createdAt).format('YYYY年MM月DD日 HH:mm') }}</span><span>阅读：{{ store.currentAnnouncement.viewCount }}次</span></div>

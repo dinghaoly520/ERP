@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { AssistantHome } from '@/components/assistant-home';
 import { ChatWorkspace } from '@/components/chat-workspace';
+import { HistorySidebar, type ConversationItem } from '@/components/history-sidebar';
 import { api } from '@/lib/api';
 import type { Message, ChatResponse } from '@/lib/types';
 import { toast } from 'sonner';
@@ -12,6 +13,22 @@ export default function Page() {
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [inChat, setInChat] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+
+  // Fetch conversation list
+  const refreshConversations = useCallback(async () => {
+    try {
+      const list = await api.get<ConversationItem[]>('/assistant/conversations');
+      setConversations(list);
+    } catch {
+      // silently fail
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshConversations();
+  }, [refreshConversations]);
 
   const handleSend = useCallback(
     async (msg: string) => {
@@ -47,6 +64,7 @@ export default function Page() {
           }),
         };
         setMessages((prev) => [...prev, assistantMsg]);
+        refreshConversations();
       } catch (e) {
         const errorMsg =
           e instanceof Error ? e.message : '请求失败，请稍后重试';
@@ -55,7 +73,7 @@ export default function Page() {
         setIsLoading(false);
       }
     },
-    [conversationId],
+    [conversationId, refreshConversations],
   );
 
   const handleConfirmAction = useCallback(async (actionId: string) => {
@@ -88,18 +106,81 @@ export default function Page() {
     setConversationId(undefined);
   }, []);
 
-  if (!inChat) {
-    return <AssistantHome onSend={handleSend} isLoading={isLoading} />;
-  }
+  const handleSelectConversation = useCallback(async (id: string) => {
+    try {
+      const res = await api.get<{
+        messages: Array<{
+          role: string;
+          content: string;
+          cardsJson?: unknown;
+          citationsJson?: unknown;
+          createdAt: string;
+        }>;
+      }>(`/assistant/conversations/${id}`);
+      const msgs: Message[] = (res.messages || []).map((m) => ({
+        id: crypto.randomUUID(),
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+        cards: (m as any).cardsJson || undefined,
+        citations: (m as any).citationsJson || undefined,
+        timestamp: new Date(m.createdAt).toLocaleTimeString('zh-CN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      }));
+      setMessages(msgs);
+      setConversationId(id);
+      setInChat(true);
+    } catch {
+      toast.error('加载对话失败，请重试');
+    }
+  }, []);
+
+  const handleNew = useCallback(() => {
+    setInChat(false);
+    setMessages([]);
+    setConversationId(undefined);
+  }, []);
+
+  const handleDelete = useCallback(async (id: string) => {
+    try {
+      await api.delete(`/assistant/conversations/${id}`);
+      refreshConversations();
+      if (id === conversationId) {
+        handleNew();
+      }
+    } catch {
+      toast.error('删除失败，请重试');
+    }
+  }, [conversationId, refreshConversations, handleNew]);
 
   return (
-    <ChatWorkspace
-      messages={messages}
-      onSend={handleSend}
-      isLoading={isLoading}
-      onConfirmAction={handleConfirmAction}
-      onCancelAction={handleCancelAction}
-      onBack={handleBack}
-    />
+    <>
+      <HistorySidebar
+        conversations={conversations}
+        activeId={conversationId}
+        onSelect={handleSelectConversation}
+        onNew={handleNew}
+        onBack={inChat ? handleBack : undefined}
+        onDelete={handleDelete}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={setSidebarCollapsed}
+      />
+      <div style={{ paddingLeft: '40px' }}>
+        {!inChat ? (
+          <AssistantHome onSend={handleSend} isLoading={isLoading} />
+        ) : (
+          <ChatWorkspace
+            messages={messages}
+            onSend={handleSend}
+            isLoading={isLoading}
+            onConfirmAction={handleConfirmAction}
+            onCancelAction={handleCancelAction}
+            onBack={handleBack}
+            headerLeft={sidebarCollapsed ? 40 : 260}
+          />
+        )}
+      </div>
+    </>
   );
 }

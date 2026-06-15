@@ -69,7 +69,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       ]);
       setBadges({
         supplierPending: ss?.pending ?? 0,
-        mallReview: cs?.review ?? 0,
+        mallReview: cs?.pendingApplications ?? 0,
       });
     } catch { /* silent */ }
   }, []);
@@ -197,16 +197,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                       </span>
                     )}
                     {hasChildren && !collapsed && (
-                      <>
-                        {item.children!.reduce((s, c) => s + (c.badgeKey ? (badges[c.badgeKey] || 0) : 0), 0) > 0 && (
-                          <span className={`ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-extrabold tabular-nums ${
-                            groupActive ? 'bg-white/20 text-white' : 'bg-[#e74c3c] text-white'
-                          }`}>
-                            {item.children!.reduce((s, c) => s + (c.badgeKey ? (badges[c.badgeKey] || 0) : 0), 0)}
-                          </span>
-                        )}
-                        <ChevronDown size={14} strokeWidth={2} className={`flex-shrink-0 opacity-60 transition-transform ${groupOpen ? 'rotate-180' : ''}`} />
-                      </>
+                      <ChevronDown size={14} strokeWidth={2} className={`flex-shrink-0 opacity-60 transition-transform ${groupOpen ? 'rotate-180' : ''}`} />
                     )}
                   </button>
 
@@ -216,7 +207,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                         <button
                           key={child.path}
                           onClick={() => router.push(child.path)}
-                          className={`my-0.5 flex w-full items-center rounded-xl px-3 py-2 text-[12.5px] transition-colors ${
+                          className={`my-0.5 flex w-full items-center rounded-xl px-3 py-2 text-left text-[12.5px] transition-colors ${
                             pathname === child.path
                               ? 'bg-[#eff6ff] font-bold text-[#064ea2]'
                               : 'text-[#6b7c95] hover:bg-[#f8fbff] hover:text-[#064ea2]'

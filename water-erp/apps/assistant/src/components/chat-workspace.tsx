@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Send, Loader2, PanelRightOpen, ArrowLeft } from 'lucide-react';
+import { useMemo, useState, useCallback } from 'react';
+import { Send, Loader2 } from 'lucide-react';
 import { MessageList } from './message-list';
 import { AnalysisCanvas } from './analysis-canvas';
 import type { Message, AssistantCard as AssistantCardType, AssistantCitation } from '@/lib/types';
@@ -15,6 +15,7 @@ export function ChatWorkspace({
   onConfirmAction,
   onCancelAction,
   onBack,
+  headerLeft = 260,
 }: {
   messages: Message[];
   onSend: (msg: string) => void;
@@ -22,6 +23,7 @@ export function ChatWorkspace({
   onConfirmAction: (id: string) => void;
   onCancelAction: (id: string) => void;
   onBack: () => void;
+  headerLeft?: number;
 }) {
   // Accumulate all cards/citations from the entire conversation, deduped by title
   const { cards, citations } = useMemo(() => {
@@ -51,6 +53,8 @@ export function ChatWorkspace({
   }, [messages]);
 
   const hasCanvas = cards.length > 0 || citations.length > 0;
+  const [canvasOpen, setCanvasOpen] = useState(true);
+  const handleCanvasToggle = useCallback((open: boolean) => setCanvasOpen(open), []);
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -79,16 +83,13 @@ export function ChatWorkspace({
       {/* Main chat area */}
       <div className={styles.main}>
         {/* Header */}
-        <header className={styles.header}>
+        <header className={styles.header} style={{ left: `${headerLeft}px` }}>
           <button
-            className={styles.backBtn}
+            className={styles.headerTitle}
             onClick={onBack}
             type="button"
-            aria-label="返回首页"
+            title="返回首页"
           >
-            <ArrowLeft size={18} strokeWidth={1.8} />
-          </button>
-          <span className={styles.headerTitle}>
             <GradientText
               colors={['#1a2332', '#2563EB', '#0891b2', '#18a56c', '#1a2332']}
               animationSpeed={8}
@@ -97,13 +98,7 @@ export function ChatWorkspace({
             >
               智慧水发 · 蜀水云采
             </GradientText>
-            <span className={styles.headerBadge}>SHUIDINGDANG AI</span>
-          </span>
-          {hasCanvas ? null : (
-            <button className={styles.canvasToggle}>
-              <PanelRightOpen size={16} />
-            </button>
-          )}
+          </button>
         </header>
 
         {/* Messages */}
@@ -144,7 +139,13 @@ export function ChatWorkspace({
       </div>
 
       {/* Analysis Canvas */}
-      {hasCanvas && <AnalysisCanvas cards={cards} citations={citations} />}
+      {hasCanvas && (
+        <AnalysisCanvas
+          cards={cards}
+          citations={citations}
+          onToggle={handleCanvasToggle}
+        />
+      )}
     </div>
   );
 }

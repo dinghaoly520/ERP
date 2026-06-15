@@ -76,6 +76,7 @@ export function MallAssistantEntry({
   const [dialogInitialQuestion, setDialogInitialQuestion] = useState('');
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [placeholderKey, setPlaceholderKey] = useState(0);
+  const [mounted, setMounted] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
 
   const effectiveInitialQuestion = initialQuestion || dialogInitialQuestion;
@@ -116,6 +117,10 @@ export function MallAssistantEntry({
   const quickQuestions = useMemo(() => deriveQuickQuestions(context), [context]);
 
   // ----- rotating placeholder -----
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (dialogOpen) return;
@@ -251,7 +256,7 @@ export function MallAssistantEntry({
         </form>
       </div>
 
-      {createPortal(
+      {mounted && createPortal(
         <MallAssistantDialog
           open={dialogOpen}
           context={context}

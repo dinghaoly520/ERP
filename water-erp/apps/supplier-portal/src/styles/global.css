@@ -459,6 +459,36 @@ a:hover { color: var(--sp-primary-light); }
 .sp-list-row:last-child { border-bottom: none; }
 .sp-list-row:hover { background: var(--sp-gray-50); }
 
+/* ─── Error recovery block ─── */
+.sp-error-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+  background: var(--sp-surface);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-md);
+}
+.sp-error-icon {
+  font-size: 40px;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+.sp-error-text {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--sp-gray-700);
+  margin-bottom: 8px;
+}
+.sp-error-desc {
+  font-size: 13px;
+  color: var(--sp-gray-500);
+  margin-bottom: 20px;
+  max-width: 320px;
+}
+
 /* ─── Animations ─── */
 @keyframes spFadeIn {
   from { opacity: 0; transform: translateY(6px); }

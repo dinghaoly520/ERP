@@ -5,8 +5,9 @@ import dayjs from 'dayjs'
 import { catalogApi } from '@/api/catalog'
 import ApplicationDialog from './ApplicationDialog.vue'
 
-const loading = ref(true); const applications = ref<any[]>([]); const activeTab = ref('active'); const dialogVisible = ref(false); const editApp = ref<any>(null)
-async function load() { loading.value = true; try { applications.value = await catalogApi.listApplications() as any } finally { loading.value = false } }
+const loading = ref(true); const error = ref(false); const applications = ref<any[]>([]); const activeTab = ref('active'); const dialogVisible = ref(false); const editApp = ref<any>(null)
+async function load() { loading.value = true; error.value = false; try { applications.value = await catalogApi.listApplications() as any } catch { error.value = true } finally { loading.value = false } }
+function retryLoad() { load() }
 const statusMeta: Record<string,{label:string;type:string}> = {PENDING:{label:'待审核',type:'primary'},COUNTERED:{label:'议价中',type:'warning'},RETURNED:{label:'已退回',type:'danger'},APPROVED:{label:'已通过',type:'success'},REJECTED:{label:'已拒绝',type:'danger'},WITHDRAWN:{label:'已撤回',type:'info'}}
 const typeLabel: Record<string,string> = {NEW_ITEM:'新增品类',JOIN_EXISTING:'加入供货',UPDATE_QUOTE:'改报价'}
 const filtered = computed(() => { if (activeTab.value==='active') return applications.value.filter(a=>['PENDING','COUNTERED','RETURNED'].includes(a.status)); if (activeTab.value==='done') return applications.value.filter(a=>['APPROVED','REJECTED','WITHDRAWN'].includes(a.status)); return applications.value })
@@ -22,6 +23,13 @@ onMounted(load)
 
 <template>
   <div class="page-container" v-loading="loading">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <template v-else>
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
@@ -59,6 +67,7 @@ onMounted(load)
       </div>
     </div>
     <ApplicationDialog v-model="dialogVisible" mode="edit" :application="editApp" @success="onDialogSuccess" />
+    </template>
   </div>
 </template>
 

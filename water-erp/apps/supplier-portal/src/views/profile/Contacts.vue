@@ -3,8 +3,9 @@ import { ref, onMounted } from 'vue'
 import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-const supplierStore = useSupplierStore(); const loading = ref(true); const dialogVisible = ref(false); const dialogLoading = ref(false); const isEdit = ref(false); const editId = ref(''); const form = ref({name:'',phone:'',email:'',isPrimary:false})
-onMounted(async () => { try { await supplierStore.fetchContacts() } finally { loading.value = false } })
+const supplierStore = useSupplierStore(); const loading = ref(true); const error = ref(false); const dialogVisible = ref(false); const dialogLoading = ref(false); const isEdit = ref(false); const editId = ref(''); const form = ref({name:'',phone:'',email:'',isPrimary:false})
+onMounted(async () => { try { await supplierStore.fetchContacts() } catch { error.value = true } finally { loading.value = false } })
+async function retryLoad() { error.value = false; loading.value = true; try { await supplierStore.fetchContacts() } catch { error.value = true } finally { loading.value = false } }
 function openAdd() { isEdit.value=false; editId.value=''; form.value = {name:'',phone:'',email:'',isPrimary:false}; dialogVisible.value = true }
 function openEdit(c:any) { isEdit.value=true; editId.value=c.id; form.value = {name:c.name,phone:c.phone,email:c.email||'',isPrimary:c.isPrimary}; dialogVisible.value = true }
 async function handleSubmit() { if (!form.value.name||!form.value.phone) { ElMessage.warning('请填写姓名和手机号'); return }; dialogLoading.value = true; try { if (isEdit.value) { await supplierStore.updateContact(editId.value,form.value); ElMessage.success('联系人更新成功') } else { await supplierStore.addContact(form.value); ElMessage.success('联系人添加成功') }; dialogVisible.value = false } catch { ElMessage.error(isEdit.value?'更新失败':'添加失败') } finally { dialogLoading.value = false } }
@@ -24,7 +25,13 @@ async function handleDelete(id:string) { await ElMessageBox.confirm('确定要�
       </div>
     </div>
 
-    <div v-if="supplierStore.contacts.length>0" class="detail-card" style="overflow:hidden;padding:0">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <div v-else-if="supplierStore.contacts.length>0" class="detail-card" style="overflow:hidden;padding:0">
       <el-table :data="supplierStore.contacts" stripe>
         <el-table-column label="姓名" prop="name" width="160"><template #default="{row}"><div class="contact-name-cell"><el-avatar :size="32" :style="{background:'var(--sp-primary)',fontSize:'13px'}">{{ row.name?.charAt(0) }}</el-avatar><span style="font-weight:700;font-size:14px;color:var(--sp-gray-900)">{{ row.name }}</span></div></template></el-table-column>
         <el-table-column label="手机号" prop="phone" width="160" />

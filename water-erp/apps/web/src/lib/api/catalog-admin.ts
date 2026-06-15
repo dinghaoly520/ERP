@@ -34,6 +34,7 @@ export interface CatalogStats {
   inactive: number;
   review: number;
   updatedThisMonth: number;
+  pendingApplications: number;
 }
 
 export interface ImportResult {

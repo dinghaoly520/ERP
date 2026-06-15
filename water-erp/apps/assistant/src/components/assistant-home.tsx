@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import styles from './assistant-home.module.css';
 import { Send, Loader2, Gauge, Search, ShieldAlert, Users, ShoppingBag, CalendarClock, ScrollText, Wrench } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -117,6 +117,73 @@ const copy = {
   placeholder: '输入问题 / 生成分析 / 操作业务，如：汇总本月招采风险并画趋势图',
 };
 
+function useSpotlightLight() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mouseRef = useRef({ x: -200, y: -200 });
+  const animIdRef = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+
+    function resize() {
+      canvas!.width = window.innerWidth * dpr;
+      canvas!.height = window.innerHeight * dpr;
+      canvas!.style.width = `${window.innerWidth}px`;
+      canvas!.style.height = `${window.innerHeight}px`;
+    }
+
+    function draw() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      ctx!.clearRect(0, 0, w * dpr, h * dpr);
+      ctx!.save();
+      ctx!.scale(dpr, dpr);
+
+      // 鼠标跟随小型暖色光晕
+      const mx = mouseRef.current.x;
+      const my = mouseRef.current.y;
+      if (mx > -100 && my > -100) {
+        const g = ctx!.createRadialGradient(mx, my, 0, mx, my, 180);
+        g.addColorStop(0, 'rgba(255, 230, 200, 0.12)');
+        g.addColorStop(0.5, 'rgba(255, 220, 180, 0.04)');
+        g.addColorStop(1, 'transparent');
+        ctx!.fillStyle = g;
+        ctx!.fillRect(0, 0, w, h);
+      }
+
+      ctx!.restore();
+      animIdRef.current = requestAnimationFrame(draw);
+    }
+
+    const handleMove = (e: MouseEvent) => {
+      mouseRef.current = { x: e.clientX, y: e.clientY };
+    };
+    const handleLeave = () => {
+      mouseRef.current = { x: -200, y: -200 };
+    };
+
+    resize();
+    window.addEventListener('resize', resize);
+    window.addEventListener('mousemove', handleMove, { passive: true });
+    document.body.addEventListener('mouseleave', handleLeave);
+    animIdRef.current = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(animIdRef.current);
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', handleMove);
+      document.body.removeEventListener('mouseleave', handleLeave);
+    };
+  }, []);
+
+  return canvasRef;
+}
+
 export function AssistantHome({
   onSend,
   isLoading,
@@ -126,6 +193,7 @@ export function AssistantHome({
 }) {
   const [inputValue, setInputValue] = useState('');
   const [stats, setStats] = useState<QuickStats | null>(null);
+  const spotlightCanvasRef = useSpotlightLight();
 
   useEffect(() => {
     let cancelled = false;
@@ -148,20 +216,29 @@ export function AssistantHome({
 
   return (
     <div className={styles.home}>
+      {/* 鼠标跟随小型暖色光晕 */}
+      <canvas
+        ref={spotlightCanvasRef}
+        className={styles.spotlightCanvas}
+        aria-hidden="true"
+      />
+
       <section className={styles.hero}>
         {/* 品牌区 */}
         <div className={styles.brandRow}>
           <div className={styles.logoShell}>
             <img src="/logo.jpg" alt="Logo" className={styles.logoImage} />
           </div>
-          <GradientText
-            colors={['#1a2332', '#2563EB', '#0891b2', '#18a56c', '#1a2332']}
-            animationSpeed={8}
-            direction="horizontal"
-            yoyo={true}
-          >
-            <h1 className={styles.title}>{copy.title}</h1>
-          </GradientText>
+          <h1 className={styles.title}>
+            <GradientText
+              colors={['#1a2332', '#2563EB', '#0891b2', '#18a56c', '#1a2332']}
+              animationSpeed={8}
+              direction="horizontal"
+              yoyo={true}
+            >
+              {copy.title}
+            </GradientText>
+          </h1>
         </div>
 
         {/* 搜索框 */}
@@ -192,29 +269,28 @@ export function AssistantHome({
           </div>
         </div>
 
-        {/* 快捷入口 — 实时状态动态生成 */}
         <div className={styles.quickCards}>
-          {cards.map((card, idx) => {
-            const IconComponent = card.icon;
-            return (
-              <button
-                key={idx}
-                className={styles.quickCard}
-                onClick={() => {
-                  if (card.prompt) onSend(card.prompt);
-                }}
-                type="button"
-              >
-                <span className={styles.quickIcon}>
-                  <IconComponent size={24} strokeWidth={1.8} />
-                </span>
-                <span className={styles.quickText}>
-                  <span className={styles.quickTitle}>{card.label}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
+            {cards.map((card, idx) => {
+              const IconComponent = card.icon;
+              return (
+                <button
+                  key={idx}
+                  className={styles.quickCard}
+                  onClick={() => {
+                    if (card.prompt) onSend(card.prompt);
+                  }}
+                  type="button"
+                >
+                  <span className={styles.quickIcon}>
+                    <IconComponent size={24} strokeWidth={1.8} />
+                  </span>
+                  <span className={styles.quickText}>
+                    <span className={styles.quickTitle}>{card.label}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
       </section>
     </div>
   );

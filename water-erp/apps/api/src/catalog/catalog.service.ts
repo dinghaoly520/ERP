@@ -212,14 +212,15 @@ export class CatalogService {
   }
 
   async stats() {
-    const [total, active, inactive, review, updatedThisMonth] = await Promise.all([
+    const [total, active, inactive, review, updatedThisMonth, pendingApplications] = await Promise.all([
       this.prisma.catalogItem.count(),
       this.prisma.catalogItem.count({ where: { status: '有效' } }),
       this.prisma.catalogItem.count({ where: { status: { in: ['下架', '停用'] } } }),
       this.prisma.catalogItem.count({ where: { status: { in: ['待复核', '价格波动', '即将过期'] } } }),
       this.prisma.catalogItem.count({ where: { updatedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
+      this.prisma.supplierCatalogApplication.count({ where: { status: { in: ['PENDING', 'COUNTERED', 'RETURNED'] } } }),
     ]);
-    return { total, active, inactive, review, updatedThisMonth };
+    return { total, active, inactive, review, updatedThisMonth, pendingApplications };
   }
 
   async createAdminItem(userId: string, dto: any) {

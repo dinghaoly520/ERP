@@ -2,35 +2,77 @@
 .messageList {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  max-width: 780px;
+  gap: 24px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
-/* ---------- 消息气泡 ---------- */
+/* ---------- 用户消息气泡 ---------- */
 .userBubble {
   display: flex;
   justify-content: flex-end;
 }
 
 .userContent {
-  max-width: 70%;
-  padding: 10px 18px;
-  border-radius: 18px 18px 4px 18px;
-  background: linear-gradient(135deg, #2d6bca 0%, #4478e8 100%);
-  color: #fff;
+  max-width: 75%;
+  padding: 12px 20px;
+  border-radius: 20px 20px 4px 20px;
   font-size: var(--font-sm);
   line-height: 1.65;
-  box-shadow: 0 4px 12px rgba(45, 107, 202, 0.18);
+  color: var(--text-heading);
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  /* 淡绿+淡蓝融合 */
+  background: linear-gradient(135deg, rgba(210, 235, 225, 0.75) 0%, rgba(195, 225, 240, 0.70) 50%, rgba(215, 240, 230, 0.68) 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(170, 210, 200, 0.45);
+  box-shadow:
+    0 4px 16px rgba(100, 180, 160, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
+/* 流光扫过 — 用户气泡：淡绿/淡蓝调 */
+.userContent::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 22px 22px 6px 22px;
+  padding: 2px;
+  background: linear-gradient(
+    135deg,
+    rgba(130, 200, 170, 0.45),
+    rgba(100, 180, 200, 0.5) 25%,
+    rgba(140, 210, 180, 0.5) 50%,
+    rgba(120, 190, 210, 0.5) 75%,
+    rgba(130, 200, 170, 0.45)
+  );
+  background-size: 300% 300%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: userShimmer 4s ease-in-out infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+
+@keyframes userShimmer {
+  0%, 100% { background-position: 0% 0%; }
+  25%      { background-position: 100% 0%; }
+  50%      { background-position: 100% 100%; }
+  75%      { background-position: 0% 100%; }
+}
+
+/* ---------- 助手消息气泡 ---------- */
 .assistantBubble {
   display: flex;
   justify-content: flex-start;
 }
 
 .assistantContent {
-  max-width: 85%;
+  max-width: 90%;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -42,6 +84,51 @@
   color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
+  padding: 14px 20px;
+  border-radius: 20px 20px 20px 4px;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  /* 冷色冰蓝紫底 — 专业、沉静 */
+  background: linear-gradient(135deg, rgba(232, 238, 255, 0.72) 0%, rgba(226, 235, 252, 0.68) 40%, rgba(235, 242, 255, 0.65) 100%);
+  border: 1px solid rgba(190, 210, 240, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 2px 14px rgba(60, 100, 180, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* 流光扫过 — 助手气泡：冰蓝/淡紫/薄荷调 */
+.assistantText::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 22px 22px 22px 6px;
+  padding: 2px;
+  background: linear-gradient(
+    135deg,
+    rgba(120, 160, 210, 0.4),
+    rgba(150, 140, 210, 0.45) 20%,
+    rgba(100, 180, 180, 0.5) 40%,
+    rgba(140, 160, 220, 0.45) 60%,
+    rgba(170, 150, 220, 0.4) 80%,
+    rgba(120, 160, 210, 0.4)
+  );
+  background-size: 300% 300%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: assistantShimmer 5s ease-in-out infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+
+@keyframes assistantShimmer {
+  0%, 100% { background-position: 0% 0%; }
+  33%      { background-position: 100% 50%; }
+  66%      { background-position: 50% 100%; }
 }
 
 /* ---------- 卡片区 ---------- */

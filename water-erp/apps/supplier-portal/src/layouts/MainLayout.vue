@@ -15,6 +15,17 @@ import dayjs from 'dayjs'
 
 const router = useRouter()
 const route = useRoute()
+
+// Breadcrumbs
+const breadcrumbs = computed(() => {
+  const crumbs: { label: string; path?: string }[] = []
+  const matched = route.matched.filter(r => r.meta?.breadcrumb || r.name)
+  for (const r of matched) {
+    const label = (r.meta?.breadcrumb as string) || (r.meta?.title as string) || ''
+    if (label) crumbs.push({ label, path: r.path !== route.path ? r.path : undefined })
+  }
+  return crumbs
+})
 const authStore = useAuthStore()
 const notifStore = useNotificationStore()
 
@@ -179,6 +190,15 @@ notifStore.fetchUnreadCount()
         <button class="sp-logout-btn" @click="handleLogout">退出登录</button>
       </div>
     </header>
+
+      <!-- Breadcrumb -->
+      <div class="sp-breadcrumb" v-if="breadcrumbs.length > 1">
+        <template v-for="(crumb, i) in breadcrumbs" :key="i">
+          <router-link v-if="crumb.path" :to="crumb.path" class="sp-breadcrumb-link">{{ crumb.label }}</router-link>
+          <span v-else class="sp-breadcrumb-current">{{ crumb.label }}</span>
+          <span v-if="i < breadcrumbs.length - 1" class="sp-breadcrumb-sep">/</span>
+        </template>
+      </div>
 
     <!-- Body: sidebar + content -->
     <div class="sp-body">
@@ -422,6 +442,32 @@ notifStore.fetchUnreadCount()
 .sp-logout-btn:hover {
   border-color: #e74c3c;
   color: #e74c3c;
+}
+
+/* ─── Breadcrumb ─── */
+.sp-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  background: rgba(255,255,255,0.6);
+  border-bottom: 1px solid var(--sp-border-light);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.sp-breadcrumb-link {
+  color: var(--sp-gray-400);
+  font-weight: 600;
+  transition: color 0.15s;
+}
+.sp-breadcrumb-link:hover { color: var(--sp-primary); }
+.sp-breadcrumb-current {
+  color: var(--sp-gray-700);
+  font-weight: 800;
+}
+.sp-breadcrumb-sep {
+  color: var(--sp-gray-300);
+  font-size: 11px;
 }
 
 /* ─── Body ─── */

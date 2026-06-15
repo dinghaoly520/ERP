@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { catalogApi } from '@/api/catalog'
 
 /**
@@ -39,7 +39,21 @@ function categoriesOf(group: string) {
 }
 
 const submitting = ref(false)
+const formDirty = ref(false)
 const form = ref<any>({})
+
+function markDirty() { formDirty.value = true }
+
+async function handleBeforeClose(done: () => void) {
+  if (formDirty.value) {
+    try {
+      await ElMessageBox.confirm('有未保存的填写内容，确定放弃吗？', '提示', {
+        confirmButtonText: '确定放弃', cancelButtonText: '继续编辑', type: 'warning',
+      })
+    } catch { return }
+  }
+  done()
+}
 
 function resetForm() {
   if (props.mode === 'edit' && props.application) {
@@ -102,6 +116,17 @@ async function handleSubmit() {
     if (!form.value.proposedUnit?.trim()) { ElMessage.warning('请填写单位'); return }
   }
 
+  // Confirm price changes
+  if (props.mode === 'UPDATE_QUOTE') {
+    try {
+      await ElMessageBox.confirm(
+        `确认将报价修改为 ¥${Number(form.value.quotedPrice).toFixed(2)}？`,
+        '确认改报价',
+        { confirmButtonText: '确认修改', cancelButtonText: '取消', type: 'warning' }
+      )
+    } catch { return }
+  }
+
   submitting.value = true
   try {
     const payload: any = {
@@ -128,6 +153,7 @@ async function handleSubmit() {
       await catalogApi.createApplication({ type: props.mode, catalogItemId: props.item?.id, ...payload })
       ElMessage.success('申请已提交，等待管理员审核')
     }
+    formDirty.value = false
     visible.value = false
     emit('success')
   } catch {
@@ -139,7 +165,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <el-dialog v-model="visible" :title="title" width="560px" destroy-on-close>
+  <el-dialog v-model="visible" :title="title" width="560px" destroy-on-close :before-close="handleBeforeClose">
     <!-- 目标物资信息（JOIN/UPDATE）-->
     <el-alert v-if="item && mode !== 'NEW_ITEM' && mode !== 'edit'" type="info" :closable="false" style="margin-bottom: 16px;">
       <template #title>

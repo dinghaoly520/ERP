@@ -3,8 +3,9 @@ import { ref, onMounted, computed } from 'vue'
 import { useSupplierStore } from '@/stores/supplier'
 import dayjs from 'dayjs'
 
-const supplierStore = useSupplierStore(); const loading = ref(true); const expandedId = ref<string|null>(null)
-onMounted(async () => { try { await Promise.all([supplierStore.fetchEvaluations(),supplierStore.fetchEvaluationStats()]) } finally { loading.value = false } })
+const supplierStore = useSupplierStore(); const loading = ref(true); const error = ref(false); const expandedId = ref<string|null>(null)
+onMounted(async () => { try { await Promise.all([supplierStore.fetchEvaluations(),supplierStore.fetchEvaluationStats()]) } catch { error.value = true } finally { loading.value = false } })
+function retryLoad() { error.value = false; loading.value = true; Promise.all([supplierStore.fetchEvaluations(),supplierStore.fetchEvaluationStats()]).catch(() => { error.value = true }).finally(() => { loading.value = false }) }
 const stats = computed(() => supplierStore.evaluationStats)
 const levelColorMap: Record<string,string> = {A:'#059669',B:'#064ea2',C:'#d97706',D:'#dc2626'}
 const levelLabel: Record<string,string> = {A:'优秀',B:'良好',C:'合格',D:'不合格'}
@@ -16,6 +17,13 @@ function toggleExpand(id:string) { expandedId.value = expandedId.value===id?null
 
 <template>
   <div class="page-container" v-loading="loading">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <template v-else>
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
@@ -60,6 +68,7 @@ function toggleExpand(id:string) { expandedId.value = expandedId.value===id?null
       </div>
       <div v-else class="sp-empty" style="padding:40px"><div class="sp-empty-icon"><el-icon :size="24"><Star /></el-icon></div><div class="sp-empty-text">暂无评价记录</div><div class="sp-empty-desc">参与项目后，采购方将对您进行履约评价</div></div>
     </div>
+    </template>
   </div>
 </template>
 

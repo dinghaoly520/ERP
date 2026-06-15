@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/notification'
 import dayjs from 'dayjs'
 
-const router = useRouter(); const store = useNotificationStore(); const loading = ref(true); const currentPage = ref(1)
+const router = useRouter(); const store = useNotificationStore(); const loading = ref(true); const error = ref(false); const currentPage = ref(1); const typeFilter = ref('')
 const typeIconMap: Record<string,string> = {SUPPLIER_APPROVED:'✅',SUPPLIER_REJECTED:'❌',SUPPLIER_RETURNED:'⚠️',BID_PUBLISHED:'📋',BID_REMINDER:'⏰',SYSTEM:'🔔'}
-async function fetchData() { loading.value = true; try { await store.fetchNotifications(currentPage.value,15) } finally { loading.value = false } }
+const typeLabels: Record<string,string> = {SUPPLIER_APPROVED:'入库审批',SUPPLIER_REJECTED:'驳回通知',SUPPLIER_RETURNED:'退回补正',BID_PUBLISHED:'招标公告',BID_REMINDER:'开标提醒',SYSTEM:'系统通知'}
+const filteredNotifications = computed(() => {
+  if (!typeFilter.value) return store.notifications
+  return store.notifications.filter((n:any) => n.type === typeFilter.value)
+})
+async function fetchData() { loading.value = true; error.value = false; try { await store.fetchNotifications(currentPage.value,15) } catch { error.value = true } finally { loading.value = false } }
+function retryLoad() { fetchData() }
 onMounted(fetchData)
 async function handleRead(id:string) { await store.markAsRead(id) }
 async function handleReadAll() { await store.markAllAsRead(); store.fetchUnreadCount() }
@@ -16,6 +22,13 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 
 <template>
   <div class="page-container" v-loading="loading">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <template v-else>
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
@@ -29,8 +42,14 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
       </div>
     </div>
 
-    <div v-if="store.notifications.length>0" class="notif-list">
-      <div v-for="n in store.notifications" :key="n.id" class="notif-row" :class="{unread:!n.isRead}" @click="handleClick(n)">
+    <!-- Type filter chips -->
+    <div v-if="store.notifications.length>0" class="sp-chip-group" style="margin-bottom:16px">
+      <el-tag :type="!typeFilter?'primary':'info'" class="sp-chip" style="cursor:pointer" @click="typeFilter=''">全部</el-tag>
+      <el-tag v-for="(label, key) in typeLabels" :key="key" :type="typeFilter===key?'primary':'info'" class="sp-chip" style="cursor:pointer" @click="typeFilter=key">{{ label }}</el-tag>
+    </div>
+
+    <div v-if="filteredNotifications.length>0" class="notif-list">
+      <div v-for="n in filteredNotifications" :key="n.id" class="notif-row" :class="{unread:!n.isRead}" @click="handleClick(n)">
         <div class="notif-icon">{{ typeIconMap[n.type]||'📬' }}</div>
         <div class="notif-body"><div class="notif-row-title">{{ n.title }}</div><div class="notif-row-content">{{ n.content }}</div></div>
         <div class="notif-right"><div class="notif-row-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</div><el-button v-if="!n.isRead" text type="primary" size="small" @click.stop="handleRead(n.id)">标为已读</el-button></div>
@@ -38,7 +57,9 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
       <div style="display:flex;justify-content:center;padding:16px"><el-pagination v-model:current-page="currentPage" :total="store.total" :page-size="15" layout="prev,pager,next" @current-change="handlePageChange" /></div>
     </div>
 
+    <div v-else-if="store.notifications.length>0" class="sp-empty-panel"><el-icon :size="32"><Search /></el-icon><p class="sp-empty-text">无匹配通知</p><p class="sp-empty-desc">该分类暂无通知，试试其他筛选</p></div>
     <div v-else class="sp-empty-panel"><el-icon :size="32"><ChatDotRound /></el-icon><p class="sp-empty-text">暂无消息</p><p class="sp-empty-desc">您没有未读消息</p></div>
+    </template>
   </div>
 </template>
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { AssistantService } from './assistant.service';
@@ -38,6 +38,12 @@ export class AssistantController {
   @ApiOperation({ summary: '取消操作预案' })
   async cancelAction(@Param('id') id: string) {
     return this.assistantService.cancelAction(id);
+  }
+
+  @Delete('conversations/:id')
+  @ApiOperation({ summary: '删除会话' })
+  async deleteConversation(@Param('id') id: string) {
+    return this.assistantService.deleteConversation(id);
   }
 
   @Get('quick-stats')

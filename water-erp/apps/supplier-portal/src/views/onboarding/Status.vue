@@ -4,8 +4,9 @@ import { useRouter } from 'vue-router'
 import { useSupplierStore } from '@/stores/supplier'
 import dayjs from 'dayjs'
 
-const router = useRouter(); const supplierStore = useSupplierStore(); const loading = ref(true)
-onMounted(async () => { try { await supplierStore.fetchStatus() } finally { loading.value = false } })
+const router = useRouter(); const supplierStore = useSupplierStore(); const loading = ref(true); const error = ref(false)
+onMounted(async () => { try { await supplierStore.fetchStatus() } catch { error.value = true } finally { loading.value = false } })
+async function retryLoad() { error.value = false; loading.value = true; try { await supplierStore.fetchStatus() } catch { error.value = true } finally { loading.value = false } }
 const status = computed(() => supplierStore.status)
 const statusConfig: Record<string,{step:number;label:string;desc:string;icon:string;color:string}> = {
   PENDING:{step:2,label:'审核中',desc:'申请已提交，平台正在审核。',icon:'Clock',color:'#d97706'},
@@ -32,7 +33,13 @@ const currentConfig = computed(() => { const s = status.value?.status; return s 
       </div>
     </div>
 
-    <div class="onboarding-card" v-if="status" :style="{'--status-color':currentConfig.color}">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <div class="onboarding-card" v-else-if="status" :style="{'--status-color':currentConfig.color}">
       <div class="status-summary">
         <div class="status-icon-wrap"><el-icon :size="36" :color="currentConfig.color"><component :is="currentConfig.icon" /></el-icon></div>
         <div><h2>{{ currentConfig.label }}</h2><p>{{ currentConfig.desc }}</p></div>

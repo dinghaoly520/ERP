@@ -9,11 +9,13 @@ import dayjs from 'dayjs'
 const router = useRouter()
 const supplierStore = useSupplierStore()
 const loading = ref(true)
+const error = ref(false)
 const summary = computed(() => {
   const list = supplierStore.bidSubmissions
   return { total: list.length, draft: list.filter((i: any) => i.status === 'draft').length, submitted: list.filter((i: any) => i.status === 'submitted').length, withdrawn: list.filter((i: any) => i.status === 'withdrawn').length }
 })
-onMounted(async () => { try { await supplierStore.fetchBidSubmissions() } finally { loading.value = false } })
+onMounted(async () => { try { await supplierStore.fetchBidSubmissions() } catch { error.value = true } finally { loading.value = false } })
+function retryLoad() { error.value = false; loading.value = true; supplierStore.fetchBidSubmissions().catch(() => { error.value = true }).finally(() => { loading.value = false }) }
 const statusMap: Record<string, { label: string; cls: string; tone: string }> = { draft: { label: '草稿', cls: 'draft', tone: 'orange' }, submitted: { label: '已提交', cls: 'submitted', tone: 'green' }, withdrawn: { label: '已撤回', cls: 'disabled', tone: 'gray' } }
 async function handleWithdraw(id: string) { await ElMessageBox.confirm('确定要撤回此标书吗？', '确认撤回', { type: 'warning' }); try { await supplierApi.withdrawSubmission(id); ElMessage.success('投标已撤回'); await supplierStore.fetchBidSubmissions() } catch (err: any) { ElMessage.error(err?.response?.data?.error || '撤回失败') } }
 function canWithdraw(row: any) { return row.status === 'submitted' && row.project?.stage === 'SUBMIT' }
@@ -22,6 +24,13 @@ function canConfirmOpening(row: any) { const stage = row.project?.stage; return 
 
 <template>
   <div class="page-container" v-loading="loading">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <template v-else>
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
@@ -58,6 +67,7 @@ function canConfirmOpening(row: any) { const stage = row.project?.stage; return 
     </div>
 
     <div v-else class="sp-empty-panel"><el-icon :size="32"><Document /></el-icon><p class="sp-empty-text">暂无投标记录</p><p class="sp-empty-desc">浏览招标项目并提交您的标书</p><el-button type="primary" style="margin-top:16px" @click="router.push('/bids')">浏览招标机会</el-button></div>
+    </template>
   </div>
 </template>
 

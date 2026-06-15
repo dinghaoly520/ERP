@@ -93,6 +93,8 @@ async function handleLogin() {
         </el-form>
 
         <div class="lp-foot">
+          <router-link to="/login" style="font-size:13px;color:var(--sp-gray-400)">忘记密码？</router-link>
+          <span style="margin:0 12px;color:var(--sp-gray-300)">|</span>
           还没有账号？<router-link to="/register">立即注册供应商</router-link>
         </div>
       </div>

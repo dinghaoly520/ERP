@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -35,7 +35,7 @@ const contacts = ref<any[]>([
 ])
 
 const qualifications = ref<any[]>([
-  { type: '营业执照', name: '', fileUrl: '/uploads/placeholder.pdf', validFrom: '', validTo: '' },
+  { type: '营业执照', name: '', fileUrl: '', validFrom: '', validTo: '' },
 ])
 
 const enterpriseTypes = [
@@ -86,7 +86,17 @@ function removeContact(index: number) {
 }
 
 function addQualification() {
-  qualifications.value.push({ type: '', name: '', fileUrl: '/uploads/placeholder.pdf', validFrom: '', validTo: '' })
+  qualifications.value.push({ type: '', name: '', fileUrl: '', validFrom: '', validTo: '' })
+}
+
+const uploadRefs: any[] = []
+function handleQualFileChange(index: number, e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input?.files?.[0]
+  if (!file) return
+  if (file.size > 50 * 1024 * 1024) { ElMessage.warning('文件不能超过50MB'); return }
+  qualifications.value[index].fileUrl = file.name
+  ElMessage.success(`已选择：${file.name}（注册后可在资质管理中补充）`)
 }
 
 function removeQualification(index: number) {
@@ -320,7 +330,8 @@ async function submitRegister() {
                 <el-date-picker v-model="q.validTo" type="date" placeholder="有效期止" size="large" style="width: 100%" value-format="YYYY-MM-DD" />
               </el-col>
               <el-col :span="3" style="display: flex; align-items: center; gap: 8px;">
-                <el-button text type="primary" size="small">上传</el-button>
+                <input type="file" style="display:none" :ref="el => { if (el) uploadRefs[i] = el }" @change="(e) => handleQualFileChange(i, e)" accept=".pdf,.jpg,.jpeg,.png" />
+                <el-button text type="primary" size="small" @click="uploadRefs[i]?.click()">上传</el-button>
                 <el-button type="danger" text @click="removeQualification(i)" :disabled="qualifications.length <= 1">
                   <el-icon size="18"><Delete /></el-icon>
                 </el-button>

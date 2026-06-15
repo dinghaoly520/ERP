@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useSupplierStore } from '@/stores/supplier'
+import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 
-const supplierStore = useSupplierStore(); const loading = ref(true)
-onMounted(async () => { try { await supplierStore.fetchProfile() } finally { loading.value = false } })
+const supplierStore = useSupplierStore(); const loading = ref(true); const error = ref(false)
+async function copyCreditCode() {
+  if (!supplierStore.profile?.creditCode) return
+  try {
+    await navigator.clipboard.writeText(supplierStore.profile.creditCode)
+    ElMessage.success('已复制统一社会信用代码')
+  } catch { ElMessage.warning('复制失败，请手动选择') }
+}
+onMounted(async () => { try { await supplierStore.fetchProfile() } catch { error.value = true } finally { loading.value = false } })
+async function retryLoad() { error.value = false; loading.value = true; try { await supplierStore.fetchProfile() } catch { error.value = true } finally { loading.value = false } }
 const statusText: Record<string,string> = {PENDING:'待审核',APPROVED:'已入库',REJECTED:'不通过',RETURNED:'退回补正',DISABLED:'已停用',BLACKLIST:'黑名单'}
 const profileRows = computed(() => {
   const p = supplierStore.profile; if (!p) return []
@@ -28,10 +37,16 @@ const profileRows = computed(() => {
       </div>
     </div>
 
-    <div class="detail-card" v-if="supplierStore.profile">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <div class="detail-card" v-else-if="supplierStore.profile">
       <div class="company-identity">
         <div class="company-avatar">{{ supplierStore.profile.name?.charAt(0) }}</div>
-        <div class="company-title"><h2>{{ supplierStore.profile.name }}</h2><div class="company-subline"><span>{{ supplierStore.profile.creditCode }}</span><span class="sp-status" :class="{pending:supplierStore.profile.status==='PENDING',approved:supplierStore.profile.status==='APPROVED',rejected:supplierStore.profile.status==='REJECTED'||supplierStore.profile.status==='BLACKLIST',returned:supplierStore.profile.status==='RETURNED',disabled:supplierStore.profile.status==='DISABLED'}">{{ statusText[supplierStore.profile.status]||supplierStore.profile.status }}</span></div></div>
+        <div class="company-title"><h2>{{ supplierStore.profile.name }}</h2><div class="company-subline"><span style="font-family:monospace;font-size:13px">{{ supplierStore.profile.creditCode }}</span> <el-button link type="primary" style="padding:0;font-size:18px" @click="copyCreditCode" title="复制信用代码"><el-icon><CopyDocument /></el-icon></el-button><span class="sp-status" :class="{pending:supplierStore.profile.status==='PENDING',approved:supplierStore.profile.status==='APPROVED',rejected:supplierStore.profile.status==='REJECTED'||supplierStore.profile.status==='BLACKLIST',returned:supplierStore.profile.status==='RETURNED',disabled:supplierStore.profile.status==='DISABLED'}">{{ statusText[supplierStore.profile.status]||supplierStore.profile.status }}</span></div></div>
       </div>
       <div class="info-grid">
         <div v-for="row in profileRows" :key="row.label" class="info-item" :class="{wide:row.wide}"><span>{{ row.label }}</span><strong>{{ row.value||'-' }}</strong></div>

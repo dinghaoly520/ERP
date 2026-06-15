@@ -1,0 +1,335 @@
+/* ========== 历史对话侧边栏 — 固定定位 ========== */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 260px;
+  z-index: 22;
+  display: flex;
+  flex-direction: column;
+  background: rgba(248, 250, 255, 0.72);
+  border-right: 1px solid rgba(201, 217, 239, 0.4);
+  border-radius: 0 20px 20px 0;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    2px 0 16px rgba(19, 36, 62, 0.04),
+    inset -1px 0 0 rgba(255, 255, 255, 0.4);
+}
+
+/* ========== 品牌区 ========== */
+.brand {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 16px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(201, 217, 239, 0.3);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.brandLogo {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.brandName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-heading);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* ========== 折叠状态 ========== */
+.sidebarCollapsed {
+  position: fixed;
+  top: 52px;
+  left: 0;
+  bottom: 0;
+  width: 40px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 12px;
+  gap: 10px;
+  background: rgba(248, 250, 255, 0.72);
+  border-right: 1px solid rgba(201, 217, 239, 0.4);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 2px 0 8px rgba(19, 36, 62, 0.03);
+}
+
+.expandBtn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.expandBtn:hover {
+  background: rgba(240, 245, 255, 0.7);
+  color: var(--text-heading);
+}
+
+.collapsedDots {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.collapsedDots::-webkit-scrollbar {
+  display: none;
+}
+
+.collapsedDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(180, 200, 225, 0.5);
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.collapsedDot:hover {
+  background: rgba(120, 160, 210, 0.7);
+  transform: scale(1.3);
+}
+
+.collapsedDotActive {
+  background: var(--primary);
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.3);
+}
+
+/* ========== 头部 ========== */
+.header {
+  padding: 16px 16px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(201, 217, 239, 0.25);
+}
+
+.headerTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.newBtn,
+.collapseBtn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.newBtn:hover,
+.collapseBtn:hover {
+  background: rgba(240, 245, 255, 0.7);
+  color: var(--primary);
+}
+
+/* ========== 列表 ========== */
+.list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px 16px;
+  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(180, 200, 225, 0.4) transparent;
+}
+
+.empty {
+  padding: 24px 8px;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ========== 日期分组 ========== */
+.group {
+  margin-bottom: 12px;
+}
+
+.groupLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.groupLabel:hover {
+  background: rgba(240, 245, 255, 0.6);
+  color: var(--text-secondary);
+}
+
+.groupChevron {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  color: var(--text-hint);
+}
+
+.groupChevronOpen {
+  transform: rotate(0deg);
+}
+
+/* default: rotated right when closed */
+.groupChevron:not(.groupChevronOpen) {
+  transform: rotate(-90deg);
+}
+
+.groupCount {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-hint);
+  background: rgba(200, 210, 230, 0.35);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.groupItems {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+/* ========== 底部返回按钮 ========== */
+.backBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  margin: 8px 12px 12px;
+  border-radius: 10px;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(201, 217, 239, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.backBtn:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--primary);
+  border-color: rgba(201, 217, 239, 0.5);
+}
+
+/* ========== 对话条目 ========== */
+.item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px 6px 12px;
+  border-radius: 10px;
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+  line-height: 1.45;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.itemText {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 4px;
+}
+
+.deleteBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.item:hover .deleteBtn {
+  opacity: 1;
+}
+
+.deleteBtn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.item:hover {
+  background: rgba(255, 255, 255, 0.65);
+  border-color: rgba(201, 217, 239, 0.35);
+  color: var(--text-heading);
+}
+
+.itemActive {
+  background: linear-gradient(135deg, rgba(45, 107, 202, 0.08) 0%, rgba(111, 124, 255, 0.06) 100%);
+  border-color: rgba(45, 107, 202, 0.2);
+  color: var(--primary);
+  font-weight: 600;
+}

@@ -91,3 +91,114 @@ body {
   50% { background-position: 100% center; }
   100% { background-position: 0% center; }
 }
+
+/* ===== 共享交互动效 ===== */
+
+/* 文字流光扫过 */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.4) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+/* 错误抖动 */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15%      { transform: translateX(-6px); }
+  30%      { transform: translateX(6px); }
+  45%      { transform: translateX(-4px); }
+  60%      { transform: translateX(4px); }
+  75%      { transform: translateX(-2px); }
+}
+.animate-shake {
+  animation: shake 0.4s ease-out;
+}
+
+/* 滑入上 */
+@keyframes slideUp {
+  0%   { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slideUp 0.35s ease-out;
+}
+
+/* 滑入下 */
+@keyframes slideDown {
+  0%   { opacity: 0; transform: translateY(-16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-down {
+  animation: slideDown 0.35s ease-out;
+}
+
+/* 数据变化脉冲高亮 */
+@keyframes dataPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(6,78,162,.3); }
+  50%  { box-shadow: 0 0 0 8px rgba(6,78,162,0); }
+  100% { box-shadow: 0 0 0 0 rgba(6,78,162,0); }
+}
+.animate-data-pulse {
+  animation: dataPulse 0.8s ease-out;
+}
+
+/* 骨架屏脉冲 */
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 0.9; }
+}
+.animate-skeleton {
+  animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+
+/* Hero 背景渐变漂移 */
+@keyframes heroDrift {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  33%  { transform: translate(2%, -1%) rotate(1deg); }
+  66%  { transform: translate(-1%, 1%) rotate(-1deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+.animate-hero-drift {
+  animation: heroDrift 24s ease-in-out infinite;
+}
+
+/* 淡入 */
+@keyframes fadeIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* 弹入缩放入场 */
+@keyframes popIn {
+  0%   { opacity: 0; transform: scale(0.92); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-pop-in {
+  animation: popIn 0.35s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* 收藏星形旋转 */
+@keyframes starSpin {
+  0%   { transform: rotate(0deg) scale(1); }
+  50%  { transform: rotate(180deg) scale(1.3); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+.animate-star-spin {
+  animation: starSpin 0.5s ease-out;
+}
+
+/* 思考三点跳 */
+@keyframes dotBounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40%           { transform: translateY(-6px); }
+}
+.animate-dot-bounce {
+  animation: dotBounce 1.2s ease-in-out infinite;
+}

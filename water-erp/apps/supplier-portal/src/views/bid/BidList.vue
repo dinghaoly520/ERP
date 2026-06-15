@@ -8,6 +8,7 @@ import dayjs from 'dayjs'
 const router = useRouter()
 const bidStore = useBidStore()
 const loading = ref(true)
+const error = ref(false)
 const search = ref('')
 const filterStage = ref('')
 
@@ -32,12 +33,20 @@ const filteredProjects = computed(() => {
 const submitCount = computed(() => bidStore.projects.filter((p: any) => p.stage === 'SUBMIT').length)
 const activeCount = computed(() => bidStore.projects.filter((p: any) => ['DOWNLOAD','SUBMIT','OPENING'].includes(p.stage)).length)
 function stageCount(stage: string) { if (!stage) return bidStore.projects.length; return bidStore.projects.filter((p: any) => p.stage === stage).length }
-onMounted(async () => { try { await bidStore.fetchProjects() } finally { loading.value = false } })
+onMounted(async () => { try { await bidStore.fetchProjects() } catch { error.value = true } finally { loading.value = false } })
+function retryLoad() { error.value = false; loading.value = true; bidStore.fetchProjects().catch(() => { error.value = true }).finally(() => { loading.value = false }) }
 function isDeadlinePassed(deadline: string) { return new Date(deadline) < new Date() }
 </script>
 
 <template>
   <div class="page-container" v-loading="loading">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <template v-else>
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
@@ -81,6 +90,7 @@ function isDeadlinePassed(deadline: string) { return new Date(deadline) < new Da
       <p class="sp-empty-text">暂无招标项目</p>
       <p class="sp-empty-desc">当前没有符合条件的招标项目</p>
     </div>
+    </template>
   </div>
 </template>
 

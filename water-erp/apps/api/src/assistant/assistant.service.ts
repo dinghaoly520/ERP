@@ -91,7 +91,8 @@ ${toolList}
 - 工具调用格式（放在回答最前面，独占一行）：
   TOOL_CALL: {"tool": "<工具名>", "args": {"action": "<action>", ...}}
 - 每次回答调用一个或者多个工具。先获取数据，再基于数据提炼洞察。
-- 卡片已在前端渲染，文字回答只做判断和建议，不重复罗列数字。
+- 回答必须遵循系统提示词中的总-分结构和数据引用原则，直接引用工具返回的项目名称、金额、日期等具体信息，不写空洞的概括。
+- 禁止使用任何 emoji 表情符号。
 - 涉及修改/审批/删除/禁用/退回时，说明操作预案和风险，不要直接执行。`;
 
     const messages = [
@@ -232,9 +233,9 @@ ${toolList}
     }
 
     // Second model call to synthesize
-    const cardCount = (result.cards || []).length;
+    const toolDataStr = JSON.stringify(result.data || result).slice(0, 3000);
     const toolSummary = result.success
-      ? `查询成功，已生成 ${cardCount} 张卡片（已在页面展示）。请在回答中提炼洞察而非罗列数字。`
+      ? `查询成功。以下是工具返回的真实数据（JSON格式，请直接引用其中的项目名称、金额、日期、状态等具体信息）：\n\`\`\`json\n${toolDataStr}\n\`\`\`\n\n请基于以上真实数据，按系统提示词的总-分结构输出回答。必须引用具体的项目名称、金额数字、时间节点和状态信息。不要写空泛的概括。`
       : `工具调用失败: ${result.error}`;
 
     try {
@@ -243,7 +244,7 @@ ${toolList}
         { role: 'assistant' as const, content: answer },
         {
           role: 'user' as const,
-          content: `工具 ${toolCall.tool} 返回了数据。${toolSummary}\n\n请基于这些数据，用自然段落给出判断和建议。不要罗列卡片中已有的数字。按照系统提示词的格式规范输出。`,
+          content: `工具 ${toolCall.tool} 返回了数据。${toolSummary}`,
         },
       ]);
       answer = followUp.text;
@@ -308,11 +309,26 @@ ${toolList}
   }
 
   async listConversations() {
-    return this.prisma.assistantConversation.findMany({
+    const conversations = await this.prisma.assistantConversation.findMany({
       orderBy: { updatedAt: 'desc' },
-      select: { id: true, title: true, createdAt: true, updatedAt: true },
+      include: {
+        messages: {
+          where: { role: 'user' },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+          select: { content: true },
+        },
+      },
       take: 20,
     });
+
+    return conversations.map((c) => ({
+      id: c.id,
+      title: c.title,
+      firstMessage: c.messages[0]?.content?.slice(0, 100) || '',
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    }));
   }
 
   async getConversation(id: string) {
@@ -343,5 +359,13 @@ ${toolList}
       data: { status: 'cancelled' },
     });
     return { status: 'success', message: '操作已取消' };
+  }
+
+  async deleteConversation(id: string) {
+    // Messages cascade-delete via onDelete: Cascade in schema
+    await this.prisma.assistantConversation.delete({
+      where: { id },
+    });
+    return { status: 'success', message: '会话已删除' };
   }
 }

@@ -3,12 +3,13 @@ import { ref, computed, onMounted } from 'vue'
 import { catalogApi } from '@/api/catalog'
 import ApplicationDialog from './ApplicationDialog.vue'
 
-const loading = ref(true); const items = ref<any[]>([]); const categoryTree = ref<{group:string;categories:string[]}[]>([]); const myApplications = ref<any[]>([]); const mySupply = ref<any[]>([])
+const loading = ref(true); const error = ref(false); const items = ref<any[]>([]); const categoryTree = ref<{group:string;categories:string[]}[]>([]); const myApplications = ref<any[]>([]); const mySupply = ref<any[]>([])
 const selectedGroup = ref<string>(''); const selectedCategory = ref<string>(''); const search = ref('')
 const dialogVisible = ref(false); const dialogMode = ref<'NEW_ITEM'|'JOIN_EXISTING'|'UPDATE_QUOTE'|'edit'>('JOIN_EXISTING'); const dialogItem = ref<any>(null)
 
-async function loadAll() { loading.value = true; try { const [tree,apps,supply] = await Promise.all([catalogApi.listCategories(),catalogApi.listApplications(),catalogApi.listSupply()]); categoryTree.value = tree as any; myApplications.value = apps as any; mySupply.value = supply as any; await loadItems() } finally { loading.value = false } }
-async function loadItems() { loading.value = true; try { items.value = await catalogApi.listItems({group:selectedGroup.value||undefined,category:selectedCategory.value||undefined,search:search.value.trim()||undefined}) as any } finally { loading.value = false } }
+async function loadAll() { loading.value = true; error.value = false; try { const [tree,apps,supply] = await Promise.all([catalogApi.listCategories(),catalogApi.listApplications(),catalogApi.listSupply()]); categoryTree.value = tree as any; myApplications.value = apps as any; mySupply.value = supply as any; await loadItems() } catch { error.value = true } finally { loading.value = false } }
+async function loadItems() { loading.value = true; try { items.value = await catalogApi.listItems({group:selectedGroup.value||undefined,category:selectedCategory.value||undefined,search:search.value.trim()||undefined}) as any } catch { error.value = true } finally { loading.value = false } }
+function retryLoad() { loadAll() }
 function onSearch() { loadItems() }
 function selectGroup(g:string) { selectedGroup.value = selectedGroup.value===g?'':g; selectedCategory.value=''; loadItems() }
 function selectCategory(c:string) { selectedCategory.value = selectedCategory.value===c?'':c; loadItems() }
@@ -25,6 +26,13 @@ onMounted(loadAll)
 
 <template>
   <div class="page-container" v-loading="loading">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <template v-else>
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
@@ -78,6 +86,7 @@ onMounted(loadAll)
       </section>
     </div>
     <ApplicationDialog v-model="dialogVisible" :mode="dialogMode" :item="dialogItem" @success="onDialogSuccess" />
+    </template>
   </div>
 </template>
 

@@ -13,6 +13,7 @@ const router = useRouter()
 const bidStore = useBidStore()
 const supplierStore = useSupplierStore()
 const loading = ref(true)
+const error = ref(false)
 const activeTab = ref('info')
 const projectId = computed(() => route.params.id as string)
 
@@ -30,14 +31,21 @@ async function loadBidDoc() { bidDocLoading.value = true; try { bidDoc.value = a
 async function doPay() { if (!bidDoc.value?.announcementId) return; paying.value = true; try { await announcementApi.payBidDocument(bidDoc.value.announcementId, paymentRef.value || undefined); ElMessage.success('付款凭证已提交'); payDialog.value = false; paymentRef.value = ''; await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '提交失败') } paying.value = false }
 async function doDownload() { if (!bidDoc.value?.announcementId) return; downloading.value = true; try { const { blob, fileName } = await announcementApi.downloadBidDocument(bidDoc.value.announcementId); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName; a.click(); URL.revokeObjectURL(url); await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '下载失败') } downloading.value = false }
 function scopeHint(scope: string) { if (scope === 'DESIGNATED') return '仅指定供应商可下载'; if (scope === 'INVITED') return '仅受邀供应商可下载'; return '全库供应商可下载' }
-onMounted(async () => { try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc() } finally { loading.value = false } })
+onMounted(async () => { try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc() } catch { error.value = true } finally { loading.value = false } })
+async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc() } catch { error.value = true } finally { loading.value = false } }
 function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.status !== 'APPROVED') { ElMessage.warning('只有已入库供应商可以提交标书'); return } router.push(`/bids/${projectId.value}/submit`) }
 </script>
 
 <template>
   <div class="page-container" v-loading="loading">
     <el-button link @click="router.push('/bids')" style="margin-bottom: 16px;"><el-icon><ArrowLeft /></el-icon> 返回招标列表</el-button>
-    <template v-if="project">
+    <div v-if="error" class="sp-error-block">
+      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-text">数据加载失败</div>
+      <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
+      <el-button type="primary" @click="retryLoad">重新加载</el-button>
+    </div>
+    <template v-else-if="project">
       <div class="sp-page-hero-card">
         <div class="sp-page-hero-inner">
           <div class="sp-page-hero-body">
