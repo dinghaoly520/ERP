@@ -11,8 +11,9 @@ export type AssistantCard =
   | {
       type: 'chart';
       title: string;
-      chartType: 'line' | 'bar' | 'pie';
-      data: unknown;
+      chartType: 'bar' | 'line' | 'pie' | 'scatter' | 'radar';
+      imageUrl: string;
+      caption?: string;
     }
   | {
       type: 'table';
