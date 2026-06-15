@@ -14,6 +14,7 @@ import { NotificationTool } from './tools/notification.tool';
 import { MallTool } from './tools/mall.tool';
 import { ActionPlannerService } from './actions/action-planner.service';
 import { ActionExecutorService } from './actions/action-executor.service';
+import { PythonSandboxService } from './python-sandbox.service';
 
 @Module({
   imports: [PrismaModule],
@@ -32,6 +33,7 @@ import { ActionExecutorService } from './actions/action-executor.service';
     MallTool,
     ActionPlannerService,
     ActionExecutorService,
+    PythonSandboxService,
   ],
   exports: [AssistantService],
 })
