@@ -15,6 +15,7 @@ import { ActionExecutorService } from './actions/action-executor.service';
 import { SYSTEM_KNOWLEDGE } from './knowledge/system-knowledge';
 import { ChatMessage } from './model/assistant-model-provider';
 import { ChatDto } from './dto/chat.dto';
+import { PythonSandboxService } from './python-sandbox.service';
 
 @Injectable()
 export class AssistantService {
@@ -32,6 +33,7 @@ export class AssistantService {
     private readonly mallTool: MallTool,
     private readonly actionPlanner: ActionPlannerService,
     private readonly actionExecutor: ActionExecutorService,
+    private readonly pythonSandbox: PythonSandboxService,
   ) {
     this.registerTools();
   }
@@ -121,6 +123,11 @@ ${toolList}
       }
     } catch (e) {
       answer = `抱歉，AI 服务暂时不可用：${(e as Error).message}。请检查 DeepSeek API Key 配置或稍后重试。`;
+    }
+
+    // Guard against empty answers — if all paths produced nothing, give a fallback
+    if (!answer || !answer.trim()) {
+      answer = '抱歉，AI 未能生成有效回复。请重新提问或换一种方式描述您的问题。';
     }
 
     await this.prisma.assistantMessage.create({
@@ -235,7 +242,7 @@ ${toolList}
     // Second model call to synthesize
     const toolDataStr = JSON.stringify(result.data || result).slice(0, 3000);
     const toolSummary = result.success
-      ? `查询成功。以下是工具返回的真实数据（JSON格式，请直接引用其中的项目名称、金额、日期、状态等具体信息）：\n\`\`\`json\n${toolDataStr}\n\`\`\`\n\n请基于以上真实数据，按系统提示词的总-分结构输出回答。必须引用具体的项目名称、金额数字、时间节点和状态信息。不要写空泛的概括。`
+      ? `查询成功。以下是工具返回的真实数据（JSON格式，请直接引用其中的项目名称、金额、日期等具体信息）：\n\`\`\`json\n${toolDataStr}\n\`\`\`\n\n请基于以上真实数据，按系统提示词的总-分结构输出回答。必须引用具体的项目名称、金额数字、时间节点。注意：数据中的英文状态码（如OPENING、PENDING）仅供你理解使用，在回答中必须转换为中文（如"开标阶段""待审核"），严禁在回答中输出英文代码。不要写空泛的概括。`
       : `工具调用失败: ${result.error}`;
 
     try {
@@ -247,12 +254,85 @@ ${toolList}
           content: `工具 ${toolCall.tool} 返回了数据。${toolSummary}`,
         },
       ]);
-      answer = followUp.text;
+      const followUpText = followUp.text?.trim();
+      if (!followUpText) {
+        // Second call returned empty — strip TOOL_CALL and keep the rest
+        answer = answer.replace(/TOOL_CALL:\s*\{[\s\S]*?\}\s*/g, '').trim();
+        if (!answer) {
+          answer = '抱歉，数据查询成功但 AI 未能生成分析。请重新提问或简化问题。';
+        }
+      } else {
+        answer = followUpText;
+      }
     } catch {
-      // keep original
+      // Second call failed — strip TOOL_CALL and keep original narrative
+      const stripped = answer.replace(/TOOL_CALL:\s*\{[\s\S]*?\}\s*/g, '').trim();
+      if (stripped) {
+        answer = stripped;
+      } else {
+        answer = '抱歉，AI 服务在处理您的请求时出现异常，请稍后重试或换一种方式提问。';
+      }
+    }
+
+    // Extract Python code block and generate chart
+    const pythonBlockRe = /```python\s*\n([\s\S]*?)```/;
+    const pythonMatch = answer.match(pythonBlockRe);
+
+    if (pythonMatch) {
+      const pythonCode = pythonMatch[1].trim();
+      // Remove code block from answer text
+      answer = answer.replace(pythonBlockRe, '').trim();
+
+      const toolData = result.data || result;
+      const chartResult = await this.pythonSandbox.execute(pythonCode, toolData);
+
+      if (chartResult.success) {
+        cards.push({
+          type: 'chart',
+          title: this.inferChartTitle(answer, toolCall.tool),
+          chartType: this.inferChartType(pythonCode),
+          imageUrl: chartResult.imageUrl,
+          caption: this.inferChartCaption(answer),
+        });
+      } else {
+        // Append brief note that chart generation failed
+        answer = answer ? answer + `（图表生成失败：${chartResult.error}）` : `抱歉，图表生成失败：${chartResult.error}`;
+      }
     }
 
     return answer;
+  }
+
+  private inferChartTitle(answer: string, toolName: string): string {
+    const toolLabels: Record<string, string> = {
+      global_overview: '全局概览',
+      procurement: '采购分析',
+      bid: '招标分析',
+      supplier: '供应商分析',
+      expert: '专家分析',
+      announcement: '公告统计',
+      notification: '通知统计',
+      mall: '商城分析',
+    };
+    const label = toolLabels[toolName] || '数据图表';
+    const firstSentence = answer.split(/[。！\n]/)[0]?.slice(0, 30) || '';
+    return firstSentence || label;
+  }
+
+  private inferChartType(
+    code: string,
+  ): 'bar' | 'line' | 'pie' | 'scatter' | 'radar' {
+    if (code.includes('.pie(')) return 'pie';
+    if (code.includes('.scatter(')) return 'scatter';
+    if (code.includes('.plot(')) return 'line';
+    if (code.includes('.barh(')) return 'bar';
+    if (code.includes('.bar(')) return 'bar';
+    return 'bar'; // default
+  }
+
+  private inferChartCaption(answer: string): string {
+    const sentence = answer.split(/[。！\n]/)[0]?.slice(0, 50) || '';
+    return sentence;
   }
 
   async getQuickStats() {
