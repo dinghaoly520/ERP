@@ -3,12 +3,11 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSupplierStore } from '@/stores/supplier'
 import { useNotificationStore } from '@/stores/notification'
-import { useAnnouncementStore } from '@/stores/announcement'
 import { useBidStore } from '@/stores/bid'
 import { useAuthStore } from '@/stores/auth'
 import { supplierApi } from '@/api/supplier'
 import SkeletonCard from '@/components/SkeletonCard.vue'
-import ProfileCompleteness from '@/components/ProfileCompleteness.vue'
+import ProfileCompletenessBanner from '@/components/ProfileCompletenessBanner.vue'
 import CountdownTimer from '@/components/CountdownTimer.vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
@@ -16,7 +15,6 @@ import dayjs from 'dayjs'
 const router = useRouter()
 const supplierStore = useSupplierStore()
 const notifStore = useNotificationStore()
-const announcementStore = useAnnouncementStore()
 const bidStore = useBidStore()
 const authStore = useAuthStore()
 
@@ -30,7 +28,6 @@ onMounted(async () => {
     await Promise.all([
       supplierStore.fetchDashboardStats(),
       supplierStore.fetchStatus(),
-      announcementStore.fetchAnnouncements({ page: 1, pageSize: 5 }),
       bidStore.fetchProjects(1, 5),
       notifStore.fetchNotifications(1, 5),
     ])
@@ -50,12 +47,6 @@ const statusType: Record<string, string> = {
   PENDING: 'pending', RETURNED: 'returned', APPROVED: 'approved',
   REJECTED: 'rejected', DISABLED: 'disabled', BLACKLIST: 'disabled',
 }
-const typeLabel: Record<string, string> = {
-  BID_NOTICE: '招标公告', WIN_NOTICE: '中标公示', POLICY: '政策法规', PLATFORM: '平台通知',
-}
-const typeTagType: Record<string, string> = {
-  BID_NOTICE: 'primary', WIN_NOTICE: 'success', POLICY: 'warning', PLATFORM: 'info',
-}
 const stageMap: Record<string, { label: string; color: string }> = {
   DOWNLOAD: { label: '文件下载', color: '#0891b2' },
   SUBMIT: { label: '加密投递', color: '#0a5eb8' },
@@ -66,7 +57,6 @@ const stageMap: Record<string, { label: string; color: string }> = {
 
 const completeness = computed(() => stats.value?.profileCompleteness || { score: 0, missing: [] })
 const visibleProjects = computed(() => bidStore.projects.slice(0, 4))
-const visibleAnnouncements = computed(() => announcementStore.announcements.slice(0, 4))
 const visibleNotifications = computed(() => notifStore.notifications.filter((n: any) => !n.isRead).slice(0, 3))
 
 const metrics = computed(() => {
@@ -90,7 +80,7 @@ const tasks = computed(() => {
     items.push({ icon: 'EditPen', title: '处理资料补正', desc: status.returnReason || '根据审核意见补齐入驻资料', path: '/onboarding', tone: 'orange' })
   }
   if ((s.profileCompleteness?.score || 0) < 100) {
-    items.push({ icon: 'OfficeBuilding', title: '完善企业档案', desc: `资料完整度 ${s.profileCompleteness?.score || 0}%`, path: '/profile', tone: 'blue' })
+    items.push({ icon: 'OfficeBuilding', title: '完善企业档案', desc: `企业评分 ${s.profileCompleteness?.score || 0}分`, path: '/profile', tone: 'blue' })
   }
   if (s.expiringQualifications > 0) {
     items.push({ icon: 'WarningFilled', title: '更新到期资质', desc: `${s.expiringQualifications} 项证照临近有效期`, path: '/qualifications', tone: 'red' })
@@ -148,7 +138,6 @@ async function handleChangePassword() {
       <div class="sp-page-hero-card">
         <div class="sp-page-hero-inner">
           <div class="sp-page-hero-body">
-            <div class="sp-page-eyebrow blue"><el-icon :size="13"><HomeFilled /></el-icon>蜀水云采 · 供应商工作台</div>
             <h1 class="sp-modern-title">{{ authStore.displayName || statusInfo.name }}，{{ new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好' }}</h1>
             <p class="sp-modern-desc">
               当前状态
@@ -158,17 +147,20 @@ async function handleChangePassword() {
             </p>
           </div>
           <div class="sp-page-hero-actions">
-            <div class="db-hero-score">
-              <div class="db-hero-score-num">{{ completeness.score }}<small>%</small></div>
-              <div class="db-hero-score-label">资料完整度</div>
-              <div class="db-hero-score-hint">{{ completeness.missing.length ? `仍缺 ${completeness.missing.length} 项` : '已完善' }}</div>
-            </div>
             <el-button type="primary" @click="router.push('/bids')">招标机会</el-button>
             <el-button @click="router.push('/my-bids')">投标进展</el-button>
             <el-button @click="router.push('/profile')">完善档案</el-button>
           </div>
         </div>
       </div>
+
+      <!-- Completeness Banner -->
+      <ProfileCompletenessBanner
+        v-if="stats"
+        :score="completeness.score"
+        :missing="completeness.missing"
+        class="db-completeness-banner"
+      />
 
       <!-- Key metrics -->
       <div class="db-metrics" v-if="stats">
@@ -180,11 +172,12 @@ async function handleChangePassword() {
 
       <!-- Two-column body -->
       <div class="db-grid">
-        <div class="db-main">
+        <!-- Left column -->
+        <div class="db-grid-col">
           <!-- Projects -->
-          <section class="db-section">
-            <div class="db-section-head">
-              <h2 class="db-section-title">招标机会</h2>
+          <section class="sp-module">
+            <div class="sp-module-header">
+              <h2 class="sp-module-title">招标机会</h2>
               <el-button link type="primary" @click="router.push('/bids')">全部 →</el-button>
             </div>
             <div v-if="visibleProjects.length === 0" class="db-empty">暂无招标项目</div>
@@ -201,30 +194,10 @@ async function handleChangePassword() {
               </div>
             </div>
           </section>
-
-          <!-- Announcements -->
-          <section class="db-section">
-            <div class="db-section-head">
-              <h2 class="db-section-title">公告公示</h2>
-              <el-button link type="primary" @click="router.push('/announcements')">全部 →</el-button>
-            </div>
-            <div v-if="visibleAnnouncements.length === 0" class="db-empty">暂无公告</div>
-            <div v-else>
-              <div v-for="a in visibleAnnouncements" :key="a.id" class="db-ann-row" @click="router.push(`/announcements/${a.id}`)">
-                <el-tag :type="(typeTagType[a.type] as any)" size="small" effect="plain">{{ typeLabel[a.type] || a.type }}</el-tag>
-                <span class="db-ann-title">{{ a.title }}</span>
-                <span class="db-ann-date">{{ dayjs(a.publishDate || a.createdAt).format('MM-DD') }}</span>
-              </div>
-            </div>
-          </section>
         </div>
 
-        <aside class="db-side">
-          <!-- Profile completeness -->
-          <div class="sp-module">
-            <ProfileCompleteness :score="completeness.score" :missing="completeness.missing" />
-          </div>
-
+        <!-- Right column -->
+        <div class="db-grid-col">
           <!-- Tasks -->
           <div class="sp-module">
             <div class="sp-module-header">
@@ -242,17 +215,20 @@ async function handleChangePassword() {
           </div>
 
           <!-- Unread notifications -->
-          <div class="sp-module" v-if="visibleNotifications.length > 0">
+          <div class="sp-module">
             <div class="sp-module-header">
               <h2 class="sp-module-title">未读消息</h2>
-              <el-button link type="primary" @click="router.push('/notifications')">处理</el-button>
+              <el-button link type="primary" @click="router.push('/notifications')">全部 →</el-button>
             </div>
-            <div v-for="n in visibleNotifications" :key="n.id" class="db-msg-row" @click="router.push('/notifications')">
-              <span class="db-msg-title">{{ n.title }}</span>
-              <span class="db-msg-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</span>
+            <div v-if="visibleNotifications.length === 0" class="db-empty">暂无未读消息</div>
+            <div v-else>
+              <div v-for="n in visibleNotifications" :key="n.id" class="db-msg-row" @click="router.push('/notifications')">
+                <span class="db-msg-title">{{ n.title }}</span>
+                <span class="db-msg-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</span>
+              </div>
             </div>
           </div>
-        </aside>
+        </div>
       </div>
     </template>
   </div>
@@ -263,14 +239,14 @@ async function handleChangePassword() {
 .db-metrics {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  gap: 20px;
   margin-bottom: 20px;
 }
 .db-metric {
   background: #fff;
   border: 1px solid var(--sp-border);
   border-radius: var(--sp-radius-md);
-  padding: 16px 20px;
+  padding: 16px;
   cursor: pointer;
   transition: border-color 0.15s;
 }
@@ -289,36 +265,13 @@ async function handleChangePassword() {
   color: var(--sp-gray-500);
 }
 
-/* Hero score */
-.db-hero-score {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 16px 20px;
-  border: 1px solid var(--sp-border-light);
-  border-radius: var(--sp-radius-sm);
-  background: var(--sp-primary-lighter);
-}
-.db-hero-score-num { font-size: 40px; font-weight: 950; line-height: 1; color: var(--sp-primary); font-variant-numeric: tabular-nums; }
-.db-hero-score-num small { font-size: 14px; font-weight: 600; color: var(--sp-gray-400); }
-.db-hero-score-label { margin-top: 4px; font-size: 12px; font-weight: 800; color: var(--sp-gray-700); }
-.db-hero-score-hint { margin-top: 2px; font-size: 11px; color: var(--sp-gray-400); }
-
 /* Two-column grid */
-.db-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
-.db-main, .db-side { display: grid; gap: 16px; }
+.db-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+.db-grid-col { display: grid; gap: 20px; }
 
-/* Section */
-.db-section {
-  background: #fff;
-  border: 1px solid var(--sp-border);
-  border-radius: var(--sp-radius-md);
-  padding: 16px 18px;
-}
-.db-section-head {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 12px; padding-bottom: 12px;
-  border-bottom: 1px solid var(--sp-border-light);
-}
-.db-section-title { font-size: 13px; font-weight: 800; color: var(--sp-gray-700); letter-spacing: 0.03em; }
+/* Banner spacing */
+.db-completeness-banner { margin-bottom: 20px; }
+
 .db-empty { padding: 20px 0 8px; text-align: center; color: var(--sp-gray-400); font-size: 13px; }
 
 .db-project-row {
@@ -361,12 +314,10 @@ async function handleChangePassword() {
 
 @media (max-width: 1100px) {
   .db-grid { grid-template-columns: 1fr; }
-  .db-side { grid-template-columns: repeat(2,1fr); }
 }
 @media (max-width: 768px) {
   .db-grid { grid-template-columns: 1fr; }
   .db-metrics { grid-template-columns: repeat(2, 1fr); }
-  .db-side { grid-template-columns: 1fr; }
   .db-project-row { grid-template-columns: 1fr; }
 }
 </style>

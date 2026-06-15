@@ -7,6 +7,7 @@ import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import { MessageSquare, Send, Plus, X } from 'lucide-react';
+import { PageHero } from '@/components/workbench/page-hero';
 
 export default function BidClarificationsPage() {
   const [projectId, setProjectId] = useState('');
@@ -68,19 +69,15 @@ export default function BidClarificationsPage() {
   );
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-[28px] font-bold tracking-tight text-[oklch(0.18_0.012_265)]"
-            style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-            澄清与答疑
-          </h1>
-          <p className="text-[14px] text-[oklch(0.55_0.01_264)] mt-1">
-            发起澄清 · 供应商回复 · 全程留痕
-          </p>
-        </div>
-        <ProjectSelector value={projectId} onChange={setProjectId} />
-      </div>
+    <div className="space-y-6">
+      <PageHero
+        eyebrow="澄清答疑"
+        tone="cyan"
+        icon={<MessageSquare size={14} strokeWidth={1.5} />}
+        title="澄清与答疑"
+        description="发起澄清 · 供应商回复 · 全程留痕"
+        actions={<ProjectSelector value={projectId} onChange={setProjectId} />}
+      />
 
       {/* Action bar */}
       <div className="flex items-center justify-between mb-6">

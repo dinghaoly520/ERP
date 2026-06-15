@@ -8,7 +8,7 @@ import {
   updateSupplierStatus, createClassification, updateClassification, deleteClassification,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierClassification, SupplierListResponse } from '@/lib/types';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton } from '@/components/workbench';
 import { Building2, Layers, Search, Plus } from 'lucide-react';
 
 export default function SupplierRepositoryPage() {
@@ -98,7 +98,7 @@ export default function SupplierRepositoryPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="供应商管理中心" title="供应商库"
+         title="供应商库"
         description="全量供应商目录、分类管理与状态维护。支持按状态、分类和关键词筛选。"
         tone="green" icon={<Building2 size={14} />}
         actions={
@@ -203,17 +203,17 @@ export default function SupplierRepositoryPage() {
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>
               <th className="px-4 py-3">企业名称</th>
-              <th className="px-4 py-3">统一社会信用代码</th>
-              <th className="px-4 py-3">企业类型</th>
-              <th className="px-4 py-3">状态</th>
-              <th className="px-4 py-3">分类</th>
-              <th className="px-4 py-3">入库时间</th>
-              <th className="px-4 py-3 text-right">操作</th>
+              <th className="px-4 py-3 text-center">统一社会信用代码</th>
+              <th className="px-4 py-3 text-center">企业类型</th>
+              <th className="px-4 py-3 text-center">状态</th>
+              <th className="px-4 py-3 text-center">分类</th>
+              <th className="px-4 py-3 text-center">入库时间</th>
+              <th className="px-4 py-3 text-center">操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="px-4 py-16 text-center text-[#8a99ad]">加载中...</td></tr>
+              <TableSkeleton cols={7} rows={5} />
             ) : data.items.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-16 text-center text-[#8a99ad]">暂无供应商数据</td></tr>
             ) : data.items.map((s: Supplier) => {
@@ -224,7 +224,7 @@ export default function SupplierRepositoryPage() {
                 : s.status === 'RETURNED' ? '退回补正' : s.status === 'DISABLED' ? '已停用'
                 : s.status === 'BLACKLIST' ? '黑名单' : s.status;
               return (
-                <tr key={s.id} className="border-t border-[#edf2f7] hover:bg-[#f8fafc]">
+                <tr key={s.id} className="row-clickable" onClick={() => router.push(`/supplier/${s.id}`)}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#064ea2] text-xs font-extrabold text-white">
@@ -236,22 +236,22 @@ export default function SupplierRepositoryPage() {
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-[#5a6d8a]">{s.creditCode || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-[#5a6d8a]">{s.enterpriseType || '—'}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-center font-mono text-xs text-[#5a6d8a]">{s.creditCode || '—'}</td>
+                  <td className="px-4 py-3 text-center text-sm text-[#5a6d8a]">{s.enterpriseType || '—'}</td>
+                  <td className="px-4 py-3 text-center">
                     <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge>
                   </td>
-                  <td className="px-4 py-3 text-sm text-[#5a6d8a]">{s.classification?.name || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-[#5a6d8a]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-1.5">
-                      <button onClick={() => router.push(`/supplier/${s.id}`)}
+                  <td className="px-4 py-3 text-center text-sm text-[#5a6d8a]">{s.classification?.name || '—'}</td>
+                  <td className="px-4 py-3 text-center text-sm text-[#5a6d8a]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex justify-center gap-1.5">
+                      <button onClick={(e) => { e.stopPropagation(); router.push(`/supplier/${s.id}`); }}
                         className="rounded-lg border border-[#dce6f3] px-2.5 py-1 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">详情</button>
                       {s.status === 'APPROVED' && (
                         <>
-                          <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'disable', supplier: s }); }}
+                          <button onClick={(e) => { e.stopPropagation(); setStatusReason(''); setStatusModal({ type: 'disable', supplier: s }); }}
                             className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 hover:bg-amber-100 transition">停用</button>
-                          <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'blacklist', supplier: s }); }}
+                          <button onClick={(e) => { e.stopPropagation(); setStatusReason(''); setStatusModal({ type: 'blacklist', supplier: s }); }}
                             className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-100 transition">黑名单</button>
                         </>
                       )}
@@ -278,8 +278,8 @@ export default function SupplierRepositoryPage() {
 
       {/* Status change modal */}
       {statusModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setStatusModal(null)}>
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setStatusModal(null)}>
+          <div className="modal-content w-full max-w-md overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="border-b border-[#edf2f7] px-6 py-4">
               <h3 className="text-base font-bold text-[#18243a]">
                 {statusModal.type === 'disable' ? '停用供应商' : '加入黑名单'}

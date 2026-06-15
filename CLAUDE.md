@@ -17,12 +17,12 @@ Run workspace commands from `water-erp/`.
 | Directory | Tech | Port | Role |
 | --- | --- | --- | --- |
 | `apps/api` | NestJS 11 + Prisma | 4001 | REST API; Swagger at `/api/docs` |
-| `apps/mall` | Next.js 16 App Router | 3002 | Public procurement mall / e-commerce-facing portal |
-| `apps/supplier-portal` | Vue 3 + Vite | 3003 | Supplier self-service portal |
-| `apps/web` | Next.js 16 App Router | 3004 | Admin/internal staff portal |
-| `apps/expert-portal` | Next.js 16 App Router | 3005 | Bid expert portal |
-| `apps/public-portal` | Next.js 16 App Router | 3006 | Public-facing landing + announcements |
-| `apps/bid-portal` | Next.js 16 App Router | 3007 | 开评标管理端 — bid opening/evaluation admin backend (开标大厅/监督端/评标/归档); post-login home for `admin`/`bid_host`, reached via the public-portal "在线开评标系统" card → `:3005` login |
+| `apps/public-portal` | Next.js 16 App Router | 3002 | 信息门户 — public-facing landing + announcements |
+| `apps/mall` | Next.js 16 App Router | 3003 | Public procurement mall / e-commerce-facing portal |
+| `apps/supplier-portal` | Vue 3 + Vite | 3004 | Supplier self-service portal |
+| `apps/web` | Next.js 16 App Router | 3005 | Admin/internal staff portal |
+| `apps/expert-portal` | Next.js 16 App Router | 3006 | Bid expert portal |
+| `apps/bid-portal` | Next.js 16 App Router | 3007 | 开评标管理端 — bid opening/evaluation admin backend (开标大厅/监督端/评标/归档); post-login home for `admin`/`bid_host`, reached via the public-portal "在线开评标系统" card → `:3006` login |
 | `apps/assistant` | Next.js 16 App Router | 3008 | 水叮当智能助手 — standalone AI assistant chat portal |
 | `packages/config` | TypeScript | — | Shared ports and role-to-portal routing (`@water-erp/config`) |
 | `packages/shared` | TypeScript | — | Shared domain types, labels, status maps, and brand constants (`@water-erp/shared`) |
@@ -128,14 +128,14 @@ Seed data creates demo accounts. Passwords follow the `<username>@2026` conventi
 
 > **Seed mechanism:** `pnpm db:seed` is **idempotent and destructive** — `apps/api/prisma/seed.ts` does `TRUNCATE ... RESTART IDENTITY CASCADE` on all business tables, then reloads from JSON snapshots in `apps/api/prisma/seed-data/*.json` (one file per table, e.g. `User.json`, `ExpertProfile.json`). It is **NOT** imperative upserts in `seed.ts`. To change seed data, edit the JSON snapshots (not seed.ts logic). Snapshots were originally dumped from a real DB via `apps/api/prisma/scripts/dump-seed.ts`; to refresh them, modify the DB then re-dump. Helper scripts under `apps/api/prisma/scripts/` generate specific snapshot slices — e.g. `gen-experts.cjs` regenerates the expert pool (currently 65 generated experts across 13 specialties + the 3 demo experts, all with 某-style anonymized names and `XXX水利技术服务中心` employers).
 
-- `caigou / caigou@2026` — 采购管理员（procurement_staff，web 门户 :3004）
+- `mall / mall@2026` — 商城采购员（mall 门户 :3003）
+- `supplier1 / supplier1@2026` — 供应商（已入库，supplier 门户 :3004）
+- `supplier2 / supplier2@2026` — 供应商（待审核，supplier 门户 :3004）
+- `caigou / caigou@2026` — 采购管理员（procurement_staff，web 门户 :3005）
+- `wangjg / wangjg@2026` — 专家·王某国（expert 门户 :3006）
+- `liuxm / liuxm@2026` — 专家·刘某梅（expert 门户 :3006）
+- `chenzq / chenzq@2026` — 专家·陈某强（expert 门户 :3006）
 - `lizhuren / lizhuren@2026` — 开标主持人（bid_host，开评标管理端 :3007）
-- `supplier1 / supplier1@2026` — 供应商（已入库，supplier 门户 :3003）
-- `supplier2 / supplier2@2026` — 供应商（待审核，supplier 门户 :3003）
-- `wangjg / wangjg@2026` — 专家·王某国（expert 门户 :3005）
-- `liuxm / liuxm@2026` — 专家·刘某梅（expert 门户 :3005）
-- `chenzq / chenzq@2026` — 专家·陈某强（expert 门户 :3005）
-- `mall / mall@2026` — 商城采购员（mall 门户 :3002）
 
 > The `admin` account was removed in favor of per-portal accounts. The `admin` role still exists in the schema/RBAC (e.g. on `BidController`), it just has no seeded user.
 
@@ -148,18 +148,18 @@ The seed also creates supplier classifications, demo suppliers, notifications, a
 `packages/config/src/ports.ts` is the single source for local ports:
 
 - `api: 4001`
-- `mall: 3002`
-- `supplier: 3003`
-- `web: 3004`
-- `expert: 3005`
-- `public: 3006`
+- `public: 3002`
+- `mall: 3003`
+- `supplier: 3004`
+- `web: 3005`
+- `expert: 3006`
 - `bid: 3007`
 - `assistant: 3008`
 
 `packages/config/src/urls.ts` maps roles to post-login portal destinations:
 
 - `admin`, `bid_host` → `bid` (开评标管理端 :3007, landing `/bid`)
-- `procurement_staff` → `web` (采购管理工作台 :3004)
+- `procurement_staff` → `web` (采购管理工作台 :3005)
 - `supplier` → `supplier`
 - `bid_expert` → `expert`
 - `mall` → `mall`

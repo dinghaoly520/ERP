@@ -18,11 +18,11 @@ export const ROLE_PORTAL: Record<string, string> = {
 
 /** 本地端口 → 门户名（与 @water-erp/config 的 PORTS 保持一致） */
 const PORT_TO_PORTAL: Record<string, string> = {
-  '3002': 'mall',
-  '3003': 'supplier',
-  '3004': 'web',
-  '3005': 'expert',
-  '3006': 'public',
+  '3002': 'public',    // 信息门户
+  '3003': 'mall',      // 采购商城
+  '3004': 'supplier',  // 供应商门户
+  '3005': 'web',       // 采购管理工作台
+  '3006': 'expert',    // 专家门户
   // bid-portal(:3007) 复用 token_web 命名空间：admin/bid_host 的 cookie 即 token_web（无 token_bid），
   // 故从端口推断门户时把 3007 映射到 'web'，使无 X-Portal 头的客户端请求（如 AppShell 的 /auth/me）能读到 token_web。
   '3007': 'web',

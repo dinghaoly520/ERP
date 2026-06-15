@@ -35,7 +35,6 @@ export default function MallManagementLogsPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="电子商城管理"
         title="同步与操作日志"
         description="商城读取同一套目录数据，无独立同步队列。这里展示目录导入、改价、下架和导出等操作记录。"
         tone="blue"

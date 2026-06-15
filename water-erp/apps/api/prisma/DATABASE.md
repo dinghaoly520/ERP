@@ -143,11 +143,11 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 
 | 账号 | 角色 | 门户 |
 | --- | --- | --- |
-| `caigou` | procurement_staff | 采购管理端 :3004 |
+| `mall` | mall | 电子商城 :3003 |
+| `supplier1` | supplier | 供应商端 :3004 |
+| `caigou` | procurement_staff | 采购管理端 :3005 |
+| `wangjg` / `liuxm` / `chenzq` | bid_expert | 专家评标 :3006 |
 | `lizhuren` | bid_host | 开评标管理端 :3007 |
-| `supplier1` | supplier | 供应商端 :3003 |
-| `wangjg` / `liuxm` / `chenzq` | bid_expert | 专家评标 :3005 |
-| `mall` | mall | 电子商城 :3002 |
 
 ---
 

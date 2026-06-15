@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getSupplierList, approveSupplier, rejectSupplier, returnSupplier } from '@/lib/api/supplier';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton } from '@/components/workbench';
 import { Building2, ClipboardCheck } from 'lucide-react';
 
 const TABS: { key: 'PENDING' | 'RETURNED' | 'REJECTED'; label: string; tone: 'blue' | 'orange' | 'red' }[] = [
@@ -67,7 +67,7 @@ export default function SupplierApprovalPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="供应商管理中心" title="供应商审批"
+         title="供应商审批"
         description="审核供应商注册申请，支持审核通过、退回补正和审核不通过。"
         tone="green" icon={<Building2 size={14} />}
       />
@@ -101,22 +101,22 @@ export default function SupplierApprovalPage() {
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>
               <th className="px-4 py-3">企业名称</th>
-              <th className="px-4 py-3">统一社会信用代码</th>
-              <th className="px-4 py-3">企业类型</th>
-              <th className="px-4 py-3">状态</th>
-              <th className="px-4 py-3">申请时间</th>
-              <th className="px-4 py-3 text-right">操作</th>
+              <th className="px-4 py-3 text-center">统一社会信用代码</th>
+              <th className="px-4 py-3 text-center">企业类型</th>
+              <th className="px-4 py-3 text-center">状态</th>
+              <th className="px-4 py-3 text-center">申请时间</th>
+              <th className="px-4 py-3 text-center">操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-16 text-center text-[#8a99ad]">加载中...</td></tr>
+              <TableSkeleton cols={6} rows={5} />
             ) : data.items.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-16 text-center text-[#8a99ad]">
                 暂无{TABS.find(t => t.key === tab)?.label}申请
               </td></tr>
             ) : data.items.map((s: Supplier) => (
-              <tr key={s.id} className="border-t border-[#edf2f7] hover:bg-[#f8fafc]">
+              <tr key={s.id} className="row-clickable" onClick={() => router.push(`/supplier/${s.id}`)}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#064ea2] text-xs font-extrabold text-white">
@@ -126,9 +126,9 @@ export default function SupplierApprovalPage() {
                       onClick={() => router.push(`/supplier/${s.id}`)}>{s.name}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3 font-mono text-xs text-[#5a6d8a]">{s.creditCode || '—'}</td>
-                <td className="px-4 py-3 text-sm text-[#5a6d8a]">{s.enterpriseType || '—'}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 text-center font-mono text-xs text-[#5a6d8a]">{s.creditCode || '—'}</td>
+                <td className="px-4 py-3 text-center text-sm text-[#5a6d8a]">{s.enterpriseType || '—'}</td>
+                <td className="px-4 py-3 text-center">
                   <StatusBadge tone={s.status === 'PENDING' ? 'blue' : s.status === 'RETURNED' ? 'orange' : 'red'}>
                     {s.status === 'PENDING' ? '待审核' : s.status === 'RETURNED' ? '退回补正' : '审核不通过'}
                   </StatusBadge>
@@ -139,19 +139,19 @@ export default function SupplierApprovalPage() {
                     <p className="mt-1 text-xs text-red-600">拒绝原因：{s.rejectReason}</p>
                   )}
                 </td>
-                <td className="px-4 py-3 text-sm text-[#5a6d8a]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex justify-end gap-1.5">
-                    <button onClick={() => router.push(`/supplier/${s.id}`)}
-                      className="rounded-lg border border-[#dce6f3] px-2.5 py-1 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">详情</button>
+                <td className="px-4 py-3 text-center text-sm text-[#5a6d8a]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
+                <td className="px-4 py-3 text-center">
+                  <div className="flex justify-center gap-1.5">
+                    <button onClick={(e) => { e.stopPropagation(); router.push(`/supplier/${s.id}`); }}
+                      className="btn-press rounded-lg border border-[#dce6f3] px-2.5 py-1 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">详情</button>
                     {tab !== 'REJECTED' && (
                       <>
-                        <button onClick={() => setActionModal({ type: 'approve', supplier: s })}
-                          className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition">通过</button>
-                        <button onClick={() => { setActionReason(''); setActionModal({ type: 'return', supplier: s }); }}
-                          className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 border border-amber-200 hover:bg-amber-100 transition">退回</button>
-                        <button onClick={() => { setActionReason(''); setActionModal({ type: 'reject', supplier: s }); }}
-                          className="rounded-lg bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 border border-red-200 hover:bg-red-100 transition">拒绝</button>
+                        <button onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'approve', supplier: s }); }}
+                          className="btn-press rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition">通过</button>
+                        <button onClick={(e) => { e.stopPropagation(); setActionReason(''); setActionModal({ type: 'return', supplier: s }); }}
+                          className="btn-press rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 border border-amber-200 hover:bg-amber-100 transition">退回</button>
+                        <button onClick={(e) => { e.stopPropagation(); setActionReason(''); setActionModal({ type: 'reject', supplier: s }); }}
+                          className="btn-press rounded-lg bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 border border-red-200 hover:bg-red-100 transition">拒绝</button>
                       </>
                     )}
                   </div>
@@ -176,8 +176,8 @@ export default function SupplierApprovalPage() {
 
       {/* Action modal */}
       {actionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setActionModal(null)}>
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setActionModal(null)}>
+          <div className="modal-content w-full max-w-md overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="border-b border-[#edf2f7] px-6 py-4">
               <h3 className="text-base font-bold text-[#18243a]">
                 {actionModal.type === 'approve' ? '确认审核通过' : actionModal.type === 'reject' ? '审核不通过' : '退回补正'}

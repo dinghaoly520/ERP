@@ -5,7 +5,7 @@
 /* ── 品牌 ── */
 
 export const BRAND = {
-  name: '四川水发集团',
+  name: '智慧水发 · 蜀水云采',
   nameEn: 'SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.',
   shortName: '智慧水发',
   systemName: '智慧水发·蜀水云采',

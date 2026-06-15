@@ -11,8 +11,8 @@ import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Announ
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { toast } from 'sonner';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
-import { FileText, Megaphone as MegaphoneIcon, PlusCircle } from 'lucide-react';
+import { MetricCard, PageHero, StatusBadge, TableSkeleton } from '@/components/workbench';
+import { FileText, Megaphone as MegaphoneIcon, PlusCircle, Search } from 'lucide-react';
 
 const typeMap: Record<AnnouncementType, { label: string; color: string; bg: string }> = {
   BID_NOTICE: { label: '招标公示', color: '#064ea2', bg: '#064ea218' },
@@ -72,7 +72,19 @@ export default function NoticePage() {
   const totalPages = Math.ceil(data.total / 15);
   const remove = async (a: AnnouncementListItem) => {
     if (!confirm('确认删除「' + a.title + '」？')) return;
-    try { await deleteAnnouncement(a.id); toast.success('已删除'); load(); } catch (e: any) { toast.error(e?.message || '删除失败'); }
+    // Optimistic removal + undo
+    const prevItems = data.items;
+    setData(d => ({ ...d, items: d.items.filter(x => x.id !== a.id) }));
+    let cancelled = false;
+    const undoId = toast('已删除「' + a.title + '」', {
+      description: '4 秒内可撤销',
+      duration: 4000,
+      action: { label: '撤销', onClick: () => { cancelled = true; setData(d => ({ ...d, items: prevItems })); } },
+    });
+    // Wait for toast to expire
+    await new Promise(r => setTimeout(r, 4200));
+    if (cancelled) return;
+    try { await deleteAnnouncement(a.id); load(); } catch (e: any) { toast.error(e?.message || '删除失败'); load(); }
   };
 
   return (
@@ -93,38 +105,72 @@ export default function NoticePage() {
         <MetricCard label="已归档" value={data.items.filter(item => item.status === 'ARCHIVED').length} hint="本页归档记录" tone="gray" />
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <button onClick={() => { setFilterType(''); setPage(1); }} className={`rounded-xl px-4 py-2 text-sm font-bold transition ${filterType === '' ? 'bg-[#064ea2] text-white' : 'bg-white text-[#5a6d8a] border border-[#dce6f3] hover:border-[#bcd0e8] hover:text-[#064ea2]'}`}>全部</button>
-        {(Object.keys(typeMap) as AnnouncementType[]).map(t => (
-          <button key={t} onClick={() => { setFilterType(t); setPage(1); }} className={`rounded-xl px-4 py-2 text-sm font-bold transition ${filterType === t ? 'bg-[#064ea2] text-white' : 'bg-white text-[#5a6d8a] border border-[#dce6f3] hover:border-[#bcd0e8] hover:text-[#064ea2]'}`}>{typeMap[t].label}</button>
-        ))}
-      </div>
+      {/* ── 分段控件条 + 搜索 ── */}
+      <div className="mt-6 rounded-2xl border border-[#e5ecf4] bg-white overflow-hidden">
+        {/* 类型分段控件 */}
+        <div className="flex items-center border-b border-[#edf2f7]">
+          <div className="flex">
+            {([{ k: '', label: '全部' }, ...(Object.keys(typeMap) as AnnouncementType[]).map(t => ({ k: t, label: typeMap[t].label }))] as { k: string; label: string }[]).map((item, i, arr) => (
+              <button
+                key={item.k}
+                onClick={() => { setFilterType(item.k as AnnouncementType | ''); setPage(1); }}
+                className={`relative px-5 py-3 text-sm font-bold transition-colors
+                  ${filterType === item.k
+                    ? 'text-[#064ea2] bg-[#f0f5ff]'
+                    : 'text-[#5a6d8a] hover:text-[#18243a] hover:bg-[#f8fafc]'
+                  }
+                  ${i < arr.length - 1 ? 'border-r border-[#edf2f7]' : ''}
+                `}
+              >
+                {item.label}
+                {filterType === item.k && (
+                  <span className="absolute bottom-0 left-[14px] right-[14px] h-[2px] rounded-full bg-[#064ea2]" />
+                )}
+              </button>
+            ))}
+          </div>
 
-      <DataToolbar className="mb-4">
-        <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索标题" className="workbench-input flex-1 text-sm" />
-        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value as any); setPage(1); }} className="workbench-input text-sm">
-          <option value="">全部状态</option>
-          <option value="PUBLISHED">已发布</option>
-          <option value="DRAFT">草稿</option>
-          <option value="ARCHIVED">已归档</option>
-        </select>
-      </DataToolbar>
+          {/* 搜索 + 状态下拉 — 右对齐 */}
+          <div className="ml-auto flex items-center gap-3 pr-4">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
+              <input
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1); }}
+                placeholder="搜索标题..."
+                className="w-[180px] rounded-lg border border-[#e5ecf4] bg-[#f8fafc] py-1.5 pl-8 pr-3 text-sm text-[#18243a] placeholder-[#94a3b8] outline-none transition focus:border-[#0b63ce] focus:bg-white focus:shadow-[0_0_0_3px_rgba(11,99,206,0.10)]"
+              />
+            </div>
+            <select
+              value={filterStatus}
+              onChange={e => { setFilterStatus(e.target.value as any); setPage(1); }}
+              className="rounded-lg border border-[#e5ecf4] bg-[#f8fafc] py-1.5 pl-3 pr-7 text-sm text-[#5a6d8a] outline-none transition focus:border-[#0b63ce] focus:bg-white focus:shadow-[0_0_0_3px_rgba(11,99,206,0.10)] appearance-none bg-no-repeat"
+              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundPosition: 'right 8px center' }}
+            >
+              <option value="">全部状态</option>
+              <option value="PUBLISHED">已发布</option>
+              <option value="DRAFT">草稿</option>
+              <option value="ARCHIVED">已归档</option>
+            </select>
+          </div>
+        </div>
 
-      <SectionCard className="overflow-hidden p-0">
+        {/* 表格 */}
+        <div className="overflow-hidden">
         <table className="workbench-table">
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>
-              <th className="px-4 py-3">标题</th>
-              <th className="px-4 py-3">类型</th>
-              <th className="px-4 py-3">状态</th>
-              <th className="px-4 py-3">附件/招标文件</th>
-              <th className="px-4 py-3">浏览</th>
-              <th className="px-4 py-3 text-right">操作</th>
+              <th className="px-4 py-3 text-center">标题</th>
+              <th className="px-4 py-3 text-center">类型</th>
+              <th className="px-4 py-3 text-center">状态</th>
+              <th className="px-4 py-3 text-center">附件/招标文件</th>
+              <th className="px-4 py-3 text-center">浏览</th>
+              <th className="px-4 py-3 text-center">操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-16 text-center text-[#8a99ad]">加载中...</td></tr>
+              <TableSkeleton cols={6} rows={5} />
             ) : data.items.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-16 text-center text-[#8a99ad]">暂无信息</td></tr>
             ) : data.items.map(a => {
@@ -132,24 +178,24 @@ export default function NoticePage() {
               const sm = statusMap[a.status] || statusMap.DRAFT;
               const noBidDoc = a.type === 'BID_NOTICE' && a.status === 'PUBLISHED' && !a.bidDocument;
               return (
-                <tr key={a.id} className="border-t border-[#edf2f7] hover:bg-[#f8fafc]">
+                <tr key={a.id} className="row-clickable" onClick={() => setEditor(a)}>
                   <td className="px-4 py-3">
                     <span className="text-sm font-bold text-[#18243a]">{a.title}</span>
                     {a.isTop && <StatusBadge tone="red" className="ml-1 !text-[10px] !px-1.5 !py-0">置顶</StatusBadge>}
                     {noBidDoc && <span className="ml-2 rounded-md bg-[#fef2f2] px-1.5 py-0.5 text-[10px] text-[#e74c3c]">未上传招标文件</span>}
                   </td>
-                  <td className="px-4 py-3"><StatusBadge tone={a.type === 'BID_NOTICE' ? 'blue' : a.type === 'WIN_NOTICE' ? 'green' : a.type === 'POLICY' ? 'orange' : 'gray'}>{tm.label}</StatusBadge></td>
-                  <td className="px-4 py-3"><StatusBadge tone={a.status === 'PUBLISHED' ? 'green' : a.status === 'DRAFT' ? 'gray' : 'gray'}>{sm.label}</StatusBadge></td>
-                  <td className="px-4 py-3 text-xs text-[#5a6d8a]">
+                  <td className="px-4 py-3 text-center"><StatusBadge tone={a.type === 'BID_NOTICE' ? 'blue' : a.type === 'WIN_NOTICE' ? 'green' : a.type === 'POLICY' ? 'orange' : 'gray'}>{tm.label}</StatusBadge></td>
+                  <td className="px-4 py-3 text-center"><StatusBadge tone={a.status === 'PUBLISHED' ? 'green' : a.status === 'DRAFT' ? 'gray' : 'gray'}>{sm.label}</StatusBadge></td>
+                  <td className="px-4 py-3 text-center text-xs text-[#5a6d8a]">
                     {a.attachments && a.attachments.length > 0 && <span className="mr-2">📎 {a.attachments.length}</span>}
                     {a.bidDocument && <span className="text-[#064ea2] font-semibold">🔒 招标文件{a.bidDocument.requirePayment ? '(付费)' : ''}</span>}
                   </td>
-                  <td className="px-4 py-3 text-[#5a6d8a]">{a.viewCount}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-1.5 flex-wrap">
-                      <button onClick={() => setEditor(a)} className="rounded-lg border border-[#dce6f3] px-2.5 py-1 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">编辑</button>
-                      {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition">投标情况</button>}
-                      <button onClick={() => remove(a)} className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-100 transition">删除</button>
+                  <td className="px-4 py-3 text-center text-[#5a6d8a]">{a.viewCount}</td>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex justify-center gap-1.5 flex-wrap">
+                      <button onClick={(e) => { e.stopPropagation(); setEditor(a); }} className="rounded-lg border border-[#dce6f3] px-2.5 py-1 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">编辑</button>
+                      {a.type === 'BID_NOTICE' && <button onClick={(e) => { e.stopPropagation(); setPartAnn(a); }} className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition">投标情况</button>}
+                      <button onClick={(e) => { e.stopPropagation(); remove(a); }} className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-100 transition">删除</button>
                     </div>
                   </td>
                 </tr>
@@ -166,7 +212,8 @@ export default function NoticePage() {
             </div>
           </div>
         )}
-      </SectionCard>
+      </div>
+      </div>
 
       {editor !== null && <EditorModal key={editor === 'new' ? 'new' : editor.id} announcement={editor === 'new' ? null : editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); load(); }} />}
       {partAnn && <ParticipantsModal announcement={partAnn} onClose={() => setPartAnn(null)} />}
@@ -472,8 +519,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 function Modal({ title, onClose, wide, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className={'bg-white rounded-xl shadow-xl max-h-[92vh] overflow-y-auto ' + (wide ? 'w-full max-w-3xl' : 'w-full max-w-lg')} onClick={e => e.stopPropagation()}>
+    <div className="modal-backdrop fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className={'modal-content bg-white rounded-xl shadow-xl max-h-[92vh] overflow-y-auto ' + (wide ? 'w-full max-w-3xl' : 'w-full max-w-lg')} onClick={e => e.stopPropagation()}>
         <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-[#e5ecf4] z-10">
           <h3 className="text-lg font-bold text-[#18243a]">{title}</h3>
           <button onClick={onClose} className="text-[#5a6d8a] hover:text-[#18243a] text-xl leading-none">×</button>

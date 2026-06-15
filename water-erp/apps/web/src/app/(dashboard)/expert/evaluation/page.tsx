@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { listExperts, getExpertEvalStats, createExpertEvaluation } from '@/lib/api/expert';
 import type { ExpertListItem, ExpertEvalStats } from '@/lib/api/expert';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton } from '@/components/workbench';
 import { CheckCircle2, Search, X } from 'lucide-react';
 
 const levelColor: Record<string, string> = { A: '#059669', B: '#0756a5', C: '#d97706', D: '#dc2626' };
@@ -58,7 +58,7 @@ export default function ExpertEvaluationPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="专家管理中心" title="专家评价"
+         title="专家评价"
         description="评审专家履职评价：出勤纪律、评审质量、廉洁纪律。评价结果用于后续随机抽取权重参考。"
         tone="blue" icon={<CheckCircle2 size={14} />}
       />
@@ -93,19 +93,19 @@ export default function ExpertEvaluationPage() {
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>
               <th className="px-4 py-3">专家</th>
-              <th className="px-4 py-3">专业</th>
-              <th className="px-4 py-3">工作单位</th>
-              <th className="px-4 py-3">获评次数</th>
-              <th className="px-4 py-3 text-right">操作</th>
+              <th className="px-4 py-3 text-center">专业</th>
+              <th className="px-4 py-3 text-center">工作单位</th>
+              <th className="px-4 py-3 text-center">获评次数</th>
+              <th className="px-4 py-3 text-center">操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="px-4 py-16 text-center text-[#8a99ad]">加载中...</td></tr>
+              <TableSkeleton cols={5} rows={5} />
             ) : experts.length === 0 ? (
               <tr><td colSpan={5} className="px-4 py-16 text-center text-[#8a99ad]">暂无专家</td></tr>
             ) : experts.map(e => (
-              <tr key={e.id} className="border-t border-[#edf2f7] hover:bg-[#f8fafc]">
+              <tr key={e.id} className="row-clickable" onClick={() => openModal(e)}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#064ea2] text-xs font-extrabold text-white">
@@ -116,13 +116,13 @@ export default function ExpertEvaluationPage() {
                     </span>
                   </div>
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 text-center">
                   {e.expertProfile?.specialty && <StatusBadge tone="blue">{e.expertProfile.specialty}</StatusBadge>}
                 </td>
-                <td className="px-4 py-3 text-sm text-[#5a6d8a]">{e.expertProfile?.employer || '—'}</td>
-                <td className="px-4 py-3 text-sm font-semibold tabular-nums">{e._count.expertEvaluations}</td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => openModal(e)} className="rounded-lg bg-[#064ea2] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#054280] transition">
+                <td className="px-4 py-3 text-center text-sm text-[#5a6d8a]">{e.expertProfile?.employer || '—'}</td>
+                <td className="px-4 py-3 text-center text-sm font-semibold tabular-nums">{e._count.expertEvaluations}</td>
+                <td className="px-4 py-3 text-center">
+                  <button onClick={(ev) => { ev.stopPropagation(); openModal(e); }} className="btn-press rounded-lg bg-[#064ea2] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#054280] transition">
                     履职评价
                   </button>
                 </td>
@@ -134,8 +134,8 @@ export default function ExpertEvaluationPage() {
 
       {/* Evaluation Modal */}
       {target && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={closeModal}>
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={closeModal}>
+          <div className="modal-content w-full max-w-lg overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[#edf2f7] px-6 py-4">
               <div>
                 <h3 className="text-base font-bold text-[#18243a]">专家履职评价</h3>
@@ -159,7 +159,7 @@ export default function ExpertEvaluationPage() {
                     </div>
                     <input type="range" min={0} max={100} step={1} value={scores[d.key]}
                       onChange={e => setScores({ ...scores, [d.key]: Number(e.target.value) })}
-                      className="w-full accent-[#064ea2] h-1.5" />
+                      className="w-full range-enhanced accent-[#064ea2]" />
                   </div>
                 ))}
               </div>

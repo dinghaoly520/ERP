@@ -110,9 +110,9 @@ export default function ProcurementLoginPage() {
       <style dangerouslySetInnerHTML={{ __html: LP_CSS }} />
       <div className="lp-bg" aria-hidden="true" />
 
-      <div className="lp-brand" aria-label="四川水发集团">
+      <div className="lp-brand" aria-label="智慧水发 · 蜀水云采">
         <img src="/assets/logo.jpg" alt="" className="lp-brand-mark" />
-        <span className="lp-brand-name">四川水发集团</span>
+        <span className="lp-brand-name">智慧水发 · 蜀水云采</span>
       </div>
 
       <section className="lp-panel" aria-label="登录表单">

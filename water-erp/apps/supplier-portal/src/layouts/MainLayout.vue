@@ -107,8 +107,8 @@ notifStore.fetchUnreadCount()
     <header class="sp-header">
       <div class="sp-header-left">
         <button class="sp-brand" @click="router.push('/dashboard')">
-          <img src="/logo.jpg" alt="四川水发集团" class="sp-brand-logo" />
-          <strong class="sp-brand-title">四川水发集团</strong>
+          <img src="/logo.jpg" alt="智慧水发 · 蜀水云采" class="sp-brand-logo" />
+          <strong class="sp-brand-title">智慧水发 · 蜀水云采</strong>
         </button>
       </div>
 
@@ -321,8 +321,18 @@ notifStore.fetchUnreadCount()
   font-size: 18px;
   font-weight: 900;
   letter-spacing: 0.10em;
-  color: #123a6e;
   font-family: "SimHei", "黑体", sans-serif;
+  background: linear-gradient(to right, #1a2332, #2563EB, #0891b2, #18a56c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% auto;
+  animation: spBrandShift 6s ease infinite;
+}
+@keyframes spBrandShift {
+  0% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+  100% { background-position: 0% center; }
 }
 
 /* Header icon button */

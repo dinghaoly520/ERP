@@ -133,7 +133,7 @@ export default function ExpertLoginPage() {
         if (role === 'bid_expert') { router.push('/'); }
         else toast.error('非专家账户，请使用专家账号登录');
       } else if (WEB_ROLES.includes(role)) {
-        window.location.href = landingURL(role); // → http://localhost:3004/dashboard
+        window.location.href = landingURL(role); // → http://localhost:3005/dashboard
       } else {
         toast.error('请使用管理员账号登录');
       }
@@ -148,9 +148,9 @@ export default function ExpertLoginPage() {
       <style dangerouslySetInnerHTML={{ __html: LP_CSS }} />
       <div className="lp-bg" aria-hidden="true" />
 
-      <div className="lp-brand" aria-label="四川水发集团">
+      <div className="lp-brand" aria-label="智慧水发 · 蜀水云采">
         <img src="/assets/logo.jpg" alt="" className="lp-brand-mark" />
-        <span className="lp-brand-name">四川水发集团</span>
+        <span className="lp-brand-name">智慧水发 · 蜀水云采</span>
       </div>
 
       <section className="lp-panel" aria-label="登录表单">

@@ -20,7 +20,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   QUALIFICATION: '资格审查', RESPONSIVE: '响应性评审', BUSINESS: '商务评审', TECHNICAL: '技术评审', PRICE: '价格评审',
 };
 const CATEGORY_COLOR: Record<string, string> = {
-  QUALIFICATION: '#7c3aed', RESPONSIVE: '#a78bfa', BUSINESS: '#f5a623', TECHNICAL: '#11a874', PRICE: '#e74c3c',
+  QUALIFICATION: '#064ea2', RESPONSIVE: '#0b63ce', BUSINESS: '#f5a623', TECHNICAL: '#11a874', PRICE: '#e74c3c',
 };
 
 export default function ExpertEvaluatePage() {
@@ -148,7 +148,7 @@ export default function ExpertEvaluatePage() {
       {/* 顶部导航 */}
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/projects')} className="text-[oklch(0.55_0.01_264)] hover:text-[#7c3aed] transition">← 返回</button>
+          <button onClick={() => router.push('/projects')} className="text-[oklch(0.55_0.01_264)] hover:text-[#064ea2] transition">← 返回</button>
           <div className="w-px h-6 bg-[#e8f0fa]" />
           <h1 className="text-xl font-bold text-[oklch(0.18_0.012_265)]">{project.name}</h1>
           <span className="text-sm text-[oklch(0.55_0.01_264)]">{project.projectCode}</span>
@@ -156,10 +156,10 @@ export default function ExpertEvaluatePage() {
         <div className="flex items-center gap-3">
           <span className="text-sm text-[oklch(0.55_0.01_264)]">评审进度</span>
           <div className="w-40 h-2 bg-[oklch(0.94_0.004_264)] rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-[#7c3aed] to-[#a78bfa] rounded-full transition-all duration-500"
+            <div className="h-full bg-gradient-to-r from-[#064ea2] to-[#0b63ce] rounded-full transition-all duration-500"
               style={{ width: `${expert?.progress ?? 0}%` }} />
           </div>
-          <span className="text-sm font-bold text-[#7c3aed]">{expert?.progress ?? 0}%</span>
+          <span className="text-sm font-bold text-[#064ea2]">{expert?.progress ?? 0}%</span>
         </div>
       </div>
 
@@ -169,7 +169,7 @@ export default function ExpertEvaluatePage() {
           {STEPS.map((s, i) => (
             <div key={s.key} className="flex items-center flex-1">
               <button onClick={() => setStep(s.key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-semibold ${step === s.key ? 'bg-[#7c3aed] text-white shadow-md' : 'text-[oklch(0.55_0.01_264)] hover:bg-purple-50'}`}>
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-semibold ${step === s.key ? 'bg-[#064ea2] text-white shadow-md' : 'text-[oklch(0.55_0.01_264)] hover:bg-blue-50'}`}>
                 <s.Icon size={16} strokeWidth={1.5} />{s.label}
               </button>
               {i < STEPS.length - 1 && <div className="flex-1 h-px bg-[#e8f0fa] mx-2" />}
@@ -189,7 +189,7 @@ export default function ExpertEvaluatePage() {
           <div className="p-2">
             {project.suppliers.map(s => (
               <button key={s.id} onClick={() => { setActiveSupplier(s.id); setScoringSupplier(s.supplierName); }}
-                className={`w-full text-left p-3 rounded-lg mb-1 text-sm transition-all ${activeSupplier === s.id ? 'bg-purple-50 border border-[#c4b5fd]' : 'hover:bg-[oklch(0.992_0.003_264)] border border-transparent'}`}>
+                className={`w-full text-left p-3 rounded-lg mb-1 text-sm transition-all ${activeSupplier === s.id ? 'bg-blue-50 border border-[#bfdbfe]' : 'hover:bg-[oklch(0.992_0.003_264)] border border-transparent'}`}>
                 <div className="font-semibold text-[oklch(0.18_0.012_265)] truncate">{s.supplierName}</div>
                 <div className="flex items-center gap-2 mt-1.5">
                   <span className={`w-1.5 h-1.5 rounded-full ${s.decryptStatus === 'SUCCESS' ? 'bg-[#11a874]' : s.decryptStatus === 'DANGER' ? 'bg-[#e74c3c]' : 'bg-[#f5a623]'}`} />
@@ -223,37 +223,37 @@ export default function ExpertEvaluatePage() {
                     </div>
                     {item.action && (
                       <button onClick={item.action} disabled={busy}
-                        className="px-4 py-2 bg-[#7c3aed] text-white text-sm rounded-lg hover:bg-[#6d28d9] transition disabled:opacity-50">确认</button>
+                        className="px-4 py-2 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50">确认</button>
                     )}
                   </div>
                 ))}
               </div>
 
               {/* 保密承诺书 */}
-              <div className="bg-purple-50 rounded-xl border border-purple-100 p-6 mb-4">
+              <div className="bg-blue-50 rounded-xl border border-blue-100 p-6 mb-4">
                 <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3"><Clipboard size={14} strokeWidth={1.5} /> 保密承诺书</h3>
                 <p className="text-sm text-[oklch(0.55_0.01_264)] leading-relaxed mb-4">
                   本人作为本项目评审专家，郑重承诺：在评标过程中严格遵守保密规定，不向任何第三方泄露评标过程中获取的投标文件内容、评审意见及其他相关信息。如有违反，愿意承担相应法律责任。
                 </p>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input type="checkbox" checked={confidentialityAgreed} onChange={e => setConfidentialityAgreed(e.target.checked)}
-                    className="w-4 h-4 rounded border-purple-200 text-[#7c3aed] focus:ring-[#7c3aed]" />
+                    className="w-4 h-4 rounded border-blue-200 text-[#064ea2] focus:ring-[#064ea2]" />
                   <span className="text-sm text-[oklch(0.18_0.012_265)] font-semibold">本人已阅读并同意以上保密承诺</span>
                 </label>
               </div>
 
               {/* 评标纪律 */}
-              <div className="bg-purple-50 rounded-xl border border-purple-100 p-6">
+              <div className="bg-blue-50 rounded-xl border border-blue-100 p-6">
                 <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3"><Gavel size={14} strokeWidth={1.5} /> 评标纪律承诺</h3>
                 <ul className="space-y-2 text-sm text-[oklch(0.55_0.01_264)] mb-4">
-                  <li className="flex items-start gap-2"><span className="text-[#7c3aed]">•</span>严格按照招标文件规定的评审标准和方法进行评审</li>
-                  <li className="flex items-start gap-2"><span className="text-[#7c3aed]">•</span>独立评审，不与其他专家串通或私下交流评审意见</li>
-                  <li className="flex items-start gap-2"><span className="text-[#7c3aed]">•</span>客观公正，不带任何偏见和个人倾向</li>
-                  <li className="flex items-start gap-2"><span className="text-[#7c3aed]">•</span>对评审过程和结果保密，不向任何人透露</li>
+                  <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>严格按照招标文件规定的评审标准和方法进行评审</li>
+                  <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>独立评审，不与其他专家串通或私下交流评审意见</li>
+                  <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>客观公正，不带任何偏见和个人倾向</li>
+                  <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>对评审过程和结果保密，不向任何人透露</li>
                 </ul>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input type="checkbox" checked={disciplineAgreed} onChange={e => setDisciplineAgreed(e.target.checked)}
-                    className="w-4 h-4 rounded border-purple-200 text-[#7c3aed] focus:ring-[#7c3aed]" />
+                    className="w-4 h-4 rounded border-blue-200 text-[#064ea2] focus:ring-[#064ea2]" />
                   <span className="text-sm text-[oklch(0.18_0.012_265)] font-semibold">本人已阅读并同意遵守以上评标纪律</span>
                 </label>
               </div>
@@ -282,7 +282,7 @@ export default function ExpertEvaluatePage() {
                   <h2 className="text-xl font-bold text-[oklch(0.18_0.012_265)]">标书解密与获取</h2>
                   <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">查看已解密的投标文件</p>
                 </div>
-                <span className="text-xs bg-purple-50 text-[#7c3aed] px-3 py-1.5 rounded-lg font-semibold">
+                <span className="text-xs bg-blue-50 text-[#064ea2] px-3 py-1.5 rounded-lg font-semibold">
                   当前：{project.suppliers.find(s => s.id === activeSupplier)?.supplierName || '请选择'}
                 </span>
               </div>
@@ -304,8 +304,8 @@ export default function ExpertEvaluatePage() {
                       {documents.documents.length === 0 ? (
                         <div className="col-span-2 text-center py-10 text-[oklch(0.55_0.01_264)]">该供应商未提交可查看的投标文件</div>
                       ) : documents.documents.map((doc, i) => (
-                        <div key={i} className="flex items-center gap-4 p-4 bg-purple-50 rounded-xl border border-purple-100 hover:shadow-md transition-all">
-                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#7c3aed] to-[#a78bfa] flex items-center justify-center text-white text-[10px] font-bold uppercase">{doc.type.replace('application/', '').replace('image/', '')}</div>
+                        <div key={i} className="flex items-center gap-4 p-4 bg-blue-50 rounded-xl border border-blue-100 hover:shadow-md transition-all">
+                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0b63ce] flex items-center justify-center text-white text-[10px] font-bold uppercase">{doc.type.replace('application/', '').replace('image/', '')}</div>
                           <div className="flex-1 min-w-0">
                             <h4 className="font-semibold text-[oklch(0.18_0.012_265)] truncate" title={doc.originalName}>{doc.originalName}</h4>
                             <div className="flex items-center gap-3 mt-1">
@@ -314,7 +314,7 @@ export default function ExpertEvaluatePage() {
                             </div>
                           </div>
                           {doc.downloadUrl ? (
-                            <a href={doc.downloadUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-3 py-1.5 bg-[#7c3aed] text-white text-xs rounded-lg hover:bg-[#6d28d9] transition"><Download size={14} strokeWidth={1.5} /> 预览/下载</a>
+                            <a href={doc.downloadUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-3 py-1.5 bg-[#064ea2] text-white text-xs rounded-lg hover:bg-[#054280] transition"><Download size={14} strokeWidth={1.5} /> 预览/下载</a>
                           ) : (
                             <span className="text-xs text-[oklch(0.62_0.008_264)] px-3 py-1.5">待解密</span>
                           )}
@@ -340,7 +340,7 @@ export default function ExpertEvaluatePage() {
                   <h2 className="text-xl font-bold text-[oklch(0.18_0.012_265)]"><Sparkles size={14} strokeWidth={1.5} /> AI 辅助评标</h2>
                   <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">智能分析引擎基于规则+统计驱动，结果仅供参考，请以专业判断为准</p>
                 </div>
-                <span className="text-xs bg-purple-50 text-[#7c3aed] px-3 py-1.5 rounded-lg font-semibold">
+                <span className="text-xs bg-blue-50 text-[#064ea2] px-3 py-1.5 rounded-lg font-semibold">
                   当前：{project.suppliers.find(s => s.id === activeSupplier)?.supplierName || '请选择'}
                 </span>
               </div>
@@ -348,7 +348,7 @@ export default function ExpertEvaluatePage() {
               {assistData ? (
                 <div className="space-y-6">
                   {/* AI 综合评分卡 */}
-                  <div className="bg-gradient-to-r from-[#6d28d9] to-[#7c3aed] rounded-xl p-6 text-white">
+                  <div className="bg-gradient-to-r from-[#054280] to-[#064ea2] rounded-xl p-6 text-white">
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <p className="text-white/60 text-xs mb-1">{assistData.model || 'AI Engine'}</p>
@@ -414,7 +414,7 @@ export default function ExpertEvaluatePage() {
                     <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3"><AlertTriangle size={14} strokeWidth={1.5} /> 多维风险分析</h3>
                     <div className="space-y-2">
                       {assistData.riskAnalysis.map((risk: any, i: number) => (
-                        <div key={i} className={`flex items-center gap-3 p-3 rounded-lg border ${risk.level === 'danger' ? 'bg-red-50 border-red-200' : risk.level === 'warning' ? 'bg-amber-50 border-amber-200' : risk.level === 'success' ? 'bg-emerald-50 border-emerald-200' : 'bg-purple-50 border-purple-200'}`}>
+                        <div key={i} className={`flex items-center gap-3 p-3 rounded-lg border ${risk.level === 'danger' ? 'bg-red-50 border-red-200' : risk.level === 'warning' ? 'bg-amber-50 border-amber-200' : risk.level === 'success' ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200'}`}>
                           <span className="text-lg flex-shrink-0">{risk.level === 'danger' ? '🚨' : risk.level === 'warning' ? <AlertTriangle size={16} strokeWidth={1.5} className="text-amber-500" /> : risk.level === 'success' ? <CheckCircle size={16} strokeWidth={1.5} className="text-emerald-500" /> : 'ℹ️'}</span>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
@@ -440,7 +440,7 @@ export default function ExpertEvaluatePage() {
                     <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3"><Lightbulb size={14} strokeWidth={1.5} /> AI 评分建议</h3>
                     <div className="grid grid-cols-3 gap-4">
                       {assistData.scoreSuggestion.map((sug: any, i: number) => (
-                        <div key={i} className="bg-white rounded-lg p-4 border border-purple-100 hover:shadow-md transition-shadow">
+                        <div key={i} className="bg-white rounded-lg p-4 border border-blue-100 hover:shadow-md transition-shadow">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ color: CATEGORY_COLOR[sug.category], backgroundColor: CATEGORY_COLOR[sug.category] + '18' }}>
                               {CATEGORY_LABEL[sug.category] || sug.category}
@@ -448,12 +448,12 @@ export default function ExpertEvaluatePage() {
                           </div>
                           <div className="text-xs text-[oklch(0.55_0.01_264)] mb-2">{sug.name}</div>
                           <div className="flex items-baseline gap-1 mb-2">
-                            <span className="text-2xl font-bold text-[#7c3aed]">{sug.suggestedScore}</span>
+                            <span className="text-2xl font-bold text-[#064ea2]">{sug.suggestedScore}</span>
                             <span className="text-xs text-[oklch(0.55_0.01_264)]">/ {sug.maxScore ?? '-'} 分</span>
                           </div>
                           <div className="h-2 bg-[oklch(0.94_0.004_264)] rounded-full overflow-hidden mb-2">
                             {sug.maxScore > 0 && (
-                              <div className="h-full bg-[#7c3aed] rounded-full" style={{ width: `${(sug.suggestedScore / sug.maxScore) * 100}%` }} />
+                              <div className="h-full bg-[#064ea2] rounded-full" style={{ width: `${(sug.suggestedScore / sug.maxScore) * 100}%` }} />
                             )}
                           </div>
                           <p className="text-[11px] text-[oklch(0.55_0.01_264)] mb-2">{sug.reason}</p>
@@ -471,12 +471,12 @@ export default function ExpertEvaluatePage() {
                   </div>
 
                   {/* 关注要点 */}
-                  <div className="bg-gradient-to-br from-blue-50 to-sky-50 rounded-xl border border-purple-100 p-5">
+                  <div className="bg-gradient-to-br from-blue-50 to-sky-50 rounded-xl border border-blue-100 p-5">
                     <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3"><Key size={14} strokeWidth={1.5} /> AI 评审关注要点</h3>
                     <ul className="space-y-2">
                       {assistData.keyPoints.map((point: string, i: number) => (
                         <li key={i} className="flex items-start gap-2 text-sm text-[oklch(0.18_0.012_265)]">
-                          <span className="text-[#7c3aed] mt-0.5 font-bold">{i + 1}.</span>{point}
+                          <span className="text-[#064ea2] mt-0.5 font-bold">{i + 1}.</span>{point}
                         </li>
                       ))}
                     </ul>
@@ -503,7 +503,7 @@ export default function ExpertEvaluatePage() {
                 <div className="flex items-center gap-3">
                   <label className="text-sm text-[oklch(0.55_0.01_264)]">评分对象：</label>
                   <select value={scoringSupplier} onChange={e => setScoringSupplier(e.target.value)}
-                    className="text-sm border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-2 bg-white focus:border-[#7c3aed] focus:ring-1 focus:ring-[#7c3aed] outline-none">
+                    className="text-sm border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-2 bg-white focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none">
                     {project.suppliers.map(s => <option key={s.id} value={s.supplierName}>{s.supplierName}</option>)}
                   </select>
                 </div>
@@ -521,17 +521,17 @@ export default function ExpertEvaluatePage() {
                       const catTotal = items.reduce((s, i) => s + Number(i.maxScore), 0);
                       const catScored = items.reduce((s, i) => s + (scores[i.id]?.score ?? 0), 0);
                       return (
-                        <div key={category} className="bg-purple-50 rounded-xl border border-purple-100 overflow-hidden">
-                          <div className="flex items-center justify-between p-4 border-b border-purple-100" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[category] || '#7c3aed'}` }}>
+                        <div key={category} className="bg-blue-50 rounded-xl border border-blue-100 overflow-hidden">
+                          <div className="flex items-center justify-between p-4 border-b border-blue-100" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[category] || '#064ea2'}` }}>
                             <div className="flex items-center gap-3">
-                              <span className="text-sm font-bold px-3 py-1 rounded-lg" style={{ color: CATEGORY_COLOR[category] || '#7c3aed', backgroundColor: (CATEGORY_COLOR[category] || '#7c3aed') + '18' }}>
+                              <span className="text-sm font-bold px-3 py-1 rounded-lg" style={{ color: CATEGORY_COLOR[category] || '#064ea2', backgroundColor: (CATEGORY_COLOR[category] || '#064ea2') + '18' }}>
                                 {CATEGORY_LABEL[category] || category}
                               </span>
                               <span className="text-sm text-[oklch(0.55_0.01_264)]">{items.length} 项</span>
                             </div>
                             <div className="flex items-center gap-3">
                               <span className="text-sm text-[oklch(0.55_0.01_264)]">得分</span>
-                              <span className="text-lg font-bold" style={{ color: CATEGORY_COLOR[category] || '#7c3aed' }}>{catScored}</span>
+                              <span className="text-lg font-bold" style={{ color: CATEGORY_COLOR[category] || '#064ea2' }}>{catScored}</span>
                               <span className="text-sm text-[oklch(0.55_0.01_264)]">/ {catTotal}</span>
                             </div>
                           </div>
@@ -542,7 +542,7 @@ export default function ExpertEvaluatePage() {
                               const max = Number(item.maxScore);
                               const pct = max > 0 ? (currentScore / max) * 100 : 0;
                               return (
-                                <div key={item.id} className="bg-white rounded-lg p-4 border border-purple-100">
+                                <div key={item.id} className="bg-white rounded-lg p-4 border border-blue-100">
                                   <div className="flex items-center justify-between mb-3">
                                     <h4 className="font-semibold text-[oklch(0.18_0.012_265)]">{item.name}</h4>
                                     <span className="text-sm text-[oklch(0.55_0.01_264)]">满分 {max}</span>
@@ -550,15 +550,15 @@ export default function ExpertEvaluatePage() {
                                   <div className="flex items-center gap-4 mb-3">
                                     <input type="range" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [item.id]: { score: parseFloat(e.target.value), reason: prev[item.id]?.reason || '' } }))}
-                                      className="flex-1 h-2 bg-[oklch(0.94_0.004_264)] rounded-full appearance-none cursor-pointer accent-[#7c3aed]"
-                                      style={{ background: `linear-gradient(to right, ${CATEGORY_COLOR[category] || '#7c3aed'} ${pct}%, #f0f4f8 ${pct}%)` }} />
+                                      className="flex-1 h-2 bg-[oklch(0.94_0.004_264)] rounded-full appearance-none cursor-pointer accent-[#064ea2]"
+                                      style={{ background: `linear-gradient(to right, ${CATEGORY_COLOR[category] || '#064ea2'} ${pct}%, #f0f4f8 ${pct}%)` }} />
                                     <input type="number" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [item.id]: { score: Math.min(parseFloat(e.target.value) || 0, max), reason: prev[item.id]?.reason || '' } }))}
-                                      className="w-20 text-center border border-purple-100 rounded-lg px-2 py-1.5 text-sm font-bold text-[#7c3aed] focus:border-[#7c3aed] focus:ring-1 focus:ring-[#7c3aed] outline-none" />
+                                      className="w-20 text-center border border-blue-100 rounded-lg px-2 py-1.5 text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none" />
                                   </div>
                                   <textarea placeholder="评分理由（必填）" value={val?.reason || ''}
                                     onChange={e => setScores(prev => ({ ...prev, [item.id]: { score: prev[item.id]?.score ?? 0, reason: e.target.value } }))}
-                                    className="w-full border border-purple-100 rounded-lg px-3 py-2 text-sm text-[oklch(0.18_0.012_265)] placeholder-[#b8c8d8] resize-none h-16 focus:border-[#7c3aed] focus:ring-1 focus:ring-[#7c3aed] outline-none" />
+                                    className="w-full border border-blue-100 rounded-lg px-3 py-2 text-sm text-[oklch(0.18_0.012_265)] placeholder-[#b8c8d8] resize-none h-16 focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none" />
                                 </div>
                               );
                             })}
@@ -572,7 +572,7 @@ export default function ExpertEvaluatePage() {
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="font-bold text-lg text-[oklch(0.18_0.012_265)]">评分汇总 — {scoringSupplier}</h3>
                         <div className="text-right">
-                          <div className="text-3xl font-bold text-[#7c3aed]">
+                          <div className="text-3xl font-bold text-[#064ea2]">
                             {project.scoreItems.reduce((s, si) => s + (scores[si.id]?.score ?? 0), 0)}
                           </div>
                           <div className="text-sm text-[oklch(0.55_0.01_264)]">
@@ -591,7 +591,7 @@ export default function ExpertEvaluatePage() {
                         </div>
                       )}
                       <button onClick={handleSubmitScores} disabled={busy || !canScoreActiveSupplier || scoreLocked}
-                        className="w-full py-3 bg-[#7c3aed] text-white rounded-lg font-bold text-sm hover:bg-[#6d28d9] transition disabled:opacity-50">
+                        className="w-full py-3 bg-[#064ea2] text-white rounded-lg font-bold text-sm hover:bg-[#054280] transition disabled:opacity-50">
                         {busy ? '提交中...' : scoreLocked ? '评分已锁定' : `提交 ${scoringSupplier} 的评分`}
                       </button>
                     </div>
@@ -619,7 +619,7 @@ export default function ExpertEvaluatePage() {
 
               {report ? (
                 <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-[#6d28d9] to-[#7c3aed] text-white rounded-xl p-6">
+                  <div className="bg-gradient-to-r from-[#054280] to-[#064ea2] text-white rounded-xl p-6">
                     <h3 className="text-xl font-bold mb-2">{report.projectName}</h3>
                     <div className="flex items-center gap-6 text-sm text-white/80">
                       <span>项目编号：{report.projectCode}</span>
@@ -632,17 +632,17 @@ export default function ExpertEvaluatePage() {
                     <div key={i} className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] overflow-hidden">
                       <div className="flex items-center justify-between p-5 border-b border-[oklch(0.91_0.006_264)]">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#7c3aed] to-[#a78bfa] flex items-center justify-center text-white font-bold text-sm">{i + 1}</div>
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0b63ce] flex items-center justify-center text-white font-bold text-sm">{i + 1}</div>
                           <h3 className="font-bold text-[oklch(0.18_0.012_265)]">{ss.supplierName}</h3>
                           {ss.completed && <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-semibold">评分完整</span>}
                         </div>
-                        <div className="text-2xl font-bold text-[#7c3aed]">{ss.totalScore} <span className="text-sm text-[oklch(0.55_0.01_264)] font-normal">分</span></div>
+                        <div className="text-2xl font-bold text-[#064ea2]">{ss.totalScore} <span className="text-sm text-[oklch(0.55_0.01_264)] font-normal">分</span></div>
                       </div>
                       {Object.entries(ss.categoryScores).length > 0 && (
                         <div className="p-5 grid grid-cols-3 gap-3">
                           {Object.entries(ss.categoryScores).map(([cat, data]) => (
-                            <div key={cat} className="bg-purple-50 rounded-lg p-3" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[cat] || '#7c3aed'}` }}>
-                              <div className="text-xs font-semibold mb-1" style={{ color: CATEGORY_COLOR[cat] || '#7c3aed' }}>{CATEGORY_LABEL[cat] || cat}</div>
+                            <div key={cat} className="bg-blue-50 rounded-lg p-3" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[cat] || '#064ea2'}` }}>
+                              <div className="text-xs font-semibold mb-1" style={{ color: CATEGORY_COLOR[cat] || '#064ea2' }}>{CATEGORY_LABEL[cat] || cat}</div>
                               <div className="text-lg font-bold text-[oklch(0.18_0.012_265)]">{data.total} <span className="text-xs text-[oklch(0.55_0.01_264)] font-normal">/ {data.max}</span></div>
                             </div>
                           ))}

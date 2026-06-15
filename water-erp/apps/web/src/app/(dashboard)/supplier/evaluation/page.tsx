@@ -7,7 +7,7 @@ import {
   getSupplierList, getEvaluationStats, getSupplierEvaluations, createEvaluation,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierEvaluation, SupplierListResponse } from '@/lib/types';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton } from '@/components/workbench';
 import { CheckCircle2, Search, X } from 'lucide-react';
 
 const DIMENSIONS: { key: keyof Pick<SupplierEvaluation, 'completenessScore' | 'responsivenessScore' | 'cooperationScore' | 'complianceScore' | 'overallScore'>; label: string; hint: string; max: number }[] = [
@@ -72,7 +72,7 @@ export default function SupplierEvaluationPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="供应商管理中心" title="供应商评价"
+         title="供应商评价"
         description="供应商履约评价：资料完整性、响应及时性、配合协作度、合规守信度、综合满意度。"
         tone="green" icon={<CheckCircle2 size={14} />}
       />
@@ -108,18 +108,18 @@ export default function SupplierEvaluationPage() {
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>
               <th className="px-4 py-3">企业名称</th>
-              <th className="px-4 py-3">分类</th>
-              <th className="px-4 py-3">评价次数</th>
-              <th className="px-4 py-3 text-right">操作</th>
+              <th className="px-4 py-3 text-center">分类</th>
+              <th className="px-4 py-3 text-center">评价次数</th>
+              <th className="px-4 py-3 text-center">操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={4} className="px-4 py-16 text-center text-[#8a99ad]">加载中...</td></tr>
+              <TableSkeleton cols={4} rows={5} />
             ) : data.items.length === 0 ? (
               <tr><td colSpan={4} className="px-4 py-16 text-center text-[#8a99ad]">暂无供应商</td></tr>
             ) : data.items.map((s: Supplier) => (
-              <tr key={s.id} className="border-t border-[#edf2f7] hover:bg-[#f8fafc]">
+              <tr key={s.id} className="row-clickable" onClick={() => openEvalModal(s)}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#064ea2] text-xs font-extrabold text-white">
@@ -129,13 +129,13 @@ export default function SupplierEvaluationPage() {
                       onClick={() => router.push(`/supplier/${s.id}`)}>{s.name}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3">{s.classification?.name || '—'}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 text-center">{s.classification?.name || '—'}</td>
+                <td className="px-4 py-3 text-center">
                   <StatusBadge tone="blue">{s._count?.evaluations ?? 0} 次</StatusBadge>
                 </td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => openEvalModal(s)}
-                    className="rounded-lg bg-[#064ea2] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#054280] transition">
+                <td className="px-4 py-3 text-center">
+                  <button onClick={(e) => { e.stopPropagation(); openEvalModal(s); }}
+                    className="btn-press rounded-lg bg-[#064ea2] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#054280] transition">
                     评价 / 查看
                   </button>
                 </td>
@@ -159,8 +159,8 @@ export default function SupplierEvaluationPage() {
 
       {/* Evaluation Modal */}
       {evalModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setEvalModal(null)}>
-          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setEvalModal(null)}>
+          <div className="modal-content w-full max-w-2xl overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[#edf2f7] px-6 py-4">
               <div>
                 <h3 className="text-base font-bold text-[#18243a]">供应商评价</h3>
@@ -183,7 +183,7 @@ export default function SupplierEvaluationPage() {
                     </div>
                     <input type="range" min={0} max={d.max} step={1} value={scores[d.key]}
                       onChange={e => setScores({ ...scores, [d.key]: Number(e.target.value) })}
-                      className="w-full accent-[#064ea2] h-1.5" />
+                      className="w-full range-enhanced accent-[#064ea2]" />
                     <div className="flex justify-between text-[10px] text-[#8a99ad] mt-0.5">
                       <span>0</span><span>{d.max}</span>
                     </div>

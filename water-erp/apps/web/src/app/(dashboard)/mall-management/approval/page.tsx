@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { type CatalogApplication, listCatalogApplications, reviewCatalogApplication } from '@/lib/api/catalog';
-import { DataToolbar, MetricCard, PageHero, StatusBadge } from '@/components/workbench';
+import { DataToolbar, MetricCard, PageHero, StatusBadge, Skeleton } from '@/components/workbench';
 import { CheckCircle, XCircle, RotateCcw, MessageSquare, Eye, ChevronDown, ChevronUp, ClipboardCheck } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -120,7 +120,6 @@ export default function PriceApprovalPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="电子商城管理"
         title="价格审批"
         description="处理供应商提交的目录报价、新增品类和供货申请，支持审核、议价、退回补正。"
         tone="blue"
@@ -149,7 +148,21 @@ export default function PriceApprovalPage() {
       </DataToolbar>
 
       {loading ? (
-        <div className="rounded-2xl border border-[#dce6f3] bg-white p-10 text-center text-[#8a99ad] shadow-sm">加载中...</div>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-[#dce6f3] bg-white shadow-sm p-5">
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-6 w-16 rounded-full" />
+                <Skeleton className="h-5 w-12 rounded-full" />
+                <div className="flex-1">
+                  <Skeleton className="h-5 w-48 rounded" />
+                  <Skeleton className="mt-1.5 h-3 w-32 rounded" />
+                </div>
+                <Skeleton className="h-4 w-20 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-[#b8c7dc] bg-white p-10 text-center shadow-sm">
           <div className="text-lg font-black text-[#18243a]">

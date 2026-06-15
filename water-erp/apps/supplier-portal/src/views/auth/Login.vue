@@ -48,9 +48,9 @@ async function handleLogin() {
   <main class="lp lp--supplier">
     <div class="lp-bg" aria-hidden="true" />
 
-    <div class="lp-brand" aria-label="四川水发集团">
+    <div class="lp-brand" aria-label="智慧水发 · 蜀水云采">
       <img src="/logo.jpg" alt="" class="lp-brand-mark" />
-      <span class="lp-brand-name">四川水发集团</span>
+      <span class="lp-brand-name">智慧水发 · 蜀水云采</span>
     </div>
 
     <section class="lp-panel" aria-label="登录表单">

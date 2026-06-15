@@ -68,7 +68,7 @@ export default function ExpertEntryPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="专家管理中心" title="专家录入"
+         title="专家录入"
         description="录入评审专家基础资料、专业方向和可用状态。录入后专家即可参与项目评审抽取。"
         tone="blue" icon={<UserPlus size={14} />}
       />

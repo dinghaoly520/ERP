@@ -1,51 +1,12 @@
 'use client';
 
-import { useMemo, useEffect, useRef } from 'react';
-import { Send, Loader2, PanelRightOpen } from 'lucide-react';
+import { useMemo } from 'react';
+import { Send, Loader2, PanelRightOpen, ArrowLeft } from 'lucide-react';
 import { MessageList } from './message-list';
 import { AnalysisCanvas } from './analysis-canvas';
 import type { Message, AssistantCard as AssistantCardType, AssistantCitation } from '@/lib/types';
 import styles from './chat-workspace.module.css';
-
-function useMouseSpotlight() {
-  const layerRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number>(0);
-  const targetRef = useRef({ x: 0.5, y: 0.5 });
-  const currentRef = useRef({ x: 0.5, y: 0.5 });
-
-  useEffect(() => {
-    const handleMove = (e: MouseEvent) => {
-      targetRef.current = {
-        x: e.clientX / window.innerWidth,
-        y: e.clientY / window.innerHeight,
-      };
-    };
-
-    const animate = () => {
-      const t = targetRef.current;
-      const c = currentRef.current;
-      c.x += (t.x - c.x) * 0.08;
-      c.y += (t.y - c.y) * 0.08;
-
-      const el = layerRef.current;
-      if (el) {
-        el.style.setProperty('--spotlight-x', `${c.x * 100}%`);
-        el.style.setProperty('--spotlight-y', `${c.y * 100}%`);
-      }
-      rafRef.current = requestAnimationFrame(animate);
-    };
-
-    window.addEventListener('mousemove', handleMove, { passive: true });
-    rafRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMove);
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
-
-  return layerRef;
-}
+import GradientText from './GradientText';
 
 export function ChatWorkspace({
   messages,
@@ -53,15 +14,15 @@ export function ChatWorkspace({
   isLoading,
   onConfirmAction,
   onCancelAction,
+  onBack,
 }: {
   messages: Message[];
   onSend: (msg: string) => void;
   isLoading: boolean;
   onConfirmAction: (id: string) => void;
   onCancelAction: (id: string) => void;
+  onBack: () => void;
 }) {
-  const spotlightRef = useMouseSpotlight();
-
   // Accumulate all cards/citations from the entire conversation, deduped by title
   const { cards, citations } = useMemo(() => {
     const cardMap = new Map<string, AssistantCardType>();
@@ -115,15 +76,27 @@ export function ChatWorkspace({
 
   return (
     <div className={styles.workspace}>
-      {/* 鼠标跟随光影 */}
-      <div ref={spotlightRef} className={styles.spotlightLayer} />
-
       {/* Main chat area */}
       <div className={styles.main}>
         {/* Header */}
         <header className={styles.header}>
+          <button
+            className={styles.backBtn}
+            onClick={onBack}
+            type="button"
+            aria-label="返回首页"
+          >
+            <ArrowLeft size={18} strokeWidth={1.8} />
+          </button>
           <span className={styles.headerTitle}>
-            智慧水发 · 蜀水云采
+            <GradientText
+              colors={['#1a2332', '#2563EB', '#0891b2', '#18a56c', '#1a2332']}
+              animationSpeed={8}
+              direction="horizontal"
+              yoyo={true}
+            >
+              智慧水发 · 蜀水云采
+            </GradientText>
             <span className={styles.headerBadge}>SHUIDINGDANG AI</span>
           </span>
           {hasCanvas ? null : (

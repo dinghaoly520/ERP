@@ -8,6 +8,8 @@ import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import { STATUS_COLOR } from '@water-erp/shared';
 import { Archive, CheckCircle, AlertTriangle, Package, Download } from 'lucide-react';
+import { PageHero } from '@/components/workbench/page-hero';
+import { SectionCard } from '@/components/workbench/section-card';
 
 export default function BidArchivePage() {
   const [projectId, setProjectId] = useState('');
@@ -90,17 +92,18 @@ export default function BidArchivePage() {
   const rate = aItems.length > 0 ? Math.round((archived / aItems.length) * 100) : 0;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-[28px] font-bold tracking-tight text-[oklch(0.18_0.012_265)]" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>归档端</h1>
-          <p className="text-[14px] text-[oklch(0.55_0.01_264)] mt-1">资料归档 · 防篡改 · 统一管理</p>
-        </div>
-        <ProjectSelector value={projectId} onChange={setProjectId} />
-      </div>
+    <div className="space-y-6">
+      <PageHero
+        eyebrow="归档端"
+        tone="green"
+        icon={<Archive size={14} strokeWidth={1.5} />}
+        title="归档端"
+        description="资料归档 · 防篡改 · 统一管理"
+        actions={<ProjectSelector value={projectId} onChange={setProjectId} />}
+      />
 
       {/* Status header */}
-      <div className="bg-white border border-[oklch(0.91_0.006_264)] p-5 mb-8 flex items-center gap-6">
+      <SectionCard className="flex items-center gap-6">
         <div className="flex-1">
           <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
             电子档案编号：ARCH-{project.projectCode}
@@ -126,21 +129,21 @@ export default function BidArchivePage() {
               setArchiving(false);
             }
           }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#064ea2] text-white text-xs font-bold hover:bg-[#054280] transition transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
           <Package size={14} strokeWidth={1.5} /> {archiving ? '归档中…' : project.stage === 'ARCHIVED' ? '已归档' : '一键归档'}
         </button>
         <button
           onClick={handleExportArchive}
-          className="flex items-center gap-2 px-5 py-2.5 border border-[oklch(0.42_0.14_260)] text-[oklch(0.42_0.14_260)] text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.42_0.14_260)] hover:text-white transition-colors">
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#064ea2] text-[#064ea2] hover:bg-[#064ea2] hover:text-white transition transition-colors">
           <Download size={14} strokeWidth={1.5} /> 导出归档包
         </button>
         </div>
-      </div>
+      </SectionCard>
 
       <div className="grid grid-cols-[2fr_1fr] gap-6">
-        <div className="bg-white border border-[oklch(0.91_0.006_264)]">
-          <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
-            <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>归档资料清单</h2>
+        <SectionCard className="overflow-hidden p-0">
+          <div className="px-6 py-4 border-b border-[#e5ecf4]">
+            <h2 className="text-sm font-black text-[#18243a]">归档资料清单</h2>
           </div>
           <table className="w-full text-[13px]">
             <thead>
@@ -169,10 +172,9 @@ export default function BidArchivePage() {
               })}
             </tbody>
           </table>
-        </div>
+        </SectionCard>
 
-        <div className="bg-white border border-[oklch(0.91_0.006_264)] p-5">
-          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight mb-4" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>缺失提醒</h2>
+        <SectionCard title="缺失提醒">
           <div className="space-y-2">
             {aItems.filter(a => a.status !== 'ARCHIVED').map(a => (
               <div key={a.id} className="flex items-start gap-2 bg-[oklch(0.96_0.04_85)] border border-[oklch(0.88_0.06_82)] p-3">
@@ -187,7 +189,7 @@ export default function BidArchivePage() {
               </div>
             )}
           </div>
-        </div>
+        </SectionCard>
       </div>
     </div>
   );

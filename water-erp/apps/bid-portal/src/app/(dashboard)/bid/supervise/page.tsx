@@ -6,6 +6,8 @@ import type { BidProjectDetail } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { Shield, AlertTriangle, Eye, Download } from 'lucide-react';
+import { PageHero } from '@/components/workbench/page-hero';
+import { SectionCard } from '@/components/workbench/section-card';
 import { toast } from 'sonner';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 
@@ -72,31 +74,29 @@ export default function BidSupervisePage() {
   const anomalies = project.suppliers.filter(s => s.decryptStatus === 'DANGER');
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-[28px] font-bold tracking-tight text-[oklch(0.18_0.012_265)]" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>监督端</h1>
-          <p className="text-[14px] text-[oklch(0.55_0.01_264)] mt-1">全程监督 · 不可干预</p>
-        </div>
-        <ProjectSelector value={projectId} onChange={setProjectId} />
-      </div>
+    <div className="space-y-6">
+      <PageHero
+        eyebrow="监督端"
+        tone="orange"
+        icon={<Shield size={14} strokeWidth={1.5} />}
+        title="监督端"
+        description="全程监督 · 不可干预"
+        actions={<ProjectSelector value={projectId} onChange={setProjectId} />}
+      />
 
       {/* Permission notice */}
-      <div className="bg-[oklch(0.97_0.004_264)] border border-[oklch(0.88_0.06_22)] p-4 mb-8 flex items-center gap-4">
-        <Shield size={20} strokeWidth={1.5} className="text-[oklch(0.50_0.18_22)] flex-shrink-0" />
+      <div className="rounded-2xl border border-[#fecaca] bg-[#fef2f2] p-5 flex items-center gap-4">
+        <Shield size={20} strokeWidth={1.5} className="text-[#e74c3c] flex-shrink-0" />
         <div className="flex-1">
-          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight mb-0.5">监督权限边界</h2>
-          <p className="text-[12px] text-[oklch(0.55_0.01_264)]">可查看过程、日志和异常，不具备开标前查看明文、修改评分、替专家提交意见的能力</p>
+          <h2 className="text-sm font-bold text-[#18243a] mb-0.5">监督权限边界</h2>
+          <p className="text-xs text-[#5a6d8a]">可查看过程、日志和异常，不具备开标前查看明文、修改评分、替专家提交意见的能力</p>
         </div>
-        <span className="text-[11px] font-bold text-[oklch(0.50_0.18_22)] bg-[oklch(0.96_0.03_22)] px-3 py-1 tracking-wide">禁止干预评分</span>
+        <span className="rounded-full border border-[#fecaca] bg-[#fef2f2] px-3 py-1 text-xs font-bold text-[#e74c3c]">禁止干预评分</span>
       </div>
 
-      <div className="grid grid-cols-[1fr_1fr] gap-6 mb-8">
+      <div className="grid grid-cols-[1fr_1fr] gap-6">
         {/* Timeline */}
-        <div className="bg-white border border-[oklch(0.91_0.006_264)] p-5">
-          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight mb-4" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-            过程时间线
-          </h2>
+        <SectionCard title="过程时间线">
           <div className="space-y-3">
             {supervisionLogs.map((log, i) => (
               <div key={log.id} className={`flex items-start gap-3 ${i === 0 ? '' : 'pt-3 border-t border-[oklch(0.94_0.004_264)]'}`}>
@@ -109,13 +109,10 @@ export default function BidSupervisePage() {
               </div>
             ))}
           </div>
-        </div>
+        </SectionCard>
 
         {/* Anomalies */}
-        <div className="bg-white border border-[oklch(0.91_0.006_264)] p-5">
-          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight mb-4" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-            异常事件
-          </h2>
+        <SectionCard title="异常事件">
           {anomalies.length === 0 ? (
             <div className="bg-[oklch(0.96_0.02_260)] border border-[oklch(0.88_0.04_258)] p-4 text-[12px] text-[oklch(0.42_0.14_260)] flex items-center gap-2">
               <Eye size={14} strokeWidth={1.5} /> 当前无异常事件
@@ -126,13 +123,13 @@ export default function BidSupervisePage() {
               <span className="text-[13px] text-[oklch(0.18_0.012_265)] tracking-tight">{s.supplierName} — 解密证书校验失败</span>
             </div>
           ))}
-        </div>
+        </SectionCard>
       </div>
 
       {/* Log table */}
-      <div className="bg-white border border-[oklch(0.91_0.006_264)]">
-        <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)] flex items-center justify-between">
-          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>监督日志</h2>
+      <SectionCard className="overflow-hidden p-0">
+        <div className="px-6 py-4 border-b border-[#e5ecf4] flex items-center justify-between">
+          <h2 className="text-sm font-black text-[#18243a]">监督日志</h2>
           {supervisionLogs.length > 0 && (
             <button
               onClick={() => exportSupervisionCSV(supervisionLogs)}
@@ -167,7 +164,7 @@ export default function BidSupervisePage() {
             ))}
           </tbody>
         </table>
-      </div>
+      </SectionCard>
     </div>
   );
 }

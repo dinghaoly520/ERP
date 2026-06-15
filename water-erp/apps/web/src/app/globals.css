@@ -92,6 +92,237 @@ body {
   border-bottom: 0;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   Interactive Effects — Global
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Shared animations ── */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes table-row-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Card entrance (staggered) ── */
+.card-enter {
+  animation: fade-in-up 0.35s ease both;
+}
+
+.card-enter:nth-child(1)  { animation-delay: 0.00s; }
+.card-enter:nth-child(2)  { animation-delay: 0.05s; }
+.card-enter:nth-child(3)  { animation-delay: 0.10s; }
+.card-enter:nth-child(4)  { animation-delay: 0.15s; }
+.card-enter:nth-child(5)  { animation-delay: 0.20s; }
+.card-enter:nth-child(6)  { animation-delay: 0.25s; }
+.card-enter:nth-child(7)  { animation-delay: 0.30s; }
+.card-enter:nth-child(8)  { animation-delay: 0.35s; }
+
+/* ── Section entrance ── */
+.section-enter {
+  animation: fade-in-up 0.4s ease both;
+}
+
+/* ── Modal backdrop + content ── */
+.modal-backdrop {
+  animation: fade-in 0.15s ease both;
+}
+
+.modal-content {
+  animation: scale-in 0.2s ease both;
+}
+
+/* ── Button press effect ── */
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+.btn-press {
+  transition: transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+/* ── Input focus glow ── */
+.input-glow {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.input-glow:focus {
+  border-color: #0b63ce;
+  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.10);
+  background: #fff;
+}
+
+/* ── Workbench select (like input-glow) ── */
+select.workbench-input {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+select.workbench-input:focus {
+  border-color: #0b63ce;
+  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.10);
+  background: #fff;
+}
+
+/* ── Filter / tab active indicator ── */
+.tab-underline {
+  position: relative;
+}
+
+.tab-underline::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 14px;
+  right: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: #064ea2;
+  transform: scaleX(0);
+  transition: transform 0.2s ease;
+}
+
+.tab-underline.active::after {
+  transform: scaleX(1);
+}
+
+/* ── Range slider enhanced ── */
+input[type="range"].range-enhanced {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: #e5ecf4;
+  outline: none;
+  transition: background 0.15s ease;
+}
+
+input[type="range"].range-enhanced::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #064ea2;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="range"].range-enhanced::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+input[type="range"].range-enhanced::-webkit-slider-thumb:active {
+  transform: scale(1.05);
+}
+
+/* ── Progress bar fill animation ── */
+.progress-fill {
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Status badge pulse (attention) ── */
+.status-pulse {
+  animation: pulse-dot 2s ease infinite;
+}
+
+/* ── Skeleton loading shimmer ── */
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e8ecf1 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease infinite;
+  border-radius: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Table styles
+   ═══════════════════════════════════════════════════════════ */
+
+.workbench-table tbody tr {
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  animation: table-row-enter 0.25s ease both;
+}
+
 .workbench-table tbody tr:hover {
-  background: #f8fbff;
+  background: #f4f8fe;
+  box-shadow: inset 3px 0 0 #0b63ce;
+}
+
+.workbench-table tbody tr:active {
+  background: #e8f1fb;
+}
+
+/* clickable / navigable row */
+.workbench-table tbody tr.row-clickable {
+  cursor: pointer;
+}
+
+/* sortable column header */
+.workbench-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.workbench-table th.sortable:hover {
+  color: #064ea2;
+  background: #eaf1fb;
+}
+
+/* sticky header wrapper */
+.workbench-table-sticky thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f3f7fc;
+}
+
+/* staggered row delays */
+.workbench-table tbody tr:nth-child(1)  { animation-delay: 0.00s; }
+.workbench-table tbody tr:nth-child(2)  { animation-delay: 0.03s; }
+.workbench-table tbody tr:nth-child(3)  { animation-delay: 0.06s; }
+.workbench-table tbody tr:nth-child(4)  { animation-delay: 0.09s; }
+.workbench-table tbody tr:nth-child(5)  { animation-delay: 0.12s; }
+.workbench-table tbody tr:nth-child(6)  { animation-delay: 0.15s; }
+.workbench-table tbody tr:nth-child(7)  { animation-delay: 0.18s; }
+.workbench-table tbody tr:nth-child(8)  { animation-delay: 0.21s; }
+.workbench-table tbody tr:nth-child(9)  { animation-delay: 0.24s; }
+.workbench-table tbody tr:nth-child(10) { animation-delay: 0.27s; }
+.workbench-table tbody tr:nth-child(n+11) { animation-delay: 0.30s; }
+
+/* Brand gradient text animation */
+@keyframes brandShift {
+  0% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+  100% { background-position: 0% center; }
 }

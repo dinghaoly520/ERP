@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 /* =============================================================================
-   智慧水发 — 专家评审工作站 (Purple Workbench Color System)
+   智慧水发 — 专家评审工作站 (Industrial Blue Color System)
    Design DNA: Industrial Precision · Hairline Dividers · Frosted Glass
    ============================================================================= */
 
 :root {
-  --color-primary: #7c3aed;
-  --color-primary-hover: #6d28d9;
-  --color-primary-light: #ede9fe;
-  --color-primary-border: #c4b5fd;
+  --color-primary: #064ea2;
+  --color-primary-hover: #0b63ce;
+  --color-primary-light: #eff6ff;
+  --color-primary-border: #bfdbfe;
   --color-bg: oklch(0.982 0.003 264);
   --color-surface: oklch(1 0 0);
   --color-border: oklch(0.91 0.006 264);
@@ -26,28 +26,28 @@ body {
   font-size: 0.875rem;
   color: var(--color-text);
   background:
-    radial-gradient(ellipse at 8% 4%, rgba(200, 180, 248, 0.52) 0%, transparent 44%),
-    radial-gradient(ellipse at 92% 12%, rgba(190, 180, 245, 0.38) 0%, transparent 42%),
-    radial-gradient(ellipse at 34% 95%, rgba(185, 235, 228, 0.40) 0%, transparent 46%),
-    radial-gradient(ellipse at 96% 80%, rgba(250, 205, 215, 0.28) 0%, transparent 40%),
+    radial-gradient(ellipse at 10% 0%, rgba(195, 220, 252, 0.54) 0%, transparent 44%),
+    radial-gradient(ellipse at 90% 16%, rgba(210, 195, 250, 0.40) 0%, transparent 44%),
+    radial-gradient(ellipse at 38% 93%, rgba(185, 235, 228, 0.42) 0%, transparent 46%),
+    radial-gradient(ellipse at 93% 76%, rgba(252, 210, 220, 0.28) 0%, transparent 40%),
     linear-gradient(135deg,
-      rgba(243, 238, 254, 0.60) 0%,
-      rgba(248, 246, 255, 0.68) 30%,
-      rgba(244, 241, 253, 0.64) 60%,
-      rgba(240, 237, 252, 0.60) 100%);
+      rgba(235, 243, 254, 0.64) 0%,
+      rgba(245, 249, 255, 0.72) 30%,
+      rgba(243, 249, 254, 0.68) 60%,
+      rgba(232, 241, 252, 0.64) 100%);
   -webkit-font-smoothing: antialiased;
 }
 
 /* ─── Workbench page background — frosted glass + radial accents ─── */
 .workbench-page-bg {
   background:
-    radial-gradient(ellipse at 5% 0%, rgba(124, 58, 237, 0.08), transparent 38%),
-    radial-gradient(ellipse at 90% 8%, rgba(109, 40, 217, 0.05), transparent 32%),
-    radial-gradient(ellipse at 50% 98%, rgba(139, 92, 246, 0.04), transparent 40%),
+    radial-gradient(ellipse at 5% 0%, rgba(6, 78, 162, 0.08), transparent 38%),
+    radial-gradient(ellipse at 92% 6%, rgba(11, 99, 206, 0.06), transparent 32%),
+    radial-gradient(ellipse at 50% 98%, rgba(14, 98, 208, 0.04), transparent 40%),
     linear-gradient(180deg,
-      rgba(245, 243, 255, 0.82) 0%,
-      rgba(248, 246, 254, 0.86) 50%,
-      rgba(243, 240, 252, 0.82) 100%);
+      rgba(240, 247, 255, 0.82) 0%,
+      rgba(245, 249, 254, 0.86) 50%,
+      rgba(242, 247, 253, 0.82) 100%);
   backdrop-filter: blur(44px) saturate(1.12);
   -webkit-backdrop-filter: blur(44px) saturate(1.12);
 }
@@ -65,8 +65,8 @@ body {
 }
 
 .workbench-input:focus {
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+  border-color: #0b63ce;
+  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.12);
 }
 
 /* ─── Table — industrial data display ─── */
@@ -93,3 +93,10 @@ body {
 
 .workbench-table tbody tr:last-child { border-bottom: 0; }
 .workbench-table tbody tr:hover { background: #f8fbff; }
+
+/* Brand gradient text animation */
+@keyframes brandShift {
+  0% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+  100% { background-position: 0% center; }
+}

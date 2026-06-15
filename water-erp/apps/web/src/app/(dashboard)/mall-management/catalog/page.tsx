@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton } from '@/components/workbench';
 import {
   changeCatalogStatus,
   getCatalogStats,
@@ -56,7 +56,6 @@ export default function CatalogManagementPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="电子商城管理"
         title="集中采购目录管理"
         description="维护商城目录，支持筛选、查看、启用和下架。下架不会删除历史数据。"
         tone="blue"
@@ -83,34 +82,34 @@ export default function CatalogManagementPage() {
         <table className="workbench-table">
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>
-              <th className="px-4 py-3">目录编码</th>
+              <th className="px-4 py-3 text-center">目录编码</th>
               <th className="px-4 py-3">名称/规格</th>
-              <th className="px-4 py-3">分类</th>
-              <th className="px-4 py-3">参考价</th>
-              <th className="px-4 py-3">供应商</th>
-              <th className="px-4 py-3">状态</th>
-              <th className="px-4 py-3">操作</th>
+              <th className="px-4 py-3 text-center">分类</th>
+              <th className="px-4 py-3 text-center">参考价</th>
+              <th className="px-4 py-3 text-center">供应商</th>
+              <th className="px-4 py-3 text-center">状态</th>
+              <th className="px-4 py-3 text-center">操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-[#8a99ad]">加载中...</td></tr>
+              <TableSkeleton cols={7} rows={5} />
             ) : filtered.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-10 text-center text-[#8a99ad]">暂无目录</td></tr>
             ) : filtered.map(item => (
-              <tr key={item.id} className="border-t border-[#edf2f7]">
-                <td className="px-4 py-3 font-mono text-xs text-[#123a6e]">{item.code}</td>
+              <tr key={item.id} className="border-t border-[#edf2f7] hover:bg-[#f8fafc] transition">
+                <td className="px-4 py-3 text-center font-mono text-xs text-[#123a6e]">{item.code}</td>
                 <td className="px-4 py-3"><div className="font-bold text-[#18243a]">{item.name}</div><div className="text-xs text-[#8a99ad]">{item.specification}</div></td>
-                <td className="px-4 py-3">{item.category}</td>
-                <td className="px-4 py-3 font-bold">¥{item.referencePrice.toLocaleString('zh-CN')}</td>
-                <td className="px-4 py-3">{item.supplier}</td>
-                <td className="px-4 py-3"><StatusBadge tone={item.status === "有效" ? "green" : item.status === "下架" || item.status === "停用" ? "gray" : item.status === "待复核" || item.status === "价格波动" ? "orange" : item.status === "即将过期" ? "red" : "blue"}>{item.status}</StatusBadge></td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
+                <td className="px-4 py-3 text-center">{item.category}</td>
+                <td className="px-4 py-3 text-center font-bold tabular-nums">¥{item.referencePrice.toLocaleString('zh-CN')}</td>
+                <td className="px-4 py-3 text-center">{item.supplier}</td>
+                <td className="px-4 py-3 text-center"><StatusBadge tone={item.status === "有效" ? "green" : item.status === "下架" || item.status === "停用" ? "gray" : item.status === "待复核" || item.status === "价格波动" ? "orange" : item.status === "即将过期" ? "red" : "blue"}>{item.status}</StatusBadge></td>
+                <td className="px-4 py-3 text-center">
+                  <div className="flex justify-center gap-2">
                     {item.status === '有效' ? (
-                      <button onClick={() => setItemStatus(item, '下架')} className="rounded-lg border border-orange-200 px-2 py-1 text-xs font-bold text-orange-700">下架</button>
+                      <button onClick={() => setItemStatus(item, '下架')} className="btn-press rounded-lg border border-orange-200 px-2 py-1 text-xs font-bold text-orange-700 hover:bg-orange-50 transition">下架</button>
                     ) : (
-                      <button onClick={() => setItemStatus(item, '有效')} className="rounded-lg border border-emerald-200 px-2 py-1 text-xs font-bold text-emerald-700">启用</button>
+                      <button onClick={() => setItemStatus(item, '有效')} className="btn-press rounded-lg border border-emerald-200 px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition">启用</button>
                     )}
                   </div>
                 </td>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { listExperts, listSpecialties, setExpertAvailability } from '@/lib/api/expert';
 import type { ExpertListItem } from '@/lib/api/expert';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton } from '@/components/workbench';
 import { UsersRound, PlusCircle, Search } from 'lucide-react';
 
 export default function ExpertRepositoryPage() {
@@ -44,7 +44,7 @@ export default function ExpertRepositoryPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="专家管理中心" title="专家库"
+         title="专家库"
         description="评审专家目录、专业分类与启停管理。支持按专业和姓名筛选。"
         tone="blue" icon={<UsersRound size={14} />}
         actions={<button onClick={() => router.push('/expert/entry')} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white hover:bg-[#054280] transition">录入专家</button>}
@@ -81,7 +81,7 @@ export default function ExpertRepositoryPage() {
 
       <SectionCard className="overflow-hidden p-0">
         {loading ? (
-          <div className="py-16 text-center text-sm text-[#8a99ad]">加载中...</div>
+          <table className="workbench-table"><tbody><TableSkeleton cols={8} rows={5} /></tbody></table>
         ) : experts.length === 0 ? (
           <div className="py-16 text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f1f5f9] text-[#94a3b8]">
@@ -96,20 +96,20 @@ export default function ExpertRepositoryPage() {
             <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
               <tr>
                 <th className="px-4 py-3">专家</th>
-                <th className="px-4 py-3">专业</th>
-                <th className="px-4 py-3">职称</th>
-                <th className="px-4 py-3">工作单位</th>
-                <th className="px-4 py-3">参评项目</th>
-                <th className="px-4 py-3">评价次数</th>
-                <th className="px-4 py-3">状态</th>
-                <th className="px-4 py-3">操作</th>
+                <th className="px-4 py-3 text-center">专业</th>
+                <th className="px-4 py-3 text-center">职称</th>
+                <th className="px-4 py-3 text-center">工作单位</th>
+                <th className="px-4 py-3 text-center">参评项目</th>
+                <th className="px-4 py-3 text-center">评价次数</th>
+                <th className="px-4 py-3 text-center">状态</th>
+                <th className="px-4 py-3 text-center">操作</th>
               </tr>
             </thead>
             <tbody>
               {experts.map(e => {
                 const activeProjects = e.bidExperts.filter(a => a.project.stage !== 'ARCHIVED');
                 return (
-                  <tr key={e.id} className="border-t border-[#edf2f7] hover:bg-[#f8fafc]">
+                  <tr key={e.id} className="row-clickable" onClick={() => router.push(`/expert/${e.id}`)}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#064ea2] text-xs font-extrabold text-white">
@@ -126,26 +126,26 @@ export default function ExpertRepositoryPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-center">
                       {e.expertProfile?.specialty && (
                         <StatusBadge tone="blue">{e.expertProfile.specialty}</StatusBadge>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-[#5a6d8a]">{e.expertProfile?.title || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-[#5a6d8a]">{e.expertProfile?.employer || '—'}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-center text-sm text-[#5a6d8a]">{e.expertProfile?.title || '—'}</td>
+                    <td className="px-4 py-3 text-center text-sm text-[#5a6d8a]">{e.expertProfile?.employer || '—'}</td>
+                    <td className="px-4 py-3 text-center">
                       <span className="text-sm font-semibold text-[#18243a] tabular-nums">{activeProjects.length}</span>
                       <span className="text-xs text-[#8a99ad] ml-1">/{e.bidExperts.length}</span>
                     </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-[#18243a] tabular-nums">{e._count.expertEvaluations}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-center text-sm font-semibold text-[#18243a] tabular-nums">{e._count.expertEvaluations}</td>
+                    <td className="px-4 py-3 text-center">
                       <StatusBadge tone={e.isActive ? 'green' : 'gray'}>
                         {e.isActive ? '可用' : '已停用'}
                       </StatusBadge>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-center">
                       <button
-                        onClick={() => toggle(e)}
+                        onClick={(ev) => { ev.stopPropagation(); toggle(e); }}
                         className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
                           e.isActive
                             ? 'border border-orange-200 text-orange-700 hover:bg-orange-50'

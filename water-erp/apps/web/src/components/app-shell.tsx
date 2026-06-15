@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import {
@@ -11,6 +11,7 @@ import {
 interface NavChild {
   label: string;
   path: string;
+  badgeKey?: string;
 }
 interface NavItem {
   label: string;
@@ -26,7 +27,7 @@ const navItems: NavItem[] = [
   {
     label: '供应商管理中心', caption: '审批 / 库 / 评价', path: '/supplier', icon: Building2,
     children: [
-      { label: '供应商审批', path: '/supplier/approval' },
+      { label: '供应商审批', path: '/supplier/approval', badgeKey: 'supplierPending' },
       { label: '供应商库', path: '/supplier/repository' },
       { label: '供应商选取', path: '/supplier/selection' },
       { label: '供应商评价', path: '/supplier/evaluation' },
@@ -44,7 +45,7 @@ const navItems: NavItem[] = [
   {
     label: '电子商城管理', caption: '价格 / 目录 / 日志', path: '/mall-management', icon: ShoppingCart,
     children: [
-      { label: '价格审批', path: '/mall-management/approval' },
+      { label: '价格审批', path: '/mall-management/approval', badgeKey: 'mallReview' },
       { label: '价格录入', path: '/mall-management/price-entry' },
       { label: '集中采购目录管理', path: '/mall-management/catalog' },
       { label: '同步与操作日志', path: '/mall-management/logs' },
@@ -57,6 +58,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [badges, setBadges] = useState<Record<string, number>>({});
+  const badgeTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchBadges = useCallback(async () => {
+    try {
+      const [ss, cs] = await Promise.all([
+        fetch('/api/supplier/stats', { credentials: 'include' }).then(r => r.ok ? r.json() : null),
+        fetch('/api/catalog/admin/stats', { credentials: 'include' }).then(r => r.ok ? r.json() : null),
+      ]);
+      setBadges({
+        supplierPending: ss?.pending ?? 0,
+        mallReview: cs?.review ?? 0,
+      });
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    fetchBadges();
+    badgeTimer.current = setInterval(fetchBadges, 30_000);
+    return () => { if (badgeTimer.current) clearInterval(badgeTimer.current); };
+  }, [fetchBadges]);
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
 
@@ -97,10 +119,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 flex-shrink-0 border-b border-[#dbe6f3] bg-white/86 backdrop-blur-xl">
         <div className="flex h-[68px] items-center justify-between px-6">
           <button onClick={() => router.push('/dashboard')} className="flex items-center gap-3 text-left">
-            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-10 w-auto object-contain" />
+            <img src="/assets/logo.jpg" alt="智慧水发 · 蜀水云采" className="h-10 w-auto object-contain" />
             <div>
-              <strong className="block text-lg font-black tracking-[0.10em] text-[#123a6e]" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>
-                四川水发集团
+              <strong
+                className="block text-lg font-black tracking-[0.10em]"
+                style={{
+                  fontFamily: '"SimHei","黑体",sans-serif',
+                  background: 'linear-gradient(to right, #1a2332, #2563EB, #0891b2, #18a56c, #1a2332)',
+                  backgroundSize: '200% auto',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  animation: 'brandShift 6s ease infinite',
+                }}
+              >
+                智慧水发 · 蜀水云采
               </strong>
             </div>
           </button>
@@ -164,7 +197,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                       </span>
                     )}
                     {hasChildren && !collapsed && (
-                      <ChevronDown size={14} strokeWidth={2} className={`flex-shrink-0 opacity-60 transition-transform ${groupOpen ? 'rotate-180' : ''}`} />
+                      <>
+                        {item.children!.reduce((s, c) => s + (c.badgeKey ? (badges[c.badgeKey] || 0) : 0), 0) > 0 && (
+                          <span className={`ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-extrabold tabular-nums ${
+                            groupActive ? 'bg-white/20 text-white' : 'bg-[#e74c3c] text-white'
+                          }`}>
+                            {item.children!.reduce((s, c) => s + (c.badgeKey ? (badges[c.badgeKey] || 0) : 0), 0)}
+                          </span>
+                        )}
+                        <ChevronDown size={14} strokeWidth={2} className={`flex-shrink-0 opacity-60 transition-transform ${groupOpen ? 'rotate-180' : ''}`} />
+                      </>
                     )}
                   </button>
 
@@ -180,7 +222,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                               : 'text-[#6b7c95] hover:bg-[#f8fbff] hover:text-[#064ea2]'
                           }`}
                         >
-                          {child.label}
+                          <span className="flex-1">{child.label}</span>
+                          {child.badgeKey && badges[child.badgeKey] > 0 && (
+                            <span className={`ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-extrabold tabular-nums ${
+                              pathname === child.path
+                                ? 'bg-[#064ea2] text-white'
+                                : 'bg-[#e74c3c] text-white'
+                            }`}>
+                              {badges[child.badgeKey] > 99 ? '99+' : badges[child.badgeKey]}
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>

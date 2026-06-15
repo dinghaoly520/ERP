@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: '采购管理平台-智慧水发·蜀水云采',
-  description: '四川水发集团电子化招标采购平台',
+  description: '智慧水发 · 蜀水云采电子化招标采购平台',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

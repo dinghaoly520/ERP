@@ -20,22 +20,6 @@
     linear-gradient(180deg, #f7faff 0%, #edf3fb 100%);
 }
 
-/* 鼠标跟随光影层 */
-.spotlightLayer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background: radial-gradient(
-    600px circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
-    rgba(88, 164, 255, 0.14) 0%,
-    rgba(145, 132, 255, 0.08) 30%,
-    rgba(214, 171, 103, 0.06) 50%,
-    transparent 70%
-  );
-  transition: opacity 0.4s ease;
-}
-
 /* 浮动极光光晕 */
 .home::before,
 .home::after {
@@ -143,11 +127,9 @@
   margin: 10px 0 0;
   font-family: var(--font-heading);
   font-size: clamp(2.4rem, 4.5vw, 3.6rem);
-  line-height: 1.08;
-  letter-spacing: -0.04em;
-  color: var(--text-heading);
-  font-weight: 800;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  line-height: 1.15;
+  letter-spacing: 0.10em;
+  font-weight: 900;
 }
 
 .subtitleRow {

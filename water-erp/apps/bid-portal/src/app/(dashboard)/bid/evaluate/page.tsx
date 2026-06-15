@@ -279,36 +279,26 @@ export default function BidEvaluatePage() {
   const { experts, suppliers } = project;
 
   return (
-    <div>
-      {/* ═══ 页面头部 ═══ */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1
-            className="text-[28px] font-bold tracking-tight text-[oklch(0.18_0.012_265)]"
-            style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}
-          >
-            评标管理端
-          </h1>
-          <p className="text-[14px] text-[oklch(0.55_0.01_264)] mt-1">
-            专家组状态 · 评分概览 · 结果汇总
-          </p>
-        </div>
-        <ProjectSelector value={projectId} onChange={setProjectId} />
-      </div>
+    <div className="space-y-6">
+      <PageHero
+        eyebrow="评标管理端"
+        tone="purple"
+        icon={<ClipboardCheck size={14} strokeWidth={1.5} />}
+        title="评标管理端"
+        description="专家组状态 · 评分概览 · 结果汇总"
+        actions={<ProjectSelector value={projectId} onChange={setProjectId} />}
+      />
 
       {/* ═══ 阶段操作：开标阶段 → 启动评标 ═══ */}
       {project.stage === 'OPENING' && (
-        <div className="mb-8 bg-[oklch(0.97_0.015_250)] border-l-[3px] border-[oklch(0.42_0.14_260)] border border-[oklch(0.88_0.04_258)] p-4 flex items-center justify-between">
+        <div className="rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Play size={16} strokeWidth={1.5} className="text-[oklch(0.42_0.14_260)]" />
+            <Play size={16} strokeWidth={1.5} className="text-[#064ea2]" />
             <div>
-              <span
-                className="text-[12px] font-semibold text-[oklch(0.42_0.14_260)] tracking-tight"
-                style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}
-              >
+              <span className="text-sm font-bold text-[#064ea2]">
                 当前阶段：在线开标
               </span>
-              <span className="text-[12px] text-[oklch(0.55_0.01_264)] ml-2">
+              <span className="text-xs text-[#5a6d8a] ml-2">
                 — 所有供应商完成解密后，可启动专家评标
               </span>
             </div>
@@ -316,7 +306,7 @@ export default function BidEvaluatePage() {
           <button
             onClick={handleStartEvaluation}
             disabled={startingEvaluation}
-            className="px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50"
+            className="rounded-xl bg-[#064ea2] px-4 py-2 text-xs font-bold text-white hover:bg-[#054280] transition disabled:opacity-50"
           >
             {startingEvaluation ? '启动中…' : '启动评标'}
           </button>

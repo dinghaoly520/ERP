@@ -9,6 +9,8 @@ import StartOpeningDialog from '@/components/start-opening-dialog';
 import DisputeDialog from '@/components/dispute-dialog';
 import AdminSubmitBidDialog from '@/components/admin-submit-bid-dialog';
 import { Unlock, Clock, Shield, Play, CheckCircle, XCircle, AlertTriangle, ChevronRight, UserPlus } from 'lucide-react';
+import { PageHero } from '@/components/workbench/page-hero';
+import { SectionCard } from '@/components/workbench/section-card';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { DECRYPT_LABEL, SEMANTIC } from '@water-erp/shared';
 
@@ -115,37 +117,36 @@ export default function BidOpenPage() {
   const secs = remaining % 60;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-[28px] font-bold tracking-tight text-[oklch(0.18_0.012_265)]" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-            在线开标大厅
-          </h1>
-          <p className="text-[14px] text-[oklch(0.55_0.01_264)] mt-1">到时自动提取投标文件 · 提示在线解密 · 生成开标记录</p>
-        </div>
-        <ProjectSelector value={projectId} onChange={setProjectId} />
-      </div>
+    <div className="space-y-6">
+      <PageHero
+        eyebrow="开标大厅"
+        tone="blue"
+        icon={<Unlock size={14} strokeWidth={1.5} />}
+        title="在线开标大厅"
+        description="到时自动提取投标文件 · 提示在线解密 · 生成开标记录"
+        actions={<ProjectSelector value={projectId} onChange={setProjectId} />}
+      />
 
       {/* Session header */}
       {session && (
-        <div className="bg-[oklch(0.18_0.045_262)] text-white p-6 mb-8 flex items-center gap-8">
+        <div className="rounded-2xl bg-gradient-to-r from-[#064ea2] to-[#0b63ce] text-white p-6 flex items-center gap-8">
           <div className="flex-1">
-            <h2 className="text-lg font-bold tracking-tight mb-2" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+            <h2 className="text-lg font-black tracking-tight mb-2">
               {project.name}
             </h2>
-            <div className="flex items-center gap-6 text-[13px] text-white/60">
+            <div className="flex items-center gap-6 text-sm text-white/60">
               <span className="flex items-center gap-1.5"><Clock size={13} strokeWidth={1.5} /> {new Date(project.openTime).toLocaleString('zh-CN')}</span>
               <span>主持人：{session.host}</span>
               <span>监督人：{session.supervisor}</span>
             </div>
           </div>
-          <div className="bg-white/[0.06] px-6 py-3 text-center">
-            <div className="text-[11px] text-white/40 uppercase tracking-widest mb-1">状态</div>
-            <div className="text-[18px] font-bold tracking-tight">{session.status}</div>
+          <div className="bg-white/10 rounded-xl px-6 py-3 text-center">
+            <div className="text-xs text-white/40 uppercase tracking-widest mb-1">状态</div>
+            <div className="text-lg font-black tracking-tight">{session.status}</div>
           </div>
           {remaining > 0 && (
-            <div className="bg-[oklch(0.50_0.18_22)]/80 px-6 py-3 text-center min-w-[100px]">
-              <div className="text-[11px] text-white/60 uppercase tracking-widest mb-1">倒计时</div>
+            <div className="bg-[#e74c3c]/80 rounded-xl px-6 py-3 text-center min-w-[100px]">
+              <div className="text-xs text-white/60 uppercase tracking-widest mb-1">倒计时</div>
               <div className="text-xl font-bold font-mono tracking-tight">{String(mins).padStart(2,'0')}:{String(secs).padStart(2,'0')}</div>
             </div>
           )}
@@ -153,26 +154,26 @@ export default function BidOpenPage() {
       )}
 
       {/* Decrypt status table */}
-      <div className="bg-white border border-[oklch(0.91_0.006_264)] mb-8">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
-          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+      <SectionCard className="overflow-hidden p-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5ecf4]">
+          <h2 className="text-sm font-black text-[#18243a]">
             投标人在线解密状态
           </h2>
           <div className="flex items-center gap-2">
             {project.stage === 'DOWNLOAD' && (
               <button onClick={handleOpenSubmission} disabled={openingSubmission}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[oklch(0.54_0.16_158)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.14_150)] transition-colors disabled:opacity-50">
+                className="flex items-center gap-1.5 rounded-xl bg-[#11a874] px-4 py-2 text-xs font-bold text-white hover:bg-[#0e8c5f] transition disabled:opacity-50">
                 <ChevronRight size={13} strokeWidth={2} /> {openingSubmission ? '处理中…' : '开放投递'}
               </button>
             )}
             {project.stage !== 'OPENING' && (
               <button onClick={() => setStartOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors">
+                className="flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-4 py-2 text-xs font-bold text-white hover:bg-[#054280] transition">
                 <Play size={13} strokeWidth={2} /> 启动开标
               </button>
             )}
             <button onClick={() => setShowAdminSubmit(true)}
-              className="flex items-center gap-1.5 px-4 py-2 border border-[oklch(0.91_0.006_264)] text-[oklch(0.42_0.14_260)] text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.96_0.006_264)] transition-colors">
+              className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] px-4 py-2 text-xs font-bold text-[#064ea2] hover:bg-[#f8fafc] transition">
               <UserPlus size={13} strokeWidth={1.5} /> 代供应商提交
             </button>
           </div>
@@ -222,12 +223,12 @@ export default function BidOpenPage() {
             })}
           </tbody>
         </table>
-      </div>
+      </SectionCard>
 
       {/* Opening records */}
-      <div className="bg-white border border-[oklch(0.91_0.006_264)]">
-        <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
-          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+      <SectionCard className="overflow-hidden p-0">
+        <div className="px-6 py-4 border-b border-[#e5ecf4]">
+          <h2 className="text-sm font-black text-[#18243a]">
             开标记录
           </h2>
         </div>
@@ -275,7 +276,7 @@ export default function BidOpenPage() {
             })}
           </tbody>
         </table>
-      </div>
+      </SectionCard>
 
       <StartOpeningDialog
         open={startOpen}

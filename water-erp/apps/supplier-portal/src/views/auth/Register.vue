@@ -158,9 +158,9 @@ async function submitRegister() {
       <!-- Header -->
       <div class="register-header">
         <div class="register-brand">
-          <img src="/logo.jpg" alt="四川水发集团" class="register-logo" />
+          <img src="/logo.jpg" alt="智慧水发 · 蜀水云采" class="register-logo" />
           <div class="register-brand-text">
-            <strong class="register-brand-name">四川水发集团</strong>
+            <strong class="register-brand-name">智慧水发 · 蜀水云采</strong>
             <small class="register-brand-en">SICHUAN WATER DEVELOPMENT GROUP</small>
           </div>
         </div>

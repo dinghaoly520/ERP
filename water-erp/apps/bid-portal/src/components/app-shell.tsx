@@ -11,17 +11,18 @@ import {
 
 interface NavItem {
   label: string;
+  caption?: string;
   path: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
 }
 
 const navItems: NavItem[] = [
-  { label: '开评标总览', path: '/bid', icon: LayoutDashboard },
-  { label: '开标大厅', path: '/bid/open', icon: Unlock },
-  { label: '监督端', path: '/bid/supervise', icon: Shield },
-  { label: '评标端', path: '/bid/evaluate', icon: ClipboardCheck },
-  { label: '归档端', path: '/bid/archive', icon: Archive },
-  { label: '澄清答疑', path: '/bid/clarifications', icon: MessageSquare },
+  { label: '开评标总览', caption: '项目总览', path: '/bid', icon: LayoutDashboard },
+  { label: '开标大厅', caption: '开标管理', path: '/bid/open', icon: Unlock },
+  { label: '监督端', caption: '过程监督', path: '/bid/supervise', icon: Shield },
+  { label: '评标端', caption: '评审打分', path: '/bid/evaluate', icon: ClipboardCheck },
+  { label: '归档端', caption: '项目归档', path: '/bid/archive', icon: Archive },
+  { label: '澄清答疑', caption: '沟通记录', path: '/bid/clarifications', icon: MessageSquare },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -33,89 +34,96 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(u => { if (!u) window.location.href = 'http://localhost:3005/login?forceLogin=1'; else setUser(u); })
-      .catch(() => { window.location.href = 'http://localhost:3005/login?forceLogin=1'; });
+      .then(u => { if (!u) window.location.href = 'http://localhost:3006/login?forceLogin=1'; else setUser(u); })
+      .catch(() => { window.location.href = 'http://localhost:3006/login?forceLogin=1'; });
   }, []);
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    window.location.href = 'http://localhost:3005/login?forceLogin=1';
+    window.location.href = 'http://localhost:3006/login?forceLogin=1';
   };
 
   // /bid 是总览首页，需精确匹配；其余按前缀匹配
   const isActive = (path: string) =>
     path === '/bid' ? pathname === '/bid' : pathname === path || pathname.startsWith(path + '/');
 
+  const registeredName = user?.displayName?.trim() || user?.username || '用户';
+  const userInitial = registeredName.slice(0, 1);
+
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f7f9fc]">
-      {/* ── Sidebar — deep violet, "在线开评标系统" 品牌色 ── */}
-      <aside className={`${collapsed ? 'w-[56px]' : 'w-56'} bg-[oklch(0.18_0.045_262)] text-white flex flex-col flex-shrink-0 transition-all duration-200 overflow-hidden`}>
-        {/* Logo + Brand */}
-        <div className="h-[72px] flex items-center gap-3 px-4 border-b border-white/[0.08] cursor-pointer flex-shrink-0" onClick={() => router.push('/bid')}>
-          <img src="/assets/logo.jpg" alt="四川水发集团" className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
-          {!collapsed && (
-            <div className="flex flex-col gap-0 overflow-hidden">
-              <span className="text-[13px] font-bold tracking-tight text-white leading-tight whitespace-nowrap">四川水发集团</span>
-              <span className="text-[9px] text-[oklch(0.75_0.06_262)]/60 font-medium whitespace-nowrap">智慧水发 · 开评标管理端</span>
+    <div className="flex h-screen flex-col overflow-hidden workbench-page-bg text-[#18243a]">
+      {/* ── Header — sticky glass bar ── */}
+      <header className="sticky top-0 z-50 flex-shrink-0 border-b border-[#dbe6f3] bg-white/86 backdrop-blur-xl">
+        <div className="flex h-[68px] items-center justify-between px-6">
+          <button onClick={() => router.push('/bid')} className="flex items-center gap-3 text-left">
+            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-10 w-auto object-contain" />
+            <div>
+              <strong className="block text-lg font-black tracking-[0.10em] text-[#123a6e]" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>
+                四川水发集团
+              </strong>
             </div>
-          )}
-        </div>
+          </button>
 
-        {/* Nav items */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2">
-          {navItems.map(item => (
-            <button
-              key={item.path}
-              onClick={() => router.push(item.path)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 mb-1 text-[13px] transition-colors relative rounded-lg ${
-                isActive(item.path)
-                  ? 'bg-[oklch(0.42_0.14_260)] text-white font-semibold'
-                  : 'text-white/55 hover:text-white/90 hover:bg-white/[0.05]'
-              }`}
-            >
-              {isActive(item.path) && (
-                <div className="w-[3px] h-4 bg-[oklch(0.75_0.08_260)] rounded-r absolute left-0" />
-              )}
-              <div className="flex-shrink-0"><item.icon size={collapsed ? 18 : 16} strokeWidth={1.5} /></div>
-              {!collapsed && <span className="tracking-tight">{item.label}</span>}
-            </button>
-          ))}
-        </nav>
-
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="h-10 flex items-center justify-center border-t border-white/[0.06] text-white/30 hover:text-white/60 transition-colors"
-        >
-          {collapsed ? <PanelLeft size={16} strokeWidth={1.5} /> : <PanelLeftClose size={16} strokeWidth={1.5} />}
-        </button>
-      </aside>
-
-      {/* ── Main content area ── */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Header bar with brand */}
-        <header className="h-[56px] bg-white border-b border-[#e5ecf4] flex items-center justify-between px-6 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <span className="text-[11px] text-[#8a96aa] font-mono tracking-wide">{pathname}</span>
-          </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <NotificationBell />
-            {user && (
-              <span className="text-[13px] font-medium text-[#18243a] tracking-tight">
-                {user.displayName}
+            <div className="flex items-center gap-2 rounded-xl border border-[#e5ecf4] bg-white px-3 py-2 shadow-sm">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-xs font-black text-white">
+                {userInitial}
               </span>
-            )}
-            <button onClick={logout}
-              className="flex items-center gap-1.5 text-[12px] text-[#5a6d8a] hover:text-[#e74c3c] transition-colors tracking-tight">
-              <LogOut size={14} strokeWidth={1.5} /> 退出
+              <div className="hidden leading-tight sm:block">
+                <div className="text-sm font-black text-[#18243a]">{registeredName}</div>
+              </div>
+            </div>
+            <button
+              onClick={logout}
+              className="rounded-xl border border-[#d5e0ef] bg-white px-3 py-2 text-sm font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c]"
+            >
+              退出登录
             </button>
           </div>
-        </header>
+        </div>
+      </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-6">
-          {children}
-        </main>
+      {/* ── Body: floating sidebar + content ── */}
+      <div className="flex flex-1 overflow-hidden">
+        <aside className={`${collapsed ? 'w-[68px]' : 'w-[272px]'} m-3 mr-0 flex flex-shrink-0 flex-col overflow-hidden rounded-[24px] border border-[#dbe6f3] bg-white/88 shadow-[0_18px_60px_rgba(15,47,87,0.10)] backdrop-blur transition-all duration-200`}>
+          <nav className="flex-1 overflow-y-auto px-2 py-3">
+            {navItems.map(item => (
+              <button
+                key={item.path}
+                onClick={() => router.push(item.path)}
+                className={`relative flex w-full items-center gap-3 rounded-2xl px-3 py-3 mb-1.5 text-left transition-all ${
+                  isActive(item.path)
+                    ? 'bg-gradient-to-r from-[#064ea2] to-[#0b63ce] text-white shadow-[0_12px_28px_rgba(6,78,162,0.24)]'
+                    : 'text-[#5a6d8a] hover:bg-[#eff6ff] hover:text-[#064ea2]'
+                }`}
+              >
+                {isActive(item.path) && <div className="absolute left-0 h-6 w-[3px] rounded-r bg-[#67e8f9]" />}
+                <div className="flex-shrink-0"><item.icon size={collapsed ? 20 : 18} strokeWidth={1.7} /></div>
+                {!collapsed && (
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black tracking-tight">{item.label}</span>
+                    {item.caption && <span className="mt-0.5 block truncate text-[11px] opacity-70">{item.caption}</span>}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="m-2 flex h-11 items-center justify-center rounded-2xl border border-[#e5ecf4] bg-[#f8fbff] text-[#5a6d8a] transition-colors hover:border-[#bfdbfe] hover:text-[#064ea2]"
+          >
+            {collapsed ? <PanelLeft size={16} strokeWidth={1.7} /> : <PanelLeftClose size={16} strokeWidth={1.7} />}
+          </button>
+        </aside>
+
+        {/* ── Content area ── */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <main className="flex-1 overflow-y-auto p-6">
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );

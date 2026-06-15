@@ -126,11 +126,12 @@ async function main() {
   for (const [k, v] of Object.entries(counts)) console.log(`    ${k}: ${v}`);
 
   console.log('\n  各门户独立账号（每端口需单独登录，口令沿用 <用户名>@2026）：');
-  console.log('    [采购管理端 :3004]  caigou / caigou@2026');
+  console.log('    [信息门户   :3002]  公开访问，无需登录');
+  console.log('    [电子商城   :3003]  mall / mall@2026');
+  console.log('    [供应商端   :3004]  supplier1 / supplier1@2026');
+  console.log('    [采购管理端 :3005]  caigou / caigou@2026');
+  console.log('    [专家评标   :3006]  wangjg / wangjg@2026 · liuxm / liuxm@2026 · chenzq / chenzq@2026');
   console.log('    [开评标管理端 :3007]  lizhuren / lizhuren@2026');
-  console.log('    [供应商端  :3003]  supplier1 / supplier1@2026');
-  console.log('    [专家评标  :3005]  wangjg / wangjg@2026 · liuxm / liuxm@2026 · chenzq / chenzq@2026');
-  console.log('    [电子商城  :3002]  mall / mall@2026');
 }
 
 main()

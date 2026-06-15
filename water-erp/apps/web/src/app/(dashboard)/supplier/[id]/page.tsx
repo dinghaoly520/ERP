@@ -158,7 +158,7 @@ export default function SupplierDetailPage() {
     <div>
       {/* ═══ 顶部品牌横幅 ═══ */}
       <div className="bg-gradient-to-r from-[#064ea2] to-[#0891b2] rounded-xl p-5 mb-6 text-white flex items-center gap-5">
-        <img src="/assets/logo.jpg" alt="四川水发集团" className="w-12 h-12 rounded-xl object-cover border-2 border-white/30 flex-shrink-0" />
+        <img src="/assets/logo.jpg" alt="智慧水发 · 蜀水云采" className="w-12 h-12 rounded-xl object-cover border-2 border-white/30 flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold">{supplier.name}</h1>

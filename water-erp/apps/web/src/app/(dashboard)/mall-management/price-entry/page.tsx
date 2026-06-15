@@ -129,7 +129,6 @@ export default function PriceEntryPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="电子商城管理"
         title="价格录入"
         description="支持手动新增目录和 CSV/Excel 批量导入。导入时目录编码存在则更新，不存在则新增。"
         tone="blue"

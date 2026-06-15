@@ -15,7 +15,7 @@ export function TableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: nu
           <tr key={r} className="border-b border-[#e8f0fa]">
             {Array.from({ length: cols }).map((_, c) => (
               <td key={c} className="px-5 py-3">
-                <div className="h-3 bg-[#f0f4f8] rounded animate-pulse" style={{ width: `${60 + Math.random() * 40}%` }} />
+                <div className="h-3 bg-[#f0f4f8] rounded animate-pulse" style={{ width: `${65 + ((r * cols + c) * 17) % 30}%` }} />
               </td>
             ))}
           </tr>

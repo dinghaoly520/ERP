@@ -31,6 +31,13 @@ export function MallAssistantDialog({
   const lastInitialQuestionRef = useRef('');
 
   useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [open]);
+
+  useEffect(() => {
     if (!open) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [open, messages, loading]);

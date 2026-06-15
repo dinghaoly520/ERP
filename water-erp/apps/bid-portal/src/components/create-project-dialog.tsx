@@ -49,11 +49,10 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="bg-white w-full max-w-[480px] border border-[oklch(0.91_0.006_264)] shadow-sm">
+      <div className="bg-white w-full max-w-[480px] rounded-2xl border border-[#e5ecf4] shadow-sm">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[oklch(0.91_0.006_264)]">
-          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight"
-            style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5ecf4]">
+          <h2 className="text-sm font-black text-[#18243a]">
             创建招标项目
           </h2>
           <button onClick={onClose} className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.18_0.012_265)] transition-colors">
@@ -71,9 +70,9 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="例：2026年度水利工程材料采购"
-              className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white
-                focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors
-                placeholder:text-[oklch(0.72_0.008_264)]"
+              className="w-full rounded-xl px-3 py-2 text-[13px] border border-[#e5ecf4] bg-white
+                focus:outline-none focus:border-[#0b63ce] focus:shadow-[0_0_0_3px_rgba(11,99,206,0.12)] transition-colors
+                placeholder:text-[#94a3b8]"
             />
           </div>
 
@@ -126,14 +125,14 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
               value={riskNote}
               onChange={e => setRiskNote(e.target.value)}
               placeholder="选填"
-              className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white
-                focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors
-                placeholder:text-[oklch(0.72_0.008_264)]"
+              className="w-full rounded-xl px-3 py-2 text-[13px] border border-[#e5ecf4] bg-white
+                focus:outline-none focus:border-[#0b63ce] focus:shadow-[0_0_0_3px_rgba(11,99,206,0.12)] transition-colors
+                placeholder:text-[#94a3b8]"
             />
           </div>
 
           {error && (
-            <div className="bg-[oklch(0.96_0.03_22)] border border-[oklch(0.88_0.06_22)] p-3 text-[12px] text-[oklch(0.50_0.18_22)]">
+            <div className="rounded-xl bg-[#fef2f2] border border-[#fecaca] p-3 text-[12px] text-[#e74c3c]">
               {error}
             </div>
           )}
@@ -145,7 +144,7 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-[12px] font-semibold text-[oklch(0.55_0.01_264)] tracking-tight
+              className="rounded-xl px-4 py-2 text-xs font-bold text-[#5a6d8a]
                 hover:text-[oklch(0.18_0.012_265)] transition-colors"
             >
               取消
@@ -153,7 +152,7 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="flex items-center gap-1.5 px-5 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px]
+              className="flex items-center gap-1.5 rounded-xl px-5 py-2 bg-[#064ea2] text-white text-xs font-bold hover:bg-[#054280] transition
                 font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50"
             >
               <Plus size={13} strokeWidth={2} />

@@ -9,21 +9,6 @@
     linear-gradient(180deg, #f7faff 0%, #edf3fb 100%);
 }
 
-/* 鼠标跟随光影层 */
-.spotlightLayer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background: radial-gradient(
-    600px circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
-    rgba(88, 164, 255, 0.12) 0%,
-    rgba(145, 132, 255, 0.06) 30%,
-    rgba(214, 171, 103, 0.04) 50%,
-    transparent 70%
-  );
-}
-
 .main {
   flex: 1;
   display: flex;
@@ -61,17 +46,33 @@
   font-family: var(--font-heading);
   font-size: var(--font-md);
   font-weight: 700;
-  letter-spacing: -0.01em;
-  background: linear-gradient(90deg, var(--text-heading) 0%, #d0e4ff 20%, #c0f0e4 40%, #e0d8ff 60%, #d0e4ff 80%, var(--text-heading) 100%);
-  background-size: 300% 100%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: header-shimmer 8s linear infinite;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
 }
-@keyframes header-shimmer {
-  0% { background-position: 0% center; }
-  100% { background-position: 300% center; }
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(201, 217, 239, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-right: 10px;
+}
+
+.backBtn:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--primary);
+  border-color: rgba(201, 217, 239, 0.6);
+  box-shadow: 0 2px 8px rgba(37, 99, 168, 0.08);
 }
 
 .headerBadge {

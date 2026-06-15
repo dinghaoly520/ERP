@@ -112,10 +112,10 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
 
   const features = [
     { icon: 'file', title: '智慧水发·采购中心', desc: '采购文件编制、项目管理、AI协同', href: 'http://10.20.145.152:3001/' },
-    { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: 'http://localhost:3002/login?forceLogin=1' },
-    { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: 'http://localhost:3003/login?forceLogin=1' },
-    { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: 'http://localhost:3004/login?forceLogin=1' },
-    { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: 'http://localhost:3005/login?forceLogin=1' },
+    { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: 'http://localhost:3003/login?forceLogin=1' },
+    { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: 'http://localhost:3004/login?forceLogin=1' },
+    { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: 'http://localhost:3005/login?forceLogin=1' },
+    { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: 'http://localhost:3006/login?forceLogin=1' },
   ];
 
 

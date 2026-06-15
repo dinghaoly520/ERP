@@ -82,6 +82,12 @@ export default function Page() {
     }
   }, []);
 
+  const handleBack = useCallback(() => {
+    setInChat(false);
+    setMessages([]);
+    setConversationId(undefined);
+  }, []);
+
   if (!inChat) {
     return <AssistantHome onSend={handleSend} isLoading={isLoading} />;
   }
@@ -93,6 +99,7 @@ export default function Page() {
       isLoading={isLoading}
       onConfirmAction={handleConfirmAction}
       onCancelAction={handleCancelAction}
+      onBack={handleBack}
     />
   );
 }
