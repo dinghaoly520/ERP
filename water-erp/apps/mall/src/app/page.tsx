@@ -728,7 +728,7 @@ export default function MallPage() {
                   onFocus={() => setSearchFocused(true)}
                   onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
                   onKeyDown={e => { if (e.key === 'Escape') { setSearch(''); (e.target as HTMLInputElement).blur(); } else if (e.key === 'Enter') { addSearchHistory(search); } }}
-                  placeholder={`搜索物资 / 规格 / 编码 / 供应商${typeof window !== 'undefined' && window.innerWidth > 768 ? '（按 / 聚焦）' : ''}`}
+                  placeholder="搜索物资 / 规格 / 编码 / 供应商（按 / 聚焦）"
                   className="h-12 w-full rounded-xl border border-white/20 bg-white/95 py-0 pl-11 pr-10 text-sm text-[#18243a] outline-none transition placeholder:text-[#6a7890] focus:border-white focus:bg-white focus:shadow-[0_0_0_4px_rgba(255,255,255,.18)]"
                 />
                 {searchFocused && !search.trim() && searchHistory.length > 0 && (
