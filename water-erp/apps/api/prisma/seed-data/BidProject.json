@@ -8,6 +8,10 @@
     "deadline": "2026-06-08T01:00:00.000Z",
     "stage": "OPENING",
     "riskNote": "解密窗口进行中",
+    "budget": null,
+    "scope": null,
+    "qualification": null,
+    "contact": null,
     "createdAt": "2026-06-13T06:18:29.587Z",
     "updatedAt": "2026-06-13T06:18:29.587Z"
   },
@@ -20,6 +24,10 @@
     "deadline": "2026-07-10T06:00:00.000Z",
     "stage": "SUBMIT",
     "riskNote": "1家插件版本过旧",
+    "budget": null,
+    "scope": null,
+    "qualification": null,
+    "contact": null,
     "createdAt": "2026-06-13T06:18:29.684Z",
     "updatedAt": "2026-06-13T06:18:29.684Z"
   },
@@ -32,6 +40,10 @@
     "deadline": "2026-06-05T01:30:00.000Z",
     "stage": "ARCHIVED",
     "riskNote": null,
+    "budget": null,
+    "scope": null,
+    "qualification": null,
+    "contact": null,
     "createdAt": "2026-06-13T06:18:29.686Z",
     "updatedAt": "2026-06-13T06:18:29.686Z"
   },
@@ -44,6 +56,10 @@
     "deadline": "2026-07-20T00:30:00.000Z",
     "stage": "DOWNLOAD",
     "riskNote": null,
+    "budget": null,
+    "scope": null,
+    "qualification": null,
+    "contact": null,
     "createdAt": "2026-06-13T06:18:29.686Z",
     "updatedAt": "2026-06-13T06:18:29.686Z"
   },
@@ -56,6 +72,10 @@
     "deadline": "2026-07-15T01:30:00.000Z",
     "stage": "SUBMIT",
     "riskNote": null,
+    "budget": null,
+    "scope": null,
+    "qualification": null,
+    "contact": null,
     "createdAt": "2026-06-13T06:18:29.687Z",
     "updatedAt": "2026-06-13T06:18:29.687Z"
   }

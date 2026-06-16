@@ -93,6 +93,10 @@ model BidProject {
   deadline            DateTime
   stage               BidStage                @default(DOWNLOAD)
   riskNote            String?
+  budget              Decimal?                @db.Decimal(14, 2)
+  scope               String?
+  qualification       String?
+  contact             String?
   encryptionKeyId     String?                  // Track C: 项目数据密钥引用
   suppliers           BidSupplier[]
   openingSession      BidOpeningSession?
