@@ -9,7 +9,7 @@ import { portalURL } from '@water-erp/config';
 import PriceChart from './price-chart';
 import { MallAssistantEntry } from './assistant/mall-assistant-entry';
 import type { MallAssistantContext } from './assistant/types';
-import { useCountUp, useDataChanged, useScrollAwareHeader, useAsyncState, StateBoundary, InlineError, TableSkeleton, StatCardSkeleton, CardGridSkeleton, EmptyState, LiveRegion, AnimatedBadge, StaggerContainer, StaggerItem, useAutoSave, useGlobalHotkey } from './interactions';
+import { useCountUp, useDataChanged, useScrollAwareHeader, useAsyncState, StateBoundary, InlineError, TableSkeleton, StatCardSkeleton, CardGridSkeleton, EmptyState, LiveRegion, AnimatedBadge, StaggerContainer, StaggerItem, useAutoSave, useGlobalHotkey, useUndoableAction } from './interactions';
 
 type PriceStatus = '有效' | '价格波动' | '即将过期' | '待复核';
 type PriceSource = '框架协议价' | '历史成交价' | '市场询价' | '人工维护';
@@ -163,6 +163,10 @@ export default function MallPage() {
   const [view, setView] = useState<'catalog' | 'supplier'>('catalog');
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [density, setDensity] = useState<'compact' | 'comfortable'>(() => {
+    try { return (localStorage.getItem('mall-density') as 'compact' | 'comfortable') || 'comfortable'; } catch { return 'comfortable'; }
+  });
+  useEffect(() => { try { localStorage.setItem('mall-density', density); } catch {} }, [density]);
   const [sort, setSort] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -527,7 +531,23 @@ export default function MallPage() {
   const changeQty = (lineId: string, delta: number) =>
     setLines(prev => prev.flatMap(row => (row.id !== lineId ? [row] : row.qty + delta <= 0 ? [] : [{ ...row, qty: row.qty + delta }])));
 
-  const removeLine = (lineId: string) => setLines(prev => prev.filter(row => row.id !== lineId));
+  const undoableDelete = useUndoableAction<BudgetLine>({ windowMs: 5000, label: (item) => `已删除「${item.name}」` });
+  const removeLine = (line: BudgetLine) => {
+    undoableDelete.execute({
+      item: line,
+      apply: () => setLines(prev => prev.filter(row => row.id !== line.id)),
+      restore: () => setLines(prev => {
+        const idx = prev.findIndex(row => row.referencePrice >= line.referencePrice && row.code > line.code);
+        const next = [...prev];
+        if (idx === -1) next.push(line);
+        else next.splice(idx, 0, line);
+        return next;
+      }),
+    });
+  };
+
+  const [editingQtyId, setEditingQtyId] = useState<string | null>(null);
+  const [editingQtyValue, setEditingQtyValue] = useState('');
 
   const budgetTotal = lines.reduce((sum, row) => sum + row.referencePrice * row.qty, 0);
 
@@ -887,6 +907,7 @@ export default function MallPage() {
             <section className={`${view === 'supplier' ? 'hidden' : ''} overflow-hidden rounded-2xl border border-[#e1e9f4] bg-white shadow-[0_10px_28px_rgba(15,35,65,.05)]`}>
               <div className="flex items-center justify-between border-b border-[#e8eef6] px-5 py-4"><div><h2 className="text-lg font-black text-[#18243a]">目录清单</h2><p className="mt-1 text-xs text-[#8a96aa]">参考价用于预算编制与询价比价，最终采购价格以采购文件及成交结果为准。</p></div><div className="flex items-center gap-3">
               <button onClick={() => setShowFavoritesOnly(v => !v)} className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${showFavoritesOnly ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-[#cdd9ea] text-[#5a6d8a] hover:bg-[#f3f7fc]'}`}>★ 我的收藏{favoriteIds.length > 0 ? ` (${favoriteIds.length})` : ''}</button>
+              <button onClick={() => setDensity(d => d === 'compact' ? 'comfortable' : 'compact')} className="rounded-lg border border-[#cdd9ea] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] transition hover:bg-[#f3f7fc]" title={density === 'compact' ? '切换舒适模式' : '切换紧凑模式'}>{density === 'compact' ? '紧凑' : '舒适'}</button>
               <div className="flex items-center gap-1 rounded-xl border border-[#cdd9ea] p-1 relative">
                 <div className="relative z-20 flex">
                   <motion.button
@@ -926,7 +947,7 @@ export default function MallPage() {
                 <EmptyState icon={<IconSearchX />} title="未找到匹配条目" description="请调整关键词、分类、区域或价格状态后重试" action={{ label: '重置筛选', onClick: resetFilters }} />
               ) : (
                 <>
-              <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[1180px] border-collapse text-center text-sm"><thead className="bg-[#f7faff] text-xs font-bold"><tr><th className="w-10 px-2 py-3"><input type="checkbox" checked={sorted.length > 0 && selectedIds.size === sorted.length} onChange={toggleSelectAll} className="h-3.5 w-3.5 cursor-pointer accent-[#064ea2]" aria-label="全选" /></th><th className="px-3 py-3 text-[#5a6d8a]">目录编码 / 物资</th><th className="px-3 py-3 text-[#5a6d8a]">规格型号</th><th className="px-3 py-3 text-[#5a6d8a]">分类</th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#064ea2]" onClick={() => toggleSort('referencePrice')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'referencePrice' ? 'text-[#064ea2]' : ''}`}>参考价 {sort?.col === 'referencePrice' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="px-3 py-3 text-[#5a6d8a]">价格区间</th><th className="px-3 py-3 text-[#5a6d8a]">供应商</th><th className="px-3 py-3 text-[#5a6d8a]">来源</th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#064ea2]" onClick={() => toggleSort('changeRate')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'changeRate' ? 'text-[#064ea2]' : ''}`}>状态 {sort?.col === 'changeRate' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="px-3 py-3 text-center text-[#5a6d8a]">操作</th></tr></thead><tbody className="divide-y divide-[#eef3f8]"><AnimatePresence mode="popLayout">{sorted.map(item => <motion.tr layout key={item.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.2 }} onClick={() => setDetail(item)} className="cursor-pointer transition hover:bg-[#f8fbff] active:bg-[#eef3fb]"><td className="w-10 px-2 py-4" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelectOne(item.id)} className="h-3.5 w-3.5 cursor-pointer accent-[#064ea2]" aria-label={`选择 ${item.name}`} /></td><td className="px-3 py-4"><button onClick={() => setDetail(item)} className="text-center"><div className="font-mono text-xs font-bold text-[#064ea2]">{item.code}</div><div className="mt-1 font-black text-[#18243a] hover:text-[#064ea2]">{item.name}</div></button></td><td className="max-w-[190px] px-4 py-4 text-[#344563]" title={item.specification}><div className="truncate">{item.specification}</div></td><td className="px-4 py-4"><span title={item.category} className="rounded-full bg-[#eef3fb] px-2 py-1 text-xs font-bold text-[#064ea2]">{shortCategory(item.category)}</span></td><td className="px-4 py-4"><span className="text-base font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#8a96aa]">/{item.unit}</span></td><td className="px-4 py-4 text-[#5a6d8a]">{formatPrice(item.priceMin)} - {formatPrice(item.priceMax)}</td><td className="max-w-[180px] px-4 py-4"><div className="truncate font-semibold text-[#18243a]" title={item.supplier}>{item.supplier}</div><div className="mt-1 text-xs text-[#8a96aa]">{item.supplierType} · {item.region}</div></td><td className="px-4 py-4"><span title={item.priceSource} className={`rounded-full px-2 py-1 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{SOURCE_SHORT[item.priceSource]}</span></td><td className="px-4 py-4"><span title={item.status} className={`rounded-full border px-2 py-1 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span><div className={`mt-1 text-xs font-bold ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#8a96aa]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</div></td><td className="px-4 py-4 text-center"><button onClick={(e) => { e.stopPropagation(); toggleFavorite(item); }} className={`mr-1 text-base align-middle transition hover:scale-110 ${favoriteIds.includes(item.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(item.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(item.id) ? '★' : '☆'}</button><button onClick={() => setDetail(item)} className="mr-2 text-xs font-bold text-[#064ea2] hover:underline">详情</button><button onClick={(e) => { e.stopPropagation(); addToBudget(item); }} className="rounded-lg bg-[#064ea2] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#043d82]">加入预算</button></td></motion.tr>)}</AnimatePresence></tbody></table></div>
+              <div className={`hidden overflow-x-auto md:block ${density === 'compact' ? '[&_td]:py-1.5 [&_td]:px-2 [&_td]:text-xs [&_th]:py-1.5 [&_th]:px-2' : ''}`}><table className="w-full min-w-[1180px] border-collapse text-center text-sm"><thead className="bg-[#f7faff] text-xs font-bold"><tr><th className="w-10 px-2 py-3"><input type="checkbox" checked={sorted.length > 0 && selectedIds.size === sorted.length} onChange={toggleSelectAll} className="h-3.5 w-3.5 cursor-pointer accent-[#064ea2]" aria-label="全选" /></th><th className="px-3 py-3 text-[#5a6d8a]">目录编码 / 物资</th><th className="px-3 py-3 text-[#5a6d8a]">规格型号</th><th className="px-3 py-3 text-[#5a6d8a]">分类</th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#064ea2]" onClick={() => toggleSort('referencePrice')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'referencePrice' ? 'text-[#064ea2]' : ''}`}>参考价 {sort?.col === 'referencePrice' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="px-3 py-3 text-[#5a6d8a]">价格区间</th><th className="px-3 py-3 text-[#5a6d8a]">供应商</th><th className="px-3 py-3 text-[#5a6d8a]">来源</th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#064ea2]" onClick={() => toggleSort('changeRate')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'changeRate' ? 'text-[#064ea2]' : ''}`}>状态 {sort?.col === 'changeRate' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="px-3 py-3 text-center text-[#5a6d8a]">操作</th></tr></thead><tbody className="divide-y divide-[#eef3f8]"><AnimatePresence mode="popLayout">{sorted.map(item => <motion.tr layout key={item.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.2 }} onClick={() => setDetail(item)} className={`cursor-pointer border-l-[3px] border-l-transparent transition hover:border-l-[#064ea2] hover:bg-[#f8fbff] active:bg-[#eef3fb] ${density === 'compact' ? 'h-10' : ''}`}><td className="w-10 px-2 py-4" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelectOne(item.id)} className="h-3.5 w-3.5 cursor-pointer accent-[#064ea2]" aria-label={`选择 ${item.name}`} /></td><td className="px-3 py-4"><button onClick={() => setDetail(item)} className="text-center"><div className="font-mono text-xs font-bold text-[#064ea2]">{item.code}</div><div className="mt-1 font-black text-[#18243a] hover:text-[#064ea2]">{item.name}</div></button></td><td className="max-w-[190px] px-4 py-4 text-[#344563]" title={item.specification}><div className="truncate">{item.specification}</div></td><td className="px-4 py-4"><span title={item.category} className="rounded-full bg-[#eef3fb] px-2 py-1 text-xs font-bold text-[#064ea2]">{shortCategory(item.category)}</span></td><td className="px-4 py-4"><span className="text-base font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#8a96aa]">/{item.unit}</span></td><td className="px-4 py-4 text-[#5a6d8a]">{formatPrice(item.priceMin)} - {formatPrice(item.priceMax)}</td><td className="max-w-[180px] px-4 py-4"><div className="truncate font-semibold text-[#18243a]" title={item.supplier}>{item.supplier}</div><div className="mt-1 text-xs text-[#8a96aa]">{item.supplierType} · {item.region}</div></td><td className="px-4 py-4"><span title={item.priceSource} className={`rounded-full px-2 py-1 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{SOURCE_SHORT[item.priceSource]}</span></td><td className="px-4 py-4"><span title={item.status} className={`rounded-full border px-2 py-1 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span><div className={`mt-1 text-xs font-bold ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#8a96aa]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</div></td><td className="px-4 py-4 text-center"><button onClick={(e) => { e.stopPropagation(); toggleFavorite(item); }} className={`mr-1 text-base align-middle transition hover:scale-110 ${favoriteIds.includes(item.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(item.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(item.id) ? '★' : '☆'}</button><button onClick={() => setDetail(item)} className="mr-2 text-xs font-bold text-[#064ea2] hover:underline">详情</button><button onClick={(e) => { e.stopPropagation(); addToBudget(item); }} className="rounded-lg bg-[#064ea2] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#043d82]">加入预算</button></td></motion.tr>)}</AnimatePresence></tbody></table></div>
               <div className="divide-y divide-[#eef3f8] md:hidden">
               {sorted.map(item => (
                 <div key={item.id} className="p-4">
@@ -1038,7 +1059,7 @@ export default function MallPage() {
                           <div className="mt-1 truncate text-sm font-black text-[#18243a]">{line.name}</div>
                           <div className="mt-1 text-xs text-[#8a96aa]">{line.specification}</div>
                         </div>
-                        {!isConverted && <button onClick={() => removeLine(line.id)} className="text-sm text-[#c3ccd8] transition hover:text-[#e74c3c]">删除</button>}
+                        {!isConverted && <button onClick={() => removeLine(line)} className="text-sm text-[#c3ccd8] transition hover:text-[#e74c3c]">删除</button>}
                       </div>
                       <div className="mt-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -1046,9 +1067,15 @@ export default function MallPage() {
                             <span className="text-sm font-black text-[#18243a]">数量 {line.qty}</span>
                           ) : (
                             <>
-                              <button onClick={() => changeQty(line.id, -1)} className="h-7 w-7 rounded-lg bg-[#f0f3f8] font-bold text-[#5a6d8a]">−</button>
-                              <span className="w-8 text-center text-sm font-black">{line.qty}</span>
-                              <button onClick={() => changeQty(line.id, 1)} className="h-7 w-7 rounded-lg bg-[#f0f3f8] font-bold text-[#5a6d8a]">+</button>
+                              <QtyButton delta={-1} onChange={() => changeQty(line.id, -1)} />
+                              {editingQtyId === line.id ? (
+                                <form onSubmit={e => { e.preventDefault(); const v = parseInt(editingQtyValue); if (v > 0) setLines(prev => prev.map(r => r.id === line.id ? {...r, qty: v} : r)); setEditingQtyId(null); }} className="flex">
+                                  <input autoFocus value={editingQtyValue} onChange={e => setEditingQtyValue(e.target.value)} onBlur={() => { const v = parseInt(editingQtyValue); if (v > 0) setLines(prev => prev.map(r => r.id === line.id ? {...r, qty: v} : r)); setEditingQtyId(null); }} className="w-10 rounded-md border border-[#064ea2] px-1 text-center text-sm font-black outline-none" />
+                                </form>
+                              ) : (
+                                <button onClick={() => { setEditingQtyId(line.id); setEditingQtyValue(String(line.qty)); }} className="w-8 text-center text-sm font-black hover:text-[#064ea2]">{line.qty}</button>
+                              )}
+                              <QtyButton delta={1} onChange={() => changeQty(line.id, 1)} />
                             </>
                           )}
                           <span className="text-xs text-[#8a96aa]">{line.unit}</span>
@@ -1325,6 +1352,40 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// ===== 长按数量按钮 =====
+function QtyButton({ delta, onChange }: { delta: number; onChange: () => void }) {
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef(0);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; });
+
+  const stop = useCallback(() => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  }, []);
+
+  const start = useCallback(() => {
+    onChangeRef.current();
+    setTimeout(() => {
+      startTimeRef.current = Date.now();
+      timerRef.current = setInterval(() => {
+        const elapsed = Date.now() - startTimeRef.current;
+        const speed = Math.max(80, 300 - elapsed / 10); // 加速：300ms→80ms
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = setInterval(() => onChangeRef.current(), speed); }
+      }, 350); // 400ms 后开始长按
+    }, 400);
+  }, []);
+
+  return (
+    <button
+      onClick={onChange}
+      onPointerDown={e => { e.preventDefault(); start(); }}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      className="h-7 w-7 select-none rounded-lg bg-[#f0f3f8] font-bold text-[#5a6d8a] transition active:bg-[#e1e9f4]"
+    >{delta > 0 ? '+' : '−'}</button>
   );
 }
 
