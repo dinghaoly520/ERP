@@ -202,3 +202,32 @@ body {
 .animate-dot-bounce {
   animation: dotBounce 1.2s ease-in-out infinite;
 }
+
+/* ===== 骨架屏 shimmer 扫光 ===== */
+@keyframes skeletonShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #e8edf5 25%, #f3f6fb 50%, #e8edf5 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+
+/* ===== 全局焦点环（键盘专用） ===== */
+*:focus { outline: none; }
+*:focus-visible {
+  outline: 2px solid #064ea2;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ===== 全局 reduced-motion 降级 ===== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

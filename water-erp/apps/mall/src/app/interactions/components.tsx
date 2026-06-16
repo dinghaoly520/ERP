@@ -37,14 +37,15 @@ export function Skeleton({
 
 /**
  * 统一空状态
+ * icon 支持 ReactNode（推荐 Lucide 图标）或字符串（兼容旧 emoji 调用）
  */
 export function EmptyState({
-  icon = '📋',
+  icon,
   title,
   description,
   action,
 }: {
-  icon?: string;
+  icon?: React.ReactNode;
   title: string;
   description?: string;
   action?: { label: string; onClick: () => void };
@@ -55,14 +56,16 @@ export function EmptyState({
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col items-center justify-center px-6 py-16 text-center"
     >
-      <motion.span
-        className="text-5xl"
-        animate={{ y: [0, -6, 0] }}
-        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-      >
-        {icon}
-      </motion.span>
-      <h3 className="mt-4 text-lg font-black text-[#18243a]">{title}</h3>
+      {icon && (
+        <motion.span
+          className="flex h-16 w-16 items-center justify-center text-[#bcc6d4]"
+          animate={{ y: [0, -4, 0] }}
+          transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          {icon}
+        </motion.span>
+      )}
+      <h3 className="mt-4 text-base font-black text-[#18243a]">{title}</h3>
       {description && (
         <p className="mt-2 max-w-md text-sm leading-relaxed text-[#8a96aa]">{description}</p>
       )}
