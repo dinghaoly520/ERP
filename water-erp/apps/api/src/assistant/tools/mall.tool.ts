@@ -27,6 +27,8 @@ export class MallTool implements AssistantTool {
       const byCategory = await this.prisma.catalogItem.groupBy({
         by: ['category'], _count: true,
       });
+      byCategory.sort((a, b) => b._count - a._count);
+      const mallTotal = byCategory.reduce((s, r) => s + r._count, 0);
 
       return {
         success: true,
@@ -45,8 +47,16 @@ export class MallTool implements AssistantTool {
           },
           {
             type: 'table', title: '目录类别分布',
-            columns: [{ key: 'category', label: '类别' }, { key: 'count', label: '数量' }],
-            rows: byCategory.map((c) => ({ category: c.category, count: c._count })),
+            columns: [
+              { key: 'category', label: '类别' },
+              { key: 'count', label: '数量' },
+              { key: 'pct', label: '占比' },
+            ],
+            rows: byCategory.map((c) => ({
+              category: c.category,
+              count: c._count,
+              pct: mallTotal > 0 ? ((c._count / mallTotal) * 100).toFixed(1) + '%' : '-',
+            })),
             viz: { kind: 'distribution', category: 'category', value: 'count' },
           },
         ],

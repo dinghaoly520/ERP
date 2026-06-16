@@ -75,12 +75,22 @@ export class BidTool implements AssistantTool {
       const byStage = await this.prisma.bidProject.groupBy({
         by: ['stage'], _count: true,
       });
+      byStage.sort((a, b) => b._count - a._count);
+      const bidTotal = byStage.reduce((s, r) => s + r._count, 0);
       return {
         success: true,
         cards: [{
           type: 'table', title: '招标项目阶段分布',
-          columns: [{ key: 'stage', label: '阶段' }, { key: 'count', label: '数量' }],
-          rows: byStage.map((s) => ({ stage: t(STAGE_LABEL, s.stage), count: s._count })),
+          columns: [
+            { key: 'stage', label: '阶段' },
+            { key: 'count', label: '数量' },
+            { key: 'pct', label: '占比' },
+          ],
+          rows: byStage.map((s) => ({
+            stage: t(STAGE_LABEL, s.stage),
+            count: s._count,
+            pct: bidTotal > 0 ? ((s._count / bidTotal) * 100).toFixed(1) + '%' : '-',
+          })),
           viz: { kind: 'distribution', category: 'stage', value: 'count' },
         }],
       };

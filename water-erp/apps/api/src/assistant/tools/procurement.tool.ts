@@ -80,6 +80,8 @@ export class ProcurementTool implements AssistantTool {
         _count: true,
         _sum: { budget: true },
       });
+      byStatus.sort((a, b) => b._count - a._count);
+      const procTotal = byStatus.reduce((s, r) => s + r._count, 0);
       return {
         success: true,
         cards: [
@@ -89,11 +91,13 @@ export class ProcurementTool implements AssistantTool {
             columns: [
               { key: 'status', label: '状态' },
               { key: 'count', label: '数量' },
+              { key: 'pct', label: '占比' },
               { key: 'budget', label: '预算合计' },
             ],
             rows: byStatus.map((s) => ({
               status: t(PROCUREMENT_STATUS_LABEL, s.status),
               count: s._count,
+              pct: procTotal > 0 ? ((s._count / procTotal) * 100).toFixed(1) + '%' : '-',
               budget: s._sum?.budget ? `¥${s._sum.budget}` : '-',
             })),
             viz: { kind: 'distribution', category: 'status', value: 'count' },

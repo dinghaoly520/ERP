@@ -51,3 +51,44 @@ export function t(
   if (value === null || value === undefined || value === '') return '-';
   return map[value] ?? value;
 }
+
+/** 分布表行类型（含百分比） */
+export interface DistRow {
+  [key: string]: unknown;
+}
+
+/** 构建分布表行：翻译标签 + 降序排列 + 百分比列。
+ *  返回新行数组（不修改原始数据），每行在原字段基础上新增 `_pct`。 */
+export function buildDistRows(
+  raw: Array<Record<string, unknown>>,
+  opts: {
+    categoryKey: string;
+    valueKey: string;
+    labelMap: Record<string, string>;
+  },
+): DistRow[] {
+  const rows: DistRow[] = raw.map((r) => {
+    const value = Number(r[opts.valueKey]) || 0;
+    const rawLabel = String(r[opts.categoryKey] ?? '-');
+    return {
+      ...r,
+      [opts.categoryKey]: t(opts.labelMap, rawLabel),
+      _value: value,
+      _pct: '',
+    };
+  });
+
+  // 降序排列
+  rows.sort((a, b) => (b._value as number) - (a._value as number));
+
+  // 百分比
+  const sum = rows.reduce((s, r) => s + (r._value as number), 0);
+  if (sum > 0) {
+    for (const r of rows) {
+      r._pct = ((r._value as number) / sum * 100).toFixed(1) + '%';
+    }
+  }
+
+  return rows;
+}
+

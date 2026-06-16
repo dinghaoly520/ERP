@@ -20,6 +20,8 @@ export class ExpertTool implements AssistantTool {
         by: ['specialty'],
         _count: true,
       });
+      grouped.sort((a, b) => b._count - a._count);
+      const expTotal = grouped.reduce((s, r) => s + r._count, 0);
       return {
         success: true,
         cards: [{
@@ -28,11 +30,14 @@ export class ExpertTool implements AssistantTool {
           columns: [
             { key: 'specialty', label: '专业方向' },
             { key: 'count', label: '人数' },
+            { key: 'pct', label: '占比' },
           ],
           rows: grouped.map((g) => ({
             specialty: g.specialty,
             count: g._count,
+            pct: expTotal > 0 ? ((g._count / expTotal) * 100).toFixed(1) + '%' : '-',
           })),
+          viz: { kind: 'distribution', category: 'specialty', value: 'count' },
         }],
       };
     }
@@ -46,6 +51,8 @@ export class ExpertTool implements AssistantTool {
       const bySpecialty = await this.prisma.expertProfile.groupBy({
         by: ['specialty'], _count: true,
       });
+      bySpecialty.sort((a, b) => b._count - a._count);
+      const expTotal = bySpecialty.reduce((s, r) => s + r._count, 0);
       return {
         success: true,
         cards: [
@@ -66,10 +73,12 @@ export class ExpertTool implements AssistantTool {
             columns: [
               { key: 'specialty', label: '专业方向' },
               { key: 'count', label: '人数' },
+              { key: 'pct', label: '占比' },
             ],
             rows: bySpecialty.map((s) => ({
               specialty: s.specialty,
               count: s._count,
+              pct: expTotal > 0 ? ((s._count / expTotal) * 100).toFixed(1) + '%' : '-',
             })),
             viz: { kind: 'distribution', category: 'specialty', value: 'count' },
           },

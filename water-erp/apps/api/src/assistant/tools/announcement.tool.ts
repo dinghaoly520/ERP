@@ -36,6 +36,8 @@ export class AnnouncementTool implements AssistantTool {
       const byType = await this.prisma.announcement.groupBy({
         by: ['type'], _count: true,
       });
+      byType.sort((a, b) => b._count - a._count);
+      const annTotal = byType.reduce((s, r) => s + r._count, 0);
       return {
         success: true,
         cards: [
@@ -53,8 +55,16 @@ export class AnnouncementTool implements AssistantTool {
           },
           {
             type: 'table', title: '按类型分布',
-            columns: [{ key: 'type', label: '类型' }, { key: 'count', label: '数量' }],
-            rows: byType.map((t) => ({ type: translate(ANNOUNCEMENT_TYPE_LABEL, t.type), count: t._count })),
+            columns: [
+              { key: 'type', label: '类型' },
+              { key: 'count', label: '数量' },
+              { key: 'pct', label: '占比' },
+            ],
+            rows: byType.map((item) => ({
+              type: translate(ANNOUNCEMENT_TYPE_LABEL, item.type),
+              count: item._count,
+              pct: annTotal > 0 ? ((item._count / annTotal) * 100).toFixed(1) + '%' : '-',
+            })),
             viz: { kind: 'distribution', category: 'type', value: 'count' },
           },
         ],

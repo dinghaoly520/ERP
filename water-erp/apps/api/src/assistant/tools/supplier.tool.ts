@@ -89,12 +89,22 @@ export class SupplierTool implements AssistantTool {
       const byStatus = await this.prisma.supplier.groupBy({
         by: ['status'], _count: true,
       });
+      byStatus.sort((a, b) => b._count - a._count);
+      const suppTotal = byStatus.reduce((s, r) => s + r._count, 0);
       return {
         success: true,
         cards: [{
           type: 'table', title: '供应商状态分布',
-          columns: [{ key: 'status', label: '状态' }, { key: 'count', label: '数量' }],
-          rows: byStatus.map((s) => ({ status: t(SUPPLIER_STATUS_LABEL, s.status), count: s._count })),
+          columns: [
+            { key: 'status', label: '状态' },
+            { key: 'count', label: '数量' },
+            { key: 'pct', label: '占比' },
+          ],
+          rows: byStatus.map((s) => ({
+            status: t(SUPPLIER_STATUS_LABEL, s.status),
+            count: s._count,
+            pct: suppTotal > 0 ? ((s._count / suppTotal) * 100).toFixed(1) + '%' : '-',
+          })),
           viz: { kind: 'distribution', category: 'status', value: 'count' },
         }],
       };
