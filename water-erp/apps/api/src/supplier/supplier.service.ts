@@ -94,6 +94,14 @@ export class SupplierService {
       return { user, supplier };
     });
 
+    // 通知采购管理员：新供应商待审批（待办型，审批后自动 resolve）
+    void this.notificationService.sendToRole('procurement_staff', {
+      type: 'SUPPLIER_PENDING',
+      title: '新供应商注册待审批',
+      content: `${supplier.name} 提交了注册申请，信用代码 ${supplier.creditCode}，请前往审批。`,
+      link: `/supplier/${supplier.id}`,
+    });
+
     return { user, supplier };
   }
 
@@ -180,6 +188,9 @@ export class SupplierService {
       }),
     ]);
 
+    // 待办清零：resolve SUPPLIER_PENDING
+    await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`);
+
     // 发送通知给供应商
     await this.notificationService.create({
       userId: supplier.userId,
@@ -206,6 +217,9 @@ export class SupplierService {
       data: { status: 'REJECTED', rejectReason: reason },
     });
 
+    // 待办清零：resolve SUPPLIER_PENDING
+    await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`);
+
     // 发送通知给供应商
     await this.notificationService.create({
       userId: supplier.userId,
@@ -230,6 +244,9 @@ export class SupplierService {
       where: { id },
       data: { status: 'RETURNED', returnReason: reason },
     });
+
+    // 待办清零：resolve SUPPLIER_PENDING
+    await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`);
 
     // 发送通知给供应商
     await this.notificationService.create({
