@@ -8,7 +8,8 @@ import {
   updateSupplierStatus, createClassification, updateClassification, deleteClassification,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierClassification, SupplierListResponse } from '@/lib/types';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton } from '@/components/workbench';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton, EmptyState } from '@/components/workbench';
+import { useSort, SortableTh } from '@/lib/hooks/use-sort';
 import { Building2, Layers, Search, Plus } from 'lucide-react';
 
 export default function SupplierRepositoryPage() {
@@ -52,6 +53,8 @@ export default function SupplierRepositoryPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { refreshMeta(); }, [refreshMeta, data.total]);
+  const { sortKey, sortDir, toggle, sorted } = useSort<Supplier>('createdAt', 'desc');
+  const sortedItems = sorted(data.items);
 
   const handleStatusAction = async () => {
     if (!statusModal || !statusReason.trim()) { toast.error('请填写原因'); return; }
@@ -202,21 +205,21 @@ export default function SupplierRepositoryPage() {
         <table className="workbench-table">
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>
-              <th className="px-4 py-3">企业名称</th>
+              <SortableTh label="企业名称" field="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
               <th className="px-4 py-3 text-center">统一社会信用代码</th>
-              <th className="px-4 py-3 text-center">企业类型</th>
+              <SortableTh label="企业类型" field="enterpriseType" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
               <th className="px-4 py-3 text-center">状态</th>
               <th className="px-4 py-3 text-center">分类</th>
-              <th className="px-4 py-3 text-center">入库时间</th>
+              <SortableTh label="入库时间" field="createdAt" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
               <th className="px-4 py-3 text-center">操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <TableSkeleton cols={7} rows={5} />
-            ) : data.items.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-16 text-center text-[#8a99ad]">暂无供应商数据</td></tr>
-            ) : data.items.map((s: Supplier) => {
+            ) : sortedItems.length === 0 ? (
+              <tr><td colSpan={7}><EmptyState title="暂无供应商数据" description="供应商注册并通过审核后将出现在这里" /></td></tr>
+            ) : sortedItems.map((s: Supplier) => {
               const statusTone = s.status === 'APPROVED' ? 'green' : s.status === 'PENDING' ? 'blue'
                 : s.status === 'RETURNED' ? 'orange' : s.status === 'DISABLED' ? 'gray'
                 : s.status === 'BLACKLIST' ? 'red' : 'gray';

@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { getSupplierList, approveSupplier, rejectSupplier, returnSupplier } from '@/lib/api/supplier';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
 import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton, EmptyState } from '@/components/workbench';
-import { Building2, ClipboardCheck } from 'lucide-react';
+import { Building2, ClipboardCheck, Check } from 'lucide-react';
 
 const TABS: { key: 'PENDING' | 'RETURNED' | 'REJECTED'; label: string; tone: 'blue' | 'orange' | 'red' }[] = [
   { key: 'PENDING', label: '待审核', tone: 'blue' },
@@ -22,9 +22,31 @@ export default function SupplierApprovalPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [batchApproving, setBatchApproving] = useState(false);
   const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return'; supplier: Supplier } | null>(null);
   const [actionReason, setActionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+
+  const toggleSelect = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => {
+    if (selected.size === data.items.length) setSelected(new Set());
+    else setSelected(new Set(data.items.map(s => (s as Supplier).id)));
+  };
+
+  const batchApprove = async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`确认批量通过 ${selected.size} 个供应商审核？`)) return;
+    setBatchApproving(true);
+    let done = 0;
+    for (const id of selected) {
+      try { await approveSupplier(id); done++; } catch { /* skip */ }
+    }
+    toast.success(`已批量通过 ${done} 个供应商`);
+    setSelected(new Set());
+    setBatchApproving(false);
+    loadData();
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -97,9 +119,21 @@ export default function SupplierApprovalPage() {
       </div>
 
       <SectionCard className="overflow-hidden p-0">
+        {selected.size > 0 && (
+          <div className="flex items-center gap-3 bg-[#eff6ff] border-b border-[#bfdbfe] px-4 py-2.5">
+            <span className="text-xs font-extrabold text-[#064ea2]">已选 {selected.size} 项</span>
+            {tab !== 'REJECTED' && (
+              <button onClick={batchApprove} disabled={batchApproving} className="btn-press inline-flex items-center gap-1 rounded-lg bg-[#11a874] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#0e8c5f] disabled:opacity-50">
+                <Check size={12} />{batchApproving ? '批量通过中...' : `批量通过`}
+              </button>
+            )}
+            <button onClick={() => setSelected(new Set())} className="text-xs font-semibold text-[#5a6d8a] hover:text-[#18243a]">取消选择</button>
+          </div>
+        )}
         <table className="workbench-table">
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>
+              <th className="px-4 py-3 w-10"><input type="checkbox" checked={data.items.length > 0 && selected.size === data.items.length} onChange={toggleAll} className="accent-[#064ea2]" /></th>
               <th className="px-4 py-3">企业名称</th>
               <th className="px-4 py-3 text-center">统一社会信用代码</th>
               <th className="px-4 py-3 text-center">企业类型</th>
@@ -110,11 +144,12 @@ export default function SupplierApprovalPage() {
           </thead>
           <tbody>
             {loading ? (
-              <TableSkeleton cols={6} rows={5} />
+              <TableSkeleton cols={7} rows={5} />
             ) : data.items.length === 0 ? (
-              <tr><td colSpan={6}><EmptyState title={`暂无${TABS.find(t => t.key === tab)?.label || ''}申请`} description="供应商注册后待审核申请将出现在这里" /></td></tr>
+              <tr><td colSpan={7}><EmptyState title={`暂无${TABS.find(t => t.key === tab)?.label || ''}申请`} description="供应商注册后待审核申请将出现在这里" /></td></tr>
             ) : data.items.map((s: Supplier) => (
               <tr key={s.id} className="row-clickable" onClick={() => router.push(`/supplier/${s.id}`)}>
+                <td className="px-4 py-3" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleSelect(s.id)} className="accent-[#064ea2]" /></td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#064ea2] text-xs font-extrabold text-white">
