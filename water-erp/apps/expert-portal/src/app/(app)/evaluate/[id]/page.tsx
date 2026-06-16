@@ -245,7 +245,7 @@ export default function ExpertEvaluatePage() {
         });
       }, 1000);
     } catch (e: any) {
-      toast.error(e.response?.data?.error || e.message || '发送失败');
+      toast.error(e.data?.error || e.message || '发送失败');
     }
     setSendingCode(false);
   };
@@ -263,7 +263,7 @@ export default function ExpertEvaluatePage() {
       setPhoneVerified(true);
       toast.success('手机验证通过');
     } catch (e: any) {
-      const data = e.response?.data;
+      const data = e.data;
       setCodeError(data?.error || '验证失败');
       if (data?.code === 'ATTEMPTS_EXCEEDED' || data?.code === 'CODE_EXPIRED') {
         setCodeSent(false);
@@ -530,7 +530,7 @@ export default function ExpertEvaluatePage() {
                         <h3 className={`font-bold ${item.done ? 'text-emerald-600' : 'text-[oklch(0.18_0.012_265)]'}`}>{item.label}</h3>
                         <p className="text-sm text-[oklch(0.55_0.01_264)]">{item.desc}</p>
                       </div>
-                      {item.action && item.isIdentity && (
+                      {item.action && !item.isIdentity && (
                         <button onClick={item.action} disabled={busy}
                           className="px-4 py-2 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50">确认</button>
                       )}

@@ -29,13 +29,21 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message = res;
       } else if (typeof res === 'object' && res !== null) {
         const obj = res as Record<string, unknown>;
-        message = (obj.message as string) || exception.message;
-        code = (obj.error as string) || code;
 
-        // Handle class-validator array messages
-        if (Array.isArray(obj.message)) {
-          message = (obj.message as string[]).join('; ');
-          code = 'VALIDATION_ERROR';
+        // Custom error format: { code: 'MACHINE_CODE', error: 'human-readable message' }
+        if (typeof obj.code === 'string' && typeof obj.error === 'string') {
+          code = obj.code;
+          message = obj.error;
+        } else {
+          // NestJS convention: { message: '...', error: 'ErrorName' }
+          message = (obj.message as string) || exception.message;
+          code = (obj.error as string) || code;
+
+          // Handle class-validator array messages
+          if (Array.isArray(obj.message)) {
+            message = (obj.message as string[]).join('; ');
+            code = 'VALIDATION_ERROR';
+          }
         }
       }
     } else if (exception instanceof Error) {
