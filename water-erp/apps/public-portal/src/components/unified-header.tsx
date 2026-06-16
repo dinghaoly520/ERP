@@ -191,13 +191,30 @@ export function UnifiedHeader({
 
         {/* ── 中间：搜索栏 ── */}
         <div ref={containerRef} className="relative w-full max-w-[480px] shrink-0 px-4">
-          <div className={`flex items-center rounded-lg border bg-white transition-all duration-300 ${
-            showDropdown
-              ? 'border-[#c8d4e4] shadow-[0_2px_12px_rgba(15,35,65,.06)]'
-              : 'border-[#dce3eb] shadow-none hover:border-[#cbd5e1] hover:shadow-[0_1px_4px_rgba(15,35,65,.04)]'
-          }`}>
-            {/* 搜索图标 — 静态时呼吸微动，聚焦时微缩 */}
-            <span className={`shrink-0 pl-3.5 transition-all duration-300 ${showDropdown ? 'text-[#5a6d8a] scale-95' : 'text-[#94a3b8]'}`}>
+          {/* 外层：流动光影边框 — 始终流动，聚焦时加速并增强色彩 */}
+          <div
+            className={`rounded-lg p-[1px] ${
+              showDropdown
+                ? 'shadow-[0_4px_20px_rgba(6,78,162,.10),0_0_0_4px_rgba(6,78,162,.04)]'
+                : 'shadow-none hover:shadow-[0_4px_16px_rgba(6,78,162,.06),0_0_0_2px_rgba(6,78,162,.02)]'
+            }`}
+            style={{
+              backgroundImage: showDropdown
+                ? 'linear-gradient(110deg, #bfd5ee, #064ea2 20%, #0b63ce 40%, #0891b2 60%, #0b63ce 80%, #bfd5ee)'
+                : 'linear-gradient(110deg, #dce3eb 0%, #c8d6e6 20%, #bccbde 40%, #cbd5e1 60%, #d3dce8 80%, #dce3eb 100%)',
+              backgroundSize: '300% 100%',
+              animation: `search-border-flow ${showDropdown ? '2.2s' : '6s'} ease-in-out infinite`,
+            }}
+          >
+            {/* 内层：白色容器 */}
+            <div className={`flex items-center rounded-[7px] bg-white transition-colors duration-300 ${showDropdown ? '' : 'bg-[#fafbfc]'}`}>
+            {/* 搜索图标 — 始终呼吸，聚焦时加速 */}
+            <span
+              className={`shrink-0 pl-3.5 transition-all duration-300 ${
+                showDropdown ? 'text-[#5a6d8a] scale-95' : 'text-[#94a3b8]'
+              }`}
+              style={{ animation: `search-icon-breathe ${showDropdown ? '1.6s' : '2.8s'} ease-in-out infinite` }}
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
               </svg>
@@ -229,23 +246,42 @@ export function UnifiedHeader({
               </button>
             )}
 
-            {/* 搜索按钮 — hover 渐变点亮 */}
+            {/* 搜索按钮 — 微光脉冲 + glow 径向扩散 + hover 流光爆发 */}
             <button
               type="button"
               onClick={() => executeSearch(query)}
-              className={`h-8 shrink-0 rounded-r-lg px-3.5 text-xs font-bold transition-all duration-300 active:scale-95 ${
+              className={`group relative h-8 shrink-0 overflow-hidden rounded-r-[7px] text-xs font-bold transition-all duration-300 active:scale-95 ${
                 hasInput
                   ? 'bg-gradient-to-r from-[#064ea2] to-[#0b63ce] text-white shadow-[0_1px_3px_rgba(6,78,162,.15)] hover:shadow-[0_2px_8px_rgba(6,78,162,.25)] hover:from-[#05428a] hover:to-[#0a56b3]'
                   : 'bg-[#e9ecf2] text-[#5a6d8a] hover:bg-[#dde1e8] hover:text-[#18243a]'
               }`}
             >
-              搜索
+              {/* 辉光环 — 按钮居中脉冲扩散 */}
+              <span
+                className="pointer-events-none absolute inset-0 rounded-[inherit]"
+                style={{
+                  background: 'radial-gradient(circle at center, rgba(6,78,162,0.18) 0%, transparent 70%)',
+                  animation: 'dingdang-breathe 2.2s ease-in-out infinite',
+                }}
+                aria-hidden="true"
+              />
+              {/* 表面细流光 — 始终慢扫，hover 加速 */}
+              <span
+                className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                style={{
+                  backgroundSize: '300% 100%',
+                  animation: `search-btn-shimmer ${showDropdown ? '1.5s' : '4s'} ease-in-out infinite`,
+                }}
+                aria-hidden="true"
+              />
+              <span className="relative z-[1] px-3.5">搜索</span>
             </button>
+            </div>
           </div>
 
           {/* ── 下拉面板 ── */}
           {showDropdown && (
-            <div className="absolute left-4 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-lg border border-[#e5ecf4] bg-white shadow-[0_12px_40px_rgba(15,35,65,.10)]">
+            <div className="absolute left-4 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-lg border border-[#e5ecf4] bg-white shadow-[0_12px_40px_rgba(15,35,65,.10)] animate-[dropdown-slide-in_200ms_ease-out]">
               <div className="flex items-center gap-2 border-b border-[#eef2f8] px-4 py-2">
                 <span className="text-[11px] font-semibold text-[#94a3b8]">{hasInput ? `搜索「${trimmed}」` : '最近搜索'}</span>
                 {hasInput && <span className="text-[11px] text-[#c0c9d4]">{results.length} 条结果</span>}

@@ -6,6 +6,16 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { PORTS } from '@water-erp/config';
 
+// 全局未捕获异常/拒绝 —— 记录崩溃原因，避免静默退出
+const crashLogger = new Logger('ProcessCrash');
+process.on('uncaughtException', (err) => {
+  crashLogger.error(`未捕获异常: ${err.message}`, err.stack);
+  // 不 process.exit — 让 NestJS 自行处理
+});
+process.on('unhandledRejection', (reason) => {
+  crashLogger.error(`未处理的 Promise 拒绝: ${reason}`, (reason as Error)?.stack);
+});
+
 function corsOrigins(): string[] {
   const origins: string[] = [];
   for (const port of Object.values(PORTS)) {

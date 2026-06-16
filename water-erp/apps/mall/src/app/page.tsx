@@ -9,7 +9,7 @@ import { portalURL } from '@water-erp/config';
 import PriceChart from './price-chart';
 import { HeroSection } from '@/components/hero-section';
 import type { MallAssistantContext } from './assistant/types';
-import { useCountUp, useDataChanged, useAsyncState, StateBoundary, InlineError, TableSkeleton, StatCardSkeleton, CardGridSkeleton, EmptyState, LiveRegion, AnimatedBadge, StaggerContainer, StaggerItem, useAutoSave, useUndoableAction, useFocusTrap, useDismissable } from './interactions';
+import { useCountUp, useDataChanged, useAsyncState, StateBoundary, InlineError, TableSkeleton, CardGridSkeleton, EmptyState, LiveRegion, AnimatedBadge, StaggerContainer, StaggerItem, useAutoSave, useUndoableAction, useFocusTrap, useDismissable } from './interactions';
 
 type PriceStatus = '有效' | '价格波动' | '即将过期' | '待复核';
 type PriceSource = '框架协议价' | '历史成交价' | '市场询价' | '人工维护';
@@ -191,6 +191,10 @@ export default function MallPage() {
 
   useEffect(() => { setMounted(true); }, []);
 
+  // 数据最后更新时间
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const prevItemsLen = useRef(0);
+
   useEffect(() => {
     fetch('/api/auth/me', { headers: { 'X-Portal': 'mall' }, credentials: 'include' })
       .then(async r => {
@@ -214,6 +218,14 @@ export default function MallPage() {
 
   const items = catalogAsync.data ?? [];
   const catalogLoading = catalogAsync.status === 'loading' || catalogAsync.status === 'idle';
+
+  // 追踪数据更新时间
+  useEffect(() => {
+    if (items.length > 0 && items.length !== prevItemsLen.current) {
+      setLastUpdatedAt(new Date());
+      prevItemsLen.current = items.length;
+    }
+  }, [items.length]);
 
   const suppliersAsync = useAsyncState(async () => {
     const r = await fetch('/api/catalog/suppliers', { headers: { 'X-Portal': 'mall' }, credentials: 'include' });
@@ -338,11 +350,16 @@ export default function MallPage() {
           case 'changeRate': return item.changeRate;
           case 'updatedAt': return new Date(item.updatedAt).getTime();
           case 'validUntil': return item.validUntil ? new Date(item.validUntil).getTime() : 0;
+          case 'category': return item.category;
+          case 'name': return item.name;
           default: return 0;
         }
       };
       const va = getVal(a), vb = getVal(b);
-      return sort.dir === 'desc' ? vb - va : va - vb;
+      if (typeof va === 'string' && typeof vb === 'string') {
+        return sort.dir === 'desc' ? vb.localeCompare(va, 'zh') : va.localeCompare(vb, 'zh');
+      }
+      return sort.dir === 'desc' ? (vb as number) - (va as number) : (va as number) - (vb as number);
     });
   }, [filtered, sort]);
 
@@ -423,6 +440,54 @@ export default function MallPage() {
   };
 
   const buildDetailPrompt = (item: CatalogItem) => `请对目录条目「${item.name}」做价格研判：参考价${formatPrice(item.referencePrice)}/${item.unit}，价格区间${formatPrice(item.priceMin)}-${formatPrice(item.priceMax)}，历史均价${formatPrice(item.averagePrice)}，价格变化${item.changeRate}%，来源${item.priceSource}，状态${item.status}，供应商${item.supplier}。请给出结论、风险点和采购建议。`;
+
+  /** 生成随机的分析提问，每次点击都不同 */
+  const buildAnalysisQuestion = () => {
+    const ctx = {
+      total: filtered.length,
+      warning: filtered.filter(i => i.status !== '有效').length,
+      categories: [...new Set(filtered.slice(0, 30).map(i => i.category))],
+      suppliers: [...new Set(filtered.slice(0, 30).map(i => i.supplier))],
+      priceRange: filtered.length > 0
+        ? `${formatPrice(Math.min(...filtered.map(i => i.referencePrice)))} ~ ${formatPrice(Math.max(...filtered.map(i => i.referencePrice)))}`
+        : '',
+      topSupplier: filtered.length > 0
+        ? filtered.reduce((a, b) => (filtered.filter(x => x.supplier === a.supplier).length >= filtered.filter(x => x.supplier === b.supplier).length) ? a : b).supplier
+        : '',
+    };
+
+    const angles = [
+      // 价格维度
+      `当前共 ${ctx.total} 项物资，请从价格合理性角度分析，指出价格偏高或偏低的条目，并给出询价建议。`,
+      `请对当前 ${ctx.total} 项物资做价格竞争力分析：哪些物资价格高于市场均价，哪些存在降价空间？`,
+      `对比分析当前筛选结果中各供应商的报价水平，判断是否存在明显的价格差异，指出需重点关注的品类。`,
+
+      // 供应商维度
+      `从供应商集中度角度分析当前 ${ctx.total} 项物资：是否存在单一供应商依赖？分布是否合理？给出分散采购风险的建议。`,
+      `当前物资来自 ${ctx.suppliers.length} 家供应商，请评估供应商结构是否健康，是否存在供应风险。`,
+      `分析当前供应商的报价特征：哪些供应商在特定品类有价格优势？哪些品类供应商竞争不足？`,
+
+      // 风险维度
+      `对当前 ${ctx.total} 项物资进行风险扫描：哪些条目临近有效期、价格波动异常或来源不可靠？按风险优先级列出。`,
+      `请审视当前筛选结果中的潜在风险：价格异常波动、供应商单一来源、即将过期的条目，逐一标注风险等级。`,
+      `${ctx.warning > 0 ? `当前有 ${ctx.warning} 项预警物资` : '当前物资状态均为正常'}，请深入分析这些物资的价格趋势和供应稳定性，给出采购时点建议。`,
+
+      // 预算维度
+      `基于当前 ${ctx.total} 项物资，生成一份预算编制参考：按品类给出建议的预算区间和注意事项。`,
+      `请结合当前的价格数据和供应商分布，为编制采购预算提供具体的数据支撑和风险提示。`,
+      `从成本控制角度分析：哪些品类可以选择替代供应商以降低成本？哪些品类建议维持现有供应商？`,
+
+      // 趋势与建议
+      `综合分析当前 ${ctx.total} 项物资的价格走势、供应商格局和风险分布，给出本月采购优先级排序和行动建议。`,
+      `请对当前筛选结果做全面的价格体检：覆盖价格合理性、供应商健康度、风险预警三个维度，给出可操作的改进建议。`,
+      `假设需要从当前物资中优先采购一批，请给出你的推荐清单和理由，综合考虑价格、供应商可靠性和风险因素。`,
+    ];
+
+    // 随机选取一个角度 + 附加一些上下文细节让问题更具体
+    const seed = Date.now();
+    const idx = seed % angles.length;
+    return angles[idx];
+  };
 
   const openAssistantWithQuestion = (message: string) => {
     const question = message.trim();
@@ -648,31 +713,6 @@ export default function MallPage() {
           </a>
 
           <div className="flex items-center gap-3">
-            <motion.button
-              onClick={() => setBudgetOpen(true)}
-              className="relative h-10 rounded-xl bg-[#5b9bd5] px-4 text-sm font-bold text-white shadow-[0_8px_18px_rgba(6,78,162,.2)] transition hover:bg-[#4a89c4]"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              预算清单
-              {saveStatus === 'saving' && <span className="ml-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" title="保存中" />}
-              {saveStatus === 'saved' && <motion.span key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="ml-2 text-white/80" title="已保存">✓</motion.span>}
-              <AnimatePresence>
-                {lines.length > 0 && (
-                  <motion.span
-                    key="badge"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    exit={{ scale: 0 }}
-                    transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                    className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#e74c3c] px-1 text-xs text-white"
-                  >
-                    {lines.length}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-            <button onClick={openAudit} className="rounded-xl border border-[#d5e0ef] bg-white px-3 py-2 text-sm font-semibold text-[#5a6d8a] transition hover:border-[#5b9bd5] hover:text-[#5b9bd5]">操作记录</button>
             <div className="flex items-center gap-2 rounded-xl bg-[#f3f7fc] px-3 py-2">
               <motion.span
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-[#5b9bd5] text-xs font-black text-white"
@@ -689,7 +729,7 @@ export default function MallPage() {
         </div>
       </motion.header>
 
-      <main className="px-6 py-6">
+      <main className="px-4 pb-4 pt-2">
         {/* ===== Hero · 水叮当指挥中心 ===== */}
         <HeroSection
           search={search}
@@ -705,92 +745,233 @@ export default function MallPage() {
           formatPrice={formatPrice}
         />
 
+        {/* ── 指挥台：六区功能面板 ── */}
         <motion.section
-          className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4"
-          initial="hidden"
-          animate="show"
-          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.1 } } }}
+          className="mt-3 flex items-center rounded-xl border border-[#cdd9ea] bg-white overflow-hidden h-12"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
         >
-          {catalogLoading ? (
-            Array.from({ length: 4 }).map((_, i) => <motion.div key={i} variants={{ hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0 } }}><StatCardSkeleton /></motion.div>)
-          ) : [
-            ['目录物资', stats.total, '纳入集团集中采购目录'],
-            ['协议供应商', stats.suppliers, '已入库或框架协议供应商'],
-            ['本月更新', stats.updated, '近30天维护价格条目'],
-            ['价格预警', stats.alerts, '波动、过期或待复核条目'],
-          ].map(([label, value, desc], idx) => (
-            <StatsCard
-              key={label}
-              label={label as string}
-              value={value as number}
-              desc={desc as string}
-              warn={idx === 3}
-              changed={true}
-            />
-          ))}
-        </motion.section>
-
-        <section className="mt-5 rounded-2xl border border-[#e1e9f4] bg-white p-4 shadow-[0_10px_28px_rgba(15,35,65,.04)]">
-          <div className="flex flex-wrap items-center gap-3 md:grid md:grid-cols-4">
-            {[
-              ['region', region, setRegion, REGIONS] as const,
-              ['status', status, setStatus, STATUSES] as const,
-              ['source', source, setSource, SOURCES] as const,
-            ].map(([name, val, setter, options]) => {
-              const hasValue = (val as string) !== '全部';
-              const SelectCmp = (
-                <motion.select
-                  value={val as string}
-                  onChange={e => setter(e.target.value as never)}
-                  className={`h-11 rounded-xl border bg-white px-3 text-sm outline-none transition focus:border-[#5b9bd5] ${hasValue ? 'border-[#5b9bd5] ring-1 ring-[#5b9bd5]/20' : 'border-[#cdd9ea]'}`}
-                  animate={hasValue ? { borderColor: '#5b9bd5' } : { borderColor: '#cdd9ea' }}
-                >
-                  {options.map(v => <option key={v as string}>{v as string}</option>)}
-                </motion.select>
-              );
-              return hasValue ? (
-                <div key={name} className="relative">
-                  <span className="absolute -left-1 -top-1 flex h-3 w-3">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#5b9bd5]/30" />
-                    <span className="relative inline-flex h-3 w-3 rounded-full bg-[#5b9bd5]" />
-                  </span>
-                  {SelectCmp}
+          {/* ━━ ① 数据脉搏 · 浅色系同行统计 ━━ */}
+          <div className="flex items-center h-full shrink-0 bg-[#f1f5f9] border-r-2 border-[#e2e8f0]">
+            {catalogLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className={`flex items-center gap-1.5 px-3 ${i > 0 ? 'border-l border-[#e2e8f0]' : ''}`}>
+                  <div className="h-2.5 w-8 skeleton-shimmer rounded" />
+                  <div className="h-4 w-5 skeleton-shimmer rounded" />
                 </div>
-              ) : <div key={name}>{SelectCmp}</div>;
-            })}
-            <motion.button
-              onClick={resetFilters}
-              className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#5a6d8a] transition hover:border-[#5b9bd5] hover:text-[#5b9bd5]"
-              whileTap={{ scale: 0.96 }}
-            >
-              重置筛选
-            </motion.button>
+              ))
+            ) : (
+              <>
+                <div className="flex items-center gap-1.5 px-3 h-full">
+                  <span className="text-xs font-semibold text-[#64748b]">目录</span>
+                  <span className="text-sm font-black text-[#5b9bd5] tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace"}}>{stats.total}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 h-full border-l border-[#e5ecf4]">
+                  <span className="text-xs font-semibold text-[#64748b]">供应商</span>
+                  <span className="text-sm font-black text-[#0891b2] tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace"}}>{stats.suppliers}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 h-full border-l border-[#e5ecf4]">
+                  <span className="text-xs font-semibold text-[#64748b]">月更</span>
+                  <span className="text-sm font-black text-[#059669] tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace"}}>{stats.updated}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 h-full border-l border-[#fde68a] bg-amber-50/30">
+                  <span className="text-xs font-semibold text-[#64748b]">预警</span>
+                  <span className="text-sm font-black text-[#d97706] tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace"}}>{stats.alerts}</span>
+                </div>
+              </>
+            )}
           </div>
-          <motion.p
-            className="mt-2 text-xs font-semibold text-[#5a6d8a]"
-            key={filtered.length}
-            initial={{ opacity: 0.6 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            当前显示 <span className={filtered.length === 0 ? 'text-[#e74c3c]' : 'text-[#5b9bd5] font-bold'}>{filtered.length}</span> 项
-            {filtered.length === 0 && <span className="ml-1 text-[#e74c3c]">— 请调整筛选条件</span>}
-          </motion.p>
-          <LiveRegion>{filtered.length > 0 ? `当前显示 ${filtered.length} 项物资` : '未找到匹配条目'}</LiveRegion>
-        </section>
 
-        <section className="mt-5 grid gap-5 lg:grid-cols-[280px_1fr]">
-          <aside className="rounded-2xl border border-[#e1e9f4] bg-white p-4 shadow-[0_10px_28px_rgba(15,35,65,.04)] lg:sticky lg:top-20 lg:self-start">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-black text-[#334155]">集中采购目录</h2>
+          {/* ━━ ② 视切 · 石板灰 ━━ */}
+          <div className="flex items-center h-full shrink-0 bg-[#f1f5f9] border-r-2 border-[#cbd5e1]">
+            <div className="flex items-center gap-0 rounded border border-[#cbd5e1] bg-white p-0.5 mx-2.5 relative">
+              <motion.button onClick={() => setView('catalog')}
+                className={`relative z-10 rounded-sm px-3 py-1 text-[11px] font-bold transition-colors ${view === 'catalog' ? 'text-white' : 'text-[#64748b] hover:text-[#334155]'}`}
+                whileTap={{ scale: 0.95 }}>目录清单</motion.button>
+              <motion.button onClick={() => setView('supplier')}
+                className={`relative z-10 rounded-sm px-3 py-1 text-[11px] font-bold transition-colors ${view === 'supplier' ? 'text-white' : 'text-[#64748b] hover:text-[#334155]'}`}
+                whileTap={{ scale: 0.95 }}>供应商清单</motion.button>
+              <motion.div className="absolute z-0 rounded-sm bg-[#5b9bd5]"
+                layoutId="toolbar-view-toggle"
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                style={{ width: 'calc(50% - 1px)', height: 'calc(100% - 2px)', top: 1, left: view === 'catalog' ? 1 : 'calc(50% + 0.5px)' }} />
+            </div>
+          </div>
+
+          {/* ━━ ③ 筛选 · 冰川蓝底 ━━ */}
+          <div className="flex items-center h-full gap-0 bg-gradient-to-r from-[#eff6ff] to-[#f0f9ff] border-r-2 border-[#93c5fd]/40 flex-1 min-w-0">
+            <div className="flex items-center gap-3 flex-1 flex-wrap px-3">
+              {([
+                ['区域', region, setRegion, REGIONS] as const,
+                ['状态', status, setStatus, STATUSES] as const,
+                ['来源', source, setSource, SOURCES] as const,
+              ]).map(([label, val, setter, options]) => {
+                const hasValue = (val as string) !== '全部';
+                return (
+                  <div key={label} className="flex items-center gap-1.5 group">
+                    <span className="text-xs font-semibold text-[#64748b] group-hover:text-[#334155] select-none">{label}</span>
+                    <div className="relative">
+                      <select value={val as string} onChange={e => setter(e.target.value as never)}
+                        className={`h-7 rounded-md border bg-white pl-2 pr-5 text-xs font-semibold outline-none transition appearance-none cursor-pointer ${
+                          hasValue ? 'border-[#5b9bd5] text-[#5b9bd5] bg-[#eff6ff]' : 'border-transparent text-[#475569] hover:border-[#cbd5e1] hover:bg-white'
+                        }`}
+                        style={{ textAlignLast: 'center', textAlign: 'center' as React.CSSProperties['textAlign'] }}>
+                        {options.map(v => <option key={v as string} value={v as string}>{v as string}</option>)}
+                      </select>
+                      <svg className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={hasValue ? '#5b9bd5' : '#94a3b8'} strokeWidth="2.5" strokeLinecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-0 shrink-0 border-l border-[#bfd4f4]/50 pl-2">
+              <button onClick={() => setShowFavoritesOnly(v => !v)}
+                  className={`flex items-center h-7 rounded px-2 text-xs font-semibold transition ${
+                    showFavoritesOnly ? 'bg-amber-50 text-amber-600 ring-1 ring-amber-200' : 'text-[#94a3b8] hover:text-[#5b9bd5] hover:bg-white'
+                  }`} title="只看收藏">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill={showFavoritesOnly ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  收藏
+                </button>
+                <button onClick={resetFilters}
+                  className={`flex items-center h-7 rounded px-2 text-xs font-semibold transition ${
+                    (search || category !== '全部' || region !== '全部' || status !== '全部' || source !== '全部' || showFavoritesOnly)
+                      ? 'text-[#ef4444] hover:bg-red-50' : 'text-[#cbd5e1] cursor-default'
+                  }`} title="重置筛选">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                  重置
+                </button>
+            </div>
+          </div>
+
+          {/* ━━ ④ 排序 · 翡翠绿底 ━━ */}
+          <div className="flex items-center h-full gap-1.5 px-3 bg-gradient-to-r from-[#ecfdf5] to-[#f0fdf4] border-r-2 border-[#6ee7b7]/40 shrink-0">
+            <div className="flex items-center gap-1 h-7 rounded-md bg-[#059669]/8 px-2.5 mr-1 ring-1 ring-[#34d399]/20">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="6" x2="16" y2="6"/><line x1="4" y1="12" x2="12" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/>
+                <polyline points="14 15 18 18 22 12"/>
+              </svg>
+              <span className="text-xs font-bold text-[#059669] select-none">排序</span>
+            </div>
+            {([
+              ['updatedAt', '时间'],
+              ['referencePrice', '价格'],
+              ['category', '分类'],
+              ['changeRate', '变化'],
+            ] as const).map(([col, label]) => {
+              const isActive = sort?.col === col;
+              const dir = isActive ? sort!.dir : null;
+              return (
+                <button key={col} onClick={() => toggleSort(col)}
+                  className={`flex items-center justify-center gap-0.5 h-7 rounded px-2.5 text-sm font-semibold transition min-w-[4.25rem] ring-1 ${
+                    isActive ? 'bg-white text-[#059669] ring-[#34d399]/30 shadow-sm' : 'text-[#64748b] ring-transparent hover:text-[#059669] hover:bg-white'
+                  }`}>
+                  <span>{label}</span>
+                  <span className="inline-flex items-center w-3 h-3">
+                    {isActive ? (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        {dir === 'asc' ? <path d="m18 15-6-6-6 6"/> : <path d="m6 9 6 6 6-6"/>}
+                      </svg>
+                    ) : null}
+                  </span>
+                </button>
+              );
+            })}
+            <button onClick={sort ? () => setSort(null) : undefined}
+              className={`ml-0.5 text-[11px] transition ${sort ? 'text-[#94a3b8] hover:text-[#ef4444] cursor-pointer' : 'text-transparent cursor-default'}`}
+              title={sort ? '取消排序' : ''}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+          </div>
+
+          {/* ━━ ⑤ 行动 · 暖橙底 ━━ */}
+          <div className="flex items-center h-full gap-1.5 px-2.5 bg-gradient-to-r from-[#fff7ed] to-[#fffbeb] border-r-2 border-[#fdba74]/40 shrink-0">
+            <motion.button onClick={() => setBudgetOpen(true)}
+              className="relative h-7 rounded bg-[#5b9bd5] px-2.5 text-xs font-bold text-white hover:bg-[#4a89c4] active:scale-95 transition"
+              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }}>预算清单
+              {saveStatus === 'saving' && <span className="ml-1 inline-block h-1.5 w-1.5 animate-spin rounded-full border border-white/30 border-t-white" />}
+              <AnimatePresence>{lines.length > 0 && (
+                <motion.span key="badge" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                  className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#ef4444] px-1 text-[10px] font-bold text-white">{lines.length}</motion.span>
+              )}</AnimatePresence>
+            </motion.button>
+            <button onClick={openAudit}
+              className="flex items-center h-7 rounded border border-[#e5e7eb] bg-white px-2 text-xs font-semibold text-[#64748b] hover:border-[#5b9bd5] hover:text-[#5b9bd5] transition">操作记录</button>
+          </div>
+
+          {/* ━━ 密度模块 ━━ */}
+          <div className="flex items-center h-full gap-1.5 px-3 bg-gradient-to-r from-[#f8fafc] to-[#f1f5f9] border-r-2 border-[#e2e8f0] shrink-0">
+            <button onClick={() => setDensity(d => d === 'compact' ? 'comfortable' : 'compact')}
+              className="flex items-center gap-1.5 h-7 rounded-md px-2.5 text-xs font-semibold transition hover:bg-white"
+              title={density === 'compact' ? '切换到舒适视图' : '切换到紧凑视图'}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className={density === 'compact' ? 'text-[#059669]' : 'text-[#64748b]'}>
+                {density === 'compact'
+                  ? <><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>
+                  : <><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>}</svg>
+              <span className="text-[#64748b]">{density === 'compact' ? '紧凑' : '舒适'}</span>
+            </button>
+          </div>
+
+          {/* ━━ ⑥ 操作 · 熏衣草淡紫底 ━━ */}
+          <div className="flex items-center h-full gap-1 px-2 bg-gradient-to-r from-[#f5f3ff] to-[#faf5ff] border-r-2 border-[#c4b5fd]/40 shrink-0">
+            <AnimatePresence>{selectedIds.size > 0 && (
+              <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}
+                className="flex items-center gap-1 overflow-hidden">
+                <span className="text-[11px] font-semibold text-[#7c3aed] tabular-nums whitespace-nowrap">已选{selectedIds.size}</span>
+                <button onClick={batchAddToBudget} className="flex items-center gap-0.5 h-7 rounded bg-[#7c3aed] px-2 text-[11px] font-bold text-white hover:bg-[#6d28d9] active:scale-95 transition">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>加入预算
+                </button>
+                {selectedIds.size >= 2 && selectedIds.size <= 4 && (
+                  <button onClick={() => setCompareOpen(true)} className="flex items-center h-7 rounded border border-[#c4b5fd]/50 bg-white px-1.5 text-[11px] font-bold text-[#7c3aed] hover:bg-[#f5f3ff] active:scale-95 transition">对比</button>
+                )}
+                <button onClick={clearSelection} className="h-6 rounded px-1 text-[11px] font-semibold text-[#94a3b8] hover:text-[#334155] transition">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 1l10 10M11 1L1 11"/></svg>
+                </button>
+              </motion.div>
+            )}</AnimatePresence>
+            <button onClick={() => setAssistantInitialQuestion(buildAnalysisQuestion())}
+              className="flex items-center gap-0.5 h-7 rounded border border-[#bfd4f4] bg-gradient-to-r from-[#eef6ff] to-[#f8faff] px-2.5 text-xs font-bold text-[#5b9bd5] hover:border-[#5b9bd5] hover:from-[#dae9f8] hover:to-[#eef6ff] active:scale-95 transition">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>分析
+            </button>
+            <button onClick={() => { catalogAsync.retry(); suppliersAsync.retry(); favoritesAsync.retry(); }} disabled={catalogLoading}
+              className="flex items-center gap-0.5 h-7 rounded px-1.5 text-[11px] font-semibold text-[#94a3b8] hover:text-[#5b9bd5] hover:bg-white transition disabled:opacity-50" title="刷新">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className={catalogLoading ? 'animate-spin' : ''}>
+                <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            </button>
+            {lastUpdatedAt && (
+              <span className="text-[11px] text-[#bcc6d4] tabular-nums" title={`最后更新：${lastUpdatedAt.toLocaleString('zh-CN')}`}>
+                {(() => {const d=Math.floor((Date.now()-lastUpdatedAt.getTime())/1000);if(d<60)return'刚刚';if(d<3600)return`${Math.floor(d/60)}分`;if(d<86400)return`${Math.floor(d/3600)}时`;return lastUpdatedAt.toLocaleDateString('zh-CN',{month:'short',day:'numeric'});})()}
+              </span>
+            )}
+            <button onClick={exportCatalog} disabled={exporting === 'catalog'}
+              className="flex items-center gap-0.5 h-7 rounded border border-[#e5e7eb] px-2.5 text-xs font-semibold text-[#64748b] hover:border-[#5b9bd5] hover:text-[#5b9bd5] disabled:opacity-50 transition">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel
+            </button>
+          </div>
+
+          {/* ━━ 实时计数 ━━ */}
+          <div className="flex items-center h-full border-l-2 border-[#e2e8f0] px-3 shrink-0 bg-[#f8fafc]">
+            <span className={`text-sm font-semibold tabular-nums ${filtered.length === 0 ? 'text-[#ef4444]' : 'text-[#475569]'}`}>
+              总共 <span className={`text-sm font-black ${filtered.length === 0 ? 'text-[#ef4444]' : 'text-[#5b9bd5]'}`}>{filtered.length}</span> 项
+            </span>
+          </div>
+        </motion.section>
+        <LiveRegion>{filtered.length > 0 ? `当前显示 ${filtered.length} 项物资` : '未找到匹配条目'}</LiveRegion>
+
+        <section className="mt-3 grid gap-4 lg:grid-cols-[280px_1fr]">
+          <aside className="rounded-xl border border-[#e1e9f4] bg-white p-3.5 shadow-[0_4px_12px_rgba(15,35,65,.03)] lg:sticky lg:top-20 lg:self-start">
+            <div className="mb-2.5 flex items-center justify-between">
+              <h2 className="text-sm font-black text-[#334155]">集中采购目录</h2>
               <motion.span
-                className="rounded-full bg-[#eef3fb] px-2 py-0.5 text-xs font-bold text-[#5b9bd5]"
+                className="rounded-md bg-[#f1f5fb] px-1.5 py-0.5 text-[10px] font-bold text-[#5b9bd5] tabular-nums"
                 key={filtered.length}
-                initial={{ scale: 1.2 }}
+                initial={{ scale: 1.15 }}
                 animate={{ scale: 1 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 20 }}
               >
-                {filtered.length}项
+                {filtered.length}
               </motion.span>
             </div>
             <LayoutGroup>
@@ -833,11 +1014,13 @@ export default function MallPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.25 }}
-                  className="overflow-hidden rounded-2xl border border-[#e1e9f4] bg-white shadow-[0_10px_28px_rgba(15,35,65,.05)]"
+                  className="overflow-hidden rounded-2xl border border-[#e1e9f4] bg-white shadow-[0_4px_12px_rgba(15,35,65,.03)]"
                 >
-                  <div className="border-b border-[#e8eef6] px-5 py-4">
-                    <h2 className="text-lg font-black text-[#334155]">供应商目录</h2>
-                    <p className="mt-1 text-xs text-[#6a7890]">{suppliersAsync.status === 'loading' ? '加载供应商中…' : `共 ${suppliers.length} 家供应商，点击查看其在目录中的物资`}</p>
+                  <div className="flex items-center justify-between border-b border-[#e8eef6] px-5 py-3.5">
+                    <div>
+                      <h2 className="text-base font-black text-[#334155]">供应商清单</h2>
+                      <p className="mt-0.5 text-[11px] text-[#8a96aa]">{suppliersAsync.status === 'loading' ? '加载供应商中…' : `共 ${suppliers.length} 家供应商，点击查看其在目录中的物资`}</p>
+                    </div>
                   </div>
                   {suppliersAsync.status === 'error' ? (
                     <InlineError message="供应商加载失败" onRetry={suppliersAsync.retry} />
@@ -845,6 +1028,23 @@ export default function MallPage() {
                     <div className="p-5"><CardGridSkeleton count={6} cols={3} /></div>
                   ) : suppliers.length === 0 ? (
                     <EmptyState icon={<IconBuilding />} title="暂无供应商" description="尚未有供应商纳入集中采购目录" />
+                  ) : density === 'compact' ? (
+                    <div className="divide-y divide-[#eef3f8]">
+                      {suppliers.map(s => (
+                        <button
+                          key={s.supplier}
+                          onClick={() => browseSupplier(s.supplier)}
+                          className="flex items-center gap-4 w-full px-5 py-2.5 text-left hover:bg-[#f8fbff] transition group border-l-[3px] border-l-transparent hover:border-l-[#5b9bd5]"
+                        >
+                          <span className="text-sm font-bold text-[#334155] group-hover:text-[#5b9bd5] min-w-0 flex-1 truncate">{s.supplier}</span>
+                          <span className="text-xs text-[#6a7890] shrink-0">{s.supplierType}</span>
+                          <span className="text-xs text-[#8a96aa] shrink-0 max-w-[140px] truncate">{s.regions.join(' / ')}</span>
+                          <span className="text-xs font-bold tabular-nums text-[#e74c3c] shrink-0">¥{s.avgPrice.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}</span>
+                          <span className="text-xs tabular-nums text-[#8a96aa] shrink-0">{formatPrice(s.minPrice).replace('¥','')}~{formatPrice(s.maxPrice).replace('¥','')}</span>
+                          <span className="rounded-md bg-[#f1f5fb] px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-[#5b9bd5] shrink-0">{s.itemCount}项</span>
+                        </button>
+                      ))}
+                    </div>
                   ) : (
                   <motion.div
                     className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3"
@@ -857,20 +1057,20 @@ export default function MallPage() {
                         key={s.supplier}
                         variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } } }}
                         onClick={() => browseSupplier(s.supplier)}
-                        className="group rounded-2xl border border-[#e1e9f4] bg-white p-4 text-left"
-                        whileHover={{ y: -4, borderColor: 'rgba(6,78,162,.3)', boxShadow: '0 18px 42px rgba(6,78,162,.1)' }}
-                        whileTap={{ scale: 0.97 }}
+                        className="group rounded-xl border border-[#e1e9f4] bg-white p-4 text-left shadow-[0_1px_3px_rgba(15,35,65,.03)]"
+                        whileHover={{ y: -2, borderColor: 'rgba(91,155,213,.25)', boxShadow: '0 8px 24px rgba(91,155,213,.07)' }}
+                        whileTap={{ scale: 0.98 }}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <h3 className="line-clamp-2 text-sm font-black text-[#334155] group-hover:text-[#5b9bd5]">{s.supplier}</h3>
-                          <span className="shrink-0 rounded-full bg-[#eef3fb] px-2 py-0.5 text-xs font-bold text-[#5b9bd5]">{s.itemCount}项</span>
+                          <h3 className="line-clamp-2 text-sm font-bold text-[#334155] group-hover:text-[#5b9bd5] leading-snug">{s.supplier}</h3>
+                          <span className="shrink-0 rounded-md bg-[#f1f5fb] px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-[#5b9bd5]">{s.itemCount}</span>
                         </div>
-                        <div className="mt-1 text-xs text-[#6a7890]">{s.supplierType} · {s.regions.join(' / ')}</div>
+                        <div className="mt-1 text-[11px] text-[#8a96aa]">{s.supplierType} · {s.regions.slice(0, 2).join(' / ')}{s.regions.length > 2 ? ` +${s.regions.length - 2}` : ''}</div>
                         <div className="mt-3 flex items-end justify-between">
-                          <div><span className="text-lg font-black text-[#e74c3c]">¥{s.avgPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</span><span className="text-xs text-[#6a7890]"> 均价</span></div>
-                          <span className="text-xs text-[#6a7890]">{formatPrice(s.minPrice)} ~ {formatPrice(s.maxPrice)}</span>
+                          <div><span className="text-base font-black tabular-nums text-[#e74c3c]">¥{s.avgPrice.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}</span><span className="text-[10px] text-[#8a96aa]"> 均价</span></div>
+                          <span className="text-[10px] tabular-nums text-[#8a96aa]">{formatPrice(s.minPrice).replace('¥','')} ~ {formatPrice(s.maxPrice).replace('¥','')}</span>
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-1">{s.categories.slice(0, 4).map(c => <span key={c} title={c} className="rounded bg-[#f3f7fc] px-1.5 py-0.5 text-[10px] font-bold text-[#5a6d8a]">{shortCategory(c)}</span>)}{s.categories.length > 4 && <span className="text-[10px] text-[#6a7890]">+{s.categories.length - 4}</span>}</div>
+                        <div className="mt-2 flex flex-wrap gap-1">{s.categories.slice(0, 4).map(c => <span key={c} title={c} className="rounded-md bg-[#f3f7fc] px-1.5 py-0.5 text-[10px] font-semibold text-[#5a6d8a]">{shortCategory(c)}</span>)}{s.categories.length > 4 && <span className="text-[10px] text-[#8a96aa]">+{s.categories.length - 4}</span>}</div>
                       </motion.button>
                     ))}
                   </motion.div>
@@ -878,35 +1078,13 @@ export default function MallPage() {
                 </motion.section>
               )}
             </AnimatePresence>
-            <section className={`${view === 'supplier' ? 'hidden' : ''} overflow-hidden rounded-2xl border border-[#e1e9f4] bg-white shadow-[0_10px_28px_rgba(15,35,65,.05)]`}>
-              <div className="flex items-center justify-between border-b border-[#e8eef6] px-5 py-4"><div><h2 className="text-lg font-black text-[#334155]">目录清单</h2><p className="mt-1 text-xs text-[#6a7890]">参考价用于预算编制与询价比价，最终采购价格以采购文件及成交结果为准。</p></div><div className="flex items-center gap-3">
-              <button onClick={() => setShowFavoritesOnly(v => !v)} className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${showFavoritesOnly ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-[#cdd9ea] text-[#5a6d8a] hover:bg-[#f3f7fc]'}`}>★ 我的收藏{favoriteIds.length > 0 ? ` (${favoriteIds.length})` : ''}</button>
-              <button onClick={() => setDensity(d => d === 'compact' ? 'comfortable' : 'compact')} className="rounded-lg border border-[#cdd9ea] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] transition hover:bg-[#f3f7fc]" title={density === 'compact' ? '切换到舒适模式：行高更大便于阅读' : '切换到紧凑模式：一屏显示更多物资'}>{density === 'compact' ? '紧凑' : '舒适'}</button>
-              <div className="flex items-center gap-1 rounded-xl border border-[#cdd9ea] p-1 relative">
-                <div className="relative z-20 flex">
-                  <motion.button
-                    onClick={() => setView('catalog')}
-                    className={`relative rounded-lg px-3 py-1 text-xs font-bold transition-colors ${view === 'catalog' ? 'text-white' : 'text-[#5a6d8a] hover:text-[#5b9bd5]'}`}
-                    whileTap={{ scale: 0.95 }}
-                  >目录视图</motion.button>
-                  <motion.button
-                    onClick={() => setView('supplier')}
-                    className={`relative rounded-lg px-3 py-1 text-xs font-bold transition-colors ${view === 'supplier' ? 'text-white' : 'text-[#5a6d8a] hover:text-[#5b9bd5]'}`}
-                    whileTap={{ scale: 0.95 }}
-                  >供应商视图</motion.button>
+            <section className={`${view === 'supplier' ? 'hidden' : ''} overflow-hidden rounded-2xl border border-[#e1e9f4] bg-white shadow-[0_4px_12px_rgba(15,35,65,.03)]`}>
+              <div className="flex items-center justify-between border-b border-[#e8eef6] px-5 py-3.5">
+                <div>
+                  <h2 className="text-base font-black text-[#334155]">目录清单</h2>
+                  <p className="mt-0.5 text-[11px] text-[#8a96aa]">参考价用于预算编制与询价比价，最终以采购文件及成交结果为准。</p>
                 </div>
-                <motion.div
-                  className="absolute z-[1] rounded-lg bg-[#5b9bd5]"
-                  layoutId="view-toggle"
-                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                  style={{ width: 'calc(50% - 2px)', height: 'calc(100% - 2px)', top: 1, left: view === 'catalog' ? 1 : '50%' }}
-                />
               </div>
-              <button onClick={exportCatalog} disabled={exporting === 'catalog'} className="hidden items-center gap-2 rounded-xl border border-[#cdd9ea] px-4 py-2 text-sm font-bold text-[#5b9bd5] transition hover:bg-[#f3f7fc] disabled:opacity-60 md:flex">
-                {exporting === 'catalog' && <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>}
-                {exporting === 'catalog' ? '生成中…' : '导出价格清单'}
-              </button>
-            </div></div>
               {/* ===== 内容区：error / loading / empty / filtered-empty / success ===== */}
               {catalogAsync.status === 'error' ? (
                 <InlineError message="采购目录加载失败" detail={catalogAsync.error?.message} onRetry={catalogAsync.retry} />
@@ -921,7 +1099,7 @@ export default function MallPage() {
                 <EmptyState icon={<IconSearchX />} title="未找到匹配条目" description="请调整关键词、分类、区域或价格状态后重试" action={{ label: '重置筛选', onClick: resetFilters }} />
               ) : (
                 <>
-              <div className={`hidden overflow-x-auto md:block ${density === 'compact' ? '[&_td]:py-1.5 [&_td]:px-2 [&_td]:text-xs [&_th]:py-1.5 [&_th]:px-2' : ''}`}><table className="w-full min-w-[1180px] border-collapse text-center text-sm"><thead className="bg-[#f7faff] text-xs font-bold"><tr><th className="w-10 px-2 py-3"><input type="checkbox" checked={sorted.length > 0 && selectedIds.size === sorted.length} onChange={toggleSelectAll} className="h-3.5 w-3.5 cursor-pointer accent-[#5b9bd5]" aria-label="全选" /></th><th className="px-3 py-3 text-[#5a6d8a]">目录编码 / 物资</th><th className="px-3 py-3 text-[#5a6d8a]">规格型号</th><th className="px-3 py-3 text-[#5a6d8a]">分类</th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#5b9bd5]" onClick={() => toggleSort('referencePrice')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'referencePrice' ? 'text-[#5b9bd5]' : ''}`}>参考价 {sort?.col === 'referencePrice' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="px-3 py-3 text-[#5a6d8a]">价格区间</th><th className="px-3 py-3 text-[#5a6d8a]">供应商</th><th className="px-3 py-3 text-[#5a6d8a]">来源</th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#5b9bd5]" onClick={() => toggleSort('changeRate')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'changeRate' ? 'text-[#5b9bd5]' : ''}`}>状态 {sort?.col === 'changeRate' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="px-3 py-3 text-center text-[#5a6d8a]">操作</th></tr></thead><tbody className="divide-y divide-[#eef3f8]"><AnimatePresence mode="popLayout">{sorted.map(item => <motion.tr layout key={item.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.2 }} onClick={() => setDetail(item)} className={`cursor-pointer border-l-[3px] border-l-transparent transition hover:border-l-[#5b9bd5] hover:bg-[#f8fbff] active:bg-[#eef3fb] ${density === 'compact' ? 'h-10' : ''}`}><td className="w-10 px-2 py-4" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelectOne(item.id)} className="h-3.5 w-3.5 cursor-pointer accent-[#5b9bd5]" aria-label={`选择 ${item.name}`} /></td><td className="px-3 py-4"><button onClick={() => setDetail(item)} className="text-center"><div className="font-mono text-xs font-bold text-[#5b9bd5]">{item.code}</div><div className="mt-1 font-black text-[#334155] hover:text-[#5b9bd5]">{item.name}</div></button></td><td className="max-w-[190px] px-4 py-4 text-[#344563]" title={item.specification}><div className="truncate">{item.specification}</div></td><td className="px-4 py-4"><span title={item.category} className="rounded-full bg-[#eef3fb] px-2 py-1 text-xs font-bold text-[#5b9bd5]">{shortCategory(item.category)}</span></td><td className="px-4 py-4"><span className="text-base font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#6a7890]">/{item.unit}</span></td><td className="px-4 py-4 text-[#5a6d8a]">{formatPrice(item.priceMin)} - {formatPrice(item.priceMax)}</td><td className="max-w-[180px] px-4 py-4"><div className="truncate font-semibold text-[#334155]" title={item.supplier}>{item.supplier}</div><div className="mt-1 text-xs text-[#6a7890]">{item.supplierType} · {item.region}</div></td><td className="px-4 py-4"><span title={item.priceSource} className={`rounded-full px-2 py-1 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{SOURCE_SHORT[item.priceSource]}</span></td><td className="px-4 py-4"><span title={item.status} className={`rounded-full border px-2 py-1 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span><div className={`mt-1 text-xs font-bold ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#6a7890]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</div></td><td className="px-4 py-4 text-center"><button onClick={(e) => { e.stopPropagation(); toggleFavorite(item); }} className={`mr-1 text-base align-middle transition hover:scale-110 ${favoriteIds.includes(item.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(item.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(item.id) ? '★' : '☆'}</button><button onClick={() => setDetail(item)} className="mr-2 text-xs font-bold text-[#5b9bd5] hover:underline">详情</button><button onClick={(e) => { e.stopPropagation(); addToBudget(item); }} className="rounded-lg bg-[#5b9bd5] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#4a89c4]">加入预算</button></td></motion.tr>)}</AnimatePresence></tbody></table></div>
+              <div className={`hidden overflow-x-auto md:block ${density === 'compact' ? '[&_td]:py-1.5 [&_td]:px-2 [&_td]:text-xs [&_th]:py-1.5 [&_th]:px-2' : ''}`}><table className="w-full min-w-[1180px] border-collapse text-center text-sm"><thead className="bg-[#f7faff] text-xs font-bold"><tr><th className="w-10 px-2 py-3"><input type="checkbox" checked={sorted.length > 0 && selectedIds.size === sorted.length} onChange={toggleSelectAll} className="h-3.5 w-3.5 cursor-pointer accent-[#5b9bd5]" aria-label="全选" /></th><th className="px-3 py-3 text-[#5a6d8a]">目录编码 / 物资</th><th className="px-3 py-3 text-[#5a6d8a]">规格型号</th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#5b9bd5]" onClick={() => toggleSort('category')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'category' ? 'text-[#5b9bd5]' : ''}`}>分类 {sort?.col === 'category' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#5b9bd5]" onClick={() => toggleSort('referencePrice')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'referencePrice' ? 'text-[#5b9bd5]' : ''}`}>参考价 {sort?.col === 'referencePrice' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="px-3 py-3 text-[#5a6d8a]">价格区间</th><th className="px-3 py-3 text-[#5a6d8a]">供应商</th><th className="px-3 py-3 text-[#5a6d8a]">来源</th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#5b9bd5]" onClick={() => toggleSort('changeRate')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'changeRate' ? 'text-[#5b9bd5]' : ''}`}>状态 {sort?.col === 'changeRate' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="px-3 py-3 text-center text-[#5a6d8a]">操作</th></tr></thead><tbody className="divide-y divide-[#eef3f8]"><AnimatePresence mode="popLayout">{sorted.map(item => <motion.tr layout key={item.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.2 }} onClick={() => setDetail(item)} className={`cursor-pointer border-l-[3px] border-l-transparent transition hover:border-l-[#5b9bd5] hover:bg-[#f8fbff] active:bg-[#eef3fb] ${density === 'compact' ? 'h-10' : ''}`}><td className="w-10 px-2 py-4" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelectOne(item.id)} className="h-3.5 w-3.5 cursor-pointer accent-[#5b9bd5]" aria-label={`选择 ${item.name}`} /></td><td className="px-3 py-4"><button onClick={() => setDetail(item)} className="text-center"><div className="font-mono text-xs font-bold text-[#5b9bd5]">{item.code}</div><div className="mt-1 font-black text-[#334155] hover:text-[#5b9bd5]">{item.name}</div></button></td><td className="max-w-[190px] px-4 py-4 text-[#344563]" title={item.specification}><div className="truncate">{item.specification}</div></td><td className="px-4 py-4"><span title={item.category} className="rounded-full bg-[#eef3fb] px-2 py-1 text-xs font-bold text-[#5b9bd5]">{shortCategory(item.category)}</span></td><td className="px-4 py-4"><span className="text-base font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#6a7890]">/{item.unit}</span></td><td className="px-4 py-4 text-[#5a6d8a]">{formatPrice(item.priceMin)} - {formatPrice(item.priceMax)}</td><td className="max-w-[180px] px-4 py-4"><div className="truncate font-semibold text-[#334155]" title={item.supplier}>{item.supplier}</div><div className="mt-1 text-xs text-[#6a7890]">{item.supplierType} · {item.region}</div></td><td className="px-4 py-4"><span title={item.priceSource} className={`rounded-full px-2 py-1 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{SOURCE_SHORT[item.priceSource]}</span></td><td className="px-4 py-4"><span title={item.status} className={`rounded-full border px-2 py-1 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span><div className={`mt-1 text-xs font-bold ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#6a7890]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</div></td><td className="px-4 py-4 text-center"><button onClick={(e) => { e.stopPropagation(); toggleFavorite(item); }} className={`mr-1 text-base align-middle transition hover:scale-110 ${favoriteIds.includes(item.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(item.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(item.id) ? '★' : '☆'}</button><button onClick={() => setDetail(item)} className="mr-2 text-xs font-bold text-[#5b9bd5] hover:underline">详情</button><button onClick={(e) => { e.stopPropagation(); addToBudget(item); }} className="rounded-lg bg-[#5b9bd5] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#4a89c4]">加入预算</button></td></motion.tr>)}</AnimatePresence></tbody></table></div>
               <div className="divide-y divide-[#eef3f8] md:hidden">
               {sorted.map(item => (
                 <div key={item.id} className="p-4">
@@ -953,24 +1131,6 @@ export default function MallPage() {
         </section>
       </main>
 
-      {/* ===== 批量操作浮动栏 ===== */}
-      <AnimatePresence>
-        {selectedIds.size > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 40 }}
-            className="fixed bottom-6 left-1/2 z-[120] -translate-x-1/2"
-          >
-            <div className="flex items-center gap-3 rounded-2xl border border-[#5b9bd5]/20 bg-white px-5 py-3 shadow-[0_8px_40px_rgba(6,78,162,.15)]">
-              <span className="text-sm font-bold text-[#334155]">已选 <span className="text-[#5b9bd5]">{selectedIds.size}</span> 项</span>
-              <button onClick={batchAddToBudget} className="rounded-xl bg-[#5b9bd5] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#4a89c4] active:scale-95">加入预算清单</button>
-              {selectedIds.size >= 2 && selectedIds.size <= 4 && <button onClick={() => setCompareOpen(true)} className="rounded-xl border border-[#5b9bd5]/30 bg-white px-4 py-2 text-sm font-bold text-[#5b9bd5] transition hover:bg-[#f3f8ff] active:scale-95">对比</button>}
-              <button onClick={clearSelection} className="text-sm font-semibold text-[#6a7890] transition hover:text-[#334155]">清空选择</button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {mounted && createPortal(
         <AnimatePresence>
@@ -1080,14 +1240,14 @@ export default function MallPage() {
                     <span className="text-2xl font-black text-[#e74c3c]">{formatPrice(budgetTotal)}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <button onClick={exportBudget} disabled={exporting === 'budget'} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#5b9bd5] transition hover:bg-[#f3f7fc] disabled:opacity-60">
+                    <button onClick={exportBudget} disabled={exporting === 'budget'} className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#5b9bd5] transition hover:bg-[#f3f7fc] disabled:opacity-60">
                       {exporting === 'budget' && <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>}
                       {exporting === 'budget' ? '生成中…' : '导出预算清单'}
                     </button>
                     {isConverted ? (
-                      <button onClick={() => setBudgetOpen(false)} className="h-11 rounded-xl bg-emerald-600 text-sm font-bold text-white">已完成，关闭</button>
+                      <button onClick={() => setBudgetOpen(false)} className="h-12 rounded-xl bg-emerald-600 text-sm font-bold text-white">已完成，关闭</button>
                     ) : (
-                      <button onClick={convertList} className="h-11 rounded-xl bg-[#5b9bd5] text-sm font-bold text-white transition hover:bg-[#4a89c4]">生成询价单</button>
+                      <button onClick={convertList} className="h-12 rounded-xl bg-[#5b9bd5] text-sm font-bold text-white transition hover:bg-[#4a89c4]">生成询价单</button>
                     )}
                   </div>
                 </div>
@@ -1156,7 +1316,7 @@ export default function MallPage() {
               <PriceChart points={detailHistory} referencePrice={detail.referencePrice} />
             )}
           </div>
-          <div className="rounded-2xl border border-[#bfd4f4] bg-gradient-to-br from-[#f8fbff] to-white p-5"><div className="mb-3 flex items-center justify-between"><div className="text-sm font-black text-[#2c5282]">AI 价格研判</div><button onClick={() => openAssistantWithQuestion(buildDetailPrompt(detail))} className="rounded-full bg-[#5b9bd5] px-3 py-1 text-xs font-black text-white">AI 智能分析</button></div><p className="text-sm leading-6 text-[#5a6d8a]">点击分析后，AI 将结合参考价、价格区间、历史均价、供应商、价格来源和有效期，生成风险结论、询价建议和预算引用说明。</p></div><div className="grid grid-cols-2 gap-3"><button onClick={() => { navigator.clipboard?.writeText(detail.code); toast.success('目录编码已复制'); }} className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#5b9bd5] transition hover:bg-[#f3f7fc]">复制目录编码</button><button onClick={() => { addToBudget(detail); setDetail(null); }} className="h-11 rounded-xl bg-[#5b9bd5] text-sm font-bold text-white transition hover:bg-[#4a89c4]">加入预算清单</button></div></div></motion.div></motion.div>)}</AnimatePresence>, document.body)}
+          <div className="rounded-2xl border border-[#bfd4f4] bg-gradient-to-br from-[#f8fbff] to-white p-5"><div className="mb-3 flex items-center justify-between"><div className="text-sm font-black text-[#2c5282]">AI 价格研判</div><button onClick={() => openAssistantWithQuestion(buildDetailPrompt(detail))} className="rounded-full bg-[#5b9bd5] px-3 py-1 text-xs font-black text-white">AI 智能分析</button></div><p className="text-sm leading-6 text-[#5a6d8a]">点击分析后，AI 将结合参考价、价格区间、历史均价、供应商、价格来源和有效期，生成风险结论、询价建议和预算引用说明。</p></div><div className="grid grid-cols-2 gap-3"><button onClick={() => { navigator.clipboard?.writeText(detail.code); toast.success('目录编码已复制'); }} className="h-12 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#5b9bd5] transition hover:bg-[#f3f7fc]">复制目录编码</button><button onClick={() => { addToBudget(detail); setDetail(null); }} className="h-12 rounded-xl bg-[#5b9bd5] text-sm font-bold text-white transition hover:bg-[#4a89c4]">加入预算清单</button></div></div></motion.div></motion.div>)}</AnimatePresence>, document.body)}
       {mounted && createPortal(
         <AnimatePresence>
           {auditOpen && (
@@ -1282,6 +1442,21 @@ export default function MallPage() {
   );
 }
 
+/** 工具栏指标值 —— 独立组件确保 useCountUp hook 在顶层安全调用 */
+function MetricValue({ value, color, warn }: { value: number; color: string; warn?: boolean }) {
+  const display = useCountUp(value, { duration: 0.8, spring: true });
+  return (
+    <motion.span
+      className="text-base font-black tabular-nums tracking-tight"
+      style={{ fontFamily: "'SF Mono','Menlo','Consolas',monospace", color }}
+      animate={warn && value > 0 ? { scale: [1, 1.06, 1] } : {}}
+      transition={{ duration: 0.5, repeat: value > 0 ? Infinity : 0, repeatDelay: 3 }}
+    >
+      {display}
+    </motion.span>
+  );
+}
+
 
 // ===== 空状态内联 SVG 图标（1.2px 描边，匹配 .impeccable.md） =====
 function IconPackageOpen() {
@@ -1298,28 +1473,6 @@ function Info({ label, value, strong = false }: { label: string; value: string; 
   return <div><div className="text-xs font-bold text-[#6a7890]">{label}</div><div className={`mt-1 text-sm ${strong ? 'text-xl font-black text-[#e74c3c]' : 'font-semibold text-[#334155]'}`}>{value}</div></div>;
 }
 
-/** Stats card with animated count-up */
-function StatsCard({ label, value, desc, warn, changed }: { label: string; value: number; desc: string; warn?: boolean; changed?: boolean }) {
-  const display = useCountUp(value, { duration: 0.8, spring: true });
-  return (
-    <motion.div
-      variants={{ hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } } }}
-      className="rounded-2xl border border-[#e1e9f4] bg-white p-5 shadow-[0_10px_28px_rgba(15,35,65,.05)]"
-      whileHover={{ y: -4, boxShadow: '0 18px 40px rgba(15,35,65,.08)' }}
-    >
-      <div className="text-sm font-bold text-[#5a6d8a]">{label}</div>
-      <motion.div
-        className={`mt-2 text-3xl font-black ${warn ? 'text-[#e67e22]' : 'text-[#5b9bd5]'}`}
-        animate={changed ? { scale: [1, 1.05, 1] } : {}}
-        transition={{ duration: 0.4 }}
-      >
-        <motion.span>{display}</motion.span>
-      </motion.div>
-      <div className="mt-1 text-xs text-[#6a7890]">{desc}</div>
-    </motion.div>
-  );
-}
-
 /** Focus item card */
 function FocusCard({ item, onSelect, formatPrice, formatDate, statusStyles, STATUS_SHORT }: {
   item: CatalogItem; onSelect: (item: CatalogItem) => void;
@@ -1330,19 +1483,19 @@ function FocusCard({ item, onSelect, formatPrice, formatDate, statusStyles, STAT
     <motion.button
       variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } } }}
       onClick={() => onSelect(item)}
-      className="group rounded-2xl border border-[#e1e9f4] bg-white p-4 text-left shadow-[0_10px_28px_rgba(15,35,65,.04)]"
-      whileHover={{ y: -4, borderColor: 'rgba(6,78,162,.3)', boxShadow: '0 18px 42px rgba(6,78,162,.1)' }}
-      whileTap={{ scale: 0.97 }}
+      className="group rounded-xl border border-[#e1e9f4] bg-white p-3.5 text-left shadow-[0_1px_3px_rgba(15,35,65,.03)]"
+      whileHover={{ y: -2, borderColor: 'rgba(91,155,213,.3)', boxShadow: '0 8px 24px rgba(91,155,213,.08)' }}
+      whileTap={{ scale: 0.98 }}
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <span title={item.status} className={`rounded-full border px-2 py-0.5 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span>
-        <span className={`text-xs font-black ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#6a7890]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</span>
+      <div className="mb-2.5 flex items-center justify-between gap-2">
+        <span title={item.status} className={`rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span>
+        <span className={`text-[10px] font-bold tabular-nums ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#6a7890]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</span>
       </div>
-      <h3 className="line-clamp-1 text-sm font-black text-[#334155] group-hover:text-[#5b9bd5]">{item.name}</h3>
-      <p className="mt-1 line-clamp-1 text-xs text-[#6a7890]">{item.specification}</p>
-      <div className="mt-3 flex items-end justify-between">
-        <div><span className="text-xl font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#6a7890]">/{item.unit}</span></div>
-        <span className="text-xs font-semibold text-[#5a6d8a]">{formatDate(item.validUntil)}</span>
+      <h3 className="line-clamp-1 text-sm font-bold text-[#334155] group-hover:text-[#5b9bd5]">{item.name}</h3>
+      <p className="mt-0.5 line-clamp-1 text-[11px] text-[#8a96aa]">{item.specification}</p>
+      <div className="mt-2.5 flex items-end justify-between">
+        <div><span className="text-lg font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-[10px] text-[#8a96aa]">/{item.unit}</span></div>
+        <span className="text-[10px] font-semibold text-[#8a96aa]">{formatDate(item.validUntil)}</span>
       </div>
     </motion.button>
   );
@@ -1359,13 +1512,16 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
     child => child === '全部' ? items.some(i => i.name.includes(searchTerm) || i.code.includes(searchTerm)) :
     items.some(i => (i.category === child || i.group === child) && (i.name.includes(searchTerm) || i.code.includes(searchTerm)))
   );
+  const groupCount = section.children.reduce((sum, child) =>
+    sum + (child === '全部' ? items.length : items.filter(item => item.category === child || item.group === child).length), 0
+  );
   return (
     <div key={section.group}>
       <button
         onClick={() => setCollapsed(c => !c)}
         onKeyDown={e => { if (e.key === 'ArrowRight') setCollapsed(false); else if (e.key === 'ArrowLeft') setCollapsed(true); }}
         aria-expanded={!collapsed}
-        className={`mb-1 flex w-full items-center gap-1 text-xs font-bold ${hasSearchMatch ? 'text-[#5b9bd5]' : 'text-[#6a7890]'} transition`}
+        className={`mb-1 flex w-full items-center gap-1.5 text-xs font-bold ${hasSearchMatch ? 'text-[#5b9bd5]' : 'text-[#6a7890]'} transition hover:text-[#334155]`}
       >
         <motion.svg
           animate={{ rotate: collapsed ? -90 : 0 }}
@@ -1375,7 +1531,8 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
         >
           <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
         </motion.svg>
-        {section.group}
+        <span className="flex-1 text-left">{section.group}</span>
+        <span className="text-[10px] tabular-nums text-[#bcc6d4] font-medium">{groupCount}</span>
       </button>
       <AnimatePresence initial={false}>
         {!collapsed && (
@@ -1383,10 +1540,10 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="grid gap-1">
+            <div className="grid gap-0.5 ml-1.5">
               <LayoutGroup>
                 {section.children.map(child => {
                   const count = child === '全部' ? items.length : items.filter(item => item.category === child || item.group === child).length;
@@ -1401,11 +1558,11 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
                       key={child}
                       layout
                       onClick={() => onSelect(child)}
-                      className={`flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${
+                      className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-left text-xs font-semibold transition ${
                         active
-                          ? 'bg-[#5b9bd5] text-white shadow-[0_8px_18px_rgba(6,78,162,.2)]'
-                          : hasMatch ? 'bg-[#eef6ff] text-[#5b9bd5] border-l-[3px] border-l-[#5b9bd5] pl-[9px]'
-                          : 'text-[#344563] hover:bg-[#f3f7fc] hover:text-[#5b9bd5]'
+                          ? 'bg-[#5b9bd5]/10 text-[#5b9bd5] font-bold'
+                          : hasMatch ? 'bg-[#eff6ff] text-[#5b9bd5]'
+                          : 'text-[#5a6d8a] hover:bg-[#f3f7fc] hover:text-[#334155]'
                       }`}
                     >
                       <span>{child}</span>

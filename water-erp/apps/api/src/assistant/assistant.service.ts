@@ -126,12 +126,17 @@ ${toolList}
       }
     } catch (e) {
       answer = `抱歉，AI 服务暂时不可用：${(e as Error).message}。请检查 DeepSeek API Key 配置或稍后重试。`;
+      this.logger.error(`chat() 主流程异常: ${(e as Error).message}`, (e as Error).stack);
     }
+
+    this.logger.log(`chat() 主流程完成，准备清理 answer。当前 answer 长度=${answer?.length || 0}, cards=${cards.length}`);
 
     // 安全网：剥离 Markdown 格式符号（无论模型是否遵守提示词规则）
     answer = this.stripMarkdown(answer);
+    this.logger.log('stripMarkdown 完成');
     // 安全网：剥离残留的英文字母/单词（无论模型是否遵守提示词规则）
     answer = this.stripEnglish(answer);
+    this.logger.log('stripEnglish 完成');
 
     // Guard against empty answers — if all paths produced nothing, give a fallback
     if (!answer || !answer.trim()) {
@@ -139,6 +144,7 @@ ${toolList}
     }
 
     try {
+      this.logger.log(`准备保存会话消息，cardsJson 大小=${JSON.stringify(cards).length} 字节`);
       await this.prisma.assistantMessage.create({
         data: {
           conversationId: conversation.id,
@@ -148,8 +154,9 @@ ${toolList}
           citationsJson: (citations.length > 0 ? citations : undefined) as any,
         },
       });
+      this.logger.log('会话消息保存成功');
     } catch (e) {
-      this.logger.error(`保存助手消息失败: ${(e as Error).message}`);
+      this.logger.error(`保存助手消息失败: ${(e as Error).message}`, (e as Error).stack);
     }
 
     if (!conversation.messages?.length) {
@@ -163,6 +170,7 @@ ${toolList}
       }
     }
 
+    this.logger.log(`chat() 返回响应: conversationId=${conversation.id}, answerLen=${answer.length}, cards=${cards.length}`);
     return { conversationId: conversation.id, answer, cards, citations, pendingActions };
   }
 
@@ -232,8 +240,8 @@ ${toolList}
       this.logger.log('handleNormalChat: 自动补充 global_overview 调用以保证图表产出');
     }
 
-    // Execute each tool, aggregate cards + data
-    const aggregatedData: Array<{ tool: string; data: unknown }> = [];
+    // Execute each tool, aggregate cards for LLM summary
+    let successCount = 0;
     for (const tc of toolCalls) {
       const tool = this.toolRegistry.get(tc.tool);
       if (!tool) {
@@ -245,24 +253,36 @@ ${toolList}
       if (result.citations) {
         for (const c of result.citations) citations.push(c);
       }
-      if (result.success) {
-        aggregatedData.push({ tool: tc.tool, data: result.data || result });
-      }
+      if (result.success) successCount++;
     }
 
     this.logger.log(
-      `handleNormalChat: 生成 ${cards.length} 张卡片（含 ${cards.filter((c) => (c as any).type === 'chart').length} 张图表），${aggregatedData.length} 个工具成功返回数据`,
+      `handleNormalChat: 生成 ${cards.length} 张卡片（含 ${cards.filter((c) => (c as any).type === 'chart').length} 张图表），${successCount} 个工具成功返回数据`,
     );
 
-    if (aggregatedData.length === 0) {
-      // All tool calls failed — return stripped narrative or fallback
+    if (cards.length === 0) {
       return answer.trim() ||
         '抱歉，数据查询失败，请稍后重试或换一种方式提问。';
     }
 
-    // Single second model call with ALL aggregated data
-    const toolDataStr = JSON.stringify(aggregatedData).slice(0, 4000);
-    const toolSummary = `以下是 ${aggregatedData.length} 个工具返回的真实数据（JSON格式），请综合引用其中的项目名称、金额、日期等具体信息：\n\`\`\`json\n${toolDataStr}\n\`\`\`\n\n请基于以上真实数据，按系统提示词的总-分结构输出回答。必须引用具体的项目名称、金额数字、时间节点。注意：数据中的英文状态码（如OPENING、PENDING）仅供你理解使用，在回答中必须转换为中文（如"开标阶段""待审核"），严禁在回答中输出英文代码。不要写空泛的概括。`;
+    // 用已有的 cards 摘要传给 LLM 做第二轮调用 —— 避免传递原始 Prisma 实体
+    let toolDataStr = '';
+    try {
+      // cards 里都是纯 JS 对象（table 的 rows/columns, chart 的 option），安全序列化
+      const cardDigest = (cards as Array<Record<string, unknown>>).map((c) => ({
+        type: c.type,
+        title: c.title,
+        ...(c.type === 'table'
+          ? { rowCount: Array.isArray(c.rows) ? (c.rows as unknown[]).length : 0 }
+          : { chartType: (c as Record<string, unknown>).chartType }),
+      }));
+      toolDataStr = JSON.stringify(cardDigest).slice(0, 3000);
+    } catch (e) {
+      this.logger.warn(`handleNormalChat: cards JSON 摘要失败: ${(e as Error).message}`);
+      toolDataStr = `${cards.length} 张卡片已生成`;
+    }
+
+    const toolSummary = `以下是 ${successCount} 个工具返回的真实数据摘要，请综合引用其中的项目名称、金额、日期等具体信息：\n\`\`\`json\n${toolDataStr}\n\`\`\`\n\n请基于以上真实数据，按系统提示词的总-分结构输出回答。必须引用具体的项目名称、金额数字、时间节点。注意：数据中的英文状态码（如OPENING、PENDING）仅供你理解使用，在回答中必须转换为中文（如"开标阶段""待审核"），严禁在回答中输出英文代码。不要写空泛的概括。`;
 
     try {
       // 若剥离 TOOL_CALL 后 answer 为空，不传空 assistant 消息（DeepSeek 会拒绝空 content）
@@ -273,8 +293,10 @@ ${toolList}
       }
       followUpMessages.push({ role: 'user', content: toolSummary });
 
+      this.logger.log('handleNormalChat: 开始第二轮 DeepSeek 调用...');
       const followUp = await this.model.chat(followUpMessages);
       const followUpText = followUp.text?.trim();
+      this.logger.log(`handleNormalChat: 第二轮 DeepSeek 调用完成，回复长度=${followUpText?.length || 0}`);
       if (followUpText) {
         answer = followUpText;
       }
@@ -286,6 +308,7 @@ ${toolList}
 
     // Safety net: strip any TOOL_CALL that may have leaked into the final answer
     answer = this.stripAllToolCalls(answer).trim();
+    this.logger.log(`handleNormalChat: 最终 answer 长度=${answer.length}, cards=${cards.length}`);
     return answer ||
       '抱歉，AI 未能生成有效回复，请重新提问。';
   }

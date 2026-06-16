@@ -2136,6 +2136,39 @@ a.group:hover::after {
   }
 }
 
+/* ─── Search bar flowing light effects ─── */
+
+/* Border shmmer — rotating gradient sweep creates the "flowing light" along the border */
+@keyframes search-border-flow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Subtle breathing glow for the search icon when idle */
+@keyframes search-icon-breathe {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.08); }
+}
+
+/* Button shimmer sweep */
+@keyframes search-btn-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* Scale-in for clear button */
+@keyframes scaleIn {
+  from { transform: scale(0.6); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+/* Dropdown slide-in */
+@keyframes dropdown-slide-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 .animate-dingdang-breathe {
   animation: dingdang-breathe 3.2s ease-in-out infinite;
 }

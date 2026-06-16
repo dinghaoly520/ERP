@@ -151,6 +151,7 @@ export function HeroSection({
   const quickQuestions = useMemo(() => deriveQuickQuestions(assistantContext), [assistantContext]);
 
   useEffect(() => { setMounted(true); }, []);
+  useEffect(() => { if (assistantInitialQuestion) setDialogOpen(true); }, [assistantInitialQuestion]);
 
   // placeholder 轮播
   useEffect(() => {
@@ -286,11 +287,11 @@ export function HeroSection({
         </div>
         </div>
         {/* ── 主内容 ── */}
-        <div className="relative px-8 py-9 lg:px-10">
-          <div className="flex flex-col gap-7 lg:flex-row lg:items-start lg:gap-10">
+        <div className="relative px-8 py-6 lg:px-10">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
 
             {/* ═══════ 左侧：水叮当 + 标题 ═══════ */}
-            <div className="flex items-start gap-5 shrink-0">
+            <div className="flex items-start gap-4 shrink-0">
               {/* 水叮当头像 —— 带状态环，点击打开对话框 */}
               <button
                 type="button"
@@ -455,22 +456,51 @@ export function HeroSection({
             {/* ═══════ 右侧：搜索栏 ═══════ */}
             <div ref={containerRef} className="relative flex-1 min-w-0 lg:pt-2.5">
               {/* 搜索框 */}
-              <motion.div
-                className={`relative flex items-center rounded-2xl border transition-all duration-500 ${
-                  tipsOpen
-                    ? 'bg-white shadow-[0_8px_32px_rgba(0,0,0,.25)]'
-                    : 'bg-white/95 hover:bg-white'
-                }`}
-                animate={{
-                  borderColor: effectiveMode === 'assistant' && hasInput
-                    ? ['rgba(139,92,246,.5)', 'rgba(99,102,241,.5)', 'rgba(139,92,246,.5)']
-                    : tipsOpen ? 'rgba(6,78,162,.4)' : 'rgba(255,255,255,.2)',
-                  boxShadow: effectiveMode === 'assistant' && hasInput
-                    ? ['0 0 20px rgba(99,102,241,.2), 0 0 60px rgba(139,92,246,.08)', '0 0 30px rgba(139,92,246,.3), 0 0 80px rgba(99,102,241,.12)', '0 0 20px rgba(99,102,241,.2), 0 0 60px rgba(139,92,246,.08)']
-                    : tipsOpen ? '0 0 0 4px rgba(6,78,162,.1), 0 4px 20px rgba(0,0,0,.1)' : '0 2px 8px rgba(0,0,0,.05)',
-                }}
-                transition={{ duration: 3, repeat: effectiveMode === 'assistant' && hasInput ? Infinity : 0, ease: 'easeInOut' }}
-              >
+              <div className="relative">
+                {/* 流光边框层 */}
+                <motion.div
+                  className="absolute -inset-[2px] rounded-2xl pointer-events-none"
+                  style={{ background: 'transparent', zIndex: 0 }}
+                  animate={{
+                    background: effectiveMode === 'assistant' && hasInput
+                      ? [
+                          'conic-gradient(from 0deg, transparent, rgba(139,92,246,.5), rgba(99,102,241,.4), transparent)',
+                          'conic-gradient(from 120deg, transparent, rgba(139,92,246,.5), rgba(99,102,241,.4), transparent)',
+                          'conic-gradient(from 240deg, transparent, rgba(139,92,246,.5), rgba(99,102,241,.4), transparent)',
+                          'conic-gradient(from 360deg, transparent, rgba(139,92,246,.5), rgba(99,102,241,.4), transparent)',
+                        ]
+                      : [
+                          'conic-gradient(from 0deg, transparent, rgba(91,155,213,.3), rgba(6,182,212,.2), transparent)',
+                          'conic-gradient(from 120deg, transparent, rgba(91,155,213,.3), rgba(6,182,212,.2), transparent)',
+                          'conic-gradient(from 240deg, transparent, rgba(91,155,213,.3), rgba(6,182,212,.2), transparent)',
+                          'conic-gradient(from 360deg, transparent, rgba(91,155,213,.3), rgba(6,182,212,.2), transparent)',
+                        ],
+                  }}
+                  transition={{ duration: tipsOpen ? 4 : 6, repeat: Infinity, ease: 'linear' }}
+                />
+
+                <motion.div
+                  className={`relative z-10 flex items-center rounded-2xl border transition-all duration-500 ${
+                    tipsOpen
+                      ? 'bg-white shadow-[0_8px_32px_rgba(0,0,0,.08),0_0_0_1px_rgba(91,155,213,.12),0_0_20px_rgba(91,155,213,.08)]'
+                      : 'bg-white/95 shadow-[0_2px_12px_rgba(0,0,0,.04),0_0_0_1px_rgba(0,0,0,.03)] hover:shadow-[0_4px_18px_rgba(0,0,0,.06),0_0_0_1px_rgba(91,155,213,.06),0_0_12px_rgba(91,155,213,.04)]'
+                  }`}
+                  animate={{
+                    borderColor: effectiveMode === 'assistant' && hasInput
+                      ? ['rgba(139,92,246,.35)', 'rgba(99,102,241,.35)', 'rgba(139,92,246,.35)']
+                      : tipsOpen ? 'rgba(91,155,213,.35)' : 'rgba(0,0,0,.06)',
+                    boxShadow: effectiveMode === 'assistant' && hasInput
+                      ? [
+                          '0 8px 32px rgba(0,0,0,.08), 0 0 0 1px rgba(139,92,246,.15), 0 0 24px rgba(139,92,246,.1)',
+                          '0 8px 36px rgba(0,0,0,.1), 0 0 0 1px rgba(99,102,241,.2), 0 0 32px rgba(99,102,241,.14)',
+                          '0 8px 32px rgba(0,0,0,.08), 0 0 0 1px rgba(139,92,246,.15), 0 0 24px rgba(139,92,246,.1)',
+                        ]
+                      : tipsOpen
+                        ? '0 8px 32px rgba(0,0,0,.06), 0 0 0 1px rgba(91,155,213,.12), 0 0 20px rgba(91,155,213,.08)'
+                        : '0 2px 12px rgba(0,0,0,.04), 0 0 0 1px rgba(0,0,0,.03)',
+                  }}
+                  transition={{ duration: tipsOpen ? 3 : 6, repeat: effectiveMode === 'assistant' && hasInput || tipsOpen ? Infinity : 0, ease: 'easeInOut' }}
+                >
                 {/* 搜索放大镜图标 */}
                 <div className="pl-4 shrink-0">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -532,6 +562,7 @@ export function HeroSection({
                   ) : '搜索'}
                 </motion.button>
               </motion.div>
+              </div>
 
               {/* 搜索结果反馈 */}
               <AnimatePresence mode="wait">
