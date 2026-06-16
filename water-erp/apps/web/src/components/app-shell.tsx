@@ -219,6 +219,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           <button
             onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? '展开侧边栏' : '折叠侧边栏'}
             className="m-2 flex h-11 items-center justify-center rounded-2xl border border-[#e5ecf4] bg-[#f8fbff] text-[#5a6d8a] transition-colors hover:border-[#bfdbfe] hover:text-[#064ea2]"
           >
             {collapsed ? <PanelLeft size={16} strokeWidth={1.7} /> : <PanelLeftClose size={16} strokeWidth={1.7} />}

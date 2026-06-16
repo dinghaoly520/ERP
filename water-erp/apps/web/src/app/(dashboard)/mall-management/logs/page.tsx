@@ -16,6 +16,29 @@ const labels: Record<string, string> = {
   CATALOG_EXPORTED: '目录导出',
 };
 
+function humanizeDetail(detail: Record<string, any> | null | undefined) {
+  if (!detail || Object.keys(detail).length === 0) return <span className="text-xs text-[#8a99ad]">—</span>;
+  const entries = Object.entries(detail);
+  // Small objects: show as inline tags
+  if (entries.length <= 4) {
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {entries.map(([k, v]) => {
+          const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+          return (
+            <span key={k} className="inline-flex items-center gap-1 rounded-lg bg-[#f8fafc] border border-[#e5ecf4] px-2 py-0.5 text-xs">
+              <span className="font-semibold text-[#5a6d8a]">{k}:</span>
+              <span className="text-[#18243a] max-w-[200px] truncate">{val}</span>
+            </span>
+          );
+        })}
+      </div>
+    );
+  }
+  // Larger objects: show as collapsed pre (rare)
+  return <details><summary className="text-xs font-semibold text-[#064ea2] cursor-pointer">{entries.length} 个字段</summary><pre className="mt-1 max-w-xl whitespace-pre-wrap rounded-xl bg-[#f8fafc] p-2 text-[11px] text-[#5a6d8a]">{JSON.stringify(detail, null, 2)}</pre></details>;
+}
+
 export default function MallManagementLogsPage() {
   const [logs, setLogs] = useState<CatalogAuditLog[]>([]);
   const [action, setAction] = useState('全部');
@@ -63,7 +86,7 @@ export default function MallManagementLogsPage() {
                 <td className="px-4 py-3">{log.user?.displayName || log.user?.username || '-'}</td>
                 <td className="px-4 py-3"><StatusBadge tone="blue">{labels[log.action] || log.action}</StatusBadge></td>
                 <td className="px-4 py-3 font-mono text-xs">{log.target}</td>
-                <td className="px-4 py-3"><pre className="max-w-xl whitespace-pre-wrap rounded-xl bg-[#f8fafc] p-3 text-xs text-[#5a6d8a]">{JSON.stringify(log.detail || {}, null, 2)}</pre></td>
+                <td className="px-4 py-3">{humanizeDetail(log.detail)}</td>
               </tr>
             ))}
           </tbody>
