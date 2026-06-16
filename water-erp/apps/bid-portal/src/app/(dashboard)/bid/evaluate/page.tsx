@@ -8,6 +8,7 @@ import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { MetricCard, PageHero } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
+import { ConnectionIndicator } from '@/components/connection-indicator';
 import { toast } from 'sonner';
 import {
   UserCircle, CheckCircle, Clock, ShieldCheck, FileCheck,
@@ -183,11 +184,12 @@ export default function BidEvaluatePage() {
   }, [projectId]);
 
   /* ── WebSocket: live scoring updates ── */
-  useBidWebSocket(projectId, {
+  const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId, {
     onStageChange: () => {
       if (projectId) api.get<BidProjectEvalDetail>(`/bid/projects/${projectId}`).then(setProject);
     },
   });
+
 
   /* ── Operations ── */
   const handleGenerate = async () => {
@@ -319,7 +321,7 @@ export default function BidEvaluatePage() {
         icon={<ClipboardCheck size={14} strokeWidth={1.5} />}
         title="专家评标管理端"
         description="专家组状态 · 评分概览 · 结果汇总"
-        actions={<ProjectSelector value={projectId} onChange={setProjectId} />}
+        actions={<><ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} /><ProjectSelector value={projectId} onChange={setProjectId} /></>}
       />
 
       {/* ═══ Progress dashboard ═══ */}

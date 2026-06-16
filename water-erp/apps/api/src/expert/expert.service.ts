@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ExpertConflictService } from './expert-conflict.service';
+import { BidGateway } from '../bid/bid.gateway';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
@@ -12,6 +13,7 @@ export class ExpertService {
     private prisma: PrismaService,
     private aiService: AiService,
     private conflictService: ExpertConflictService,
+    @Optional() private readonly gateway?: BidGateway,
   ) {}
 
   /* ── 个人资料 ── */
@@ -123,6 +125,9 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
 
+    this.gateway?.notifyExpertPresence(expert.projectId, {
+      expertId: expert.id, expertName: '', milestone: 'signed_in', progressPercent: expert.progress ?? 0,
+    });
     return this.prisma.bidExpert.update({
       where: { id: expert.id },
       data: { signedIn: true },
@@ -145,6 +150,9 @@ export class ExpertService {
       });
     }
 
+    this.gateway?.notifyExpertPresence(expert.projectId, {
+      expertId: expert.id, expertName: '', milestone: 'avoidance_confirmed', progressPercent: expert.progress ?? 0,
+    });
     return this.prisma.bidExpert.update({
       where: { id: expert.id },
       data: { avoidanceConfirmed: true },
@@ -466,6 +474,9 @@ export class ExpertService {
       },
     });
 
+    this.gateway?.notifyExpertPresence(expert.projectId, {
+      expertId: expert.id, expertName: expert.expertName, milestone: 'report_confirmed', progressPercent: 100,
+    });
     return this.prisma.bidExpert.update({
       where: { id: expert.id },
       data: { progress: 100, reportConfirmed: true, reportConfirmedAt: new Date() },

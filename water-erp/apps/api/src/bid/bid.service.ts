@@ -246,7 +246,7 @@ export class BidService {
       data: { stage: 'OPENING' },
     });
 
-    this.gateway?.notifyStageChange(id, 'OPENING');
+    this.gateway?.notifyStageChange(id, 'SUBMIT', 'OPENING', 'host');
 
     await this.prisma.bidSupervisionLog.create({
       data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action: '启动开标 (SUBMIT→OPENING)', result: '阶段变更成功', riskFlag: '无' },
@@ -268,7 +268,8 @@ export class BidService {
       data: { stage: 'EVALUATING' },
     });
 
-    this.gateway?.notifyStageChange(id, 'EVALUATING');
+    this.gateway?.notifyStageChange(id, 'OPENING', 'EVALUATING', 'host');
+    this.gateway?.notifyEvaluationStarted(id);
 
     await this.prisma.bidSupervisionLog.create({
       data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '启动评标 (OPENING→EVALUATING)', result: '阶段变更成功', riskFlag: '无' },
@@ -344,7 +345,7 @@ export class BidService {
       if (outcome === 'DANGER') {
         const reason = errorMsg || '标书文件校验失败：签名不匹配或文件损坏';
         await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', decryptError: reason } });
-        this.gateway?.notifyDecryptStatus(projectId, { supplierId, decryptStatus: 'DANGER', supplierName: bidSupplier.supplierName });
+        this.gateway?.notifyDecryptStatus(projectId, supplierId, bidSupplier.supplierName, 'DANGER');
         await tx.bidSupervisionLog.create({
           data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${reason}`, riskFlag: '高风险' },
         });
@@ -353,7 +354,7 @@ export class BidService {
 
       // 解密成功
       await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'SUCCESS' } });
-      this.gateway?.notifyDecryptStatus(projectId, { supplierId, decryptStatus: 'SUCCESS', supplierName: bidSupplier.supplierName });
+      this.gateway?.notifyDecryptStatus(projectId, supplierId, bidSupplier.supplierName, 'SUCCESS');
 
       // 创建开标记录（仅当开标记录字段全部提供时）——等待供应商确认，不自动 CONFIRMED
       if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
@@ -567,11 +568,10 @@ export class BidService {
         reason: dto.reason,
       },
     });
-    this.gateway?.notifyScoreUpdate(projectId, {
-      expertId: dto.expertId,
-      supplierId: dto.supplierId,
-      scoreItemId: dto.scoreItemId,
-      score: Number(dto.score),
+    // P1: 不再广播分数值（专家独立评审）。仅通知"评分活动"里程碑 + 刷新聚合在场（无分数）。
+    this.gateway?.notifyExpertPresence(projectId, {
+      expertId: dto.expertId, expertName: '', milestone: 'scoring_activity',
+      progressPercent: 0,
     });
     return record;
   }
@@ -591,12 +591,9 @@ export class BidService {
     return this.prisma.bidClarification.create({
       data: { projectId, question: dto.question, issuer: dto.issuer, supplierName: dto.supplierName },
     }).then((created) => {
-      this.gateway?.notifyClarification(projectId, {
-        id: created.id,
-        question: dto.question,
-        issuer: dto.issuer,
-        supplierName: dto.supplierName,
-        status: '待回复',
+      this.gateway?.notifyClarificationCreated(projectId, {
+        id: created.id, issuer: dto.issuer, issuerRole: 'host',
+        supplierName: dto.supplierName, questionPreview: dto.question.slice(0, 60),
       });
       return created;
     });

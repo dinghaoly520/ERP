@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { PageHero, SectionCard } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
+import { ConnectionIndicator } from '@/components/connection-indicator';
 import { DECRYPT_LABEL, SEMANTIC } from '@water-erp/shared';
 import { toast } from 'sonner';
 
@@ -246,8 +247,8 @@ export default function BidOpenPage() {
   }, [projectId]);
 
   // ═══ WebSocket ═══
-  useBidWebSocket(projectId, {
-    onDecrypt: (data) => {
+  const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId, {
+    onDecryptStatus: (data) => {
       setProject(prev => {
         if (!prev) return prev;
         // Sound + toast for status changes
@@ -281,6 +282,8 @@ export default function BidOpenPage() {
       }
     },
   });
+
+  // Connection indicator: report WS state for UI
 
   // ═══ Countdown + time warnings ═══
   useEffect(() => {
@@ -333,6 +336,7 @@ export default function BidOpenPage() {
               className="rounded-xl border border-[#e5ecf4] bg-white p-2 text-[#5a6d8a] hover:border-[#064ea2] hover:text-[#064ea2] transition">
               {bigScreen ? <Minimize size={14} /> : <Maximize size={14} />}
             </button>
+            <ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} />
             <ProjectSelector value={projectId} onChange={setProjectId} />
           </div>
         }

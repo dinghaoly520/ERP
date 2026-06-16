@@ -9,6 +9,7 @@ import { Shield, AlertTriangle, Eye, Download } from 'lucide-react';
 import { PageHero, SectionCard } from '@water-erp/ui';
 import { toast } from 'sonner';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
+import { ConnectionIndicator } from '@/components/connection-indicator';
 
 function exportSupervisionCSV(logs: Array<{ time: string; role: string; target: string; action: string; result: string; riskFlag: string }>) {
   const BOM = '﻿';
@@ -56,7 +57,7 @@ export default function BidSupervisePage() {
     }
   }, [project]);
 
-  useBidWebSocket(projectId || undefined, {
+  const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId || undefined, {
     onSupervisionLog: (data) => {
       setSupervisionLogs(prev => [data, ...prev]);
     },
@@ -66,6 +67,7 @@ export default function BidSupervisePage() {
       }
     },
   });
+
 
   if (loading) return <TableSkeleton rows={6} cols={6} />;
   if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20">暂无项目数据</div>;
@@ -80,7 +82,7 @@ export default function BidSupervisePage() {
         icon={<Shield size={14} strokeWidth={1.5} />}
         title="监督端"
         description="全程监督 · 不可干预"
-        actions={<ProjectSelector value={projectId} onChange={setProjectId} />}
+        actions={<><ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} /><ProjectSelector value={projectId} onChange={setProjectId} /></>}
       />
 
       {/* Permission notice */}

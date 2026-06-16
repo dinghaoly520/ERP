@@ -10,5 +10,6 @@ import { NotificationModule } from '../notification/notification.module';
   imports: [AuthModule, PrismaModule, NotificationModule],
   controllers: [BidController],
   providers: [BidService, BidGateway],
+  exports: [BidGateway],
 })
 export class BidModule {}
