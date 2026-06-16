@@ -235,12 +235,13 @@ ${toolList}
       for (const c of result.cards) {
         cards.push(c);
         // 若 table 带 viz 声明，生成对应图表
-        if (c.type === 'table' && (c as any).viz) {
+        if (c.type === 'table' && (c as Record<string, unknown>).viz) {
+          const tc = c as Record<string, unknown>;
           const chartCard = mapToChart({
             title: c.title,
-            columns: c.columns,
-            rows: c.rows,
-            viz: (c as any).viz,
+            columns: tc.columns as Array<{ key: string; label: string }>,
+            rows: tc.rows as Array<Record<string, unknown>>,
+            viz: tc.viz as Parameters<typeof mapToChart>[0]['viz'],
           });
           if (chartCard) cards.push(chartCard);
         }
