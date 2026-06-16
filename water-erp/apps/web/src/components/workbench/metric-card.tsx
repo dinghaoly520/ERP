@@ -29,10 +29,8 @@ function useCountUp(target: number, duration = 500) {
   const startRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (typeof target !== 'number' || isNaN(target) || target === 0) {
-      setDisplay(target);
-      return;
-    }
+    if (typeof target !== 'number' || isNaN(target)) return;
+    if (target === 0) { setDisplay(0); return; }
     const animate = (ts: number) => {
       if (startRef.current === null) startRef.current = ts;
       const elapsed = ts - startRef.current;
