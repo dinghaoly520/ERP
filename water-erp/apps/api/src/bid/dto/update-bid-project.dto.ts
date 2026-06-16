@@ -1,10 +1,10 @@
-import { IsString, IsOptional, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsDateString } from 'class-validator';
 
 export class UpdateBidProjectDto {
   @IsString() @IsOptional() name?: string;
   @IsString() @IsOptional() procurementMethod?: string;
-  @IsString() @IsOptional() openTime?: string;
-  @IsString() @IsOptional() deadline?: string;
+  @IsDateString() @IsOptional() openTime?: string;
+  @IsDateString() @IsOptional() deadline?: string;
   @IsString() @IsOptional() stage?: string;
   @IsString() @IsOptional() riskNote?: string;
   @IsNumber() @IsOptional() budget?: number;
