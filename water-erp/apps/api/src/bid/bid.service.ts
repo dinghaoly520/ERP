@@ -10,7 +10,7 @@ import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { assertBidStageTransition, type BidStage } from './bid-state';
-import { computeArchiveDigest } from './bid-archive.digest';
+import { computeArchiveChain } from './bid-archive.digest';
 import { decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
@@ -635,17 +635,21 @@ export class BidService {
     }
 
     const now = new Date();
-    const hashDigest = computeArchiveDigest(
+    // P0-4: 逐项 SHA-256 哈希链 — 每个归档项拥有独立哈希，链式防篡改。
+    const chain = computeArchiveChain(
       { id: project.id, projectCode: project.projectCode, name: project.name, stage: 'ARCHIVED' },
       archiveItems,
     );
 
-    // 事务：归档项更新 + 项目状态变更 + 监督日志 原子执行
-    await this.prisma.$transaction([
-      this.prisma.bidArchiveItem.updateMany({
-        where: { projectId: id, status: { not: 'ARCHIVED' } },
-        data: { status: 'ARCHIVED', hashDigest, archivedAt: now },
+    // 事务：逐项归档更新（各自哈希）+ 项目状态变更 + 监督日志 原子执行
+    const itemUpdates = archiveItems.map(item =>
+      this.prisma.bidArchiveItem.update({
+        where: { id: item.id },
+        data: { status: 'ARCHIVED', hashDigest: chain.get(item.id)!, archivedAt: now },
       }),
+    );
+    await this.prisma.$transaction([
+      ...itemUpdates,
       this.prisma.bidProject.update({
         where: { id },
         data: { stage: 'ARCHIVED' },

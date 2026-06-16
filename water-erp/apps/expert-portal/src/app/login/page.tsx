@@ -93,15 +93,16 @@ type Tab = 'expert' | 'admin';
 /** 管理员 Tab 接受的 web 端角色（与后端 portal-cookie 的 ROLE_PORTAL 对齐） */
 const WEB_ROLES = ['admin', 'bid_host', 'procurement_staff'];
 
-const TAB_DEFAULTS: Record<Tab, { username: string; password: string }> = {
-  expert: { username: 'wangjg', password: 'wangjg@2026' },
-  admin: { username: 'lizhuren', password: 'lizhuren@2026' },
-};
+// Dev-only demo accounts — stripped to empty in production builds.
+const DEMO_ACCOUNTS: Record<Tab, { username: string; password: string }> =
+  process.env.NODE_ENV === 'production'
+    ? { expert: { username: '', password: '' }, admin: { username: '', password: '' } }
+    : { expert: { username: 'wangjg', password: 'wangjg@2026' }, admin: { username: 'lizhuren', password: 'lizhuren@2026' } };
 
 export default function ExpertLoginPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('expert');
-  const [form, setForm] = useState({ ...TAB_DEFAULTS.expert });
+  const [form, setForm] = useState({ username: '', password: '' });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -111,8 +112,11 @@ export default function ExpertLoginPage() {
 
   const switchTab = (next: Tab) => {
     setTab(next);
-    setForm({ ...TAB_DEFAULTS[next] });
+    // Do NOT pre-fill — let the user type their own credentials.
   };
+
+  const fillDemo = () => setForm({ ...DEMO_ACCOUNTS[tab] });
+  const isDev = process.env.NODE_ENV !== 'production';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,6 +195,13 @@ export default function ExpertLoginPage() {
             <button className="lp-primary" type="submit" disabled={loading}>
               {loading ? '登录中…' : '登 录'}
             </button>
+            {isDev && (
+              <button type="button" onClick={fillDemo}
+                style={{ all: 'unset', cursor: 'pointer', textAlign: 'center', marginTop: 2,
+                         fontSize: 12, fontWeight: 600, color: 'oklch(0.55 0.06 var(--hue))' }}>
+                填充演示账号（仅开发环境可见）
+              </button>
+            )}
           </form>
         </div>
       </section>

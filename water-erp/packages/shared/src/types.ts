@@ -142,12 +142,12 @@ export interface ExpertProject {
     scoreItems: BidScoreItem[];
     _count: { clarifications: number };
   };
-  scoreRecords: { id: string; scoreItemId: string; score: number; reason?: string; scoreItem: BidScoreItem }[];
+  scoreRecords: { id: string; expertId: string; supplierId: string; scoreItemId: string; score: number; reason?: string; scoreItem: BidScoreItem }[];
 }
 
 export interface ExpertProjectDetail extends BidProjectDetail {
   myExpertRecord: BidExpert & { id: string };
-  myScores: { id: string; expertId: string; scoreItemId: string; score: number; reason?: string; scoreItem: BidScoreItem }[];
+  myScores: { id: string; expertId: string; supplierId: string; scoreItemId: string; score: number; reason?: string; scoreItem: BidScoreItem }[];
 }
 
 export interface DecryptedDocuments {

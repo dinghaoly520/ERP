@@ -79,7 +79,7 @@ describe('BidService — stage transitions', () => {
       bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn() },
-      bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+      bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
     };
@@ -313,6 +313,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidArchiveItem.create.mockResolvedValue({});
       prisma.bidArchiveItem.findMany.mockResolvedValue([{ id: 'a1', status: 'PENDING_CONFIRM' }]);
       prisma.bidArchiveItem.updateMany.mockResolvedValue({ count: 7 });
+      prisma.bidArchiveItem.update.mockResolvedValue({});
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
       prisma.bidSupervisionLog.create.mockResolvedValue({});
       prisma.$transaction = jest.fn(async (ops: any[]) => Promise.all(ops));
@@ -335,17 +336,17 @@ describe('BidService — stage transitions', () => {
         // Simulate the operations
         await Promise.all(ops);
       });
-      prisma.bidArchiveItem.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      prisma.bidArchiveItem.update = jest.fn().mockResolvedValue({ hashDigest: 'sha256:abc' });
       prisma.bidProject.update = jest.fn().mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
       prisma.bidSupervisionLog.create = jest.fn().mockResolvedValue({});
       prisma.bidProject.findUnique = jest.fn().mockResolvedValue({ id: 'p1', stage: 'ARCHIVED', archiveItems: [] });
 
       const result = await service.archiveAll('p1');
 
-      // Verify $transaction was called with batch operations (3 elements now)
+      // Verify $transaction was called atomically: 1 item update + project update + supervision log
       expect(prisma.$transaction).toHaveBeenCalled();
       expect(txCalls.length).toBe(1);
-      expect(txCalls[0].length).toBe(3); // updateMany + update + supervisionLog.create
+      expect(txCalls[0].length).toBe(3); // itemUpdate + projectUpdate + supervisionLog.create
     });
 
     it('rejects if not in EVALUATING', async () => {

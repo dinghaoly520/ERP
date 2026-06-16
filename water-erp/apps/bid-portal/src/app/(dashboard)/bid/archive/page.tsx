@@ -15,12 +15,17 @@ export default function BidArchivePage() {
   const [projectId, setProjectId] = useState('');
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [archiving, setArchiving] = useState(false);
 
   const load = () => {
     if (!projectId) return;
     setLoading(true);
-    api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(p => { setProject(p); setLoading(false); });
+    setError(null);
+    api.get<BidProjectDetail>(`/bid/projects/${projectId}`)
+      .then(p => { setProject(p); })
+      .catch((e: any) => { setError(e?.message || '加载归档数据失败'); toast.error(e?.message || '加载归档数据失败'); })
+      .finally(() => setLoading(false));
   };
 
   const handleExportArchive = () => {
@@ -85,6 +90,13 @@ export default function BidArchivePage() {
   useEffect(() => { load(); }, [projectId]);
 
   if (loading) return <TableSkeleton rows={6} cols={4} />;
+  if (error) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <AlertTriangle size={28} strokeWidth={1.5} className="text-[oklch(0.50_0.18_22)] mb-3" />
+      <p className="text-sm font-semibold text-[oklch(0.18_0.012_265)]">{error}</p>
+      <button onClick={load} className="mt-4 px-4 py-2 rounded-xl bg-[#064ea2] text-white text-xs font-bold hover:bg-[#054280] transition">重试</button>
+    </div>
+  );
   if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20">暂无项目数据</div>;
 
   const aItems = project.archiveItems;
@@ -108,7 +120,27 @@ export default function BidArchivePage() {
           <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
             电子档案编号：ARCH-{project.projectCode}
           </h2>
-          <p className="text-[12px] text-[oklch(0.62_0.008_264)] font-mono mt-0.5">HASH-CHAIN-{project.projectCode}-{Date.now().toString(16).toUpperCase().slice(0, 8)}</p>
+          {(() => {
+            // P0-4: 档案指纹 = 哈希链末端（最后归档项的真实 SHA-256 摘要）。
+            const archived = aItems.filter(a => a.status === 'ARCHIVED' && a.hashDigest)
+              .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+            const root = archived.length > 0 ? archived[archived.length - 1].hashDigest! : '';
+            return (
+              <p className="text-[12px] text-[oklch(0.62_0.008_264)] font-mono mt-0.5 flex items-center gap-1.5"
+                title={root || '归档后自动生成'}>
+                <span className="text-[oklch(0.55_0.01_264)]">档案指纹：</span>
+                {root ? (
+                  <>
+                    <span className="text-[oklch(0.42_0.14_260)]">{root.slice(0, 7)}…{root.slice(-6)}</span>
+                    <button onClick={() => { navigator.clipboard.writeText(root); toast.success('档案指纹已复制'); }}
+                      className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.42_0.14_260)] transition" title="复制完整指纹">⧉</button>
+                  </>
+                ) : (
+                  <span className="text-[oklch(0.62_0.008_264)]">归档后自动生成</span>
+                )}
+              </p>
+            );
+          })()}
         </div>
         <div className="text-center px-6">
           <div className="text-[2rem] font-bold font-mono text-[oklch(0.42_0.14_260)] tracking-tight">{rate}%</div>
@@ -160,13 +192,22 @@ export default function BidArchivePage() {
                 <tr><td colSpan={5} className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">尚未生成归档清单，点击「一键归档」将自动生成标准材料清单并归档。</td></tr>
               ) : aItems.map(a => {
                 const s = STATUS_COLOR[a.status] || { label: a.status, color: '#94a3b8' };
+                const digest = a.hashDigest;
                 return (
                   <tr key={a.id} className="border-b border-[oklch(0.94_0.004_264)]">
                     <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">{a.name}</td>
                     <td className="px-5 py-3 text-[12px] text-[oklch(0.55_0.01_264)]">{a.ownerRole}</td>
                     <td className="px-5 py-3"><span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{ color: s.color, backgroundColor: `${s.color}18` }}>{s.label}</span></td>
                     <td className="px-5 py-3 text-[12px] text-[oklch(0.62_0.008_264)]">{a.archivedAt ? new Date(a.archivedAt).toLocaleString('zh-CN') : '—'}</td>
-                    <td className="px-5 py-3 text-[12px] text-[oklch(0.62_0.008_264)] font-mono">{a.hashDigest || '—'}</td>
+                    <td className="px-5 py-3 text-[12px] font-mono">
+                      {digest ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="text-[oklch(0.42_0.14_260)]" title={digest}>{digest.slice(0, 10)}…{digest.slice(-6)}</span>
+                          <button onClick={() => { navigator.clipboard.writeText(digest); toast.success('哈希已复制'); }}
+                            className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.42_0.14_260)] transition" title="复制完整哈希">⧉</button>
+                        </span>
+                      ) : <span className="text-[oklch(0.62_0.008_264)]">—</span>}
+                    </td>
                   </tr>
                 );
               })}

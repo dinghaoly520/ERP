@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 import { getDashboardStats } from '@/lib/api/bid';
 import type { BidProject } from '@/lib/types';
 import { Gavel, TrendingUp, ArrowRight, Plus, Search, Pencil, ChevronDown, ChevronRight } from 'lucide-react';
@@ -47,7 +48,7 @@ export default function BidDashboard() {
         setProjects(ps);
         if (s !== null) setStats(s);
       })
-      .catch(() => {})
+      .catch((e) => { toast.error(e?.message || '加载项目列表失败'); })
       .finally(() => setLoading(false));
   };
 

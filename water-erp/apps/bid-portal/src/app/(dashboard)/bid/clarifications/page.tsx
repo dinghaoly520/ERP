@@ -6,13 +6,14 @@ import type { BidProjectDetail, BidClarification } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
-import { MessageSquare, Send, Plus, X } from 'lucide-react';
+import { MessageSquare, Send, Plus, X, AlertTriangle } from 'lucide-react';
 import { PageHero } from '@/components/workbench/page-hero';
 
 export default function BidClarificationsPage() {
   const [projectId, setProjectId] = useState('');
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [clarifications, setClarifications] = useState<BidClarification[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [question, setQuestion] = useState('');
@@ -26,15 +27,20 @@ export default function BidClarificationsPage() {
     });
   }, []);
 
-  useEffect(() => {
+  const load = () => {
     if (!projectId) return;
     setLoading(true);
-    api.get<BidProjectDetail>(`/bid/projects/${projectId}`)
-      .then(p => { setProject(p); setLoading(false); });
-    api.get<BidClarification[]>(`/bid/projects/${projectId}/clarifications`)
-      .then(setClarifications)
-      .catch(() => setClarifications([]));
-  }, [projectId]);
+    setError(null);
+    Promise.all([
+      api.get<BidProjectDetail>(`/bid/projects/${projectId}`),
+      api.get<BidClarification[]>(`/bid/projects/${projectId}/clarifications`).catch(() => []),
+    ])
+      .then(([p, cls]) => { setProject(p); setClarifications(cls); })
+      .catch((e) => { setError(e?.message || '加载澄清数据失败'); toast.error(e?.message || '加载澄清数据失败'); })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreate = async () => {
     if (!question.trim()) { toast.error('请输入澄清问题'); return; }
@@ -62,6 +68,13 @@ export default function BidClarificationsPage() {
   };
 
   if (loading) return <TableSkeleton rows={6} cols={4} />;
+  if (error) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <AlertTriangle size={28} strokeWidth={1.5} className="text-[oklch(0.50_0.18_22)] mb-3" />
+      <p className="text-sm font-semibold text-[oklch(0.18_0.012_265)]">{error}</p>
+      <button onClick={load} className="mt-4 px-4 py-2 rounded-xl bg-[#064ea2] text-white text-xs font-bold hover:bg-[#054280] transition">重试</button>
+    </div>
+  );
   if (!project) return (
     <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20">
       暂无项目数据

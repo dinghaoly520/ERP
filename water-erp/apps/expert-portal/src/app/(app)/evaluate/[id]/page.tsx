@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
@@ -36,29 +36,96 @@ export default function ExpertEvaluatePage() {
 
   const [documents, setDocuments] = useState<DecryptedDocuments | null>(null);
   const [assistData, setAssistData] = useState<AssistData | null>(null);
+  // P0-1: scores keyed by `${supplierId}:${scoreItemId}` (composite) — never flat by scoreItemId.
   const [scores, setScores] = useState<Record<string, { score: number; reason: string }>>({});
-  const [scoringSupplier, setScoringSupplier] = useState('');
   const [report, setReport] = useState<EvaluationReport | null>(null);
 
   const [confidentialityAgreed, setConfidentialityAgreed] = useState(false);
   const [disciplineAgreed, setDisciplineAgreed] = useState(false);
+
+  // P0-2: reason validation — set of scoreItemIds whose reason is missing on submit attempt.
+  const [missingReasons, setMissingReasons] = useState<Set<string>>(new Set());
+  // P0-3: draft autosave to localStorage.
+  const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
+  const [draftDismissed, setDraftDismissed] = useState(false);
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Composite key helper — keeps the per-supplier invariant explicit at every call site.
+  const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
 
   const loadProject = useCallback(() => {
     setLoading(true);
     api.get<ExpertProjectDetail>(`/expert/projects/${projectId}`)
       .then(p => {
         setProject(p);
-        if (p.suppliers.length > 0) {
+        if (p.suppliers.length > 0 && !p.suppliers.some(su => su.id === activeSupplier)) {
           setActiveSupplier(p.suppliers[0].id);
-          setScoringSupplier(p.suppliers[0].supplierName);
+        } else if (p.suppliers.length > 0 && !activeSupplier) {
+          setActiveSupplier(p.suppliers[0].id);
         }
+        // P0-1: hydrate with composite keys so each supplier's scores are isolated.
         const existing: Record<string, { score: number; reason: string }> = {};
-        p.myScores.forEach((s: { scoreItemId: string; score: number; reason?: string }) => { existing[s.scoreItemId] = { score: Number(s.score), reason: s.reason || '' }; });
+        p.myScores.forEach((rec: { supplierId: string; scoreItemId: string; score: number; reason?: string }) => {
+          existing[scoreKey(rec.supplierId, rec.scoreItemId)] = { score: Number(rec.score), reason: rec.reason || '' };
+        });
         setScores(existing);
       })
-      .catch(() => {})
+      .catch((e: any) => toast.error(e?.message || '加载项目失败'))
       .finally(() => setLoading(false));
-  }, [projectId]);
+  }, [projectId, activeSupplier]);
+
+  // P0-3: on first project load, check for an unrecovered draft.
+  const expertId = project?.myExpertRecord?.id;
+  const draftStorageKey = expertId ? `expert-draft:${projectId}:${expertId}` : '';
+  useEffect(() => {
+    if (!draftStorageKey) return;
+    try {
+      const raw = localStorage.getItem(draftStorageKey);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as { scores: Record<string, { score: number; reason: string }>; savedAt: number };
+      const count = Object.keys(draft.scores || {}).length;
+      if (count > 0) setDraftAvailable({ count, savedAt: draft.savedAt });
+    } catch { /* corrupt draft — ignore */ }
+  }, [draftStorageKey]);
+
+  // P0-3: debounced autosave whenever scores change (only while scoring).
+  useEffect(() => {
+    if (!draftStorageKey || step !== 'scoring') return;
+    const entries = Object.keys(scores).length;
+    if (entries === 0) return;
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = setTimeout(() => {
+      try {
+        localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
+      } catch { /* quota / private mode — ignore */ }
+    }, 2000);
+    return () => { if (draftTimer.current) clearTimeout(draftTimer.current); };
+  }, [scores, draftStorageKey, step]);
+
+  const restoreDraft = () => {
+    if (!draftStorageKey) return;
+    try {
+      const raw = localStorage.getItem(draftStorageKey);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as { scores: Record<string, { score: number; reason: string }> };
+      setScores(prev => ({ ...prev, ...draft.scores }));
+      toast.success(`已恢复 ${Object.keys(draft.scores).length} 项评分草稿`);
+    } catch { toast.error('草稿已损坏，无法恢复'); }
+    setDraftAvailable(null);
+    setDraftDismissed(true);
+  };
+  const discardDraft = () => {
+    if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+    setDraftAvailable(null);
+    setDraftDismissed(true);
+  };
+  const saveDraftNow = () => {
+    if (!draftStorageKey) return;
+    try {
+      localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
+      toast.success('草稿已保存');
+    } catch { toast.error('草稿保存失败'); }
+  };
 
   useEffect(() => { loadProject(); }, [loadProject]);
 
@@ -94,24 +161,44 @@ export default function ExpertEvaluatePage() {
   }, [step, activeSupplier]);
 
   const handleSubmitScores = async () => {
-    if (!project || !scoringSupplier) return;
+    if (!project || !activeSupplier) return;
     if (expert?.reportConfirmed) { toast.warning('评审报告已确认，评分已锁定'); return; }
     const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
+    const supplierName = activeSupplierRecord?.supplierName || '';
     const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回';
     if (!canScoreActiveSupplier) {
       toast.warning('该投标单位未解密成功或已撤回，不能评分');
       return;
     }
-    const scoresPayload = project.scoreItems.map(si => ({
-      scoreItemId: si.id,
-      supplierId: activeSupplier,
-      score: scores[si.id]?.score ?? 0,
-      reason: scores[si.id]?.reason ?? '',
-    }));
-    if (scoresPayload.some(i => i.score === 0)) { toast.warning('部分评分项得分为0，请确认后再次提交'); return; }
+    // P0-2: any item scored below full marks MUST carry a non-empty reason (满分项豁免).
+    const missing: string[] = [];
+    for (const si of project.scoreItems) {
+      const entry = scores[scoreKey(activeSupplier, si.id)];
+      const score = entry?.score ?? 0;
+      const reason = (entry?.reason ?? '').trim();
+      if (score < Number(si.maxScore) && !reason) missing.push(si.id);
+    }
+    if (missing.length > 0) {
+      setMissingReasons(new Set(missing));
+      toast.warning(`${missing.length} 个评分项得分低于满分但未填写评分理由，已高亮标记，请补充后再提交`);
+      const firstEl = document.querySelector(`[data-score-item="${missing[0]}"]`);
+      firstEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    setMissingReasons(new Set()); // clear on valid submit
+    const scoresPayload = project.scoreItems.map(si => {
+      const entry = scores[scoreKey(activeSupplier, si.id)];
+      return { scoreItemId: si.id, supplierId: activeSupplier, score: entry?.score ?? 0, reason: entry?.reason ?? '' };
+    });
     setBusy(true);
-    try { await api.post(`/expert/projects/${projectId}/scores`, { scores: scoresPayload, supplierName: scoringSupplier }); loadProject(); toast.success('评分提交成功'); }
-    catch (e: any) { toast.error(e.message || '提交失败'); }
+    try {
+      await api.post(`/expert/projects/${projectId}/scores`, { scores: scoresPayload, supplierName });
+      // P0-3: clear draft on successful submit.
+      if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+      setDraftAvailable(null);
+      loadProject();
+      toast.success(`${supplierName} 评分提交成功`);
+    } catch (e: any) { toast.error(e.message || '提交失败'); }
     setBusy(false);
   };
 
@@ -188,7 +275,7 @@ export default function ExpertEvaluatePage() {
           </div>
           <div className="p-2">
             {project.suppliers.map(s => (
-              <button key={s.id} onClick={() => { setActiveSupplier(s.id); setScoringSupplier(s.supplierName); }}
+              <button key={s.id} onClick={() => { setActiveSupplier(s.id); setMissingReasons(new Set()); }}
                 className={`w-full text-left p-3 rounded-lg mb-1 text-sm transition-all ${activeSupplier === s.id ? 'bg-blue-50 border border-[#bfdbfe]' : 'hover:bg-[oklch(0.992_0.003_264)] border border-transparent'}`}>
                 <div className="font-semibold text-[oklch(0.18_0.012_265)] truncate">{s.supplierName}</div>
                 <div className="flex items-center gap-2 mt-1.5">
@@ -502,12 +589,27 @@ export default function ExpertEvaluatePage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <label className="text-sm text-[oklch(0.55_0.01_264)]">评分对象：</label>
-                  <select value={scoringSupplier} onChange={e => setScoringSupplier(e.target.value)}
+                  <select value={activeSupplier} onChange={e => { setActiveSupplier(e.target.value); setMissingReasons(new Set()); }}
                     className="text-sm border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-2 bg-white focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none">
-                    {project.suppliers.map(s => <option key={s.id} value={s.supplierName}>{s.supplierName}</option>)}
+                    {project.suppliers.map(s => <option key={s.id} value={s.id}>{s.supplierName}</option>)}
                   </select>
                 </div>
               </div>
+
+              {/* P0-3: draft recovery banner */}
+              {draftAvailable && !draftDismissed && (
+                <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 flex items-center gap-3">
+                  <span className="text-lg">📝</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-amber-700">检测到未提交的评分草稿</p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      {draftAvailable.count} 项评分 · 保存于 {new Date(draftAvailable.savedAt).toLocaleString('zh-CN')}
+                    </p>
+                  </div>
+                  <button onClick={discardDraft} className="px-3 py-1.5 text-xs font-semibold text-amber-700 border border-amber-300 rounded-lg hover:bg-amber-100 transition">丢弃</button>
+                  <button onClick={restoreDraft} className="px-4 py-1.5 text-xs font-bold text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition">恢复草稿</button>
+                </div>
+              )}
 
               {(() => {
                 const grouped: Record<string, typeof project.scoreItems> = {};
@@ -515,11 +617,12 @@ export default function ExpertEvaluatePage() {
                   if (!grouped[si.category]) grouped[si.category] = [];
                   grouped[si.category].push(si);
                 });
+                const scoringSupplierName = project.suppliers.find(su => su.id === activeSupplier)?.supplierName || '';
                 return (
                   <div className="space-y-6">
                     {Object.entries(grouped).map(([category, items]) => {
                       const catTotal = items.reduce((s, i) => s + Number(i.maxScore), 0);
-                      const catScored = items.reduce((s, i) => s + (scores[i.id]?.score ?? 0), 0);
+                      const catScored = items.reduce((s, i) => s + (scores[scoreKey(activeSupplier, i.id)]?.score ?? 0), 0);
                       return (
                         <div key={category} className="bg-blue-50 rounded-xl border border-blue-100 overflow-hidden">
                           <div className="flex items-center justify-between p-4 border-b border-blue-100" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[category] || '#064ea2'}` }}>
@@ -537,28 +640,35 @@ export default function ExpertEvaluatePage() {
                           </div>
                           <div className="p-4 space-y-4">
                             {items.map(item => {
-                              const val = scores[item.id];
+                              const k = scoreKey(activeSupplier, item.id);
+                              const val = scores[k];
                               const currentScore = val?.score ?? 0;
                               const max = Number(item.maxScore);
                               const pct = max > 0 ? (currentScore / max) * 100 : 0;
+                              const reasonMissing = missingReasons.has(item.id);
                               return (
-                                <div key={item.id} className="bg-white rounded-lg p-4 border border-blue-100">
+                                <div key={item.id} data-score-item={item.id} className={`bg-white rounded-lg p-4 border ${reasonMissing ? 'border-red-300 ring-1 ring-red-200' : 'border-blue-100'}`}>
                                   <div className="flex items-center justify-between mb-3">
                                     <h4 className="font-semibold text-[oklch(0.18_0.012_265)]">{item.name}</h4>
                                     <span className="text-sm text-[oklch(0.55_0.01_264)]">满分 {max}</span>
                                   </div>
                                   <div className="flex items-center gap-4 mb-3">
                                     <input type="range" min={0} max={max} step={0.5} value={currentScore}
-                                      onChange={e => setScores(prev => ({ ...prev, [item.id]: { score: parseFloat(e.target.value), reason: prev[item.id]?.reason || '' } }))}
+                                      onChange={e => setScores(prev => ({ ...prev, [k]: { score: parseFloat(e.target.value), reason: prev[k]?.reason || '' } }))}
                                       className="flex-1 h-2 bg-[oklch(0.94_0.004_264)] rounded-full appearance-none cursor-pointer accent-[#064ea2]"
                                       style={{ background: `linear-gradient(to right, ${CATEGORY_COLOR[category] || '#064ea2'} ${pct}%, #f0f4f8 ${pct}%)` }} />
                                     <input type="number" min={0} max={max} step={0.5} value={currentScore}
-                                      onChange={e => setScores(prev => ({ ...prev, [item.id]: { score: Math.min(parseFloat(e.target.value) || 0, max), reason: prev[item.id]?.reason || '' } }))}
+                                      onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.min(parseFloat(e.target.value) || 0, max), reason: prev[k]?.reason || '' } }))}
                                       className="w-20 text-center border border-blue-100 rounded-lg px-2 py-1.5 text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none" />
                                   </div>
-                                  <textarea placeholder="评分理由（必填）" value={val?.reason || ''}
-                                    onChange={e => setScores(prev => ({ ...prev, [item.id]: { score: prev[item.id]?.score ?? 0, reason: e.target.value } }))}
-                                    className="w-full border border-blue-100 rounded-lg px-3 py-2 text-sm text-[oklch(0.18_0.012_265)] placeholder-[#b8c8d8] resize-none h-16 focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none" />
+                                  <textarea placeholder="评分理由（低于满分必填）" value={val?.reason || ''}
+                                    onChange={e => {
+                                      const v = e.target.value;
+                                      setScores(prev => ({ ...prev, [k]: { score: prev[k]?.score ?? 0, reason: v } }));
+                                      if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
+                                    }}
+                                    className={`w-full rounded-lg px-3 py-2 text-sm text-[oklch(0.18_0.012_265)] placeholder-[#b8c8d8] resize-none h-16 focus:outline-none ${reasonMissing ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-1 focus:ring-red-300' : 'border-blue-100 focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2]'}`} />
+                                  {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold">⚠ 该项得分低于满分，请填写评分理由</p>}
                                 </div>
                               );
                             })}
@@ -570,10 +680,10 @@ export default function ExpertEvaluatePage() {
                     {/* 汇总 */}
                     <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-6">
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-bold text-lg text-[oklch(0.18_0.012_265)]">评分汇总 — {scoringSupplier}</h3>
+                        <h3 className="font-bold text-lg text-[oklch(0.18_0.012_265)]">评分汇总 — {scoringSupplierName}</h3>
                         <div className="text-right">
                           <div className="text-3xl font-bold text-[#064ea2]">
-                            {project.scoreItems.reduce((s, si) => s + (scores[si.id]?.score ?? 0), 0)}
+                            {project.scoreItems.reduce((s, si) => s + (scores[scoreKey(activeSupplier, si.id)]?.score ?? 0), 0)}
                           </div>
                           <div className="text-sm text-[oklch(0.55_0.01_264)]">
                             满分 {project.scoreItems.reduce((s, si) => s + Number(si.maxScore), 0)}
@@ -590,16 +700,26 @@ export default function ExpertEvaluatePage() {
                           当前投标单位未解密成功或已撤回，不能提交评分。
                         </div>
                       )}
-                      <button onClick={handleSubmitScores} disabled={busy || !canScoreActiveSupplier || scoreLocked}
-                        className="w-full py-3 bg-[#064ea2] text-white rounded-lg font-bold text-sm hover:bg-[#054280] transition disabled:opacity-50">
-                        {busy ? '提交中...' : scoreLocked ? '评分已锁定' : `提交 ${scoringSupplier} 的评分`}
-                      </button>
+                      <div className="flex items-center gap-3">
+                        {!scoreLocked && (
+                          <button onClick={saveDraftNow} disabled={busy}
+                            className="px-4 py-3 border border-[oklch(0.91_0.006_264)] text-[oklch(0.55_0.01_264)] rounded-lg font-bold text-sm hover:bg-[oklch(0.992_0.003_264)] transition disabled:opacity-50">
+                            保存草稿
+                          </button>
+                        )}
+                        <button onClick={handleSubmitScores} disabled={busy || !canScoreActiveSupplier || scoreLocked}
+                          className="flex-1 py-3 bg-[#064ea2] text-white rounded-lg font-bold text-sm hover:bg-[#054280] transition disabled:opacity-50">
+                          {busy ? '提交中...' : scoreLocked ? '评分已锁定' : `提交 ${scoringSupplierName} 的评分`}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
               })()}
             </div>
           )}
+
+
 
           {/* ====== 评审报告 ====== */}
           {step === 'report' && (

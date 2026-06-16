@@ -7,6 +7,7 @@ import { CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { MetricCard } from '@/components/workbench/metric-card';
+import { PageHero } from '@/components/workbench/page-hero';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { toast } from 'sonner';
 import {
