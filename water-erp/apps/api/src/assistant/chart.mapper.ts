@@ -101,30 +101,19 @@ function mapDistribution(
   /* 柱图：6-12 类 */
   if (n <= 12) {
     const sorted = [...data].sort((a, b) => b.value - a.value);
-    const maxVal = sorted[0]?.value ?? 1;
-    const bars = sorted.map((d) => {
-      const isMax = d.value === maxVal;
-      return {
-        value: d.value,
-        itemStyle: {
-          color: isMax
-            ? { type: 'linear' as const, x: 0, y: 0, x2: 0, y2: 1,
-                colorStops: [
-                  { offset: 0, color: P[0] },
-                  { offset: 0.6, color: P[1] },
-                  { offset: 1, color: 'rgba(8,145,178,0.35)' },
-                ],
-              }
-            : { type: 'linear' as const, x: 0, y: 0, x2: 0, y2: 1,
-                colorStops: [
-                  { offset: 0, color: 'rgba(148,163,184,0.5)' },
-                  { offset: 1, color: 'rgba(148,163,184,0.15)' },
-                ],
-              },
-          borderRadius: [5, 5, 0, 0],
+    const bars = sorted.map((d, idx) => ({
+      value: d.value,
+      itemStyle: {
+        color: {
+          type: 'linear' as const, x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: P[idx % P.length] },
+            { offset: 1, color: P[(idx + 1) % P.length] },
+          ],
         },
-      };
-    });
+        borderRadius: [5, 5, 0, 0],
+      },
+    }));
     return {
       type: 'chart',
       title,
@@ -155,24 +144,17 @@ function mapDistribution(
   /* 横柱：> 12 类 → top 10 */
   const sorted = [...data].sort((a, b) => b.value - a.value);
   const shown = sorted.slice(0, 10);
-  const maxVal = shown[0]?.value ?? 1;
   const reversed = [...shown].reverse();
-  const bars = reversed.map((d) => ({
+  const bars = reversed.map((d, idx) => ({
     value: d.value,
     itemStyle: {
-      color: d.value === maxVal
-        ? { type: 'linear' as const, x: 0, y: 0, x2: 1, y2: 0,
-            colorStops: [
-              { offset: 0, color: P[0] },
-              { offset: 1, color: P[1] },
-            ],
-          }
-        : { type: 'linear' as const, x: 0, y: 0, x2: 1, y2: 0,
-            colorStops: [
-              { offset: 0, color: 'rgba(148,163,184,0.45)' },
-              { offset: 1, color: 'rgba(148,163,184,0.12)' },
-            ],
-          },
+      color: {
+        type: 'linear' as const, x: 0, y: 0, x2: 1, y2: 0,
+        colorStops: [
+          { offset: 0, color: P[idx % P.length] },
+          { offset: 1, color: P[(idx + 1) % P.length] },
+        ],
+      },
       borderRadius: [0, 5, 5, 0],
     },
   }));
@@ -325,30 +307,20 @@ function mapRanking(
     .slice(0, topN);
   if (sorted.length < 2) return null;
 
-  const maxVal = sorted[0]?.value ?? 1;
   const reversed = [...sorted].reverse();
-  const bars = reversed.map((d, i) => {
-    const rank = sorted.length - i; // 1 = top
-    return {
-      value: d.value,
-      itemStyle: {
-        color: rank <= 3
-          ? { type: 'linear' as const, x: 0, y: 0, x2: 1, y2: 0,
-              colorStops: [
-                { offset: 0, color: P[rank - 1] ?? ACCENT },
-                { offset: 1, color: P[rank] ?? P[1] },
-              ],
-            }
-          : { type: 'linear' as const, x: 0, y: 0, x2: 1, y2: 0,
-              colorStops: [
-                { offset: 0, color: 'rgba(148,163,184,0.45)' },
-                { offset: 1, color: 'rgba(148,163,184,0.1)' },
-              ],
-            },
-        borderRadius: [0, 5, 5, 0],
+  const bars = reversed.map((d, idx) => ({
+    value: d.value,
+    itemStyle: {
+      color: {
+        type: 'linear' as const, x: 0, y: 0, x2: 1, y2: 0,
+        colorStops: [
+          { offset: 0, color: P[idx % P.length] },
+          { offset: 1, color: P[(idx + 1) % P.length] },
+        ],
       },
-    };
-  });
+      borderRadius: [0, 5, 5, 0],
+    },
+  }));
 
   return {
     type: 'chart',
