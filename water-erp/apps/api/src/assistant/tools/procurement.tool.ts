@@ -96,6 +96,7 @@ export class ProcurementTool implements AssistantTool {
               count: s._count,
               budget: s._sum?.budget ? `¥${s._sum.budget}` : '-',
             })),
+            viz: { kind: 'distribution', category: 'status', value: 'count' },
           },
         ],
       };

@@ -95,6 +95,7 @@ export class SupplierTool implements AssistantTool {
           type: 'table', title: '供应商状态分布',
           columns: [{ key: 'status', label: '状态' }, { key: 'count', label: '数量' }],
           rows: byStatus.map((s) => ({ status: t(SUPPLIER_STATUS_LABEL, s.status), count: s._count })),
+          viz: { kind: 'distribution', category: 'status', value: 'count' },
         }],
       };
     }

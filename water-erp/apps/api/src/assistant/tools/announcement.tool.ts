@@ -55,6 +55,7 @@ export class AnnouncementTool implements AssistantTool {
             type: 'table', title: '按类型分布',
             columns: [{ key: 'type', label: '类型' }, { key: 'count', label: '数量' }],
             rows: byType.map((t) => ({ type: translate(ANNOUNCEMENT_TYPE_LABEL, t.type), count: t._count })),
+            viz: { kind: 'distribution', category: 'type', value: 'count' },
           },
         ],
       };

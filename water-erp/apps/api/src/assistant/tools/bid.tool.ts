@@ -81,6 +81,7 @@ export class BidTool implements AssistantTool {
           type: 'table', title: '招标项目阶段分布',
           columns: [{ key: 'stage', label: '阶段' }, { key: 'count', label: '数量' }],
           rows: byStage.map((s) => ({ stage: t(STAGE_LABEL, s.stage), count: s._count })),
+          viz: { kind: 'distribution', category: 'stage', value: 'count' },
         }],
       };
     }

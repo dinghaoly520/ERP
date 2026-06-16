@@ -93,6 +93,7 @@ export class GlobalOverviewTool implements AssistantTool {
             count: s._count,
             budget: s._sum?.budget ? `¥${s._sum.budget}` : '-',
           })),
+          viz: { kind: 'distribution', category: 'status', value: 'count' },
         },
         {
           type: 'table',
@@ -105,6 +106,7 @@ export class GlobalOverviewTool implements AssistantTool {
             stage: t(STAGE_LABEL, s.stage),
             count: s._count,
           })),
+          viz: { kind: 'distribution', category: 'stage', value: 'count' },
         },
         {
           type: 'table',
@@ -117,6 +119,7 @@ export class GlobalOverviewTool implements AssistantTool {
             status: t(SUPPLIER_STATUS_LABEL, s.status),
             count: s._count,
           })),
+          viz: { kind: 'distribution', category: 'status', value: 'count' },
         },
         {
           type: 'table',
@@ -129,6 +132,7 @@ export class GlobalOverviewTool implements AssistantTool {
             specialty: s.specialty,
             count: s._count,
           })),
+          viz: { kind: 'distribution', category: 'specialty', value: 'count' },
         },
       ],
     };

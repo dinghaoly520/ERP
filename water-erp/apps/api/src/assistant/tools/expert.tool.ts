@@ -71,6 +71,7 @@ export class ExpertTool implements AssistantTool {
               specialty: s.specialty,
               count: s._count,
             })),
+            viz: { kind: 'distribution', category: 'specialty', value: 'count' },
           },
         ],
       };

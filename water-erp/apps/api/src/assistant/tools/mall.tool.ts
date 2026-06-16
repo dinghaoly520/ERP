@@ -47,6 +47,7 @@ export class MallTool implements AssistantTool {
             type: 'table', title: '目录类别分布',
             columns: [{ key: 'category', label: '类别' }, { key: 'count', label: '数量' }],
             rows: byCategory.map((c) => ({ category: c.category, count: c._count })),
+            viz: { kind: 'distribution', category: 'category', value: 'count' },
           },
         ],
       };
