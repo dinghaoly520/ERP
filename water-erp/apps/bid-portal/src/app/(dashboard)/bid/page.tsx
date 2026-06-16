@@ -90,15 +90,6 @@ export default function BidDashboard() {
         icon={<Gavel size={14} strokeWidth={1.5} />}
         title="开评标管理系统"
         description="统一入口 · 多端协同 · 限时开标 · 全程留痕"
-        actions={
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white hover:bg-[#054280] transition"
-          >
-            <Plus size={14} strokeWidth={2} />
-            创建项目
-          </button>
-        }
       />
 
       {/* ── Stat cards ── */}
@@ -146,6 +137,13 @@ export default function BidDashboard() {
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a] transition"
+        >
+          <Plus size={12} strokeWidth={1.5} />
+          手动创建
+        </button>
       </DataToolbar>
 
       {/* ── Project table ── */}
@@ -161,6 +159,7 @@ export default function BidDashboard() {
                 <tr className="bg-[#f3f7fc]">
                   <th className="px-5 py-3 text-left text-xs font-semibold text-[#5a6d8a]">项目编号</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-[#5a6d8a]">项目名称</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-[#5a6d8a]">来源</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-[#5a6d8a]">采购方式</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-[#5a6d8a]">开标时间</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-[#5a6d8a]">阶段</th>
@@ -176,6 +175,17 @@ export default function BidDashboard() {
                       className="cursor-pointer transition-colors">
                       <td className="px-5 py-3 font-mono text-sm font-semibold text-[#064ea2]">{p.projectCode}</td>
                       <td className="px-5 py-3 text-sm font-medium text-[#18243a]">{p.name}</td>
+                      <td className="px-5 py-3">
+                        {p.riskNote?.includes('来自公告自动创建') ? (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold text-[#11a874] bg-[#11a87418]">
+                            来自公告
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold text-[#5a6d8a] bg-[#5a6d8a18]">
+                            手动创建
+                          </span>
+                        )}
+                      </td>
                       <td className="px-5 py-3 text-sm text-[#5a6d8a]">{p.procurementMethod}</td>
                       <td className="px-5 py-3 text-sm text-[#5a6d8a] font-mono">
                         {new Date(p.openTime).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })}
