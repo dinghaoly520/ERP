@@ -10,6 +10,7 @@ async function load() { loading.value = true; error.value = false; try { applica
 function retryLoad() { load() }
 const statusMeta: Record<string,{label:string;type:string}> = {PENDING:{label:'待审核',type:'primary'},COUNTERED:{label:'议价中',type:'warning'},RETURNED:{label:'已退回',type:'danger'},APPROVED:{label:'已通过',type:'success'},REJECTED:{label:'已拒绝',type:'danger'},WITHDRAWN:{label:'已撤回',type:'info'}}
 const typeLabel: Record<string,string> = {NEW_ITEM:'新增品类',JOIN_EXISTING:'加入供货',UPDATE_QUOTE:'改报价'}
+function since(ts: string): string { const d = Math.ceil((Date.now() - new Date(ts).getTime()) / 86400000); if (d > 0) return `已等待 ${d} 天`; const h = Math.ceil((Date.now() - new Date(ts).getTime()) / 3600000); return h > 0 ? `已等待 ${h} 小时` : '刚提交' }
 const filtered = computed(() => { if (activeTab.value==='active') return applications.value.filter(a=>['PENDING','COUNTERED','RETURNED'].includes(a.status)); if (activeTab.value==='done') return applications.value.filter(a=>['APPROVED','REJECTED','WITHDRAWN'].includes(a.status)); return applications.value })
 const counts = computed(() => ({ active: applications.value.filter(a=>['PENDING','COUNTERED','RETURNED'].includes(a.status)).length, done: applications.value.filter(a=>['APPROVED','REJECTED','WITHDRAWN'].includes(a.status)).length }))
 function itemTitle(a:any) { return a.type==='NEW_ITEM'?(a.proposedName||'未命名'):(a.catalogItem?.name||'-') }
@@ -53,7 +54,7 @@ onMounted(load)
             <div class="app-info-item" v-if="a.deliveryPeriod"><span class="app-info-label">交货周期</span><span class="app-info-value">{{ a.deliveryPeriod }}</span></div>
             <div class="app-info-item" v-if="a.region"><span class="app-info-label">区域</span><span class="app-info-value">{{ a.region }}</span></div>
             <div class="app-info-item" v-if="a.minOrder"><span class="app-info-label">最小起订</span><span class="app-info-value">{{ a.minOrder }}</span></div>
-            <div class="app-info-item"><span class="app-info-label">提交时间</span><span class="app-info-value">{{ dayjs(a.createdAt).format('MM-DD HH:mm') }}</span></div>
+            <div class="app-info-item"><span class="app-info-label">提交时间</span><span class="app-info-value">{{ dayjs(a.createdAt).format('MM-DD HH:mm') }}<template v-if="a.status==='PENDING'"> · <span style="color:var(--sp-orange)">{{ since(a.createdAt) }}</span></template></span></div>
           </div>
           <div v-if="a.status==='COUNTERED'&&a.counterPrice" class="app-counter"><div class="app-counter-icon"><el-icon :size="20"><Connection /></el-icon></div><div class="app-counter-body"><div class="app-counter-title">管理员议价 <strong>&yen;{{ a.counterPrice }}</strong></div><div class="app-counter-note" v-if="a.counterNote">{{ a.counterNote }}</div></div></div>
           <div v-if="(a.status==='RETURNED'||a.status==='REJECTED')&&a.rejectReason" class="app-reason"><el-icon><WarningFilled /></el-icon><span>{{ a.status==='REJECTED'?'拒绝理由':'退回说明' }}：{{ a.rejectReason }}</span></div>

@@ -7,13 +7,13 @@ import dayjs from 'dayjs'
 import { uploadFile, type FileAssetResponse } from '@/api/upload'
 import { createDialogLeaveGuard } from '@/composables'
 
-const supplierStore = useSupplierStore(); const loading = ref(true); const error = ref(false); const dialogVisible = ref(false); const dialogLoading = ref(false); const uploading = ref(false); const uploadedMeta = ref<FileAssetResponse|null>(null); const form = ref({type:'',name:'',fileUrl:'',validFrom:'',validTo:''}); const formDirty = ref(false); const dialogGuard = createDialogLeaveGuard(formDirty); function markDirty(){formDirty.value=true}
+const supplierStore = useSupplierStore(); const loading = ref(true); const error = ref(false); const dialogVisible = ref(false); const dialogLoading = ref(false); const uploading = ref(false); const qualUploadProgress = ref<number|null>(null); const uploadedMeta = ref<FileAssetResponse|null>(null); const form = ref({type:'',name:'',fileUrl:'',validFrom:'',validTo:''}); const formDirty = ref(false); const dialogGuard = createDialogLeaveGuard(formDirty); function markDirty(){formDirty.value=true}
 onMounted(async () => { try { await supplierStore.fetchQualifications() } catch { error.value = true } finally { loading.value = false } })
 async function retryLoad() { error.value = false; loading.value = true; try { await supplierStore.fetchQualifications() } catch { error.value = true } finally { loading.value = false } }
 const qualTypes = ['营业执照','资质证书','安全生产许可证','质量管理体系认证','环境管理体系认证','职业健康安全管理体系认证','其他']
 
 function openAdd() { form.value = {type:'',name:'',fileUrl:'',validFrom:'',validTo:''}; uploadedMeta.value = null; formDirty.value = false; dialogVisible.value = true }
-async function customUpload(options:any) { const file = options.file as File; if (file.size>50*1024*1024) { ElMessage.error('文件不能超过50MB'); options.onError(new Error('FILE_TOO_LARGE')); return }; uploading.value = true; try { const res = await uploadFile(file,'qualification'); form.value.fileUrl = res.url; uploadedMeta.value = res; options.onSuccess(res); ElMessage.success('文件上传成功'); formDirty.value = true } catch (e:any) { options.onError(e) } finally { uploading.value = false } }
+async function customUpload(options:any) { const file = options.file as File; if (file.size>50*1024*1024) { ElMessage.error('文件不能超过50MB'); options.onError(new Error('FILE_TOO_LARGE')); return }; uploading.value = true; qualUploadProgress.value = 0; try { const res = await uploadFile(file,'qualification',(pct)=>{qualUploadProgress.value = pct}); form.value.fileUrl = res.url; uploadedMeta.value = res; options.onSuccess(res); ElMessage.success('文件上传成功'); formDirty.value = true } catch (e:any) { options.onError(e) } finally { uploading.value = false; qualUploadProgress.value = null } }
 function formatSize(bytes:number):string { if (bytes<1024) return `${bytes} B`; if (bytes<1024*1024) return `${(bytes/1024).toFixed(1)} KB`; return `${(bytes/1024/1024).toFixed(1)} MB` }
 async function handleAdd() { if (!form.value.type||!form.value.name) { ElMessage.warning('请填写资质类型和名称'); return }; if (!uploadedMeta.value||!form.value.fileUrl) { ElMessage.warning('请先上传资质文件'); return }; dialogLoading.value = true; try { await supplierStore.addQualification(form.value); ElMessage.success('资质材料添加成功'); dialogVisible.value = false; formDirty.value = false } catch { ElMessage.error('添加失败') } finally { dialogLoading.value = false } }
 async function handleDelete(id:string) { await ElMessageBox.confirm('确定要删除此资质材料吗？','提示',{type:'warning'}); try { await supplierStore.deleteQualification(id); ElMessage.success('已删除') } catch { ElMessage.error('删除失败') } }
@@ -85,6 +85,7 @@ const healthRingDash = computed(() => { const pct=healthSummary.value.healthScor
         <el-form-item label="有效期止"><el-date-picker v-model="form.validTo" type="date" placeholder="选择结束日期（不填为长期有效）" style="width:100%" value-format="YYYY-MM-DD" @change="markDirty" /></el-form-item>
         <el-form-item label="上传文件" required>
           <el-upload :show-file-list="false" :http-request="customUpload" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.zip,.txt"><el-button type="primary" plain :icon="UploadFilled" :loading="uploading">{{ uploadedMeta?'重新选择文件':'选择文件' }}</el-button></el-upload>
+          <el-progress v-if="qualUploadProgress!==null" :percentage="qualUploadProgress" :stroke-width="6" style="width:200px;margin-top:8px" />
           <div v-if="uploadedMeta" class="upload-meta"><el-icon><Document /></el-icon><span>{{ uploadedMeta.originalName }}</span><span class="upload-meta-size">{{ formatSize(uploadedMeta.size) }}</span></div>
           <span v-else class="upload-hint">支持 PDF、图片、Office、ZIP，≤50MB</span>
         </el-form-item>

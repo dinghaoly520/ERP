@@ -6,6 +6,7 @@ import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage } from 'element-plus'
 import { announcementApi } from '@/api/announcement'
 import { bidApi } from '@/api/bid'
+import BidStageTimeline from '@/components/BidStageTimeline.vue'
 import dayjs from 'dayjs'
 
 const route = useRoute()
@@ -70,6 +71,7 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
             <el-descriptions-item label="投标方">{{ supplierCount }} 家</el-descriptions-item>
             <el-descriptions-item label="风险提示" :span="2" v-if="project.riskNote"><span style="color: var(--sp-orange);">{{ project.riskNote }}</span></el-descriptions-item>
           </el-descriptions></div>
+          <div class="detail-card timeline-card" style="margin-top:16px;padding:16px 24px"><div style="font-size:12px;font-weight:700;color:var(--sp-gray-500);margin-bottom:12px">项目进度</div><BidStageTimeline :stage="project.stage" /></div>
         </el-tab-pane>
         <el-tab-pane label="澄清答疑" name="clarifications">
           <div class="detail-card">

@@ -70,6 +70,7 @@ async function retryLoad() { error.value = false; loading.value = true; try { aw
 .detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 .detail-meta { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--sp-gray-500); }
 .top-badge { font-size: 11px; font-weight: 700; color: var(--sp-red); background: var(--sp-red-light); padding: 2px 8px; border-radius: 6px; }
+@media print { .detail-card { border: none; box-shadow: none; font-size: 12pt; } }
 .detail-title { font-size: 24px; font-weight: 800; color: var(--sp-gray-900); line-height: 1.4; }
 .detail-content { font-size: 15px; line-height: 1.8; color: var(--sp-gray-700); }
 .detail-content :deep(p) { margin-bottom: 12px; }

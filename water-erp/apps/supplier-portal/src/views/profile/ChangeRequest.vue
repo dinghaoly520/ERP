@@ -12,6 +12,7 @@ const dialogLoading = ref(false)
 const formDirty = ref(false)
 const form = ref({ fieldName: '', fieldLabel: '', newValue: '', reason: '' })
 
+function elapsedSince(ts: string): string { const diff = Date.now() - new Date(ts).getTime(); const days = Math.ceil(diff / 86400000); if (days > 0) return `${days} 天`; const hours = Math.ceil(diff / 3600000); return hours > 0 ? `${hours} 小时` : '刚提交' }
 const changeableFields = [
   { value: 'name', label: '企业名称' },
   { value: 'legalPerson', label: '法定代表人' },
@@ -114,7 +115,7 @@ const statusMap: Record<string, { label: string; cls: string }> = {
           <el-table-column label="新值" prop="newValue" min-width="160"><template #default="{row}"><span style="color:var(--sp-primary);font-weight:600">{{ row.newValue }}</span></template></el-table-column>
           <el-table-column label="变更原因" prop="reason" min-width="160"><template #default="{row}">{{ row.reason||'-' }}</template></el-table-column>
           <el-table-column label="状态" width="110" align="center"><template #default="{row}"><span class="sp-status" :class="statusMap[row.status]?.cls||'pending'">{{ statusMap[row.status]?.label||row.status }}</span></template></el-table-column>
-          <el-table-column label="申请时间" width="160"><template #default="{row}">{{ dayjs(row.createdAt).format('YYYY-MM-DD HH:mm') }}</template></el-table-column>
+          <el-table-column label="申请时间" width="180"><template #default="{row}">{{ dayjs(row.createdAt).format('YYYY-MM-DD HH:mm') }}<template v-if="row.status==='PENDING'"><br><small class="waited-time">已等待 {{ elapsedSince(row.createdAt) }}</small></template></template></el-table-column>
         </el-table>
       </div>
 

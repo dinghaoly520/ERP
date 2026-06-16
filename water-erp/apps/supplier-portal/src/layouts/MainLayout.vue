@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
@@ -11,6 +11,7 @@ import {
   Fold, Expand, SwitchButton, User, Lock,
   Goods, Connection, Box, ArrowDown,
 } from '@element-plus/icons-vue'
+import BackToTop from '@/components/BackToTop.vue'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -42,6 +43,9 @@ function checkMobile() {
 }
 checkMobile()
 window.addEventListener('resize', checkMobile)
+
+// Poll unread count every 30s
+onMounted(() => { notifStore.fetchUnreadCount(); const timer = setInterval(() => notifStore.fetchUnreadCount(), 30_000); onBeforeUnmount(() => clearInterval(timer)) })
 
 const menuItems = [
   { path: '/dashboard', title: '业务工作台', icon: HomeFilled, desc: '状态与待办总览' },
@@ -268,6 +272,7 @@ notifStore.fetchUnreadCount()
         <el-button type="primary" :loading="pwdLoading" @click="handleChangePassword">确认修改</el-button>
       </template>
     </el-dialog>
+    <BackToTop />
   </div>
 </template>
 

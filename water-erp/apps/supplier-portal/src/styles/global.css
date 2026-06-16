@@ -547,3 +547,11 @@ a:hover { color: var(--sp-primary-light); }
 .sp-error-icon { font-size: 40px; margin-bottom: 16px; opacity: 0.6; }
 .sp-error-text { font-size: 16px; font-weight: 800; color: var(--sp-gray-700); margin-bottom: 8px; }
 .sp-error-desc { font-size: 13px; color: var(--sp-gray-500); margin-bottom: 20px; max-width: 320px; }
+
+/* ─── Print styles ─── */
+@media print {
+  .sp-header, .sp-sidebar, .sp-breadcrumb, header, nav, aside, .el-button, .sp-page-hero-actions { display: none !important; }
+  .sp-content { padding: 0 !important; margin: 0 !important; }
+  .page-container { max-width: 100% !important; }
+  body { background: #fff !important; }
+}

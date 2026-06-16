@@ -16,6 +16,7 @@ const form = ref({ bidPrice: '', deliveryPeriod: '', technicalFileAssetId: '', b
 const project = computed(() => bidStore.currentProject)
 const existingSubmission = ref<any>(null)
 const techFileMeta = ref<FileAssetResponse | null>(null); const bizFileMeta = ref<FileAssetResponse | null>(null)
+const techUploadProgress = ref<number | null>(null); const bizUploadProgress = ref<number | null>(null)
 const autoSaveReady = ref(false); const showRecovery = ref(false); const submitDialogVisible = ref(false)
 const draft = useAutoSave(() => 'bidsubmit:'+projectId.value, form, { enabled: autoSaveReady })
 useRouteLeaveGuard(draft.dirty)
@@ -25,7 +26,9 @@ function discardRecovery() { draft.clearDraft(); showRecovery.value = false }
 async function handleFileUpload(options: any, field: 'technicalFileAssetId' | 'businessFileAssetId') {
   const file = options.file as File
   if (file.size > 50*1024*1024) { ElMessage.error('文件不能超过50MB'); options.onError(new Error('FILE_TOO_LARGE')); return }
-  try { const res = await uploadFile(file, 'bid_document'); form.value[field] = res.id; if (field==='technicalFileAssetId') techFileMeta.value = res; else bizFileMeta.value = res; options.onSuccess(res); ElMessage.success('文件上传成功') } catch (e: any) { options.onError(e) }
+  const pRef = field==='technicalFileAssetId' ? techUploadProgress : bizUploadProgress
+  pRef.value = 0
+  try { const res = await uploadFile(file, 'bid_document', (pct)=> { pRef.value = pct }); form.value[field] = res.id; if (field==='technicalFileAssetId') techFileMeta.value = res; else bizFileMeta.value = res; options.onSuccess(res); ElMessage.success('文件上传成功') } catch (e: any) { options.onError(e) } finally { pRef.value = null }
 }
 const uploadTech = (o: any) => handleFileUpload(o, 'technicalFileAssetId'); const uploadBiz = (o: any) => handleFileUpload(o, 'businessFileAssetId')
 function formatSize(bytes: number): string { if (bytes<1024) return `${bytes} B`; if (bytes<1024*1024) return `${(bytes/1024).toFixed(1)} KB`; return `${(bytes/1024/1024).toFixed(1)} MB` }
@@ -83,8 +86,8 @@ async function confirmSubmit() { submitDialogVisible.value = false; submitting.v
         <el-form :model="form" label-width="120px" size="large" :disabled="!canSubmit||existingSubmission?.status==='submitted'">
           <el-form-item label="投标报价" required><el-input v-model="form.bidPrice" placeholder="例如：1260.00"><template #append>万元</template></el-input></el-form-item>
           <el-form-item label="交货/工期" required><el-input v-model="form.deliveryPeriod" placeholder="例如：120日历天" /></el-form-item>
-          <el-form-item label="技术方案"><div class="file-area"><el-upload :http-request="uploadTech" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传技术方案</el-button></el-upload><span class="file-hint">PDF，≤50MB</span><span v-if="techFileMeta" class="file-name">{{ techFileMeta.originalName }}（{{ formatSize(techFileMeta.size) }}）</span><span v-else-if="form.technicalFileAssetId" class="file-name">已上传</span></div></el-form-item>
-          <el-form-item label="商务文件"><div class="file-area"><el-upload :http-request="uploadBiz" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传商务文件</el-button></el-upload><span class="file-hint">PDF，≤50MB</span><span v-if="bizFileMeta" class="file-name">{{ bizFileMeta.originalName }}（{{ formatSize(bizFileMeta.size) }}）</span><span v-else-if="form.businessFileAssetId" class="file-name">已上传</span></div></el-form-item>
+          <el-form-item label="技术方案"><div class="file-area"><el-upload :http-request="uploadTech" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传技术方案</el-button></el-upload><span class="file-hint">PDF，≤50MB</span><span v-if="techFileMeta" class="file-name">{{ techFileMeta.originalName }}（{{ formatSize(techFileMeta.size) }}）</span><span v-else-if="form.technicalFileAssetId" class="file-name">已上传</span><el-progress v-if="techUploadProgress!==null" :percentage="techUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
+          <el-form-item label="商务文件"><div class="file-area"><el-upload :http-request="uploadBiz" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传商务文件</el-button></el-upload><span class="file-hint">PDF，≤50MB</span><span v-if="bizFileMeta" class="file-name">{{ bizFileMeta.originalName }}（{{ formatSize(bizFileMeta.size) }}）</span><span v-else-if="form.businessFileAssetId" class="file-name">已上传</span><el-progress v-if="bizUploadProgress!==null" :percentage="bizUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
           <el-form-item label="投标函"><el-input v-model="form.coverLetter" type="textarea" :rows="4" placeholder="请输入投标函内容（选填）" /></el-form-item>
         </el-form>
         <div v-if="canSubmit && existingSubmission?.status!=='submitted'" class="submit-actions">
