@@ -56,6 +56,8 @@ export interface BidExpert {
   expertName: string;
   major: string;
   signedIn: boolean;
+  phoneVerified?: boolean;
+  phoneMasked?: string | null;
   avoidanceConfirmed: boolean;
   progress: number;
   totalScore: number;
