@@ -1,13 +1,17 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
 import { AnnouncementAiService } from './announcement-ai.service';
+import { BidService } from '../bid/bid.service';
 
 @Injectable()
 export class AnnouncementService {
+  private readonly logger = new Logger(AnnouncementService.name);
+
   constructor(
     private prisma: PrismaService,
     private announcementAi: AnnouncementAiService,
+    @Optional() private bidService?: BidService,
   ) {}
 
   async create(dto: CreateAnnouncementDto, authorId?: string) {
@@ -118,7 +122,13 @@ export class AnnouncementService {
       ? await this.announcementAi.summarize({ title, type, content })
       : undefined);
 
-    return this.prisma.announcement.update({
+    const targetStatus = dto.status ?? announcement.status;
+    const isPublishTransition =
+      announcement.type === 'BID_NOTICE' &&
+      announcement.status !== 'PUBLISHED' &&
+      targetStatus === 'PUBLISHED';
+
+    const result = await this.prisma.announcement.update({
       where: { id },
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
@@ -133,9 +143,107 @@ export class AnnouncementService {
         ...(dto.metadata !== undefined && { metadata: dto.metadata as any }),
       },
     });
+
+    // ── 联动：BID_NOTICE 首次发布 → 创建 BidProject ──
+    if (isPublishTransition && this.bidService) {
+      try {
+        const meta = (announcement.metadata || {}) as Record<string, any>;
+        // 幂等检查：relatedProjectCode 是否已关联有效项目
+        let existingProject = null;
+        if (announcement.relatedProjectCode) {
+          existingProject = await this.prisma.bidProject.findUnique({
+            where: { projectCode: announcement.relatedProjectCode },
+          });
+        }
+
+        if (existingProject) {
+          // 已存在 → 同步更新
+          await this.bidService.syncFromAnnouncement(
+            existingProject.id,
+            { title: result.title },
+            meta,
+          );
+          this.logger.log(
+            `公告已关联项目 ${existingProject.projectCode}，同步更新字段`,
+          );
+        } else {
+          // 不存在 → 创建
+          const project = await this.bidService.createFromAnnouncement(
+            { id: result.id, title: result.title, publishDate: result.publishDate },
+            meta,
+          );
+          // 回写 relatedProjectCode
+          await this.prisma.announcement.update({
+            where: { id },
+            data: { relatedProjectCode: project.projectCode },
+          });
+          // 挂载招标文件
+          const bidDoc = await this.prisma.bidDocument.findUnique({
+            where: { announcementId: id },
+          });
+          if (bidDoc) {
+            await this.prisma.bidDocument.update({
+              where: { announcementId: id },
+              data: { bidProjectId: project.id },
+            });
+          }
+          this.logger.log(
+            `公告首次发布，自动创建项目 ${project.projectCode}`,
+          );
+        }
+      } catch (e) {
+        // 联动失败不阻塞发布，记录日志供排查
+        this.logger.error(
+          `公告发布联动创建项目失败 (announcementId=${id}): ${(e as Error).message}`,
+          (e as Error).stack,
+        );
+      }
+    }
+
+    return result;
   }
 
   async remove(id: string) {
+    const announcement = await this.prisma.announcement.findUnique({
+      where: { id },
+      select: { type: true, relatedProjectCode: true, status: true },
+    });
+
+    // 删除前解除关联：BID_NOTICE 已发布且有相关项目
+    if (
+      announcement &&
+      announcement.type === 'BID_NOTICE' &&
+      announcement.status === 'PUBLISHED' &&
+      announcement.relatedProjectCode
+    ) {
+      try {
+        const project = await this.prisma.bidProject.findUnique({
+          where: { projectCode: announcement.relatedProjectCode },
+        });
+        if (project) {
+          // 标记项目来源已删除
+          await this.prisma.bidProject.update({
+            where: { projectCode: announcement.relatedProjectCode },
+            data: {
+              riskNote: (project.riskNote || '') + '（来源公告已删除）',
+            },
+          });
+          // 解除招标文件挂载
+          await this.prisma.bidDocument.updateMany({
+            where: { announcementId: id },
+            data: { bidProjectId: null },
+          });
+          this.logger.log(
+            `公告删除，解除项目 ${announcement.relatedProjectCode} 关联`,
+          );
+        }
+      } catch (e) {
+        this.logger.error(
+          `公告删除解除关联失败 (announcementId=${id}): ${(e as Error).message}`,
+        );
+      }
+    }
+
     return this.prisma.announcement.delete({ where: { id } });
   }
 
