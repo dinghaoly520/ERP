@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "id": "cmqgebt6q0005vkr4ea3mdorm",
+    "projectCode": "BID-1781599475329",
+    "name": "2026年度智慧水利调度系统建设项目",
+    "procurementMethod": "公开招标",
+    "openTime": "2026-06-25T10:00:00.000Z",
+    "deadline": "2026-06-25T09:00:00.000Z",
+    "stage": "ARCHIVED",
+    "riskNote": "（来自公告自动创建）",
+    "budget": "5000000",
+    "scope": "智慧水利调度平台建设含软件开发硬件采购与系统集成",
+    "qualification": "1.独立法人资格 2.电子与智能化专业承包二级及以上 3.近三年类似业绩",
+    "contact": "联系人李主任电话028-88888888",
+    "encryptionKeyId": null,
+    "createdAt": "2026-06-16T08:44:35.330Z",
+    "updatedAt": "2026-06-16T08:48:44.233Z"
+  }
+]

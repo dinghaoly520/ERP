@@ -17,23 +17,6 @@
     "updatedAt": "2026-06-13T06:18:29.676Z"
   },
   {
-    "id": "cmqbysdm50029koh18g2n7p54",
-    "userId": "cmqbysdm30027koh1sndhzsbb",
-    "name": "成都华西物资供应有限公司",
-    "normalizedName": "成都华西物资供应有限公司",
-    "creditCode": "91510100MA6D3KXX1X",
-    "enterpriseType": "有限责任公司",
-    "legalPerson": "赵伟",
-    "registeredAddress": "四川省成都市武侯区人民南路四段1号",
-    "businessScope": "建筑材料、金属材料、五金交电销售；货物进出口",
-    "status": "PENDING",
-    "classificationId": null,
-    "rejectReason": null,
-    "returnReason": null,
-    "createdAt": "2026-06-13T06:18:29.742Z",
-    "updatedAt": "2026-06-13T06:18:29.742Z"
-  },
-  {
     "id": "cmqc8r5ts000jkoekgsp1rxqx",
     "userId": "cmqc8r5tr000hkoeklng4dev0",
     "name": "用友网络科技股份有限公司四川分公司",
@@ -8396,5 +8379,22 @@
     "returnReason": null,
     "createdAt": "2026-06-13T10:57:30.438Z",
     "updatedAt": "2026-06-13T11:02:26.944Z"
+  },
+  {
+    "id": "cmqbysdm50029koh18g2n7p54",
+    "userId": "cmqbysdm30027koh1sndhzsbb",
+    "name": "成都华西物资供应有限公司",
+    "normalizedName": "成都华西物资供应有限公司",
+    "creditCode": "91510100MA6D3KXX1X",
+    "enterpriseType": "有限责任公司",
+    "legalPerson": "赵伟",
+    "registeredAddress": "四川省成都市武侯区人民南路四段1号",
+    "businessScope": "建筑材料、金属材料、五金交电销售；货物进出口",
+    "status": "APPROVED",
+    "classificationId": null,
+    "rejectReason": null,
+    "returnReason": null,
+    "createdAt": "2026-06-13T06:18:29.742Z",
+    "updatedAt": "2026-06-16T08:44:35.228Z"
   }
 ]

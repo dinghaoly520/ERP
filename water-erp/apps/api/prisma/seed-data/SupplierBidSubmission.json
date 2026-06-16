@@ -1,1 +1,42 @@
-[]
+[
+  {
+    "id": "cmqgedbpp000tvkr4vro9lfm5",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "projectId": "cmqgebt6q0005vkr4ea3mdorm",
+    "bidPrice": "4200000",
+    "deliveryPeriod": "180天",
+    "technicalFile": null,
+    "businessFile": null,
+    "coverLetter": null,
+    "technicalFileAssetId": "cmqgedbgy000hvkr43bqr9g3i",
+    "businessFileAssetId": "cmqgedbin000jvkr432h1ijln",
+    "coverLetterAssetId": "cmqgedbkc000lvkr49c50c8pk",
+    "technicalSealedKey": null,
+    "businessSealedKey": null,
+    "coverLetterSealedKey": null,
+    "status": "submitted",
+    "submittedAt": "2026-06-16T08:45:45.996Z",
+    "createdAt": "2026-06-16T08:45:45.998Z",
+    "updatedAt": "2026-06-16T08:45:45.998Z"
+  },
+  {
+    "id": "cmqgedbqz000xvkr4kc71wwsb",
+    "supplierId": "cmqbysdm50029koh18g2n7p54",
+    "projectId": "cmqgebt6q0005vkr4ea3mdorm",
+    "bidPrice": "3980000",
+    "deliveryPeriod": "150天",
+    "technicalFile": null,
+    "businessFile": null,
+    "coverLetter": null,
+    "technicalFileAssetId": "cmqgedblo000nvkr4u42ihrj5",
+    "businessFileAssetId": "cmqgedbmx000pvkr4ob540ovj",
+    "coverLetterAssetId": "cmqgedbop000rvkr4gdlrenmj",
+    "technicalSealedKey": null,
+    "businessSealedKey": null,
+    "coverLetterSealedKey": null,
+    "status": "submitted",
+    "submittedAt": "2026-06-16T08:45:46.042Z",
+    "createdAt": "2026-06-16T08:45:46.044Z",
+    "updatedAt": "2026-06-16T08:45:46.044Z"
+  }
+]

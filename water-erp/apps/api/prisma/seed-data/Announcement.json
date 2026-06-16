@@ -814,5 +814,30 @@
     "metadata": null,
     "createdAt": "2026-06-13T06:57:56.349Z",
     "updatedAt": "2026-06-13T09:17:58.747Z"
+  },
+  {
+    "id": "cmqgebt4w0004vkr4uv0r6hg7",
+    "title": "2026年度智慧水利调度系统建设项目",
+    "content": "<p>四川水发集团拟对2026年度智慧水利调度系统建设项目进行公开招标。</p>",
+    "aiSummary": null,
+    "type": "BID_NOTICE",
+    "status": "PUBLISHED",
+    "summary": null,
+    "publishDate": "2026-06-16T08:44:35.263Z",
+    "isTop": false,
+    "viewCount": 0,
+    "relatedProjectCode": "BID-1781599475329",
+    "authorId": "cmqbysdbl0002koh10l78cjr3",
+    "metadata": {
+      "scope": "智慧水利调度平台建设含软件开发硬件采购与系统集成",
+      "budget": 5000000,
+      "method": "公开招标",
+      "contact": "联系人李主任电话028-88888888",
+      "deadline": "2026-06-25T09:00:00.000Z",
+      "openTime": "2026-06-25T10:00:00.000Z",
+      "qualification": "1.独立法人资格 2.电子与智能化专业承包二级及以上 3.近三年类似业绩"
+    },
+    "createdAt": "2026-06-16T08:44:35.264Z",
+    "updatedAt": "2026-06-16T08:44:35.333Z"
   }
 ]

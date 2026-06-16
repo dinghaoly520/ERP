@@ -72,18 +72,6 @@
     "updatedAt": "2026-06-13T06:18:29.664Z"
   },
   {
-    "id": "cmqbysdm30027koh1sndhzsbb",
-    "username": "supplier2",
-    "displayName": "赵总",
-    "email": "zhao@huaxi.com",
-    "passwordHash": "$2b$10$W6jvt9whwNKdjW0IbA7HFeVYXfGPnFQXTFS2KGlppQJFUCigEc.b.",
-    "role": "supplier",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-13T06:18:29.739Z",
-    "updatedAt": "2026-06-13T06:18:29.739Z"
-  },
-  {
     "id": "cmqbysdnn002ckoh1zfdgsksx",
     "username": "mall",
     "displayName": "商城采购员",
@@ -7678,5 +7666,17 @@
     "departmentId": "seeddept013",
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "cmqbysdm30027koh1sndhzsbb",
+    "username": "supplier2",
+    "displayName": "赵总",
+    "email": "zhao@huaxi.com",
+    "passwordHash": "$2b$10$W6jvt9whwNKdjW0IbA7HFeVYXfGPnFQXTFS2KGlppQJFUCigEc.b.",
+    "role": "supplier",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-13T06:18:29.739Z",
+    "updatedAt": "2026-06-16T08:44:35.228Z"
   }
 ]

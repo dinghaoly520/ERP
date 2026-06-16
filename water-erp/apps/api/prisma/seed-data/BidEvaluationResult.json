@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": "cmqgeh5760045vkr46u2lafen",
+    "projectId": "cmqgebt6q0005vkr4ea3mdorm",
+    "supplierId": "cmqgedbr3000zvkr46arzzmi9",
+    "supplierName": "成都华西物资供应有限公司",
+    "totalScore": "255",
+    "averageScore": "85",
+    "rank": 1,
+    "recommended": true,
+    "generatedAt": "2026-06-16T08:48:44.179Z"
+  },
+  {
+    "id": "cmqgeh5760046vkr46dduam87",
+    "projectId": "cmqgebt6q0005vkr4ea3mdorm",
+    "supplierId": "cmqgedbpu000vvkr4dicd8rtv",
+    "supplierName": "四川川水建设工程有限公司",
+    "totalScore": "253",
+    "averageScore": "84.33",
+    "rank": 2,
+    "recommended": false,
+    "generatedAt": "2026-06-16T08:48:44.179Z"
+  }
+]

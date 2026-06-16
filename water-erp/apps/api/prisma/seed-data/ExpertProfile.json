@@ -12,6 +12,8 @@
     "licenseNo": null,
     "availability": "可用",
     "notes": null,
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T13:02:30.997Z",
     "updatedAt": "2026-06-13T13:02:30.997Z"
   },
@@ -28,6 +30,8 @@
     "licenseNo": null,
     "availability": "可用",
     "notes": null,
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T13:02:30.997Z",
     "updatedAt": "2026-06-13T13:02:30.997Z"
   },
@@ -44,6 +48,8 @@
     "licenseNo": null,
     "availability": "可用",
     "notes": null,
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T13:02:30.997Z",
     "updatedAt": "2026-06-13T13:02:30.997Z"
   },
@@ -60,6 +66,8 @@
     "licenseNo": "SC-SL-62-23734",
     "availability": "停用",
     "notes": "男，64岁，博士学历，汉族。水利工程方向评审专家。擅长水利工程领域评审、水利工程领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -76,6 +84,8 @@
     "licenseNo": "SC-SL-69-23946",
     "availability": "占用",
     "notes": "男，57岁，硕士学历，汉族。水利工程方向评审专家。擅长水利工程领域评审、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -92,6 +102,8 @@
     "licenseNo": "SC-SL-76-24158",
     "availability": "占用",
     "notes": "男，50岁，硕士学历，汉族。水利工程方向评审专家。擅长水利工程领域评审、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -108,6 +120,8 @@
     "licenseNo": "SC-SL-83-24370",
     "availability": "占用",
     "notes": "女，43岁，本科学历，汉族。水利工程方向评审专家。擅长水利工程领域评审、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -124,6 +138,8 @@
     "licenseNo": "SC-SL-90-24582",
     "availability": "可用",
     "notes": "男，36岁，本科学历，汉族。水利工程方向评审专家。擅长水利工程领域评审、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -140,6 +156,8 @@
     "licenseNo": "SC-SW-75-24204",
     "availability": "可用",
     "notes": "女，51岁，硕士学历，汉族。水文水资源方向评审专家。擅长招标文件技术评审、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -156,6 +174,8 @@
     "licenseNo": "SC-SW-82-24416",
     "availability": "可用",
     "notes": "女，44岁，硕士学历，汉族。水文水资源方向评审专家。擅长招标文件技术评审、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -172,6 +192,8 @@
     "licenseNo": "SC-SW-89-24628",
     "availability": "可用",
     "notes": "男，37岁，本科学历，汉族。水文水资源方向评审专家。擅长招标文件技术评审、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -188,6 +210,8 @@
     "licenseNo": "SC-SW-65-24623",
     "availability": "可用",
     "notes": "女，61岁，本科学历，汉族。水文水资源方向评审专家。擅长招标文件技术评审、水文水资源领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -204,6 +228,8 @@
     "licenseNo": "SC-SW-72-24835",
     "availability": "可用",
     "notes": "男，54岁，本科学历，汉族。水文水资源方向评审专家。擅长招标文件技术评审、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -220,6 +246,8 @@
     "licenseNo": "SC-DZ-88-24674",
     "availability": "可用",
     "notes": "男，38岁，硕士学历，汉族。地质勘察方向评审专家。擅长供应商资质审查、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -236,6 +264,8 @@
     "licenseNo": "SC-DZ-64-24669",
     "availability": "可用",
     "notes": "女，62岁，本科学历，汉族。地质勘察方向评审专家。擅长供应商资质审查、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -252,6 +282,8 @@
     "licenseNo": "SC-DZ-71-24881",
     "availability": "可用",
     "notes": "男，55岁，本科学历，汉族。地质勘察方向评审专家。擅长供应商资质审查、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -268,6 +300,8 @@
     "licenseNo": "SC-DZ-78-25093",
     "availability": "可用",
     "notes": "男，48岁，本科学历，汉族。地质勘察方向评审专家。擅长供应商资质审查、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -284,6 +318,8 @@
     "licenseNo": "SC-DZ-85-25305",
     "availability": "可用",
     "notes": "女，41岁，大专学历，汉族。地质勘察方向评审专家。擅长供应商资质审查、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -300,6 +336,8 @@
     "licenseNo": "SC-CH-70-24927",
     "availability": "可用",
     "notes": "男，56岁，硕士学历，汉族。测绘遥感方向评审专家。擅长评分标准制定、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -316,6 +354,8 @@
     "licenseNo": "SC-CH-77-25139",
     "availability": "可用",
     "notes": "女，49岁，本科学历，汉族。测绘遥感方向评审专家。擅长评分标准制定、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -332,6 +372,8 @@
     "licenseNo": "SC-CH-84-25351",
     "availability": "可用",
     "notes": "男，42岁，本科学历，汉族。测绘遥感方向评审专家。擅长评分标准制定、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -348,6 +390,8 @@
     "licenseNo": "SC-CH-91-25563",
     "availability": "可用",
     "notes": "女，35岁，本科学历，汉族。测绘遥感方向评审专家。擅长评分标准制定、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -364,6 +408,8 @@
     "licenseNo": "SC-CH-67-25558",
     "availability": "可用",
     "notes": "男，59岁，博士学历，汉族。测绘遥感方向评审专家。擅长评分标准制定、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -380,6 +426,8 @@
     "licenseNo": "SC-SJ-83-25397",
     "availability": "可用",
     "notes": "男，43岁，本科学历，汉族。工程设计方向评审专家。擅长项目现场考察、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -396,6 +444,8 @@
     "licenseNo": "SC-SJ-90-25609",
     "availability": "可用",
     "notes": "女，36岁，本科学历，汉族。工程设计方向评审专家。擅长项目现场考察、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -412,6 +462,8 @@
     "licenseNo": "SC-SJ-66-25604",
     "availability": "可用",
     "notes": "男，60岁，本科学历，汉族。工程设计方向评审专家。擅长项目现场考察、工程设计领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -428,6 +480,8 @@
     "licenseNo": "SC-SJ-73-25816",
     "availability": "可用",
     "notes": "女，53岁，大专学历，汉族。工程设计方向评审专家。擅长项目现场考察、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -444,6 +498,8 @@
     "licenseNo": "SC-SJ-80-26028",
     "availability": "可用",
     "notes": "男，46岁，硕士学历，汉族。工程设计方向评审专家。擅长项目现场考察、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -460,6 +516,8 @@
     "licenseNo": "SC-SG-65-25650",
     "availability": "停用",
     "notes": "男，61岁，本科学历，汉族。施工管理方向评审专家。擅长投标方案比选、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -476,6 +534,8 @@
     "licenseNo": "SC-SG-72-25862",
     "availability": "占用",
     "notes": "男，54岁，本科学历，汉族。施工管理方向评审专家。擅长投标方案比选、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -492,6 +552,8 @@
     "licenseNo": "SC-SG-79-26074",
     "availability": "占用",
     "notes": "女，47岁，大专学历，汉族。施工管理方向评审专家。擅长投标方案比选、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -508,6 +570,8 @@
     "licenseNo": "SC-SG-86-26286",
     "availability": "占用",
     "notes": "男，40岁，博士学历，汉族。施工管理方向评审专家。擅长投标方案比选、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -524,6 +588,8 @@
     "licenseNo": "SC-SG-62-26281",
     "availability": "可用",
     "notes": "男，64岁，硕士学历，汉族。施工管理方向评审专家。擅长投标方案比选、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -540,6 +606,8 @@
     "licenseNo": "SC-JD-78-26120",
     "availability": "可用",
     "notes": "男，48岁，本科学历，汉族。机电设备方向评审专家。擅长合同技术条款审核、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -556,6 +624,8 @@
     "licenseNo": "SC-JD-85-26332",
     "availability": "可用",
     "notes": "女，41岁，本科学历，汉族。机电设备方向评审专家。擅长合同技术条款审核、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -572,6 +642,8 @@
     "licenseNo": "SC-JD-92-26544",
     "availability": "可用",
     "notes": "男，34岁，博士学历，汉族。机电设备方向评审专家。擅长合同技术条款审核、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -588,6 +660,8 @@
     "licenseNo": "SC-JD-68-26539",
     "availability": "可用",
     "notes": "女，58岁，硕士学历，汉族。机电设备方向评审专家。擅长合同技术条款审核、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -604,6 +678,8 @@
     "licenseNo": "SC-JD-75-26751",
     "availability": "可用",
     "notes": "男，51岁，硕士学历，彝族。机电设备方向评审专家。擅长合同技术条款审核、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -620,6 +696,8 @@
     "licenseNo": "SC-ZD-91-26590",
     "availability": "可用",
     "notes": "男，35岁，本科学历，汉族。自动化控制方向评审专家。擅长隐蔽工程验收、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -636,6 +714,8 @@
     "licenseNo": "SC-ZD-67-26585",
     "availability": "可用",
     "notes": "女，59岁，大专学历，汉族。自动化控制方向评审专家。擅长隐蔽工程验收、自动化控制领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -652,6 +732,8 @@
     "licenseNo": "SC-ZD-74-26797",
     "availability": "可用",
     "notes": "男，52岁，硕士学历，汉族。自动化控制方向评审专家。擅长隐蔽工程验收、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -668,6 +750,8 @@
     "licenseNo": "SC-ZD-81-27009",
     "availability": "可用",
     "notes": "女，45岁，硕士学历，汉族。自动化控制方向评审专家。擅长隐蔽工程验收、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -684,6 +768,8 @@
     "licenseNo": "SC-ZD-88-27221",
     "availability": "可用",
     "notes": "男，38岁，本科学历，汉族。自动化控制方向评审专家。擅长隐蔽工程验收、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -700,6 +786,8 @@
     "licenseNo": "SC-XX-73-26843",
     "availability": "可用",
     "notes": "男，53岁，大专学历，汉族。信息化建设方向评审专家。擅长工程量清单审核、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -716,6 +804,8 @@
     "licenseNo": "SC-XX-80-27055",
     "availability": "可用",
     "notes": "女，46岁，博士学历，汉族。信息化建设方向评审专家。擅长工程量清单审核、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -732,6 +822,8 @@
     "licenseNo": "SC-XX-87-27267",
     "availability": "可用",
     "notes": "男，39岁，硕士学历，汉族。信息化建设方向评审专家。擅长工程量清单审核、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -748,6 +840,8 @@
     "licenseNo": "SC-XX-63-27262",
     "availability": "可用",
     "notes": "女，63岁，本科学历，藏族。信息化建设方向评审专家。擅长工程量清单审核、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -764,6 +858,8 @@
     "licenseNo": "SC-XX-70-27474",
     "availability": "可用",
     "notes": "男，56岁，本科学历，汉族。信息化建设方向评审专家。擅长工程量清单审核、信息化建设领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -780,6 +876,8 @@
     "licenseNo": "SC-HJ-86-27313",
     "availability": "可用",
     "notes": "男，40岁，大专学历，汉族。环境工程方向评审专家。擅长结算审计、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -796,6 +894,8 @@
     "licenseNo": "SC-HJ-62-27308",
     "availability": "可用",
     "notes": "女，64岁，硕士学历，汉族。环境工程方向评审专家。擅长结算审计、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -812,6 +912,8 @@
     "licenseNo": "SC-HJ-69-27520",
     "availability": "可用",
     "notes": "男，57岁，硕士学历，汉族。环境工程方向评审专家。擅长结算审计、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -828,6 +930,8 @@
     "licenseNo": "SC-HJ-76-27732",
     "availability": "可用",
     "notes": "女，50岁，本科学历，汉族。环境工程方向评审专家。擅长结算审计、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -844,6 +948,8 @@
     "licenseNo": "SC-HJ-83-27944",
     "availability": "可用",
     "notes": "男，43岁，本科学历，汉族。环境工程方向评审专家。擅长结算审计、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -860,6 +966,8 @@
     "licenseNo": "SC-CL-68-27566",
     "availability": "停用",
     "notes": "男，58岁，硕士学历，汉族。材料检测方向评审专家。擅长材料检测领域评审、材料检测领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -876,6 +984,8 @@
     "licenseNo": "SC-CL-75-27778",
     "availability": "占用",
     "notes": "女，51岁，硕士学历，汉族。材料检测方向评审专家。擅长材料检测领域评审、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -892,6 +1002,8 @@
     "licenseNo": "SC-CL-82-27990",
     "availability": "占用",
     "notes": "男，44岁，本科学历，藏族。材料检测方向评审专家。擅长材料检测领域评审、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -908,6 +1020,8 @@
     "licenseNo": "SC-CL-89-28202",
     "availability": "占用",
     "notes": "女，37岁，本科学历，汉族。材料检测方向评审专家。擅长材料检测领域评审、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -924,6 +1038,8 @@
     "licenseNo": "SC-CL-65-28197",
     "availability": "可用",
     "notes": "男，61岁，本科学历，汉族。材料检测方向评审专家。擅长材料检测领域评审、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -940,6 +1056,8 @@
     "licenseNo": "SC-ZL-81-28036",
     "availability": "可用",
     "notes": "男，45岁，硕士学历，汉族。质量检验方向评审专家。擅长招标文件技术评审、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -956,6 +1074,8 @@
     "licenseNo": "SC-ZL-88-28248",
     "availability": "可用",
     "notes": "女，38岁，本科学历，汉族。质量检验方向评审专家。擅长招标文件技术评审、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -972,6 +1092,8 @@
     "licenseNo": "SC-ZL-64-28243",
     "availability": "可用",
     "notes": "男，62岁，本科学历，汉族。质量检验方向评审专家。擅长招标文件技术评审、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -988,6 +1110,8 @@
     "licenseNo": "SC-ZL-71-28455",
     "availability": "可用",
     "notes": "女，55岁，本科学历，汉族。质量检验方向评审专家。擅长招标文件技术评审、质量检验领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1004,6 +1128,8 @@
     "licenseNo": "SC-ZL-78-28667",
     "availability": "可用",
     "notes": "男，48岁，大专学历，汉族。质量检验方向评审专家。擅长招标文件技术评审、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1020,6 +1146,8 @@
     "licenseNo": "SC-ZJ-63-28289",
     "availability": "可用",
     "notes": "女，63岁，硕士学历，汉族。工程造价方向评审专家。擅长供应商资质审查、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1036,6 +1164,8 @@
     "licenseNo": "SC-ZJ-70-28501",
     "availability": "可用",
     "notes": "男，56岁，本科学历，羌族。工程造价方向评审专家。擅长供应商资质审查、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1052,6 +1182,8 @@
     "licenseNo": "SC-ZJ-77-28713",
     "availability": "可用",
     "notes": "女，49岁，本科学历，汉族。工程造价方向评审专家。擅长供应商资质审查、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1068,6 +1200,8 @@
     "licenseNo": "SC-ZJ-84-28925",
     "availability": "可用",
     "notes": "男，42岁，本科学历，汉族。工程造价方向评审专家。擅长供应商资质审查、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1084,6 +1218,8 @@
     "licenseNo": "SC-ZJ-91-29137",
     "availability": "可用",
     "notes": "男，35岁，博士学历，汉族。工程造价方向评审专家。擅长供应商资质审查、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1100,6 +1236,8 @@
     "licenseNo": "SC-SJZ-76-28759",
     "availability": "可用",
     "notes": "男，50岁，本科学历，汉族。财务审计方向评审专家。擅长评分标准制定、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1116,6 +1254,8 @@
     "licenseNo": "SC-SJZ-83-28971",
     "availability": "可用",
     "notes": "女，43岁，本科学历，汉族。财务审计方向评审专家。擅长评分标准制定、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1132,6 +1272,8 @@
     "licenseNo": "SC-SJZ-90-29183",
     "availability": "可用",
     "notes": "男，36岁，本科学历，汉族。财务审计方向评审专家。擅长评分标准制定、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1148,6 +1290,8 @@
     "licenseNo": "SC-SJZ-66-29178",
     "availability": "可用",
     "notes": "女，60岁，大专学历，汉族。财务审计方向评审专家。擅长评分标准制定、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1164,6 +1308,8 @@
     "licenseNo": "SC-SJZ-73-29390",
     "availability": "可用",
     "notes": "男，53岁，硕士学历，汉族。财务审计方向评审专家。擅长评分标准制定、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1180,6 +1326,8 @@
     "licenseNo": "SC-CW-89-29229",
     "availability": "可用",
     "notes": "男，37岁，本科学历，回族。财务管理方向评审专家。擅长项目现场考察、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1196,6 +1344,8 @@
     "licenseNo": "SC-CW-65-29224",
     "availability": "可用",
     "notes": "女，61岁，本科学历，汉族。财务管理方向评审专家。擅长项目现场考察、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1212,6 +1362,8 @@
     "licenseNo": "SC-CW-72-29436",
     "availability": "可用",
     "notes": "男，54岁，大专学历，汉族。财务管理方向评审专家。擅长项目现场考察、财务管理领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1228,6 +1380,8 @@
     "licenseNo": "SC-CW-79-29648",
     "availability": "可用",
     "notes": "女，47岁，博士学历，汉族。财务管理方向评审专家。擅长项目现场考察、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1244,6 +1398,8 @@
     "licenseNo": "SC-CW-86-29860",
     "availability": "可用",
     "notes": "男，40岁，硕士学历，汉族。财务管理方向评审专家。擅长项目现场考察、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1260,6 +1416,8 @@
     "licenseNo": "SC-SWC-71-29482",
     "availability": "停用",
     "notes": "男，55岁，本科学历，汉族。税务筹划方向评审专家。擅长投标方案比选、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1276,6 +1434,8 @@
     "licenseNo": "SC-SWC-78-29694",
     "availability": "占用",
     "notes": "女，48岁，本科学历，汉族。税务筹划方向评审专家。擅长投标方案比选、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1292,6 +1452,8 @@
     "licenseNo": "SC-SWC-85-29906",
     "availability": "占用",
     "notes": "男，41岁，大专学历，汉族。税务筹划方向评审专家。擅长投标方案比选、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1308,6 +1470,8 @@
     "licenseNo": "SC-SWC-92-30118",
     "availability": "占用",
     "notes": "女，34岁，硕士学历，汉族。税务筹划方向评审专家。擅长投标方案比选、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1324,6 +1488,8 @@
     "licenseNo": "SC-SWC-68-30113",
     "availability": "可用",
     "notes": "男，58岁，硕士学历，汉族。税务筹划方向评审专家。擅长投标方案比选、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1340,6 +1506,8 @@
     "licenseNo": "SC-HT-84-29952",
     "availability": "可用",
     "notes": "男，42岁，本科学历，汉族。合同管理方向评审专家。擅长合同技术条款审核、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1356,6 +1524,8 @@
     "licenseNo": "SC-HT-91-30164",
     "availability": "可用",
     "notes": "男，35岁，大专学历，汉族。合同管理方向评审专家。擅长合同技术条款审核、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1372,6 +1542,8 @@
     "licenseNo": "SC-HT-67-30159",
     "availability": "可用",
     "notes": "男，59岁，硕士学历，汉族。合同管理方向评审专家。擅长合同技术条款审核、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1388,6 +1560,8 @@
     "licenseNo": "SC-HT-74-30371",
     "availability": "可用",
     "notes": "男，52岁，硕士学历，汉族。合同管理方向评审专家。擅长合同技术条款审核、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1404,6 +1578,8 @@
     "licenseNo": "SC-HT-81-30583",
     "availability": "可用",
     "notes": "女，45岁，本科学历，汉族。合同管理方向评审专家。擅长合同技术条款审核、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1420,6 +1596,8 @@
     "licenseNo": "SC-ZB-66-30205",
     "availability": "可用",
     "notes": "男，60岁，本科学历，汉族。招标代理方向评审专家。擅长隐蔽工程验收、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1436,6 +1614,8 @@
     "licenseNo": "SC-ZB-73-30417",
     "availability": "可用",
     "notes": "女，53岁，博士学历，汉族。招标代理方向评审专家。擅长隐蔽工程验收、招标代理领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1452,6 +1632,8 @@
     "licenseNo": "SC-ZB-80-30629",
     "availability": "可用",
     "notes": "男，46岁，硕士学历，汉族。招标代理方向评审专家。擅长隐蔽工程验收、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1468,6 +1650,8 @@
     "licenseNo": "SC-ZB-87-30841",
     "availability": "可用",
     "notes": "女，39岁，本科学历，汉族。招标代理方向评审专家。擅长隐蔽工程验收、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1484,6 +1668,8 @@
     "licenseNo": "SC-ZB-63-30836",
     "availability": "可用",
     "notes": "男，63岁，本科学历，汉族。招标代理方向评审专家。擅长隐蔽工程验收、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1500,6 +1686,8 @@
     "licenseNo": "SC-AP-79-30675",
     "availability": "可用",
     "notes": "男，47岁，大专学历，汉族。安全评价方向评审专家。擅长工程量清单审核、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1516,6 +1704,8 @@
     "licenseNo": "SC-AP-86-30887",
     "availability": "可用",
     "notes": "女，40岁，硕士学历，汉族。安全评价方向评审专家。擅长工程量清单审核、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1532,6 +1722,8 @@
     "licenseNo": "SC-AP-62-30882",
     "availability": "可用",
     "notes": "男，64岁，硕士学历，汉族。安全评价方向评审专家。擅长工程量清单审核、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1548,6 +1740,8 @@
     "licenseNo": "SC-AP-69-31094",
     "availability": "可用",
     "notes": "女，57岁，本科学历，汉族。安全评价方向评审专家。擅长工程量清单审核、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1564,6 +1758,8 @@
     "licenseNo": "SC-AP-76-31306",
     "availability": "可用",
     "notes": "男，50岁，本科学历，汉族。安全评价方向评审专家。擅长工程量清单审核、安全评价领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1580,6 +1776,8 @@
     "licenseNo": "SC-XF-92-31145",
     "availability": "可用",
     "notes": "男，34岁，硕士学历，汉族。消防工程方向评审专家。擅长结算审计、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1596,6 +1794,8 @@
     "licenseNo": "SC-XF-68-31140",
     "availability": "可用",
     "notes": "女，58岁，硕士学历，汉族。消防工程方向评审专家。擅长结算审计、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1612,6 +1812,8 @@
     "licenseNo": "SC-XF-75-31352",
     "availability": "可用",
     "notes": "男，51岁，本科学历，汉族。消防工程方向评审专家。擅长结算审计、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1628,6 +1830,8 @@
     "licenseNo": "SC-XF-82-31564",
     "availability": "可用",
     "notes": "女，44岁，本科学历，汉族。消防工程方向评审专家。擅长结算审计、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1644,6 +1848,8 @@
     "licenseNo": "SC-XF-89-31776",
     "availability": "可用",
     "notes": "男，37岁，本科学历，汉族。消防工程方向评审专家。擅长结算审计、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1660,6 +1866,8 @@
     "licenseNo": "SC-HR-74-31398",
     "availability": "停用",
     "notes": "女，52岁，硕士学历，汉族。人力资源方向评审专家。擅长人力资源领域评审、人力资源领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1676,6 +1884,8 @@
     "licenseNo": "SC-HR-81-31610",
     "availability": "占用",
     "notes": "男，45岁，本科学历，汉族。人力资源方向评审专家。擅长人力资源领域评审、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1692,6 +1902,8 @@
     "licenseNo": "SC-HR-88-31822",
     "availability": "占用",
     "notes": "女，38岁，本科学历，汉族。人力资源方向评审专家。擅长人力资源领域评审、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1708,6 +1920,8 @@
     "licenseNo": "SC-HR-64-31817",
     "availability": "占用",
     "notes": "男，62岁，本科学历，汉族。人力资源方向评审专家。擅长人力资源领域评审、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1724,6 +1938,8 @@
     "licenseNo": "SC-HR-71-32029",
     "availability": "可用",
     "notes": "女，55岁，大专学历，彝族。人力资源方向评审专家。擅长人力资源领域评审、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1740,6 +1956,8 @@
     "licenseNo": "SC-FW-87-31868",
     "availability": "可用",
     "notes": "女，39岁，硕士学历，汉族。法务合规方向评审专家。擅长招标文件技术评审、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1756,6 +1974,8 @@
     "licenseNo": "SC-FW-63-31863",
     "availability": "可用",
     "notes": "男，63岁，本科学历，汉族。法务合规方向评审专家。擅长招标文件技术评审、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1772,6 +1992,8 @@
     "licenseNo": "SC-FW-70-32075",
     "availability": "可用",
     "notes": "男，56岁，本科学历，汉族。法务合规方向评审专家。擅长招标文件技术评审、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1788,6 +2010,8 @@
     "licenseNo": "SC-FW-77-32287",
     "availability": "可用",
     "notes": "男，49岁，本科学历，汉族。法务合规方向评审专家。擅长招标文件技术评审、法务合规领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1804,6 +2028,8 @@
     "licenseNo": "SC-FW-84-32499",
     "availability": "可用",
     "notes": "男，42岁，大专学历，苗族。法务合规方向评审专家。擅长招标文件技术评审、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1820,6 +2046,8 @@
     "licenseNo": "SC-SC-69-32121",
     "availability": "可用",
     "notes": "男，57岁，本科学历，汉族。市场经营方向评审专家。擅长供应商资质审查、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1836,6 +2064,8 @@
     "licenseNo": "SC-SC-76-32333",
     "availability": "可用",
     "notes": "女，50岁，本科学历，汉族。市场经营方向评审专家。擅长供应商资质审查、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1852,6 +2082,8 @@
     "licenseNo": "SC-SC-83-32545",
     "availability": "可用",
     "notes": "男，43岁，本科学历，汉族。市场经营方向评审专家。擅长供应商资质审查、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1868,6 +2100,8 @@
     "licenseNo": "SC-SC-90-32757",
     "availability": "可用",
     "notes": "女，36岁，大专学历，彝族。市场经营方向评审专家。擅长供应商资质审查、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1884,6 +2118,8 @@
     "licenseNo": "SC-SC-66-32752",
     "availability": "可用",
     "notes": "男，60岁，硕士学历，汉族。市场经营方向评审专家。擅长供应商资质审查、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1900,6 +2136,8 @@
     "licenseNo": "SC-ZG-82-32591",
     "availability": "可用",
     "notes": "男，44岁，本科学历，汉族。职工代表方向评审专家。擅长评分标准制定、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1916,6 +2154,8 @@
     "licenseNo": "SC-ZG-89-32803",
     "availability": "可用",
     "notes": "女，37岁，本科学历，汉族。职工代表方向评审专家。擅长评分标准制定、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1932,6 +2172,8 @@
     "licenseNo": "SC-ZG-65-32798",
     "availability": "可用",
     "notes": "男，61岁，本科学历，汉族。职工代表方向评审专家。擅长评分标准制定、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1948,6 +2190,8 @@
     "licenseNo": "SC-ZG-72-33010",
     "availability": "可用",
     "notes": "女，54岁，博士学历，汉族。职工代表方向评审专家。擅长评分标准制定、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1964,6 +2208,8 @@
     "licenseNo": "SC-ZG-79-33222",
     "availability": "可用",
     "notes": "男，47岁，硕士学历，汉族。职工代表方向评审专家。擅长评分标准制定、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1980,6 +2226,8 @@
     "licenseNo": "SC-YL-64-32844",
     "availability": "可用",
     "notes": "女，62岁，本科学历，汉族。景观园林方向评审专家。擅长项目现场考察、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -1996,6 +2244,8 @@
     "licenseNo": "SC-YL-71-33056",
     "availability": "可用",
     "notes": "女，55岁，本科学历，汉族。景观园林方向评审专家。擅长项目现场考察、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2012,6 +2262,8 @@
     "licenseNo": "SC-YL-78-33268",
     "availability": "可用",
     "notes": "男，48岁，大专学历，彝族。景观园林方向评审专家。擅长项目现场考察、景观园林领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2028,6 +2280,8 @@
     "licenseNo": "SC-YL-85-33480",
     "availability": "可用",
     "notes": "女，41岁，硕士学历，汉族。景观园林方向评审专家。擅长项目现场考察、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2044,6 +2298,8 @@
     "licenseNo": "SC-YL-92-33692",
     "availability": "可用",
     "notes": "男，34岁，硕士学历，汉族。景观园林方向评审专家。擅长项目现场考察、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2060,6 +2316,8 @@
     "licenseNo": "SC-JN-77-33314",
     "availability": "停用",
     "notes": "男，49岁，本科学历，汉族。节能环保方向评审专家。擅长投标方案比选、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2076,6 +2334,8 @@
     "licenseNo": "SC-JN-84-33526",
     "availability": "占用",
     "notes": "女，42岁，大专学历，汉族。节能环保方向评审专家。擅长投标方案比选、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2092,6 +2352,8 @@
     "licenseNo": "SC-JN-91-33738",
     "availability": "占用",
     "notes": "男，35岁，硕士学历，汉族。节能环保方向评审专家。擅长投标方案比选、招标文件技术评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2108,6 +2370,8 @@
     "licenseNo": "SC-JN-67-33733",
     "availability": "占用",
     "notes": "女，59岁，硕士学历，汉族。节能环保方向评审专家。擅长投标方案比选、项目现场考察。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2124,6 +2388,8 @@
     "licenseNo": "SC-JN-74-33945",
     "availability": "可用",
     "notes": "男，52岁，本科学历，汉族。节能环保方向评审专家。擅长投标方案比选、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2140,6 +2406,8 @@
     "licenseNo": "SC-WL-90-33784",
     "availability": "可用",
     "notes": "男，36岁，本科学历，汉族。物流采购方向评审专家。擅长合同技术条款审核、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2156,6 +2424,8 @@
     "licenseNo": "SC-WL-66-33779",
     "availability": "可用",
     "notes": "女，60岁，博士学历，藏族。物流采购方向评审专家。擅长合同技术条款审核、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2172,6 +2442,8 @@
     "licenseNo": "SC-WL-73-33991",
     "availability": "可用",
     "notes": "男，53岁，硕士学历，汉族。物流采购方向评审专家。擅长合同技术条款审核、供应商资质审查。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2188,6 +2460,8 @@
     "licenseNo": "SC-WL-80-34203",
     "availability": "可用",
     "notes": "女，46岁，本科学历，汉族。物流采购方向评审专家。擅长合同技术条款审核、投标方案比选。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2204,6 +2478,8 @@
     "licenseNo": "SC-WL-87-34415",
     "availability": "可用",
     "notes": "男，39岁，本科学历，汉族。物流采购方向评审专家。擅长合同技术条款审核、工程量清单审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2220,6 +2496,8 @@
     "licenseNo": "SC-GJ-72-34037",
     "availability": "可用",
     "notes": "女，54岁，大专学历，汉族。国际贸易方向评审专家。擅长隐蔽工程验收、隐蔽工程验收。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2236,6 +2514,8 @@
     "licenseNo": "SC-GJ-79-34249",
     "availability": "可用",
     "notes": "女，47岁，硕士学历，汉族。国际贸易方向评审专家。擅长隐蔽工程验收、国际贸易领域评审。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2252,6 +2532,8 @@
     "licenseNo": "SC-GJ-86-34461",
     "availability": "可用",
     "notes": "男，40岁，硕士学历，汉族。国际贸易方向评审专家。擅长隐蔽工程验收、评分标准制定。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2268,6 +2550,8 @@
     "licenseNo": "SC-GJ-62-34456",
     "availability": "可用",
     "notes": "女，64岁，本科学历，汉族。国际贸易方向评审专家。擅长隐蔽工程验收、合同技术条款审核。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   },
@@ -2284,6 +2568,8 @@
     "licenseNo": "SC-GJ-69-34668",
     "availability": "可用",
     "notes": "男，57岁，本科学历，汉族。国际贸易方向评审专家。擅长隐蔽工程验收、结算审计。",
+    "retiredAt": null,
+    "retireReason": null,
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
   }
