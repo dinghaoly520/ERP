@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import PriceChart from './price-chart';
 import { MallAssistantEntry } from './assistant/mall-assistant-entry';
 import type { MallAssistantContext } from './assistant/types';
-import { useCountUp, useDataChanged, useScrollAwareHeader, Skeleton, EmptyState, AnimatedBadge, StaggerContainer, StaggerItem } from './interactions';
+import { useCountUp, useDataChanged, useScrollAwareHeader, useAsyncState, StateBoundary, InlineError, TableSkeleton, StatCardSkeleton, CardGridSkeleton, EmptyState, LiveRegion, AnimatedBadge, StaggerContainer, StaggerItem } from './interactions';
 
 type PriceStatus = '有效' | '价格波动' | '即将过期' | '待复核';
 type PriceSource = '框架协议价' | '历史成交价' | '市场询价' | '人工维护';
@@ -144,10 +144,7 @@ export default function MallPage() {
   const [detailHistory, setDetailHistory] = useState<{ recordedAt: string; price: number }[]>([]);
   const [assistantInitialQuestion, setAssistantInitialQuestion] = useState('');
   const [currentUser, setCurrentUser] = useState<{ username?: string; displayName?: string; role?: string } | null>(null);
-  const [items, setItems] = useState<CatalogItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'catalog' | 'supplier'>('catalog');
-  const [suppliers, setSuppliers] = useState<SupplierAgg[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
@@ -166,16 +163,31 @@ export default function MallPage() {
       .catch(() => router.push('/login'));
   }, [router]);
 
-  useEffect(() => {
-    fetch('/api/catalog', { headers: { 'X-Portal': 'mall' }, credentials: 'include' })
-      .then(async r => {
-        if (!r.ok) return;
-        const data = await r.json().catch(() => null);
-        const nextItems = Array.isArray(data) ? (data as CatalogItem[]) : [];
-        setItems(nextItems.filter(item => item.status === '有效'));
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  // ===== 数据获取：useAsyncState（消灭静默吞错） =====
+  const catalogAsync = useAsyncState(async () => {
+    const r = await fetch('/api/catalog', { headers: { 'X-Portal': 'mall' }, credentials: 'include' });
+    if (!r.ok) throw new Error(`目录加载失败（${r.status}）`);
+    const data = await r.json();
+    return (Array.isArray(data) ? (data as CatalogItem[]) : []).filter(item => item.status === '有效');
+  }, { deps: [] });
+
+  const items = catalogAsync.data ?? [];
+  const catalogLoading = catalogAsync.status === 'loading' || catalogAsync.status === 'idle';
+
+  const suppliersAsync = useAsyncState(async () => {
+    const r = await fetch('/api/catalog/suppliers', { headers: { 'X-Portal': 'mall' }, credentials: 'include' });
+    if (!r.ok) throw new Error('供应商加载失败');
+    return (await r.json()) as SupplierAgg[];
+  }, { deps: [] });
+  const suppliers = suppliersAsync.data ?? [];
+
+  const favoritesAsync = useAsyncState(async () => {
+    const r = await fetch('/api/catalog/favorites', { headers: { 'X-Portal': 'mall' }, credentials: 'include' });
+    if (!r.ok) throw new Error('收藏加载失败');
+    const data = await r.json();
+    return (Array.isArray(data) ? data : []).map((i: any) => i.id as string);
+  }, { deps: [] });
+  useEffect(() => { if (favoritesAsync.data) setFavoriteIds(favoritesAsync.data); }, [favoritesAsync.data]);
 
   useEffect(() => {
     if (!detail) { setDetailHistory([]); return; }
@@ -187,18 +199,6 @@ export default function MallPage() {
 
   const daysLeft = detail?.validUntil ? Math.max(0, Math.ceil((new Date(detail.validUntil).getTime() - Date.now()) / 86400000)) : null;
 
-  useEffect(() => {
-    fetch('/api/catalog/suppliers', { headers: { 'X-Portal': 'mall' }, credentials: 'include' })
-      .then(async r => { if (r.ok) setSuppliers(await r.json()); })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/catalog/favorites', { headers: { 'X-Portal': 'mall' }, credentials: 'include' })
-      .then(async r => { if (r.ok) setFavoriteIds((await r.json()).map((i: any) => i.id)); })
-      .catch(() => {});
-  }, []);
-
   const browseSupplier = (name: string) => { setSearch(name); setCategory('全部'); setView('catalog'); };
 
   const toggleFavorite = async (item: CatalogItem) => {
@@ -208,6 +208,8 @@ export default function MallPage() {
     setFavoriteIds(prev => (favorited ? [...prev, item.id] : prev.filter(id => id !== item.id)));
     toast.success(favorited ? `已收藏：${item.name}` : '已取消收藏');
   };
+
+  const resetFilters = () => { setSearch(''); setCategory('全部'); setRegion('全部'); setStatus('全部'); setSource('全部'); setShowFavoritesOnly(false); };
 
   const triggerDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -666,7 +668,9 @@ export default function MallPage() {
           animate="show"
           variants={{ hidden: {}, show: { transition: { staggerChildren: 0.1 } } }}
         >
-          {[
+          {catalogLoading ? (
+            Array.from({ length: 4 }).map((_, i) => <motion.div key={i} variants={{ hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0 } }}><StatCardSkeleton /></motion.div>)
+          ) : [
             ['目录物资', stats.total, '纳入集团集中采购目录'],
             ['协议供应商', stats.suppliers, '已入库或框架协议供应商'],
             ['本月更新', stats.updated, '近30天维护价格条目'],
@@ -712,7 +716,7 @@ export default function MallPage() {
               ) : <div key={name}>{SelectCmp}</div>;
             })}
             <motion.button
-              onClick={() => { setSearch(''); setCategory('全部'); setRegion('全部'); setStatus('全部'); setSource('全部'); }}
+              onClick={resetFilters}
               className="h-11 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#5a6d8a] transition hover:border-[#064ea2] hover:text-[#064ea2]"
               whileTap={{ scale: 0.96 }}
             >
@@ -789,8 +793,15 @@ export default function MallPage() {
                 >
                   <div className="border-b border-[#e8eef6] px-5 py-4">
                     <h2 className="text-lg font-black text-[#18243a]">供应商目录</h2>
-                    <p className="mt-1 text-xs text-[#8a96aa]">共 {suppliers.length} 家供应商，点击查看其在目录中的物资</p>
+                    <p className="mt-1 text-xs text-[#8a96aa]">{suppliersAsync.status === 'loading' ? '加载供应商中…' : `共 ${suppliers.length} 家供应商，点击查看其在目录中的物资`}</p>
                   </div>
+                  {suppliersAsync.status === 'error' ? (
+                    <InlineError message="供应商加载失败" onRetry={suppliersAsync.retry} />
+                  ) : suppliersAsync.status === 'loading' ? (
+                    <div className="p-5"><CardGridSkeleton count={6} cols={3} /></div>
+                  ) : suppliers.length === 0 ? (
+                    <EmptyState icon={<IconBuilding />} title="暂无供应商" description="尚未有供应商纳入集中采购目录" />
+                  ) : (
                   <motion.div
                     className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3"
                     initial="hidden"
@@ -819,6 +830,7 @@ export default function MallPage() {
                       </motion.button>
                     ))}
                   </motion.div>
+                  )}
                 </motion.section>
               )}
             </AnimatePresence>
@@ -847,13 +859,23 @@ export default function MallPage() {
               </div>
               <button onClick={exportCatalog} className="hidden rounded-xl border border-[#cdd9ea] px-4 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f7fc] md:block">导出价格清单</button>
             </div></div>
-              <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[1180px] border-collapse text-center text-sm"><thead className="bg-[#f7faff] text-xs font-bold text-[#5a6d8a]"><tr><th className="px-4 py-3">目录编码 / 物资</th><th className="px-4 py-3">规格型号</th><th className="px-4 py-3">分类</th><th className="px-4 py-3">参考价</th><th className="px-4 py-3">价格区间</th><th className="px-4 py-3">供应商</th><th className="px-4 py-3">来源</th><th className="px-4 py-3">状态</th><th className="px-4 py-3 text-center">操作</th></tr></thead><tbody className="divide-y divide-[#eef3f8]">{loading ? (<tr><td colSpan={9} className="px-4 py-16 text-center text-sm text-[#8a96aa]">加载采购目录中…</td></tr>) : filtered.map(item => <tr key={item.id} onClick={() => setDetail(item)} className="cursor-pointer transition hover:bg-[#f8fbff] active:bg-[#eef3fb]"><td className="px-4 py-4"><button onClick={() => setDetail(item)} className="text-center"><div className="font-mono text-xs font-bold text-[#064ea2]">{item.code}</div><div className="mt-1 font-black text-[#18243a] hover:text-[#064ea2]">{item.name}</div></button></td><td className="max-w-[190px] px-4 py-4 text-[#344563]" title={item.specification}><div className="truncate">{item.specification}</div></td><td className="px-4 py-4"><span title={item.category} className="rounded-full bg-[#eef3fb] px-2 py-1 text-xs font-bold text-[#064ea2]">{shortCategory(item.category)}</span></td><td className="px-4 py-4"><span className="text-base font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#8a96aa]">/{item.unit}</span></td><td className="px-4 py-4 text-[#5a6d8a]">{formatPrice(item.priceMin)} - {formatPrice(item.priceMax)}</td><td className="max-w-[180px] px-4 py-4"><div className="truncate font-semibold text-[#18243a]" title={item.supplier}>{item.supplier}</div><div className="mt-1 text-xs text-[#8a96aa]">{item.supplierType} · {item.region}</div></td><td className="px-4 py-4"><span title={item.priceSource} className={`rounded-full px-2 py-1 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{SOURCE_SHORT[item.priceSource]}</span></td><td className="px-4 py-4"><span title={item.status} className={`rounded-full border px-2 py-1 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span><div className={`mt-1 text-xs font-bold ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#8a96aa]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</div></td><td className="px-4 py-4 text-center"><button onClick={(e) => { e.stopPropagation(); toggleFavorite(item); }} className={`mr-1 text-base align-middle transition hover:scale-110 ${favoriteIds.includes(item.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(item.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(item.id) ? '★' : '☆'}</button><button onClick={() => setDetail(item)} className="mr-2 text-xs font-bold text-[#064ea2] hover:underline">详情</button><button onClick={(e) => { e.stopPropagation(); addToBudget(item); }} className="rounded-lg bg-[#064ea2] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#043d82]">加入预算</button></td></tr>)}</tbody></table></div>
-              <div className="divide-y divide-[#eef3f8] md:hidden">
-              {loading ? (
-                <div className="px-4 py-12 text-center text-sm text-[#8a96aa]">加载采购目录中…</div>
+              {/* ===== 内容区：error / loading / empty / filtered-empty / success ===== */}
+              {catalogAsync.status === 'error' ? (
+                <InlineError message="采购目录加载失败" detail={catalogAsync.error?.message} onRetry={catalogAsync.retry} />
+              ) : catalogLoading ? (
+                <>
+                  <div className="hidden md:block"><TableSkeleton rows={6} /></div>
+                  <div className="md:hidden"><TableSkeleton rows={4} /></div>
+                </>
+              ) : items.length === 0 ? (
+                <EmptyState icon={<IconPackageOpen />} title="采购目录暂无数据" description="请联系管理员导入集中采购目录物资" />
               ) : filtered.length === 0 ? (
-                <div className="px-4 py-12 text-center text-sm text-[#8a96aa]">未找到匹配条目，请调整筛选条件</div>
-              ) : filtered.map(item => (
+                <EmptyState icon={<IconSearchX />} title="未找到匹配条目" description="请调整关键词、分类、区域或价格状态后重试" action={{ label: '重置筛选', onClick: resetFilters }} />
+              ) : (
+                <>
+              <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[1180px] border-collapse text-center text-sm"><thead className="bg-[#f7faff] text-xs font-bold text-[#5a6d8a]"><tr><th className="px-4 py-3">目录编码 / 物资</th><th className="px-4 py-3">规格型号</th><th className="px-4 py-3">分类</th><th className="px-4 py-3">参考价</th><th className="px-4 py-3">价格区间</th><th className="px-4 py-3">供应商</th><th className="px-4 py-3">来源</th><th className="px-4 py-3">状态</th><th className="px-4 py-3 text-center">操作</th></tr></thead><tbody className="divide-y divide-[#eef3f8]">{filtered.map(item => <tr key={item.id} onClick={() => setDetail(item)} className="cursor-pointer transition hover:bg-[#f8fbff] active:bg-[#eef3fb]"><td className="px-4 py-4"><button onClick={() => setDetail(item)} className="text-center"><div className="font-mono text-xs font-bold text-[#064ea2]">{item.code}</div><div className="mt-1 font-black text-[#18243a] hover:text-[#064ea2]">{item.name}</div></button></td><td className="max-w-[190px] px-4 py-4 text-[#344563]" title={item.specification}><div className="truncate">{item.specification}</div></td><td className="px-4 py-4"><span title={item.category} className="rounded-full bg-[#eef3fb] px-2 py-1 text-xs font-bold text-[#064ea2]">{shortCategory(item.category)}</span></td><td className="px-4 py-4"><span className="text-base font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#8a96aa]">/{item.unit}</span></td><td className="px-4 py-4 text-[#5a6d8a]">{formatPrice(item.priceMin)} - {formatPrice(item.priceMax)}</td><td className="max-w-[180px] px-4 py-4"><div className="truncate font-semibold text-[#18243a]" title={item.supplier}>{item.supplier}</div><div className="mt-1 text-xs text-[#8a96aa]">{item.supplierType} · {item.region}</div></td><td className="px-4 py-4"><span title={item.priceSource} className={`rounded-full px-2 py-1 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{SOURCE_SHORT[item.priceSource]}</span></td><td className="px-4 py-4"><span title={item.status} className={`rounded-full border px-2 py-1 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span><div className={`mt-1 text-xs font-bold ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#8a96aa]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</div></td><td className="px-4 py-4 text-center"><button onClick={(e) => { e.stopPropagation(); toggleFavorite(item); }} className={`mr-1 text-base align-middle transition hover:scale-110 ${favoriteIds.includes(item.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(item.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(item.id) ? '★' : '☆'}</button><button onClick={() => setDetail(item)} className="mr-2 text-xs font-bold text-[#064ea2] hover:underline">详情</button><button onClick={(e) => { e.stopPropagation(); addToBudget(item); }} className="rounded-lg bg-[#064ea2] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#043d82]">加入预算</button></td></tr>)}</tbody></table></div>
+              <div className="divide-y divide-[#eef3f8] md:hidden">
+              {filtered.map(item => (
                 <div key={item.id} className="p-4">
                   <div className="flex items-start justify-between gap-2">
                     <button onClick={() => setDetail(item)} className="min-w-0 flex-1 text-left">
@@ -875,7 +897,8 @@ export default function MallPage() {
                 </div>
               ))}
             </div>
-            {!loading && filtered.length === 0 && <div className="px-6 py-16 text-center"><div className="text-5xl">📋</div><h3 className="mt-3 text-lg font-black text-[#18243a]">未找到匹配的目录条目</h3><p className="mt-1 text-sm text-[#8a96aa]">请调整关键词、分类、区域或价格状态后重试。</p></div>}
+                </>
+              )}
             </section>
           </div>
         </section>
@@ -1082,6 +1105,17 @@ export default function MallPage() {
   );
 }
 
+
+// ===== 空状态内联 SVG 图标（1.2px 描边，匹配 .impeccable.md） =====
+function IconPackageOpen() {
+  return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M3.3 7 12 12l8.7-5" /><path d="M12 12v10" /></svg>;
+}
+function IconSearchX() {
+  return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="m13.5 13.5 5 5" /><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /><path d="m8 8 6 6" /><path d="m14 8-6 6" /></svg>;
+}
+function IconBuilding() {
+  return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" /><path d="M9 22v-4h6v4" /><path d="M8 6h.01M16 6h.01M12 6h.01M8 10h.01M16 10h.01M12 10h.01M8 14h.01M16 14h.01M12 14h.01" /></svg>;
+}
 
 function Info({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return <div><div className="text-xs font-bold text-[#8a96aa]">{label}</div><div className={`mt-1 text-sm ${strong ? 'text-xl font-black text-[#e74c3c]' : 'font-semibold text-[#18243a]'}`}>{value}</div></div>;
