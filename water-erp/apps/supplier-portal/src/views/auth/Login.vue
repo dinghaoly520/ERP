@@ -49,7 +49,7 @@ async function handleLogin() {
     <div class="lp-bg" aria-hidden="true" />
 
     <div class="lp-brand" aria-label="智慧水发 · 蜀水云采">
-      <img src="/logo.jpg" alt="" class="lp-brand-mark" />
+      <img src="/logo.png" alt="" class="lp-brand-mark" />
       <span class="lp-brand-name">智慧水发 · 蜀水云采</span>
     </div>
 

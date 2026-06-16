@@ -122,7 +122,7 @@ notifStore.fetchUnreadCount()
     <header class="sp-header">
       <div class="sp-header-left">
         <button class="sp-brand" @click="router.push('/dashboard')">
-          <img src="/logo.jpg" alt="智慧水发 · 蜀水云采" class="sp-brand-logo" />
+          <img src="/logo.png" alt="智慧水发 · 蜀水云采" class="sp-brand-logo" />
           <strong class="sp-brand-title">智慧水发 · 蜀水云采</strong>
         </button>
       </div>
