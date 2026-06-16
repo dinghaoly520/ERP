@@ -22,8 +22,15 @@ export function ChartRenderer({
       if (!chartRef.current) {
         chartRef.current = echarts.init(containerRef.current);
       }
-      // 合并主题基础配置（option 优先，覆盖基础）
-      const merged = { ...BASE_OPTION, ...option };
+      // 合并主题基础配置（option 优先；tooltip 深度合并以保留白底卡片样式）
+      const merged: Record<string, unknown> = { ...BASE_OPTION };
+      for (const [k, v] of Object.entries(option)) {
+        if (k === 'tooltip' && v && typeof v === 'object' && !Array.isArray(v)) {
+          merged.tooltip = { ...BASE_OPTION.tooltip, ...v as Record<string, unknown> };
+        } else {
+          merged[k] = v;
+        }
+      }
       chartRef.current.setOption(merged, true);
       setError(false);
     } catch {

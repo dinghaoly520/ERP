@@ -43,7 +43,7 @@ export function ChatWorkspace({
       if (msg.role === 'assistant') {
         if (msg.cards) {
           for (const c of msg.cards as AssistantCardType[]) {
-            const key = c.title || JSON.stringify(c);
+            const key = `${c.type}:${c.title || JSON.stringify(c)}`;
             if (!cardMap.has(key)) cardMap.set(key, c);
           }
         }

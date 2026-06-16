@@ -180,9 +180,7 @@ ${toolList}
     }
 
     const result = await tool.execute(toolArgs);
-    if (result.success && result.cards) {
-      for (const c of result.cards) cards.push(c);
-    }
+    this.pushCardsWithCharts(result, cards);
     if (result.citations) {
       for (const c of result.citations) citations.push(c);
     }
@@ -231,7 +229,6 @@ ${toolList}
 
     // Execute each tool, aggregate cards + data
     const aggregatedData: Array<{ tool: string; data: unknown }> = [];
-    let chartCount = 0;
     for (const tc of toolCalls) {
       const tool = this.toolRegistry.get(tc.tool);
       if (!tool) {
@@ -239,25 +236,7 @@ ${toolList}
         continue;
       }
       const result = await tool.execute(tc.args || {});
-      if (result.success && result.cards) {
-        for (const c of result.cards) {
-          cards.push(c);
-          // 若 table 带 viz 声明，生成对应图表
-          if (c.type === 'table' && (c as Record<string, unknown>).viz) {
-            const row = c as Record<string, unknown>;
-            const chartCard = mapToChart({
-              title: c.title,
-              columns: row.columns as Array<{ key: string; label: string }>,
-              rows: row.rows as Array<Record<string, unknown>>,
-              viz: row.viz as Parameters<typeof mapToChart>[0]['viz'],
-            });
-            if (chartCard) {
-              cards.push(chartCard);
-              chartCount++;
-            }
-          }
-        }
-      }
+      this.pushCardsWithCharts(result, cards);
       if (result.citations) {
         for (const c of result.citations) citations.push(c);
       }
@@ -267,7 +246,7 @@ ${toolList}
     }
 
     this.logger.log(
-      `handleNormalChat: 生成 ${cards.length} 张卡片（含 ${chartCount} 张图表），${aggregatedData.length} 个工具成功返回数据`,
+      `handleNormalChat: 生成 ${cards.length} 张卡片（含 ${cards.filter((c) => (c as any).type === 'chart').length} 张图表），${aggregatedData.length} 个工具成功返回数据`,
     );
 
     if (aggregatedData.length === 0) {
@@ -396,6 +375,30 @@ ${toolList}
     }
     // Collapse extra blank lines left behind
     return output.replace(/\n{3,}/g, '\n\n');
+  }
+
+  /**
+   * Push cards from a tool result, auto-generating chart cards for any table with viz.
+   * Shared by both handleNormalChat and handleDirectToolCall.
+   */
+  private pushCardsWithCharts(
+    result: { success: boolean; cards?: unknown[] },
+    cards: unknown[],
+  ): void {
+    if (!result.success || !result.cards) return;
+    for (const c of result.cards) {
+      cards.push(c);
+      if ((c as Record<string, unknown>).type !== 'table') continue;
+      const row = c as Record<string, unknown>;
+      if (!row.viz) continue;
+      const chartCard = mapToChart({
+        title: (row.title as string) || '',
+        columns: row.columns as Array<{ key: string; label: string }>,
+        rows: row.rows as Array<Record<string, unknown>>,
+        viz: row.viz as Parameters<typeof mapToChart>[0]['viz'],
+      });
+      if (chartCard) cards.push(chartCard);
+    }
   }
 
   async getQuickStats() {
