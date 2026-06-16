@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
+import { useKeyboardShortcuts } from '@/components/keyboard-shortcuts';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, ArrowLeft, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Wrench, Clipboard, Gavel, Building2, Megaphone, Star, Search, UserCircle, TrendingUp, Clock, ScrollText, Pencil, ShoppingCart, Inbox, Construction, MessageSquare } from 'lucide-react';
 
@@ -46,6 +47,24 @@ export default function ExpertEvaluatePage() {
 
   const pushLiveEvent = (label: string, icon: typeof liveEvents[0]['icon']) => {
     setLiveEvents(prev => [{ time: Date.now(), label, icon }, ...prev].slice(0, 20));
+  };
+
+  const { show: _showShortcuts, panel: _shortcutsPanel } = useKeyboardShortcuts();
+
+  // P5: keyboard navigation for scoring — Enter on last item's reason submits
+  const handleScoringKeyDown = (e: React.KeyboardEvent, isLastItem: boolean) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || isLastItem)) {
+      e.preventDefault();
+      handleSubmitScores();
+    }
+  };
+
+  const handleStepKey = (e: React.KeyboardEvent) => {
+    const idx = STEPS.findIndex(s => s.key === step);
+    if (e.key >= '1' && e.key <= '6') {
+      const target = STEPS[parseInt(e.key) - 1];
+      if (target && stepAccessible(target.key)) setStep(target.key);
+    }
   };
 
   const { connection: _wsConn, lastEventAt: _wsLastEvent, reconnectNow: _wsReconnect } = useExpertWebSocket(projectId, {
@@ -301,7 +320,8 @@ export default function ExpertEvaluatePage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)]">
+    <div className="flex flex-col h-[calc(100vh-7rem)]" onKeyDown={handleStepKey}>
+      {_shortcutsPanel}
       {/* 顶部导航 */}
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -826,11 +846,15 @@ export default function ExpertEvaluatePage() {
                                   <div className="flex items-center gap-4 mb-3">
                                     <input type="range" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [k]: { score: parseFloat(e.target.value), reason: prev[k]?.reason || '' } }))}
-                                      className="flex-1 h-2 bg-[oklch(0.94_0.004_264)] rounded-full appearance-none cursor-pointer accent-[#064ea2]"
-                                      style={{ background: `linear-gradient(to right, ${CATEGORY_COLOR[category] || '#064ea2'} ${pct}%, #f0f4f8 ${pct}%)` }} />
+                                      className="flex-1 h-2 bg-[oklch(0.94_0.004_264)] rounded-full appearance-none cursor-pointer accent-[#064ea2] focus:outline-none focus:ring-2 focus:ring-[#064ea2] focus:ring-offset-2"
+                                      style={{ background: `linear-gradient(to right, ${CATEGORY_COLOR[category] || '#064ea2'} ${pct}%, #f0f4f8 ${pct}%)` }}
+                                      aria-label={`${item.name} 评分`} aria-valuemin={0} aria-valuemax={max} aria-valuenow={currentScore} aria-valuetext={`${currentScore} / ${max} 分`}
+                                      tabIndex={0} />
                                     <input type="number" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.min(parseFloat(e.target.value) || 0, max), reason: prev[k]?.reason || '' } }))}
-                                      className="w-20 text-center border border-blue-100 rounded-lg px-2 py-1.5 text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none" />
+                                      onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); const v = Math.min((currentScore || 0) + 0.5, max); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } else if (e.key === 'ArrowDown') { e.preventDefault(); const v = Math.max((currentScore || 0) - 0.5, 0); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } }}
+                                      className="w-20 text-center border border-blue-100 rounded-lg px-2 py-1.5 text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2] outline-none"
+                                      aria-label={`${item.name} 数值输入`} tabIndex={0} />
                                   </div>
                                   <textarea placeholder="评分理由（低于满分必填）" value={val?.reason || ''}
                                     onChange={e => {
@@ -838,7 +862,9 @@ export default function ExpertEvaluatePage() {
                                       setScores(prev => ({ ...prev, [k]: { score: prev[k]?.score ?? 0, reason: v } }));
                                       if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
                                     }}
-                                    className={`w-full rounded-lg px-3 py-2 text-sm text-[oklch(0.18_0.012_265)] placeholder-[#b8c8d8] resize-none h-16 focus:outline-none ${reasonMissing ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-1 focus:ring-red-300' : 'border-blue-100 focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2]'}`} />
+                                    className={`w-full rounded-lg px-3 py-2 text-sm text-[oklch(0.18_0.012_265)] placeholder-[#b8c8d8] resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-300' : 'border-blue-100 focus:border-[#064ea2] focus:ring-[#064ea2]'}`}
+                                    aria-label={`${item.name} 评分理由`} tabIndex={0}
+                                    onKeyDown={(e) => handleScoringKeyDown(e, false)} />
                                   {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold">⚠ 该项得分低于满分，请填写评分理由</p>}
                                 </div>
                               );

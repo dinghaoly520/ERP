@@ -13,6 +13,7 @@ import {
 import { PageHero, SectionCard } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ConnectionIndicator } from '@/components/connection-indicator';
+import { useKeyboardShortcuts } from '@/components/keyboard-shortcuts';
 import { DECRYPT_LABEL, SEMANTIC } from '@water-erp/shared';
 import { toast } from 'sonner';
 
@@ -114,6 +115,8 @@ export default function BidOpenPage() {
   const [disputeHandleResult, setDisputeHandleResult] = useState('');
   const [disputeHandleConfirm, setDisputeHandleConfirm] = useState<'confirmed' | 'rejected' | null>(null);
   const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string } | null>(null);
+  const { show: _showShortcuts, panel: _shortcutsPanel } = useKeyboardShortcuts();
+
   const [recordDraft, setRecordDraft] = useState({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
   const seenDecrypt = useRef<Set<string>>(new Set());
   const prevDecryptStatuses = useRef<Map<string, string>>(new Map());
@@ -317,6 +320,7 @@ export default function BidOpenPage() {
 
   return (
     <div className={`space-y-5 ${bigScreen ? 'text-[115%]' : ''}`}>
+      {_shortcutsPanel}
       {/* ═══ PageHero with controls ═══ */}
       <PageHero
         eyebrow="开标大厅"
