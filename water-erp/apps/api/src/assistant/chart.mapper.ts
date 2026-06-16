@@ -24,7 +24,9 @@ interface TableLike {
 }
 
 export function mapToChart(table: TableLike): ChartCard | null {
-  const { viz, rows, title } = table;
+  const { viz, title } = table;
+  // 排除表格总计行（_total），避免合计值扭曲图表比例
+  const rows = table.rows.filter((r) => !(r as Record<string, unknown>)._total);
   if (!viz || rows.length === 0) return null;
 
   switch (viz.kind) {
