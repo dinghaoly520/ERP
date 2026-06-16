@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { api, enterOpeningRecord } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
@@ -533,8 +533,8 @@ export default function BidOpenPage() {
               const isDisputed = r.confirmStatus === '供应商提出异议';
               const disputeOpen = inlineDispute === r.id;
               return (
-                <>
-                  <tr key={r.id} className={`border-b border-[oklch(0.94_0.004_264)] align-top transition-colors ${
+                <React.Fragment key={r.id}>
+                  <tr className={`border-b border-[oklch(0.94_0.004_264)] align-top transition-colors ${
                     isDisputed ? 'border-l-4 border-l-[#e74c3c] bg-[#fef9f9]' : 'hover:bg-[oklch(0.992_0.003_264)]'
                   }`}>
                     <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">
@@ -594,7 +594,7 @@ export default function BidOpenPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               );
             })}
           </tbody>
