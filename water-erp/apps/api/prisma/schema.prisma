@@ -467,18 +467,20 @@ model SupplierChangeRecord {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  type      String
-  title     String
-  content   String
-  isRead    Boolean  @default(false)
-  link      String?
-  createdAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  userId     String
+  type       String
+  title      String
+  content    String
+  isRead     Boolean   @default(false)
+  resolvedAt DateTime?
+  link       String?
+  createdAt  DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
+  @@index([userId, type, resolvedAt])
 }
 
 // ── 通知投递日志（Track A：多渠道投递记录） ──
