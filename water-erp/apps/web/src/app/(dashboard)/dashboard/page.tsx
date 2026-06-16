@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { DashboardAiPanel, MetricCard, DashboardTodoPanel } from '@/components/workbench';
+import { DashboardAiPanel, MetricCard } from '@/components/workbench';
 import type { DashboardContext } from '@/components/workbench';
 import { useTrend } from '@/lib/hooks/use-trend';
 import { api } from '@/lib/api';
@@ -114,8 +114,6 @@ export default function DashboardPage() {
         <MetricCard label="商城目录" value={loading ? '—' : `${mallCatalogActive}/${mallCatalogTotal}`} hint="有效目录 / 目录总量" tone="cyan" icon={<ShoppingCart size={18} strokeWidth={1.7} />} onClick={() => router.push('/mall-management/catalog')} trendDirection="up-good" trendDelta={trendCatalog?.delta ?? null} trendHistory={trendCatalog} />
         <MetricCard label="供应商待审批" value={loading ? '—' : pendingSuppliers} hint="注册入库待审核" tone="orange" icon={<Building2 size={18} strokeWidth={1.7} />} onClick={() => router.push('/supplier/approval')} trendDirection="up-bad" trendDelta={trendPending?.delta ?? null} trendHistory={trendPending} />
       </section>
-
-      <DashboardTodoPanel />
 
       <DashboardAiPanel context={dashboardContext} ready={!loading} />
     </div>

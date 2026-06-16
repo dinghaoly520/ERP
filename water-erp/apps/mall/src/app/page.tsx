@@ -191,7 +191,6 @@ export default function MallPage() {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // 数据最后更新时间
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const prevItemsLen = useRef(0);
 
@@ -219,7 +218,6 @@ export default function MallPage() {
   const items = catalogAsync.data ?? [];
   const catalogLoading = catalogAsync.status === 'loading' || catalogAsync.status === 'idle';
 
-  // 追踪数据更新时间
   useEffect(() => {
     if (items.length > 0 && items.length !== prevItemsLen.current) {
       setLastUpdatedAt(new Date());
@@ -745,18 +743,21 @@ export default function MallPage() {
           formatPrice={formatPrice}
         />
 
-        {/* ── 指挥台：六区功能面板 ── */}
+        {/* ── 指挥台：全局渐变流动 ── */}
         <motion.section
-          className="mt-3 flex items-center rounded-xl border border-[#cdd9ea] bg-white overflow-hidden h-12"
+          className="mt-3 flex items-center rounded-xl border border-[#cdd9ea] overflow-hidden h-12"
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1 }}
+          style={{
+            background: 'linear-gradient(90deg, #f8fafc 0%, #f1f5f9 8%, #eff6ff 16%, #f0f9ff 28%, #ecfdf5 44%, #f0fdf4 56%, #fff7ed 66%, #fffbeb 72%, #f5f3ff 82%, #faf5ff 92%, #f8fafc 100%)',
+          }}
         >
-          {/* ━━ ① 数据脉搏 · 浅色系同行统计 ━━ */}
-          <div className="flex items-center h-full shrink-0 bg-[#f1f5f9] border-r-2 border-[#e2e8f0]">
+          {/* ━━ ① 统计 ━━ */}
+          <div className="flex items-center h-full shrink-0 border-r border-[#cbd5e1]/40">
             {catalogLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className={`flex items-center gap-1.5 px-3 ${i > 0 ? 'border-l border-[#e2e8f0]' : ''}`}>
+                <div key={i} className={`flex items-center gap-1.5 px-3 ${i > 0 ? 'border-l border-[#cbd5e1]/30' : ''}`}>
                   <div className="h-2.5 w-8 skeleton-shimmer rounded" />
                   <div className="h-4 w-5 skeleton-shimmer rounded" />
                 </div>
@@ -767,15 +768,15 @@ export default function MallPage() {
                   <span className="text-xs font-semibold text-[#64748b]">目录</span>
                   <span className="text-sm font-black text-[#5b9bd5] tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace"}}>{stats.total}</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-3 h-full border-l border-[#e5ecf4]">
+                <div className="flex items-center gap-1.5 px-3 h-full border-l border-[#cbd5e1]/30">
                   <span className="text-xs font-semibold text-[#64748b]">供应商</span>
                   <span className="text-sm font-black text-[#0891b2] tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace"}}>{stats.suppliers}</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-3 h-full border-l border-[#e5ecf4]">
+                <div className="flex items-center gap-1.5 px-3 h-full border-l border-[#cbd5e1]/30">
                   <span className="text-xs font-semibold text-[#64748b]">月更</span>
                   <span className="text-sm font-black text-[#059669] tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace"}}>{stats.updated}</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-3 h-full border-l border-[#fde68a] bg-amber-50/30">
+                <div className="flex items-center gap-1.5 px-3 h-full border-l border-[#fcd34d]/30 bg-[#fef3c7]/10">
                   <span className="text-xs font-semibold text-[#64748b]">预警</span>
                   <span className="text-sm font-black text-[#d97706] tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace"}}>{stats.alerts}</span>
                 </div>
@@ -783,9 +784,9 @@ export default function MallPage() {
             )}
           </div>
 
-          {/* ━━ ② 视切 · 石板灰 ━━ */}
-          <div className="flex items-center h-full shrink-0 bg-[#f1f5f9] border-r-2 border-[#cbd5e1]">
-            <div className="flex items-center gap-0 rounded border border-[#cbd5e1] bg-white p-0.5 mx-2.5 relative">
+          {/* ━━ ② 视切 ━━ */}
+          <div className="flex items-center h-full shrink-0 border-r border-[#cbd5e1]/40">
+            <div className="flex items-center gap-0 rounded border border-[#cbd5e1]/60 bg-white/80 p-0.5 mx-2.5 relative">
               <motion.button onClick={() => setView('catalog')}
                 className={`relative z-10 rounded-sm px-3 py-1 text-[11px] font-bold transition-colors ${view === 'catalog' ? 'text-white' : 'text-[#64748b] hover:text-[#334155]'}`}
                 whileTap={{ scale: 0.95 }}>目录清单</motion.button>
@@ -799,8 +800,8 @@ export default function MallPage() {
             </div>
           </div>
 
-          {/* ━━ ③ 筛选 · 冰川蓝底 ━━ */}
-          <div className="flex items-center h-full gap-0 bg-gradient-to-r from-[#eff6ff] to-[#f0f9ff] border-r-2 border-[#93c5fd]/40 flex-1 min-w-0">
+          {/* ━━ ③ 筛选 ━━ */}
+          <div className="flex items-center h-full gap-0 border-r border-[#bfdbfe]/30 flex-1 min-w-0">
             <div className="flex items-center gap-3 flex-1 flex-wrap px-3">
               {([
                 ['区域', region, setRegion, REGIONS] as const,
@@ -813,8 +814,8 @@ export default function MallPage() {
                     <span className="text-xs font-semibold text-[#64748b] group-hover:text-[#334155] select-none">{label}</span>
                     <div className="relative">
                       <select value={val as string} onChange={e => setter(e.target.value as never)}
-                        className={`h-7 rounded-md border bg-white pl-2 pr-5 text-xs font-semibold outline-none transition appearance-none cursor-pointer ${
-                          hasValue ? 'border-[#5b9bd5] text-[#5b9bd5] bg-[#eff6ff]' : 'border-transparent text-[#475569] hover:border-[#cbd5e1] hover:bg-white'
+                        className={`h-7 rounded-md border bg-white/80 pl-2 pr-5 text-xs font-semibold outline-none transition appearance-none cursor-pointer ${
+                          hasValue ? 'border-[#5b9bd5] text-[#5b9bd5] bg-[#eff6ff]/80' : 'border-transparent text-[#475569] hover:border-[#cbd5e1] hover:bg-white'
                         }`}
                         style={{ textAlignLast: 'center', textAlign: 'center' as React.CSSProperties['textAlign'] }}>
                         {options.map(v => <option key={v as string} value={v as string}>{v as string}</option>)}
@@ -825,10 +826,10 @@ export default function MallPage() {
                 );
               })}
             </div>
-            <div className="flex items-center gap-0 shrink-0 border-l border-[#bfd4f4]/50 pl-2">
+            <div className="flex items-center gap-0 shrink-0 border-l border-[#bfdbfe]/40 pl-2">
               <button onClick={() => setShowFavoritesOnly(v => !v)}
                   className={`flex items-center h-7 rounded px-2 text-xs font-semibold transition ${
-                    showFavoritesOnly ? 'bg-amber-50 text-amber-600 ring-1 ring-amber-200' : 'text-[#94a3b8] hover:text-[#5b9bd5] hover:bg-white'
+                    showFavoritesOnly ? 'bg-amber-50/80 text-amber-600 ring-1 ring-amber-200/60' : 'text-[#94a3b8] hover:text-[#5b9bd5] hover:bg-white/80'
                   }`} title="只看收藏">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill={showFavoritesOnly ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
@@ -838,7 +839,7 @@ export default function MallPage() {
                 <button onClick={resetFilters}
                   className={`flex items-center h-7 rounded px-2 text-xs font-semibold transition ${
                     (search || category !== '全部' || region !== '全部' || status !== '全部' || source !== '全部' || showFavoritesOnly)
-                      ? 'text-[#ef4444] hover:bg-red-50' : 'text-[#cbd5e1] cursor-default'
+                      ? 'text-[#ef4444] hover:bg-red-50/80' : 'text-[#cbd5e1] cursor-default'
                   }`} title="重置筛选">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                   重置
@@ -846,10 +847,10 @@ export default function MallPage() {
             </div>
           </div>
 
-          {/* ━━ ④ 排序 · 翡翠绿底 ━━ */}
-          <div className="flex items-center h-full gap-1.5 px-3 bg-gradient-to-r from-[#ecfdf5] to-[#f0fdf4] border-r-2 border-[#6ee7b7]/40 shrink-0">
-            <div className="flex items-center gap-1 h-7 rounded-md bg-[#059669]/8 px-2.5 mr-1 ring-1 ring-[#34d399]/20">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {/* ━━ ④ 排序 ━━ */}
+          <div className="flex items-center h-full gap-1.5 px-2 border-r border-[#a7f3d0]/30 shrink-0">
+            <div className="flex items-center gap-1 h-7 rounded-md bg-[#059669]/6 px-2 ring-1 ring-[#34d399]/15">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="4" y1="6" x2="16" y2="6"/><line x1="4" y1="12" x2="12" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/>
                 <polyline points="14 15 18 18 22 12"/>
               </svg>
@@ -865,13 +866,13 @@ export default function MallPage() {
               const dir = isActive ? sort!.dir : null;
               return (
                 <button key={col} onClick={() => toggleSort(col)}
-                  className={`flex items-center justify-center gap-0.5 h-7 rounded px-2.5 text-sm font-semibold transition min-w-[4.25rem] ring-1 ${
-                    isActive ? 'bg-white text-[#059669] ring-[#34d399]/30 shadow-sm' : 'text-[#64748b] ring-transparent hover:text-[#059669] hover:bg-white'
+                  className={`flex items-center justify-center gap-0.5 h-7 rounded px-1.5 text-xs font-semibold transition min-w-[3.25rem] ring-1 ${
+                    isActive ? 'bg-white text-[#059669] ring-[#34d399]/30 shadow-sm' : 'text-[#64748b] ring-transparent hover:text-[#059669] hover:bg-white/80'
                   }`}>
                   <span>{label}</span>
-                  <span className="inline-flex items-center w-3 h-3">
+                  <span className="inline-flex items-center w-2 h-2">
                     {isActive ? (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                         {dir === 'asc' ? <path d="m18 15-6-6-6 6"/> : <path d="m6 9 6 6 6-6"/>}
                       </svg>
                     ) : null}
@@ -880,13 +881,13 @@ export default function MallPage() {
               );
             })}
             <button onClick={sort ? () => setSort(null) : undefined}
-              className={`ml-0.5 text-[11px] transition ${sort ? 'text-[#94a3b8] hover:text-[#ef4444] cursor-pointer' : 'text-transparent cursor-default'}`}
+              className={`ml-0.5 text-[10px] transition ${sort ? 'text-[#94a3b8] hover:text-[#ef4444] cursor-pointer' : 'text-transparent cursor-default'}`}
               title={sort ? '取消排序' : ''}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
 
-          {/* ━━ ⑤ 行动 · 暖橙底 ━━ */}
-          <div className="flex items-center h-full gap-1.5 px-2.5 bg-gradient-to-r from-[#fff7ed] to-[#fffbeb] border-r-2 border-[#fdba74]/40 shrink-0">
+          {/* ━━ ⑤ 行动 ━━ */}
+          <div className="flex items-center h-full gap-1.5 px-2.5 border-r border-[#fed7aa]/30 shrink-0">
             <motion.button onClick={() => setBudgetOpen(true)}
               className="relative h-7 rounded bg-[#5b9bd5] px-2.5 text-xs font-bold text-white hover:bg-[#4a89c4] active:scale-95 transition"
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }}>预算清单
@@ -898,24 +899,26 @@ export default function MallPage() {
               )}</AnimatePresence>
             </motion.button>
             <button onClick={openAudit}
-              className="flex items-center h-7 rounded border border-[#e5e7eb] bg-white px-2 text-xs font-semibold text-[#64748b] hover:border-[#5b9bd5] hover:text-[#5b9bd5] transition">操作记录</button>
+              className="flex items-center h-7 rounded border border-[#e5e7eb] bg-white/80 px-2 text-xs font-semibold text-[#64748b] hover:border-[#5b9bd5] hover:text-[#5b9bd5] transition">操作记录</button>
           </div>
 
-          {/* ━━ 密度模块 ━━ */}
-          <div className="flex items-center h-full gap-1.5 px-3 bg-gradient-to-r from-[#f8fafc] to-[#f1f5f9] border-r-2 border-[#e2e8f0] shrink-0">
-            <button onClick={() => setDensity(d => d === 'compact' ? 'comfortable' : 'compact')}
-              className="flex items-center gap-1.5 h-7 rounded-md px-2.5 text-xs font-semibold transition hover:bg-white"
-              title={density === 'compact' ? '切换到舒适视图' : '切换到紧凑视图'}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className={density === 'compact' ? 'text-[#059669]' : 'text-[#64748b]'}>
-                {density === 'compact'
-                  ? <><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>
-                  : <><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>}</svg>
-              <span className="text-[#64748b]">{density === 'compact' ? '紧凑' : '舒适'}</span>
-            </button>
+          {/* ━━ 密度 ━━ */}
+          <div className="flex items-center h-full gap-1.5 px-3 border-r border-[#e2e8f0]/30 shrink-0">
+            <span className="text-xs font-semibold text-[#94a3b8] select-none">密度</span>
+            <div className="flex items-center gap-0 rounded border border-[#e2e8f0] bg-white/60 p-0.5">
+              <button onClick={() => setDensity('comfortable')}
+                className={`rounded-sm px-2.5 py-1 text-xs font-bold transition-colors ${density === 'comfortable' ? 'bg-[#5b9bd5] text-white shadow-sm' : 'text-[#94a3b8] hover:text-[#64748b]'}`}>
+                舒适
+              </button>
+              <button onClick={() => setDensity('compact')}
+                className={`rounded-sm px-2.5 py-1 text-xs font-bold transition-colors ${density === 'compact' ? 'bg-[#5b9bd5] text-white shadow-sm' : 'text-[#94a3b8] hover:text-[#64748b]'}`}>
+                紧凑
+              </button>
+            </div>
           </div>
 
-          {/* ━━ ⑥ 操作 · 熏衣草淡紫底 ━━ */}
-          <div className="flex items-center h-full gap-1 px-2 bg-gradient-to-r from-[#f5f3ff] to-[#faf5ff] border-r-2 border-[#c4b5fd]/40 shrink-0">
+          {/* ━━ ⑥ 操作 ━━ */}
+          <div className="flex items-center h-full gap-1 px-2 border-r border-[#c4b5fd]/25 shrink-0">
             <AnimatePresence>{selectedIds.size > 0 && (
               <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}
                 className="flex items-center gap-1 overflow-hidden">
@@ -924,7 +927,7 @@ export default function MallPage() {
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>加入预算
                 </button>
                 {selectedIds.size >= 2 && selectedIds.size <= 4 && (
-                  <button onClick={() => setCompareOpen(true)} className="flex items-center h-7 rounded border border-[#c4b5fd]/50 bg-white px-1.5 text-[11px] font-bold text-[#7c3aed] hover:bg-[#f5f3ff] active:scale-95 transition">对比</button>
+                  <button onClick={() => setCompareOpen(true)} className="flex items-center h-7 rounded border border-[#c4b5fd]/50 bg-white/80 px-1.5 text-[11px] font-bold text-[#7c3aed] hover:bg-[#f5f3ff]/80 active:scale-95 transition">对比</button>
                 )}
                 <button onClick={clearSelection} className="h-6 rounded px-1 text-[11px] font-semibold text-[#94a3b8] hover:text-[#334155] transition">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 1l10 10M11 1L1 11"/></svg>
@@ -932,27 +935,27 @@ export default function MallPage() {
               </motion.div>
             )}</AnimatePresence>
             <button onClick={() => setAssistantInitialQuestion(buildAnalysisQuestion())}
-              className="flex items-center gap-0.5 h-7 rounded border border-[#bfd4f4] bg-gradient-to-r from-[#eef6ff] to-[#f8faff] px-2.5 text-xs font-bold text-[#5b9bd5] hover:border-[#5b9bd5] hover:from-[#dae9f8] hover:to-[#eef6ff] active:scale-95 transition">
+              className="flex items-center gap-0.5 h-7 rounded border border-[#bfd4f4]/60 bg-white/60 px-2.5 text-xs font-bold text-[#5b9bd5] hover:border-[#5b9bd5] hover:bg-white active:scale-95 transition">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>分析
             </button>
             <button onClick={() => { catalogAsync.retry(); suppliersAsync.retry(); favoritesAsync.retry(); }} disabled={catalogLoading}
-              className="flex items-center gap-0.5 h-7 rounded px-1.5 text-[11px] font-semibold text-[#94a3b8] hover:text-[#5b9bd5] hover:bg-white transition disabled:opacity-50" title="刷新">
+              className="flex items-center gap-0.5 h-7 rounded px-1.5 text-[11px] font-semibold text-[#94a3b8] hover:text-[#5b9bd5] hover:bg-white/60 transition disabled:opacity-50" title="刷新">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className={catalogLoading ? 'animate-spin' : ''}>
                 <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             </button>
             {lastUpdatedAt && (
-              <span className="text-[11px] text-[#bcc6d4] tabular-nums" title={`最后更新：${lastUpdatedAt.toLocaleString('zh-CN')}`}>
+              <span className="text-[11px] text-[#bcc6d4] tabular-nums" title={`更新于 ${lastUpdatedAt.toLocaleString('zh-CN')}`}>
                 {(() => {const d=Math.floor((Date.now()-lastUpdatedAt.getTime())/1000);if(d<60)return'刚刚';if(d<3600)return`${Math.floor(d/60)}分`;if(d<86400)return`${Math.floor(d/3600)}时`;return lastUpdatedAt.toLocaleDateString('zh-CN',{month:'short',day:'numeric'});})()}
               </span>
             )}
             <button onClick={exportCatalog} disabled={exporting === 'catalog'}
-              className="flex items-center gap-0.5 h-7 rounded border border-[#e5e7eb] px-2.5 text-xs font-semibold text-[#64748b] hover:border-[#5b9bd5] hover:text-[#5b9bd5] disabled:opacity-50 transition">
+              className="flex items-center gap-0.5 h-7 rounded border border-[#e5e7eb] bg-white/60 px-2.5 text-xs font-semibold text-[#64748b] hover:border-[#5b9bd5] hover:text-[#5b9bd5] disabled:opacity-50 transition">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel
             </button>
           </div>
 
           {/* ━━ 实时计数 ━━ */}
-          <div className="flex items-center h-full border-l-2 border-[#e2e8f0] px-3 shrink-0 bg-[#f8fafc]">
+          <div className="flex items-center h-full border-l border-[#e2e8f0]/50 px-3 shrink-0 bg-white/20">
             <span className={`text-sm font-semibold tabular-nums ${filtered.length === 0 ? 'text-[#ef4444]' : 'text-[#475569]'}`}>
               总共 <span className={`text-sm font-black ${filtered.length === 0 ? 'text-[#ef4444]' : 'text-[#5b9bd5]'}`}>{filtered.length}</span> 项
             </span>

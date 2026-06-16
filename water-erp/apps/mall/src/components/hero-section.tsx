@@ -74,18 +74,26 @@ function contextSummary(ctx: MallAssistantContext): string[] {
   return lines;
 }
 
-/* ── 上下文标签（筛选条件摘要） ── */
-function contextLabel(ctx: MallAssistantContext): string {
-  const active = [
-    ctx.currentFilters.category !== '全部' ? ctx.currentFilters.category : null,
-    ctx.currentFilters.region !== '全部' ? ctx.currentFilters.region : null,
-    ctx.currentFilters.status !== '全部' ? ctx.currentFilters.status : null,
-    ctx.currentFilters.source !== '全部' ? ctx.currentFilters.source : null,
-    ctx.currentFilters.search.trim() ? `「${ctx.currentFilters.search.trim()}」` : null,
-  ].filter(Boolean);
-  if (active.length > 0) return active.join(' / ');
-  if (ctx.budget.length > 0) return `预算清单 ${ctx.budget.length} 项`;
-  return '全量目录';
+/* ── AI 生成的轮播标语，值为 0 的跳过 ── */
+function sloganPool(ctx: MallAssistantContext): string[] {
+  const r = ctx.riskSummary;
+  const categoryCount = new Set(ctx.visibleItems.map(i => i.category)).size;
+  const hasFilter = ctx.currentFilters.category !== '全部' || ctx.currentFilters.region !== '全部' || ctx.currentFilters.status !== '全部' || ctx.currentFilters.source !== '全部';
+  const warnings = r.inquiry + r.expiring + r.review;
+
+  const pool: string[] = [];
+
+  if (ctx.totalItems > 0) pool.push(`当前采购目录共${ctx.totalItems}项物资`);
+  if (categoryCount > 0) pool.push(`已覆盖${categoryCount}个品类可供比选`);
+  if (r.safe > 0) pool.push(`其中有${r.safe}项物资价格稳定`);
+  if (ctx.budget.length > 0) pool.push(`已编制${ctx.budget.length}项预算清单`);
+  if (r.inquiry > 0) pool.push(`发现${r.inquiry}项物资价格有异动`);
+  if (r.expiring > 0) pool.push(`注意${r.expiring}项物资已临近效期`);
+  if (r.review > 0) pool.push(`尚有${r.review}项物资待复核确认`);
+  if (hasFilter) pool.push(`当前已筛选${ctx.totalItems}项物资`);
+  if (warnings > 0) pool.push(`追踪${warnings}项物资预警信息`);
+
+  return pool;
 }
 
 /* ══════════════════════════════════════════════════════════ */
@@ -146,9 +154,17 @@ export function HeroSection({
     ? 'from-[#7c3aed] via-[#6366f1] to-[#3b82f6]'   // 紫→靛→蓝 AI 渐变
     : 'from-[#5b9bd5] to-[#0891b2]';                   // 品牌蓝→青 搜索渐变
 
-  const ctxLabel = useMemo(() => contextLabel(assistantContext), [assistantContext]);
   const ctxSummary = useMemo(() => contextSummary(assistantContext), [assistantContext]);
   const quickQuestions = useMemo(() => deriveQuickQuestions(assistantContext), [assistantContext]);
+  const slogans = useMemo(() => sloganPool(assistantContext), [assistantContext]);
+
+  // 12字标语轮播
+  const [sloganIdx, setSloganIdx] = useState(0);
+  useEffect(() => {
+    if (slogans.length <= 1) return;
+    const t = setInterval(() => setSloganIdx(i => (i + 1) % slogans.length), 3000);
+    return () => clearInterval(t);
+  }, [slogans.length]);
 
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => { if (assistantInitialQuestion) setDialogOpen(true); }, [assistantInitialQuestion]);
@@ -409,12 +425,7 @@ export function HeroSection({
                     }}
                   >
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-                    <span>水叮当已知：{ctxLabel}</span>
-                    {hasWarnings && (
-                      <span className="inline-flex items-center gap-0.5 rounded-full bg-orange-100 px-1.5 py-px text-[10px] font-bold text-orange-600 border border-orange-300/40">
-                        {assistantContext.riskSummary.inquiry + assistantContext.riskSummary.expiring + assistantContext.riskSummary.review} 项预警
-                      </span>
-                    )}
+                    <span className="inline-block min-w-[12em]">水叮当：{slogans[sloganIdx] || '全量目录'}</span>
                   </button>
                 </div>
 
