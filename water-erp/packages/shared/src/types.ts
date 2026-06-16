@@ -33,6 +33,10 @@ export interface BidProject {
   deadline: string;
   stage: string;
   riskNote?: string;
+  budget?: number;
+  scope?: string;
+  qualification?: string;
+  contact?: string;
   _count?: { suppliers: number };
 }
 
