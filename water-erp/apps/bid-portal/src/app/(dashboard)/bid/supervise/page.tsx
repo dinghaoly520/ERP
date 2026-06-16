@@ -40,6 +40,11 @@ export default function BidSupervisePage() {
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [supervisionLogs, setSupervisionLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // P3: actionable anomaly annotations (session-local flags/escalations/notes)
+  const [anomalyFlags, setAnomalyFlags] = useState<Map<string, 'flagged' | 'escalated' | null>>(new Map());
+  const [anomalyNotes, setAnomalyNotes] = useState<Map<string, string>>(new Map());
+  const [annotatingId, setAnnotatingId] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
 
   useEffect(() => {
     api.get<{id:string}[]>('/bid/projects').then(ps => { if (ps.length) setProjectId(ps[0].id); });
@@ -118,12 +123,62 @@ export default function BidSupervisePage() {
             <div className="bg-[oklch(0.96_0.02_260)] border border-[oklch(0.88_0.04_258)] p-4 text-[12px] text-[oklch(0.42_0.14_260)] flex items-center gap-2">
               <Eye size={14} strokeWidth={1.5} /> 当前无异常事件
             </div>
-          ) : anomalies.map(s => (
-            <div key={s.id} className="bg-[oklch(0.96_0.04_85)] border border-[oklch(0.88_0.06_82)] p-4 mb-2 flex items-start gap-2">
-              <AlertTriangle size={14} strokeWidth={1.5} className="text-[oklch(0.64_0.16_82)] mt-0.5 flex-shrink-0" />
-              <span className="text-[13px] text-[oklch(0.18_0.012_265)] tracking-tight">{s.supplierName} — 解密证书校验失败</span>
+          ) : anomalies.map(s => {
+            const flag = anomalyFlags.get(s.id);
+            const note = anomalyNotes.get(s.id);
+            const isAnnotating = annotatingId === s.id;
+            return (
+            <div key={s.id} className={`p-4 mb-2 border rounded-xl ${
+              flag === 'escalated' ? 'bg-red-50 border-red-300' :
+              flag === 'flagged' ? 'bg-amber-50 border-amber-300' :
+              'bg-[oklch(0.96_0.04_85)] border-[oklch(0.88_0.06_82)]'
+            }`}>
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={14} strokeWidth={1.5} className={`mt-0.5 flex-shrink-0 ${flag ? 'text-[#e74c3c]' : 'text-[oklch(0.64_0.16_82)]'}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-[13px] text-[oklch(0.18_0.012_265)] tracking-tight font-semibold">{s.supplierName}</span>
+                    <span className="text-[11px] text-[oklch(0.55_0.01_264)]">— 解密证书校验失败</span>
+                    {flag && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        flag === 'escalated' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
+                      }`}>{flag === 'escalated' ? '已上报' : '关注中'}</span>
+                    )}
+                    {note && !isAnnotating && <span className="text-[10px] text-[oklch(0.62_0.008_264)] italic">· 有批注</span>}
+                  </div>
+                  {isAnnotating && (
+                    <div className="mt-2 space-y-2">
+                      <textarea value={noteDraft} onChange={e => setNoteDraft(e.target.value)}
+                        placeholder="批注内容…" rows={3}
+                        className="w-full border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#064ea2] resize-none" />
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => { setAnomalyNotes(prev => { const m = new Map(prev); m.set(s.id, noteDraft); return m; }); setAnnotatingId(null); }}
+                          className="text-[11px] font-bold text-white bg-[#064ea2] px-3 py-1 rounded hover:bg-[#054280] transition">保存批注</button>
+                        <button onClick={() => { setAnnotatingId(null); }} className="text-[11px] text-[oklch(0.55_0.01_264)] hover:underline">取消</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                  <button onClick={() => setAnomalyFlags(prev => { const m = new Map(prev); m.set(s.id, flag === 'flagged' ? null : 'flagged'); return m; })}
+                    title="标记关注"
+                    className={`text-[11px] font-bold px-2 py-1 rounded transition ${
+                      flag === 'flagged' ? 'bg-amber-100 text-amber-600' : 'text-[oklch(0.62_0.008_264)] hover:bg-amber-50 hover:text-amber-600'
+                    }`}>关注</button>
+                  <button onClick={() => setAnomalyFlags(prev => { const m = new Map(prev); m.set(s.id, flag === 'escalated' ? null : 'escalated'); return m; })}
+                    title="上报"
+                    className={`text-[11px] font-bold px-2 py-1 rounded transition ${
+                      flag === 'escalated' ? 'bg-red-100 text-red-600' : 'text-[oklch(0.62_0.008_264)] hover:bg-red-50 hover:text-red-600'
+                    }`}>上报</button>
+                  <button onClick={() => { setAnnotatingId(isAnnotating ? null : s.id); setNoteDraft(note || ''); }}
+                    title="批注"
+                    className={`text-[11px] font-bold px-2 py-1 rounded transition ${
+                      isAnnotating ? 'bg-blue-100 text-[#064ea2]' : 'text-[oklch(0.62_0.008_264)] hover:bg-blue-50 hover:text-[#064ea2]'
+                    }`}>批注</button>
+                </div>
+              </div>
             </div>
-          ))}
+          )})}
         </SectionCard>
       </div>
 

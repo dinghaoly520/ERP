@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
+import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, ArrowLeft, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Wrench, Clipboard, Gavel, Building2, Megaphone, Star, Search, UserCircle, TrendingUp, Clock, ScrollText, Pencil, ShoppingCart, Inbox, Construction, MessageSquare } from 'lucide-react';
 
@@ -33,6 +35,26 @@ export default function ExpertEvaluatePage() {
   const [activeSupplier, setActiveSupplier] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // P2: clarifications panel
+  const [showClarifications, setShowClarifications] = useState(false);
+  const [clarifications, setClarifications] = useState<any[]>([]);
+  const [clarQuestion, setClarQuestion] = useState('');
+  const [clarPosting, setClarPosting] = useState(false);
+  // P3: real-time status board
+  const [liveEvents, setLiveEvents] = useState<{ time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[]>([]);
+  const [aggregatePresence, setAggregatePresence] = useState<any>(null);
+
+  const pushLiveEvent = (label: string, icon: typeof liveEvents[0]['icon']) => {
+    setLiveEvents(prev => [{ time: Date.now(), label, icon }, ...prev].slice(0, 20));
+  };
+
+  const { connection: _wsConn, lastEventAt: _wsLastEvent, reconnectNow: _wsReconnect } = useExpertWebSocket(projectId, {
+    onAggregatePresence: (d: any) => setAggregatePresence(d),
+    onDecryptStatus: (d: any) => pushLiveEvent(`${d.supplierName} 解密${d.decryptStatus === 'SUCCESS' ? '成功' : '异常'}`, 'decrypt'),
+    onStageChange: (d: any) => pushLiveEvent(`项目阶段: ${d.from} → ${d.to}`, 'stage'),
+    onClarificationCreated: (d: any) => pushLiveEvent(`新澄清: ${d.questionPreview.slice(0, 30)}`, 'clarify'),
+    onClarificationReplied: (d: any) => pushLiveEvent(`澄清已回复: ${d.replyPreview.slice(0, 30)}`, 'clarify'),
+  });
 
   const [documents, setDocuments] = useState<DecryptedDocuments | null>(null);
   const [assistData, setAssistData] = useState<AssistData | null>(null);
@@ -289,12 +311,10 @@ export default function ExpertEvaluatePage() {
           <span className="text-sm text-[oklch(0.55_0.01_264)]">{project.projectCode}</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-[oklch(0.55_0.01_264)]">评审进度</span>
-          <div className="w-40 h-2 bg-[oklch(0.94_0.004_264)] rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-[#064ea2] to-[#0b63ce] rounded-full transition-all duration-500"
-              style={{ width: `${expert?.progress ?? 0}%` }} />
-          </div>
-          <span className="text-sm font-bold text-[#064ea2]">{expert?.progress ?? 0}%</span>
+          <LiveStatusBoard
+            connection={_wsConn} lastEventAt={_wsLastEvent} onReconnect={_wsReconnect}
+            aggregate={aggregatePresence} events={liveEvents}
+          />
         </div>
         <button onClick={() => { setShowClarifications(!showClarifications); if (!showClarifications) loadClarifications(); }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] text-xs font-bold text-[oklch(0.55_0.01_264)] hover:text-[#064ea2] hover:border-[#064ea2] transition">
