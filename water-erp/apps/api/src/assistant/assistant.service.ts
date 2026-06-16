@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DeepSeekProvider } from './model/deepseek.provider';
 import { ToolRegistry } from './tools/tool-registry';
@@ -19,6 +19,8 @@ import { mapToChart } from './chart.mapper';
 
 @Injectable()
 export class AssistantService {
+  private readonly logger = new Logger(AssistantService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly model: DeepSeekProvider,
@@ -92,6 +94,8 @@ ${toolList}
 - 工具调用格式（放在回答最前面，独占一行）：
   TOOL_CALL: {"tool": "<工具名>", "args": {"action": "<action>", ...}}
 - 每次回答调用一个或者多个工具。先获取数据，再基于数据提炼洞察。
+- 优先调用能产出"统计/分布"数据的 action（如 global_overview、各工具的 stats 动作），这些数据会自动生成可视化图表。
+- 对于综合概览类问题（如"整体运行状况""全面梳理""体检"），必须首先调用 global_overview 工具，它会返回采购/招标/供应商/专家的状态分布统计。
 - 回答必须遵循系统提示词中的总-分结构和数据引用原则，直接引用工具返回的项目名称、金额、日期等具体信息，不写空洞的概括。
 - 禁止使用任何 emoji 表情符号。
 - 涉及修改/审批/删除/禁用/退回时，说明操作预案和风险，不要直接执行。`;
@@ -202,14 +206,22 @@ ${toolList}
     const toolCalls = this.parseAllToolCalls(answer);
     if (toolCalls.length === 0) return answer;
 
+    this.logger.log(
+      `handleNormalChat: 解析到 ${toolCalls.length} 个 TOOL_CALL: ${toolCalls.map((t) => `${t.tool}(${JSON.stringify(t.args)})`).join(', ')}`,
+    );
+
     // Strip every TOOL_CALL line from the narrative upfront
     answer = this.stripAllToolCalls(answer);
 
     // Execute each tool, aggregate cards + data
     const aggregatedData: Array<{ tool: string; data: unknown }> = [];
+    let chartCount = 0;
     for (const tc of toolCalls) {
       const tool = this.toolRegistry.get(tc.tool);
-      if (!tool) continue;
+      if (!tool) {
+        this.logger.warn(`handleNormalChat: 未知工具 ${tc.tool}`);
+        continue;
+      }
       const result = await tool.execute(tc.args || {});
       if (result.success && result.cards) {
         for (const c of result.cards) {
@@ -223,7 +235,10 @@ ${toolList}
               rows: row.rows as Array<Record<string, unknown>>,
               viz: row.viz as Parameters<typeof mapToChart>[0]['viz'],
             });
-            if (chartCard) cards.push(chartCard);
+            if (chartCard) {
+              cards.push(chartCard);
+              chartCount++;
+            }
           }
         }
       }
@@ -234,6 +249,10 @@ ${toolList}
         aggregatedData.push({ tool: tc.tool, data: result.data || result });
       }
     }
+
+    this.logger.log(
+      `handleNormalChat: 生成 ${cards.length} 张卡片（含 ${chartCount} 张图表），${aggregatedData.length} 个工具成功返回数据`,
+    );
 
     if (aggregatedData.length === 0) {
       // All tool calls failed — return stripped narrative or fallback
