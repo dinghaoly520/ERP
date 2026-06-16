@@ -10,6 +10,7 @@ import { PageHero, SectionCard } from '@water-erp/ui';
 import { toast } from 'sonner';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ConnectionIndicator } from '@/components/connection-indicator';
+import { Pagination } from '@/components/pagination';
 
 function exportSupervisionCSV(logs: Array<{ time: string; role: string; target: string; action: string; result: string; riskFlag: string }>) {
   const BOM = '﻿';
@@ -45,6 +46,9 @@ export default function BidSupervisePage() {
   const [anomalyNotes, setAnomalyNotes] = useState<Map<string, string>>(new Map());
   const [annotatingId, setAnnotatingId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
+  // P4: pagination
+  const [logsPage, setLogsPage] = useState(1);
+  const LOGS_PAGE_SIZE = 30;
 
   useEffect(() => {
     api.get<{id:string}[]>('/bid/projects').then(ps => { if (ps.length) setProjectId(ps[0].id); });

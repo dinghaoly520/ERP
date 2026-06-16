@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+import { Pagination } from '@/components/pagination';
 import { getDashboardStats } from '@/lib/api/bid';
 import type { BidProject } from '@/lib/types';
 import { Gavel, TrendingUp, ArrowRight, Plus, Search, Pencil, ChevronDown, ChevronRight } from 'lucide-react';
@@ -34,6 +35,9 @@ export default function BidDashboard() {
   const [editProject, setEditProject] = useState<any>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [workspaceData, setWorkspaceData] = useState<any>(null);
+  // P4: pagination
+  const [projectsPage, setProjectsPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const fetchProjects = () => {
     setLoading(true);
@@ -112,7 +116,7 @@ export default function BidDashboard() {
           <MetricCard
             key={e.path}
             label={e.label}
-            value=""
+            value={<ArrowRight size={18} strokeWidth={2} />}
             hint={e.hint}
             tone={e.tone}
             onClick={() => router.push(e.path)}
@@ -217,6 +221,10 @@ export default function BidDashboard() {
             </table>
           )}
         </div>
+        {!loading && filtered.length > 0 && (
+          <Pagination page={projectsPage} totalPages={Math.ceil(filtered.length / PAGE_SIZE)}
+            totalItems={filtered.length} pageSize={PAGE_SIZE} onPage={setProjectsPage} />
+        )}
       </SectionCard>
 
       {/* ── Workspace panel ── */}
