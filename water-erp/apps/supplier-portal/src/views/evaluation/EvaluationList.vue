@@ -3,8 +3,8 @@ import { ref, onMounted, computed } from 'vue'
 import { useSupplierStore } from '@/stores/supplier'
 import dayjs from 'dayjs'
 
-const supplierStore = useSupplierStore(); const loading = ref(true); const error = ref(false); const expandedId = ref<string|null>(null)
-onMounted(async () => { try { await Promise.all([supplierStore.fetchEvaluations(),supplierStore.fetchEvaluationStats()]) } catch { error.value = true } finally { loading.value = false } })
+const supplierStore = useSupplierStore(); const loading = ref(true); const firstLoad = ref(true); const error = ref(false); const expandedId = ref<string|null>(null)
+onMounted(async () => { try { await Promise.all([supplierStore.fetchEvaluations(),supplierStore.fetchEvaluationStats()]) } catch { error.value = true } finally { loading.value = false; firstLoad.value = false } })
 function retryLoad() { error.value = false; loading.value = true; Promise.all([supplierStore.fetchEvaluations(),supplierStore.fetchEvaluationStats()]).catch(() => { error.value = true }).finally(() => { loading.value = false }) }
 const stats = computed(() => supplierStore.evaluationStats)
 const levelColorMap: Record<string,string> = {A:'#059669',B:'#064ea2',C:'#d97706',D:'#dc2626'}
@@ -19,14 +19,20 @@ const weakest = computed(()=>dimensionAverages.value[0]); const strongest = comp
 </script>
 
 <template>
-  <div class="page-container" v-loading="loading">
-    <div v-if="error" class="sp-error-block">
+  <div class="page-container">
+    <div v-if="loading && firstLoad" class="skel-wrap">
+      <div class="skel-hero"><span class="sp-skel" style="width:100px;height:13px"></span><span class="sp-skel" style="width:200px;height:24px;margin-top:12px"></span><span class="sp-skel" style="width:280px;height:14px;margin-top:10px"></span></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px"><div class="skel-cell" v-for="i in 4" :key="i"><span class="sp-skel" style="width:40px;height:26px"></span><span class="sp-skel" style="width:60px;height:12px;margin-top:6px"></span></div></div>
+      <div class="skel-card" v-for="i in 3" :key="i"><span class="sp-skel" style="width:44px;height:44px"></span><div style="flex:1"><span class="sp-skel" style="width:55%;height:15px"></span><span class="sp-skel" style="width:25%;height:12px;margin-top:6px"></span></div></div>
+    </div>
+    <div v-else-if="error" class="sp-error-block">
       <div class="sp-error-icon">⚠</div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
     <template v-else>
+    <div v-loading="loading">
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">

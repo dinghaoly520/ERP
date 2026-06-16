@@ -10,12 +10,13 @@ import dayjs from 'dayjs'
 const router = useRouter()
 const supplierStore = useSupplierStore()
 const loading = ref(true)
+const firstLoad = ref(true)
 const error = ref(false)
 const summary = computed(() => {
   const list = supplierStore.bidSubmissions
   return { total: list.length, draft: list.filter((i: any) => i.status === 'draft').length, submitted: list.filter((i: any) => i.status === 'submitted').length, withdrawn: list.filter((i: any) => i.status === 'withdrawn').length }
 })
-onMounted(async () => { try { await supplierStore.fetchBidSubmissions() } catch { error.value = true } finally { loading.value = false } })
+onMounted(async () => { try { await supplierStore.fetchBidSubmissions() } catch { error.value = true } finally { loading.value = false; firstLoad.value = false } })
 function retryLoad() { error.value = false; loading.value = true; supplierStore.fetchBidSubmissions().catch(() => { error.value = true }).finally(() => { loading.value = false }) }
 const statusMap: Record<string, { label: string; cls: string; tone: string }> = { draft: { label: '草稿', cls: 'draft', tone: 'orange' }, submitted: { label: '已提交', cls: 'submitted', tone: 'green' }, withdrawn: { label: '已撤回', cls: 'disabled', tone: 'gray' } }
 async function handleWithdraw(id: string) { await ElMessageBox.confirm('确定要撤回此标书吗？', '确认撤回', { type: 'warning' }); try { await supplierApi.withdrawSubmission(id); ElMessage.success('投标已撤回'); await supplierStore.fetchBidSubmissions() } catch (err: any) { ElMessage.error(err?.response?.data?.error || '撤回失败') } }
@@ -24,14 +25,20 @@ function canConfirmOpening(row: any) { const stage = row.project?.stage; return 
 </script>
 
 <template>
-  <div class="page-container" v-loading="loading">
-    <div v-if="error" class="sp-error-block">
+  <div class="page-container">
+    <div v-if="loading && firstLoad" class="skel-wrap">
+      <div class="skel-hero"><span class="sp-skel" style="width:100px;height:13px"></span><span class="sp-skel" style="width:200px;height:24px;margin-top:12px"></span><span class="sp-skel" style="width:280px;height:14px;margin-top:10px"></span></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px"><div class="skel-cell" v-for="i in 4" :key="i"><span class="sp-skel" style="width:40px;height:26px"></span><span class="sp-skel" style="width:60px;height:12px;margin-top:6px"></span></div></div>
+      <div class="skel-row" v-for="i in 3" :key="i"><div style="flex:1"><span class="sp-skel" style="width:50%;height:16px"></span><span class="sp-skel" style="width:35%;height:12px;margin-top:8px"></span></div><span class="sp-skel" style="width:80px;height:28px"></span></div>
+    </div>
+    <div v-else-if="error" class="sp-error-block">
       <div class="sp-error-icon">⚠</div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
     <template v-else>
+    <div v-loading="loading">
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
@@ -69,11 +76,13 @@ function canConfirmOpening(row: any) { const stage = row.project?.stage; return 
     </div>
 
     <div v-else class="sp-empty-panel"><el-icon :size="32"><Document /></el-icon><p class="sp-empty-text">暂无投标记录</p><p class="sp-empty-desc">浏览招标项目并提交您的标书</p><el-button type="primary" style="margin-top:16px" @click="router.push('/bids')">浏览招标机会</el-button></div>
+    </div>
     </template>
   </div>
 </template>
 
 <style scoped>
+.skel-wrap{display:flex;flex-direction:column;gap:14px}.skel-hero{background:#fff;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);padding:24px;display:flex;flex-direction:column}.skel-cell{padding:16px 18px;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);background:#fff;display:flex;flex-direction:column}.skel-row{display:flex;align-items:center;gap:14px;padding:16px 20px;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);background:#fff}
 .progress-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
 .summary-cell { padding: 16px 18px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); background: #fff; }
 .summary-cell strong { display: block; color: var(--sp-gray-900); font-size: 26px; line-height: 1; }
