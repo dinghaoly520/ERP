@@ -181,6 +181,7 @@ model BidExpert {
   expertName         String
   major              String
   signedIn           Boolean          @default(false)
+  phoneVerified      Boolean          @default(false)
   avoidanceConfirmed  Boolean          @default(false)
   conflictedSupplierIds Json            @default("[]")
   progress           Int              @default(0)
