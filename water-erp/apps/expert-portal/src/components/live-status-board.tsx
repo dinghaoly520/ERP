@@ -30,9 +30,9 @@ export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregat
       : '连接已断开';
 
   return (
-    <div className="bg-white rounded-xl border border-[#e5ecf4] p-4 space-y-3 text-xs">
+    <div className="space-y-3 text-xs">
       {/* Connection pill — matching bid-portal ConnectionIndicator style */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
         {connection === 'disconnected' ? (
           <button onClick={onReconnect} title={tooltip}
             className="inline-flex items-center gap-1.5 rounded-full border border-[#e74c3c] bg-[#fef2f2] px-2.5 py-1 text-[11px] font-bold text-[#e74c3c] hover:bg-red-100 transition"
