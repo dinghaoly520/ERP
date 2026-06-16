@@ -92,13 +92,19 @@ export class NotificationService {
     return notifications;
   }
 
-  async list(userId: string, page: number = 1, pageSize: number = 20) {
+  async list(userId: string, page: number = 1, pageSize: number = 20, tab: 'all' | 'todo' = 'all') {
     const skip = (page - 1) * pageSize;
 
+    const where: any = { userId };
+    if (tab === 'todo') {
+      // 「待办」= 未 resolve 的通知（actionable 与否由前端 META 判定，后端仅按 resolvedAt 过滤）
+      where.resolvedAt = null;
+    }
+
     const [total, items] = await Promise.all([
-      this.prisma.notification.count({ where: { userId } }),
+      this.prisma.notification.count({ where }),
       this.prisma.notification.findMany({
-        where: { userId },
+        where,
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
@@ -106,6 +112,14 @@ export class NotificationService {
     ]);
 
     return { total, page, pageSize, items };
+  }
+
+  /** 将某 type+link 对应的未 resolve 通知标记为已处理（待办清零）。 */
+  async resolveActionable(type: string, link: string) {
+    return this.prisma.notification.updateMany({
+      where: { type, link, resolvedAt: null },
+      data: { resolvedAt: new Date() },
+    });
   }
 
   async getUnreadCount(userId: string) {

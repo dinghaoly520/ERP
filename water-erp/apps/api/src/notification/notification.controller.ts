@@ -11,8 +11,8 @@ export class NotificationController {
 
   @Get()
   @ApiOperation({ summary: '通知列表' })
-  async list(@Request() req: any, @Query('page') page?: number, @Query('pageSize') pageSize?: number) {
-    return this.notificationService.list(req.user.sub, page ?? 1, pageSize ?? 20);
+  async list(@Request() req: any, @Query('page') page?: number, @Query('pageSize') pageSize?: number, @Query('tab') tab?: 'all' | 'todo') {
+    return this.notificationService.list(req.user.sub, page ?? 1, pageSize ?? 20, tab ?? 'all');
   }
 
   @Get('unread-count')
