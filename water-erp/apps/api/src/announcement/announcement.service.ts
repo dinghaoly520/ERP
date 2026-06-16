@@ -209,42 +209,48 @@ export class AnnouncementService {
       select: { type: true, relatedProjectCode: true, status: true },
     });
 
-    // 删除前解除关联：BID_NOTICE 已发布且有相关项目
-    if (
+    const relatedProjectCode =
       announcement &&
       announcement.type === 'BID_NOTICE' &&
-      announcement.status === 'PUBLISHED' &&
-      announcement.relatedProjectCode
-    ) {
-      try {
-        const project = await this.prisma.bidProject.findUnique({
-          where: { projectCode: announcement.relatedProjectCode },
-        });
+      announcement.status === 'PUBLISHED'
+        ? announcement.relatedProjectCode
+        : null;
+
+    const project = relatedProjectCode
+      ? await this.prisma.bidProject.findUnique({
+          where: { projectCode: relatedProjectCode },
+        })
+      : null;
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
         if (project) {
-          // 标记项目来源已删除
-          await this.prisma.bidProject.update({
-            where: { projectCode: announcement.relatedProjectCode },
+          await tx.bidProject.update({
+            where: { projectCode: relatedProjectCode! },
             data: {
               riskNote: (project.riskNote || '') + '（来源公告已删除）',
             },
           });
-          // 解除招标文件挂载
-          await this.prisma.bidDocument.updateMany({
+          await tx.bidDocument.updateMany({
             where: { announcementId: id },
             data: { bidProjectId: null },
           });
-          this.logger.log(
-            `公告删除，解除项目 ${announcement.relatedProjectCode} 关联`,
-          );
         }
-      } catch (e) {
-        this.logger.error(
-          `公告删除解除关联失败 (announcementId=${id}): ${(e as Error).message}`,
-        );
-      }
+
+        await tx.announcement.delete({ where: { id } });
+      });
+    } catch (e) {
+      this.logger.error(
+        `公告删除事务失败 (announcementId=${id}): ${(e as Error).message}`,
+      );
+      throw e; // re-throw so caller knows delete failed
     }
 
-    return this.prisma.announcement.delete({ where: { id } });
+    if (project) {
+      this.logger.log(
+        `公告删除，解除项目 ${relatedProjectCode} 关联`,
+      );
+    }
   }
 
   async getStats() {
