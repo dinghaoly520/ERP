@@ -20,6 +20,8 @@ export default function BidClarificationsPage() {
   const [issuer, setIssuer] = useState('');
   const [supplierName, setSupplierName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [replying, setReplying] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
 
   useEffect(() => {
     api.get<{ id: string }[]>('/bid/projects').then(ps => {
@@ -41,6 +43,17 @@ export default function BidClarificationsPage() {
   };
 
   useEffect(() => { load(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleReply = async (cid: string) => {
+    if (!replyText.trim()) { toast.error('请先填写回复内容'); return; }
+    setSubmitting(true);
+    try {
+      await api.patch(`/bid/projects/${projectId}/clarifications/${cid}/reply`, { reply: replyText });
+      toast.success('回复已发送');
+      setReplying(null); setReplyText(''); load();
+    } catch (e: any) { toast.error(e.message || '回复失败'); }
+    setSubmitting(false);
+  };
 
   const handleCreate = async () => {
     if (!question.trim()) { toast.error('请输入澄清问题'); return; }
