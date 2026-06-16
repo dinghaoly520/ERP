@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup, Reorder } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { portalURL } from '@water-erp/config';
@@ -127,10 +127,24 @@ const AUDIT_LABELS: Record<string, string> = {
 export default function MallPage() {
   const router = useRouter();
   const headerVisible = useScrollAwareHeader({ threshold: 80 });
+  const ReorderGroup = Reorder.Group as React.ComponentType<any>;
+  const ReorderItem = Reorder.Item as React.ComponentType<any>;
   const searchInputRef = useRef<HTMLInputElement>(null);
   useGlobalHotkey('/', () => { searchInputRef.current?.focus(); searchInputRef.current?.select(); });
   const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('mall-search-history') || '[]'); } catch { return []; }
+  });
+  const addSearchHistory = (term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed) return;
+    const next = [trimmed, ...searchHistory.filter(s => s !== trimmed)].slice(0, 8);
+    setSearchHistory(next);
+    try { localStorage.setItem('mall-search-history', JSON.stringify(next)); } catch {}
+  };
+  const clearSearchHistory = () => { setSearchHistory([]); try { localStorage.removeItem('mall-search-history'); } catch {} };
   const [category, setCategory] = useState('全部');
   const [region, setRegion] = useState('全部');
   const [status, setStatus] = useState<'全部' | PriceStatus>('全部');
@@ -159,6 +173,8 @@ export default function MallPage() {
   const [detailHistory, setDetailHistory] = useState<{ recordedAt: string; price: number }[]>([]);
   const [detailHistoryLoading, setDetailHistoryLoading] = useState(false);
   const [assistantInitialQuestion, setAssistantInitialQuestion] = useState('');
+  const [successOverlay, setSuccessOverlay] = useState<{ projectCode: string } | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ username?: string; displayName?: string; role?: string } | null>(null);
   const [view, setView] = useState<'catalog' | 'supplier'>('catalog');
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
@@ -324,6 +340,8 @@ export default function MallPage() {
     });
   }, [filtered, sort]);
 
+  const compareItems = useMemo(() => sorted.filter(i => selectedIds.has(i.id)), [sorted, selectedIds]);
+
   const stats = useMemo(() => ({
     total: items.length,
     suppliers: new Set(items.map(item => item.supplier)).size,
@@ -468,7 +486,8 @@ export default function MallPage() {
     if (!res.ok) { toast.error((data as any)?.error || '生成询价单失败'); return; }
     await refreshLists();
     await loadList(currentList.id);
-    toast.success(`已生成询价单（采购立项 ${(data as any).projectCode}），可在采购管理端继续审批`);
+    setBudgetOpen(false);
+    setSuccessOverlay({ projectCode: (data as any).projectCode });
   };
 
   const SCENARIO_CODES: Record<string, string[]> = {
@@ -690,10 +709,21 @@ export default function MallPage() {
                   ref={searchInputRef}
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape') { setSearch(''); (e.target as HTMLInputElement).blur(); } }}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+                  onKeyDown={e => { if (e.key === 'Escape') { setSearch(''); (e.target as HTMLInputElement).blur(); } else if (e.key === 'Enter') { addSearchHistory(search); } }}
                   placeholder={`搜索物资 / 规格 / 编码 / 供应商${typeof window !== 'undefined' && window.innerWidth > 768 ? '（按 / 聚焦）' : ''}`}
                   className="h-12 w-full rounded-xl border border-white/20 bg-white/95 py-0 pl-11 pr-10 text-sm text-[#18243a] outline-none transition placeholder:text-[#8a96aa] focus:border-white focus:bg-white focus:shadow-[0_0_0_4px_rgba(255,255,255,.18)]"
                 />
+                {searchFocused && !search.trim() && searchHistory.length > 0 && (
+                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-white/50">最近搜索</span>
+                    {searchHistory.map(term => (
+                      <button key={term} type="button" onMouseDown={e => e.preventDefault()} onClick={() => { setSearch(term); addSearchHistory(term); }} className="rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-semibold text-white/80 transition hover:bg-white/20 hover:text-white">{term}</button>
+                    ))}
+                    <button type="button" onMouseDown={e => e.preventDefault()} onClick={clearSearchHistory} className="text-xs text-white/40 hover:text-white/70">清除</button>
+                  </motion.div>
+                )}
                 <motion.svg
                   className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2"
                   fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
@@ -993,6 +1023,7 @@ export default function MallPage() {
             <div className="flex items-center gap-3 rounded-2xl border border-[#064ea2]/20 bg-white px-5 py-3 shadow-[0_8px_40px_rgba(6,78,162,.15)]">
               <span className="text-sm font-bold text-[#18243a]">已选 <span className="text-[#064ea2]">{selectedIds.size}</span> 项</span>
               <button onClick={batchAddToBudget} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#043d82] active:scale-95">加入预算清单</button>
+              {selectedIds.size >= 2 && selectedIds.size <= 4 && <button onClick={() => setCompareOpen(true)} className="rounded-xl border border-[#064ea2]/30 bg-white px-4 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f3f8ff] active:scale-95">对比</button>}
               <button onClick={clearSelection} className="text-sm font-semibold text-[#8a96aa] transition hover:text-[#18243a]">清空选择</button>
             </div>
           </motion.div>
@@ -1058,9 +1089,12 @@ export default function MallPage() {
             {lines.length > 0 ? (
               <>
                 <div className="flex-1 overflow-auto px-6 py-3">
+                  <ReorderGroup axis="y" values={lines} onReorder={setLines}>
                   {lines.map(line => (
-                    <div key={line.id} className="border-b border-[#eef3f8] py-4">
-                      <div className="flex justify-between gap-4">
+                    <ReorderItem key={line.id} value={line} className="border-b border-[#eef3f8] py-4">
+                      <div className="flex items-center gap-2">
+                        {!isConverted && <span className="cursor-grab text-[#bcc6d4] hover:text-[#5a6d8a] select-none" title="拖拽调整顺序">⋮⋮</span>}
+                        <div className="min-w-0 flex-1"><div className="flex justify-between gap-4">
                         <div className="min-w-0">
                           <div className="font-mono text-xs font-bold text-[#064ea2]">{line.code}</div>
                           <div className="mt-1 truncate text-sm font-black text-[#18243a]">{line.name}</div>
@@ -1093,8 +1127,11 @@ export default function MallPage() {
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                </ReorderItem>
+              ))}
+            </ReorderGroup>
+          </div>
                 <div className="border-t border-[#e5ecf4] px-6 py-4">
                   <div className="mb-4 flex items-center justify-between">
                     <span className="text-sm font-bold text-[#5a6d8a]">预算参考合计</span>
@@ -1228,6 +1265,75 @@ export default function MallPage() {
               ))}
             </div>
             </motion.div></motion.div>)}</AnimatePresence>,
+        document.body,
+      )}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {successOverlay && (
+            <motion.div
+              className="fixed inset-0 z-[200] flex items-center justify-center p-6"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div className="absolute inset-0 bg-[#0f1f35]/55 backdrop-blur-md" onClick={() => setSuccessOverlay(null)} />
+              <motion.div
+                className="relative flex max-w-sm flex-col items-center rounded-3xl bg-white px-8 py-10 text-center shadow-[0_40px_120px_rgba(7,24,52,.35)]"
+                initial={{ scale: 0.85, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 20, delay: 0.15 }}
+                  className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100"
+                >
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#18a56c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                </motion.div>
+                <h2 className="mt-5 text-xl font-black text-[#18243a]">询价单已生成</h2>
+                <p className="mt-2 text-sm text-[#5a6d8a]">采购立项编号</p>
+                <p className="mt-1 font-mono text-lg font-black text-[#064ea2]">{successOverlay.projectCode}</p>
+                <div className="mt-6 flex w-full gap-3">
+                  <button onClick={() => setSuccessOverlay(null)} className="flex-1 rounded-xl border border-[#cdd9ea] px-4 py-2.5 text-sm font-bold text-[#5a6d8a] transition hover:bg-[#f3f7fc]">继续编辑清单</button>
+                  <a href={portalURL('web')} className="flex-1 rounded-xl bg-[#064ea2] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#043d82] no-underline">前往采购管理端</a>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {compareOpen && compareItems.length >= 2 && (
+            <motion.div className="fixed inset-0 z-[200] flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <motion.div className="absolute inset-0 bg-[#0f1f35]/45 backdrop-blur-md" onClick={() => setCompareOpen(false)} />
+              <motion.div
+                className="relative max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl bg-white shadow-2xl"
+                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              >
+                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#e5ecf4] bg-white px-6 py-4">
+                  <h2 className="text-lg font-black text-[#18243a]">物资对比</h2>
+                  <button onClick={() => setCompareOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#8a96aa] hover:bg-[#f3f7fc]">✕</button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[600px] border-collapse text-sm">
+                    <thead className="bg-[#f7faff] text-xs font-bold text-[#5a6d8a]"><tr><th className="sticky left-0 bg-[#f7faff] px-4 py-3 text-left">属性</th>{compareItems.map(item => <th key={item.id} className="px-4 py-3">{item.name}</th>)}</tr></thead>
+                    <tbody className="divide-y divide-[#eef3f8]">
+                      <CompareRows items={compareItems} />
+                    </tbody>
+                  </table>
+                </div>
+                <div className="border-t border-[#e5ecf4] px-6 py-4 text-center">
+                  <button onClick={() => { compareItems.forEach(i => addToBudget(i, 1, true)); toast.success(`已加入 ${compareItems.length} 项`); setCompareOpen(false); }} className="rounded-xl bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#043d82]">全部加入预算清单</button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
         document.body,
       )}
     </div>
@@ -1404,5 +1510,21 @@ function QtyButton({ delta, onChange }: { delta: number; onChange: () => void })
       className="h-7 w-7 select-none rounded-lg bg-[#f0f3f8] font-bold text-[#5a6d8a] transition active:bg-[#e1e9f4]"
     >{delta > 0 ? '+' : '−'}</button>
   );
+}
+
+// ===== 物资对比表行 =====
+function CompareRows({ items }: { items: CatalogItem[] }) {
+  if (items.length < 2) return null;
+  const fp = (n: number) => `¥${n.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`;
+  const fd = (d: string | null) => d ? d.slice(0, 10) : '长期';
+  const minPrice = Math.min(...items.map(i => i.referencePrice));
+  return <>
+    <tr><td className="sticky left-0 bg-white px-4 py-3 font-bold text-[#5a6d8a]">参考价</td>{items.map(i => <td key={i.id} className="px-4 py-3"><span className={i.referencePrice === minPrice ? 'text-[#18a56c] font-bold' : ''}>{fp(i.referencePrice)}</span></td>)}</tr>
+    <tr><td className="sticky left-0 bg-white px-4 py-3 font-bold text-[#5a6d8a]">价格区间</td>{items.map(i => <td key={i.id} className="px-4 py-3">{fp(i.priceMin)}~{fp(i.priceMax)}</td>)}</tr>
+    <tr><td className="sticky left-0 bg-white px-4 py-3 font-bold text-[#5a6d8a]">历史均价</td>{items.map(i => <td key={i.id} className="px-4 py-3">{fp(i.averagePrice)}</td>)}</tr>
+    <tr><td className="sticky left-0 bg-white px-4 py-3 font-bold text-[#5a6d8a]">供应商</td>{items.map(i => <td key={i.id} className="px-4 py-3">{i.supplier}</td>)}</tr>
+    <tr><td className="sticky left-0 bg-white px-4 py-3 font-bold text-[#5a6d8a]">来源</td>{items.map(i => <td key={i.id} className="px-4 py-3">{i.priceSource}</td>)}</tr>
+    <tr><td className="sticky left-0 bg-white px-4 py-3 font-bold text-[#5a6d8a]">有效期</td>{items.map(i => <td key={i.id} className="px-4 py-3">{fd(i.validUntil)}</td>)}</tr>
+  </>;
 }
 
