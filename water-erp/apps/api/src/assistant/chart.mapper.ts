@@ -1,10 +1,11 @@
 import type { VizDeclaration } from './tools/assistant-tool';
 
-/** 品牌蓝系配色（循环使用） */
-const PALETTE = [
+const P = [
   '#2563EB', '#0891b2', '#7dd3fc', '#0d9488', '#6366f1',
   '#3b82f6', '#06b6d4', '#818cf8',
 ];
+const ACCENT = P[0]; // 强调色 — 用于最大值
+const MUTED = 'rgba(148, 163, 184, 0.55)'; // 弱化色 — 用于小值对比
 
 /** chart card 输出类型 */
 export interface ChartCard {
@@ -22,13 +23,8 @@ interface TableLike {
   viz?: VizDeclaration;
 }
 
-/**
- * 将带 viz 声明的 table 映射为 ECharts chart card。
- * 无 viz 或数据不足时返回 null（调用方应只渲染表格）。
- */
 export function mapToChart(table: TableLike): ChartCard | null {
   const { viz, rows, title } = table;
-
   if (!viz || rows.length === 0) return null;
 
   switch (viz.kind) {
@@ -52,86 +48,163 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** distribution: ≤5类→饼图；6-12→竖柱；>12→横柱top10 */
+function fmtNum(n: number): string {
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
+  return String(n);
+}
+
+/* ================================================================
+   distribution — 自动选择饼图/柱状图/横柱
+   ================================================================ */
 function mapDistribution(
   title: string,
   rows: Array<Record<string, unknown>>,
   viz: VizDeclaration,
 ): ChartCard | null {
   const catKey = viz.category || 'name';
-  const valKey = viz.value;
   const n = rows.length;
   if (n < 2) return null;
 
   const data = rows.map((r) => ({
     name: String(r[catKey] ?? '-'),
-    value: num(r[valKey]),
+    value: num(r[viz.value]),
   }));
 
+  /* 饼图：≤ 5 类 */
   if (n <= 5) {
+    const sum = data.reduce((s, d) => s + d.value, 0);
+    const sorted = [...data].sort((a, b) => b.value - a.value);
     return {
       type: 'chart',
       title,
       chartType: 'pie',
+      caption: `共 ${fmtNum(sum)}，最大占比"${sorted[0].name}"`,
       option: {
         tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-        legend: { bottom: 0, type: 'scroll' },
-        series: [
-          {
-            type: 'pie',
-            radius: ['38%', '68%'],
-            center: ['50%', '45%'],
-            data,
-            label: { formatter: '{b}\n{d}%', fontSize: 12 },
-            itemStyle: { borderColor: '#fff', borderWidth: 2 },
-            color: PALETTE,
-          },
-        ],
+        legend: { bottom: 0, itemWidth: 8, itemHeight: 8, itemGap: 16, textStyle: { fontSize: 12 } },
+        series: [{
+          type: 'pie',
+          radius: ['42%', '70%'],
+          center: ['50%', '43%'],
+          data: sorted,
+          label: { formatter: '{b}\n{d}%', fontSize: 12, lineHeight: 18 },
+          itemStyle: { borderColor: '#fff', borderWidth: 2 },
+          emphasis: { scaleSize: 8, label: { fontSize: 16, fontWeight: 'bold' } },
+          color: P,
+        }],
       },
     };
   }
 
+  /* 柱图：6-12 类 */
+  if (n <= 12) {
+    const sorted = [...data].sort((a, b) => b.value - a.value);
+    const maxVal = sorted[0]?.value ?? 1;
+    const bars = sorted.map((d) => {
+      const isMax = d.value === maxVal;
+      return {
+        value: d.value,
+        itemStyle: {
+          color: isMax
+            ? { type: 'linear' as const, x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: P[0] },
+                  { offset: 0.6, color: P[1] },
+                  { offset: 1, color: 'rgba(8,145,178,0.35)' },
+                ],
+              }
+            : { type: 'linear' as const, x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: 'rgba(148,163,184,0.5)' },
+                  { offset: 1, color: 'rgba(148,163,184,0.15)' },
+                ],
+              },
+          borderRadius: [5, 5, 0, 0],
+        },
+      };
+    });
+    return {
+      type: 'chart',
+      title,
+      chartType: 'bar',
+      caption: `${sorted.length} 个类别，最高"${sorted[0].name}"（${fmtNum(sorted[0].value)}）`,
+      option: {
+        tooltip: { trigger: 'axis' },
+        grid: { left: '2%', right: '5%', bottom: '2%', top: '8%', containLabel: true },
+        xAxis: {
+          type: 'category',
+          data: sorted.map((d) => d.name),
+          axisLabel: { fontSize: 12, rotate: sorted.length > 8 ? 30 : 0 },
+          axisTick: { show: false },
+        },
+        yAxis: { type: 'value', axisLabel: { fontSize: 12 }, splitLine: { lineStyle: { color: 'rgba(201,217,239,0.3)', type: 'dashed' } } },
+        series: [{
+          type: 'bar',
+          data: bars,
+          label: { show: true, position: 'top', fontSize: 11, color: '#5a6d8a' },
+          barMaxWidth: sorted.length > 6 ? 32 : 44,
+          barGap: '20%',
+        }],
+        color: P,
+      },
+    };
+  }
+
+  /* 横柱：> 12 类 → top 10 */
   const sorted = [...data].sort((a, b) => b.value - a.value);
-  const useHbar = n > 12;
-  const shown = useHbar ? sorted.slice(0, 10) : sorted;
+  const shown = sorted.slice(0, 10);
+  const maxVal = shown[0]?.value ?? 1;
+  const reversed = [...shown].reverse();
+  const bars = reversed.map((d) => ({
+    value: d.value,
+    itemStyle: {
+      color: d.value === maxVal
+        ? { type: 'linear' as const, x: 0, y: 0, x2: 1, y2: 0,
+            colorStops: [
+              { offset: 0, color: P[0] },
+              { offset: 1, color: P[1] },
+            ],
+          }
+        : { type: 'linear' as const, x: 0, y: 0, x2: 1, y2: 0,
+            colorStops: [
+              { offset: 0, color: 'rgba(148,163,184,0.45)' },
+              { offset: 1, color: 'rgba(148,163,184,0.12)' },
+            ],
+          },
+      borderRadius: [0, 5, 5, 0],
+    },
+  }));
 
   return {
     type: 'chart',
     title,
-    chartType: useHbar ? 'hbar' : 'bar',
+    chartType: 'hbar',
+    caption: `前 10 名（共 ${n} 项），最高"${shown[0].name}"（${fmtNum(shown[0].value)}）`,
     option: {
       tooltip: { trigger: 'axis' },
-      grid: { left: '3%', right: '6%', bottom: '3%', top: '8%', containLabel: true },
-      xAxis: {
-        type: useHbar ? 'value' : 'category',
-        ...(useHbar ? {} : { data: shown.map((d) => d.name) }),
-        axisLabel: { fontSize: 12 },
-      },
+      grid: { left: '2%', right: '10%', bottom: '2%', top: '4%', containLabel: true },
+      xAxis: { type: 'value', axisLabel: { fontSize: 12 }, splitLine: { lineStyle: { color: 'rgba(201,217,239,0.3)', type: 'dashed' } } },
       yAxis: {
-        type: useHbar ? 'category' : 'value',
-        ...(useHbar ? { data: shown.map((d) => d.name).reverse() } : {}),
+        type: 'category',
+        data: reversed.map((d) => d.name),
         axisLabel: { fontSize: 12 },
+        axisTick: { show: false },
+        inverse: true,
       },
-      series: [
-        {
-          type: 'bar',
-          data: useHbar
-            ? shown.map((d) => d.value).reverse()
-            : shown.map((d) => d.value),
-          itemStyle: {
-            color: PALETTE[0],
-            borderRadius: useHbar ? [0, 4, 4, 0] : [4, 4, 0, 0],
-          },
-          label: { show: true, position: useHbar ? 'right' : 'top', fontSize: 11 },
-          barMaxWidth: 36,
-        },
-      ],
-      color: PALETTE,
+      series: [{
+        type: 'bar',
+        data: bars,
+        label: { show: true, position: 'right', fontSize: 11, color: '#5a6d8a' },
+        barMaxWidth: 24,
+      }],
+      color: P,
     },
   };
 }
 
-/** composition: 环形饼图，中心显示总数 */
+/* ================================================================
+   composition — 环形，中心总计，百分比标签
+   ================================================================ */
 function mapComposition(
   title: string,
   rows: Array<Record<string, unknown>>,
@@ -145,41 +218,39 @@ function mapComposition(
   if (data.length < 2) return null;
 
   const total = data.reduce((s, d) => s + d.value, 0);
+  const sorted = [...data].sort((a, b) => b.value - a.value);
 
   return {
     type: 'chart',
     title,
     chartType: 'pie',
+    caption: `共 ${fmtNum(total)}，最大占比"${sorted[0].name}"（${((sorted[0].value / total) * 100).toFixed(0)}%）`,
     option: {
       tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-      legend: { bottom: 0, type: 'scroll' },
+      legend: { bottom: 0, itemWidth: 8, itemHeight: 8, itemGap: 16, textStyle: { fontSize: 12 } },
       graphic: {
         type: 'text',
         left: 'center',
-        top: '38%',
-        style: {
-          text: `共 ${total}`,
-          textAlign: 'center',
-          fontSize: 16,
-          fontWeight: 'bold',
-        },
+        top: '36%',
+        style: { text: `共 ${fmtNum(total)}`, textAlign: 'center', fontSize: 18, fontWeight: 'bold', fill: '#1a2332' },
       },
-      series: [
-        {
-          type: 'pie',
-          radius: ['52%', '72%'],
-          center: ['50%', '45%'],
-          data,
-          label: { formatter: '{b}\n{d}%', fontSize: 12 },
-          itemStyle: { borderColor: '#fff', borderWidth: 2 },
-          color: PALETTE,
-        },
-      ],
+      series: [{
+        type: 'pie',
+        radius: ['55%', '75%'],
+        center: ['50%', '43%'],
+        data: sorted,
+        label: { formatter: '{b}\n{d}%', fontSize: 12, lineHeight: 18 },
+        emphasis: { scaleSize: 8, label: { fontSize: 16, fontWeight: 'bold' } },
+        itemStyle: { borderColor: '#fff', borderWidth: 2.5 },
+        color: P,
+      }],
     },
   };
 }
 
-/** trend: 折线图，x 轴按时间字段排序 */
+/* ================================================================
+   trend — 面积 + 平滑折线，最大点高亮
+   ================================================================ */
 function mapTrend(
   title: string,
   rows: Array<Record<string, unknown>>,
@@ -191,39 +262,54 @@ function mapTrend(
   );
   if (sorted.length < 2) return null;
 
+  const values = sorted.map((r) => num(r[viz.value]));
+  const maxVal = Math.max(...values);
+
   return {
     type: 'chart',
     title,
     chartType: 'line',
+    caption: `${sorted.length} 个时间点，最高 ${fmtNum(maxVal)}`,
     option: {
       tooltip: { trigger: 'axis' },
-      grid: { left: '3%', right: '6%', bottom: '3%', top: '8%', containLabel: true },
+      grid: { left: '2%', right: '5%', bottom: '2%', top: '8%', containLabel: true },
       xAxis: {
         type: 'category',
         data: sorted.map((r) => String(r[timeKey] ?? '-')),
         boundaryGap: false,
         axisLabel: { fontSize: 12 },
+        axisTick: { show: false },
       },
-      yAxis: { type: 'value', axisLabel: { fontSize: 12 } },
-      series: [
-        {
-          type: 'line',
-          smooth: true,
-          data: sorted.map((r) => num(r[viz.value])),
-          symbol: 'circle',
-          symbolSize: 7,
-          lineStyle: { width: 2.5, color: PALETTE[0] },
-          itemStyle: { color: PALETTE[0] },
-          areaStyle: { opacity: 0.12 },
-          label: { show: true, fontSize: 11 },
+      yAxis: { type: 'value', axisLabel: { fontSize: 12 }, splitLine: { lineStyle: { color: 'rgba(201,217,239,0.3)', type: 'dashed' } } },
+      series: [{
+        type: 'line',
+        smooth: 0.4,
+        data: values,
+        symbol: 'circle',
+        symbolSize: 7,
+        lineStyle: { width: 2.5, color: ACCENT },
+        itemStyle: { color: ACCENT },
+        areaStyle: {
+          color: { type: 'linear' as const, x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(37,99,235,0.18)' },
+              { offset: 1, color: 'rgba(37,99,235,0.02)' },
+            ],
+          },
         },
-      ],
-      color: PALETTE,
+        label: { show: true, fontSize: 11, color: '#5a6d8a' },
+        markPoint: {
+          data: [{ type: 'max', name: '最高', symbolSize: 40, itemStyle: { color: ACCENT } }],
+          label: { fontSize: 11 },
+        },
+      }],
     },
   };
 }
 
-/** ranking: 横向柱状图降序，top N */
+/* ================================================================
+   ranking — 横柱降序，top N，强调前三
+   ================================================================ */
 function mapRanking(
   title: string,
   rows: Array<Record<string, unknown>>,
@@ -237,37 +323,63 @@ function mapRanking(
     .slice(0, topN);
   if (sorted.length < 2) return null;
 
-  // 横向柱: ECharts 从下往上画，需 reverse 让最大值在顶部
+  const maxVal = sorted[0]?.value ?? 1;
   const reversed = [...sorted].reverse();
+  const bars = reversed.map((d, i) => {
+    const rank = sorted.length - i; // 1 = top
+    return {
+      value: d.value,
+      itemStyle: {
+        color: rank <= 3
+          ? { type: 'linear' as const, x: 0, y: 0, x2: 1, y2: 0,
+              colorStops: [
+                { offset: 0, color: P[rank - 1] ?? ACCENT },
+                { offset: 1, color: P[rank] ?? P[1] },
+              ],
+            }
+          : { type: 'linear' as const, x: 0, y: 0, x2: 1, y2: 0,
+              colorStops: [
+                { offset: 0, color: 'rgba(148,163,184,0.45)' },
+                { offset: 1, color: 'rgba(148,163,184,0.1)' },
+              ],
+            },
+        borderRadius: [0, 5, 5, 0],
+      },
+    };
+  });
 
   return {
     type: 'chart',
     title,
     chartType: 'hbar',
+    caption: `Top ${sorted.length}，最高"${sorted[0].name}"（${fmtNum(sorted[0].value)}）`,
     option: {
       tooltip: { trigger: 'axis' },
-      grid: { left: '3%', right: '10%', bottom: '3%', top: '8%', containLabel: true },
-      xAxis: { type: 'value', axisLabel: { fontSize: 12 } },
+      grid: { left: '2%', right: '10%', bottom: '2%', top: '4%', containLabel: true },
+      xAxis: { type: 'value', axisLabel: { fontSize: 12 }, splitLine: { lineStyle: { color: 'rgba(201,217,239,0.3)', type: 'dashed' } } },
       yAxis: {
         type: 'category',
-        data: reversed.map((d) => d.name),
-        axisLabel: { fontSize: 12 },
+        data: reversed.map((d, i) => {
+          const rank = sorted.length - i;
+          return rank <= 3 ? `${rank}. ${d.name}` : d.name;
+        }),
+        axisLabel: { fontSize: 12, fontWeight: 'normal' },
+        axisTick: { show: false },
+        inverse: true,
       },
-      series: [
-        {
-          type: 'bar',
-          data: reversed.map((d) => d.value),
-          itemStyle: { color: PALETTE[0], borderRadius: [0, 4, 4, 0] },
-          label: { show: true, position: 'right', fontSize: 11 },
-          barMaxWidth: 28,
-        },
-      ],
-      color: PALETTE,
+      series: [{
+        type: 'bar',
+        data: bars,
+        label: { show: true, position: 'right', fontSize: 11, color: '#5a6d8a' },
+        barMaxWidth: 22,
+      }],
     },
   };
 }
 
-/** comparison: 分组柱状图 */
+/* ================================================================
+   comparison — 分组柱，每组各色
+   ================================================================ */
 function mapComparison(
   title: string,
   rows: Array<Record<string, unknown>>,
@@ -279,10 +391,9 @@ function mapComparison(
 
   const categories = [...new Set(rows.map((r) => String(r[catKey] ?? '-')))];
   const seriesNames = [...new Set(rows.map((r) => String(r[seriesKey] ?? '-')))];
-
   if (categories.length < 2 || seriesNames.length < 2) return null;
 
-  const series = seriesNames.map((sName) => ({
+  const series = seriesNames.map((sName, idx) => ({
     name: sName,
     type: 'bar' as const,
     data: categories.map((cat) => {
@@ -293,21 +404,36 @@ function mapComparison(
       );
       return row ? num(row[viz.value]) : 0;
     }),
-    itemStyle: { borderRadius: [4, 4, 0, 0] },
+    itemStyle: {
+      borderRadius: [5, 5, 0, 0],
+      color: idx % 2 === 0
+        ? { type: 'linear' as const, x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: P[idx % P.length] },
+              { offset: 1, color: 'rgba(37,99,235,0.25)' },
+            ],
+          }
+        : { type: 'linear' as const, x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: P[idx % P.length] },
+              { offset: 1, color: 'rgba(8,145,178,0.25)' },
+            ],
+          },
+    },
   }));
 
   return {
     type: 'chart',
     title,
     chartType: 'grouped_bar',
+    caption: `${categories.length} × ${seriesNames.length} 维度对比`,
     option: {
       tooltip: { trigger: 'axis' },
-      legend: { bottom: 0, type: 'scroll' },
-      grid: { left: '3%', right: '6%', bottom: '12%', top: '8%', containLabel: true },
-      xAxis: { type: 'category', data: categories, axisLabel: { fontSize: 12 } },
-      yAxis: { type: 'value', axisLabel: { fontSize: 12 } },
+      legend: { bottom: 0, itemWidth: 10, itemHeight: 10, itemGap: 18, textStyle: { fontSize: 12 } },
+      grid: { left: '2%', right: '5%', bottom: '14%', top: '6%', containLabel: true },
+      xAxis: { type: 'category', data: categories, axisLabel: { fontSize: 12 }, axisTick: { show: false } },
+      yAxis: { type: 'value', axisLabel: { fontSize: 12 }, splitLine: { lineStyle: { color: 'rgba(201,217,239,0.3)', type: 'dashed' } } },
       series,
-      color: PALETTE,
     },
   };
 }

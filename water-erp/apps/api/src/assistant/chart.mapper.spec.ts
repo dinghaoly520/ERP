@@ -35,7 +35,7 @@ describe('mapToChart', () => {
     ).toBeNull();
   });
 
-  it('distribution ≤5 categories → pie chart', () => {
+  it('distribution ≤5 categories → pie chart with caption', () => {
     const result = mapToChart({
       ...baseTable,
       rows: [
@@ -47,40 +47,41 @@ describe('mapToChart', () => {
     });
     expect(result?.chartType).toBe('pie');
     expect(result?.option).toBeDefined();
+    expect(result?.caption).toContain('共 6');
   });
 
-  it('distribution >5 categories → bar chart, sorted descending', () => {
+  it('distribution 6-12 categories → bar, max highlighted', () => {
+    const rows = [
+      { name: 'A', count: 1 }, { name: 'B', count: 5 }, { name: 'C', count: 3 },
+      { name: 'D', count: 2 }, { name: 'E', count: 4 }, { name: 'F', count: 6 },
+    ];
     const result = mapToChart({
-      ...baseTable,
-      rows: [
-        { name: 'A', count: 1 },
-        { name: 'B', count: 5 },
-        { name: 'C', count: 3 },
-        { name: 'D', count: 2 },
-        { name: 'E', count: 4 },
-        { name: 'F', count: 6 },
-      ],
+      ...baseTable, rows,
       viz: { kind: 'distribution', value: 'count', category: 'name' },
     });
     expect(result?.chartType).toBe('bar');
-    const xData = (result!.option.xAxis as any).data;
-    expect(xData[0]).toBe('F'); // 最大值排第一
+    expect(result?.caption).toContain('6 个类别');
+    expect(result?.caption).toContain('F'); // F=6 is the max
+    const series = (result!.option.series as any[])[0];
+    expect(series.data[0].itemStyle).toBeDefined(); // gradient fill
   });
 
-  it('distribution >12 categories → hbar, top 10', () => {
+  it('distribution >12 categories → hbar top 10', () => {
     const rows = Array.from({ length: 15 }, (_, i) => ({
       name: `项${i}`,
       count: 15 - i,
     }));
     const result = mapToChart({
-      ...baseTable,
-      rows,
+      ...baseTable, rows,
       viz: { kind: 'distribution', value: 'count', category: 'name' },
     });
     expect(result?.chartType).toBe('hbar');
+    expect(result?.caption).toContain('前 10 名');
+    const yData = (result!.option.yAxis as any).data;
+    expect(yData.length).toBe(10);
   });
 
-  it('trend sorts by time and returns line', () => {
+  it('trend sorts by time and returns line with markPoint', () => {
     const result = mapToChart({
       title: '月度趋势',
       columns: [
@@ -97,24 +98,27 @@ describe('mapToChart', () => {
     expect(result?.chartType).toBe('line');
     const xData = (result!.option.xAxis as any).data;
     expect(xData).toEqual(['2026-01', '2026-02', '2026-03']);
+    const series = (result!.option.series as any[])[0];
+    expect(series.markPoint).toBeDefined();
   });
 
-  it('ranking returns hbar sorted descending, capped at topN', () => {
+  it('ranking returns hbar with top-N label, top 3 emphasized', () => {
     const rows = Array.from({ length: 15 }, (_, i) => ({
       name: `供应商${i}`,
       count: 20 - i,
     }));
     const result = mapToChart({
-      ...baseTable,
-      rows,
+      ...baseTable, rows,
       viz: { kind: 'ranking', value: 'count', category: 'name', topN: 5 },
     });
     expect(result?.chartType).toBe('hbar');
     const yData = (result!.option.yAxis as any).data;
     expect(yData.length).toBe(5);
+    expect(yData[4]).toContain('1.'); // top rank gets number prefix
+    expect(result?.caption).toContain('最高');
   });
 
-  it('comparison requires seriesField, returns grouped_bar', () => {
+  it('comparison returns grouped_bar with gradient fills', () => {
     const result = mapToChart({
       title: '部门对比',
       columns: [
@@ -128,18 +132,14 @@ describe('mapToChart', () => {
         { dept: 'B部门', status: '已通过', count: 3 },
         { dept: 'B部门', status: '待审核', count: 4 },
       ],
-      viz: {
-        kind: 'comparison',
-        value: 'count',
-        category: 'dept',
-        seriesField: 'status',
-      },
+      viz: { kind: 'comparison', value: 'count', category: 'dept', seriesField: 'status' },
     });
     expect(result?.chartType).toBe('grouped_bar');
     expect((result!.option.series as any[]).length).toBe(2);
+    expect(result?.caption).toContain('2 × 2');
   });
 
-  it('composition returns pie with total in center', () => {
+  it('composition returns ring pie with center total and caption', () => {
     const result = mapToChart({
       ...baseTable,
       rows: [
@@ -151,5 +151,7 @@ describe('mapToChart', () => {
     });
     expect(result?.chartType).toBe('pie');
     expect((result!.option as any).graphic).toBeDefined();
+    expect(result?.caption).toContain('共 100');
+    expect(result?.caption).toContain('货物');
   });
 });
