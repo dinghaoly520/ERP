@@ -15,7 +15,7 @@ import { ActionExecutorService } from './actions/action-executor.service';
 import { SYSTEM_KNOWLEDGE } from './knowledge/system-knowledge';
 import { ChatMessage } from './model/assistant-model-provider';
 import { ChatDto } from './dto/chat.dto';
-import { PythonSandboxService } from './python-sandbox.service';
+import { mapToChart } from './chart.mapper';
 
 @Injectable()
 export class AssistantService {
@@ -33,7 +33,6 @@ export class AssistantService {
     private readonly mallTool: MallTool,
     private readonly actionPlanner: ActionPlannerService,
     private readonly actionExecutor: ActionExecutorService,
-    private readonly pythonSandbox: PythonSandboxService,
   ) {
     this.registerTools();
   }
@@ -233,7 +232,19 @@ ${toolList}
 
     const result = await tool.execute(toolCall.args || {});
     if (result.success && result.cards) {
-      for (const c of result.cards) cards.push(c);
+      for (const c of result.cards) {
+        cards.push(c);
+        // 若 table 带 viz 声明，生成对应图表
+        if (c.type === 'table' && (c as any).viz) {
+          const chartCard = mapToChart({
+            title: c.title,
+            columns: c.columns,
+            rows: c.rows,
+            viz: (c as any).viz,
+          });
+          if (chartCard) cards.push(chartCard);
+        }
+      }
     }
     if (result.citations) {
       for (const c of result.citations) citations.push(c);
@@ -274,65 +285,7 @@ ${toolList}
       }
     }
 
-    // Extract Python code block and generate chart
-    const pythonBlockRe = /```python\s*\n([\s\S]*?)```/;
-    const pythonMatch = answer.match(pythonBlockRe);
-
-    if (pythonMatch) {
-      const pythonCode = pythonMatch[1].trim();
-      // Remove code block from answer text
-      answer = answer.replace(pythonBlockRe, '').trim();
-
-      const toolData = result.data || result;
-      const chartResult = await this.pythonSandbox.execute(pythonCode, toolData);
-
-      if (chartResult.success) {
-        cards.push({
-          type: 'chart',
-          title: this.inferChartTitle(answer, toolCall.tool),
-          chartType: this.inferChartType(pythonCode),
-          imageUrl: chartResult.imageUrl,
-          caption: this.inferChartCaption(answer),
-        });
-      } else {
-        // Append brief note that chart generation failed
-        answer = answer ? answer + `（图表生成失败：${chartResult.error}）` : `抱歉，图表生成失败：${chartResult.error}`;
-      }
-    }
-
     return answer;
-  }
-
-  private inferChartTitle(answer: string, toolName: string): string {
-    const toolLabels: Record<string, string> = {
-      global_overview: '全局概览',
-      procurement: '采购分析',
-      bid: '招标分析',
-      supplier: '供应商分析',
-      expert: '专家分析',
-      announcement: '公告统计',
-      notification: '通知统计',
-      mall: '商城分析',
-    };
-    const label = toolLabels[toolName] || '数据图表';
-    const firstSentence = answer.split(/[。！\n]/)[0]?.slice(0, 30) || '';
-    return firstSentence || label;
-  }
-
-  private inferChartType(
-    code: string,
-  ): 'bar' | 'line' | 'pie' | 'scatter' | 'radar' {
-    if (code.includes('.pie(')) return 'pie';
-    if (code.includes('.scatter(')) return 'scatter';
-    if (code.includes('.plot(')) return 'line';
-    if (code.includes('.barh(')) return 'bar';
-    if (code.includes('.bar(')) return 'bar';
-    return 'bar'; // default
-  }
-
-  private inferChartCaption(answer: string): string {
-    const sentence = answer.split(/[。！\n]/)[0]?.slice(0, 50) || '';
-    return sentence;
   }
 
   async getQuickStats() {

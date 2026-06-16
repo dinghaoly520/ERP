@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, ToolResult } from './assistant-tool';
+import { SUPPLIER_STATUS_LABEL, t } from './labels';
 
 @Injectable()
 export class SupplierTool implements AssistantTool {
@@ -79,7 +80,7 @@ export class SupplierTool implements AssistantTool {
             { key: 'status', label: '状态' },
             { key: 'enterpriseType', label: '类型' },
           ],
-          rows: risky.map((s) => ({ name: s.name, status: s.status, enterpriseType: s.enterpriseType })),
+          rows: risky.map((s) => ({ name: s.name, status: t(SUPPLIER_STATUS_LABEL, s.status), enterpriseType: s.enterpriseType })),
         }],
       };
     }
@@ -93,7 +94,7 @@ export class SupplierTool implements AssistantTool {
         cards: [{
           type: 'table', title: '供应商状态分布',
           columns: [{ key: 'status', label: '状态' }, { key: 'count', label: '数量' }],
-          rows: byStatus.map((s) => ({ status: s.status, count: s._count })),
+          rows: byStatus.map((s) => ({ status: t(SUPPLIER_STATUS_LABEL, s.status), count: s._count })),
         }],
       };
     }

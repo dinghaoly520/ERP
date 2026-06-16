@@ -31,9 +31,18 @@ export class MallTool implements AssistantTool {
       return {
         success: true,
         cards: [
-          { type: 'metric', title: '目录商品数', value: String(itemCount) },
-          { type: 'metric', title: '活跃供货商', value: String(activeSupplierCount) },
-          { type: 'metric', title: '活跃预算清单', value: String(budgetCount) },
+          {
+            type: 'table', title: '商城概览',
+            columns: [
+              { key: 'item', label: '统计项' },
+              { key: 'value', label: '数值' },
+            ],
+            rows: [
+              { item: '目录商品数', value: itemCount },
+              { item: '活跃供货商', value: activeSupplierCount },
+              { item: '活跃预算清单', value: budgetCount },
+            ],
+          },
           {
             type: 'table', title: '目录类别分布',
             columns: [{ key: 'category', label: '类别' }, { key: 'count', label: '数量' }],

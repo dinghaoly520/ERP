@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, ToolResult } from './assistant-tool';
+import { STAGE_LABEL, t } from './labels';
 
 @Injectable()
 export class BidTool implements AssistantTool {
@@ -61,7 +62,7 @@ export class BidTool implements AssistantTool {
             rows: projects.map((p: any) => ({
               projectCode: p.projectCode,
               name: p.name,
-              stage: p.stage,
+              stage: t(STAGE_LABEL, p.stage),
               supplierCount: p._count.suppliers,
               riskNote: p.riskNote || '无',
             })),
@@ -79,7 +80,7 @@ export class BidTool implements AssistantTool {
         cards: [{
           type: 'table', title: '招标项目阶段分布',
           columns: [{ key: 'stage', label: '阶段' }, { key: 'count', label: '数量' }],
-          rows: byStage.map((s) => ({ stage: s.stage, count: s._count })),
+          rows: byStage.map((s) => ({ stage: t(STAGE_LABEL, s.stage), count: s._count })),
         }],
       };
     }

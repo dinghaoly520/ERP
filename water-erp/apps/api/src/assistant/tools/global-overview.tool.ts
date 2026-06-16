@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, ToolResult } from './assistant-tool';
+import {
+  PROCUREMENT_STATUS_LABEL,
+  STAGE_LABEL,
+  SUPPLIER_STATUS_LABEL,
+  t,
+} from './labels';
 
 @Injectable()
 export class GlobalOverviewTool implements AssistantTool {
@@ -58,22 +64,21 @@ export class GlobalOverviewTool implements AssistantTool {
     return {
       success: true,
       cards: [
-        { type: 'metric', title: '采购项目总数', value: String(procurementCount) },
-        { type: 'metric', title: '招标项目总数', value: String(bidCount) },
-        { type: 'metric', title: '在库供应商', value: String(supplierCount) },
-        { type: 'metric', title: '评审专家', value: String(expertCount) },
-        { type: 'metric', title: '已发布公告', value: String(announcementCount) },
         {
-          type: 'metric',
-          title: '进行中招标',
-          value: String(activeBids),
-          trend: '待关注',
-        },
-        {
-          type: 'metric',
-          title: '待审核供应商',
-          value: String(pendingSuppliers),
-          trend: pendingSuppliers > 0 ? '需处理' : '无',
+          type: 'table',
+          title: '全局概览统计',
+          columns: [
+            { key: 'item', label: '统计项' },
+            { key: 'value', label: '数值' },
+            { key: 'note', label: '备注' },
+          ],
+          rows: [
+            { item: '采购项目', value: procurementCount, note: '全部状态' },
+            { item: '招标项目', value: bidCount, note: `其中 ${activeBids} 个进行中` },
+            { item: '在库供应商', value: supplierCount, note: `其中 ${pendingSuppliers} 家待审核` },
+            { item: '评审专家', value: expertCount, note: '全专业方向' },
+            { item: '已发布公告', value: announcementCount, note: '当前在线' },
+          ],
         },
         {
           type: 'table',
@@ -84,7 +89,7 @@ export class GlobalOverviewTool implements AssistantTool {
             { key: 'budget', label: '预算合计' },
           ],
           rows: procurementByStatus.map((s) => ({
-            status: s.status,
+            status: t(PROCUREMENT_STATUS_LABEL, s.status),
             count: s._count,
             budget: s._sum?.budget ? `¥${s._sum.budget}` : '-',
           })),
@@ -96,7 +101,10 @@ export class GlobalOverviewTool implements AssistantTool {
             { key: 'stage', label: '阶段' },
             { key: 'count', label: '数量' },
           ],
-          rows: bidByStage.map((s) => ({ stage: s.stage, count: s._count })),
+          rows: bidByStage.map((s) => ({
+            stage: t(STAGE_LABEL, s.stage),
+            count: s._count,
+          })),
         },
         {
           type: 'table',
@@ -106,7 +114,7 @@ export class GlobalOverviewTool implements AssistantTool {
             { key: 'count', label: '数量' },
           ],
           rows: supplierByStatus.map((s) => ({
-            status: s.status,
+            status: t(SUPPLIER_STATUS_LABEL, s.status),
             count: s._count,
           })),
         },

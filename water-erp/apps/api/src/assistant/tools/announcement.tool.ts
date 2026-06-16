@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, ToolResult } from './assistant-tool';
+import { ANNOUNCEMENT_TYPE_LABEL, t as translate } from './labels';
 
 @Injectable()
 export class AnnouncementTool implements AssistantTool {
@@ -38,13 +39,22 @@ export class AnnouncementTool implements AssistantTool {
       return {
         success: true,
         cards: [
-          { type: 'metric', title: '公告总数', value: String(total) },
-          { type: 'metric', title: '已发布', value: String(published) },
-          { type: 'metric', title: '草稿', value: String(draft) },
+          {
+            type: 'table', title: '公告概览',
+            columns: [
+              { key: 'item', label: '统计项' },
+              { key: 'value', label: '数值' },
+            ],
+            rows: [
+              { item: '公告总数', value: total },
+              { item: '已发布', value: published },
+              { item: '草稿', value: draft },
+            ],
+          },
           {
             type: 'table', title: '按类型分布',
             columns: [{ key: 'type', label: '类型' }, { key: 'count', label: '数量' }],
-            rows: byType.map((t) => ({ type: t.type, count: t._count })),
+            rows: byType.map((t) => ({ type: translate(ANNOUNCEMENT_TYPE_LABEL, t.type), count: t._count })),
           },
         ],
       };

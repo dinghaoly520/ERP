@@ -49,9 +49,18 @@ export class ExpertTool implements AssistantTool {
       return {
         success: true,
         cards: [
-          { type: 'metric', title: '专家总数', value: String(total) },
-          { type: 'metric', title: '可用专家', value: String(available) },
-          { type: 'metric', title: '占用中', value: String(busy) },
+          {
+            type: 'table', title: '专家资源概览',
+            columns: [
+              { key: 'item', label: '统计项' },
+              { key: 'value', label: '数值' },
+            ],
+            rows: [
+              { item: '专家总数', value: total },
+              { item: '可用专家', value: available },
+              { item: '占用中', value: busy },
+            ],
+          },
           {
             type: 'table', title: '专业方向分布',
             columns: [

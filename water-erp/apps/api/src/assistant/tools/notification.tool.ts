@@ -21,7 +21,14 @@ export class NotificationTool implements AssistantTool {
       return {
         success: true,
         cards: [
-          { type: 'metric', title: '未读通知', value: String(unread) },
+          {
+            type: 'table', title: '未读通知',
+            columns: [
+              { key: 'item', label: '统计项' },
+              { key: 'value', label: '数值' },
+            ],
+            rows: [{ item: '未读通知', value: unread }],
+          },
         ],
       };
     }
@@ -34,8 +41,17 @@ export class NotificationTool implements AssistantTool {
       return {
         success: true,
         cards: [
-          { type: 'metric', title: '通知总数', value: String(total) },
-          { type: 'metric', title: '未读通知', value: String(unread) },
+          {
+            type: 'table', title: '通知概览',
+            columns: [
+              { key: 'item', label: '统计项' },
+              { key: 'value', label: '数值' },
+            ],
+            rows: [
+              { item: '通知总数', value: total },
+              { item: '未读通知', value: unread },
+            ],
+          },
         ],
       };
     }

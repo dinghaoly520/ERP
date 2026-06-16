@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, ToolResult } from './assistant-tool';
+import { PROCUREMENT_STATUS_LABEL, t } from './labels';
 
 @Injectable()
 export class ProcurementTool implements AssistantTool {
@@ -91,7 +92,7 @@ export class ProcurementTool implements AssistantTool {
               { key: 'budget', label: '预算合计' },
             ],
             rows: byStatus.map((s) => ({
-              status: s.status,
+              status: t(PROCUREMENT_STATUS_LABEL, s.status),
               count: s._count,
               budget: s._sum?.budget ? `¥${s._sum.budget}` : '-',
             })),
