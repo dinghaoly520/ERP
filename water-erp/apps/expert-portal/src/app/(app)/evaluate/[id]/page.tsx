@@ -538,7 +538,7 @@ export default function ExpertEvaluatePage() {
 
                     {/* Phone verification — shown inside the identity card when not yet done */}
                     {item.isIdentity && !item.done && (
-                      <div className="ml-14 mt-3 p-4 bg-white border border-[oklch(0.91_0.006_264)] rounded-xl">
+                      <div className="mt-3 p-4 bg-white border border-[oklch(0.91_0.006_264)] rounded-xl">
                         {!phoneMasked && !codeSent ? (
                           <div className="text-center py-2">
                             <p className="text-sm text-[oklch(0.55_0.01_264)] mb-2">未绑定手机号，请联系管理员完善资料</p>
