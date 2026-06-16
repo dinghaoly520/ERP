@@ -459,6 +459,22 @@ a:hover { color: var(--sp-primary-light); }
 .sp-list-row:last-child { border-bottom: none; }
 .sp-list-row:hover { background: var(--sp-gray-50); }
 
+/* ─── Skeleton shimmer utility (Wave 1 · 支柱④) ─── */
+.sp-skel {
+  background: linear-gradient(90deg, var(--sp-gray-100) 25%, var(--sp-gray-50) 50%, var(--sp-gray-100) 75%);
+  background-size: 200% 100%;
+  animation: spShimmer 1.5s infinite;
+  border-radius: 6px;
+  display: block;
+}
+@keyframes spShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-skel { animation: none; }
+}
+
 /* ─── Error recovery block ─── */
 .sp-error-block {
   display: flex;

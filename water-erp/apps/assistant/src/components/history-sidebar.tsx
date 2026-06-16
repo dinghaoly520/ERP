@@ -200,11 +200,18 @@ export function HistorySidebar({
               {isExpanded && (
                 <div className={styles.groupItems}>
                   {group.items.map((item) => (
-                    <button
+                    <div
                       key={item.id}
                       className={`${styles.item} ${item.id === activeId ? styles.itemActive : ''}`}
                       onClick={() => onSelect(item.id)}
-                      type="button"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onSelect(item.id);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
                     >
                       <span className={styles.itemText}>{extractTitle(item)}</span>
                       {onDelete && (
@@ -220,7 +227,7 @@ export function HistorySidebar({
                           <Trash2 size={14} strokeWidth={1.5} />
                         </button>
                       )}
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}

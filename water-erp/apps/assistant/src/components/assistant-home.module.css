@@ -19,13 +19,6 @@
     linear-gradient(180deg, #f7faff 0%, #edf3fb 100%);
 }
 
-.spotlightCanvas {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-}
-
 /* 浮动极光光晕 */
 .home::before,
 .home::after {
