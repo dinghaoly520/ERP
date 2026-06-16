@@ -11,7 +11,7 @@ const FOCUSABLE_SELECTOR =
 
 export function useFocusTrap(opts: { active: boolean; returnFocus?: boolean }) {
   const { active, returnFocus = true } = opts;
-  const ref = useRef<HTMLElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const prevActiveRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
