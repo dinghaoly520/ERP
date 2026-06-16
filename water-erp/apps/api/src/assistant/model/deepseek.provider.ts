@@ -55,7 +55,13 @@ export class DeepSeekProvider extends AssistantModelProvider {
       }
 
       const data = await res.json();
-      return { text: data.choices[0].message.content };
+      const content = data.choices?.[0]?.message?.content;
+      if (!content || !content.trim()) {
+        throw new Error(
+          'DeepSeek 返回了空内容，可能是内容安全过滤或模型异常，请稍后重试',
+        );
+      }
+      return { text: content };
     } catch (e) {
       clearTimeout(timeoutId);
       if ((e as Error).name === 'AbortError') {
