@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useBidStore } from '@/stores/bid'
 import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage } from 'element-plus'

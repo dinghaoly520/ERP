@@ -102,7 +102,7 @@ const DEMO_ACCOUNTS: Record<Tab, { username: string; password: string }> =
 export default function ExpertLoginPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('expert');
-  const [form, setForm] = useState({ username: '', password: '' });
+  const [form, setForm] = useState({ username: DEMO_ACCOUNTS.expert.username, password: DEMO_ACCOUNTS.expert.password });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -112,7 +112,7 @@ export default function ExpertLoginPage() {
 
   const switchTab = (next: Tab) => {
     setTab(next);
-    // Do NOT pre-fill — let the user type their own credentials.
+    setForm({ ...DEMO_ACCOUNTS[next] });
   };
 
   const fillDemo = () => setForm({ ...DEMO_ACCOUNTS[tab] });

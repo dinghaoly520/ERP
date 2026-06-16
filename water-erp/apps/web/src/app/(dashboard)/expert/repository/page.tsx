@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { listExperts, listSpecialties, setExpertAvailability } from '@/lib/api/expert';
 import type { ExpertListItem } from '@/lib/api/expert';
 import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton } from '@/components/workbench';
+import { maskName } from '@water-erp/shared';
 import { UsersRound, PlusCircle, Search } from 'lucide-react';
 
 export default function ExpertRepositoryPage() {
@@ -120,7 +121,7 @@ export default function ExpertRepositoryPage() {
                             className="text-sm font-bold text-[#18243a] cursor-pointer hover:text-[#064ea2] transition"
                             onClick={() => router.push(`/expert/${e.id}`)}
                           >
-                            {e.displayName}
+                            {maskName(e.displayName)}
                           </div>
                           <div className="text-xs text-[#8a99ad]">{e.email || '—'}</div>
                         </div>

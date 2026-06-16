@@ -11,7 +11,7 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 1200,
-    rolldownOptions: {
+    rollupOptions: {
       onLog(level, log, defaultHandler) {
         if (log.code === 'INVALID_ANNOTATION' && log.id?.includes('@vueuse/core')) {
           return

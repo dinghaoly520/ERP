@@ -174,3 +174,19 @@ export function getNotificationMeta(type: string): NotificationMeta {
 export const NOTIFICATION_ICON: Record<string, string> = Object.fromEntries(
   Object.entries(NOTIFICATION_META).map(([k]) => [k, '🔔']),
 );
+
+/* ── 姓名脱敏 ── */
+
+/**
+ * 将中文姓名中间字符替换为"某"，用于隐私保护展示。
+ * - 单字：原样返回
+ * - 两字："王蓉" → "王某"
+ * - 三字："丁博文" → "丁某文"
+ * - 四字及以上："欧阳文强" → "欧某某强"
+ */
+export function maskName(name: string): string {
+  if (!name || name.length <= 1) return name;
+  if (name.length === 2) return name[0] + '某';
+  const middle = '某'.repeat(name.length - 2);
+  return name[0] + middle + name[name.length - 1];
+}

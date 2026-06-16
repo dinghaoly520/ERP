@@ -13,6 +13,16 @@ const fs = require('fs');
 const path = require('path');
 const { hashSync } = require('bcryptjs');
 
+/**
+ * 将中文姓名中间字符替换为"某"，用于隐私保护展示。
+ */
+function maskName(name) {
+  if (!name || name.length <= 1) return name;
+  if (name.length === 2) return name[0] + '某';
+  const middle = '某'.repeat(name.length - 2);
+  return name[0] + middle + name[name.length - 1];
+}
+
 const dataDir = path.join(__dirname, '..', 'seed-data');
 const NOW = '2026-06-13T06:20:00.000Z';
 const USERNAME_PREFIX = 'exp';
@@ -215,7 +225,7 @@ function gen() {
 
       newUsers.push({
         id: userId, username, role: 'bid_expert', isActive: true,
-        displayName: name,
+        displayName: maskName(name),
         email: `${username}@expert.water-erp.local`,
         passwordHash: hashSync(`${username}@2026`, 10),
         departmentId: deptId,
