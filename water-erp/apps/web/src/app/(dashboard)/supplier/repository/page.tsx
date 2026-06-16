@@ -8,7 +8,7 @@ import {
   updateSupplierStatus, createClassification, updateClassification, deleteClassification,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierClassification, SupplierListResponse } from '@/lib/types';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton, EmptyState } from '@/components/workbench';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton, EmptyState, Pagination } from '@/components/workbench';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
 import { Building2, Layers, Search, Plus } from 'lucide-react';
 
@@ -23,6 +23,7 @@ export default function SupplierRepositoryPage() {
   const [filterClassification, setFilterClassification] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const [statusModal, setStatusModal] = useState<{ type: 'disable' | 'blacklist'; supplier: Supplier } | null>(null);
   const [statusReason, setStatusReason] = useState('');
@@ -39,12 +40,12 @@ export default function SupplierRepositoryPage() {
       const res = await getSupplierList({
         status: filterStatus || undefined,
         classificationId: filterClassification || undefined,
-        search: search || undefined, page, pageSize: 20,
+        search: search || undefined, page, pageSize,
       });
       setData(res);
     } catch { /* empty */ }
     setLoading(false);
-  }, [filterStatus, filterClassification, search, page]);
+  }, [filterStatus, filterClassification, search, page, pageSize]);
 
   const refreshMeta = useCallback(() => {
     getSupplierStats().then(setStats).catch(() => {});
@@ -87,7 +88,6 @@ export default function SupplierRepositoryPage() {
     catch (e: any) { toast.error(e?.message || '删除失败'); }
   };
 
-  const totalPages = Math.ceil(data.total / 20);
 
   const STATUS_TABS = [
     { label: '全部', status: '' },
@@ -266,17 +266,7 @@ export default function SupplierRepositoryPage() {
           </tbody>
         </table>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-[#edf2f7] px-4 py-3">
-            <span className="text-xs text-[#8a99ad]">共 {data.total} 条，第 {page}/{totalPages} 页</span>
-            <div className="flex gap-2">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-                className="rounded-lg border border-[#dce6f3] px-3 py-1 text-xs font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] disabled:opacity-40 transition">上一页</button>
-              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-                className="rounded-lg border border-[#dce6f3] px-3 py-1 text-xs font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] disabled:opacity-40 transition">下一页</button>
-            </div>
-          </div>
-        )}
+        <Pagination total={data.total} page={page} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(ps) => { setPageSize(ps); setPage(1); }} />
       </SectionCard>
 
       {/* Status change modal */}

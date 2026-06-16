@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { getSupplierList, approveSupplier, rejectSupplier, returnSupplier } from '@/lib/api/supplier';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton, EmptyState } from '@/components/workbench';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton, EmptyState, Pagination } from '@/components/workbench';
 import { Building2, ClipboardCheck, Check } from 'lucide-react';
 
 const TABS: { key: 'PENDING' | 'RETURNED' | 'REJECTED'; label: string; tone: 'blue' | 'orange' | 'red' }[] = [
@@ -14,13 +14,19 @@ const TABS: { key: 'PENDING' | 'RETURNED' | 'REJECTED'; label: string; tone: 'bl
   { key: 'REJECTED', label: '审核不通过', tone: 'red' },
 ];
 
-export default function SupplierApprovalPage() {
+function SupplierApprovalPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<'PENDING' | 'RETURNED' | 'REJECTED'>('PENDING');
+  const params = useSearchParams();
+  const tabParam = params.get('status') as typeof TABS[number]['key'] | null;
+  const tab = (tabParam && TABS.some(t => t.key === tabParam)) ? tabParam : 'PENDING';
+  const page = parseInt(params.get('page') || '1', 10) || 1;
+  const pageSize = parseInt(params.get('pageSize') || '20', 10) || 20;
+  const setTab = (t: typeof TABS[number]['key']) => { const q = new URLSearchParams(params); q.set('status', t); q.delete('page'); router.push(`?${q.toString()}`); };
+  const setPage = (p: number) => { const q = new URLSearchParams(params); q.set('page', String(p)); router.push(`?${q.toString()}`); };
+  const setPageSize = (ps: number) => { const q = new URLSearchParams(params); q.set('pageSize', String(ps)); q.delete('page'); router.push(`?${q.toString()}`); };
   const [data, setData] = useState<SupplierListResponse>({ total: 0, page: 1, pageSize: 20, items: [] });
   const [counts, setCounts] = useState<Record<string, number>>({ PENDING: 0, RETURNED: 0, REJECTED: 0 });
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchApproving, setBatchApproving] = useState(false);
@@ -51,11 +57,11 @@ export default function SupplierApprovalPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getSupplierList({ status: tab, page, pageSize: 20 });
+      const res = await getSupplierList({ status: tab, page, pageSize });
       setData(res);
     } catch { /* empty */ }
     setLoading(false);
-  }, [tab, page]);
+  }, [tab, page, pageSize]);
 
   useEffect(() => {
     Promise.all([
@@ -65,7 +71,6 @@ export default function SupplierApprovalPage() {
     ]).then(([p, r, j]) => setCounts({ PENDING: p.total, RETURNED: r.total, REJECTED: j.total })).catch(() => {});
   }, [data]);
 
-  useEffect(() => { setPage(1); }, [tab]);
   useEffect(() => { loadData(); }, [loadData]);
 
   const handleAction = async () => {
@@ -84,7 +89,6 @@ export default function SupplierApprovalPage() {
     setActionLoading(false);
   };
 
-  const totalPages = Math.ceil(data.total / 20);
 
   return (
     <div className="space-y-6">
@@ -194,17 +198,7 @@ export default function SupplierApprovalPage() {
           </tbody>
         </table>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-[#edf2f7] px-4 py-3">
-            <span className="text-xs text-[#8a99ad]">共 {data.total} 条，第 {page}/{totalPages} 页</span>
-            <div className="flex gap-2">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-                className="rounded-lg border border-[#dce6f3] px-3 py-1 text-xs font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] disabled:opacity-40 transition">上一页</button>
-              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-                className="rounded-lg border border-[#dce6f3] px-3 py-1 text-xs font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] disabled:opacity-40 transition">下一页</button>
-            </div>
-          </div>
-        )}
+        <Pagination total={data.total} page={page} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(ps) => { setPageSize(ps); setPage(1); }} />
       </SectionCard>
 
       {/* Action modal */}
@@ -245,4 +239,8 @@ export default function SupplierApprovalPage() {
       )}
     </div>
   );
+}
+
+export default function SupplierApprovalPageWrapper() {
+  return <Suspense><SupplierApprovalPage /></Suspense>;
 }

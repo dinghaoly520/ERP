@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getClassifications } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification, SupplierClassification } from '@/lib/types';
-import { AlertBanner, type AlertSeverity } from '@/components/workbench';
+import { AlertBanner, type AlertSeverity, Breadcrumb } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 
 type TabKey = 'info' | 'contacts' | 'qualifications' | 'evaluations' | 'changes';
@@ -173,6 +173,8 @@ export default function SupplierDetailPage() {
 
   return (
     <div>
+      <Breadcrumb items={[{ label: '供应商库', path: '/supplier/repository' }, { label: supplier?.name || '详情' }]} />
+
       {/* ═══ 顶部品牌横幅 ═══ */}
       <div className="bg-gradient-to-r from-[#064ea2] to-[#0891b2] rounded-xl p-5 mb-6 text-white flex items-center gap-5">
         <img src="/assets/logo.jpg" alt="智慧水发 · 蜀水云采" className="w-12 h-12 rounded-xl object-cover border-2 border-white/30 flex-shrink-0" />

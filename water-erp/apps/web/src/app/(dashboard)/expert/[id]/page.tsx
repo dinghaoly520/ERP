@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { AlertBanner } from '@/components/workbench';
+import { AlertBanner, Breadcrumb } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
 import { ArrowLeft } from 'lucide-react';
 
@@ -58,6 +58,10 @@ export default function ExpertDetailPage() {
 
   return (
     <div>
+      <Breadcrumb items={[
+        { label: '专家库', path: '/expert/repository' },
+        { label: expert?.displayName || '详情' },
+      ]} />
       <button onClick={() => router.push('/expert')} className="inline-flex items-center gap-1.5 text-[13px] text-[#64748b] hover:text-[#0756a5] mb-3">
         <ArrowLeft size={14} /> 返回专家列表
       </button>
