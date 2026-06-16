@@ -36,6 +36,16 @@ export default function ExpertEvaluatePage() {
   const [activeSupplier, setActiveSupplier] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Phone verification
+  const [phoneMasked, setPhoneMasked] = useState<string | null>(null);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [codeError, setCodeError] = useState('');
+  const [attemptsLeft, setAttemptsLeft] = useState(5);
   // P2: clarifications panel
   const [showClarifications, setShowClarifications] = useState(false);
   const [clarifications, setClarifications] = useState<any[]>([]);
@@ -196,6 +206,14 @@ export default function ExpertEvaluatePage() {
 
   useEffect(() => { loadProject(); }, [loadProject]);
 
+  // Sync phone verification state from project data
+  useEffect(() => {
+    if (project?.myExpertRecord) {
+      setPhoneMasked(project.myExpertRecord.phoneMasked ?? null);
+      setPhoneVerified(project.myExpertRecord.phoneVerified ?? false);
+    }
+  }, [project]);
+
   const expert = project?.myExpertRecord;
 
   const handleSignIn = async () => {
@@ -203,6 +221,58 @@ export default function ExpertEvaluatePage() {
     try { await api.post(`/expert/projects/${projectId}/sign-in`, {}); loadProject(); }
     catch (e: any) { toast.error(e.message || '操作失败'); }
     setBusy(false);
+  };
+
+  // Phone verification handlers
+  const handleSendCode = async () => {
+    if (countdown > 0) return;
+    setSendingCode(true);
+    setCodeError('');
+    try {
+      const res = await api.post('/verification/send-code', {
+        scene: 'expert_sign_in',
+        targetId: projectId,
+      });
+      setPhoneMasked((res as any).maskedPhone);
+      setCodeSent(true);
+      setCountdown(60);
+      setAttemptsLeft(5);
+      setVerificationCode('');
+      const timer = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) { clearInterval(timer); return 0; }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || e.message || '发送失败');
+    }
+    setSendingCode(false);
+  };
+
+  const handleVerifyCode = async (code: string) => {
+    if (!code || code.length !== 6) return;
+    setVerifying(true);
+    setCodeError('');
+    try {
+      await api.post('/verification/verify-code', {
+        scene: 'expert_sign_in',
+        targetId: projectId,
+        code,
+      });
+      setPhoneVerified(true);
+      toast.success('手机验证通过');
+    } catch (e: any) {
+      const data = e.response?.data;
+      setCodeError(data?.error || '验证失败');
+      if (data?.code === 'ATTEMPTS_EXCEEDED' || data?.code === 'CODE_EXPIRED') {
+        setCodeSent(false);
+        setVerificationCode('');
+      }
+      const match = data?.error?.match(/剩余 (\d+) 次/);
+      if (match) setAttemptsLeft(parseInt(match[1], 10));
+    }
+    setVerifying(false);
   };
 
   const handleAvoidance = async () => {
@@ -447,21 +517,93 @@ export default function ExpertEvaluatePage() {
               <h2 className="text-xl font-bold text-[oklch(0.18_0.012_265)] mb-6">身份核验与承诺确认</h2>
               <div className="space-y-4 mb-6">
                 {[
-                  { label: '身份核验', desc: '确认您的专家身份信息', done: !!expert?.signedIn, action: !expert?.signedIn ? handleSignIn : undefined },
-                  { label: '保密承诺', desc: '承诺不泄露评标过程中获取的信息', done: confidentialityAgreed, action: undefined },
-                  { label: '评标纪律', desc: '遵守独立评审原则', done: disciplineAgreed, action: undefined },
+                  { label: '身份核验', desc: '确认您的专家身份信息', done: !!expert?.signedIn, action: !expert?.signedIn ? handleSignIn : undefined, isIdentity: true },
+                  { label: '保密承诺', desc: '承诺不泄露评标过程中获取的信息', done: confidentialityAgreed, action: undefined, isIdentity: false },
+                  { label: '评标纪律', desc: '遵守独立评审原则', done: disciplineAgreed, action: undefined, isIdentity: false },
                 ].map((item, i) => (
-                  <div key={i} className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${item.done ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-[oklch(0.91_0.006_264)]'}`}>
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${item.done ? 'bg-emerald-500 text-white' : 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'}`}>
-                      {item.done ? '✓' : i + 1}
+                  <div key={i}>
+                    <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${item.done ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-[oklch(0.91_0.006_264)]'}`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${item.done ? 'bg-emerald-500 text-white' : 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'}`}>
+                        {item.done ? '✓' : i + 1}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className={`font-bold ${item.done ? 'text-emerald-600' : 'text-[oklch(0.18_0.012_265)]'}`}>{item.label}</h3>
+                        <p className="text-sm text-[oklch(0.55_0.01_264)]">{item.desc}</p>
+                      </div>
+                      {item.action && item.isIdentity && (
+                        <button onClick={item.action} disabled={busy}
+                          className="px-4 py-2 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50">确认</button>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      <h3 className={`font-bold ${item.done ? 'text-emerald-600' : 'text-[oklch(0.18_0.012_265)]'}`}>{item.label}</h3>
-                      <p className="text-sm text-[oklch(0.55_0.01_264)]">{item.desc}</p>
-                    </div>
-                    {item.action && (
-                      <button onClick={item.action} disabled={busy}
-                        className="px-4 py-2 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50">确认</button>
+
+                    {/* Phone verification — shown inside the identity card when not yet done */}
+                    {item.isIdentity && !item.done && (
+                      <div className="ml-14 mt-3 p-4 bg-white border border-[oklch(0.91_0.006_264)] rounded-xl">
+                        {!phoneMasked && !codeSent ? (
+                          <div className="text-center py-2">
+                            <p className="text-sm text-[oklch(0.55_0.01_264)] mb-2">未绑定手机号，请联系管理员完善资料</p>
+                          </div>
+                        ) : phoneVerified ? (
+                          <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            <span className="text-lg">✅</span>
+                            <div>
+                              <p className="text-sm font-semibold text-emerald-600">手机验证通过</p>
+                              <p className="text-xs text-emerald-500">{phoneMasked}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-sm font-semibold text-[oklch(0.18_0.012_265)] mb-1">📱 手机验证</p>
+                            <p className="text-xs text-[oklch(0.55_0.01_264)] mb-3">
+                              验证码将发送至 {phoneMasked || '注册手机号'}
+                            </p>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={6}
+                                value={verificationCode}
+                                onChange={e => {
+                                  const v = e.target.value.replace(/\D/g, '').slice(0, 6);
+                                  setVerificationCode(v);
+                                  setCodeError('');
+                                  if (v.length === 6) handleVerifyCode(v);
+                                }}
+                                placeholder="输入6位验证码"
+                                disabled={verifying || !codeSent}
+                                className="flex-1 px-3 py-2 text-center text-lg tracking-[8px] border border-[oklch(0.91_0.006_264)] rounded-lg focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none disabled:opacity-50 font-mono"
+                              />
+                              <button
+                                onClick={handleSendCode}
+                                disabled={sendingCode || countdown > 0 || verifying}
+                                className="px-4 py-2 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {sendingCode ? '发送中…' : countdown > 0 ? `${countdown}s 后重发` : codeSent ? '重新获取' : '获取验证码'}
+                              </button>
+                            </div>
+                            {codeError && (
+                              <p className="mt-2 text-xs text-red-500">{codeError}</p>
+                            )}
+                            {!codeError && codeSent && !phoneVerified && (
+                              <p className="mt-2 text-xs text-[oklch(0.55_0.01_264)]">
+                                验证码6位数字，5分钟内有效
+                                {attemptsLeft < 5 && ` · 剩余 ${attemptsLeft} 次尝试`}
+                              </p>
+                            )}
+                          </>
+                        )}
+
+                        {/* Sign-in button — only shown when phone is verified */}
+                        {phoneVerified && item.action && (
+                          <button
+                            onClick={item.action}
+                            disabled={busy}
+                            className="mt-3 w-full px-4 py-2.5 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50 font-semibold"
+                          >
+                            {busy ? '请稍候…' : '确认签到并完成身份核验'}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))}
