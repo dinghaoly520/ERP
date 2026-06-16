@@ -17,6 +17,7 @@ import { BudgetModule } from './budget/budget.module';
 import { AuditModule } from './audit/audit.module';
 import { AssistantModule } from './assistant/assistant.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { AlertsModule } from './alerts/alerts.module';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -39,6 +40,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     AuditModule,
     AssistantModule,
     SchedulerModule,
+    AlertsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
