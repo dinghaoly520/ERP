@@ -234,13 +234,13 @@ export class BidService {
       where: { id: projectId },
       data: {
         name: announcement.title,
-        procurementMethod: metadata.method || '公开招标',
+        ...(metadata.method !== undefined && { procurementMethod: metadata.method }),
         ...(openTime && { openTime }),
         ...(deadline && { deadline }),
-        budget: metadata.budget != null ? Number(metadata.budget) : null,
-        scope: metadata.scope || null,
-        qualification: metadata.qualification || null,
-        contact: metadata.contact || null,
+        ...(metadata.budget !== undefined && { budget: Number(metadata.budget) }),
+        ...(metadata.scope !== undefined && { scope: metadata.scope }),
+        ...(metadata.qualification !== undefined && { qualification: metadata.qualification }),
+        ...(metadata.contact !== undefined && { contact: metadata.contact }),
       },
     });
 
