@@ -379,7 +379,8 @@ ${toolList}
 
   /**
    * Push cards from a tool result, auto-generating chart cards for any table with viz.
-   * Shared by both handleNormalChat and handleDirectToolCall.
+   * Deduplicates by type+title to avoid duplicate tables/charts when multiple tools
+   * produce the same distribution (e.g. global_overview + individual tool stats).
    */
   private pushCardsWithCharts(
     result: { success: boolean; cards?: unknown[] },
@@ -387,15 +388,21 @@ ${toolList}
   ): void {
     if (!result.success || !result.cards) return;
     for (const c of result.cards) {
+      const ct = c as Record<string, unknown>;
+      const cardKey = `${ct.type}:${ct.title}`;
+      // 跳过完全重复的卡片（同类型+同标题=真重复，如 global_overview 和 bid stats 都产出"招标项目阶段分布"）
+      if (cards.some((existing) => {
+        const et = existing as Record<string, unknown>;
+        return `${et.type}:${et.title || ''}` === cardKey;
+      })) continue;
       cards.push(c);
-      if ((c as Record<string, unknown>).type !== 'table') continue;
-      const row = c as Record<string, unknown>;
-      if (!row.viz) continue;
+      if (ct.type !== 'table' || !ct.viz) continue;
+      // 图表标题加"图表："前缀以区分同名的表格卡片
       const chartCard = mapToChart({
-        title: (row.title as string) || '',
-        columns: row.columns as Array<{ key: string; label: string }>,
-        rows: row.rows as Array<Record<string, unknown>>,
-        viz: row.viz as Parameters<typeof mapToChart>[0]['viz'],
+        title: `图表：${(ct.title as string) || ''}`,
+        columns: ct.columns as Array<{ key: string; label: string }>,
+        rows: ct.rows as Array<Record<string, unknown>>,
+        viz: ct.viz as Parameters<typeof mapToChart>[0]['viz'],
       });
       if (chartCard) cards.push(chartCard);
     }
