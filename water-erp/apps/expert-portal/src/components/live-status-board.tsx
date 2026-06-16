@@ -22,6 +22,12 @@ export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregat
         <div className="flex items-center gap-1.5">
           <span className={`h-2 w-2 rounded-full ${dotColor[connection]}`} />
           <span className="font-bold text-[oklch(0.18_0.012_265)]">实时状态</span>
+          {connection === 'reconnecting' && (
+            <span className="text-[11px] font-bold text-amber-600 ml-0.5">⏳ 正在重连…</span>
+          )}
+          {connection === 'disconnected' && (
+            <span className="text-[11px] font-bold text-red-500 ml-0.5">⚠️ 实时连接已断开</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {lastEventAt && <span className="text-[10px] text-[oklch(0.62_0.008_264)]">{new Date(lastEventAt).toLocaleTimeString('zh-CN')}</span>}
@@ -67,12 +73,6 @@ export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregat
         </div>
       )}
 
-      {/* Disconnected banner */}
-      {connection !== 'connected' && (
-        <div className={`p-2 rounded-lg text-[11px] font-bold ${connection === 'reconnecting' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}>
-          {connection === 'reconnecting' ? '⏳ 正在重连…' : '⚠️ 实时连接已断开'}
-        </div>
-      )}
     </div>
   );
 }
