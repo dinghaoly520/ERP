@@ -175,7 +175,7 @@ export class BidService {
 
   /**
    * 从公告发布联动创建 BidProject。
-   * 幂等：若 relatedProjectCode 已存在有效项目则跳过。
+   * 调用方负责幂等检查（公告 relatedProjectCode 已关联则跳过）。
    */
   async createFromAnnouncement(
     announcement: { id: string; title: string; publishDate: Date | null },
@@ -197,7 +197,7 @@ export class BidService {
         openTime,
         deadline,
         riskNote: '（来自公告自动创建）',
-        budget: metadata.budget ? Number(metadata.budget) : null,
+        budget: metadata.budget != null ? Number(metadata.budget) : null,
         scope: metadata.scope || null,
         qualification: metadata.qualification || null,
         contact: metadata.contact || null,
@@ -221,6 +221,12 @@ export class BidService {
     announcement: { title: string },
     metadata: Record<string, any>,
   ) {
+    const existing = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, projectCode: true },
+    });
+    if (!existing) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
     const openTime = metadata.openTime ? new Date(metadata.openTime) : undefined;
     const deadline = metadata.deadline ? new Date(metadata.deadline) : undefined;
 
@@ -231,7 +237,7 @@ export class BidService {
         procurementMethod: metadata.method || '公开招标',
         ...(openTime && { openTime }),
         ...(deadline && { deadline }),
-        budget: metadata.budget ? Number(metadata.budget) : null,
+        budget: metadata.budget != null ? Number(metadata.budget) : null,
         scope: metadata.scope || null,
         qualification: metadata.qualification || null,
         contact: metadata.contact || null,
