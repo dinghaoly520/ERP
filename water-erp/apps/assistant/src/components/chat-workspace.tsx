@@ -1,11 +1,10 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import { MessageList } from './message-list';
 import { DataCanvas } from './data-canvas';
 import { IndicatorBar } from './indicator-bar';
-import { ChartLightbox } from './chart-lightbox';
 import type {
   Message,
   AssistantCard as AssistantCardType,
@@ -35,8 +34,6 @@ export function ChatWorkspace({
   dataMode: boolean;
   onDataModeChange: (mode: boolean) => void;
 }) {
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-
   // Accumulate all cards from the entire conversation
   const { cards, citations } = useMemo(() => {
     const cardMap = new Map<string, AssistantCardType>();
@@ -64,7 +61,7 @@ export function ChatWorkspace({
     return { cards: Array.from(cardMap.values()), citations: allCitations };
   }, [messages]);
 
-  const metricCount = cards.filter((c) => c.type === 'metric').length;
+  const metricCount = 0;
   const tableCount = cards.filter((c) => c.type === 'table').length;
   const chartCount = cards.filter((c) => c.type === 'chart').length;
 
@@ -97,21 +94,6 @@ export function ChatWorkspace({
       }
     }
   };
-
-  const handleChartDownload = useCallback((imageUrl: string) => {
-    const a = document.createElement('a');
-    a.href = imageUrl;
-    a.download = `chart-${Date.now()}.png`;
-    a.click();
-  }, []);
-
-  const handleAskFollowUp = useCallback(
-    (question: string) => {
-      onDataModeChange(false);
-      onSend(question);
-    },
-    [onSend, onDataModeChange],
-  );
 
   return (
     <div className={styles.workspace}>
@@ -158,14 +140,7 @@ export function ChatWorkspace({
 
         {/* DataCanvas — shown in data mode */}
         {dataMode && (
-          <DataCanvas
-            cards={cards}
-            topicLabel={topicLabel}
-            onBack={() => onDataModeChange(false)}
-            onChartClick={setLightboxUrl}
-            onChartDownload={handleChartDownload}
-            onAskFollowUp={handleAskFollowUp}
-          />
+          <DataCanvas cards={cards} topicLabel={topicLabel} />
         )}
 
         {/* Spacer when messages empty in data mode */}
@@ -173,12 +148,12 @@ export function ChatWorkspace({
           <div style={{ flex: 1 }} />
         )}
 
-        {/* IndicatorBar */}
+        {/* IndicatorBar — card counts in chat mode, back hint in data mode */}
         <IndicatorBar
           metricCount={metricCount}
           tableCount={tableCount}
           chartCount={chartCount}
-          onClick={() => onDataModeChange(true)}
+          onClick={() => onDataModeChange(dataMode ? false : true)}
           dataMode={dataMode}
         />
 
@@ -213,12 +188,6 @@ export function ChatWorkspace({
           </div>
         </div>
       </div>
-
-      {/* ChartLightbox */}
-      <ChartLightbox
-        imageUrl={lightboxUrl}
-        onClose={() => setLightboxUrl(null)}
-      />
     </div>
   );
 }
