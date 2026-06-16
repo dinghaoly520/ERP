@@ -1,41 +1,102 @@
-/* data-canvas.module.css */
+/* data-canvas.module.css — 深度玻璃质感 + 科技感光效 */
+
+/* ========== 画布背景：多层极光 + 暗纹网格 ========== */
 .canvas {
   flex: 1;
   overflow-y: auto;
-  padding: 72px 24px 100px;
+  padding: 72px 32px 120px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 22px;
+  position: relative;
 }
 
-/* Header: topic label */
+/* 第一层：径向极光 */
+.canvas::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(37, 99, 235, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 50%, rgba(8, 145, 178, 0.05) 0%, transparent 45%),
+    radial-gradient(ellipse at 40% 80%, rgba(99, 102, 241, 0.04) 0%, transparent 40%);
+}
+
+/* 第二层：微网格暗纹 */
+.canvas::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.4;
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* ========== 头部 ========== */
 .canvasHeader {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding-bottom: 12px;
+  gap: 12px;
+  padding: 0 4px 8px;
   border-bottom: 1px solid rgba(201, 217, 239, 0.35);
   flex-shrink: 0;
 }
 
-.topicLabel {
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text-heading);
-  letter-spacing: 0.03em;
+.topicDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2563EB;
+  flex-shrink: 0;
+  animation: pulseDot 2s ease-in-out infinite;
+  box-shadow: 0 0 6px rgba(37, 99, 235, 0.5);
 }
 
-/* Single-column stack for tables (full width) + centered charts */
+@keyframes pulseDot {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.5); }
+}
+
+.topicLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-heading);
+  letter-spacing: 0.04em;
+}
+
+/* ========== 卡片纵向栈 ========== */
 .cardStack {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  max-width: 880px;
+  gap: 16px;
+  max-width: 920px;
   width: 100%;
   margin: 0 auto;
 }
 
-/* Empty state */
+/* 卡片通用入场动画 */
+.cardEnter {
+  animation: cardSlideIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes cardSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ========== 空状态 ========== */
 .empty {
   display: flex;
   flex-direction: column;
@@ -46,38 +107,89 @@
   color: var(--text-muted);
   font-size: var(--font-sm);
   text-align: center;
-  padding: 60px 20px;
+  padding: 80px 20px;
 }
 
 .emptyIcon {
-  opacity: 0.35;
-  width: 64px;
-  height: 64px;
+  opacity: 0.25;
+  width: 72px;
+  height: 72px;
   color: var(--text-hint);
 }
 
 .emptyText {
-  max-width: 320px;
-  line-height: 1.6;
+  max-width: 340px;
+  line-height: 1.7;
+  font-size: 13px;
 }
 
-/* ========== 表格卡片 ========== */
+/* ========== 表格卡片：深度玻璃 + 动态边框 ========== */
 .tableCard {
-  border-radius: 14px;
+  position: relative;
+  border-radius: 16px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(201, 217, 239, 0.45);
-  box-shadow: 0 1px 4px rgba(19, 36, 62, 0.03);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.68) 0%, rgba(244,249,255,0.52) 100%);
+  border: 1px solid rgba(201, 217, 239, 0.5);
+  box-shadow:
+    0 1px 4px rgba(19, 36, 62, 0.04),
+    0 0 0 1px rgba(255, 255, 255, 0.4) inset;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.tableCard:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 4px 18px rgba(37, 99, 168, 0.08),
+    0 0 0 2px rgba(37, 99, 235, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+/* 边框光晕：悬浮时亮度提升 */
+.tableCard::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 17px;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(37, 99, 235, 0.15),
+    rgba(8, 145, 178, 0.18) 30%,
+    rgba(125, 211, 252, 0.12) 60%,
+    rgba(99, 102, 241, 0.15)
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.tableCard:hover::before {
+  opacity: 1;
 }
 
 .tableHeader {
-  padding: 11px 18px;
-  font-size: var(--font-xs);
+  padding: 13px 20px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-heading);
-  background: linear-gradient(90deg, rgba(37, 99, 168, 0.06), rgba(8, 145, 178, 0.03));
-  border-bottom: 1px solid rgba(201, 217, 239, 0.35);
-  letter-spacing: 0.02em;
+  background: linear-gradient(90deg, rgba(37,99,168,0.07), rgba(8,145,178,0.04), transparent);
+  border-bottom: 1px solid rgba(201, 217, 239, 0.4);
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 表头小装饰线 */
+.tableHeader::before {
+  content: '';
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #2563EB, #0891b2);
 }
 
 .tableBody {
@@ -90,72 +202,124 @@
 }
 
 .tableBody th {
-  font-size: var(--font-xs);
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
   text-align: left;
-  padding: 9px 18px;
-  border-bottom: 1px solid rgba(201, 217, 239, 0.3);
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(201, 217, 239, 0.28);
   white-space: nowrap;
-  background: rgba(248, 251, 255, 0.5);
-  letter-spacing: 0.03em;
+  background: rgba(248, 251, 255, 0.55);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-/* Right-align numeric-looking columns */
 .tableBody th[data-numeric="true"],
 .tableBody td[data-numeric="true"] {
   text-align: right;
-  font-family: var(--font-mono);
+  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', var(--font-mono), monospace;
   font-variant-numeric: tabular-nums;
 }
 
 .tableBody td {
-  font-size: var(--font-xs);
+  font-size: 13px;
   color: var(--text-primary);
-  padding: 9px 18px;
-  border-bottom: 1px solid rgba(201, 217, 239, 0.18);
+  padding: 11px 20px;
+  border-bottom: 1px solid rgba(201, 217, 239, 0.14);
   white-space: nowrap;
 }
 
-/* Zebra striping */
 .tableBody tbody tr:nth-child(even) {
-  background: rgba(247, 250, 255, 0.45);
+  background: rgba(247, 250, 255, 0.4);
 }
 
 .tableBody tbody tr:last-child td {
   border-bottom: none;
 }
 
-.tableBody tbody tr:hover {
-  background: rgba(232, 240, 254, 0.5);
+.tableBody tbody tr {
+  transition: background 0.15s ease;
 }
 
-/* ========== 图表卡片 ========== */
+.tableBody tbody tr:hover {
+  background: rgba(232, 240, 254, 0.55);
+}
+
+/* ========== 图表卡片：玻璃框架 + 光晕角 ========== */
 .chartCard {
   position: relative;
-  z-index: 1;
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(201, 217, 239, 0.45);
-  box-shadow: 0 1px 4px rgba(19, 36, 62, 0.03);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.72) 0%, rgba(244,249,255,0.56) 100%);
+  border: 1px solid rgba(201, 217, 239, 0.5);
+  box-shadow:
+    0 1px 6px rgba(19, 36, 62, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.chartCard:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 6px 24px rgba(37, 99, 168, 0.08),
+    0 2px 6px rgba(8, 145, 178, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+
+/* 边框光晕 */
+.chartCard::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 17px;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(37, 99, 235, 0.12),
+    rgba(8, 145, 178, 0.15) 40%,
+    rgba(125, 211, 252, 0.1) 70%,
+    rgba(99, 102, 241, 0.12)
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.chartCard:hover::before {
+  opacity: 1;
 }
 
 .chartBody {
-  padding: 8px 12px 12px;
+  padding: 6px 10px 10px;
 }
 
 .chartTitle {
-  padding: 11px 18px 0;
-  font-size: var(--font-xs);
+  padding: 14px 20px 0;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-heading);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 图表标题前的小色块 */
+.chartTitle::before {
+  content: '';
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #2563EB, #7dd3fc);
+  flex-shrink: 0;
 }
 
 .chartCaption {
-  padding: 4px 18px 12px;
-  font-size: var(--font-xs);
+  padding: 0 20px 14px;
+  font-size: 12px;
   color: var(--text-muted);
-  line-height: 1.4;
+  line-height: 1.5;
 }

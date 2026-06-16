@@ -4,19 +4,33 @@ export const CHART_PALETTE = [
   '#3b82f6', '#06b6d4', '#818cf8',
 ];
 
-/** 全局基础配置 —— 与后端 option 合并 */
+/** 柱状图渐变色 —— 替代纯色以提升科技感 */
+export const BAR_GRADIENT = {
+  type: 'linear' as const,
+  x: 0, y: 0, x2: 0, y2: 1,
+  colorStops: [
+    { offset: 0, color: 'rgba(37, 99, 235, 0.9)' },
+    { offset: 0.6, color: 'rgba(37, 99, 235, 0.7)' },
+    { offset: 1, color: 'rgba(8, 145, 178, 0.4)' },
+  ],
+};
+
+/** 全局基础配置 —— 与后端 option 合并（后端优先） */
 export const BASE_OPTION = {
+  animationDuration: 600,
+  animationEasing: 'cubicOut' as const,
   textStyle: {
     fontFamily:
       '"PingFang SC", "Microsoft YaHei", "Heiti SC", "Noto Sans CJK SC", sans-serif',
   },
   tooltip: {
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    borderColor: 'rgba(201,217,239,0.6)',
+    backgroundColor: 'rgba(255,255,255,0.97)',
+    borderColor: 'rgba(201,217,239,0.7)',
     borderWidth: 1,
-    textStyle: { color: '#1a2332', fontSize: 12 },
+    padding: [10, 14],
+    textStyle: { color: '#1a2332', fontSize: 13 },
     extraCssText:
-      'box-shadow: 0 4px 16px rgba(19,36,62,0.1); border-radius: 8px;',
+      'box-shadow: 0 8px 28px rgba(19,36,62,0.12); border-radius: 10px;',
   },
   color: CHART_PALETTE,
 };

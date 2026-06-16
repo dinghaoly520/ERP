@@ -13,29 +13,44 @@ export function ChartRenderer({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
+    setReady(false);
 
-    try {
-      if (!chartRef.current) {
-        chartRef.current = echarts.init(containerRef.current);
-      }
-      // 合并主题基础配置（option 优先；tooltip 深度合并以保留白底卡片样式）
-      const merged: Record<string, unknown> = { ...BASE_OPTION };
-      for (const [k, v] of Object.entries(option)) {
-        if (k === 'tooltip' && v && typeof v === 'object' && !Array.isArray(v)) {
-          merged.tooltip = { ...BASE_OPTION.tooltip, ...v as Record<string, unknown> };
-        } else {
-          merged[k] = v;
+    const timer = requestAnimationFrame(() => {
+      try {
+        if (!chartRef.current) {
+          chartRef.current = echarts.init(containerRef.current!, undefined, {
+            devicePixelRatio: window.devicePixelRatio || 1,
+          });
         }
+        // 深度合并 tooltip，其余字段 option 优先
+        const merged: Record<string, unknown> = {
+          ...BASE_OPTION,
+        };
+        for (const [k, v] of Object.entries(option)) {
+          if (k === 'tooltip' && v && typeof v === 'object' && !Array.isArray(v)) {
+            merged.tooltip = {
+              ...(BASE_OPTION.tooltip as Record<string, unknown>),
+              ...(v as Record<string, unknown>),
+            };
+          } else {
+            merged[k] = v;
+          }
+        }
+        chartRef.current.setOption(merged, true);
+        setReady(true);
+        setError(false);
+      } catch {
+        setError(true);
+        setReady(true);
       }
-      chartRef.current.setOption(merged, true);
-      setError(false);
-    } catch {
-      setError(true);
-    }
+    });
+
+    return () => cancelAnimationFrame(timer);
   }, [option]);
 
   // 自适应宽度 + 卸载清理
@@ -66,5 +81,40 @@ export function ChartRenderer({
     );
   }
 
-  return <div ref={containerRef} style={{ width: '100%', height }} />;
+  return (
+    <div
+      style={{
+        width: '100%',
+        height,
+        position: 'relative',
+        opacity: ready ? 1 : 0,
+        transition: 'opacity 0.35s ease',
+      }}
+    >
+      {/* 骨架占位：渲染期间显示光晕脉冲 */}
+      {!ready && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(37,99,235,0.15), transparent)',
+              animation: 'chartPulse 1.2s ease-in-out infinite',
+            }}
+          />
+          <style>{`@keyframes chartPulse { 0%,100% { transform:scale(0.6);opacity:0.3; } 50% { transform:scale(1.4);opacity:1; } }`}</style>
+        </div>
+      )}
+      <div ref={containerRef} style={{ width: '100%', height }} />
+    </div>
+  );
 }
