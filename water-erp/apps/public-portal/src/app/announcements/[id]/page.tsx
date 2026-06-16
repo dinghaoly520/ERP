@@ -50,7 +50,7 @@ export default function AnnouncementDetailPage() {
       <header className="sticky top-0 z-50 h-[88px] flex items-center bg-white border-b border-[#e5ecf4]">
         <div className="w-full px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
           <a href="/" className="flex items-center gap-3 shrink-0">
-            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-14 w-auto object-contain" />
+            <img src="/assets/logo.png" alt="四川水发集团" className="h-14 w-auto object-contain" />
             <div className="flex flex-col gap-0">
               <strong className="text-[#123a6e] text-3xl tracking-[0.14em] leading-tight whitespace-nowrap" style={{ fontFamily: '"SimHei","黑体",sans-serif', fontWeight: 900 }}>四川水发集团</strong>
               <small className="text-[7px] text-[#8a96aa] font-medium text-center whitespace-nowrap tracking-wide">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>

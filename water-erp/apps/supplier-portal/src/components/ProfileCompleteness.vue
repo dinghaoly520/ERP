@@ -42,7 +42,7 @@ const label = computed(() => {
       </svg>
       <div class="ring-text">
         <span class="ring-value" :style="{ color }">{{ score }}</span>
-        <span class="ring-unit">分</span>
+        <span class="ring-unit">%</span>
       </div>
     </div>
 
@@ -107,20 +107,24 @@ const label = computed(() => {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding-top: 4px;
+  gap: 3px;
+  padding-top: 0;
 }
 
 .ring-value {
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 900;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .ring-unit {
-  font-size: 13px;
+  align-self: center;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 800;
   color: var(--sp-gray-400);
 }
 
