@@ -349,9 +349,11 @@ describe('SupplierPortalService', () => {
         technicalFileAssetId: 'fa-1', businessFileAssetId: 'fa-2',
       })).rejects.toThrow('minio write error');
 
-      // Should restore plaintext for fa-1
+      // Should restore plaintext for fa-1 (putObject with original mime type, not octet-stream)
       const putObjectCalls = (minioClient.putObject as jest.Mock).mock.calls;
-      const restoreCall = putObjectCalls.find((c: any[]) => c[1] === mockAsset.key && c[3] === 1000);
+      const restoreCall = putObjectCalls.find((c: any[]) =>
+        c[1] === mockAsset.key && c[4]?.['Content-Type'] === 'application/pdf',
+      );
       expect(restoreCall).toBeDefined();
     });
   });
