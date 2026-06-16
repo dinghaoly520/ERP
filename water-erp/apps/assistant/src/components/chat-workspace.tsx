@@ -3,8 +3,14 @@
 import { useMemo, useState, useCallback } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import { MessageList } from './message-list';
-import { AnalysisCanvas } from './analysis-canvas';
-import type { Message, AssistantCard as AssistantCardType, AssistantCitation } from '@/lib/types';
+import { DataCanvas } from './data-canvas';
+import { IndicatorBar } from './indicator-bar';
+import { ChartLightbox } from './chart-lightbox';
+import type {
+  Message,
+  AssistantCard as AssistantCardType,
+  AssistantCitation,
+} from '@/lib/types';
 import styles from './chat-workspace.module.css';
 import GradientText from './GradientText';
 
@@ -16,6 +22,8 @@ export function ChatWorkspace({
   onCancelAction,
   onBack,
   headerLeft = 260,
+  dataMode,
+  onDataModeChange,
 }: {
   messages: Message[];
   onSend: (msg: string) => void;
@@ -24,8 +32,12 @@ export function ChatWorkspace({
   onCancelAction: (id: string) => void;
   onBack: () => void;
   headerLeft?: number;
+  dataMode: boolean;
+  onDataModeChange: (mode: boolean) => void;
 }) {
-  // Accumulate all cards/citations from the entire conversation, deduped by title
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  // Accumulate all cards from the entire conversation
   const { cards, citations } = useMemo(() => {
     const cardMap = new Map<string, AssistantCardType>();
     const citationSet = new Set<string>();
@@ -52,9 +64,15 @@ export function ChatWorkspace({
     return { cards: Array.from(cardMap.values()), citations: allCitations };
   }, [messages]);
 
-  const hasCanvas = cards.length > 0 || citations.length > 0;
-  const [canvasOpen, setCanvasOpen] = useState(true);
-  const handleCanvasToggle = useCallback((open: boolean) => setCanvasOpen(open), []);
+  const metricCount = cards.filter((c) => c.type === 'metric').length;
+  const tableCount = cards.filter((c) => c.type === 'table').length;
+  const chartCount = cards.filter((c) => c.type === 'chart').length;
+
+  // Topic label: use the last user message
+  const topicLabel = useMemo(() => {
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+    return lastUser?.content?.slice(0, 30) || '数据总览';
+  }, [messages]);
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -68,7 +86,9 @@ export function ChatWorkspace({
   };
 
   const handleSendClick = () => {
-    const textarea = document.querySelector(`.${styles.aiInput}`) as HTMLTextAreaElement;
+    const textarea = document.querySelector(
+      `.${styles.aiInput}`,
+    ) as HTMLTextAreaElement;
     if (textarea) {
       const val = textarea.value.trim();
       if (val && !isLoading) {
@@ -78,12 +98,29 @@ export function ChatWorkspace({
     }
   };
 
+  const handleChartDownload = useCallback((imageUrl: string) => {
+    const a = document.createElement('a');
+    a.href = imageUrl;
+    a.download = `chart-${Date.now()}.png`;
+    a.click();
+  }, []);
+
+  const handleAskFollowUp = useCallback(
+    (question: string) => {
+      onDataModeChange(false);
+      onSend(question);
+    },
+    [onSend, onDataModeChange],
+  );
+
   return (
     <div className={styles.workspace}>
-      {/* Main chat area */}
       <div className={styles.main}>
         {/* Header */}
-        <header className={styles.header} style={{ left: `${headerLeft}px` }}>
+        <header
+          className={styles.header}
+          style={{ left: `${headerLeft}px` }}
+        >
           <button
             className={styles.headerTitle}
             onClick={onBack}
@@ -91,7 +128,13 @@ export function ChatWorkspace({
             title="返回首页"
           >
             <GradientText
-              colors={['#1a2332', '#2563EB', '#0891b2', '#18a56c', '#1a2332']}
+              colors={[
+                '#1a2332',
+                '#2563EB',
+                '#0891b2',
+                '#18a56c',
+                '#1a2332',
+              ]}
               animationSpeed={8}
               direction="horizontal"
               yoyo={true}
@@ -101,8 +144,11 @@ export function ChatWorkspace({
           </button>
         </header>
 
-        {/* Messages */}
-        <div className={styles.messages}>
+        {/* Messages — hidden in data mode */}
+        <div
+          className={styles.messages}
+          style={{ display: dataMode ? 'none' : undefined }}
+        >
           <MessageList
             messages={messages}
             onConfirmAction={onConfirmAction}
@@ -110,13 +156,43 @@ export function ChatWorkspace({
           />
         </div>
 
+        {/* DataCanvas — shown in data mode */}
+        {dataMode && (
+          <DataCanvas
+            cards={cards}
+            topicLabel={topicLabel}
+            onBack={() => onDataModeChange(false)}
+            onChartClick={setLightboxUrl}
+            onChartDownload={handleChartDownload}
+            onAskFollowUp={handleAskFollowUp}
+          />
+        )}
+
+        {/* Spacer when messages empty in data mode */}
+        {dataMode && cards.length === 0 && (
+          <div style={{ flex: 1 }} />
+        )}
+
+        {/* IndicatorBar */}
+        <IndicatorBar
+          metricCount={metricCount}
+          tableCount={tableCount}
+          chartCount={chartCount}
+          onClick={() => onDataModeChange(true)}
+          dataMode={dataMode}
+        />
+
         {/* Input */}
         <div className={styles.inputBar}>
           <div className={styles.inputWrapper}>
             <div className={styles.commandBox}>
               <textarea
                 className={styles.aiInput}
-                placeholder="输入问题 / 生成分析 / 操作业务..."
+                placeholder={
+                  dataMode
+                    ? '基于数据画布追问...'
+                    : '输入问题 / 生成分析 / 操作业务...'
+                }
                 rows={1}
                 onKeyDown={handleInputKeyDown}
                 disabled={isLoading}
@@ -138,14 +214,11 @@ export function ChatWorkspace({
         </div>
       </div>
 
-      {/* Analysis Canvas */}
-      {hasCanvas && (
-        <AnalysisCanvas
-          cards={cards}
-          citations={citations}
-          onToggle={handleCanvasToggle}
-        />
-      )}
+      {/* ChartLightbox */}
+      <ChartLightbox
+        imageUrl={lightboxUrl}
+        onClose={() => setLightboxUrl(null)}
+      />
     </div>
   );
 }
