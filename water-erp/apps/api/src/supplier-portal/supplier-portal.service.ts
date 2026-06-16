@@ -5,6 +5,8 @@ import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
+import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
+import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
 /** 供应商投标提交/草稿共用的可持久化字段 */
 type BidSubmissionData = {
@@ -366,6 +368,51 @@ export class SupplierPortalService {
       data.coverLetterAssetId,
     ]);
 
+    // ── Layer B: encrypt submitted bid files at rest ──
+    const assetIds = [data.technicalFileAssetId, data.businessFileAssetId, data.coverLetterAssetId].filter(Boolean) as string[];
+    const sealedKeys: Record<string, string> = {};
+    const plaintextBackups: Map<string, Buffer> = new Map();
+
+    try {
+      for (const assetId of assetIds) {
+        const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
+        if (!asset) continue;
+
+        const objStream = await minioClient.getObject(MINIO_BUCKET, asset.key);
+        const plaintext = await streamToBuffer(objStream);
+        plaintextBackups.set(assetId, plaintext);
+
+        const { ciphertext, decryptKey } = encryptBuffer(plaintext);
+        sealedKeys[assetId] = decryptKey;
+
+        await minioClient.putObject(MINIO_BUCKET, asset.key, ciphertext, ciphertext.length, {
+          'Content-Type': 'application/octet-stream',
+        });
+
+        await this.prisma.fileAsset.update({
+          where: { id: assetId },
+          data: { encrypted: true },
+        });
+      }
+    } catch (err) {
+      // Rollback: restore plaintext for any files we may have overwritten
+      for (const [assetId, plaintext] of plaintextBackups) {
+        try {
+          const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
+          if (asset) {
+            await minioClient.putObject(MINIO_BUCKET, asset.key, plaintext, plaintext.length, {
+              'Content-Type': asset.mimeType,
+            });
+            await this.prisma.fileAsset.update({
+              where: { id: assetId },
+              data: { encrypted: false },
+            });
+          }
+        } catch (_) { /* best-effort rollback */ }
+      }
+      throw err;
+    }
+
     const now = new Date();
 
     let submission;
@@ -377,6 +424,9 @@ export class SupplierPortalService {
           ...data,
           status: 'submitted',
           submittedAt: now,
+          technicalSealedKey: data.technicalFileAssetId ? sealedKeys[data.technicalFileAssetId] ?? null : null,
+          businessSealedKey: data.businessFileAssetId ? sealedKeys[data.businessFileAssetId] ?? null : null,
+          coverLetterSealedKey: data.coverLetterAssetId ? sealedKeys[data.coverLetterAssetId] ?? null : null,
         },
       });
     } else {
@@ -388,6 +438,9 @@ export class SupplierPortalService {
           ...data,
           status: 'submitted',
           submittedAt: now,
+          technicalSealedKey: data.technicalFileAssetId ? sealedKeys[data.technicalFileAssetId] ?? null : null,
+          businessSealedKey: data.businessFileAssetId ? sealedKeys[data.businessFileAssetId] ?? null : null,
+          coverLetterSealedKey: data.coverLetterAssetId ? sealedKeys[data.coverLetterAssetId] ?? null : null,
         },
       });
     }

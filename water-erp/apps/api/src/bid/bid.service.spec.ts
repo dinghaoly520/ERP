@@ -8,7 +8,7 @@ import { assertBidStageTransition } from './bid-state';
 
 // Mock decrypt utilities and MinIO client for decryptSupplier tests
 jest.mock('./bid-submission.crypto', () => ({
-  decryptBuffer: jest.fn(),
+  decryptBuffer: jest.fn().mockReturnValue(Buffer.from('decrypted')),
   streamToBuffer: jest.fn().mockResolvedValue(Buffer.from('test')),
   verifyIntegrity: jest.fn().mockReturnValue(true),
   classifyDecryptOutcome: jest.requireActual('./bid-submission.crypto').classifyDecryptOutcome,

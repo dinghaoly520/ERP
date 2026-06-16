@@ -426,10 +426,10 @@ export class BidService {
         if (!asset) { errorMsg = `投标文件记录缺失: ${ref.assetId}`; break; }
         try {
           const objStream = await minioClient.getObject(MINIO_BUCKET, asset.key);
-          const buffer = await streamToBuffer(objStream);
+          let buffer = await streamToBuffer(objStream);
           // Layer B：有 sealedKey 时执行真实 AES 解密
           if (ref.sealedKey) {
-            decryptBuffer(buffer, ref.sealedKey);
+            buffer = decryptBuffer(buffer, ref.sealedKey);
             decryptOk = true;
           }
           // Layer A：完整性校验（解密后的明文 vs 存储 sha256）

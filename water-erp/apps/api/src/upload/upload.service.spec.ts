@@ -37,9 +37,27 @@ describe('UploadService — download permission', () => {
     expect(minioClient.getObject).toHaveBeenCalled();
   });
 
-  it('allows admin/bid_host/procurement_staff regardless of ownership', async () => {
+  it('allows admin/bid_host/procurement_staff for non-bid-submission files', async () => {
     prisma.fileAsset.findUnique.mockResolvedValue(asset);
+    prisma.supplierBidSubmission.findFirst.mockResolvedValue(null); // file not part of any submission
     await service.streamFile('fa-1', { sub: 'u-host', role: 'bid_host' }, res);
+    expect(minioClient.getObject).toHaveBeenCalled();
+  });
+
+  it('denies admin when bid submission file is not yet decrypted', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue(asset);
+    prisma.supplierBidSubmission.findFirst.mockResolvedValue({ supplierId: 's1', projectId: 'p1' });
+    prisma.bidSupplier.findFirst.mockResolvedValue(null); // not decrypted
+    await expect(service.streamFile('fa-1', { sub: 'u-admin', role: 'admin' }, res))
+      .rejects.toThrow(ForbiddenException);
+    expect(minioClient.getObject).not.toHaveBeenCalled();
+  });
+
+  it('allows admin when bid submission file is decrypted', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue(asset);
+    prisma.supplierBidSubmission.findFirst.mockResolvedValue({ supplierId: 's1', projectId: 'p1' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', decryptStatus: 'SUCCESS' });
+    await service.streamFile('fa-1', { sub: 'u-admin', role: 'admin' }, res);
     expect(minioClient.getObject).toHaveBeenCalled();
   });
 

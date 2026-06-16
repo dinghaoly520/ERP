@@ -3,6 +3,26 @@ import { SupplierPortalService } from './supplier-portal.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
 
+jest.mock('../announcement/bid-document.crypto', () => ({
+  encryptBuffer: jest.fn().mockReturnValue({
+    ciphertext: Buffer.from('encrypted'),
+    decryptKey: 'key:iv:auth',
+  }),
+  streamToBuffer: jest.fn().mockResolvedValue(Buffer.from('plaintext')),
+  decryptBuffer: jest.fn(),
+}));
+
+jest.mock('../upload/minio.client', () => ({
+  minioClient: {
+    getObject: jest.fn().mockResolvedValue({}),
+    putObject: jest.fn().mockResolvedValue({}),
+  },
+  MINIO_BUCKET: 'test-bucket',
+}));
+
+import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
+import { minioClient } from '../upload/minio.client';
+
 describe('SupplierPortalService', () => {
   let service: SupplierPortalService;
   let prisma: any;
@@ -43,7 +63,7 @@ describe('SupplierPortalService', () => {
         create: jest.fn(),
       },
       bidOpeningRecord: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
-      fileAsset: { findMany: jest.fn() },
+      fileAsset: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
       supplierChangeRecord: { count: jest.fn() },
       supplierQualification: { count: jest.fn() },
@@ -268,6 +288,71 @@ describe('SupplierPortalService', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('submitBid encryption', () => {
+    const mockAsset = { id: 'fa-1', key: 'uploads/2026-01-01/file.pdf', mimeType: 'application/pdf', size: 1000, sha256: 'hash', category: 'bid_document', uploaderId: 'user-1' };
+
+    beforeEach(() => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED', userId: 'user-1' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', stage: 'SUBMIT',
+        deadline: new Date(Date.now() + 3600_000),
+      });
+      prisma.fileAsset.findMany.mockResolvedValue([mockAsset]);
+      prisma.fileAsset.findUnique.mockResolvedValue(mockAsset);
+      prisma.fileAsset.update.mockResolvedValue(mockAsset);
+      prisma.supplierBidSubmission.create.mockResolvedValue({ id: 'sub-1', status: 'submitted' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+      prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-1' });
+      jest.clearAllMocks();
+    });
+
+    it('encrypts bid files on submit and stores sealedKeys', async () => {
+      const result = await service.submitBid('supplier-1', 'project-1', { technicalFileAssetId: 'fa-1' });
+
+      expect(encryptBuffer).toHaveBeenCalled();
+      expect(minioClient.getObject).toHaveBeenCalledWith('test-bucket', mockAsset.key);
+      expect(minioClient.putObject).toHaveBeenCalledWith(
+        'test-bucket', mockAsset.key,
+        expect.any(Buffer), expect.any(Number),
+        expect.objectContaining({ 'Content-Type': 'application/octet-stream' }),
+      );
+      expect(prisma.fileAsset.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'fa-1' }, data: { encrypted: true } }),
+      );
+      expect(prisma.supplierBidSubmission.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            technicalSealedKey: expect.any(String),
+          }),
+        }),
+      );
+    });
+
+    it('rolls back plaintext on encryption failure', async () => {
+      // MinIO failure on the 2nd file
+      (minioClient.putObject as jest.Mock)
+        .mockResolvedValueOnce({})  // first file: success
+        .mockRejectedValueOnce(new Error('minio write error')); // second: fail
+
+      prisma.fileAsset.findMany.mockResolvedValue([
+        { ...mockAsset },
+        { ...mockAsset, id: 'fa-2' },
+      ]);
+      const mockAsset2 = { ...mockAsset, id: 'fa-2' };
+      prisma.fileAsset.findUnique.mockResolvedValueOnce({ ...mockAsset }).mockResolvedValueOnce(mockAsset2);
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-1', businessFileAssetId: 'fa-2',
+      })).rejects.toThrow('minio write error');
+
+      // Should restore plaintext for fa-1
+      const putObjectCalls = (minioClient.putObject as jest.Mock).mock.calls;
+      const restoreCall = putObjectCalls.find((c: any[]) => c[1] === mockAsset.key && c[3] === 1000);
+      expect(restoreCall).toBeDefined();
     });
   });
 

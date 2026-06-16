@@ -70,7 +70,8 @@ export default function ExpertEvaluatePage() {
   };
 
   const handleStepKey = (e: React.KeyboardEvent) => {
-    const idx = STEPS.findIndex(s => s.key === step);
+    // 忽略输入框内的数字键，避免验证码输入时跳转步骤
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     if (e.key >= '1' && e.key <= '6') {
       const target = STEPS[parseInt(e.key) - 1];
       if (target && stepAccessible(target.key)) setStep(target.key);
