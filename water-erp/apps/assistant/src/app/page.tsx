@@ -15,6 +15,7 @@ export default function Page() {
   const [isLoading, setIsLoading] = useState(false);
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [dataMode, setDataMode] = useState(false);
 
   // Fetch conversation list
   const refreshConversations = useCallback(async () => {
@@ -30,8 +31,20 @@ export default function Page() {
     refreshConversations();
   }, [refreshConversations]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+        e.preventDefault();
+        setDataMode((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleSend = useCallback(
     async (msg: string) => {
+      setDataMode(false);
       setInChat(true);
       const userMsg: Message = {
         id: crypto.randomUUID(),
@@ -107,6 +120,7 @@ export default function Page() {
   }, []);
 
   const handleSelectConversation = useCallback(async (id: string) => {
+    setDataMode(false);
     try {
       const res = await api.get<{
         messages: Array<{
@@ -178,6 +192,8 @@ export default function Page() {
             onCancelAction={handleCancelAction}
             onBack={handleBack}
             headerLeft={sidebarCollapsed ? 40 : 260}
+            dataMode={dataMode}
+            onDataModeChange={setDataMode}
           />
         )}
       </div>
