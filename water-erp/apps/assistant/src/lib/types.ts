@@ -11,8 +11,8 @@ export type AssistantCard =
   | {
       type: 'chart';
       title: string;
-      chartType: 'bar' | 'line' | 'pie' | 'scatter' | 'radar';
-      imageUrl: string;
+      chartType: 'bar' | 'line' | 'pie' | 'hbar' | 'grouped_bar';
+      option: Record<string, unknown>;
       caption?: string;
     }
   | {
@@ -20,6 +20,7 @@ export type AssistantCard =
       title: string;
       columns: Array<{ key: string; label: string }>;
       rows: unknown[];
+      viz?: import('./viz-types').VizDeclaration;
     }
   | {
       type: 'actionPlan';
