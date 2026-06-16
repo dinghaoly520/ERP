@@ -34,28 +34,21 @@ export function ChatWorkspace({
   dataMode: boolean;
   onDataModeChange: (mode: boolean) => void;
 }) {
-  // Accumulate all cards from the entire conversation
+  // Only render cards from the LAST assistant message — keeps the data canvas
+  // focused on the current question, not a cumulative dump of all previous queries.
   const { cards, citations } = useMemo(() => {
+    const lastAssist = [...messages].reverse().find((m) => m.role === 'assistant');
     const cardMap = new Map<string, AssistantCardType>();
-    const citationSet = new Set<string>();
     const allCitations: AssistantCitation[] = [];
-    for (const msg of messages) {
-      if (msg.role === 'assistant') {
-        if (msg.cards) {
-          for (const c of msg.cards as AssistantCardType[]) {
-            const key = `${c.type}:${c.title || JSON.stringify(c)}`;
-            if (!cardMap.has(key)) cardMap.set(key, c);
-          }
-        }
-        if (msg.citations) {
-          for (const cit of msg.citations as AssistantCitation[]) {
-            const key = `${cit.type}:${cit.title}`;
-            if (!citationSet.has(key)) {
-              citationSet.add(key);
-              allCitations.push(cit);
-            }
-          }
-        }
+    if (lastAssist?.cards) {
+      for (const c of lastAssist.cards as AssistantCardType[]) {
+        const key = `${c.type}:${c.title || JSON.stringify(c)}`;
+        if (!cardMap.has(key)) cardMap.set(key, c);
+      }
+    }
+    if (lastAssist?.citations) {
+      for (const cit of lastAssist.citations as AssistantCitation[]) {
+        allCitations.push(cit);
       }
     }
     return { cards: Array.from(cardMap.values()), citations: allCitations };

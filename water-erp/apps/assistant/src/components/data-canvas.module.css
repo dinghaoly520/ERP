@@ -237,6 +237,19 @@
   border-bottom: none;
 }
 
+/* 总计行 */
+.totalRow {
+  font-weight: 700 !important;
+  background: linear-gradient(90deg, rgba(37,99,168,0.06), rgba(8,145,178,0.03)) !important;
+  border-top: 2px solid rgba(201,217,239,0.55) !important;
+}
+
+.totalRow td {
+  font-family: 'SF Mono', 'JetBrains Mono', monospace !important;
+  color: var(--text-heading) !important;
+  padding-top: 12px !important;
+}
+
 .tableBody tbody tr {
   transition: background 0.15s ease;
 }

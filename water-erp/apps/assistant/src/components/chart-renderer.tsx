@@ -15,6 +15,39 @@ export function ChartRenderer({
   const chartRef = useRef<echarts.ECharts | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(false);
+  const focusedRef = useRef(false);
+
+  // 图表点击聚焦交互：点击元素高亮，其余淡化；再点恢复
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    const handleClick = (params: { dataIndex?: number; seriesIndex?: number; name?: string }) => {
+      if (params.dataIndex === undefined) return;
+      if (focusedRef.current) {
+        chart.dispatchAction({ type: 'restore' });
+        focusedRef.current = false;
+      } else {
+        // Dim all others
+        const opt = chart.getOption() as Record<string, unknown>;
+        const seriesList = (opt.series as unknown[]) || [];
+        for (let si = 0; si < seriesList.length; si++) {
+          const dataLen = ((seriesList[si] as Record<string, unknown>)?.data as unknown[])?.length || 0;
+          for (let di = 0; di < dataLen; di++) {
+            if (si === params.seriesIndex && di === params.dataIndex) continue;
+            chart.dispatchAction({ type: 'downplay', seriesIndex: si, dataIndex: di });
+          }
+        }
+        chart.dispatchAction({ type: 'highlight', seriesIndex: params.seriesIndex, dataIndex: params.dataIndex });
+        focusedRef.current = true;
+      }
+    };
+
+    chart.on('click', handleClick);
+    return () => {
+      chart.off('click', handleClick);
+    };
+  }, [ready]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -41,7 +74,27 @@ export function ChartRenderer({
             merged[k] = v;
           }
         }
-        chartRef.current.setOption(merged, true);
+        // Ensure downplay style dims elements when focus-clicked
+        chartRef.current.setOption(
+          {
+            ...merged,
+            series: ((merged.series as unknown[]) || []).map((s: any) => ({
+              ...s,
+              emphasis: s.emphasis || { scale: true },
+              select: { disabled: true },
+              // Universal dim-on-downplay style
+              ...(!s.type?.includes('line') && {
+                itemStyle: { ...(s.itemStyle || {}), opacity: 1 },
+              }),
+            })),
+            // Custom downplay: dim to 0.25
+            stateAnimation: { duration: 250, easing: 'cubicOut' },
+          } as any,
+          true,
+        );
+        // Reset any previous focus state
+        chartRef.current.dispatchAction({ type: 'restore' });
+        focusedRef.current = false;
         setReady(true);
         setError(false);
       } catch {

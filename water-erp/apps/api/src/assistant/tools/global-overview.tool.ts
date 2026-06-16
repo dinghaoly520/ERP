@@ -93,7 +93,7 @@ export class GlobalOverviewTool implements AssistantTool {
             procurementByStatus.sort((a, b) => b._count - a._count);
             const procurementTotal = procurementByStatus.reduce((s, r) => s + r._count, 0);
             const budgetTotal = procurementByStatus.reduce((s, r) => s + (Number(r._sum?.budget) || 0), 0);
-            const rows = procurementByStatus.map((s) => ({
+            const rows: Record<string, unknown>[] = procurementByStatus.map((s) => ({
               status: t(PROCUREMENT_STATUS_LABEL, s.status),
               count: s._count,
               pct: procurementTotal > 0 ? ((s._count / procurementTotal) * 100).toFixed(1) + '%' : '-',
@@ -121,7 +121,7 @@ export class GlobalOverviewTool implements AssistantTool {
           rows: (() => {
             bidByStage.sort((a, b) => b._count - a._count);
             const bidTotal = bidByStage.reduce((s, r) => s + r._count, 0);
-            const rows = bidByStage.map((s) => ({
+            const rows: Record<string, unknown>[] = bidByStage.map((s) => ({
               stage: t(STAGE_LABEL, s.stage),
               count: s._count,
               pct: bidTotal > 0 ? ((s._count / bidTotal) * 100).toFixed(1) + '%' : '-',
@@ -142,7 +142,7 @@ export class GlobalOverviewTool implements AssistantTool {
           rows: (() => {
             supplierByStatus.sort((a, b) => b._count - a._count);
             const supplierTotal = supplierByStatus.reduce((s, r) => s + r._count, 0);
-            const rows = supplierByStatus.map((s) => ({
+            const rows: Record<string, unknown>[] = supplierByStatus.map((s) => ({
               status: t(SUPPLIER_STATUS_LABEL, s.status),
               count: s._count,
               pct: supplierTotal > 0 ? ((s._count / supplierTotal) * 100).toFixed(1) + '%' : '-',
@@ -163,7 +163,7 @@ export class GlobalOverviewTool implements AssistantTool {
           rows: (() => {
             expertBySpecialty.sort((a, b) => b._count - a._count);
             const expertTotal = expertBySpecialty.reduce((s, r) => s + r._count, 0);
-            const rows = expertBySpecialty.map((s) => ({
+            const rows: Record<string, unknown>[] = expertBySpecialty.map((s) => ({
               specialty: s.specialty,
               count: s._count,
               pct: expertTotal > 0 ? ((s._count / expertTotal) * 100).toFixed(1) + '%' : '-',

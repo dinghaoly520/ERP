@@ -71,18 +71,21 @@ export function DataCanvas({
                       </tr>
                     </thead>
                     <tbody>
-                      {(card.rows as Array<Record<string, unknown>>).map((row, j) => (
-                        <tr key={j}>
-                          {card.columns.map((c) => (
-                            <td
-                              key={c.key}
-                              data-numeric={numericKeys.has(c.key) ? 'true' : 'false'}
-                            >
-                              {String(row[c.key] ?? '-')}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
+                      {(card.rows as Array<Record<string, unknown>>).map((row, j) => {
+                        const isTotal = row._total === true;
+                        return (
+                          <tr key={j} className={isTotal ? styles.totalRow : undefined}>
+                            {card.columns.map((c) => (
+                              <td
+                                key={c.key}
+                                data-numeric={numericKeys.has(c.key) ? 'true' : 'false'}
+                              >
+                                {String(row[c.key] ?? '-')}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
