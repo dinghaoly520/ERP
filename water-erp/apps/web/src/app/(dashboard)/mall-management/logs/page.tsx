@@ -16,9 +16,11 @@ const labels: Record<string, string> = {
   CATALOG_EXPORTED: '目录导出',
 };
 
-function humanizeDetail(detail: Record<string, any> | null | undefined) {
-  if (!detail || Object.keys(detail).length === 0) return <span className="text-xs text-[#8a99ad]">—</span>;
-  const entries = Object.entries(detail);
+function humanizeDetail(detail: unknown) {
+  if (!detail || typeof detail !== 'object') return <span className="text-xs text-[#8a99ad]">—</span>;
+  const record = detail as Record<string, any>;
+  const entries = Object.entries(record);
+  if (entries.length === 0) return <span className="text-xs text-[#8a99ad]">—</span>;
   // Small objects: show as inline tags
   if (entries.length <= 4) {
     return (
@@ -36,7 +38,7 @@ function humanizeDetail(detail: Record<string, any> | null | undefined) {
     );
   }
   // Larger objects: show as collapsed pre (rare)
-  return <details><summary className="text-xs font-semibold text-[#064ea2] cursor-pointer">{entries.length} 个字段</summary><pre className="mt-1 max-w-xl whitespace-pre-wrap rounded-xl bg-[#f8fafc] p-2 text-[11px] text-[#5a6d8a]">{JSON.stringify(detail, null, 2)}</pre></details>;
+  return <details><summary className="text-xs font-semibold text-[#064ea2] cursor-pointer">{entries.length} 个字段</summary><pre className="mt-1 max-w-xl whitespace-pre-wrap rounded-xl bg-[#f8fafc] p-2 text-[11px] text-[#5a6d8a]">{JSON.stringify(record, null, 2)}</pre></details>;
 }
 
 export default function MallManagementLogsPage() {
