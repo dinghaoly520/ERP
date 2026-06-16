@@ -9,7 +9,7 @@ import { portalURL } from '@water-erp/config';
 import PriceChart from './price-chart';
 import { MallAssistantEntry } from './assistant/mall-assistant-entry';
 import type { MallAssistantContext } from './assistant/types';
-import { useCountUp, useDataChanged, useScrollAwareHeader, useAsyncState, StateBoundary, InlineError, TableSkeleton, StatCardSkeleton, CardGridSkeleton, EmptyState, LiveRegion, AnimatedBadge, StaggerContainer, StaggerItem, useAutoSave } from './interactions';
+import { useCountUp, useDataChanged, useScrollAwareHeader, useAsyncState, StateBoundary, InlineError, TableSkeleton, StatCardSkeleton, CardGridSkeleton, EmptyState, LiveRegion, AnimatedBadge, StaggerContainer, StaggerItem, useAutoSave, useGlobalHotkey } from './interactions';
 
 type PriceStatus = '有效' | '价格波动' | '即将过期' | '待复核';
 type PriceSource = '框架协议价' | '历史成交价' | '市场询价' | '人工维护';
@@ -127,6 +127,8 @@ const AUDIT_LABELS: Record<string, string> = {
 export default function MallPage() {
   const router = useRouter();
   const headerVisible = useScrollAwareHeader({ threshold: 80 });
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useGlobalHotkey('/', () => { searchInputRef.current?.focus(); searchInputRef.current?.select(); });
   const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('全部');
@@ -663,6 +665,7 @@ export default function MallPage() {
               <p className="max-w-2xl text-sm leading-7 text-white/75">统一展示协议价、历史成交价与市场参考价，辅助预算编制、采购立项和询价比价。</p>
               <div className="relative mt-6 w-full">
                 <input
+                  ref={searchInputRef}
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Escape') { setSearch(''); (e.target as HTMLInputElement).blur(); } }}
@@ -779,6 +782,7 @@ export default function MallPage() {
             当前显示 <span className={filtered.length === 0 ? 'text-[#e74c3c]' : 'text-[#064ea2] font-bold'}>{filtered.length}</span> 项
             {filtered.length === 0 && <span className="ml-1 text-[#e74c3c]">— 请调整筛选条件</span>}
           </motion.p>
+          <LiveRegion>{filtered.length > 0 ? `当前显示 ${filtered.length} 项物资` : '未找到匹配条目'}</LiveRegion>
         </section>
 
         <section className="mt-5 grid gap-5 lg:grid-cols-[280px_1fr]">
