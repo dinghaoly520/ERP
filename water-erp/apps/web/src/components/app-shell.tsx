@@ -8,6 +8,7 @@ import {
   PanelLeftClose, PanelLeft, ChevronDown, ShoppingCart,
 } from 'lucide-react';
 import { NotificationCenter } from '@/components/workbench/notification-center';
+import { CommandPalette } from '@/components/workbench/command-palette';
 import { useNotifications } from '@/lib/hooks/use-notifications';
 
 interface NavChild {
@@ -230,6 +231,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </main>
         </div>
       </div>
+      <CommandPalette />
     </div>
   );
 }
