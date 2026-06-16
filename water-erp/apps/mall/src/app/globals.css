@@ -237,6 +237,19 @@ body {
 *:focus { outline: none; }
 *:focus-visible { outline: none; }
 
+/* ===== 精简滚动条 ===== */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.scrollbar-thin::-webkit-scrollbar { width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
 /* ===== 全局 reduced-motion 降级 ===== */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
