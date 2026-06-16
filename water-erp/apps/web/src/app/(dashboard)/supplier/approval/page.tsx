@@ -112,9 +112,7 @@ export default function SupplierApprovalPage() {
             {loading ? (
               <TableSkeleton cols={6} rows={5} />
             ) : data.items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-16 text-center text-[#8a99ad]">
-                暂无{TABS.find(t => t.key === tab)?.label}申请
-              </td></tr>
+              <tr><td colSpan={6}><EmptyState title={`暂无${TABS.find(t => t.key === tab)?.label || ''}申请`} description="供应商注册后待审核申请将出现在这里" /></td></tr>
             ) : data.items.map((s: Supplier) => (
               <tr key={s.id} className="row-clickable" onClick={() => router.push(`/supplier/${s.id}`)}>
                 <td className="px-4 py-3">

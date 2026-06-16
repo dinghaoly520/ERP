@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createExpert, listSpecialties } from '@/lib/api/expert';
 import { PageHero, SectionCard } from '@/components/workbench';
-import { UserPlus, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { useFormAutosave, useUnsavedGuard } from '@/lib/hooks/use-form-autosave';
+import { UserPlus, ArrowLeft, Eye, EyeOff, RotateCcw } from 'lucide-react';
 
 const TITLES = ['教授级高级工程师','高级工程师','高级经济师','高级会计师','工程师','注册造价工程师','注册监理工程师'];
 
@@ -27,6 +28,21 @@ export default function ExpertEntryPage() {
   const [serverError, setServerError] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
+
+  // ── 表单草稿 ──
+  const hasChanges = Object.values(form).some(v => v !== '');
+  const { getDraft, clearDraft } = useFormAutosave('expert-entry', form as unknown as Record<string, unknown>);
+  useUnsavedGuard(hasChanges);
+  const [draftRestored, setDraftRestored] = useState(false);
+  useEffect(() => {
+    if (draftRestored) return;
+    const draft = getDraft();
+    if (draft && draft.username) {
+      const restore = confirm('检测到未提交的表单草稿（保存于 ' + new Date(draft._savedAt).toLocaleTimeString('zh-CN') + '），是否恢复？');
+      if (restore) { setForm({ ...INITIAL, ...draft as unknown as FormFields }); }
+    }
+    setDraftRestored(true);
+  }, [getDraft, draftRestored]);
 
   useEffect(() => { listSpecialties().then(setSpecialties).catch(() => {}); }, []);
 
@@ -54,6 +70,7 @@ export default function ExpertEntryPage() {
     try {
       await createExpert(form);
       toast.success('专家录入成功');
+      clearDraft();
       router.push('/expert/repository');
     } catch (e: any) { setServerError(e?.message || '录入失败，账号可能已存在'); }
     setSaving(false);

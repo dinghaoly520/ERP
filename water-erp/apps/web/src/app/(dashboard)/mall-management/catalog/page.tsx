@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton } from '@/components/workbench';
+import { useRouter } from 'next/navigation';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton, EmptyState } from '@/components/workbench';
 import {
   changeCatalogStatus,
   getCatalogStats,
@@ -15,6 +16,7 @@ import { ShoppingCart, Package } from 'lucide-react';
 const statuses = ['全部', '有效', '价格波动', '即将过期', '待复核', '下架', '停用'];
 
 export default function CatalogManagementPage() {
+  const router = useRouter();
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [stats, setStats] = useState<CatalogStats | null>(null);
   const [status, setStatus] = useState('全部');
@@ -95,7 +97,7 @@ export default function CatalogManagementPage() {
             {loading ? (
               <TableSkeleton cols={7} rows={5} />
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-[#8a99ad]">暂无目录</td></tr>
+              <tr><td colSpan={7}><EmptyState title="暂无目录" description="通过手动录入或批量导入添加目录后即可查看" action={<button onClick={() => router.push('/mall-management/price-entry')} className="text-sm font-bold text-[#064ea2] hover:underline">前往价格录入 →</button>} /></td></tr>
             ) : filtered.map(item => (
               <tr key={item.id} className="border-t border-[#edf2f7] hover:bg-[#f8fafc] transition">
                 <td className="px-4 py-3 text-center font-mono text-xs text-[#123a6e]">{item.code}</td>

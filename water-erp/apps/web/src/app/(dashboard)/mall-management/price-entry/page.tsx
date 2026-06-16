@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { PageHero, SectionCard } from '@/components/workbench';
+import { useFormAutosave, useUnsavedGuard } from '@/lib/hooks/use-form-autosave';
 import { PenLine, Upload, Download, FileSpreadsheet } from 'lucide-react';
 import {
   createCatalogItem,
@@ -30,6 +31,20 @@ export default function PriceEntryPage() {
   const [importing, setImporting] = useState(false);
   const [serverError, setServerError] = useState('');
   const [errors, setErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
+  // ── 表单草稿 ──
+  const hasChanges = Object.entries(form).some(([k, v]) => v !== (INITIAL as any)[k]);
+  const { getDraft, clearDraft } = useFormAutosave('price-entry', form as unknown as Record<string, unknown>);
+  useUnsavedGuard(hasChanges);
+  const [draftRestored, setDraftRestored] = useState(false);
+  useEffect(() => {
+    if (draftRestored) return;
+    const draft = getDraft();
+    if (draft && draft.code) {
+      const restore = confirm('检测到未提交的表单草稿（保存于 ' + new Date(draft._savedAt).toLocaleTimeString('zh-CN') + '），是否恢复？');
+      if (restore) { setForm({ ...INITIAL, ...draft as unknown as FormFields }); }
+    }
+    setDraftRestored(true);
+  }, [getDraft, draftRestored]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const setField = (key: keyof FormFields, value: string | number | boolean | null) => {
@@ -54,6 +69,7 @@ export default function PriceEntryPage() {
     try {
       await createCatalogItem(form);
       toast.success('目录已新增');
+      clearDraft();
       setForm(INITIAL);
     } catch (err: any) {
       setServerError(err.message || '新增失败');

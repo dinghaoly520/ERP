@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { listCatalogAuditLogs, type CatalogAuditLog } from '@/lib/api/catalog-admin';
-import { DataToolbar, PageHero, SectionCard, StatusBadge } from '@/components/workbench';
+import { DataToolbar, PageHero, SectionCard, StatusBadge, EmptyState } from '@/components/workbench';
 import { FileText } from 'lucide-react';
 
 const labels: Record<string, string> = {
@@ -56,7 +56,7 @@ export default function MallManagementLogsPage() {
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-[#8a99ad]">暂无日志</td></tr>
+              <tr><td colSpan={5}><EmptyState title="暂无操作日志" description="商城目录的导入、改价、下架等操作记录将在这里展示" /></td></tr>
             ) : filtered.map(log => (
               <tr key={log.id} className="border-t border-[#edf2f7] align-top">
                 <td className="px-4 py-3 text-xs text-[#5a6d8a]">{log.createdAt.slice(0, 19).replace('T', ' ')}</td>
