@@ -167,7 +167,7 @@ export function MallAssistantEntry({
             animated
           />
           <div>
-            <h2 className="text-lg font-black text-[#123a6e]">水叮当 · 电子商城价格参谋</h2>
+            <h2 className="text-lg font-black text-[#2c5282]">水叮当 · 电子商城价格参谋</h2>
             <div
               className="group/tip relative mt-1 inline-block"
               onMouseEnter={() => setShowTooltip(true)}
@@ -186,7 +186,7 @@ export function MallAssistantEntry({
               {/* Tooltip */}
               {showTooltip && (
                 <div className="absolute bottom-full left-0 mb-2 z-50 min-w-[260px] rounded-xl border border-[#cdd9ea] bg-white px-4 py-3 shadow-[0_16px_44px_rgba(15,35,65,.14)]">
-                  <div className="mb-2 text-xs font-black text-[#123a6e]">当前上下文</div>
+                  <div className="mb-2 text-xs font-black text-[#2c5282]">当前上下文</div>
                   <ul className="space-y-1">
                     {contextDetails.map((line, i) => (
                       <li key={i} className="text-xs text-[#5a6d8a] leading-relaxed">{line}</li>
@@ -206,7 +206,7 @@ export function MallAssistantEntry({
               key={q}
               type="button"
               onClick={() => fillInput(q)}
-              className="rounded-full border border-[#cdd9ea] bg-white/70 px-3 py-1.5 text-xs font-bold text-[#5a6d8a] transition hover:border-[#064ea2] hover:bg-[#f3f8ff] hover:text-[#064ea2] active:scale-95"
+              className="rounded-full border border-[#cdd9ea] bg-white/70 px-3 py-1.5 text-xs font-bold text-[#5a6d8a] transition hover:border-[#5b9bd5] hover:bg-[#f3f8ff] hover:text-[#5b9bd5] active:scale-95"
             >
               {q}
             </button>
@@ -227,7 +227,7 @@ export function MallAssistantEntry({
               onChange={(event) => setEntryQuestion(event.target.value)}
               placeholder={currentPlaceholder}
               key={placeholderKey}
-              className="h-12 w-full rounded-xl border border-[#cdd9ea] bg-white py-0 pl-4 pr-10 text-sm outline-none transition placeholder:text-[#8a96aa] focus:border-[#064ea2] focus:shadow-[0_0_0_4px_rgba(6,78,162,.08)] animate-placeholder-in"
+              className="h-12 w-full rounded-xl border border-[#cdd9ea] bg-white py-0 pl-4 pr-10 text-sm outline-none transition placeholder:text-[#8a96aa] focus:border-[#5b9bd5] focus:shadow-[0_0_0_4px_rgba(6,78,162,.08)] animate-placeholder-in"
             />
             {hasInput && (
               <button
@@ -247,7 +247,7 @@ export function MallAssistantEntry({
             disabled={!hasInput}
             className={`h-12 rounded-xl px-5 text-sm font-black text-white transition active:scale-95 ${
               hasInput
-                ? 'bg-[#064ea2] animate-dingdang-glow hover:bg-[#043d82]'
+                ? 'bg-[#5b9bd5] animate-dingdang-glow hover:bg-[#4a89c4]'
                 : 'cursor-not-allowed bg-[#b3c7de] opacity-50'
             }`}
           >

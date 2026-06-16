@@ -177,7 +177,7 @@ export default function SupplierDetailPage() {
 
       {/* ═══ 顶部品牌横幅 ═══ */}
       <div className="bg-gradient-to-r from-[#064ea2] to-[#0891b2] rounded-xl p-5 mb-6 text-white flex items-center gap-5">
-        <img src="/assets/logo.jpg" alt="智慧水发 · 蜀水云采" className="w-12 h-12 rounded-xl object-cover border-2 border-white/30 flex-shrink-0" />
+        <img src="/assets/logo.png" alt="智慧水发 · 蜀水云采" className="w-12 h-12 rounded-xl object-cover border-2 border-white/30 flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold">{supplier.name}</h1>
@@ -434,7 +434,7 @@ export default function SupplierDetailPage() {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setActionModal(null)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
-              <img src="/assets/logo.jpg" alt="" className="w-8 h-8 rounded-lg" />
+              <img src="/assets/logo.png" alt="" className="w-8 h-8 rounded-lg" />
               <h3 className="text-lg font-bold text-[#18243a]">
                 {actionModal.type === 'approve' && '确认审核通过'}
                 {actionModal.type === 'reject' && '审核不通过'}
@@ -469,7 +469,7 @@ export default function SupplierDetailPage() {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setReviewModal(null)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
-              <img src="/assets/logo.jpg" alt="" className="w-8 h-8 rounded-lg" />
+              <img src="/assets/logo.png" alt="" className="w-8 h-8 rounded-lg" />
               <h3 className="text-lg font-bold text-[#18243a]">
                 {reviewModal.type === 'approve' ? '确认通过变更' : '拒绝变更'}
               </h3>
@@ -495,7 +495,7 @@ export default function SupplierDetailPage() {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setClassModal(false)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
-              <img src="/assets/logo.jpg" alt="" className="w-8 h-8 rounded-lg" />
+              <img src="/assets/logo.png" alt="" className="w-8 h-8 rounded-lg" />
               <h3 className="text-lg font-bold text-[#18243a]">分配供应商分类</h3>
             </div>
             <select value={selectedClassId} onChange={e => setSelectedClassId(e.target.value)}

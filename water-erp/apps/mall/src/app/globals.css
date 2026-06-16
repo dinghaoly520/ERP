@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --color-primary: #064ea2;
-  --color-primary-hover: #043d82;
+  --color-primary: #5b9bd5;
+  --color-primary-hover: #4a89c4;
   --color-bg: #f0f4fb;
   --color-surface: #fff;
   --color-border: #e5ecf4;
-  --color-text: #18243a;
+  --color-text: #334155;
   --color-text-secondary: #5a6d8a;
 }
 
@@ -37,8 +37,8 @@ body {
 
 /* 头像呼吸光晕 — 6s 缓慢周期，克制不抢眼 */
 @keyframes dingdang-breathe {
-  0%, 100% { box-shadow: 0 10px 26px rgba(6,78,162,.18); }
-  50%      { box-shadow: 0 12px 32px rgba(6,78,162,.32), 0 0 0 8px rgba(6,78,162,.06); }
+  0%, 100% { box-shadow: 0 10px 26px rgba(91,155,213,.18); }
+  50%      { box-shadow: 0 12px 32px rgba(91,155,213,.32), 0 0 0 8px rgba(91,155,213,.06); }
 }
 .animate-dingdang-breathe {
   animation: dingdang-breathe 6s ease-in-out infinite;
@@ -50,7 +50,7 @@ body {
 }
 .avatar-hover-lift:hover {
   transform: scale(1.08);
-  box-shadow: 0 14px 34px rgba(6,78,162,.28), 0 0 0 6px rgba(6,78,162,.08) !important;
+  box-shadow: 0 14px 34px rgba(91,155,213,.28), 0 0 0 6px rgba(91,155,213,.08) !important;
 }
 
 /* placeholder 淡入淡出 */
@@ -64,8 +64,8 @@ body {
 
 /* 发送按钮微光脉冲 — 有内容时低频闪烁 */
 @keyframes dingdang-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(6,78,162,.22); }
-  50%      { box-shadow: 0 0 0 6px rgba(6,78,162,.08); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(91,155,213,.22); }
+  50%      { box-shadow: 0 0 0 6px rgba(91,155,213,.08); }
 }
 .animate-dingdang-glow {
   animation: dingdang-glow 2.4s ease-in-out infinite;
@@ -74,14 +74,14 @@ body {
 /* 卡片悬停边框流光 */
 @keyframes dingdang-border-shift {
   0%   { border-color: #bfd4f4; }
-  100% { border-color: rgba(6,78,162,.35); }
+  100% { border-color: rgba(91,155,213,.35); }
 }
 .animate-border-glow {
   transition: border-color 0.5s ease, box-shadow 0.5s ease, transform 0.35s ease;
 }
 .animate-border-glow:hover {
-  border-color: rgba(6,78,162,.35);
-  box-shadow: 0 12px 38px rgba(6,78,162,.10), 0 0 0 1px rgba(6,78,162,.08);
+  border-color: rgba(91,155,213,.35);
+  box-shadow: 0 12px 38px rgba(91,155,213,.10), 0 0 0 1px rgba(91,155,213,.08);
   transform: translateY(-1px);
 }
 
@@ -90,6 +90,25 @@ body {
   0% { background-position: 0% center; }
   50% { background-position: 100% center; }
   100% { background-position: 0% center; }
+}
+
+/* Hero 标题渐变流光 —— 搜索模式 */
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.animate-gradient-shift {
+  animation: gradientShift 3s linear infinite;
+}
+
+/* Hero 标题渐变流光 —— AI 模式 */
+@keyframes gradientShiftAi {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.animate-gradient-shift-ai {
+  animation: gradientShiftAi 4s ease-in-out infinite;
 }
 
 /* ===== 共享交互动效 ===== */
@@ -138,9 +157,9 @@ body {
 
 /* 数据变化脉冲高亮 */
 @keyframes dataPulse {
-  0%   { box-shadow: 0 0 0 0 rgba(6,78,162,.3); }
-  50%  { box-shadow: 0 0 0 8px rgba(6,78,162,0); }
-  100% { box-shadow: 0 0 0 0 rgba(6,78,162,0); }
+  0%   { box-shadow: 0 0 0 0 rgba(91,155,213,.3); }
+  50%  { box-shadow: 0 0 0 8px rgba(91,155,213,0); }
+  100% { box-shadow: 0 0 0 0 rgba(91,155,213,0); }
 }
 .animate-data-pulse {
   animation: dataPulse 0.8s ease-out;
@@ -214,13 +233,9 @@ body {
   animation: skeletonShimmer 1.4s ease-in-out infinite;
 }
 
-/* ===== 全局焦点环（键盘专用） ===== */
+/* ===== 全局焦点环 —— 完全抑制，各组件自行处理交互反馈 ===== */
 *:focus { outline: none; }
-*:focus-visible {
-  outline: 2px solid #064ea2;
-  outline-offset: 2px;
-  border-radius: 4px;
-}
+*:focus-visible { outline: none; }
 
 /* ===== 全局 reduced-motion 降级 ===== */
 @media (prefers-reduced-motion: reduce) {

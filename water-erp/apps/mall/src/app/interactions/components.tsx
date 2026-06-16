@@ -65,14 +65,14 @@ export function EmptyState({
           {icon}
         </motion.span>
       )}
-      <h3 className="mt-4 text-base font-black text-[#18243a]">{title}</h3>
+      <h3 className="mt-4 text-base font-black text-[#334155]">{title}</h3>
       {description && (
         <p className="mt-2 max-w-md text-sm leading-relaxed text-[#8a96aa]">{description}</p>
       )}
       {action && (
         <button
           onClick={action.onClick}
-          className="mt-5 rounded-xl bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#043d82] active:scale-95"
+          className="mt-5 rounded-xl bg-[#5b9bd5] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#4a89c4] active:scale-95"
         >
           {action.label}
         </button>
@@ -180,7 +180,7 @@ export function MiniProgressBar({ className = '' }: { className?: string }) {
   return (
     <div className={`h-0.5 w-full overflow-hidden rounded-full bg-[#e1e9f4] ${className}`}>
       <motion.div
-        className="h-full rounded-full bg-[#064ea2]"
+        className="h-full rounded-full bg-[#5b9bd5]"
         initial={{ width: '0%' }}
         animate={{ width: '100%' }}
         transition={{ duration: 3, ease: 'easeInOut' }}

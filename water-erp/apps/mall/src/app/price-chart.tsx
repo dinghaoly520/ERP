@@ -175,7 +175,7 @@ export default function PriceChart({ points, referencePrice }: { points: PricePo
               x={(x(hoverIdx) > W / 2 ? x(hoverIdx) - 82 : x(hoverIdx) + 8) as number}
               y={Math.max(4, y(points[hoverIdx].price) - 22)}
               width="72" height="36" rx="6"
-              fill="#18243a" fillOpacity="0.9"
+              fill="#334155" fillOpacity="0.9"
             />
             <text
               x={(x(hoverIdx) > W / 2 ? x(hoverIdx) - 78 : x(hoverIdx) + 12) as number}

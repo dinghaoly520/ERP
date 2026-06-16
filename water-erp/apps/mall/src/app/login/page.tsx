@@ -118,7 +118,7 @@ export default function MallLoginPage() {
       <div className="lp-bg" aria-hidden="true" />
 
       <div className="lp-brand" aria-label="智慧水发 · 蜀水云采">
-        <img src="/assets/logo.jpg" alt="" className="lp-brand-mark" />
+        <img src="/assets/logo.png" alt="" className="lp-brand-mark" />
         <span className="lp-brand-name">智慧水发 · 蜀水云采</span>
       </div>
 

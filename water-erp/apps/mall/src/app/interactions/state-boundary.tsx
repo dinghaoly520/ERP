@@ -30,13 +30,13 @@ export function InlineError({
         <line x1="12" y1="9" x2="12" y2="13" />
         <line x1="12" y1="17" x2="12.01" y2="17" />
       </svg>
-      <p className="mt-3 text-sm font-bold text-[#18243a]">{message}</p>
+      <p className="mt-3 text-sm font-bold text-[#334155]">{message}</p>
       {detail && <p className="mt-1 text-xs text-[#8a96aa]">{detail}</p>}
       {onRetry && (
         <button
           onClick={onRetry}
           disabled={retrying}
-          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#043d82] active:scale-95 disabled:opacity-60"
+          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#5b9bd5] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#4a89c4] active:scale-95 disabled:opacity-60"
         >
           {retrying && (
             <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -137,7 +137,7 @@ export function StateBoundary({
 function DefaultLoading() {
   return (
     <div className="flex items-center justify-center py-12" role="status">
-      <svg className="h-6 w-6 animate-spin text-[#064ea2]" viewBox="0 0 24 24" fill="none">
+      <svg className="h-6 w-6 animate-spin text-[#5b9bd5]" viewBox="0 0 24 24" fill="none">
         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
         <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
       </svg>

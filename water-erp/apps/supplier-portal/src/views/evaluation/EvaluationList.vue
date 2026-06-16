@@ -103,6 +103,7 @@ const weakest = computed(()=>dimensionAverages.value[0]); const strongest = comp
       </div>
       <div v-else class="sp-empty" style="padding:40px"><div class="sp-empty-icon"><el-icon :size="24"><Star /></el-icon></div><div class="sp-empty-text">暂无评价记录</div><div class="sp-empty-desc">参与项目后，采购方将对您进行履约评价</div></div>
     </div>
+    </div>
     </template>
   </div>
 </template>

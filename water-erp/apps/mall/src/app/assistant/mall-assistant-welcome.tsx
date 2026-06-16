@@ -33,10 +33,10 @@ export function MallAssistantWelcome({ context, onAsk }: MallAssistantWelcomePro
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 text-center">
       <MallAssistantAvatar size="lg" expression="normal" />
-      <h3 className="mt-5 text-xl font-black text-[#123a6e]">你好，我是水叮当</h3>
+      <h3 className="mt-5 text-xl font-black text-[#2c5282]">你好，我是水叮当</h3>
       <p className="mt-2 max-w-md text-sm leading-7 text-[#5a6d8a]">我可以帮你研判目录价格、生成预算建议、比较供应商报价。</p>
       {contextHint && (
-        <p className="mt-3 max-w-lg rounded-full bg-[#eef6ff] px-4 py-2 text-xs font-semibold text-[#064ea2]">{contextHint}</p>
+        <p className="mt-3 max-w-lg rounded-full bg-[#eef6ff] px-4 py-2 text-xs font-semibold text-[#5b9bd5]">{contextHint}</p>
       )}
       <div className="mt-6 flex flex-wrap justify-center gap-2">
         {QUICK_QUESTIONS.map(question => (
@@ -44,7 +44,7 @@ export function MallAssistantWelcome({ context, onAsk }: MallAssistantWelcomePro
             key={question}
             type="button"
             onClick={() => onAsk(question)}
-            className="rounded-full border border-[#cdd9ea] bg-white px-4 py-2 text-sm font-bold text-[#064ea2] transition hover:border-[#064ea2] hover:bg-[#f3f8ff]"
+            className="rounded-full border border-[#cdd9ea] bg-white px-4 py-2 text-sm font-bold text-[#5b9bd5] transition hover:border-[#5b9bd5] hover:bg-[#f3f8ff]"
           >
             {question}
           </button>

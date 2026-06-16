@@ -1,15 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { fetchPublicAnnouncements, ANNOUNCEMENT_TABS, ANNOUNCEMENTS, type AnnouncementItem } from '@/lib/announcements';
 
-export default function AnnouncementsPage() {
+function AnnouncementsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [type, setType] = useState('');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [items, setItems] = useState<AnnouncementItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 同步 URL 参数到搜索框
+  useEffect(() => {
+    const q = searchParams.get('search') || '';
+    setSearch(q);
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,7 +40,7 @@ export default function AnnouncementsPage() {
 
   return (
     <div className="min-h-screen bg-[#f7f9fc]" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
-      {/* ═══ Header — 与首页一致 ═══ */}
+      {/* ═══ Header — 统合顶栏 ═══ */}
       <header className="sticky top-0 z-50 h-[88px] flex items-center bg-white border-b border-[#e5ecf4]">
         <div className="w-full px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
           <a href="/" className="flex items-center gap-3 shrink-0">
@@ -118,5 +125,17 @@ export default function AnnouncementsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AnnouncementsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#f7f9fc] flex items-center justify-center">
+        <div className="text-[#5a6d8a] font-semibold">加载中...</div>
+      </div>
+    }>
+      <AnnouncementsContent />
+    </Suspense>
   );
 }

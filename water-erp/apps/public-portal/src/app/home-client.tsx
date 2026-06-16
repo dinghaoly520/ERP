@@ -2,13 +2,14 @@
 
 import React from 'react';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { landingURL, portalURL } from '@water-erp/config';
 import { fetchPublicAnnouncements, type AnnouncementItem } from '@/lib/announcements';
 import GradientText from '@/components/GradientText';
+import { UnifiedHeader } from '@/components/unified-header';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    智慧水发·蜀水云采 — Landing Page
@@ -128,31 +129,12 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
 
   return (
     <div className="min-h-screen text-[#18243a] bg-white overflow-x-hidden" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
-      {/* ═══════════════════ Header ═══════════════════ */}
-      <header className="sticky top-0 z-50 h-[88px] flex items-center bg-white border-b border-[#e5ecf4]" style={{ willChange: 'transform' }}>
-        <div className="w-full px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
-          {/* Brand */}
-          <a href="/" className="flex items-center gap-3 shrink-0">
-            <img src="/assets/logo.jpg" alt="四川水发集团" className="h-14 w-auto object-contain" />
-            <div className="flex flex-col gap-0">
-              <strong className="text-[#123a6e] text-3xl tracking-[0.14em] leading-tight whitespace-nowrap" style={{ fontFamily: '"SimHei","黑体","Heiti SC","STHeiti",sans-serif', fontWeight: 900, textShadow: '0 0 1px #123a6e, 0 0 1px #123a6e' }}>四川水发集团</strong>
-              <small className="text-[7px] text-[#8a96aa] font-medium text-center whitespace-nowrap tracking-wide">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
-            </div>
-          </a>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 shrink-0">
-            <button onClick={() => setModal('login')}
-              className="h-11 px-6 border border-[#c5d3e8] text-[#064ea2] bg-white rounded-full text-sm font-semibold hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] hover:shadow-[0_2px_8px_rgba(6,78,162,.25)] active:scale-95 transition-all duration-200">
-              登录
-            </button>
-            <button onClick={() => setModal('register')}
-              className="h-11 px-6 bg-[#064ea2] text-white rounded-full text-sm font-semibold hover:bg-[#084fb0] hover:shadow-[0_2px_12px_rgba(6,78,162,.35)] active:scale-95 transition-all duration-200">
-              注册
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* ═══════════════════ Header · 统一顶栏 ═══════════════════ */}
+      <UnifiedHeader
+        announcements={fetchedAnnouncements}
+        onLoginClick={() => setModal('login')}
+        onRegisterClick={() => setModal('register')}
+      />
 
       <main className="bg-[#f5f7fa]">
         {/* ═══════════════════ Hero ═══════════════════ */}

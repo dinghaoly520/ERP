@@ -87,10 +87,10 @@ export function Tooltip({
             exit={{ opacity: 0, y: resolvedPos === 'top' ? 4 : -4 }}
             transition={{ duration: 0.15 }}
             style={{ pointerEvents: 'none' }}
-            className={`absolute left-1/2 z-[200] -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#18243a] px-2.5 py-1.5 text-xs font-semibold text-white shadow-lg ${resolvedPos === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}`}
+            className={`absolute left-1/2 z-[200] -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#334155] px-2.5 py-1.5 text-xs font-semibold text-white shadow-lg ${resolvedPos === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}`}
           >
             {content}
-            <span className={`absolute left-1/2 -translate-x-1/2 h-0 w-0 border-l-4 border-r-4 border-transparent ${resolvedPos === 'top' ? 'top-full -mt-px border-t-4 border-t-[#18243a]' : 'bottom-full -mb-px border-b-4 border-b-[#18243a]'}`} />
+            <span className={`absolute left-1/2 -translate-x-1/2 h-0 w-0 border-l-4 border-r-4 border-transparent ${resolvedPos === 'top' ? 'top-full -mt-px border-t-4 border-t-[#334155]' : 'bottom-full -mb-px border-b-4 border-b-[#334155]'}`} />
           </motion.span>
         )}
       </AnimatePresence>

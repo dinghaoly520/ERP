@@ -62,7 +62,7 @@ export function PageErrorFallback({ error, onRetry }: { error?: Error | null; on
         <line x1="12" y1="9" x2="12" y2="13" />
         <line x1="12" y1="17" x2="12.01" y2="17" />
       </svg>
-      <h2 className="mt-4 text-xl font-black text-[#18243a]">页面出错了</h2>
+      <h2 className="mt-4 text-xl font-black text-[#334155]">页面出错了</h2>
       <p className="mt-2 max-w-md text-sm text-[#8a96aa]">
         抱歉，页面遇到了问题。您可以尝试刷新页面，若问题持续请联系管理员。
       </p>
@@ -73,7 +73,7 @@ export function PageErrorFallback({ error, onRetry }: { error?: Error | null; on
       )}
       <button
         onClick={onRetry ?? (() => window.location.reload())}
-        className="mt-5 rounded-xl bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#043d82] active:scale-95"
+        className="mt-5 rounded-xl bg-[#5b9bd5] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#4a89c4] active:scale-95"
       >
         重新加载
       </button>

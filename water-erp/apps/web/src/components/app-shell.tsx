@@ -103,7 +103,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 flex-shrink-0 border-b border-[#dbe6f3] bg-white/86 backdrop-blur-xl">
         <div className="flex h-[68px] items-center justify-between px-6">
           <button onClick={() => router.push('/dashboard')} className="flex items-center gap-3 text-left">
-            <img src="/assets/logo.jpg" alt="智慧水发 · 蜀水云采" className="h-10 w-auto object-contain" />
+            <img src="/assets/logo.png" alt="智慧水发 · 蜀水云采" className="h-10 w-auto object-contain" />
             <div>
               <strong
                 className="block text-lg font-black tracking-[0.10em]"

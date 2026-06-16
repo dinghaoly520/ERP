@@ -130,6 +130,8 @@ ${toolList}
 
     // 安全网：剥离 Markdown 格式符号（无论模型是否遵守提示词规则）
     answer = this.stripMarkdown(answer);
+    // 安全网：剥离残留的英文字母/单词（无论模型是否遵守提示词规则）
+    answer = this.stripEnglish(answer);
 
     // Guard against empty answers — if all paths produced nothing, give a fallback
     if (!answer || !answer.trim()) {
@@ -410,6 +412,25 @@ ${toolList}
       // 有序列表 1. 2. ...
       .replace(/^\d+\.\s+/gm, '')
       // 清理多余空行
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  /**
+   * 安全网：剥离残留的英文字母和英文标点。
+   * 只保留中文字符、中文标点、数字、空格、换行和常用的中文分隔符。
+   */
+  private stripEnglish(text: string): string {
+    return text
+      // 保留：中文字符（Unicode 区块）、中文标点、数字、空格、换行、常用中文符号
+      .replace(/[^一-鿿　-〿＀-￯\d\s，、。；：？！""''（）《》【】…—·\-/％％％￥+]+/g, (match) => {
+        // 如果匹配到的纯英文/符号前后有中文，直接移除
+        // 保留纯数字和必要的分隔符
+        if (/^[\d\s.\-/：]+$/.test(match)) return match; // 数字日期等保留
+        return ''; // 其他英文直接删除
+      })
+      // 清理可能产生的多余空格
+      .replace(/[ \t]{2,}/g, ' ')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
   }
