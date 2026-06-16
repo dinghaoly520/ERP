@@ -7,3 +7,8 @@ export { PageHero } from './page-hero';
 export { SectionCard } from './section-card';
 export { Skeleton, TableSkeleton, MetricCardsSkeleton } from './skeleton';
 export { StatusBadge } from './status-badge';
+export { TrendChip } from './trend-chip';
+export { NotificationCenter } from './notification-center';
+export { DashboardTodoPanel } from './dashboard-todo-panel';
+export { AlertBanner } from './alert-banner';
+export type { AlertSeverity } from './alert-banner';
