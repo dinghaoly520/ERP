@@ -7,7 +7,7 @@ import { SUPPLIER_STATUS_LABEL, t } from './labels';
 export class SupplierTool implements AssistantTool {
   name = 'supplier';
   description =
-    '查询供应商列表/详情/状态统计/风险画像/待审核项。args: { action: "list"|"detail"|"stats"|"pending"|"risk", status?, supplierId?, limit? }';
+    '查询供应商列表/详情/状态统计/风险画像/待审核项/活跃排名。args: { action: "list"|"detail"|"stats"|"pending"|"risk"|"top", status?, supplierId?, limit?, topN? }';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -60,6 +60,32 @@ export class SupplierTool implements AssistantTool {
           })),
         }],
         data: pending,
+      };
+    }
+
+    if (action === 'top') {
+      // Top suppliers by bid participation count
+      const topN = Number(args.topN) || 10;
+      const suppliers = await this.prisma.supplier.findMany({
+        where: { status: 'APPROVED' },
+        take: topN,
+        select: {
+          id: true, name: true,
+          _count: { select: { bidSuppliers: true } },
+        },
+        orderBy: { bidSuppliers: { _count: 'desc' } },
+      });
+      return {
+        success: true,
+        cards: [{
+          type: 'table', title: `供应商投标参与度排名（Top ${topN}）`,
+          columns: [
+            { key: 'name', label: '供应商名称' },
+            { key: 'bidCount', label: '参与项目数' },
+          ],
+          rows: suppliers.map((s) => ({ name: s.name, bidCount: s._count.bidSuppliers })),
+          viz: { kind: 'ranking', value: 'bidCount', category: 'name', topN },
+        }],
       };
     }
 

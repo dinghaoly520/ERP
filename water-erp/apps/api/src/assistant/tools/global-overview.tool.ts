@@ -92,12 +92,21 @@ export class GlobalOverviewTool implements AssistantTool {
           rows: (() => {
             procurementByStatus.sort((a, b) => b._count - a._count);
             const procurementTotal = procurementByStatus.reduce((s, r) => s + r._count, 0);
-            return procurementByStatus.map((s) => ({
+            const budgetTotal = procurementByStatus.reduce((s, r) => s + (Number(r._sum?.budget) || 0), 0);
+            const rows = procurementByStatus.map((s) => ({
               status: t(PROCUREMENT_STATUS_LABEL, s.status),
               count: s._count,
               pct: procurementTotal > 0 ? ((s._count / procurementTotal) * 100).toFixed(1) + '%' : '-',
               budget: s._sum?.budget ? `¥${s._sum.budget}` : '-',
             }));
+            rows.push({
+              _total: true,
+              status: '合计',
+              count: procurementTotal,
+              pct: '100%',
+              budget: budgetTotal > 0 ? `¥${budgetTotal}` : '-',
+            });
+            return rows;
           })(),
           viz: { kind: 'distribution', category: 'status', value: 'count' },
         },
@@ -112,11 +121,13 @@ export class GlobalOverviewTool implements AssistantTool {
           rows: (() => {
             bidByStage.sort((a, b) => b._count - a._count);
             const bidTotal = bidByStage.reduce((s, r) => s + r._count, 0);
-            return bidByStage.map((s) => ({
+            const rows = bidByStage.map((s) => ({
               stage: t(STAGE_LABEL, s.stage),
               count: s._count,
               pct: bidTotal > 0 ? ((s._count / bidTotal) * 100).toFixed(1) + '%' : '-',
             }));
+            rows.push({ _total: true, stage: '合计', count: bidTotal, pct: '100%' });
+            return rows;
           })(),
           viz: { kind: 'distribution', category: 'stage', value: 'count' },
         },
@@ -131,11 +142,13 @@ export class GlobalOverviewTool implements AssistantTool {
           rows: (() => {
             supplierByStatus.sort((a, b) => b._count - a._count);
             const supplierTotal = supplierByStatus.reduce((s, r) => s + r._count, 0);
-            return supplierByStatus.map((s) => ({
+            const rows = supplierByStatus.map((s) => ({
               status: t(SUPPLIER_STATUS_LABEL, s.status),
               count: s._count,
               pct: supplierTotal > 0 ? ((s._count / supplierTotal) * 100).toFixed(1) + '%' : '-',
             }));
+            rows.push({ _total: true, status: '合计', count: supplierTotal, pct: '100%' });
+            return rows;
           })(),
           viz: { kind: 'distribution', category: 'status', value: 'count' },
         },
@@ -150,11 +163,13 @@ export class GlobalOverviewTool implements AssistantTool {
           rows: (() => {
             expertBySpecialty.sort((a, b) => b._count - a._count);
             const expertTotal = expertBySpecialty.reduce((s, r) => s + r._count, 0);
-            return expertBySpecialty.map((s) => ({
+            const rows = expertBySpecialty.map((s) => ({
               specialty: s.specialty,
               count: s._count,
               pct: expertTotal > 0 ? ((s._count / expertTotal) * 100).toFixed(1) + '%' : '-',
             }));
+            rows.push({ _total: true, specialty: '合计', count: expertTotal, pct: '100%' });
+            return rows;
           })(),
           viz: { kind: 'distribution', category: 'specialty', value: 'count' },
         },

@@ -7,7 +7,7 @@ import { STAGE_LABEL, t } from './labels';
 export class BidTool implements AssistantTool {
   name = 'bid';
   description =
-    '查询招标项目列表/详情/阶段统计/风险项目/进行中项目。args: { action: "list"|"detail"|"stats"|"risks"|"active", stage?, projectId?, limit? }';
+    '查询招标项目列表/详情/阶段统计/月度趋势/风险项目/进行中项目。args: { action: "list"|"detail"|"stats"|"monthly"|"risks"|"active", stage?, projectId?, limit? }';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -68,6 +68,33 @@ export class BidTool implements AssistantTool {
             })),
           },
         ],
+      };
+    }
+
+    if (action === 'monthly') {
+      // Get projects grouped by month for trend chart
+      const projects = await this.prisma.bidProject.findMany({
+        select: { createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      const monthMap = new Map<string, number>();
+      for (const p of projects) {
+        const key = p.createdAt.toISOString().slice(0, 7); // YYYY-MM
+        monthMap.set(key, (monthMap.get(key) || 0) + 1);
+      }
+      const rows = Array.from(monthMap.entries()).map(([month, count]) => ({ month, count }));
+      rows.sort((a, b) => a.month.localeCompare(b.month));
+      return {
+        success: true,
+        cards: [{
+          type: 'table', title: '月度招标项目数量趋势',
+          columns: [
+            { key: 'month', label: '月份' },
+            { key: 'count', label: '数量' },
+          ],
+          rows,
+          viz: { kind: 'trend', value: 'count', timeField: 'month' },
+        }],
       };
     }
 
