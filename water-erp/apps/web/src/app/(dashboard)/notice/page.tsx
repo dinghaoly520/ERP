@@ -71,7 +71,10 @@ export default function NoticePage() {
   useEffect(() => { load(); }, [load]);
   const totalPages = Math.ceil(data.total / 15);
   const remove = async (a: AnnouncementListItem) => {
-    if (!confirm('确认删除「' + a.title + '」？')) return;
+    const msg = a.type === 'BID_NOTICE' && a.status === 'PUBLISHED'
+      ? '确认删除「' + a.title + '」？删除公告不会删除关联的开评标项目。'
+      : '确认删除「' + a.title + '」？';
+    if (!confirm(msg)) return;
     // Optimistic removal + undo
     const prevItems = data.items;
     setData(d => ({ ...d, items: d.items.filter(x => x.id !== a.id) }));
@@ -278,7 +281,15 @@ function EditorModal({ announcement, onClose, onSaved }: { announcement: Announc
   const saveDraft = async () => { const id = await save('DRAFT'); if (id) { toast.success('草稿已保存'); await loadExtras(); } };
   const publish = async () => {
     if (type === 'BID_NOTICE' && !bidDoc) { if (!confirm('该招标公示尚未上传招标文件，确认直接发布？')) return; }
-    const id = await save('PUBLISHED'); if (id) { toast.success('已发布'); onSaved(); }
+    const id = await save('PUBLISHED');
+    if (id) {
+      if (type === 'BID_NOTICE') {
+        toast.success('已发布，开评标项目已同步创建');
+      } else {
+        toast.success('已发布');
+      }
+      onSaved();
+    }
   };
 
   return (
