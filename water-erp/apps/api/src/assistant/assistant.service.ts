@@ -405,7 +405,7 @@ ${toolList}
     return conversations.map((c) => ({
       id: c.id,
       title: c.title,
-      firstMessage: c.messages[0]?.content?.slice(0, 100) || '',
+      firstMessage: c.messages?.[0]?.content?.slice(0, 100) || '',
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
     }));

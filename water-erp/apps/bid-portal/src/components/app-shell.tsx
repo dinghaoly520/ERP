@@ -5,9 +5,14 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
 import {
-  LayoutDashboard, Unlock, Shield, ClipboardCheck, Archive, MessageSquare,
+  LayoutDashboard, Unlock, Shield, ClipboardCheck, Archive, MessageSquare, ListChecks,
   LogOut, PanelLeftClose, PanelLeft,
 } from 'lucide-react';
+import { portalURL } from '@water-erp/config';
+
+// 未登录/登出时跳转"在线开评标系统"统一登录入口（专家门户）。
+// 由 @water-erp/config 的 PORTS 派生，端口重分配后无需手动同步。
+const LOGIN_URL = portalURL('expert', '/login?forceLogin=1');
 
 interface NavItem {
   label: string;
@@ -18,6 +23,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: '开评标总览', caption: '项目总览', path: '/bid', icon: LayoutDashboard },
+  { label: '评分标准', caption: '评标办法编制', path: '/bid/standard', icon: ListChecks },
   { label: '开标大厅', caption: '开标管理', path: '/bid/open', icon: Unlock },
   { label: '监督端', caption: '过程监督', path: '/bid/supervise', icon: Shield },
   { label: '评标端', caption: '评审打分', path: '/bid/evaluate', icon: ClipboardCheck },
@@ -34,13 +40,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(u => { if (!u) window.location.href = 'http://localhost:3006/login?forceLogin=1'; else setUser(u); })
-      .catch(() => { window.location.href = 'http://localhost:3006/login?forceLogin=1'; });
+      .then(u => { if (!u) window.location.href = LOGIN_URL; else setUser(u); })
+      .catch(() => { window.location.href = LOGIN_URL; });
   }, []);
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    window.location.href = 'http://localhost:3006/login?forceLogin=1';
+    window.location.href = LOGIN_URL;
   };
 
   // /bid 是总览首页，需精确匹配；其余按前缀匹配

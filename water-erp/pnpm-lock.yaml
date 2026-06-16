@@ -211,9 +211,9 @@ importers:
       '@water-erp/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
+      '@water-erp/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       lucide-react:
         specifier: ^1.8.0
         version: 1.17.0(react@19.2.4)
@@ -232,9 +232,6 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      tailwind-merge:
-        specifier: ^3.5.0
-        version: 3.6.0
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4
@@ -263,9 +260,9 @@ importers:
       '@water-erp/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
+      '@water-erp/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       lucide-react:
         specifier: ^1.17.0
         version: 1.17.0(react@19.2.4)
@@ -281,9 +278,6 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      tailwind-merge:
-        specifier: ^3.3.0
-        version: 3.6.0
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4
@@ -306,6 +300,9 @@ importers:
 
   apps/mall:
     dependencies:
+      '@water-erp/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       framer-motion:
         specifier: ^12.40.0
         version: 12.40.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -486,7 +483,36 @@ importers:
 
   packages/shared: {}
 
-  packages/ui: {}
+  packages/ui:
+    dependencies:
+      '@water-erp/shared':
+        specifier: workspace:*
+        version: link:../shared
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      tailwind-merge:
+        specifier: ^3.3.0
+        version: 3.6.0
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.17)
+      lucide-react:
+        specifier: ^1.17.0
+        version: 1.17.0(react@19.2.4)
+      react:
+        specifier: 19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: 19.2.4
+        version: 19.2.4(react@19.2.4)
+      typescript:
+        specifier: ^5
+        version: 5.9.3
 
 packages:
 

@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { portalURL } from '@water-erp/config';
 import PriceChart from './price-chart';
 import { MallAssistantEntry } from './assistant/mall-assistant-entry';
 import type { MallAssistantContext } from './assistant/types';
@@ -526,7 +527,7 @@ export default function MallPage() {
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       >
         <div className="flex h-[68px] items-center justify-between px-6">
-          <a href="http://localhost:3002" className="flex items-center gap-3 no-underline">
+          <a href={portalURL('public')} className="flex items-center gap-3 no-underline">
             <img src="/assets/logo.jpg" alt="智慧水发 · 蜀水云采" className="h-10 w-auto object-contain" />
             <span>
               <strong

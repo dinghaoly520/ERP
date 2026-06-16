@@ -1,18 +1,21 @@
-import { Injectable, BadRequestException, Optional, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, Optional, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
-import { SubmitBidDto } from './dto/submit-bid.dto';
 import { CreateScoreDto } from './dto/create-score.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
+import { CreateScoreItemDto } from './dto/create-score-item.dto';
+import { UpdateScoreItemDto } from './dto/update-score-item.dto';
+import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { assertBidStageTransition, type BidStage } from './bid-state';
 import { computeArchiveDigest } from './bid-archive.digest';
 import { decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
+import { ScoreCategory } from '@prisma/client';
 
 @Injectable()
 export class BidService {
@@ -190,45 +193,6 @@ export class BidService {
 
   listSuppliers(projectId: string) {
     return this.prisma.bidSupplier.findMany({ where: { projectId } });
-  }
-
-  async submitBid(projectId: string, dto: SubmitBidDto) {
-    // 1. 项目存在且在投标阶段
-    const project = await this.prisma.bidProject.findUnique({
-      where: { id: projectId },
-      select: { stage: true, deadline: true },
-    });
-    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
-      throw new BadRequestException({ error: '项目不在投标阶段', code: 'PROJECT_NOT_ACCEPTING' });
-    }
-
-    // 2. 截止时间校验
-    if (project.deadline.getTime() < Date.now()) {
-      throw new BadRequestException({ error: '投标截止时间已过', code: 'DEADLINE_PASSED' });
-    }
-
-    // 3. 供应商不能重复投标
-    const existing = await this.prisma.bidSupplier.findFirst({
-      where: { projectId, supplierName: dto.supplierName },
-    });
-    if (existing && existing.submitStatus === '已提交') {
-      throw new BadRequestException({ error: '该供应商已提交投标', code: 'ALREADY_SUBMITTED' });
-    }
-
-    const receiptNo = `TB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
-    return this.prisma.bidSupplier.create({
-      data: {
-        projectId,
-        supplierName: dto.supplierName,
-        downloadStatus: '已下载',
-        submitStatus: '已提交',
-        encryptStatus: '密文已校验',
-        receiptNo,
-        decryptStatus: 'PENDING',
-        confirmStatus: 'PENDING',
-      },
-    });
   }
 
   startOpening(projectId: string, dto?: StartOpeningDto) {
@@ -423,6 +387,58 @@ export class BidService {
 
   listOpeningRecords(projectId: string) {
     return this.prisma.bidOpeningRecord.findMany({ where: { projectId } });
+  }
+
+  /**
+   * 主持人录入唱标信息（报价/工期/质量目标/保证金）。
+   * 解决"解密不落开标记录"的断链：解密仅做密文校验，唱标信息由主持人据解密内容补录，
+   * 据此生成/更新 BidOpeningRecord（confirmStatus=待供应商确认），供供应商确认或异议。
+   * 仅在 OPENING 阶段可录入；投标须已解密成功。按 bidSupplierId 幂等 upsert。
+   */
+  async enterOpeningRecord(projectId: string, dto: CreateOpeningRecordDto) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '唱标信息录入需在开标阶段进行', code: 'NOT_OPENING_STAGE' });
+    }
+
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { id: dto.bidSupplierId, projectId },
+      select: { id: true, supplierName: true, decryptStatus: true },
+    });
+    if (!bidSupplier) throw new BadRequestException({ error: '投标记录不存在', code: 'BID_SUPPLIER_NOT_FOUND' });
+    if (bidSupplier.decryptStatus !== 'SUCCESS') {
+      throw new BadRequestException({ error: '标书尚未解密成功，无法录入唱标信息', code: 'NOT_DECRYPTED' });
+    }
+
+    const payload = {
+      amount: dto.amount,
+      period: dto.period,
+      qualityTarget: dto.qualityTarget,
+      bondStatus: dto.bondStatus,
+      decryptResult: '解密成功',
+      confirmStatus: '待供应商确认',
+    };
+
+    const existing = await this.prisma.bidOpeningRecord.findFirst({
+      where: { projectId, bidSupplierId: bidSupplier.id },
+    });
+    const record = existing
+      ? await this.prisma.bidOpeningRecord.update({ where: { id: existing.id }, data: payload })
+      : await this.prisma.bidOpeningRecord.create({
+          data: { projectId, supplierName: bidSupplier.supplierName, bidSupplierId: bidSupplier.id, ...payload },
+        });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName,
+        action: '录入唱标信息', result: `报价 ${dto.amount} / 工期 ${dto.period}`, riskFlag: '无',
+      },
+    });
+    return record;
   }
 
   async resolveOpeningDispute(projectId: string, recordId: string, dto: { result: string; confirm: boolean }) {
@@ -623,6 +639,20 @@ export class BidService {
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'ARCHIVED');
 
+    // 防止"跳过评标"归档：存在已确认的可评供应商但未生成评标结果时阻断
+    const [confirmableCount, resultCount] = await Promise.all([
+      this.prisma.bidSupplier.count({
+        where: { projectId: id, decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: { not: '已撤回' } },
+      }),
+      this.prisma.bidEvaluationResult.count({ where: { projectId: id } }),
+    ]);
+    if (confirmableCount > 0 && resultCount === 0) {
+      throw new ConflictException({
+        error: '存在已确认的可评供应商，请先生成评标结果再归档',
+        code: 'EVALUATION_RESULTS_REQUIRED',
+      });
+    }
+
     // 自动补齐标准归档材料，避免“无可归档项”阻塞
     await this.ensureArchiveItems(id);
 
@@ -659,5 +689,122 @@ export class BidService {
       where: { id },
       include: { archiveItems: true },
     });
+  }
+
+  /* ── 评分标准编制（评标办法）──
+   * 评分项是评标段的前置条件：无评分项则专家无法打分、无法确认报告、无法生成结果。
+   * 一旦项目进入评标（专家已开始打分）或归档，评分标准锁定，禁止增删改。 */
+
+  /** 评分标准仅在 DOWNLOAD/SUBMIT/OPENING 阶段可编辑；EVALUATING/ARCHIVED 锁定（409）。 */
+  private assertScoreItemsEditable(stage: BidStage) {
+    if (stage === 'EVALUATING' || stage === 'ARCHIVED') {
+      throw new ConflictException({
+        error: '项目已进入评标或归档阶段，评分标准已锁定',
+        code: 'SCORE_ITEMS_LOCKED',
+      });
+    }
+  }
+
+  listScoreItems(projectId: string) {
+    return this.prisma.bidScoreItem.findMany({
+      where: { projectId },
+      orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async createScoreItem(projectId: string, dto: CreateScoreItemDto) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertScoreItemsEditable(project.stage);
+
+    const created = await this.prisma.bidScoreItem.create({
+      data: { projectId, category: dto.category, name: dto.name, maxScore: dto.maxScore },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '开标主持人', target: project.name,
+        action: '编制评分标准', result: `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`, riskFlag: '无',
+      },
+    });
+    return created;
+  }
+
+  async updateScoreItem(projectId: string, itemId: string, dto: UpdateScoreItemDto) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertScoreItemsEditable(project.stage);
+
+    const existing = await this.prisma.bidScoreItem.findFirst({ where: { id: itemId, projectId } });
+    if (!existing) throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
+
+    return this.prisma.bidScoreItem.update({
+      where: { id: itemId },
+      data: {
+        ...(dto.category && { category: dto.category }),
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.maxScore !== undefined && { maxScore: dto.maxScore }),
+      },
+    });
+  }
+
+  async deleteScoreItem(projectId: string, itemId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertScoreItemsEditable(project.stage);
+
+    const existing = await this.prisma.bidScoreItem.findFirst({ where: { id: itemId, projectId } });
+    if (!existing) throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '开标主持人', target: project.name,
+        action: '编制评分标准', result: `删除评分项「${existing.name}」`, riskFlag: '无',
+      },
+    });
+    return this.prisma.bidScoreItem.delete({ where: { id: itemId } });
+  }
+
+  /** 应用标准评分模板（幂等：按 name 去重，已存在的项不重复创建）。立即解除新建项目的评标死锁。 */
+  async applyScoreItemTemplate(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertScoreItemsEditable(project.stage);
+
+    const TEMPLATE: Array<{ category: ScoreCategory; name: string; maxScore: number }> = [
+      { category: ScoreCategory.QUALIFICATION, name: '资格性审查', maxScore: 0 },
+      { category: ScoreCategory.RESPONSIVE, name: '符合性审查', maxScore: 0 },
+      { category: ScoreCategory.BUSINESS, name: '商务评分', maxScore: 20 },
+      { category: ScoreCategory.TECHNICAL, name: '技术评分', maxScore: 50 },
+      { category: ScoreCategory.PRICE, name: '价格评分', maxScore: 30 },
+    ];
+
+    const existing = await this.prisma.bidScoreItem.findMany({ where: { projectId }, select: { name: true } });
+    const existingNames = new Set(existing.map(e => e.name));
+    const toCreate = TEMPLATE.filter(t => !existingNames.has(t.name));
+
+    if (toCreate.length > 0) {
+      await this.prisma.bidScoreItem.createMany({
+        data: toCreate.map(t => ({ projectId, category: t.category, name: t.name, maxScore: t.maxScore })),
+      });
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '开标主持人', target: project.name,
+          action: '编制评分标准', result: `应用标准模板，新增 ${toCreate.length} 项`, riskFlag: '无',
+        },
+      });
+    }
+    return this.listScoreItems(projectId);
   }
 }

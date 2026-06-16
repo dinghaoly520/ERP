@@ -6,8 +6,7 @@ import type { BidProjectDetail } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { Shield, AlertTriangle, Eye, Download } from 'lucide-react';
-import { PageHero } from '@/components/workbench/page-hero';
-import { SectionCard } from '@/components/workbench/section-card';
+import { PageHero, SectionCard } from '@water-erp/ui';
 import { toast } from 'sonner';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 

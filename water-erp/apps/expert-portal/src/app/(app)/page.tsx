@@ -6,9 +6,7 @@ import { BarChart3, Clock, CheckCircle, TrendingUp, Clipboard, ScrollText, Inbox
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { ExpertStatistics, ExpertProject, User } from '@/lib/types';
-import { PageHero } from '@/components/workbench/page-hero';
-import { SectionCard } from '@/components/workbench/section-card';
-import { MetricCard } from '@/components/workbench/metric-card';
+import { PageHero, SectionCard, MetricCard } from '@water-erp/ui';
 
 export default function ExpertDashboardPage() {
   const router = useRouter();

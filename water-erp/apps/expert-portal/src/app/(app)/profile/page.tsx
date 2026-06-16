@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation';
 import { UserCircle, Pencil, ClipboardList, CheckCircle, FileText } from 'lucide-react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { PageHero } from '@/components/workbench/page-hero';
-import { SectionCard } from '@/components/workbench/section-card';
-import { MetricCard } from '@/components/workbench/metric-card';
+import { PageHero, SectionCard, MetricCard } from '@water-erp/ui';
 
 interface ExpertProfile {
   id: string; username: string; displayName: string; email: string; role: string; isActive: boolean;

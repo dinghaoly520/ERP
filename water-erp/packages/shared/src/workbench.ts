@@ -1,3 +1,8 @@
+/**
+ * Workbench 共享工具与主题 —— 采购管理端 / 开评标管理端 / 专家门户共用。
+ * 原先各门户各存一份 `lib/workbench.ts`（字节相同），集中到此消除重复，避免分叉漂移。
+ */
+
 export const workbenchTheme = {
   primary: '#064ea2',
   primaryBright: '#0b63ce',

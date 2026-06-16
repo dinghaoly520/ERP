@@ -6,8 +6,7 @@ import { toast } from 'sonner';
 import { ClipboardList, ArrowLeft, Building2, FileText, MessageSquare, Calendar } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ExpertProject } from '@/lib/types';
-import { PageHero } from '@/components/workbench/page-hero';
-import { SectionCard } from '@/components/workbench/section-card';
+import { PageHero, SectionCard } from '@water-erp/ui';
 
 export default function ExpertProjectsPage() {
   const router = useRouter();

@@ -1,4 +1,5 @@
 import { Request } from 'express';
+import { PORTS, type AppName } from '@water-erp/config';
 
 /**
  * 每个门户独立登录会话 —— 浏览器在 localhost 上跨端口共享 cookie，
@@ -16,17 +17,20 @@ export const ROLE_PORTAL: Record<string, string> = {
   mall: 'mall',
 };
 
-/** 本地端口 → 门户名（与 @water-erp/config 的 PORTS 保持一致） */
-const PORT_TO_PORTAL: Record<string, string> = {
-  '3002': 'public',    // 信息门户
-  '3003': 'mall',      // 采购商城
-  '3004': 'supplier',  // 供应商门户
-  '3005': 'web',       // 采购管理工作台
-  '3006': 'expert',    // 专家门户
-  // bid-portal(:3007) 复用 token_web 命名空间：admin/bid_host 的 cookie 即 token_web（无 token_bid），
-  // 故从端口推断门户时把 3007 映射到 'web'，使无 X-Portal 头的客户端请求（如 AppShell 的 /auth/me）能读到 token_web。
-  '3007': 'web',
-};
+/**
+ * 本地端口 → 门户名。由 @water-erp/config 的 PORTS 派生，端口重分配后无需手动同步。
+ *
+ * 仅收录「持有登录 cookie」的门户：assistant(:3008) 公开无 cookie、api(:4001) 是服务端自身，故排除。
+ * bid-portal(:3007) 复用 token_web 命名空间（admin/bid_host 的 cookie 即 token_web，无 token_bid），
+ * 故把 3007 映射到 'web'，使无 X-Portal 头的客户端请求（如 AppShell 的 /auth/me）能读到 token_web。
+ */
+const COOKIE_PORTALS: AppName[] = ['public', 'mall', 'supplier', 'web', 'expert'];
+const PORT_TO_PORTAL: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  for (const name of COOKIE_PORTALS) map[String(PORTS[name])] = name;
+  map[String(PORTS.bid)] = 'web';
+  return map;
+})();
 
 /** 直接访问 API（如 Swagger）时使用的旧版 cookie 名 */
 export const LEGACY_COOKIE = 'token';

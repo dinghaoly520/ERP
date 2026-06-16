@@ -7,7 +7,7 @@ import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import { MessageSquare, Send, Plus, X } from 'lucide-react';
-import { PageHero } from '@/components/workbench/page-hero';
+import { PageHero } from '@water-erp/ui';
 
 export default function BidClarificationsPage() {
   const [projectId, setProjectId] = useState('');

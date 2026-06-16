@@ -1,18 +1,16 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { api } from '@/lib/api';
+import { api, enterOpeningRecord } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import StartOpeningDialog from '@/components/start-opening-dialog';
-import AdminSubmitBidDialog from '@/components/admin-submit-bid-dialog';
 import {
   Unlock, Clock, Shield, Play, CheckCircle, AlertTriangle, ChevronRight,
-  UserPlus, Volume2, VolumeX, Maximize, Minimize, Zap, Loader,
+  Volume2, VolumeX, Maximize, Minimize, Zap, Loader,
 } from 'lucide-react';
-import { PageHero } from '@/components/workbench/page-hero';
-import { SectionCard } from '@/components/workbench/section-card';
+import { PageHero, SectionCard } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { DECRYPT_LABEL, SEMANTIC } from '@water-erp/shared';
 import { toast } from 'sonner';
@@ -105,7 +103,6 @@ export default function BidOpenPage() {
   const [loading, setLoading] = useState(true);
   const [startOpen, setStartOpen] = useState(false);
   const [openingSubmission, setOpeningSubmission] = useState(false);
-  const [showAdminSubmit, setShowAdminSubmit] = useState(false);
 
   // ═══ New UX state ═══
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
@@ -115,6 +112,8 @@ export default function BidOpenPage() {
   const [inlineDispute, setInlineDispute] = useState<string | null>(null);
   const [disputeHandleResult, setDisputeHandleResult] = useState('');
   const [disputeHandleConfirm, setDisputeHandleConfirm] = useState<'confirmed' | 'rejected' | null>(null);
+  const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string } | null>(null);
+  const [recordDraft, setRecordDraft] = useState({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
   const seenDecrypt = useRef<Set<string>>(new Set());
   const prevDecryptStatuses = useRef<Map<string, string>>(new Map());
 
@@ -212,11 +211,24 @@ export default function BidOpenPage() {
     }
   };
 
-  const handleAdminSubmit = async (supplierName: string) => {
-    await api.post(`/bid/projects/${projectId}/suppliers`, { supplierName });
-    setShowAdminSubmit(false);
-    const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
-    setProject(updated);
+  const openRecordEntry = (s: { id: string; supplierName: string }) => {
+    setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName });
+    setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
+  };
+
+  const handleEnterRecord = async () => {
+    if (!recordEntry) return;
+    const { amount, period, qualityTarget, bondStatus } = recordDraft;
+    if (!amount.trim() || !period.trim() || !qualityTarget.trim() || !bondStatus.trim()) {
+      toast.error('请完整填写唱标信息'); return;
+    }
+    try {
+      await enterOpeningRecord(projectId, { bidSupplierId: recordEntry.bidSupplierId, amount, period, qualityTarget, bondStatus });
+      toast.success('唱标信息已录入，待供应商确认');
+      setRecordEntry(null);
+      const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
+      setProject(updated);
+    } catch (e: any) { toast.error(e.message || '录入失败'); }
   };
 
   // ═══ Data loading ═══
@@ -387,10 +399,6 @@ export default function BidOpenPage() {
                 <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : `全部解密 (${decryptProgress.pending})`}
               </button>
             )}
-            <button onClick={() => setShowAdminSubmit(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] px-4 py-2 text-xs font-bold text-[#064ea2] hover:bg-[#f8fafc] transition">
-              <UserPlus size={13} strokeWidth={1.5} /> 代供应商提交
-            </button>
           </div>
         </div>
 
@@ -464,13 +472,21 @@ export default function BidOpenPage() {
                     )}
                   </td>
                   <td className="px-5 py-3">
-                    {s.decryptStatus !== 'SUCCESS' && (
-                      <button onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] tracking-tight transition-colors disabled:opacity-50">
-                        {isDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
-                        {isDecrypting ? '解密中...' : '解密'}
-                      </button>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {s.decryptStatus !== 'SUCCESS' && (
+                        <button onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] tracking-tight transition-colors disabled:opacity-50">
+                          {isDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
+                          {isDecrypting ? '解密中...' : '解密'}
+                        </button>
+                      )}
+                      {isSuccess && project.stage === 'OPENING' && (
+                        <button onClick={() => openRecordEntry(s)}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] tracking-tight transition-colors">
+                          <Volume2 size={12} strokeWidth={1.5} /> 唱标
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -586,13 +602,43 @@ export default function BidOpenPage() {
           api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
         }}
       />
-      <AdminSubmitBidDialog
-        open={showAdminSubmit}
-        projectId={projectId}
-        projectStage={project.stage}
-        onClose={() => setShowAdminSubmit(false)}
-        onSubmit={handleAdminSubmit}
-      />
+      {/* ═══ 唱标信息录入（修复开标闭环：解密后主持人补录报价/工期/质量/保证金）═══ */}
+      {recordEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setRecordEntry(null)}>
+          <div className="w-[480px] rounded-2xl border border-[#dce6f3] bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-black text-[#18243a]">录入唱标信息 — {recordEntry.supplierName}</h3>
+            <p className="mt-1 text-xs text-[#8a96aa]">据解密后的投标内容填写，提交后生成开标记录（待供应商确认）。</p>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <label className="text-xs font-semibold text-[#5a6d8a]">
+                报价（元）
+                <input value={recordDraft.amount} onChange={e => setRecordDraft(d => ({ ...d, amount: e.target.value }))}
+                  className="workbench-input mt-1 w-full font-mono" placeholder="如 980000" />
+              </label>
+              <label className="text-xs font-semibold text-[#5a6d8a]">
+                工期
+                <input value={recordDraft.period} onChange={e => setRecordDraft(d => ({ ...d, period: e.target.value }))}
+                  className="workbench-input mt-1 w-full" placeholder="如 180天" />
+              </label>
+              <label className="text-xs font-semibold text-[#5a6d8a]">
+                质量目标
+                <input value={recordDraft.qualityTarget} onChange={e => setRecordDraft(d => ({ ...d, qualityTarget: e.target.value }))}
+                  className="workbench-input mt-1 w-full" placeholder="如 合格" />
+              </label>
+              <label className="text-xs font-semibold text-[#5a6d8a]">
+                保证金
+                <input value={recordDraft.bondStatus} onChange={e => setRecordDraft(d => ({ ...d, bondStatus: e.target.value }))}
+                  className="workbench-input mt-1 w-full" placeholder="如 已缴纳" />
+              </label>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setRecordEntry(null)}
+                className="rounded-xl border border-[#dce6f3] px-4 py-2 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc]">取消</button>
+              <button onClick={handleEnterRecord}
+                className="rounded-xl bg-[#064ea2] px-4 py-2 text-xs font-bold text-white hover:bg-[#054280]">提交唱标</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

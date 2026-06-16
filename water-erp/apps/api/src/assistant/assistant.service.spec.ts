@@ -140,19 +140,33 @@ describe('AssistantService', () => {
   });
 
   describe('listConversations', () => {
-    it('应返回最近 20 条会话', async () => {
+    it('应返回最近 20 条会话，含首条用户消息摘要', async () => {
       prisma.assistantConversation.findMany.mockResolvedValue([
-        { id: 'c1', title: '对话1', createdAt: new Date(), updatedAt: new Date() },
+        { id: 'c1', title: '对话1', createdAt: new Date(), updatedAt: new Date(), messages: [{ content: '你好，系统有多少采购项目' }] },
       ]);
 
       const result = await service.listConversations();
 
       expect(prisma.assistantConversation.findMany).toHaveBeenCalledWith({
         orderBy: { updatedAt: 'desc' },
-        select: { id: true, title: true, createdAt: true, updatedAt: true },
+        include: {
+          messages: { where: { role: 'user' }, orderBy: { createdAt: 'asc' }, take: 1, select: { content: true } },
+        },
         take: 20,
       });
       expect(result).toHaveLength(1);
+      expect(result[0].firstMessage).toBe('你好，系统有多少采购项目');
+    });
+
+    it('会话无 messages 关联时不报错（firstMessage 为空）', async () => {
+      prisma.assistantConversation.findMany.mockResolvedValue([
+        { id: 'c2', title: '空对话', createdAt: new Date(), updatedAt: new Date() },
+      ]);
+
+      const result = await service.listConversations();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].firstMessage).toBe('');
     });
   });
 
