@@ -128,9 +128,14 @@ export class AnnouncementService {
       announcement.status !== 'PUBLISHED' &&
       targetStatus === 'PUBLISHED';
 
-    const result = await this.prisma.announcement.update({
-      where: { id },
-      data: {
+    let result;
+    try {
+      result = await this.prisma.announcement.update({
+        where: {
+          id,
+          ...(isPublishTransition ? { status: { not: 'PUBLISHED' } } : {}),
+        },
+        data: {
         ...(dto.title !== undefined && { title: dto.title }),
         ...(dto.content !== undefined && { content: dto.content }),
         ...(dto.type !== undefined && { type: dto.type as any }),
@@ -143,6 +148,24 @@ export class AnnouncementService {
         ...(dto.metadata !== undefined && { metadata: dto.metadata as any }),
       },
     });
+    } catch (e: any) {
+      if (
+        isPublishTransition &&
+        e?.code === 'P2025' // Prisma "record not found" — status already changed by concurrent request
+      ) {
+        // Re-fetch and return the already-published version (another request won the race)
+        result = await this.prisma.announcement.findUnique({ where: { id } });
+        this.logger.warn(
+          `公告发布竞争：公告已由其他请求发布，跳过联动 (announcementId=${id})`,
+        );
+      } else {
+        throw e;
+      }
+    }
+
+    if (!result) {
+      throw new BadRequestException({ error: '公告不存在或已删除', code: 'NOT_FOUND' });
+    }
 
     // ── 联动：BID_NOTICE 首次发布 → 创建 BidProject ──
     if (isPublishTransition && this.bidService) {
@@ -224,6 +247,7 @@ export class AnnouncementService {
 
     try {
       await this.prisma.$transaction(async (tx) => {
+        // Cleanup linked project before delete
         if (project) {
           await tx.bidProject.update({
             where: { projectCode: relatedProjectCode! },
