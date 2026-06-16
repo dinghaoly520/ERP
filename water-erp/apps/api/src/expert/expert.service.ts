@@ -20,7 +20,7 @@ export class ExpertService {
 
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('用户不存在');
+    if (!user) throw new NotFoundException({ error: '用户不存在', code: 'USER_NOT_FOUND' });
     const expertRecords = await this.prisma.bidExpert.findMany({
       where: { userId },
       include: {
@@ -92,6 +92,9 @@ export class ExpertService {
   async getProject(userId: string, projectId: string) {
     const expertRecord = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
+      include: {
+        user: { include: { expertProfile: true } },
+      },
     });
     if (!expertRecord) throw new ForbiddenException('您不是该项目的评审专家');
 
@@ -114,7 +117,21 @@ export class ExpertService {
       include: { scoreItem: true },
     });
 
-    return { ...project, myExpertRecord: expertRecord, myScores };
+    // Compute masked phone from ExpertProfile
+    const phone = expertRecord.user?.expertProfile?.phone ?? null;
+    const phoneMasked = phone
+      ? phone.slice(0, 3) + '****' + phone.slice(-4)
+      : null;
+
+    const myExpertRecord = {
+      ...expertRecord,
+      phoneVerified: expertRecord.phoneVerified,
+      phoneMasked,
+      // Exclude nested user object from response
+      user: undefined,
+    };
+
+    return { ...project, myExpertRecord, myScores };
   }
 
   /* ── 身份核验 ── */
@@ -124,6 +141,13 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
+
+    if (!expert.phoneVerified) {
+      throw new ForbiddenException({
+        code: 'PHONE_NOT_VERIFIED',
+        error: '请先完成手机验证',
+      });
+    }
 
     this.gateway?.notifyExpertPresence(expert.projectId, {
       expertId: expert.id, expertName: '', milestone: 'signed_in', progressPercent: expert.progress ?? 0,
@@ -138,7 +162,7 @@ export class ExpertService {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
-    if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
     // 自动利益冲突检测：工作单位 vs 投标供应商名称（归一化匹配）
     const autoConflicts = await this.conflictService.detectForProject(projectId, userId);
@@ -164,15 +188,15 @@ export class ExpertService {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
-    if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     if (!expert.signedIn || !expert.avoidanceConfirmed) {
-      throw new ForbiddenException('请先完成身份核验和回避确认');
+      throw new ForbiddenException({ error: '请先完成身份核验和回避确认', code: 'VERIFICATION_REQUIRED' });
     }
 
     const supplier = await this.prisma.bidSupplier.findFirst({
       where: { id: supplierId, projectId },
     });
-    if (!supplier) throw new NotFoundException('供应商不存在');
+    if (!supplier) throw new NotFoundException({ error: '供应商不存在', code: 'SUPPLIER_NOT_FOUND' });
 
     // 读取供应商真实提交的投标文件；未解密成功时不暴露下载地址与指纹
     const canView = supplier.decryptStatus === 'SUCCESS';
@@ -221,7 +245,7 @@ export class ExpertService {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
-    if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
     // 使用 AI 引擎进行全方位分析
     return this.aiService.analyzeBid(projectId, supplierId, expert.id);
@@ -233,12 +257,12 @@ export class ExpertService {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
-    if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     if (expert.reportConfirmed) {
       throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
     }
     if (!expert.signedIn || !expert.avoidanceConfirmed) {
-      throw new ForbiddenException('请先完成身份核验和回避确认');
+      throw new ForbiddenException({ error: '请先完成身份核验和回避确认', code: 'VERIFICATION_REQUIRED' });
     }
     // P2: block scoring for suppliers the expert declared as conflicted
     const expertConflicts: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
@@ -294,25 +318,36 @@ export class ExpertService {
       }
     }
 
-    // 删除该专家该供应商的旧评分（允许修改）
-    await this.prisma.bidScoreRecord.deleteMany({
-      where: {
-        expertId: expert.id,
-        supplierId: { in: dto.scores.map(i => i.supplierId) },
-        scoreItemId: { in: dto.scores.map(i => i.scoreItemId) },
-      },
-    });
-
-    // 创建新评分
-    await this.prisma.bidScoreRecord.createMany({
-      data: dto.scores.map(item => ({
-        expertId: expert.id,
-        scoreItemId: item.scoreItemId,
-        supplierId: item.supplierId,
-        score: item.score,
-        reason: item.reason,
-      })),
-    });
+    // P0: deleteMany + createMany 用事务包裹，防止崩溃时评分永久丢失
+    await this.prisma.$transaction([
+      this.prisma.bidScoreRecord.deleteMany({
+        where: {
+          expertId: expert.id,
+          supplierId: { in: dto.scores.map(i => i.supplierId) },
+          scoreItemId: { in: dto.scores.map(i => i.scoreItemId) },
+        },
+      }),
+      // createMany 不能直接用于 transaction 数组（返回 count），改为批量 upsert
+      ...dto.scores.map(item =>
+        this.prisma.bidScoreRecord.upsert({
+          where: {
+            expertId_scoreItemId_supplierId: {
+              expertId: expert.id,
+              scoreItemId: item.scoreItemId,
+              supplierId: item.supplierId,
+            },
+          },
+          update: { score: item.score, reason: item.reason },
+          create: {
+            expertId: expert.id,
+            scoreItemId: item.scoreItemId,
+            supplierId: item.supplierId,
+            score: item.score,
+            reason: item.reason,
+          },
+        }),
+      ),
+    ]);
 
     // 查询新创建的记录用于返回值
     const records = await this.prisma.bidScoreRecord.findMany({
@@ -365,7 +400,7 @@ export class ExpertService {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
-    if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
     return this.prisma.bidScoreRecord.findMany({
       where: { expertId: expert.id },
@@ -379,7 +414,7 @@ export class ExpertService {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
-    if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
     return this.prisma.bidClarification.create({
       data: {
@@ -398,10 +433,10 @@ export class ExpertService {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
-    if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('用户不存在');
+    if (!user) throw new NotFoundException({ error: '用户不存在', code: 'USER_NOT_FOUND' });
 
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
@@ -410,7 +445,7 @@ export class ExpertService {
         scoreItems: { orderBy: [{ category: 'asc' }, { createdAt: 'asc' }] },
       },
     });
-    if (!project) throw new NotFoundException('项目不存在');
+    if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
 
     // Query score records and group by supplierId
     const scoreRecords = await this.prisma.bidScoreRecord.findMany({
@@ -469,8 +504,8 @@ export class ExpertService {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
-    if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
-    if (expert.progress < 100) throw new ForbiddenException('评分未完成，无法确认报告');
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (expert.progress < 100) throw new ForbiddenException({ error: '评分未完成，无法确认报告', code: 'SCORING_INCOMPLETE' });
 
     // 记录监督日志
     await this.prisma.bidSupervisionLog.create({
