@@ -147,7 +147,7 @@ export class AnnouncementService {
     // ── 联动：BID_NOTICE 首次发布 → 创建 BidProject ──
     if (isPublishTransition && this.bidService) {
       try {
-        const meta = (announcement.metadata || {}) as Record<string, any>;
+        const meta = (result.metadata || {}) as Record<string, any>;
         // 幂等检查：relatedProjectCode 是否已关联有效项目
         let existingProject = null;
         if (announcement.relatedProjectCode) {
