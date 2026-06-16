@@ -8,10 +8,7 @@ import { getDashboardStats } from '@/lib/api/bid';
 import type { BidProject } from '@/lib/types';
 import { Gavel, TrendingUp, ArrowRight, Plus, Search, Pencil, ChevronDown, ChevronRight } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
-import { PageHero } from '@/components/workbench/page-hero';
-import { SectionCard } from '@/components/workbench/section-card';
-import { MetricCard } from '@/components/workbench/metric-card';
-import { DataToolbar } from '@/components/workbench/data-toolbar';
+import { PageHero, SectionCard, MetricCard, DataToolbar } from '@water-erp/ui';
 import CreateProjectDialog from '@/components/create-project-dialog';
 import EditProjectDialog from '@/components/edit-project-dialog';
 

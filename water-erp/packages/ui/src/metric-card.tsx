@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { statusTone, type WorkbenchTone } from '@/lib/workbench';
+import { cn } from './utils';
+import { statusTone, type WorkbenchTone } from '@water-erp/shared';
 
 type IconLike = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 

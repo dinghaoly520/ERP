@@ -429,7 +429,7 @@ export class ExpertService {
         supplierName: supplier.supplierName,
         totalScore,
         categoryScores,
-        completed: records.length === project.scoreItems.length,
+        completed: project.scoreItems.length > 0 && records.length === project.scoreItems.length,
       };
     });
 

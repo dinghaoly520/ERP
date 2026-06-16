@@ -1,5 +1,7 @@
 # Expert Profile Seed Data Implementation Plan
 
+> ⚠️ **端口变更提示（2026-06-15 端口重分配）：** 本计划编写时 web/采购管理端端口为 3004；重分配后 web 已改为 **3005**（见 `packages/config/src/ports.ts`）。文中 `:3004/expert` 等链接请视为如今的 `:3005/expert`。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a full expert profile dataset for 13 expert directions × 5 experts each (65 total, one cost/造价 group only) and update `http://localhost:3004/expert` so the admin portal can browse, filter, and inspect the generated expert pool for later random extraction.

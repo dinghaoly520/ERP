@@ -26,7 +26,7 @@ Run workspace commands from `water-erp/`.
 | `apps/assistant` | Next.js 16 App Router | 3008 | 水叮当智能助手 — standalone AI assistant chat portal |
 | `packages/config` | TypeScript | — | Shared ports and role-to-portal routing (`@water-erp/config`) |
 | `packages/shared` | TypeScript | — | Shared domain types, labels, status maps, and brand constants (`@water-erp/shared`) |
-| `packages/ui` | package scaffold | — | Currently unused scaffold |
+| `packages/ui` | TypeScript + React 19 | — | Shared workbench UI components (`MetricCard`, `PageHero`, `SectionCard`, `StatusBadge`, `DataToolbar`) + `cn` helper (`@water-erp/ui`); depends on `@water-erp/shared`. Currently consumed by `bid-portal` and `expert-portal` (`web` keeps its own divergent workbench set; Vue `supplier-portal` cannot use it). **Tailwind v4:** consuming apps must add `@source "../../node_modules/@water-erp/ui";` to their `globals.css` or shared-component classes won't be generated. |
 
 Infrastructure is defined in `water-erp/docker-compose.yml`: PostgreSQL 16 (`localhost:5432`), Redis 7 (`localhost:6380` mapped to container `6379`), and MinIO (`localhost:9000`, console `localhost:9001`).
 
@@ -271,7 +271,7 @@ Important enums include `BidStage` (`DOWNLOAD → SUBMIT → OPENING → EVALUAT
 - The Vue supplier portal proxies `/api` to `http://localhost:4001` in `vite.config.ts` and aliases `@` to `src`.
 - Portal API clients use thin wrappers around `/api` and include credentials for cookie auth where applicable.
 - Next.js portals use React 19 and Tailwind CSS v4; supplier portal uses Vue 3, Vite, Element Plus, Pinia, and Vue Router.
-- Shared domain types/constants should be added to `packages/shared` when multiple portals need the same vocabulary; app-specific view models should remain local to the portal.
+- Shared domain types/constants should be added to `packages/shared` when multiple portals need the same vocabulary; app-specific view models should remain local to the portal. Shared React components used across multiple Next.js portals go in `packages/ui` (`@water-erp/ui`) — when adding a consuming portal, remember its `globals.css` needs the `@source "../../node_modules/@water-erp/ui";` line or the component classes silently won't compile.
 - **Design system:** `water-erp/.impeccable.md` is the design DNA — an industrial-precision aesthetic (1px hairline dividers, monospace numerals, layered navy→ice blues, Lucide 1.5px-stroke icons) with explicit anti-patterns (no rounded-card admin templates, no gradient buttons, no emoji-as-icons). Match it when building UI, and reuse the `@water-erp/shared` brand constants for color tokens.
 
 ### Prisma Migration Notes

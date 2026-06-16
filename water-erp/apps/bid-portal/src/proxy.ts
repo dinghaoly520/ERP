@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { portalURL } from '@water-erp/config';
 
 /**
  * 开标管理端（:3007）鉴权拦截。
@@ -8,14 +9,15 @@ import type { NextRequest } from 'next/server';
  * 这两类角色在后端 portal-cookie 中命名 cookie 为 token_web（与采购管理端同命名空间），
  * 因此本门户读 token_web、并以 X-Portal: web 调用后端鉴权。
  *
- * 未登录或 token 失效时，跳转"在线开评标系统"登录页（专家门户 :3006），
+ * 未登录或 token 失效时，跳转"在线开评标系统"登录页（专家门户），
  * 与公众门户"在线开评标系统"卡片入口保持一致。
  */
 const PORTAL = 'web';
 const COOKIE = `token_${PORTAL}`;
 const publicPaths = ['/api', '/assets'];
-// 专家门户登录页（:3006）是"在线开评标系统"的统一登录入口
-const LOGIN_URL = 'http://localhost:3006/login?forceLogin=1';
+// 专家门户登录页是"在线开评标系统"的统一登录入口；由 PORTS 派生，端口重分配后无需手动同步。
+// middleware 运行在服务端（无 window），portalURL 回落到 localhost，与原硬编码行为一致。
+const LOGIN_URL = portalURL('expert', '/login?forceLogin=1');
 
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

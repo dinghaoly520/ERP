@@ -1,5 +1,7 @@
 # 3004 Procurement Workbench Redesign Implementation Plan
 
+> ⚠️ **端口变更提示（2026-06-15 端口重分配）：** 本计划编写时 web/采购管理端端口为 3004；重分配后 web 已改为 **3005**（见 `packages/config/src/ports.ts`）。文中 `:3004` 均指如今的 `:3005`，标题/文件名中的 "3004" 为历史命名，保留以反映编写时状态。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement the approved shallow-light “运营指挥台” redesign for the 3004 procurement management web app.

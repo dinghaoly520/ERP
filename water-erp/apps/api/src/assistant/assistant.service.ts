@@ -221,6 +221,14 @@ ${toolList}
     // Strip every TOOL_CALL line from the narrative upfront
     answer = this.stripAllToolCalls(answer);
 
+    // 保证每次数据查询都产出图表：若模型未调用 global_overview，自动补一个
+    // global_overview 产出采购/招标/供应商/专家四张分布表 → 自动生成图表
+    const toolNames = new Set(toolCalls.map((t) => t.tool));
+    if (!toolNames.has('global_overview')) {
+      toolCalls.unshift({ tool: 'global_overview', args: {} });
+      this.logger.log('handleNormalChat: 自动补充 global_overview 调用以保证图表产出');
+    }
+
     // Execute each tool, aggregate cards + data
     const aggregatedData: Array<{ tool: string; data: unknown }> = [];
     let chartCount = 0;
@@ -460,7 +468,7 @@ ${toolList}
     return conversations.map((c) => ({
       id: c.id,
       title: c.title,
-      firstMessage: c.messages[0]?.content?.slice(0, 100) || '',
+      firstMessage: c.messages?.[0]?.content?.slice(0, 100) || '',
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
     }));

@@ -99,27 +99,24 @@ describe('Bid Lifecycle (e2e)', () => {
       .expect(409);
   });
 
-  it('管理员可提交投标（SUBMIT 阶段）', () => {
-    return request(app.getHttpServer())
-      .post(`/api/bid/projects/${createdProjectId}/suppliers`)
-      .set('Cookie', adminCookie)
-      .set('X-Portal', 'web')
-      .send({ supplierName: 'E2E测试供应商' })
-      .expect(201)
-      .expect(res => {
-        expect(res.body).toHaveProperty('id');
-        expect(res.body.submitStatus).toBe('已提交');
-        createdSupplierId = res.body.id;
-      });
-  });
+  it('供应商通过供应商门户提交投标（SUBMIT 阶段，真实路径）', async () => {
+    // 真实投标统一走供应商门户（管理员代投路径已移除）
+    await request(app.getHttpServer())
+      .post(`/api/supplier-portal/bid-submissions/${createdProjectId}/submit`)
+      .set('Cookie', supplierCookie)
+      .set('X-Portal', 'supplier')
+      .send({ bidPrice: '100' })
+      .expect(201);
 
-  it('重复提交同一供应商返回 400', () => {
-    return request(app.getHttpServer())
-      .post(`/api/bid/projects/${createdProjectId}/suppliers`)
+    // 投标后管理端可见该供应商，取 BidSupplier.id 供后续解密
+    const res = await request(app.getHttpServer())
+      .get(`/api/bid/projects/${createdProjectId}/suppliers`)
       .set('Cookie', adminCookie)
       .set('X-Portal', 'web')
-      .send({ supplierName: 'E2E测试供应商' })
-      .expect(400);
+      .expect(200);
+    const supplier = (res.body as any[]).find((s: any) => s.supplierName);
+    expect(supplier).toBeDefined();
+    createdSupplierId = supplier.id;
   });
 
   it('管理员可启动开标 SUBMIT → OPENING', () => {

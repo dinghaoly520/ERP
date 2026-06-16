@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from './utils';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type IconLike = any;

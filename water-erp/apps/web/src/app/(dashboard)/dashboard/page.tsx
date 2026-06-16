@@ -7,7 +7,7 @@ import type { DashboardContext } from '@/components/workbench';
 import { api } from '@/lib/api';
 import { getCatalogStats, type CatalogStats } from '@/lib/api/catalog-admin';
 import type { User } from '@/lib/types';
-import { numberOrZero } from '@/lib/workbench';
+import { numberOrZero } from '@water-erp/shared';
 import {
   Building2, Megaphone, ShoppingCart, UsersRound,
 } from 'lucide-react';

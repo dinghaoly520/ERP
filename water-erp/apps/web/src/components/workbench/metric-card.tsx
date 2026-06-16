@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { statusTone, type WorkbenchTone } from '@/lib/workbench';
+import { statusTone, type WorkbenchTone } from '@water-erp/shared';
 
 interface MetricCardProps {
   label: string;

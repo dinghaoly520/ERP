@@ -8,8 +8,7 @@ import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import { STATUS_COLOR } from '@water-erp/shared';
 import { Archive, CheckCircle, AlertTriangle, Package, Download } from 'lucide-react';
-import { PageHero } from '@/components/workbench/page-hero';
-import { SectionCard } from '@/components/workbench/section-card';
+import { PageHero, SectionCard } from '@water-erp/ui';
 
 export default function BidArchivePage() {
   const [projectId, setProjectId] = useState('');
