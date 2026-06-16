@@ -198,64 +198,52 @@ ${toolList}
     const res = await this.model.chat(messages);
     let answer = res.text;
 
-    // Check for TOOL_CALL in model response
-    const toolCallMatch = answer.match(/TOOL_CALL:\s*(\{[\s\S]*?"tool"[\s\S]*?\})/);
-    if (!toolCallMatch) return answer;
+    // Parse ALL TOOL_CALL directives (model may emit several for comprehensive questions)
+    const toolCalls = this.parseAllToolCalls(answer);
+    if (toolCalls.length === 0) return answer;
 
-    // Parse JSON — extend if braces unbalanced
-    let jsonStr = toolCallMatch[1];
-    let braceCount = 0;
-    for (const ch of jsonStr) {
-      if (ch === '{') braceCount++;
-      if (ch === '}') braceCount--;
-    }
-    if (braceCount !== 0) {
-      const startIdx = answer.indexOf(jsonStr);
-      let endIdx = startIdx + jsonStr.length;
-      while (braceCount > 0 && endIdx < answer.length) {
-        if (answer[endIdx] === '{') braceCount++;
-        if (answer[endIdx] === '}') braceCount--;
-        endIdx++;
-      }
-      jsonStr = answer.slice(startIdx, endIdx);
-    }
+    // Strip every TOOL_CALL line from the narrative upfront
+    answer = this.stripAllToolCalls(answer);
 
-    let toolCall: { tool: string; args: Record<string, unknown> };
-    try {
-      toolCall = JSON.parse(jsonStr);
-    } catch {
-      return answer; // parse failed, return raw
-    }
-
-    const tool = this.toolRegistry.get(toolCall.tool);
-    if (!tool) return answer;
-
-    const result = await tool.execute(toolCall.args || {});
-    if (result.success && result.cards) {
-      for (const c of result.cards) {
-        cards.push(c);
-        // 若 table 带 viz 声明，生成对应图表
-        if (c.type === 'table' && (c as Record<string, unknown>).viz) {
-          const tc = c as Record<string, unknown>;
-          const chartCard = mapToChart({
-            title: c.title,
-            columns: tc.columns as Array<{ key: string; label: string }>,
-            rows: tc.rows as Array<Record<string, unknown>>,
-            viz: tc.viz as Parameters<typeof mapToChart>[0]['viz'],
-          });
-          if (chartCard) cards.push(chartCard);
+    // Execute each tool, aggregate cards + data
+    const aggregatedData: Array<{ tool: string; data: unknown }> = [];
+    for (const tc of toolCalls) {
+      const tool = this.toolRegistry.get(tc.tool);
+      if (!tool) continue;
+      const result = await tool.execute(tc.args || {});
+      if (result.success && result.cards) {
+        for (const c of result.cards) {
+          cards.push(c);
+          // 若 table 带 viz 声明，生成对应图表
+          if (c.type === 'table' && (c as Record<string, unknown>).viz) {
+            const row = c as Record<string, unknown>;
+            const chartCard = mapToChart({
+              title: c.title,
+              columns: row.columns as Array<{ key: string; label: string }>,
+              rows: row.rows as Array<Record<string, unknown>>,
+              viz: row.viz as Parameters<typeof mapToChart>[0]['viz'],
+            });
+            if (chartCard) cards.push(chartCard);
+          }
         }
       }
-    }
-    if (result.citations) {
-      for (const c of result.citations) citations.push(c);
+      if (result.citations) {
+        for (const c of result.citations) citations.push(c);
+      }
+      if (result.success) {
+        aggregatedData.push({ tool: tc.tool, data: result.data || result });
+      }
     }
 
-    // Second model call to synthesize
-    const toolDataStr = JSON.stringify(result.data || result).slice(0, 3000);
-    const toolSummary = result.success
-      ? `查询成功。以下是工具返回的真实数据（JSON格式，请直接引用其中的项目名称、金额、日期等具体信息）：\n\`\`\`json\n${toolDataStr}\n\`\`\`\n\n请基于以上真实数据，按系统提示词的总-分结构输出回答。必须引用具体的项目名称、金额数字、时间节点。注意：数据中的英文状态码（如OPENING、PENDING）仅供你理解使用，在回答中必须转换为中文（如"开标阶段""待审核"），严禁在回答中输出英文代码。不要写空泛的概括。`
-      : `工具调用失败: ${result.error}`;
+    if (aggregatedData.length === 0) {
+      // All tool calls failed — return stripped narrative or fallback
+      return answer.trim() ||
+        '抱歉，数据查询失败，请稍后重试或换一种方式提问。';
+    }
+
+    // Single second model call with ALL aggregated data
+    const toolDataStr = JSON.stringify(aggregatedData).slice(0, 4000);
+    const toolSummary = `以下是 ${aggregatedData.length} 个工具返回的真实数据（JSON格式），请综合引用其中的项目名称、金额、日期等具体信息：\n\`\`\`json\n${toolDataStr}\n\`\`\`\n\n请基于以上真实数据，按系统提示词的总-分结构输出回答。必须引用具体的项目名称、金额数字、时间节点。注意：数据中的英文状态码（如OPENING、PENDING）仅供你理解使用，在回答中必须转换为中文（如"开标阶段""待审核"），严禁在回答中输出英文代码。不要写空泛的概括。`;
 
     try {
       const followUp = await this.model.chat([
@@ -263,30 +251,114 @@ ${toolList}
         { role: 'assistant' as const, content: answer },
         {
           role: 'user' as const,
-          content: `工具 ${toolCall.tool} 返回了数据。${toolSummary}`,
+          content: toolSummary,
         },
       ]);
       const followUpText = followUp.text?.trim();
-      if (!followUpText) {
-        // Second call returned empty — strip TOOL_CALL and keep the rest
-        answer = answer.replace(/TOOL_CALL:\s*\{[\s\S]*?\}\s*/g, '').trim();
-        if (!answer) {
-          answer = '抱歉，数据查询成功但 AI 未能生成分析。请重新提问或简化问题。';
-        }
-      } else {
+      if (followUpText) {
         answer = followUpText;
       }
+      // If empty, keep the stripped narrative (answer already had TOOL_CALL removed)
     } catch {
-      // Second call failed — strip TOOL_CALL and keep original narrative
-      const stripped = answer.replace(/TOOL_CALL:\s*\{[\s\S]*?\}\s*/g, '').trim();
-      if (stripped) {
-        answer = stripped;
-      } else {
-        answer = '抱歉，AI 服务在处理您的请求时出现异常，请稍后重试或换一种方式提问。';
-      }
+      // Second call failed — keep stripped narrative
     }
 
-    return answer;
+    // Safety net: strip any TOOL_CALL that may have leaked into the final answer
+    answer = this.stripAllToolCalls(answer).trim();
+    return answer ||
+      '抱歉，AI 未能生成有效回复，请重新提问。';
+  }
+
+  /**
+   * Parse all TOOL_CALL directives from text, with balanced-brace JSON extraction.
+   */
+  private parseAllToolCalls(text: string): Array<{ tool: string; args: Record<string, unknown> }> {
+    const results: Array<{ tool: string; args: Record<string, unknown> }> = [];
+    const marker = 'TOOL_CALL:';
+    let searchFrom = 0;
+
+    while (true) {
+      const idx = text.indexOf(marker, searchFrom);
+      if (idx === -1) break;
+
+      // Find the opening brace after the marker
+      let i = idx + marker.length;
+      while (i < text.length && text[i] !== '{') i++;
+      if (i >= text.length) break;
+
+      // Read balanced braces
+      const start = i;
+      let depth = 0;
+      let inStr = false;
+      let escape = false;
+      let end = -1;
+      for (; i < text.length; i++) {
+        const ch = text[i];
+        if (escape) { escape = false; continue; }
+        if (ch === '\\') { escape = true; continue; }
+        if (ch === '"') { inStr = !inStr; continue; }
+        if (inStr) continue;
+        if (ch === '{') depth++;
+        else if (ch === '}') {
+          depth--;
+          if (depth === 0) { end = i; break; }
+        }
+      }
+
+      if (end === -1) break; // unbalanced — stop
+
+      const jsonStr = text.slice(start, end + 1);
+      try {
+        const parsed = JSON.parse(jsonStr);
+        if (parsed && typeof parsed.tool === 'string') {
+          results.push({ tool: parsed.tool, args: parsed.args || {} });
+        }
+      } catch {
+        // skip malformed
+      }
+      searchFrom = end + 1;
+    }
+
+    return results;
+  }
+
+  /**
+   * Remove all TOOL_CALL directives (with balanced braces) from text.
+   */
+  private stripAllToolCalls(text: string): string {
+    const calls = this.parseAllToolCalls(text);
+    let result = text;
+    // Re-scan and remove each TOOL_CALL:{...} block by balanced braces
+    const marker = 'TOOL_CALL:';
+    let output = '';
+    let i = 0;
+    while (i < result.length) {
+      const idx = result.indexOf(marker, i);
+      if (idx === -1) {
+        output += result.slice(i);
+        break;
+      }
+      output += result.slice(i, idx);
+      // Skip past the balanced JSON
+      let j = idx + marker.length;
+      while (j < result.length && result[j] !== '{') j++;
+      if (j >= result.length) { output += result.slice(idx); break; }
+      let depth = 0;
+      let inStr = false;
+      let escape = false;
+      for (; j < result.length; j++) {
+        const ch = result[j];
+        if (escape) { escape = false; continue; }
+        if (ch === '\\') { escape = true; continue; }
+        if (ch === '"') { inStr = !inStr; continue; }
+        if (inStr) continue;
+        if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) { j++; break; } }
+      }
+      i = j;
+    }
+    // Collapse extra blank lines left behind
+    return output.replace(/\n{3,}/g, '\n\n');
   }
 
   async getQuickStats() {
