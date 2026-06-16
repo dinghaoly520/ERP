@@ -39,7 +39,7 @@ function tokenFromHandshake(socket: Socket): string | undefined {
 
 @WebSocketGateway({
   namespace: 'bid',
-  cors: { origin: '*', credentials: true },
+  cors: { origin: true, credentials: true },
 })
 @Injectable()
 export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
