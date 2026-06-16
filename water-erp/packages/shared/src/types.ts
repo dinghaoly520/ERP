@@ -56,6 +56,7 @@ export interface BidExpert {
   progress: number;
   totalScore: number;
   reportConfirmed?: boolean;
+  conflictedSupplierIds?: string[];
   reportConfirmedAt?: string | null;
 }
 

@@ -7,7 +7,7 @@ import {
   getSupplierList, getEvaluationStats, getSupplierEvaluations, createEvaluation,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierEvaluation, SupplierListResponse } from '@/lib/types';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton } from '@/components/workbench';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton, EmptyState } from '@/components/workbench';
 import { CheckCircle2, Search, X } from 'lucide-react';
 
 const DIMENSIONS: { key: keyof Pick<SupplierEvaluation, 'completenessScore' | 'responsivenessScore' | 'cooperationScore' | 'complianceScore' | 'overallScore'>; label: string; hint: string; max: number }[] = [
@@ -117,7 +117,7 @@ export default function SupplierEvaluationPage() {
             {loading ? (
               <TableSkeleton cols={4} rows={5} />
             ) : data.items.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-16 text-center text-[#8a99ad]">暂无供应商</td></tr>
+              <tr><td colSpan={4}><EmptyState title="暂无已入库供应商" description="供应商通过审核后即可进行履约评价" action={<button onClick={() => router.push('/supplier/repository')} className="text-sm font-bold text-[#064ea2] hover:underline">前往供应商库 →</button>} /></td></tr>
             ) : data.items.map((s: Supplier) => (
               <tr key={s.id} className="row-clickable" onClick={() => openEvalModal(s)}>
                 <td className="px-4 py-3">

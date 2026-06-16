@@ -46,7 +46,14 @@ export default function ExpertDetailPage() {
     ...(expertAlerts.overloaded ? [{ severity: 'orange' as const, title: '评审负荷过载', detail: `同时参与 ${expertAlerts.activeProjectCount} 个未归档项目，超过 3 个上限` }] : []),
   ];
 
-  if (loading) return <div className="py-24 text-center text-[13px] text-[#94a3b8]">加载中...</div>;
+  if (loading) return (
+    <div className="space-y-5 animate-pulse">
+      <div className="skeleton h-5 w-24 rounded" />
+      <div className="space-y-2"><div className="skeleton h-7 w-48 rounded" /><div className="skeleton h-3 w-32 rounded" /></div>
+      <div className="grid grid-cols-4 border border-[#e5ecf4] rounded-xl overflow-hidden bg-white">{[1,2,3,4].map(i => <div key={i} className="p-4 border-r last:border-r-0 border-[#e9eef4]"><div className="skeleton h-2 w-12 mb-2" /><div className="skeleton h-5 w-24" /></div>)}</div>
+      <div className="grid grid-cols-3 border border-[#e5ecf4] rounded-xl overflow-hidden bg-white">{[1,2,3].map(i => <div key={i} className="p-4 border-r last:border-r-0 border-[#e9eef4]"><div className="skeleton h-2 w-16 mb-2" /><div className="skeleton h-8 w-12" /></div>)}</div>
+    </div>
+  );
   if (!expert) return <div className="py-24 text-center text-[13px] text-[#94a3b8]">专家不存在</div>;
 
   return (

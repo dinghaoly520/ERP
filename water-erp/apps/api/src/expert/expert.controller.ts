@@ -48,8 +48,8 @@ export class ExpertController {
   }
 
   @Post('projects/:projectId/avoidance')
-  confirmAvoidance(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
-    return this.expertService.confirmAvoidance(userId, projectId);
+  confirmAvoidance(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Body() body?: { conflictedSupplierIds?: string[] }) {
+    return this.expertService.confirmAvoidance(userId, projectId, body?.conflictedSupplierIds);
   }
 
   /* ── 标书解密获取 ── */

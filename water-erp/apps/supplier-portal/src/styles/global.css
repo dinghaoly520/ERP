@@ -521,3 +521,29 @@ a:hover { color: var(--sp-primary-light); }
   .sp-stat-cell { border-right: none; border-bottom: 1px solid var(--sp-border-light); }
   .sp-stat-cell:last-child { border-bottom: none; }
 }
+
+/* ─── Skeleton shimmer utility ─── */
+.sp-skel {
+  background: linear-gradient(90deg, var(--sp-gray-100) 25%, var(--sp-gray-50) 50%, var(--sp-gray-100) 75%);
+  background-size: 200% 100%;
+  animation: spShimmer 1.5s infinite;
+  border-radius: 6px;
+  display: block;
+}
+@keyframes spShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-skel { animation: none; }
+}
+
+/* ─── Error recovery block ─── */
+.sp-error-block {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 64px 24px; text-align: center;
+  background: var(--sp-surface); border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md);
+}
+.sp-error-icon { font-size: 40px; margin-bottom: 16px; opacity: 0.6; }
+.sp-error-text { font-size: 16px; font-weight: 800; color: var(--sp-gray-700); margin-bottom: 8px; }
+.sp-error-desc { font-size: 13px; color: var(--sp-gray-500); margin-bottom: 20px; max-width: 320px; }

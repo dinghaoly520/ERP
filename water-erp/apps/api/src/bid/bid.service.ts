@@ -6,6 +6,7 @@ import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { CreateScoreDto } from './dto/create-score.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
+import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
@@ -584,7 +585,20 @@ export class BidService {
   }
 
   listClarifications(projectId: string) {
-    return this.prisma.bidClarification.findMany({ where: { projectId } });
+    return this.prisma.bidClarification.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } });
+  }
+
+  async replyClarification(projectId: string, cid: string, dto: ReplyClarificationDto) {
+    const reply = dto.reply;
+    const status = dto.status || '已回复';
+    const result = await this.prisma.bidClarification.update({
+      where: { id: cid }, data: { reply, status },
+    });
+    // P2: emit real-time reply to project room
+    this.gateway?.notifyClarificationReplied(projectId, {
+      id: cid, replier: 'host', replyPreview: reply.slice(0, 60),
+    });
+    return result;
   }
 
   createClarification(projectId: string, dto: CreateClarificationDto) {

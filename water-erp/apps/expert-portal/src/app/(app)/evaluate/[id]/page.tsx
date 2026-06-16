@@ -42,6 +42,29 @@ export default function ExpertEvaluatePage() {
 
   const [confidentialityAgreed, setConfidentialityAgreed] = useState(false);
   const [disciplineAgreed, setDisciplineAgreed] = useState(false);
+  // P2: per-supplier conflict declaration
+  const [conflictedSupplierIds, setConflictedSupplierIds] = useState<Set<string>>(new Set());
+  const [avoiding, setAvoiding] = useState(false);
+
+  // P2: step gating — each step is unlocked only when its preconditions are met
+  const stepAccessible = (sKey: Step): boolean => {
+    switch (sKey) {
+      case 'verify': return true;
+      case 'documents': return !!expert?.signedIn;
+      case 'assist': return !!expert?.signedIn;
+      case 'scoring': return !!expert?.signedIn && !!expert?.avoidanceConfirmed;
+      case 'report': return true;
+    }
+  };
+  const stepCompleted = (sKey: Step): boolean => {
+    switch (sKey) {
+      case 'verify': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && confidentialityAgreed && disciplineAgreed;
+      case 'documents': return false; // no "complete" state for browsing docs
+      case 'assist': return false;
+      case 'scoring': return !!expert?.reportConfirmed;
+      case 'report': return !!expert?.reportConfirmed;
+    }
+  };
 
   // P0-2: reason validation — set of scoreItemIds whose reason is missing on submit attempt.
   const [missingReasons, setMissingReasons] = useState<Set<string>>(new Set());
@@ -69,6 +92,9 @@ export default function ExpertEvaluatePage() {
           existing[scoreKey(rec.supplierId, rec.scoreItemId)] = { score: Number(rec.score), reason: rec.reason || '' };
         });
         setScores(existing);
+        // P2: sync per-supplier conflicts from server
+        const serverConflicts: string[] = (p.myExpertRecord as any)?.conflictedSupplierIds || [];
+        if (serverConflicts.length > 0) setConflictedSupplierIds(new Set(serverConflicts));
       })
       .catch((e: any) => toast.error(e?.message || '加载项目失败'))
       .finally(() => setLoading(false));
@@ -139,15 +165,31 @@ export default function ExpertEvaluatePage() {
   };
 
   const handleAvoidance = async () => {
-    setBusy(true);
-    try { await api.post(`/expert/projects/${projectId}/avoidance`, {}); loadProject(); }
+    setAvoiding(true);
+    try {
+      await api.post(`/expert/projects/${projectId}/avoidance`, { conflictedSupplierIds: [...conflictedSupplierIds] });
+      loadProject();
+    }
     catch (e: any) { toast.error(e.message || '操作失败'); }
-    setBusy(false);
+    setAvoiding(false);
   };
 
   const loadDocuments = async (sid: string) => {
     try { setDocuments(await api.get<DecryptedDocuments>(`/expert/projects/${projectId}/documents/${sid}`)); }
     catch (e: any) { toast.error(e.message || '加载标书失败'); }
+  };
+
+  const loadClarifications = async () => {
+    try { setClarifications(await api.get<any[]>(`/bid/projects/${projectId}/clarifications`)); }
+    catch { setClarifications([]); }
+  };
+
+  const postClarification = async () => {
+    if (!clarQuestion.trim()) { toast.error('请输入问题'); return; }
+    setClarPosting(true);
+    try { await api.post(`/bid/projects/${projectId}/clarifications`, { question: clarQuestion, issuer: expert?.expertName || '评审专家', supplierName: '评标委员会' }); toast.success('澄清已发起'); setClarQuestion(''); loadClarifications(); }
+    catch (e: any) { toast.error(e.message || '发起失败'); }
+    setClarPosting(false);
   };
 
   const loadAssist = async (sid: string) => {
@@ -165,7 +207,10 @@ export default function ExpertEvaluatePage() {
     if (expert?.reportConfirmed) { toast.warning('评审报告已确认，评分已锁定'); return; }
     const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
     const supplierName = activeSupplierRecord?.supplierName || '';
-    const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回';
+    const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
+    // P2: also block if expert declared conflict with this supplier
+    && !conflictedSupplierIds.has(activeSupplier)
+    && !((project?.myExpertRecord as any)?.conflictedSupplierIds || []).includes(activeSupplier);
     if (!canScoreActiveSupplier) {
       toast.warning('该投标单位未解密成功或已撤回，不能评分');
       return;
@@ -220,7 +265,10 @@ export default function ExpertEvaluatePage() {
 
   const decryptLabel: Record<string, string> = { PENDING: '待解密', RUNNING: '解密中', SUCCESS: '已解密', DANGER: '异常' };
   const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
-  const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回';
+  const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
+    // P2: also block if expert declared conflict with this supplier
+    && !conflictedSupplierIds.has(activeSupplier)
+    && !((project?.myExpertRecord as any)?.conflictedSupplierIds || []).includes(activeSupplier);
   const scoreLocked = !!expert?.reportConfirmed;
 
   const formatBytes = (n: number) => {
@@ -248,20 +296,80 @@ export default function ExpertEvaluatePage() {
           </div>
           <span className="text-sm font-bold text-[#064ea2]">{expert?.progress ?? 0}%</span>
         </div>
+        <button onClick={() => { setShowClarifications(!showClarifications); if (!showClarifications) loadClarifications(); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] text-xs font-bold text-[oklch(0.55_0.01_264)] hover:text-[#064ea2] hover:border-[#064ea2] transition">
+          <MessageSquare size={13} strokeWidth={1.5} /> 澄清答疑
+        </button>
       </div>
 
-      {/* 步骤指示器 */}
+      {/* P2: clarifications panel (toggled from header) */}
+      {showClarifications && (
+        <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-5 mb-4 flex-shrink-0 space-y-3 max-h-[300px] overflow-y-auto">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]"><MessageSquare size={14} strokeWidth={1.5} className="inline mr-1" />澄清与答疑</h3>
+            <button onClick={() => setShowClarifications(false)} className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.18_0.012_265)]">✕</button>
+          </div>
+          {clarifications.length === 0 ? (
+            <p className="text-xs text-[oklch(0.62_0.008_264)] text-center py-4">暂无澄清记录</p>
+          ) : (
+            <div className="space-y-2">
+              {clarifications.map((c: any) => (
+                <div key={c.id} className="border border-[oklch(0.91_0.006_264)] rounded-lg p-3 text-xs">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-bold text-[oklch(0.18_0.012_265)]">{c.issuer}</span>
+                    <span className="text-[oklch(0.62_0.008_264)]">→ {c.supplierName}</span>
+                    <span className="ml-auto text-[10px] text-[oklch(0.62_0.008_264)]">{new Date(c.createdAt).toLocaleString('zh-CN')}</span>
+                  </div>
+                  <p className="text-[oklch(0.18_0.012_265)] mb-1">Q: {c.question}</p>
+                  {c.reply ? (
+                    <p className="text-[#11a874] bg-emerald-50 rounded p-1.5">A: {c.reply}</p>
+                  ) : (
+                    <p className="text-[oklch(0.72_0.008_264)] italic">待回复</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Post new question */}
+          <div className="border-t border-[oklch(0.91_0.006_264)] pt-3 flex items-center gap-2">
+            <input value={clarQuestion} onChange={e => setClarQuestion(e.target.value)}
+              placeholder="向招标人提问…"
+              onKeyDown={e => e.key === 'Enter' && postClarification()}
+              className="flex-1 border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#064ea2]" />
+            <button onClick={postClarification} disabled={clarPosting}
+              className="px-3 py-1.5 bg-[#064ea2] text-white text-xs font-bold rounded-lg hover:bg-[#054280] transition disabled:opacity-50">
+              {clarPosting ? '…' : '发送'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 步骤指示器 · P2: step gating — locked steps show lock icon, completed show checkmark */}
       <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-4 mb-4 flex-shrink-0">
         <div className="flex items-center">
-          {STEPS.map((s, i) => (
-            <div key={s.key} className="flex items-center flex-1">
-              <button onClick={() => setStep(s.key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-semibold ${step === s.key ? 'bg-[#064ea2] text-white shadow-md' : 'text-[oklch(0.55_0.01_264)] hover:bg-blue-50'}`}>
-                <s.Icon size={16} strokeWidth={1.5} />{s.label}
-              </button>
-              {i < STEPS.length - 1 && <div className="flex-1 h-px bg-[#e8f0fa] mx-2" />}
-            </div>
-          ))}
+          {STEPS.map((s, i) => {
+            const accessible = stepAccessible(s.key);
+            const completed = stepCompleted(s.key);
+            const isCurrent = step === s.key;
+            return (
+              <div key={s.key} className="flex items-center flex-1">
+                <button onClick={() => { if (accessible) setStep(s.key); }}
+                  disabled={!accessible}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-semibold ${
+                    isCurrent ? 'bg-[#064ea2] text-white shadow-md'
+                    : completed ? 'text-[#11a874] bg-emerald-50 border border-emerald-100'
+                    : accessible ? 'text-[oklch(0.55_0.01_264)] hover:bg-blue-50'
+                    : 'text-[oklch(0.72_0.008_264)] cursor-not-allowed'
+                  }`}>
+                  {completed ? <CheckCircle size={14} strokeWidth={1.5} className="text-[#11a874]" />
+                   : !accessible ? <Lock size={12} strokeWidth={1.5} />
+                   : <s.Icon size={16} strokeWidth={1.5} />}
+                  {s.label}
+                </button>
+                {i < STEPS.length - 1 && <div className="flex-1 h-px bg-[#e8f0fa] mx-2" />}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -276,11 +384,15 @@ export default function ExpertEvaluatePage() {
           <div className="p-2">
             {project.suppliers.map(s => (
               <button key={s.id} onClick={() => { setActiveSupplier(s.id); setMissingReasons(new Set()); }}
+                disabled={conflictedSupplierIds.has(s.id) && step !== 'verify'}
                 className={`w-full text-left p-3 rounded-lg mb-1 text-sm transition-all ${activeSupplier === s.id ? 'bg-blue-50 border border-[#bfdbfe]' : 'hover:bg-[oklch(0.992_0.003_264)] border border-transparent'}`}>
                 <div className="font-semibold text-[oklch(0.18_0.012_265)] truncate">{s.supplierName}</div>
                 <div className="flex items-center gap-2 mt-1.5">
                   <span className={`w-1.5 h-1.5 rounded-full ${s.decryptStatus === 'SUCCESS' ? 'bg-[#11a874]' : s.decryptStatus === 'DANGER' ? 'bg-[#e74c3c]' : 'bg-[#f5a623]'}`} />
                   <span className="text-xs text-[oklch(0.55_0.01_264)]">{decryptLabel[s.decryptStatus] || s.decryptStatus}</span>
+                  {conflictedSupplierIds.has(s.id) && (
+                    <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">已回避</span>
+                  )}
                 </div>
               </button>
             ))}
@@ -297,7 +409,6 @@ export default function ExpertEvaluatePage() {
                 {[
                   { label: '身份核验', desc: '确认您的专家身份信息', done: !!expert?.signedIn, action: !expert?.signedIn ? handleSignIn : undefined },
                   { label: '保密承诺', desc: '承诺不泄露评标过程中获取的信息', done: confidentialityAgreed, action: undefined },
-                  { label: '回避确认', desc: '确认与投标单位无利益关系', done: !!expert?.avoidanceConfirmed, action: expert?.signedIn && !expert?.avoidanceConfirmed ? handleAvoidance : undefined },
                   { label: '评标纪律', desc: '遵守独立评审原则', done: disciplineAgreed, action: undefined },
                 ].map((item, i) => (
                   <div key={i} className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${item.done ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-[oklch(0.91_0.006_264)]'}`}>
@@ -344,6 +455,46 @@ export default function ExpertEvaluatePage() {
                   <span className="text-sm text-[oklch(0.18_0.012_265)] font-semibold">本人已阅读并同意遵守以上评标纪律</span>
                 </label>
               </div>
+
+              {/* P2: per-supplier avoidance declaration — replaces the single "确认" button */}
+              {!expert?.avoidanceConfirmed && (
+                <div className="mt-6 bg-amber-50 rounded-xl border border-amber-200 p-5">
+                  <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-2 flex items-center gap-2">
+                    <Lock size={14} strokeWidth={1.5} className="text-amber-600" /> 利益冲突回避
+                  </h3>
+                  <p className="text-sm text-[oklch(0.55_0.01_264)] mb-4">
+                    请逐项核对：若您与以下任一投标单位存在利益关系（如曾受雇、近亲属供职、持有股份等），请勾选声明回避。
+                    被回避的供应商将不会出现在您的评分列表中。
+                  </p>
+                  <div className="space-y-1.5 mb-4">
+                    {project.suppliers.map(sup => {
+                      const isConflict = conflictedSupplierIds.has(sup.id);
+                      return (
+                        <label key={sup.id}
+                          className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition ${
+                            isConflict ? 'bg-red-50 border border-red-200' : 'hover:bg-white border border-transparent'
+                          }`}>
+                          <input type="checkbox" checked={isConflict}
+                            onChange={e => {
+                              setConflictedSupplierIds(prev => {
+                                const n = new Set(prev);
+                                e.target.checked ? n.add(sup.id) : n.delete(sup.id);
+                                return n;
+                              });
+                            }}
+                            className="w-4 h-4 rounded border-amber-300 text-[#e74c3c] focus:ring-[#e74c3c]" />
+                          <span className="flex-1 text-sm font-semibold text-[oklch(0.18_0.012_265)]">{sup.supplierName}</span>
+                          {isConflict && <span className="text-xs font-bold text-red-500">已声明回避</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <button onClick={handleAvoidance} disabled={avoiding}
+                    className="px-5 py-2.5 bg-[#f5a623] text-white rounded-lg font-bold text-sm hover:bg-amber-600 transition disabled:opacity-50">
+                    {avoiding ? '提交中…' : `确认回避声明（${conflictedSupplierIds.size} 家冲突 / ${project.suppliers.length - conflictedSupplierIds.size} 家无冲突）`}
+                  </button>
+                </div>
+              )}
 
               {confidentialityAgreed && disciplineAgreed && expert?.signedIn && expert?.avoidanceConfirmed && (
                 <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-3">

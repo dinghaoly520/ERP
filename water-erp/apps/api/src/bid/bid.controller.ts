@@ -6,6 +6,7 @@ import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { CreateScoreDto } from './dto/create-score.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
+import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
@@ -128,6 +129,11 @@ export class BidController {
   @Get('projects/:id/clarifications')
   @ApiOperation({ summary: '澄清记录' })
   listClarifications(@Param('id') id: string) { return this.bidService.listClarifications(id); }
+
+  @Patch('projects/:id/clarifications/:cid/reply')
+  replyClarification(@Param('id') id: string, @Param('cid') cid: string, @Body() dto: ReplyClarificationDto) {
+    return this.bidService.replyClarification(id, cid, dto);
+  }
 
   @Post('projects/:id/clarifications')
   @ApiOperation({ summary: '发起澄清' })

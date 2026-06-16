@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/notification'
+import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 
 const router = useRouter(); const store = useNotificationStore(); const loading = ref(true); const error = ref(false); const currentPage = ref(1); const typeFilter = ref('')
@@ -14,8 +15,8 @@ const filteredNotifications = computed(() => {
 async function fetchData() { loading.value = true; error.value = false; try { await store.fetchNotifications(currentPage.value,15) } catch { error.value = true } finally { loading.value = false } }
 function retryLoad() { fetchData() }
 onMounted(fetchData)
-async function handleRead(id:string) { await store.markAsRead(id) }
-async function handleReadAll() { await store.markAllAsRead(); store.fetchUnreadCount() }
+async function handleRead(id:string) { try { await store.markAsRead(id) } catch { ElMessage.error('标记失败，请重试') } }
+async function handleReadAll() { try { await store.markAllAsRead(); store.fetchUnreadCount(); ElMessage.success('已全部标为已读') } catch { ElMessage.error('操作失败，请重试') } }
 function handleClick(n:any) { if (!n.isRead) handleRead(n.id); if (n.link) router.push(n.link) }
 function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 </script>

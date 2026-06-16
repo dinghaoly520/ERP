@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { listExperts, getExpertEvalStats, createExpertEvaluation } from '@/lib/api/expert';
 import type { ExpertListItem, ExpertEvalStats } from '@/lib/api/expert';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton } from '@/components/workbench';
+import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton, EmptyState } from '@/components/workbench';
 import { CheckCircle2, Search, X } from 'lucide-react';
 
 const levelColor: Record<string, string> = { A: '#059669', B: '#0756a5', C: '#d97706', D: '#dc2626' };
@@ -103,7 +103,7 @@ export default function ExpertEvaluationPage() {
             {loading ? (
               <TableSkeleton cols={5} rows={5} />
             ) : experts.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-16 text-center text-[#8a99ad]">暂无专家</td></tr>
+              <tr><td colSpan={5}><EmptyState title="暂无评审专家" description="录入专家后方可进行履职评价" action={<button onClick={() => router.push('/expert/entry')} className="text-sm font-bold text-[#064ea2] hover:underline">前往录入专家 →</button>} /></td></tr>
             ) : experts.map(e => (
               <tr key={e.id} className="row-clickable" onClick={() => openModal(e)}>
                 <td className="px-4 py-3">

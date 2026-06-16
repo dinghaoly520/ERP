@@ -3,6 +3,8 @@ import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { useAutoSave } from '@/composables'
+import dayjs from 'dayjs'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -37,6 +39,28 @@ const contacts = ref<any[]>([
 const qualifications = ref<any[]>([
   { type: '营业执照', name: '', fileUrl: '', validFrom: '', validTo: '' },
 ])
+
+const showRecovery = ref(false)
+const draftSource = computed(() => ({
+  currentStep: currentStep.value,
+  accountForm: { username: accountForm.username, displayName: accountForm.displayName, email: accountForm.email },
+  companyForm: { ...companyForm },
+  contacts: contacts.value.map(c => ({ ...c })),
+  qualifications: qualifications.value.map(q => ({ ...q })),
+}))
+const draft = useAutoSave('register', draftSource)
+const draftTimeLabel = computed(() => draft.storedAt.value ? dayjs(draft.storedAt.value).format('MM月DD日 HH:mm') : '')
+const restored = draft.restoreDraft()
+if (restored && (restored.accountForm?.username || restored.companyForm?.name)) { showRecovery.value = true }
+function acceptRecovery() {
+  const d = draft.restoreDraft(); if (!d) return
+  Object.assign(accountForm, d.accountForm); Object.assign(companyForm, d.companyForm)
+  contacts.value = d.contacts.map((c: any) => ({ ...c }))
+  qualifications.value = d.qualifications.map((q: any) => ({ ...q }))
+  currentStep.value = d.currentStep || 0; draft.markClean()
+  ElMessage.success('已恢复（密码需重新输入）'); showRecovery.value = false
+}
+function discardRecovery() { draft.clearDraft(); showRecovery.value = false }
 
 const enterpriseTypes = [
   '国有企业', '民营企业', '合资企业', '外资企业', '股份有限公司', '个体工商户', '其他',
@@ -152,6 +176,7 @@ async function submitRegister() {
       })),
     }
     await authStore.register(data)
+    draft.clearDraft()
     ElMessage.success('注册成功，正在登录...')
     router.push('/onboarding')
   } catch {
@@ -180,6 +205,8 @@ async function submitRegister() {
         <h1 class="register-title">供应商注册</h1>
         <p class="register-desc">请填写以下信息完成供应商注册申请</p>
       </div>
+
+      <el-alert v-if="showRecovery" type="warning" :closable="false" show-icon style="margin-bottom:20px"><template #title>检测到 {{ draftTimeLabel }} 有未完成的注册</template><template #default><div style="margin-top:8px;display:flex;gap:12px"><el-button size="small" type="primary" @click="acceptRecovery">继续填写</el-button><el-button size="small" @click="discardRecovery">重新开始</el-button></div></template></el-alert>
 
       <!-- Steps indicator -->
       <el-steps :active="currentStep" finish-status="success" align-center class="register-steps">

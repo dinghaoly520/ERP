@@ -134,20 +134,19 @@ export class ExpertService {
     });
   }
 
-  async confirmAvoidance(userId: string, projectId: string) {
+  async confirmAvoidance(userId: string, projectId: string, conflictedSupplierIds?: string[]) {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
 
     // 自动利益冲突检测：工作单位 vs 投标供应商名称（归一化匹配）
-    const conflicts = await this.conflictService.detectForProject(projectId, userId);
-    if (conflicts.length > 0) {
-      throw new BadRequestException({
-        error: '检测到潜在利益冲突，请申请回避或联系监督员',
-        code: 'AVOIDANCE_CONFLICT',
-        conflicts,
-      });
+    const autoConflicts = await this.conflictService.detectForProject(projectId, userId);
+
+    // P2: 合并手动声明的冲突 + 自动检测的冲突（去重），持久化到 expert 记录。
+    const allConflictIds = [...new Set([...(conflictedSupplierIds || []), ...autoConflicts.map(c => c.supplierId)])];
+    if (!conflictedSupplierIds?.length && autoConflicts.length > 0) {
+      // 仅自动检测出冲突时，仍允许确认（前端会提示），但阻止对冲突供应商评分。
     }
 
     this.gateway?.notifyExpertPresence(expert.projectId, {
@@ -155,7 +154,7 @@ export class ExpertService {
     });
     return this.prisma.bidExpert.update({
       where: { id: expert.id },
-      data: { avoidanceConfirmed: true },
+      data: { avoidanceConfirmed: true, conflictedSupplierIds: allConflictIds.length > 0 ? (allConflictIds as any) : undefined },
     });
   }
 
@@ -240,6 +239,18 @@ export class ExpertService {
     }
     if (!expert.signedIn || !expert.avoidanceConfirmed) {
       throw new ForbiddenException('请先完成身份核验和回避确认');
+    }
+    // P2: block scoring for suppliers the expert declared as conflicted
+    const expertConflicts: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    const conflictSuppliers = dto.scores
+      .map(s => s.supplierId)
+      .filter(sid => expertConflicts.includes(sid));
+    if (conflictSuppliers.length > 0) {
+      throw new BadRequestException({
+        error: '您已声明与部分供应商存在利益冲突，无法评分',
+        code: 'AVOIDANCE_CONFLICT',
+        conflictSupplierIds: [...new Set(conflictSuppliers)],
+      });
     }
 
     // Validate project is in EVALUATING stage

@@ -134,7 +134,15 @@ export default function SupplierDetailPage() {
     setClassLoading(false);
   };
 
-  if (loading) return <div className="text-[#5a6d8a] py-20 text-center text-sm">加载中...</div>;
+  if (loading) return (
+    <div className="space-y-6 animate-pulse">
+      <div className="h-20 rounded-xl bg-gradient-to-r from-[#e8eef5] to-[#dce4f0]" />
+      <div className="flex gap-4 pb-2"><div className="skeleton h-9 w-20 rounded-lg" /><div className="skeleton h-9 w-20 rounded-lg" /><div className="skeleton h-9 w-20 rounded-lg" /></div>
+      <div className="rounded-xl border border-[#e5ecf4] bg-white p-6 space-y-4">
+        <div className="grid grid-cols-3 gap-6">{Array.from({ length: 9 }).map((_, i) => <div key={i}><div className="skeleton h-3 w-16 mb-1" /><div className="skeleton h-5 w-32" /></div>)}</div>
+      </div>
+    </div>
+  );
   if (!supplier) return <div className="text-[#e74c3c] py-20 text-center">供应商不存在</div>;
 
   const st = statusColor[supplier.status] || { label: supplier.status, color: '#999', bg: '#99918' };

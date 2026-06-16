@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { supplierApi } from '@/api/supplier'
+import BidStageTimeline from '@/components/BidStageTimeline.vue'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -57,6 +58,7 @@ function canConfirmOpening(row: any) { const stage = row.project?.stage; return 
         <div class="progress-main">
           <div class="progress-title-line"><h3>{{ row.project?.name || '-' }}</h3><span class="sp-status" :class="statusMap[row.status]?.cls || 'draft'">{{ statusMap[row.status]?.label || row.status }}</span></div>
           <div class="progress-meta"><span>{{ row.project?.projectCode || '-' }}</span><span>报价：{{ row.bidPrice || '-' }}</span><span>工期：{{ row.deliveryPeriod || '-' }}</span><span v-if="row.submittedAt">提交：{{ dayjs(row.submittedAt).format('MM-DD HH:mm') }}</span></div>
+          <div v-if="row.status === 'submitted' && row.project?.stage" class="progress-timeline-wrap"><BidStageTimeline :stage="row.project.stage" /></div>
         </div>
         <div class="progress-actions">
           <el-button type="primary" plain size="small" @click="router.push(`/bids/${row.projectId}`)">详情</el-button>
@@ -86,6 +88,7 @@ function canConfirmOpening(row: any) { const stage = row.project?.stage; return 
 .progress-title-line { display: flex; align-items: center; gap: 10px; }
 .progress-title-line h3 { margin: 0; font-size: 15px; font-weight: 800; color: var(--sp-gray-900); }
 .progress-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; font-size: 12px; color: var(--sp-gray-500); }
+.progress-timeline-wrap{margin-top:12px;padding-top:12px;border-top:1px dashed var(--sp-border-light);max-width:420px}
 .progress-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .sp-empty-panel { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); padding: 64px 20px; text-align: center; color: var(--sp-gray-400); }
 .sp-empty-text { font-size: 15px; font-weight: 700; color: var(--sp-gray-500); margin-top: 12px; }

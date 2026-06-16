@@ -177,7 +177,8 @@ model BidExpert {
   expertName         String
   major              String
   signedIn           Boolean          @default(false)
-  avoidanceConfirmed Boolean          @default(false)
+  avoidanceConfirmed  Boolean          @default(false)
+  conflictedSupplierIds Json            @default("[]")
   progress           Int              @default(0)
   totalScore         Decimal          @default("0") @db.Decimal(5, 1)
   reportConfirmed    Boolean          @default(false)

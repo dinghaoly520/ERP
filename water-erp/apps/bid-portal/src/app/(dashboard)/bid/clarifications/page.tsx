@@ -173,7 +173,7 @@ export default function BidClarificationsPage() {
           </h2>
         </div>
         {clarifications.length === 0 ? (
-          <div className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">
+          <div className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]" data-mock-row="">
             暂无澄清记录
           </div>
         ) : (
@@ -183,24 +183,68 @@ export default function BidClarificationsPage() {
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">发起人</th>
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">供应商</th>
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">问题</th>
+                <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">状态</th>
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">回复</th>
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">时间</th>
+                <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">操作</th>
               </tr>
             </thead>
             <tbody>
-              {clarifications.map(c => (
-                <tr key={c.id} className="border-b border-[oklch(0.94_0.004_264)] align-top">
+              {clarifications.map(c => {
+                const isReplied = c.reply;
+                const isReplying = replying === c.id;
+                const statusLabel = c.status || (isReplied ? '已回复' : '待回复');
+                const statusColor = statusLabel === '已回复' ? '#11a874' : statusLabel === '已关闭' ? '#6b7280' : '#f5a623';
+                return (<>
+                <tr key={c.id} className={`border-b border-[oklch(0.94_0.004_264)] align-top ${isReplied ? '' : 'bg-amber-50/30'}`}>
                   <td className="px-5 py-3 text-[oklch(0.42_0.14_260)] font-medium">{c.issuer}</td>
                   <td className="px-5 py-3 text-[oklch(0.18_0.012_265)]">{c.supplierName}</td>
-                  <td className="px-5 py-3 text-[oklch(0.18_0.012_265)] max-w-[300px]">{c.question}</td>
-                  <td className="px-5 py-3 text-[oklch(0.55_0.01_264)] max-w-[300px]">
-                    {c.reply || <span className="text-[oklch(0.72_0.008_264)]">待回复</span>}
+                  <td className="px-5 py-3 text-[oklch(0.18_0.012_265)] max-w-[200px]">{c.question}</td>
+                  <td className="px-5 py-3">
+                    <span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{ color: statusColor, backgroundColor: statusColor + '18' }}>{statusLabel}</span>
+                  </td>
+                  <td className="px-5 py-3 text-[oklch(0.55_0.01_264)] max-w-[200px]">
+                    {c.reply || <span className="text-[oklch(0.72_0.008_264)]">—</span>}
                   </td>
                   <td className="px-5 py-3 text-[12px] text-[oklch(0.62_0.008_264)] font-mono whitespace-nowrap">
                     {new Date(c.createdAt).toLocaleString('zh-CN')}
                   </td>
+                  <td className="px-5 py-3">
+                    {!isReplied ? (
+                      isReplying ? (
+                        <span className="text-[11px] text-[oklch(0.55_0.01_264)]">回复中…</span>
+                      ) : (
+                        <button onClick={() => { setReplying(c.id); setReplyText(''); }}
+                          className="text-[11px] font-semibold text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] transition-colors">
+                          回复
+                        </button>
+                      )
+                    ) : (
+                      <span className="text-[11px] text-[oklch(0.62_0.008_264)]">已回复</span>
+                    )}
+                  </td>
                 </tr>
-              ))}
+                {isReplying && (
+                  <tr key={`${c.id}-reply`}>
+                    <td colSpan={7} className="bg-[oklch(0.98_0.005_264)] border-b border-[oklch(0.91_0.006_264)]">
+                      <div className="px-5 py-3 space-y-3">
+                        <textarea value={replyText} onChange={e => setReplyText(e.target.value)}
+                          placeholder="输入回复内容…" rows={3}
+                          className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors placeholder:text-[oklch(0.72_0.008_264)] resize-none" />
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => setReplying(null)}
+                            className="px-3 py-1.5 text-[11px] font-semibold text-[oklch(0.55_0.01_264)] border border-[oklch(0.91_0.006_264)] rounded hover:bg-[oklch(0.992_0.003_264)] transition">取消</button>
+                          <button onClick={() => handleReply(c.id)} disabled={submitting}
+                            className="px-4 py-1.5 text-[11px] font-bold text-white bg-[oklch(0.42_0.14_260)] rounded hover:bg-[oklch(0.50_0.16_258)] transition disabled:opacity-50">
+                            {submitting ? '发送中…' : '发送回复'}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </>
+              );})}
             </tbody>
           </table>
         )}

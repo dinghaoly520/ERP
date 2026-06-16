@@ -3,11 +3,11 @@ import { ref, computed, onMounted } from 'vue'
 import { catalogApi } from '@/api/catalog'
 import ApplicationDialog from './ApplicationDialog.vue'
 
-const loading = ref(true); const error = ref(false); const items = ref<any[]>([]); const categoryTree = ref<{group:string;categories:string[]}[]>([]); const myApplications = ref<any[]>([]); const mySupply = ref<any[]>([])
+const loading = ref(true); const firstLoad = ref(true); const error = ref(false); const items = ref<any[]>([]); const categoryTree = ref<{group:string;categories:string[]}[]>([]); const myApplications = ref<any[]>([]); const mySupply = ref<any[]>([])
 const selectedGroup = ref<string>(''); const selectedCategory = ref<string>(''); const search = ref('')
 const dialogVisible = ref(false); const dialogMode = ref<'NEW_ITEM'|'JOIN_EXISTING'|'UPDATE_QUOTE'|'edit'>('JOIN_EXISTING'); const dialogItem = ref<any>(null)
 
-async function loadAll() { loading.value = true; error.value = false; try { const [tree,apps,supply] = await Promise.all([catalogApi.listCategories(),catalogApi.listApplications(),catalogApi.listSupply()]); categoryTree.value = tree as any; myApplications.value = apps as any; mySupply.value = supply as any; await loadItems() } catch { error.value = true } finally { loading.value = false } }
+async function loadAll() { loading.value = true; error.value = false; try { const [tree,apps,supply] = await Promise.all([catalogApi.listCategories(),catalogApi.listApplications(),catalogApi.listSupply()]); categoryTree.value = tree as any; myApplications.value = apps as any; mySupply.value = supply as any; await loadItems() } catch { error.value = true } finally { loading.value = false; firstLoad.value = false } }
 async function loadItems() { loading.value = true; try { items.value = await catalogApi.listItems({group:selectedGroup.value||undefined,category:selectedCategory.value||undefined,search:search.value.trim()||undefined}) as any } catch { error.value = true } finally { loading.value = false } }
 function retryLoad() { loadAll() }
 function onSearch() { loadItems() }
@@ -25,14 +25,22 @@ onMounted(loadAll)
 </script>
 
 <template>
-  <div class="page-container" v-loading="loading">
-    <div v-if="error" class="sp-error-block">
+  <div class="page-container">
+    <div v-if="loading && firstLoad" class="skel-wrap">
+      <div class="skel-hero"><span class="sp-skel" style="width:120px;height:13px"></span><span class="sp-skel" style="width:240px;height:24px;margin-top:12px"></span><span class="sp-skel" style="width:360px;height:14px;margin-top:10px"></span></div>
+      <div class="skel-cat">
+        <div class="skel-sidebar"><span v-for="i in 6" :key="i" class="sp-skel" style="width:100%;height:32px;margin-bottom:4px"></span></div>
+        <div class="skel-main"><span class="sp-skel" style="width:100%;height:36px;margin-bottom:12px"></span><span v-for="i in 6" :key="i" class="sp-skel" style="width:100%;height:40px;margin-bottom:4px"></span></div>
+      </div>
+    </div>
+    <div v-else-if="error" class="sp-error-block">
       <div class="sp-error-icon">⚠</div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
     <template v-else>
+      <div v-loading="loading">
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
@@ -86,6 +94,7 @@ onMounted(loadAll)
       </section>
     </div>
     <ApplicationDialog v-model="dialogVisible" :mode="dialogMode" :item="dialogItem" @success="onDialogSuccess" />
+      </div>
     </template>
   </div>
 </template>
@@ -116,5 +125,10 @@ onMounted(loadAll)
 .cat-sub-enter-active,.cat-sub-leave-active { transition: all 0.2s ease; overflow: hidden; }
 .cat-sub-enter-from,.cat-sub-leave-to { opacity: 0; max-height: 0; }
 .cat-sub-enter-to,.cat-sub-leave-from { opacity: 1; max-height: 400px; }
+.skel-wrap{display:flex;flex-direction:column;gap:14px}
+.skel-hero{background:#fff;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);padding:24px;display:flex;flex-direction:column}
+.skel-cat{display:flex;gap:16px;height:340px}
+.skel-sidebar{width:220px;background:#fff;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);padding:14px;display:flex;flex-direction:column;gap:4px}
+.skel-main{flex:1;background:#fff;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);padding:14px 16px;display:flex;flex-direction:column}
 @media (max-width:900px) { .catalog-layout { flex-direction: column; } .cat-sidebar { width: 100%; position: static; max-height: none; } }
 </style>

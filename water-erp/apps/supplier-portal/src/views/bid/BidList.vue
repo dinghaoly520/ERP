@@ -8,6 +8,7 @@ import dayjs from 'dayjs'
 const router = useRouter()
 const bidStore = useBidStore()
 const loading = ref(true)
+const firstLoad = ref(true)
 const error = ref(false)
 const search = ref('')
 const filterStage = ref('')
@@ -33,20 +34,26 @@ const filteredProjects = computed(() => {
 const submitCount = computed(() => bidStore.projects.filter((p: any) => p.stage === 'SUBMIT').length)
 const activeCount = computed(() => bidStore.projects.filter((p: any) => ['DOWNLOAD','SUBMIT','OPENING'].includes(p.stage)).length)
 function stageCount(stage: string) { if (!stage) return bidStore.projects.length; return bidStore.projects.filter((p: any) => p.stage === stage).length }
-onMounted(async () => { try { await bidStore.fetchProjects() } catch { error.value = true } finally { loading.value = false } })
+onMounted(async () => { try { await bidStore.fetchProjects() } catch { error.value = true } finally { loading.value = false; firstLoad.value = false } })
 function retryLoad() { error.value = false; loading.value = true; bidStore.fetchProjects().catch(() => { error.value = true }).finally(() => { loading.value = false }) }
 function isDeadlinePassed(deadline: string) { return new Date(deadline) < new Date() }
 </script>
 
 <template>
-  <div class="page-container" v-loading="loading">
-    <div v-if="error" class="sp-error-block">
+  <div class="page-container">
+    <div v-if="loading && firstLoad" class="skel-wrap">
+      <div class="skel-hero"><span class="sp-skel" style="width:120px;height:13px"></span><span class="sp-skel" style="width:220px;height:24px;margin-top:12px"></span><span class="sp-skel" style="width:320px;height:14px;margin-top:10px"></span></div>
+      <div class="skel-filter"><span class="sp-skel" style="width:300px;height:36px"></span><span class="sp-skel" style="flex:1;height:36px"></span></div>
+      <div v-for="i in 5" :key="i" class="skel-row"><div style="flex:1"><span class="sp-skel" style="width:60%;height:18px"></span><span class="sp-skel" style="width:40%;height:12px;margin-top:10px"></span></div><span class="sp-skel" style="width:120px;height:36px"></span></div>
+    </div>
+    <div v-else-if="error" class="sp-error-block">
       <div class="sp-error-icon">⚠</div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
     <template v-else>
+      <div v-loading="loading">
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
@@ -90,6 +97,7 @@ function isDeadlinePassed(deadline: string) { return new Date(deadline) < new Da
       <p class="sp-empty-text">暂无招标项目</p>
       <p class="sp-empty-desc">当前没有符合条件的招标项目</p>
     </div>
+      </div>
     </template>
   </div>
 </template>
@@ -117,5 +125,9 @@ function isDeadlinePassed(deadline: string) { return new Date(deadline) < new Da
 .sp-empty-panel { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); padding: 64px 20px; text-align: center; color: var(--sp-gray-400); }
 .sp-empty-text { font-size: 15px; font-weight: 700; color: var(--sp-gray-500); margin-top: 12px; }
 .sp-empty-desc { font-size: 13px; margin-top: 4px; }
+.skel-wrap{display:flex;flex-direction:column;gap:14px}
+.skel-hero{background:#fff;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);padding:24px;display:flex;flex-direction:column}
+.skel-filter{display:flex;gap:14px;padding:12px 16px;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);background:#fff}
+.skel-row{display:flex;align-items:center;gap:18px;padding:16px 20px;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);background:#fff}
 @media (max-width: 900px) { .compact-filter { grid-template-columns: 1fr; } .opportunity-row { grid-template-columns: 1fr; } .row-deadline { padding-left: 0; border-left: 0; } }
 </style>

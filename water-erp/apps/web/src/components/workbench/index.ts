@@ -12,3 +12,4 @@ export { NotificationCenter } from './notification-center';
 export { DashboardTodoPanel } from './dashboard-todo-panel';
 export { AlertBanner } from './alert-banner';
 export type { AlertSeverity } from './alert-banner';
+export { EmptyState } from './empty-state';

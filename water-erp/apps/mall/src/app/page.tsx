@@ -9,7 +9,7 @@ import { portalURL } from '@water-erp/config';
 import PriceChart from './price-chart';
 import { MallAssistantEntry } from './assistant/mall-assistant-entry';
 import type { MallAssistantContext } from './assistant/types';
-import { useCountUp, useDataChanged, useScrollAwareHeader, useAsyncState, StateBoundary, InlineError, TableSkeleton, StatCardSkeleton, CardGridSkeleton, EmptyState, LiveRegion, AnimatedBadge, StaggerContainer, StaggerItem } from './interactions';
+import { useCountUp, useDataChanged, useScrollAwareHeader, useAsyncState, StateBoundary, InlineError, TableSkeleton, StatCardSkeleton, CardGridSkeleton, EmptyState, LiveRegion, AnimatedBadge, StaggerContainer, StaggerItem, useAutoSave } from './interactions';
 
 type PriceStatus = '有效' | '价格波动' | '即将过期' | '待复核';
 type PriceSource = '框架协议价' | '历史成交价' | '市场询价' | '人工维护';
@@ -136,9 +136,21 @@ export default function MallPage() {
   const [lists, setLists] = useState<BudgetListSummary[]>([]);
   const [currentList, setCurrentList] = useState<BudgetListDetail | null>(null);
   const [lines, setLines] = useState<BudgetLine[]>([]);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const skipNextSave = useRef(false);
+  const saveSkipRef = useRef(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
+  const saveEnabled = !!currentList && currentList.status !== 'CONVERTED';
+  const { status: saveStatus } = useAutoSave({
+    data: lines,
+    onSave: async (payload) => {
+      const items = payload.map(row => ({ catalogItemId: row.catalogItemId, code: row.code, name: row.name, specification: row.specification, unit: row.unit, referencePrice: row.referencePrice, qty: row.qty }));
+      const res = await api(`/api/budget/lists/${currentList!.id}/items`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
+      if (!res.ok) throw new Error('保存失败');
+      refreshLists();
+    },
+    debounceMs: 700,
+    skipRef: saveSkipRef,
+    enabled: saveEnabled,
+  });
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; target: string; detail: any; createdAt: string }>>([]);
   const [detail, setDetail] = useState<CatalogItem | null>(null);
@@ -394,7 +406,7 @@ export default function MallPage() {
     const res = await api(`/api/budget/lists/${id}`);
     if (!res.ok) return;
     const data: BudgetListDetail = await res.json();
-    skipNextSave.current = true;
+    saveSkipRef.current = true;
     setCurrentList(data);
     setLines(data.items);
     try { localStorage.setItem('mall_budget_list_id', id); } catch { /* ignore */ }
@@ -517,19 +529,6 @@ export default function MallPage() {
 
   const budgetTotal = lines.reduce((sum, row) => sum + row.referencePrice * row.qty, 0);
 
-  // 防抖自动保存：跳过载入触发的变更；已转换清单只读
-  useEffect(() => {
-    if (!currentList || isConverted) return;
-    if (skipNextSave.current) { skipNextSave.current = false; return; }
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      const payload = lines.map(row => ({ catalogItemId: row.catalogItemId, code: row.code, name: row.name, specification: row.specification, unit: row.unit, referencePrice: row.referencePrice, qty: row.qty }));
-      const res = await api(`/api/budget/lists/${currentList.id}/items`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: payload }) });
-      if (res.ok) refreshLists();
-    }, 700);
-    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lines, currentList, isConverted]);
 
   // 初始化：载入或创建当前预算清单
   useEffect(() => {
@@ -599,6 +598,8 @@ export default function MallPage() {
               whileTap={{ scale: 0.95 }}
             >
               预算清单
+              {saveStatus === 'saving' && <span className="ml-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" title="保存中" />}
+              {saveStatus === 'saved' && <motion.span key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="ml-2 text-white/80" title="已保存">✓</motion.span>}
               <AnimatePresence>
                 {lines.length > 0 && (
                   <motion.span

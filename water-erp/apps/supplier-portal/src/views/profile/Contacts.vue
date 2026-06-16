@@ -2,13 +2,14 @@
 import { ref, onMounted } from 'vue'
 import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { createDialogLeaveGuard } from '@/composables'
 
-const supplierStore = useSupplierStore(); const loading = ref(true); const error = ref(false); const dialogVisible = ref(false); const dialogLoading = ref(false); const isEdit = ref(false); const editId = ref(''); const form = ref({name:'',phone:'',email:'',isPrimary:false})
+const supplierStore = useSupplierStore(); const loading = ref(true); const error = ref(false); const dialogVisible = ref(false); const dialogLoading = ref(false); const isEdit = ref(false); const editId = ref(''); const form = ref({name:'',phone:'',email:'',isPrimary:false}); const formDirty = ref(false); const dialogGuard = createDialogLeaveGuard(formDirty); function markDirty(){formDirty.value=true}
 onMounted(async () => { try { await supplierStore.fetchContacts() } catch { error.value = true } finally { loading.value = false } })
 async function retryLoad() { error.value = false; loading.value = true; try { await supplierStore.fetchContacts() } catch { error.value = true } finally { loading.value = false } }
-function openAdd() { isEdit.value=false; editId.value=''; form.value = {name:'',phone:'',email:'',isPrimary:false}; dialogVisible.value = true }
-function openEdit(c:any) { isEdit.value=true; editId.value=c.id; form.value = {name:c.name,phone:c.phone,email:c.email||'',isPrimary:c.isPrimary}; dialogVisible.value = true }
-async function handleSubmit() { if (!form.value.name||!form.value.phone) { ElMessage.warning('请填写姓名和手机号'); return }; dialogLoading.value = true; try { if (isEdit.value) { await supplierStore.updateContact(editId.value,form.value); ElMessage.success('联系人更新成功') } else { await supplierStore.addContact(form.value); ElMessage.success('联系人添加成功') }; dialogVisible.value = false } catch { ElMessage.error(isEdit.value?'更新失败':'添加失败') } finally { dialogLoading.value = false } }
+function openAdd() { isEdit.value=false; editId.value=''; form.value = {name:'',phone:'',email:'',isPrimary:false}; formDirty.value=false; dialogVisible.value = true }
+function openEdit(c:any) { isEdit.value=true; editId.value=c.id; form.value = {name:c.name,phone:c.phone,email:c.email||'',isPrimary:c.isPrimary}; formDirty.value=false; dialogVisible.value = true }
+async function handleSubmit() { if (!form.value.name||!form.value.phone) { ElMessage.warning('请填写姓名和手机号'); return }; if (!/^1[3-9]\d{9}$/.test(form.value.phone)) { ElMessage.warning('请输入正确的11位手机号'); return }; dialogLoading.value = true; try { if (isEdit.value) { await supplierStore.updateContact(editId.value,form.value); ElMessage.success('联系人更新成功') } else { await supplierStore.addContact(form.value); ElMessage.success('联系人添加成功') }; dialogVisible.value = false; formDirty.value = false } catch { ElMessage.error(isEdit.value?'更新失败':'添加失败') } finally { dialogLoading.value = false } }
 async function handleDelete(id:string) { await ElMessageBox.confirm('确定要删除此联系人吗？','提示',{type:'warning'}); try { await supplierStore.deleteContact(id); ElMessage.success('已删除') } catch { ElMessage.error('删除失败') } }
 </script>
 
@@ -43,12 +44,12 @@ async function handleDelete(id:string) { await ElMessageBox.confirm('确定要�
 
     <div v-else class="detail-card" style="text-align:center;padding:64px"><el-icon :size="32" color="var(--sp-gray-300)"><Phone /></el-icon><p style="margin-top:12px;font-size:15px;font-weight:700;color:var(--sp-gray-500)">暂无联系人</p><p style="margin-top:4px;font-size:13px;color:var(--sp-gray-400)">请添加企业联系人信息</p></div>
 
-    <el-dialog v-model="dialogVisible" :title="isEdit?'编辑联系人':'添加联系人'" width="440px" destroy-on-close>
+    <el-dialog v-model="dialogVisible" :title="isEdit?'编辑联系人':'添加联系人'" width="440px" destroy-on-close :before-close="dialogGuard">
       <el-form :model="form" label-width="100px" size="large">
-        <el-form-item label="姓名" required><el-input v-model="form.name" placeholder="请输入姓名" /></el-form-item>
-        <el-form-item label="手机号" required><el-input v-model="form.phone" placeholder="请输入手机号" maxlength="11" /></el-form-item>
-        <el-form-item label="邮箱"><el-input v-model="form.email" placeholder="请输入邮箱（选填）" /></el-form-item>
-        <el-form-item label="主要联系人"><el-switch v-model="form.isPrimary" /></el-form-item>
+        <el-form-item label="姓名" required><el-input v-model="form.name" placeholder="请输入姓名" @input="markDirty" /></el-form-item>
+        <el-form-item label="手机号" required><el-input v-model="form.phone" placeholder="请输入手机号" maxlength="11" @input="markDirty" /></el-form-item>
+        <el-form-item label="邮箱"><el-input v-model="form.email" placeholder="请输入邮箱（选填）" @input="markDirty" /></el-form-item>
+        <el-form-item label="主要联系人"><el-switch v-model="form.isPrimary" @change="markDirty" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" :loading="dialogLoading" @click="handleSubmit">确认</el-button></template>
     </el-dialog>

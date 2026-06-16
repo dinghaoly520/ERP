@@ -13,6 +13,9 @@ const scoreDimensions = [{key:'completenessScore',label:'完整度',max:20},{key
 function getScorePercent(e:any,key:string,max:number) { return Math.round((Number(e[key]||0)/max)*100) }
 function getScoreColor(percent:number) { if (percent>=80) return '#059669'; if (percent>=60) return '#064ea2'; if (percent>=40) return '#d97706'; return '#dc2626' }
 function toggleExpand(id:string) { expandedId.value = expandedId.value===id?null:id }
+const growthDims = [{key:'completenessScore',label:'完整度',max:20},{key:'responsivenessScore',label:'响应度',max:20},{key:'cooperationScore',label:'合作度',max:20},{key:'complianceScore',label:'合规度',max:20}]
+const dimensionAverages = computed(() => { const evals = supplierStore.evaluations as any[]; if (!evals.length) return []; return growthDims.map(d => { const sum = evals.reduce((acc:number,e:any)=>acc+Number(e[d.key]||0),0); const avg=sum/evals.length; return {...d,avg:Math.round(avg*10)/10,pct:Math.round((avg/d.max)*100)} }).sort((a,b)=>a.avg-b.avg) })
+const weakest = computed(()=>dimensionAverages.value[0]); const strongest = computed(()=>dimensionAverages.value[dimensionAverages.value.length-1])
 </script>
 
 <template>
@@ -39,6 +42,32 @@ function toggleExpand(id:string) { expandedId.value = expandedId.value===id?null
       <div class="eval-stat-cell"><div class="eval-stat-value" style="color:var(--sp-primary)">{{ stats.avgScore }}</div><div class="eval-stat-label">平均得分</div></div>
       <div class="eval-stat-cell"><div class="eval-stat-value">{{ stats.levelCounts?.A||0 }}</div><div class="eval-stat-label">A 级评价</div></div>
       <div class="eval-stat-cell"><div class="eval-stat-value">{{ (stats.levelCounts?.A||0)+(stats.levelCounts?.B||0) }}</div><div class="eval-stat-label">B 级及以上</div></div>
+    </div>
+
+    <div class="sp-module growth-card" v-if="supplierStore.evaluations.length>0">
+      <div class="sp-module-header">
+        <span class="sp-module-title">成长建议</span>
+        <span class="growth-based-on">基于 {{ supplierStore.evaluations.length }} 次评价分析</span>
+      </div>
+      <div class="growth-content">
+        <div class="growth-insight" v-if="weakest">
+          <span class="growth-tag weak">薄弱项</span>
+          <span>{{ weakest.label }} 平均仅 {{ weakest.avg }} / {{ weakest.max }} 分，建议重点提升</span>
+        </div>
+        <div class="growth-insight" v-if="strongest">
+          <span class="growth-tag strong">优势项</span>
+          <span>{{ strongest.label }} 表现最佳，平均 {{ strongest.avg }} / {{ strongest.max }} 分，继续保持</span>
+        </div>
+        <div class="growth-bars">
+          <div v-for="dim in dimensionAverages" :key="dim.key" class="growth-bar-row">
+            <span class="growth-bar-label">{{ dim.label }}</span>
+            <div class="growth-bar-track">
+              <div class="growth-bar-fill" :style="{width:dim.pct+'%',background:dim.pct>=80?'#059669':dim.pct>=60?'#064ea2':dim.pct>=40?'#d97706':'#dc2626'}"></div>
+            </div>
+            <span class="growth-bar-value">{{ dim.avg }}<span class="growth-bar-max">/{{ dim.max }}</span></span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="sp-module" v-if="stats&&stats.total>0">
@@ -111,4 +140,18 @@ function toggleExpand(id:string) { expandedId.value = expandedId.value===id?null
 .expand-enter-active,.expand-leave-active { transition: all 0.25s ease; overflow: hidden; }
 .expand-enter-from,.expand-leave-to { opacity: 0; max-height: 0; }
 .expand-enter-to,.expand-leave-from { opacity: 1; max-height: 400px; }
+.growth-card { margin-bottom: 16px; }
+.growth-based-on { font-size: 12px; color: var(--sp-gray-400); font-weight: 500; }
+.growth-content { display: flex; flex-direction: column; gap: 16px; }
+.growth-insight { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--sp-gray-700); line-height: 1.6; }
+.growth-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 4px; flex-shrink: 0; }
+.growth-tag.weak { background: #fef2f2; color: #dc2626; }
+.growth-tag.strong { background: #ecfdf5; color: #059669; }
+.growth-bars { display: flex; flex-direction: column; gap: 10px; }
+.growth-bar-row { display: flex; align-items: center; gap: 10px; }
+.growth-bar-label { width: 56px; font-size: 12px; color: var(--sp-gray-500); font-weight: 600; flex-shrink: 0; }
+.growth-bar-track { flex: 1; height: 10px; border-radius: 5px; background: var(--sp-gray-100); overflow: hidden; }
+.growth-bar-fill { height: 100%; border-radius: 5px; transition: width 0.5s cubic-bezier(.4,0,.2,1); }
+.growth-bar-value { width: 48px; text-align: right; font-size: 13px; font-weight: 700; color: var(--sp-gray-900); flex-shrink: 0; }
+.growth-bar-max { font-size: 11px; font-weight: 500; color: var(--sp-gray-400); }
 </style>
