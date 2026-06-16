@@ -128,6 +128,9 @@ ${toolList}
       answer = `抱歉，AI 服务暂时不可用：${(e as Error).message}。请检查 DeepSeek API Key 配置或稍后重试。`;
     }
 
+    // 安全网：剥离 Markdown 格式符号（无论模型是否遵守提示词规则）
+    answer = this.stripMarkdown(answer);
+
     // Guard against empty answers — if all paths produced nothing, give a fallback
     if (!answer || !answer.trim()) {
       answer = '抱歉，AI 未能生成有效回复。请重新提问或换一种方式描述您的问题。';
@@ -375,6 +378,40 @@ ${toolList}
     }
     // Collapse extra blank lines left behind
     return output.replace(/\n{3,}/g, '\n\n');
+  }
+
+  /**
+   * 安全网：剥离所有 Markdown 格式字符。
+   * 无论系统提示词是否生效，最终输出不会有粗体/斜体/代码等格式。
+   */
+  private stripMarkdown(text: string): string {
+    return text
+      // 加粗 **text** 或 __text__
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/__(.+?)__/g, '$1')
+      // 斜体 *text* 或 _text_（但不匹配 ** 残余）
+      .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '$1')
+      .replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '$1')
+      // 代码块 ```...```
+      .replace(/```[\s\S]*?```/g, '')
+      // 行内代码 `text`
+      .replace(/`(.+?)`/g, '$1')
+      // 删除线 ~~text~~
+      .replace(/~~(.+?)~~/g, '$1')
+      // 标题 # ## ### ...
+      .replace(/^#{1,6}\s+/gm, '')
+      // 水平线 --- 或 ===
+      .replace(/^[-=]{3,}\s*$/gm, '')
+      // 引用 >
+      .replace(/^>\s?/gm, '')
+      // 无序列表标记 * -（行首格式，保留内容）
+      // 仅当后面有空格时去掉，不误伤正常文字中的短横线
+      .replace(/^[\*\-]\s+/gm, '')
+      // 有序列表 1. 2. ...
+      .replace(/^\d+\.\s+/gm, '')
+      // 清理多余空行
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 
   /**
