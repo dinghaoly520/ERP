@@ -32,7 +32,6 @@ function SupplierApprovalPage() {
   const [batchApproving, setBatchApproving] = useState(false);
   const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return'; supplier: Supplier } | null>(null);
   const [actionReason, setActionReason] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
 
   const toggleSelect = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => {
@@ -76,17 +75,34 @@ function SupplierApprovalPage() {
   const handleAction = async () => {
     if (!actionModal) return;
     if (actionModal.type !== 'approve' && !actionReason.trim()) { toast.error('请填写处理原因'); return; }
-    setActionLoading(true);
+
+    const { type, supplier: s } = actionModal;
+    const reason = actionReason; // 在异步间隙前捕获
+    const label = type === 'approve' ? '已通过' : type === 'reject' ? '已拒绝' : '已退回补正';
+    const prevItems = data.items;
+
+    // ── 乐观移除 ──
+    setData(d => ({ ...d, items: d.items.filter(x => (x as Supplier).id !== s.id) }));
+    setActionModal(null);
+    setActionReason('');
+
+    let cancelled = false;
+    toast(`${label}「${s.name}」`, {
+      description: '4 秒内可撤销',
+      duration: 4000,
+      action: { label: '撤销', onClick: () => { cancelled = true; setData(d => ({ ...d, items: prevItems })); } },
+    });
+
+    await new Promise(r => setTimeout(r, 4200));
+    if (cancelled) return;
+
+    // ── 真正调用 API ──
     try {
-      const { type, supplier } = actionModal;
-      if (type === 'approve') { await approveSupplier(supplier.id); toast.success('已审核通过'); }
-      else if (type === 'reject') { await rejectSupplier(supplier.id, actionReason); toast.success('已拒绝'); }
-      else if (type === 'return') { await returnSupplier(supplier.id, actionReason); toast.success('已退回补正'); }
-      setActionModal(null);
-      setActionReason('');
+      if (type === 'approve') await approveSupplier(s.id);
+      else if (type === 'reject') await rejectSupplier(s.id, reason);
+      else if (type === 'return') await returnSupplier(s.id, reason);
       loadData();
-    } catch (e: any) { toast.error(e?.message || '操作失败'); }
-    setActionLoading(false);
+    } catch (e: any) { toast.error(e?.message || '操作失败'); loadData(); }
   };
 
 
@@ -226,12 +242,12 @@ function SupplierApprovalPage() {
                 className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
               <button
                 onClick={handleAction}
-                disabled={actionLoading || (actionModal.type !== 'approve' && !actionReason.trim())}
+                disabled={actionModal.type !== 'approve' && !actionReason.trim()}
                 className={`rounded-xl px-4 py-2 text-sm font-bold text-white transition disabled:opacity-50 ${
                   actionModal.type === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' :
                   actionModal.type === 'return' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-500 hover:bg-red-600'
                 }`}>
-                {actionLoading ? '处理中...' : '确认'}
+                确认
               </button>
             </div>
           </div>

@@ -6,7 +6,8 @@ import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { statusTone, type WorkbenchTone } from '@water-erp/shared';
 import { TrendChip } from './trend-chip';
-import type { TrendDirection } from '@/lib/hooks/use-trend';
+import { MiniSparkline } from '@/lib/hooks/use-trend';
+import type { TrendDirection, TrendHistory } from '@/lib/hooks/use-trend';
 
 interface MetricCardProps {
   label: string;
@@ -19,6 +20,7 @@ interface MetricCardProps {
   className?: string;
   trendDirection?: TrendDirection;
   trendDelta?: number | null;
+  trendHistory?: TrendHistory | null;
 }
 
 function useCountUp(target: number, duration = 500) {
@@ -47,7 +49,7 @@ function useCountUp(target: number, duration = 500) {
   return display;
 }
 
-export function MetricCard({ label, value, hint, tone = 'blue', icon, onClick, footer, className, trendDirection, trendDelta }: MetricCardProps) {
+export function MetricCard({ label, value, hint, tone = 'blue', icon, onClick, footer, className, trendDirection, trendDelta, trendHistory }: MetricCardProps) {
   const toneConfig = statusTone[tone];
   const Component = onClick ? 'button' : 'div';
   const numericValue = typeof value === 'number' ? value : NaN;
@@ -69,7 +71,12 @@ export function MetricCard({ label, value, hint, tone = 'blue', icon, onClick, f
         <span className="text-xs font-bold text-[#5a6d8a]">{label}</span>
         {icon && <span className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ color: toneConfig.color, backgroundColor: toneConfig.bg }}>{icon}</span>}
       </div>
-      <div className="text-2xl font-black tracking-tight text-[#18243a] tabular-nums">{displayValue}</div>
+      <div className="flex items-end justify-between gap-2">
+        <span className="text-2xl font-black tracking-tight text-[#18243a] tabular-nums">{displayValue}</span>
+        {trendHistory?.values && trendHistory.values.length >= 2 && (
+          <MiniSparkline values={trendHistory.values} tone={tone} />
+        )}
+      </div>
       {hint && <p className="mt-0.5 text-xs leading-5 text-[#8a96aa]">{hint}</p>}
       {trendDelta != null && trendDelta !== 0 && trendDirection && (
         <TrendChip delta={trendDelta} direction={trendDirection} />
