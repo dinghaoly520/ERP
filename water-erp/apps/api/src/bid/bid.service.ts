@@ -312,21 +312,39 @@ export class BidService {
     assertBidStageTransition(project.stage, 'OPENING');
 
     // P1: 整个阶段变更 + Session 创建用事务包裹，防止并发竞争
+    const isTransitioning = project.stage !== 'OPENING';
+
+    // 首次进入 OPENING 必须提供完整的开标会话信息
+    if (isTransitioning && (!dto?.host || !dto?.supervisor || !dto?.decryptWindowStart || !dto?.decryptWindowEnd)) {
+      throw new BadRequestException({
+        error: '启动开标需填写主持人、监督人及解密窗口起止时间',
+        code: 'OPENING_SESSION_REQUIRED',
+      });
+    }
+
+    if (dto?.decryptWindowStart && dto?.decryptWindowEnd) {
+      if (new Date(dto.decryptWindowEnd) <= new Date(dto.decryptWindowStart)) {
+        throw new BadRequestException({
+          error: '解密窗口结束时间必须晚于开始时间',
+          code: 'INVALID_DECRYPT_WINDOW',
+        });
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      // Session 幂等：已存在则不重复创建（避免 @unique(projectId) 冲突）
       if (dto?.host && dto?.supervisor && dto?.decryptWindowStart && dto?.decryptWindowEnd) {
         const existingSession = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
-        if (!existingSession) {
-          await tx.bidOpeningSession.create({
-            data: {
-              projectId: id,
-              host: dto.host,
-              supervisor: dto.supervisor,
-              decryptWindowStart: new Date(dto.decryptWindowStart),
-              decryptWindowEnd: new Date(dto.decryptWindowEnd),
-              status: '待开标',
-            },
-          });
+        const sessionData = {
+          host: dto.host,
+          supervisor: dto.supervisor,
+          decryptWindowStart: new Date(dto.decryptWindowStart),
+          decryptWindowEnd: new Date(dto.decryptWindowEnd),
+          status: '待开标' as const,
+        };
+        if (existingSession) {
+          await tx.bidOpeningSession.update({ where: { projectId: id }, data: sessionData });
+        } else {
+          await tx.bidOpeningSession.create({ data: { projectId: id, ...sessionData } });
         }
       }
 
@@ -378,6 +396,18 @@ export class BidService {
       // P0: 重复解密保护 — 已成功解密的不允许再次解密（避免覆写 confirmStatus）
       if (bidSupplier.decryptStatus === 'SUCCESS') {
         throw new BadRequestException({ error: '标书已解密成功，无需重复解密', code: 'ALREADY_DECRYPTED' });
+      }
+
+      // P0: 解密窗口校验 — 窗口未开启或已关闭时拒绝解密
+      const session = await tx.bidOpeningSession.findUnique({ where: { projectId } });
+      if (session) {
+        const now = new Date();
+        if (now < session.decryptWindowStart) {
+          throw new BadRequestException({ error: '解密窗口尚未开启', code: 'DECRYPT_WINDOW_NOT_OPEN' });
+        }
+        if (now > session.decryptWindowEnd) {
+          throw new BadRequestException({ error: '解密窗口已关闭', code: 'DECRYPT_WINDOW_CLOSED' });
+        }
       }
 
       // Phase 1: 开始解密

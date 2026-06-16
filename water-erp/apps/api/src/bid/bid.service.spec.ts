@@ -94,6 +94,7 @@ describe('BidService — stage transitions', () => {
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
       supplierBidSubmission: { findUnique: jest.fn() },
+      bidOpeningSession: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
       fileAsset: { findUnique: jest.fn() },
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
@@ -164,10 +165,80 @@ describe('BidService — stage transitions', () => {
   });
 
   describe('startOpening', () => {
-    it('rejects if not in SUBMIT', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD' });
+    const sessionDto = {
+      host: '主持人A', supervisor: '监督人A',
+      decryptWindowStart: '2026-06-16T10:00:00.000Z',
+      decryptWindowEnd: '2026-06-16T10:30:00.000Z',
+    };
 
+    beforeEach(() => {
+      prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));
+    });
+
+    it('rejects if stage is DOWNLOAD (not SUBMIT)', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD', name: '测试项目' });
       await expect(service.startOpening('p1')).rejects.toThrow(ConflictException);
+    });
+
+    it('rejects SUBMIT→OPENING without session data', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目' });
+      await expect(service.startOpening('p1')).rejects.toThrow(BadRequestException);
+      await expect(service.startOpening('p1')).rejects.toMatchObject({
+        response: { code: 'OPENING_SESSION_REQUIRED' },
+      });
+    });
+
+    it('creates session on SUBMIT→OPENING with valid data', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目' });
+      prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+      prisma.bidOpeningSession.create.mockResolvedValue({ id: 'sess-1' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.startOpening('p1', sessionDto);
+
+      expect(result.stage).toBe('OPENING');
+      expect(prisma.bidOpeningSession.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ host: '主持人A', supervisor: '监督人A' }),
+        }),
+      );
+    });
+
+    it('updates existing session on OPENING→OPENING re-open', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      prisma.bidOpeningSession.findUnique.mockResolvedValue({ id: 'sess-1', host: '旧主持人' });
+      prisma.bidOpeningSession.update.mockResolvedValue({ id: 'sess-1', host: '主持人B' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await service.startOpening('p1', { ...sessionDto, host: '主持人B' });
+
+      expect(prisma.bidOpeningSession.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { projectId: 'p1' },
+          data: expect.objectContaining({ host: '主持人B' }),
+        }),
+      );
+    });
+
+    it('allows OPENING→OPENING idempotent without session data', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.startOpening('p1');
+      expect(result.stage).toBe('OPENING');
+    });
+
+    it('rejects when decryptWindowEnd <= decryptWindowStart', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目' });
+      await expect(service.startOpening('p1', {
+        ...sessionDto,
+        decryptWindowEnd: '2026-06-16T09:00:00.000Z', // 早于 start
+      })).rejects.toMatchObject({
+        response: { code: 'INVALID_DECRYPT_WINDOW' },
+      });
     });
   });
 
@@ -229,6 +300,43 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidSupplier.update).not.toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ confirmStatus: 'CONFIRMED' }) }),
       );
+    });
+
+    it('rejects decrypt when window is not yet open', async () => {
+      prisma.bidOpeningSession.findUnique = jest.fn().mockResolvedValue({
+        decryptWindowStart: new Date(Date.now() + 3600_000),  // 1 hour from now
+        decryptWindowEnd: new Date(Date.now() + 7200_000),
+      });
+      await expect(service.decryptSupplier('p1', 'bs-1'))
+        .rejects.toMatchObject({ response: { code: 'DECRYPT_WINDOW_NOT_OPEN' } });
+    });
+
+    it('rejects decrypt when window has closed', async () => {
+      prisma.bidOpeningSession.findUnique = jest.fn().mockResolvedValue({
+        decryptWindowStart: new Date(Date.now() - 7200_000),
+        decryptWindowEnd: new Date(Date.now() - 3600_000),    // 1 hour ago
+      });
+      await expect(service.decryptSupplier('p1', 'bs-1'))
+        .rejects.toMatchObject({ response: { code: 'DECRYPT_WINDOW_CLOSED' } });
+    });
+
+    it('allows decrypt when window is open', async () => {
+      prisma.bidOpeningSession.findUnique = jest.fn().mockResolvedValue({
+        decryptWindowStart: new Date(Date.now() - 3600_000),
+        decryptWindowEnd: new Date(Date.now() + 3600_000),
+      });
+      const result = await service.decryptSupplier('p1', 'bs-1', {} as any);
+      expect(result).toBeDefined();
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith({
+        where: { id: 'bs-1' },
+        data: { decryptStatus: 'SUCCESS' },
+      });
+    });
+
+    it('allows decrypt when no session exists (legacy)', async () => {
+      prisma.bidOpeningSession.findUnique = jest.fn().mockResolvedValue(null);
+      const result = await service.decryptSupplier('p1', 'bs-1', {} as any);
+      expect(result).toBeDefined();
     });
   });
 
@@ -486,6 +594,7 @@ describe('BidService — stage transitions', () => {
           },
           bidOpeningRecord: { create: jest.fn().mockResolvedValue({}) },
           bidSupervisionLog: { create: logCreate },
+          bidOpeningSession: { findUnique: jest.fn().mockResolvedValue(null) },
         };
         return fn(tx);
       });
@@ -520,6 +629,7 @@ describe('BidService — decryptSupplier 真实校验', () => {
       },
       bidOpeningRecord: { create: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
+      bidOpeningSession: { findUnique: jest.fn(async () => null) },
     };
     const prisma: any = { $transaction: jest.fn(async (cb: any) => cb(tx)) };
     const module = await Test.createTestingModule({
