@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { RedisModule } from './redis/redis.module';
+import { VerificationModule } from './verification/verification.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { BidModule } from './bid/bid.module';
@@ -27,6 +28,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     RedisModule,
+    VerificationModule,
     AuthModule,
     BidModule,
     SupplierModule,
