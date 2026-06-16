@@ -311,32 +311,38 @@ export class BidService {
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'OPENING');
 
-    // Create opening session only when all session fields are provided
-    if (dto?.host && dto?.supervisor && dto?.decryptWindowStart && dto?.decryptWindowEnd) {
-      await this.prisma.bidOpeningSession.create({
-        data: {
-          projectId: id,
-          host: dto.host,
-          supervisor: dto.supervisor,
-          decryptWindowStart: new Date(dto.decryptWindowStart),
-          decryptWindowEnd: new Date(dto.decryptWindowEnd),
-          status: '待开标',
-        },
+    // P1: 整个阶段变更 + Session 创建用事务包裹，防止并发竞争
+    return this.prisma.$transaction(async (tx) => {
+      // Session 幂等：已存在则不重复创建（避免 @unique(projectId) 冲突）
+      if (dto?.host && dto?.supervisor && dto?.decryptWindowStart && dto?.decryptWindowEnd) {
+        const existingSession = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
+        if (!existingSession) {
+          await tx.bidOpeningSession.create({
+            data: {
+              projectId: id,
+              host: dto.host,
+              supervisor: dto.supervisor,
+              decryptWindowStart: new Date(dto.decryptWindowStart),
+              decryptWindowEnd: new Date(dto.decryptWindowEnd),
+              status: '待开标',
+            },
+          });
+        }
+      }
+
+      const updated = await tx.bidProject.update({
+        where: { id },
+        data: { stage: 'OPENING' },
       });
-    }
 
-    const updated = await this.prisma.bidProject.update({
-      where: { id },
-      data: { stage: 'OPENING' },
+      await tx.bidSupervisionLog.create({
+        data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action: '启动开标 (SUBMIT→OPENING)', result: '阶段变更成功', riskFlag: '无' },
+      });
+
+      this.gateway?.notifyStageChange(id, 'SUBMIT', 'OPENING', 'host');
+
+      return updated;
     });
-
-    this.gateway?.notifyStageChange(id, 'SUBMIT', 'OPENING', 'host');
-
-    await this.prisma.bidSupervisionLog.create({
-      data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action: '启动开标 (SUBMIT→OPENING)', result: '阶段变更成功', riskFlag: '无' },
-    });
-
-    return updated;
   }
 
   async startEvaluation(id: string) {
@@ -369,6 +375,11 @@ export class BidService {
       });
       if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
 
+      // P0: 重复解密保护 — 已成功解密的不允许再次解密（避免覆写 confirmStatus）
+      if (bidSupplier.decryptStatus === 'SUCCESS') {
+        throw new BadRequestException({ error: '标书已解密成功，无需重复解密', code: 'ALREADY_DECRYPTED' });
+      }
+
       // Phase 1: 开始解密
       await tx.bidSupplier.update({
         where: { id: supplierId },
@@ -393,8 +404,21 @@ export class BidService {
             { assetId: submission.technicalFileAssetId, sealedKey: submission.technicalSealedKey },
             { assetId: submission.businessFileAssetId, sealedKey: submission.businessSealedKey },
             { assetId: submission.coverLetterAssetId, sealedKey: submission.coverLetterSealedKey },
-          ]
+          ].filter(ref => !!ref.assetId)
         : [];
+
+      // P0: 无投标文件 → 直接标记 DANGER，避免 classifyDecryptOutcome 默认判 SUCCESS
+      if (fileRefs.length === 0) {
+        const reason = submission
+          ? '投标文件引用缺失（未上传技术/商务/报价文件）'
+          : (bidSupplier.supplierId ? '供应商未提交投标文件' : '供应商未关联系统账户，无法查询投标记录');
+        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', decryptError: reason } });
+        this.gateway?.notifyDecryptStatus(projectId, supplierId, bidSupplier.supplierName, 'DANGER');
+        await tx.bidSupervisionLog.create({
+          data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${reason}`, riskFlag: '高风险' },
+        });
+        return tx.bidSupplier.findUnique({ where: { id: supplierId } });
+      }
 
       for (const ref of fileRefs) {
         if (!ref.assetId) continue;
@@ -732,6 +756,14 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'ARCHIVED');
+
+    // P2: 已归档项目幂等返回，不抛异常
+    if (project.stage === 'ARCHIVED') {
+      return this.prisma.bidProject.findUnique({
+        where: { id },
+        include: { archiveItems: true },
+      });
+    }
 
     // 防止"跳过评标"归档：存在已确认的可评供应商但未生成评标结果时阻断
     const [confirmableCount, resultCount] = await Promise.all([

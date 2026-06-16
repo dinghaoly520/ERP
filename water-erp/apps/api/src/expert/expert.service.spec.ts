@@ -20,6 +20,8 @@ describe('ExpertService', () => {
     avoidanceConfirmed: false,
     progress: 0,
     totalScore: 0,
+    phoneVerified: true,
+    reportConfirmed: false,
   };
 
   beforeEach(async () => {

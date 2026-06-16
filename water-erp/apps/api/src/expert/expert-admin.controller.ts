@@ -46,7 +46,10 @@ export class ExpertAdminController {
   }
 
   @Post('extract/confirm')
-  @ApiOperation({ summary: '确认专家抽取（建 BidExpert）' })
+  @ApiOperation({
+    summary: '确认专家抽取（建 BidExpert）',
+    description: '调用前请先调 POST /expert-admin/extract 获取预览结果，将响应中 selected 数组的每个元素映射为 { userId, expertName: name, major: specialty } 作为 experts 字段传入。所有预览中的正选专家应在一次请求中全部确认。',
+  })
   confirmExtraction(@Body() dto: ConfirmExtractionDto) {
     return this.expertAdminService.confirmExtraction(dto.projectId, dto);
   }

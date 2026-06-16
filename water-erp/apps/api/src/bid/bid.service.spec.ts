@@ -6,6 +6,19 @@ import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
 import { assertBidStageTransition } from './bid-state';
 
+// Mock decrypt utilities and MinIO client for decryptSupplier tests
+jest.mock('./bid-submission.crypto', () => ({
+  decryptBuffer: jest.fn(),
+  streamToBuffer: jest.fn().mockResolvedValue(Buffer.from('test')),
+  verifyIntegrity: jest.fn().mockReturnValue(true),
+  classifyDecryptOutcome: jest.requireActual('./bid-submission.crypto').classifyDecryptOutcome,
+}));
+
+jest.mock('../upload/minio.client', () => ({
+  minioClient: { getObject: jest.fn().mockResolvedValue({}) },
+  MINIO_BUCKET: 'test-bucket',
+}));
+
 /* ── 纯函数测试：bid-state 状态机 ── */
 
 describe('assertBidStageTransition (bid-state)', () => {
@@ -80,6 +93,8 @@ describe('BidService — stage transitions', () => {
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+      supplierBidSubmission: { findUnique: jest.fn() },
+      fileAsset: { findUnique: jest.fn() },
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
     };
@@ -159,9 +174,19 @@ describe('BidService — stage transitions', () => {
   describe('decryptSupplier', () => {
     beforeEach(() => {
       prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));
-      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1', projectId: 'p1', supplierName: '测试供应商' });
-      prisma.bidSupplier.update.mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' });
-      prisma.bidSupplier.findUnique.mockResolvedValue({ id: 'bs-1', decryptStatus: 'DANGER' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({
+        id: 'bs-1', projectId: 'p1', supplierName: '测试供应商', supplierId: 's1', decryptStatus: 'PENDING',
+      });
+      prisma.bidSupplier.update.mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' });
+      prisma.bidSupplier.findUnique.mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' });
+      // Mock submission with file asset for decrypt loop
+      prisma.supplierBidSubmission.findUnique = jest.fn().mockResolvedValue({
+        technicalFileAssetId: 'fa1', businessFileAssetId: null, coverLetterAssetId: null,
+        technicalSealedKey: null, businessSealedKey: null, coverLetterSealedKey: null,
+      });
+      prisma.fileAsset.findUnique = jest.fn().mockResolvedValue({
+        id: 'fa1', key: 'uploads/test.pdf', sha256: 'abc123',
+      });
       prisma.bidOpeningRecord.create.mockResolvedValue({});
       prisma.bidSupervisionLog.create.mockResolvedValue({});
     });
@@ -325,21 +350,28 @@ describe('BidService — stage transitions', () => {
     });
 
     it('uses transaction for atomic archive + stage update + supervision log', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' });
+      // First findUnique call returns EVALUATING project (not archived, so no early return)
+      prisma.bidProject.findUnique
+        .mockResolvedValueOnce({ id: 'p1', projectCode: 'BID-TEST', stage: 'EVALUATING', name: '测试项目' })
+        // Final findUnique call returns archived project with items
+        .mockResolvedValueOnce({ id: 'p1', stage: 'ARCHIVED', archiveItems: [] });
+      // Mock ensureArchiveItems: pretend items already exist
+      prisma.bidArchiveItem.findFirst = jest.fn().mockResolvedValue({ id: 'a1', projectId: 'p1' });
       prisma.bidArchiveItem.findMany.mockResolvedValue([
         { id: 'a1', status: 'PENDING_CONFIRM' },
       ]);
+      // The counts check (防跳过评标)
+      prisma.bidSupplier.count = jest.fn().mockResolvedValue(0);
+      prisma.bidEvaluationResult.count = jest.fn().mockResolvedValue(0);
 
       const txCalls: any[][] = [];
       prisma.$transaction = jest.fn(async (ops: any[]) => {
         txCalls.push(ops);
-        // Simulate the operations
         await Promise.all(ops);
       });
       prisma.bidArchiveItem.update = jest.fn().mockResolvedValue({ hashDigest: 'sha256:abc' });
       prisma.bidProject.update = jest.fn().mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
       prisma.bidSupervisionLog.create = jest.fn().mockResolvedValue({});
-      prisma.bidProject.findUnique = jest.fn().mockResolvedValue({ id: 'p1', stage: 'ARCHIVED', archiveItems: [] });
 
       const result = await service.archiveAll('p1');
 
@@ -433,23 +465,30 @@ describe('BidService — stage transitions', () => {
 
   describe('decryptSupplier', () => {
     it('writes supervision log on successful decrypt', async () => {
+      // Setup this.prisma mocks (used outside tx callback for submission lookup)
+      prisma.supplierBidSubmission = {
+        findUnique: jest.fn().mockResolvedValue({
+          technicalFileAssetId: 'fa1', businessFileAssetId: null, coverLetterAssetId: null,
+          technicalSealedKey: null, businessSealedKey: null, coverLetterSealedKey: null,
+        }),
+      };
+      prisma.fileAsset = {
+        findUnique: jest.fn().mockResolvedValue({ id: 'fa1', key: 'uploads/test.pdf', sha256: 'abc123' }),
+      };
+
       const logCreate = jest.fn().mockResolvedValue({});
       prisma.$transaction = jest.fn(async (fn: any) => {
         const tx = {
           bidSupplier: {
-            findFirst: jest.fn().mockResolvedValue({ id: 'bs-1', supplierName: '供应商A' }),
-            update: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' }),
-            findUnique: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'DANGER' }),
+            findFirst: jest.fn().mockResolvedValue({ id: 'bs-1', supplierName: '供应商A', supplierId: 's1', decryptStatus: 'PENDING' }),
+            update: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' }),
+            findUnique: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' }),
           },
           bidOpeningRecord: { create: jest.fn().mockResolvedValue({}) },
           bidSupervisionLog: { create: logCreate },
         };
         return fn(tx);
       });
-
-      // Force non-danger outcome by mocking Math.random
-      const origRandom = Math.random;
-      Math.random = () => 0.5; // > 0.05, so not DANGER
 
       const result = await service.decryptSupplier('p1', 'bs-1');
 
@@ -458,8 +497,6 @@ describe('BidService — stage transitions', () => {
           data: expect.objectContaining({ action: '标书解密', riskFlag: '无' }),
         }),
       );
-
-      Math.random = origRandom;
     });
   });
 

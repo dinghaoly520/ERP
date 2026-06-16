@@ -21,7 +21,9 @@ export class AnnouncementService {
       content: dto.content,
     });
 
-    return this.prisma.announcement.create({
+    const status = (dto.status as any) ?? 'DRAFT';
+
+    const result = await this.prisma.announcement.create({
       data: {
         title: dto.title,
         content: dto.content,
@@ -32,11 +34,23 @@ export class AnnouncementService {
         isTop: dto.isTop ?? false,
         relatedProjectCode: dto.relatedProjectCode,
         authorId,
-        status: (dto.status as any) ?? 'DRAFT',
+        status,
         ...(dto.metadata !== undefined && { metadata: dto.metadata as any }),
       },
       include: { attachments: { include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } } } } },
     });
+
+    // P1: create 端点也触发联动（status=PUBLISHED + BID_NOTICE）
+    const isPublishTransition = dto.type === 'BID_NOTICE' && status === 'PUBLISHED';
+    if (isPublishTransition) {
+      await this.syncBidProject(result.id, {
+        id: result.id, title: result.title, publishDate: result.publishDate,
+        metadata: result.metadata, relatedProjectCode: result.relatedProjectCode,
+      });
+      return this.get(result.id);
+    }
+
+    return result;
   }
 
   async list(params: { type?: string; status?: string; search?: string; page?: number; pageSize?: number }) {
@@ -168,62 +182,44 @@ export class AnnouncementService {
     }
 
     // ── 联动：BID_NOTICE 首次发布 → 创建 BidProject ──
-    if (isPublishTransition && this.bidService) {
-      try {
-        const meta = (result.metadata || {}) as Record<string, any>;
-        // 幂等检查：relatedProjectCode 是否已关联有效项目
-        let existingProject = null;
-        if (announcement.relatedProjectCode) {
-          existingProject = await this.prisma.bidProject.findUnique({
-            where: { projectCode: announcement.relatedProjectCode },
-          });
-        }
-
-        if (existingProject) {
-          // 已存在 → 同步更新
-          await this.bidService.syncFromAnnouncement(
-            existingProject.id,
-            { title: result.title },
-            meta,
-          );
-          this.logger.log(
-            `公告已关联项目 ${existingProject.projectCode}，同步更新字段`,
-          );
-        } else {
-          // 不存在 → 创建
-          const project = await this.bidService.createFromAnnouncement(
-            { id: result.id, title: result.title, publishDate: result.publishDate },
-            meta,
-          );
-          // 回写 relatedProjectCode
-          await this.prisma.announcement.update({
-            where: { id },
-            data: { relatedProjectCode: project.projectCode },
-          });
-          // 挂载招标文件
-          const bidDoc = await this.prisma.bidDocument.findUnique({
-            where: { announcementId: id },
-          });
-          if (bidDoc) {
-            await this.prisma.bidDocument.update({
-              where: { announcementId: id },
-              data: { bidProjectId: project.id },
-            });
-          }
-          this.logger.log(
-            `公告首次发布，自动创建项目 ${project.projectCode}`,
-          );
-        }
-      } catch (e) {
-        // 联动失败不阻塞发布，记录日志供排查
-        this.logger.error(
-          `公告发布联动创建项目失败 (announcementId=${id}): ${(e as Error).message}`,
-          (e as Error).stack,
-        );
-      }
+    // P2: 联动后重新查询以返回正确的 relatedProjectCode
+    if (isPublishTransition) {
+      await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: announcement.relatedProjectCode });
+      return this.get(id);
     }
 
     return result;
+  }
+
+  /** 联动：BID_NOTICE 发布时自动创建/同步 BidProject，幂等安全 */
+  private async syncBidProject(annId: string, announcement: { id: string; title: string; publishDate: Date | null; metadata?: any; relatedProjectCode?: string | null }) {
+    if (!this.bidService) return;
+    try {
+      const meta = (announcement.metadata || {}) as Record<string, any>;
+      let existingProject = null;
+      if (announcement.relatedProjectCode) {
+        existingProject = await this.prisma.bidProject.findUnique({
+          where: { projectCode: announcement.relatedProjectCode },
+        });
+      }
+
+      if (existingProject) {
+        await this.bidService.syncFromAnnouncement(existingProject.id, { title: announcement.title }, meta);
+        this.logger.log(`公告已关联项目 ${existingProject.projectCode}，同步更新字段`);
+      } else {
+        const project = await this.bidService.createFromAnnouncement(
+          { id: announcement.id, title: announcement.title, publishDate: announcement.publishDate }, meta,
+        );
+        await this.prisma.announcement.update({ where: { id: annId }, data: { relatedProjectCode: project.projectCode } });
+        const bidDoc = await this.prisma.bidDocument.findUnique({ where: { announcementId: annId } });
+        if (bidDoc) {
+          await this.prisma.bidDocument.update({ where: { announcementId: annId }, data: { bidProjectId: project.id } });
+        }
+        this.logger.log(`公告首次发布，自动创建项目 ${project.projectCode}`);
+      }
+    } catch (e) {
+      this.logger.error(`公告发布联动创建项目失败 (announcementId=${annId}): ${(e as Error).message}`, (e as Error).stack);
+    }
   }
 
   async remove(id: string) {

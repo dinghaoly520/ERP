@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ExpertService } from './expert.service';
@@ -7,8 +8,8 @@ import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { ConfirmReportDto } from './dto/confirm-report.dto';
 
+@ApiTags('专家评审')
 @Controller('expert')
-
 @Roles('bid_expert')
 export class ExpertController {
   constructor(private expertService: ExpertService) {}
@@ -74,6 +75,10 @@ export class ExpertController {
 
   /* ── 专家打分 ── */
   @Post('projects/:projectId/scores')
+  @ApiOperation({
+    summary: '提交评分（按供应商批量）',
+    description: '每次调用提交一个供应商的全部评分项。**需提交全部 5 类评分项**（含资格性审查/符合性审查，可打 0 分）方可达到 progress=100% 并确认报告。supplierName 为供应商企业全称，scores 数组中每项包含 scoreItemId/supplierId/score/reason。',
+  })
   submitScores(
     @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
