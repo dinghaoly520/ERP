@@ -133,21 +133,29 @@ ${toolList}
       answer = '抱歉，AI 未能生成有效回复。请重新提问或换一种方式描述您的问题。';
     }
 
-    await this.prisma.assistantMessage.create({
-      data: {
-        conversationId: conversation.id,
-        role: 'assistant',
-        content: answer,
-        cardsJson: (cards.length > 0 ? cards : undefined) as any,
-        citationsJson: (citations.length > 0 ? citations : undefined) as any,
-      },
-    });
+    try {
+      await this.prisma.assistantMessage.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'assistant',
+          content: answer,
+          cardsJson: (cards.length > 0 ? cards : undefined) as any,
+          citationsJson: (citations.length > 0 ? citations : undefined) as any,
+        },
+      });
+    } catch (e) {
+      this.logger.error(`保存助手消息失败: ${(e as Error).message}`);
+    }
 
     if (!conversation.messages?.length) {
-      await this.prisma.assistantConversation.update({
-        where: { id: conversation.id },
-        data: { title: dto.message.slice(0, 30) },
-      });
+      try {
+        await this.prisma.assistantConversation.update({
+          where: { id: conversation.id },
+          data: { title: dto.message.slice(0, 30) },
+        });
+      } catch {
+        // title update is best-effort
+      }
     }
 
     return { conversationId: conversation.id, answer, cards, citations, pendingActions };
@@ -265,20 +273,22 @@ ${toolList}
     const toolSummary = `以下是 ${aggregatedData.length} 个工具返回的真实数据（JSON格式），请综合引用其中的项目名称、金额、日期等具体信息：\n\`\`\`json\n${toolDataStr}\n\`\`\`\n\n请基于以上真实数据，按系统提示词的总-分结构输出回答。必须引用具体的项目名称、金额数字、时间节点。注意：数据中的英文状态码（如OPENING、PENDING）仅供你理解使用，在回答中必须转换为中文（如"开标阶段""待审核"），严禁在回答中输出英文代码。不要写空泛的概括。`;
 
     try {
-      const followUp = await this.model.chat([
-        ...messages,
-        { role: 'assistant' as const, content: answer },
-        {
-          role: 'user' as const,
-          content: toolSummary,
-        },
-      ]);
+      // 若剥离 TOOL_CALL 后 answer 为空，不传空 assistant 消息（DeepSeek 会拒绝空 content）
+      const followUpMessages: ChatMessage[] = [...messages];
+      const narrative = answer.trim();
+      if (narrative) {
+        followUpMessages.push({ role: 'assistant', content: narrative });
+      }
+      followUpMessages.push({ role: 'user', content: toolSummary });
+
+      const followUp = await this.model.chat(followUpMessages);
       const followUpText = followUp.text?.trim();
       if (followUpText) {
         answer = followUpText;
       }
       // If empty, keep the stripped narrative (answer already had TOOL_CALL removed)
-    } catch {
+    } catch (e) {
+      this.logger.error(`handleNormalChat: 第二轮模型调用失败: ${(e as Error).message}`);
       // Second call failed — keep stripped narrative
     }
 
