@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getClassifications } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification, SupplierClassification } from '@/lib/types';
+import { AlertBanner, type AlertSeverity } from '@/components/workbench';
+import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 
 type TabKey = 'info' | 'contacts' | 'qualifications' | 'evaluations' | 'changes';
 
@@ -75,6 +77,13 @@ export default function SupplierDetailPage() {
 
   useEffect(() => { loadAll(); }, [id]);
   useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); }, []);
+
+  const supplierAlerts = useSupplierAlerts(id as string);
+  const alertItems = supplierAlerts.expiringQualifications.map((q) => {
+    const severity: AlertSeverity = q.daysLeft < 0 || q.daysLeft < 7 ? 'red' : q.daysLeft < 30 ? 'orange' : 'orange-light';
+    const prefix = q.daysLeft < 0 ? '已过期' : q.daysLeft < 7 ? '即将过期' : q.daysLeft < 30 ? '即将到期' : '注意到期';
+    return { severity, title: `${prefix}：${q.name}`, detail: `有效期至 ${new Date(q.validTo).toLocaleDateString('zh-CN')}（${q.daysLeft < 0 ? '已过期' : `剩 ${q.daysLeft} 天`}）` };
+  });
 
   const handleReviewChange = async () => {
     if (!reviewModal) return;
@@ -190,6 +199,8 @@ export default function SupplierDetailPage() {
           <button onClick={() => router.push('/supplier')} className="px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-semibold hover:bg-white/20 transition">← 返回列表</button>
         </div>
       </div>
+
+      <div className="mb-4"><AlertBanner items={alertItems} /></div>
 
       {/* ═══ Tab 导航 ═══ */}
       <div className="flex border-b border-[#e5ecf4] mb-6">

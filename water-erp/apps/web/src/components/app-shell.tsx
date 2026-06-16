@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import {
   LayoutDashboard, Building2, Megaphone, UsersRound,
   PanelLeftClose, PanelLeft, ChevronDown, ShoppingCart,
 } from 'lucide-react';
+import { NotificationCenter } from '@/components/workbench/notification-center';
+import { useNotifications } from '@/lib/hooks/use-notifications';
 
 interface NavChild {
   label: string;
@@ -58,27 +60,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [collapsed, setCollapsed] = useState(false);
-  const [badges, setBadges] = useState<Record<string, number>>({});
-  const badgeTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const fetchBadges = useCallback(async () => {
-    try {
-      const [ss, cs] = await Promise.all([
-        fetch('/api/supplier/stats', { credentials: 'include' }).then(r => r.ok ? r.json() : null),
-        fetch('/api/catalog/admin/stats', { credentials: 'include' }).then(r => r.ok ? r.json() : null),
-      ]);
-      setBadges({
-        supplierPending: ss?.pending ?? 0,
-        mallReview: cs?.pendingApplications ?? 0,
-      });
-    } catch { /* silent */ }
-  }, []);
-
-  useEffect(() => {
-    fetchBadges();
-    badgeTimer.current = setInterval(fetchBadges, 30_000);
-    return () => { if (badgeTimer.current) clearInterval(badgeTimer.current); };
-  }, [fetchBadges]);
+  const { derivedTodo } = useNotifications();
+  const badges: Record<string, number> = { supplierPending: derivedTodo.supplierPending, mallReview: derivedTodo.priceReview };
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
 
@@ -139,6 +122,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
 
           <div className="flex items-center gap-3">
+            <NotificationCenter />
             <div className="flex items-center gap-2 rounded-xl border border-[#e5ecf4] bg-white px-3 py-2 shadow-sm">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-xs font-black text-white">
                 {userInitial}

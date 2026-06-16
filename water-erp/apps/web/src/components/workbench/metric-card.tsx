@@ -5,6 +5,8 @@ import type { ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { statusTone, type WorkbenchTone } from '@water-erp/shared';
+import { TrendChip } from './trend-chip';
+import type { TrendDirection } from '@/lib/hooks/use-trend';
 
 interface MetricCardProps {
   label: string;
@@ -15,6 +17,8 @@ interface MetricCardProps {
   onClick?: () => void;
   footer?: ReactNode;
   className?: string;
+  trendDirection?: TrendDirection;
+  trendDelta?: number | null;
 }
 
 function useCountUp(target: number, duration = 500) {
@@ -43,7 +47,7 @@ function useCountUp(target: number, duration = 500) {
   return display;
 }
 
-export function MetricCard({ label, value, hint, tone = 'blue', icon, onClick, footer, className }: MetricCardProps) {
+export function MetricCard({ label, value, hint, tone = 'blue', icon, onClick, footer, className, trendDirection, trendDelta }: MetricCardProps) {
   const toneConfig = statusTone[tone];
   const Component = onClick ? 'button' : 'div';
   const numericValue = typeof value === 'number' ? value : NaN;
@@ -67,6 +71,9 @@ export function MetricCard({ label, value, hint, tone = 'blue', icon, onClick, f
       </div>
       <div className="text-2xl font-black tracking-tight text-[#18243a] tabular-nums">{displayValue}</div>
       {hint && <p className="mt-0.5 text-xs leading-5 text-[#8a96aa]">{hint}</p>}
+      {trendDelta != null && trendDelta !== 0 && trendDirection && (
+        <TrendChip delta={trendDelta} direction={trendDirection} />
+      )}
       {footer && <div className="mt-4 text-xs text-[#5a6d8a]">{footer}</div>}
       {onClick && <ArrowRight className="mt-3 text-[#8a96aa] opacity-0 transition group-hover:opacity-100 group-hover:translate-x-0.5" size={16} />}
     </Component>

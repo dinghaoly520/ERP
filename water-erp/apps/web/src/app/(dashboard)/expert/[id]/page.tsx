@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api } from '@/lib/api';
+import { AlertBanner } from '@/components/workbench';
+import { useExpertAlerts } from '@/lib/hooks/use-alerts';
 import { ArrowLeft } from 'lucide-react';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
@@ -38,6 +40,12 @@ export default function ExpertDetailPage() {
     api.get<ExpertDetail>(`/expert-admin/${expertId}`).then(setExpert).catch(() => {}).finally(() => setLoading(false));
   }, [expertId]);
 
+  const expertAlerts = useExpertAlerts(expertId);
+  const alertItems = [
+    ...(expertAlerts.consecutiveD ? [{ severity: 'red' as const, title: '连续 2 次 D 级评价', detail: '该专家近期履职评价连续不合格，建议关注' }] : []),
+    ...(expertAlerts.overloaded ? [{ severity: 'orange' as const, title: '评审负荷过载', detail: `同时参与 ${expertAlerts.activeProjectCount} 个未归档项目，超过 3 个上限` }] : []),
+  ];
+
   if (loading) return <div className="py-24 text-center text-[13px] text-[#94a3b8]">加载中...</div>;
   if (!expert) return <div className="py-24 text-center text-[13px] text-[#94a3b8]">专家不存在</div>;
 
@@ -46,6 +54,8 @@ export default function ExpertDetailPage() {
       <button onClick={() => router.push('/expert')} className="inline-flex items-center gap-1.5 text-[13px] text-[#64748b] hover:text-[#0756a5] mb-3">
         <ArrowLeft size={14} /> 返回专家列表
       </button>
+
+      {alertItems.length > 0 && <div className="mb-5"><AlertBanner items={alertItems} /></div>}
 
       <div className="mb-7 pb-4 border-b border-[#dce3eb]">
         <div className="text-[11px] font-extrabold text-[#0756a5] uppercase tracking-[0.1em]">Expert Profile</div>
