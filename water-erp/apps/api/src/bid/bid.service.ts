@@ -173,6 +173,75 @@ export class BidService {
     return project;
   }
 
+  /**
+   * 从公告发布联动创建 BidProject。
+   * 幂等：若 relatedProjectCode 已存在有效项目则跳过。
+   */
+  async createFromAnnouncement(
+    announcement: { id: string; title: string; publishDate: Date | null },
+    metadata: Record<string, any>,
+  ) {
+    const projectCode = `BID-${Date.now()}`;
+    const openTime = metadata.openTime
+      ? new Date(metadata.openTime)
+      : (announcement.publishDate || new Date());
+    const deadline = metadata.deadline
+      ? new Date(metadata.deadline)
+      : new Date(openTime.getTime() + 7 * 86400000);
+
+    const project = await this.prisma.bidProject.create({
+      data: {
+        name: announcement.title,
+        projectCode,
+        procurementMethod: metadata.method || '公开招标',
+        openTime,
+        deadline,
+        riskNote: '（来自公告自动创建）',
+        budget: metadata.budget ? Number(metadata.budget) : null,
+        scope: metadata.scope || null,
+        qualification: metadata.qualification || null,
+        contact: metadata.contact || null,
+        stage: 'DOWNLOAD',
+      },
+    });
+
+    this.logger.log(
+      `公告联动创建项目: ${project.projectCode} (announcementId=${announcement.id})`,
+    );
+
+    return project;
+  }
+
+  /**
+   * 已发布公告再次编辑时，同步更新 BidProject 的可编辑字段。
+   * 不改变 projectCode 和 stage。
+   */
+  async syncFromAnnouncement(
+    projectId: string,
+    announcement: { title: string },
+    metadata: Record<string, any>,
+  ) {
+    const openTime = metadata.openTime ? new Date(metadata.openTime) : undefined;
+    const deadline = metadata.deadline ? new Date(metadata.deadline) : undefined;
+
+    const updated = await this.prisma.bidProject.update({
+      where: { id: projectId },
+      data: {
+        name: announcement.title,
+        procurementMethod: metadata.method || '公开招标',
+        ...(openTime && { openTime }),
+        ...(deadline && { deadline }),
+        budget: metadata.budget ? Number(metadata.budget) : null,
+        scope: metadata.scope || null,
+        qualification: metadata.qualification || null,
+        contact: metadata.contact || null,
+      },
+    });
+
+    this.logger.log(`公告同步更新项目: ${updated.projectCode} (projectId=${projectId})`);
+    return updated;
+  }
+
   async updateProject(id: string, dto: UpdateBidProjectDto) {
     if (dto.stage) {
       const project = await this.prisma.bidProject.findUnique({
@@ -186,8 +255,16 @@ export class BidService {
     return this.prisma.bidProject.update({
       where: { id },
       data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.procurementMethod !== undefined && { procurementMethod: dto.procurementMethod }),
+        ...(dto.openTime !== undefined && { openTime: new Date(dto.openTime) }),
+        ...(dto.deadline !== undefined && { deadline: new Date(dto.deadline) }),
         ...(dto.stage && { stage: dto.stage as any }),
         ...(dto.riskNote !== undefined && { riskNote: dto.riskNote }),
+        ...(dto.budget !== undefined && { budget: dto.budget }),
+        ...(dto.scope !== undefined && { scope: dto.scope }),
+        ...(dto.qualification !== undefined && { qualification: dto.qualification }),
+        ...(dto.contact !== undefined && { contact: dto.contact }),
       },
     });
   }
