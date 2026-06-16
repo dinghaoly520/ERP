@@ -143,13 +143,34 @@ export const LEVEL_LABEL: Record<string, string> = {
   D: '不合格',
 };
 
-/* ── 通知类型 ── */
+/* ── 通知类型元数据 ── */
+// icon = Lucide 图标名（前端按名渲染）；tone = 语义色；actionable = 是否进「待办」分段
+export interface NotificationMeta {
+  icon: string;
+  tone: 'blue' | 'green' | 'orange' | 'red' | 'purple' | 'gray';
+  actionable: boolean;
+}
 
-export const NOTIFICATION_ICON: Record<string, string> = {
-  SUPPLIER_APPROVED: '✅',
-  SUPPLIER_REJECTED: '❌',
-  SUPPLIER_RETURNED: '⚠️',
-  BID_PUBLISHED: '📋',
-  BID_REMINDER: '⏰',
-  SYSTEM: '🔔',
+export const NOTIFICATION_META: Record<string, NotificationMeta> = {
+  SUPPLIER_APPROVED:       { icon: 'CheckCircle2', tone: 'green',  actionable: false },
+  SUPPLIER_REJECTED:       { icon: 'XCircle',       tone: 'red',    actionable: false },
+  SUPPLIER_RETURNED:       { icon: 'RotateCcw',     tone: 'orange', actionable: false },
+  SUPPLIER_PENDING:        { icon: 'UserCheck',     tone: 'blue',   actionable: true  },
+  QUALIFICATION_EXPIRING:  { icon: 'AlertTriangle', tone: 'orange', actionable: true  },
+  BID_PUBLISHED:           { icon: 'FileText',      tone: 'blue',   actionable: false },
+  BID_REMINDER:            { icon: 'Clock',         tone: 'orange', actionable: true  },
+  PRICE_REVIEW:            { icon: 'Tag',           tone: 'purple', actionable: true  },
+  CATALOG_APPLICATION:     { icon: 'Package',       tone: 'gray',   actionable: false },
+  SYSTEM:                  { icon: 'Info',          tone: 'gray',   actionable: false },
 };
+
+export const NOTIFICATION_META_DEFAULT: NotificationMeta = { icon: 'Bell', tone: 'gray', actionable: false };
+
+export function getNotificationMeta(type: string): NotificationMeta {
+  return NOTIFICATION_META[type] ?? NOTIFICATION_META_DEFAULT;
+}
+
+// 向后兼容：保留旧名（emoji 仍供其他门户过渡用）
+export const NOTIFICATION_ICON: Record<string, string> = Object.fromEntries(
+  Object.entries(NOTIFICATION_META).map(([k]) => [k, '🔔']),
+);
