@@ -55,7 +55,6 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
       <div class="sp-page-hero-card">
         <div class="sp-page-hero-inner">
           <div class="sp-page-hero-body">
-            <div class="sp-page-eyebrow blue"><el-icon :size="13"><Document /></el-icon>{{ stageMap[project.stage]?.label || project.stage }}</div>
             <h1 class="sp-modern-title">{{ project.name }}</h1>
             <p class="sp-modern-desc">{{ project.projectCode }} · {{ project.procurementMethod }} · 截止 {{ dayjs(project.deadline).format('MM-DD HH:mm') }} · 开标 {{ dayjs(project.openTime).format('MM-DD HH:mm') }}</p>
           </div>

@@ -105,7 +105,6 @@ export default function BidArchivePage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="归档端"
         tone="green"
         icon={<Archive size={14} strokeWidth={1.5} />}
         title="归档端"

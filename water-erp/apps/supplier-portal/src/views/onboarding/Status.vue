@@ -26,9 +26,6 @@ const progressDetail = computed<{ tone: string; text: string } | null>(() => { c
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <div class="sp-page-eyebrow" :class="status?.status==='APPROVED'?'green':status?.status==='RETURNED'||status?.status==='PENDING'?'orange':'red'">
-            <el-icon :size="13"><component :is="currentConfig.icon" /></el-icon>Supplier Onboarding
-          </div>
           <h1 class="sp-modern-title">入驻状态</h1>
           <p class="sp-modern-desc">集中查看审核状态、关键时间和需要处理的补正事项。</p>
         </div>

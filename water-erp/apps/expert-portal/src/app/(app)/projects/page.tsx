@@ -47,7 +47,6 @@ export default function ExpertProjectsPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="评审项目"
         tone="purple"
         icon={<ClipboardList size={14} strokeWidth={1.5} />}
         title="评审项目"

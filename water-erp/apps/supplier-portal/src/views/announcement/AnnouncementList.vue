@@ -30,7 +30,6 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <div class="sp-page-eyebrow blue"><el-icon :size="13"><Bell /></el-icon>Public Notices</div>
           <h1 class="sp-modern-title">公告公示</h1>
           <p class="sp-modern-desc">集中查看招标公告、中标公示、政策法规和平台通知。</p>
         </div>

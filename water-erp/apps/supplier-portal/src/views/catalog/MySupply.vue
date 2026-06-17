@@ -41,7 +41,6 @@ onMounted(load)
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <div class="sp-page-eyebrow green"><el-icon :size="13"><Box /></el-icon>Supply Relations</div>
           <h1 class="sp-modern-title">我的供货关系</h1>
           <p class="sp-modern-desc">已通过审核的目录品类供货关系与当前报价。</p>
         </div>

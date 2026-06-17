@@ -930,14 +930,21 @@ export default function MallPage() {
         </motion.section>
         <LiveRegion>{filtered.length > 0 ? `当前显示 ${filtered.length} 项物资` : '未找到匹配条目'}</LiveRegion>
 
-        <section className="mt-3 grid gap-4 lg:grid-cols-[280px_1fr]">
+        <section className="mt-3 grid gap-4 lg:grid-cols-[320px_1fr]">
           <aside className="flex flex-col rounded-xl border border-[#e1e9f4] bg-white p-3.5 shadow-[0_4px_12px_rgba(15,35,65,.03)] lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-7rem)]">
             <div className="mb-2.5 shrink-0">
-              <h2 className="text-sm font-black text-[#334155]">集中采购目录</h2>
+              <div className="flex items-center justify-center gap-2.5">
+                <span className="h-px flex-1 bg-gradient-to-r from-transparent via-[#5b9bd5]/25 to-transparent" />
+                <div className="flex items-center gap-1.5">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5b9bd5" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  <h2 className="text-base font-black tracking-wider text-[#1e293b]">目 录</h2>
+                </div>
+                <span className="h-px flex-1 bg-gradient-to-r from-transparent via-[#5b9bd5]/25 to-transparent" />
+              </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
             <LayoutGroup>
-              <div className="space-y-3">
+              <div className="space-y-5">
                 {DIRECTORY.map(section => (
                   <CategoryGroup
                     key={section.group}
@@ -1030,9 +1037,20 @@ export default function MallPage() {
             </AnimatePresence>
             <section className={`${view === 'supplier' ? 'hidden' : ''} overflow-hidden rounded-2xl border border-[#e1e9f4] bg-white shadow-[0_4px_12px_rgba(15,35,65,.03)]`}>
               <div className="flex items-center justify-between border-b border-[#e8eef6] px-5 py-3.5">
-                <div>
-                  <h2 className="text-base font-black text-[#334155]">目录清单</h2>
-                  <p className="mt-0.5 text-[11px] text-[#8a96aa]">参考价用于预算编制与询价比价，最终以采购文件及成交结果为准。</p>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b9bd5" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#5b9bd5] bg-[#eff6ff] px-2 py-0.5 rounded">物资清单</span>
+                    </div>
+                    <span className="h-4 w-px bg-[#d4dce8]" />
+                    <span className="text-xs font-semibold text-[#6a7890] tabular-nums">{filtered.length} 条记录</span>
+                    <span className="h-4 w-px bg-[#d4dce8]" />
+                    <span className="text-[11px] text-[#8a96aa]">
+                      {category !== '全部' ? category : '全部分类'}
+                      {region !== '全部' ? ` · ${region}` : ''}
+                    </span>
+                  </div>
                 </div>
                 <AnimatePresence>
                   {selectedIds.size > 0 && (
@@ -1456,11 +1474,16 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
   selectedCategory: string; onSelect: (cat: string) => void;
   items: CatalogItem[]; searchActive: boolean; searchTerm: string; filtered: CatalogItem[];
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const hasSearchMatch = searchActive && section.children.some(
     child => child === '全部' ? items.some(i => i.name.includes(searchTerm) || i.code.includes(searchTerm)) :
     items.some(i => (i.category === child || i.group === child) && (i.name.includes(searchTerm) || i.code.includes(searchTerm)))
   );
+  // 搜索时自动展开匹配的分组
+  useEffect(() => {
+    if (hasSearchMatch) setCollapsed(false);
+    if (!searchActive) setCollapsed(true);
+  }, [searchActive, hasSearchMatch]);
   const groupCount = section.children.reduce((sum, child) =>
     sum + (child === '全部' ? items.length : items.filter(item => item.category === child || item.group === child).length), 0
   );
@@ -1479,7 +1502,7 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
           }`}
         >
           <span>{section.group}</span>
-          <span className={`text-xs ${active ? 'text-[#5b9bd5]' : 'text-[#6a7890]'}`}>{groupCount}</span>
+          <span className={`text-sm ${active ? 'text-[#5b9bd5]' : 'text-[#6a7890]'}`}>{groupCount}</span>
         </button>
       </div>
     );
@@ -1491,7 +1514,7 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
         onClick={() => setCollapsed(c => !c)}
         onKeyDown={e => { if (e.key === 'ArrowRight') setCollapsed(false); else if (e.key === 'ArrowLeft') setCollapsed(true); }}
         aria-expanded={!collapsed}
-        className={`mb-1 flex w-full items-center gap-1.5 text-xs font-bold ${hasSearchMatch ? 'text-[#5b9bd5]' : 'text-[#6a7890]'} transition hover:text-[#334155]`}
+        className={`mb-1 flex w-full items-center gap-1.5 text-sm font-bold ${hasSearchMatch ? 'text-[#5b9bd5]' : 'text-[#6a7890]'} transition hover:text-[#334155]`}
       >
         <motion.svg
           animate={{ rotate: collapsed ? -90 : 0 }}
@@ -1502,7 +1525,7 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
           <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
         </motion.svg>
         <span className="flex-1 text-left">{section.group}</span>
-        <span className="text-xs tabular-nums text-[#bcc6d4] font-medium">{groupCount}</span>
+        <span className="text-sm tabular-nums text-[#bcc6d4] font-medium">{groupCount}</span>
       </button>
       <AnimatePresence initial={false}>
         {!collapsed && (
@@ -1527,7 +1550,7 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
                     <button
                       key={child}
                       onClick={() => onSelect(child)}
-                      className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-left text-xs font-semibold transition-colors ${
+                      className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-left text-sm font-semibold transition-colors ${
                         active
                           ? 'bg-[#5b9bd5]/10 text-[#5b9bd5] font-bold'
                           : hasMatch ? 'bg-[#eff6ff] text-[#5b9bd5]'
@@ -1535,7 +1558,7 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
                       }`}
                     >
                       <span>{child}</span>
-                      <span className={`text-[10px] ${active ? 'text-[#5b9bd5]' : 'text-[#bcc6d4]'}`}>{count}</span>
+                      <span className={`text-xs ${active ? 'text-[#5b9bd5]' : 'text-[#bcc6d4]'}`}>{count}</span>
                     </button>
                   );
                 })}

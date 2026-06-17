@@ -311,7 +311,6 @@ export default function BidOpenPage() {
     <div className={`space-y-5 ${bigScreen ? 'text-[115%]' : ''}`}>
       {/* ═══ PageHero with controls ═══ */}
       <PageHero
-        eyebrow="开标大厅"
         tone="blue"
         icon={<Unlock size={14} strokeWidth={1.5} />}
         title="在线开标大厅"

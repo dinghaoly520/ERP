@@ -122,6 +122,8 @@ export function HeroSection({
 }: HeroSectionProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownAnchorRef = useRef<HTMLDivElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
   useGlobalHotkey('/', () => { inputRef.current?.focus(); inputRef.current?.select(); });
 
   const [tipsOpen, setTipsOpen] = useState(false);
@@ -168,6 +170,13 @@ export function HeroSection({
 
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => { if (assistantInitialQuestion) setDialogOpen(true); }, [assistantInitialQuestion]);
+  // 更新下拉面板定位（Portal 到 body 时需要）
+  useEffect(() => {
+    if (tipsOpen && dropdownAnchorRef.current) {
+      const rect = dropdownAnchorRef.current.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 8, left: rect.left, width: rect.width });
+    }
+  }, [tipsOpen]);
 
   // placeholder 轮播
   useEffect(() => {
@@ -307,7 +316,7 @@ export function HeroSection({
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
 
             {/* ═══════ 左侧：水叮当 + 标题 ═══════ */}
-            <div className="flex items-start gap-4 shrink-0">
+            <div className="flex items-start gap-4 shrink-0 lg:w-[20%]">
               {/* 水叮当头像 —— 带状态环，点击打开对话框 */}
               <button
                 type="button"
@@ -425,7 +434,7 @@ export function HeroSection({
                     }}
                   >
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-                    <span className="inline-block min-w-[12em]">水叮当：{slogans[sloganIdx] || '全量目录'}</span>
+                    <span className="inline-block min-w-[18em] text-left">水叮当：{slogans[sloganIdx] || '全量目录'}</span>
                   </button>
                 </div>
 
@@ -465,9 +474,9 @@ export function HeroSection({
             </div>
 
             {/* ═══════ 右侧：搜索栏 ═══════ */}
-            <div ref={containerRef} className="relative flex-1 min-w-0 lg:pt-2.5">
+            <div ref={containerRef} className="relative flex-1 min-w-0 lg:pt-2.5 lg:w-[80%]">
               {/* 搜索框 */}
-              <div className="relative">
+              <div ref={dropdownAnchorRef} className="relative">
                 {/* 流光边框层 */}
                 <motion.div
                   className="absolute -inset-[2px] rounded-2xl pointer-events-none"
@@ -611,127 +620,131 @@ export function HeroSection({
                 )}
               </AnimatePresence>
 
-              {/* ═══════ 下拉面板 ═══════ */}
-              <AnimatePresence>
-                {tipsOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                    transition={{ duration: 0.18 }}
-                    className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-[#e1e9f4] bg-white shadow-[0_20px_56px_rgba(15,35,65,.16)]"
-                  >
-                    {hasInput ? (
-                      /* ── 有输入：搜索建议 + AI入口 ── */
-                      <>
-                        {searchSuggestions.length > 0 ? (
-                          <ul className="py-1.5" role="listbox">
-                            {searchSuggestions.map((item, idx) => (
-                              <li key={item.id} role="option" aria-selected={idx === selectedIdx}>
-                                <button
-                                  type="button"
-                                  onMouseDown={e => e.preventDefault()}
-                                  onClick={() => executeAction(item.name)}
-                                  onMouseEnter={() => setSelectedIdx(idx)}
-                                  className={`flex w-full items-center gap-3 px-4 py-3 text-sm transition ${
-                                    idx === selectedIdx ? 'bg-[#f3f8ff] text-[#5b9bd5]' : 'text-[#24364f] hover:bg-[#f8fbff]'
-                                  }`}
-                                >
-                                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#eef3fb] text-[10px] font-bold text-[#5b9bd5]">
-                                    {item.code.slice(0, 4)}
-                                  </span>
-                                  <span className="flex-1 text-left truncate font-semibold">{item.name}</span>
-                                  <span className="shrink-0 text-xs tabular-nums text-[#8a96aa]">{formatPrice(item.referencePrice)}</span>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : filteredCount === 0 ? (
-                          <div className="px-5 py-7 text-center">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#bcc6d4" strokeWidth="1.2" className="mx-auto mb-3">
-                              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-                            </svg>
-                            <p className="text-sm text-[#8a96aa]">未找到匹配物资</p>
-                            <button
-                              type="button"
-                              onMouseDown={e => e.preventDefault()}
-                              onClick={() => { setTipsOpen(false); setDialogQuestion(search); setDialogOpen(true); }}
-                              className="mt-3 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200 px-4 py-2.5 text-xs font-bold text-violet-700 hover:from-violet-100 hover:to-indigo-100 active:scale-95 transition-all"
-                            >
-                              <MallAssistantAvatar size="sm" expression="thinking" className="!h-5 !w-5 !p-0" />
-                              让水叮当来分析
-                            </button>
-                          </div>
-                        ) : null}
-
-                        {/* AI 入口脚注 */}
-                        {effectiveMode !== 'assistant' && searchSuggestions.length > 0 && (
-                          <div className="border-t border-[#eef2f8] px-4 py-2.5 flex items-center gap-2 bg-[#fafbff]">
-                            <span className="text-[10px] text-[#bcc6d4]">不是你要找的？</span>
-                            <button
-                              type="button"
-                              onMouseDown={e => e.preventDefault()}
-                              onClick={() => { setTipsOpen(false); setDialogQuestion(search); setDialogOpen(true); }}
-                              className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-50 to-indigo-50 px-2.5 py-1 text-[10px] font-bold text-violet-600 hover:from-violet-100 hover:to-indigo-100 transition"
-                            >
-                              <MallAssistantAvatar size="sm" expression="normal" className="!h-4 !w-4 !p-0" />
-                              问水叮当
-                            </button>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      /* ── 无输入：搜索历史 + AI 快捷提问 ── */
-                      <>
-                        {searchHistory.length > 0 && (
-                          <>
-                            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#eef2f8]">
-                              <span className="text-[11px] font-bold text-[#8a96aa] flex items-center gap-1.5">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                最近搜索
-                              </span>
-                              <button type="button" onMouseDown={e => e.preventDefault()} onClick={onClearSearchHistory}
-                                className="text-[10px] text-[#bcc6d4] hover:text-[#e74c3c] transition font-semibold">清除全部</button>
-                            </div>
-                            <ul className="py-1.5">
-                              {searchHistory.map(term => (
-                                <li key={term}>
-                                  <button type="button" onMouseDown={e => e.preventDefault()}
-                                    onClick={() => executeAction(term)}
-                                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[#5a6d8a] hover:bg-[#f8fbff] transition">
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#bcc6d4] shrink-0">
-                                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                                    </svg>
-                                    <span className="truncate font-medium">{term}</span>
+              {/* ═══════ 下拉面板（Portal 到 body，不受堆叠上下文限制）═══════ */}
+              {mounted && createPortal(
+                <AnimatePresence>
+                  {tipsOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                      transition={{ duration: 0.18 }}
+                      style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width, zIndex: 9999 }}
+                      className="overflow-hidden rounded-2xl border border-[#e1e9f4] bg-white shadow-[0_20px_56px_rgba(15,35,65,.16)]"
+                    >
+                      {hasInput ? (
+                        /* ── 有输入：搜索建议 + AI入口 ── */
+                        <>
+                          {searchSuggestions.length > 0 ? (
+                            <ul className="py-1.5" role="listbox">
+                              {searchSuggestions.map((item, idx) => (
+                                <li key={item.id} role="option" aria-selected={idx === selectedIdx}>
+                                  <button
+                                    type="button"
+                                    onMouseDown={e => e.preventDefault()}
+                                    onClick={() => executeAction(item.name)}
+                                    onMouseEnter={() => setSelectedIdx(idx)}
+                                    className={`flex w-full items-center gap-3 px-4 py-3 text-sm transition ${
+                                      idx === selectedIdx ? 'bg-[#f3f8ff] text-[#5b9bd5]' : 'text-[#24364f] hover:bg-[#f8fbff]'
+                                    }`}
+                                  >
+                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#eef3fb] text-[10px] font-bold text-[#5b9bd5]">
+                                      {item.code.slice(0, 4)}
+                                    </span>
+                                    <span className="flex-1 text-left truncate font-semibold">{item.name}</span>
+                                    <span className="shrink-0 text-xs tabular-nums text-[#8a96aa]">{formatPrice(item.referencePrice)}</span>
                                   </button>
                                 </li>
                               ))}
                             </ul>
-                          </>
-                        )}
+                          ) : filteredCount === 0 ? (
+                            <div className="px-5 py-7 text-center">
+                              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#bcc6d4" strokeWidth="1.2" className="mx-auto mb-3">
+                                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                              </svg>
+                              <p className="text-sm text-[#8a96aa]">未找到匹配物资</p>
+                              <button
+                                type="button"
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => { setTipsOpen(false); setDialogQuestion(search); setDialogOpen(true); }}
+                                className="mt-3 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200 px-4 py-2.5 text-xs font-bold text-violet-700 hover:from-violet-100 hover:to-indigo-100 active:scale-95 transition-all"
+                              >
+                                <MallAssistantAvatar size="sm" expression="thinking" className="!h-5 !w-5 !p-0" />
+                                让水叮当来分析
+                              </button>
+                            </div>
+                          ) : null}
 
-                        {/* 水叮当快捷提问 */}
-                        <div className="px-4 py-3.5">
-                          <div className="flex items-center gap-2 mb-3">
-                            <MallAssistantAvatar size="sm" expression="normal" className="!h-5 !w-5 !p-0.5" />
-                            <span className="text-[11px] font-black text-[#5a6d8a] uppercase tracking-wider">
-                              水叮当 · 快捷提问
-                            </span>
+                          {/* AI 入口脚注 */}
+                          {effectiveMode !== 'assistant' && searchSuggestions.length > 0 && (
+                            <div className="border-t border-[#eef2f8] px-4 py-2.5 flex items-center gap-2 bg-[#fafbff]">
+                              <span className="text-[10px] text-[#bcc6d4]">不是你要找的？</span>
+                              <button
+                                type="button"
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => { setTipsOpen(false); setDialogQuestion(search); setDialogOpen(true); }}
+                                className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-50 to-indigo-50 px-2.5 py-1 text-[10px] font-bold text-violet-600 hover:from-violet-100 hover:to-indigo-100 transition"
+                              >
+                                <MallAssistantAvatar size="sm" expression="normal" className="!h-4 !w-4 !p-0" />
+                                问水叮当
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        /* ── 无输入：搜索历史 + AI 快捷提问 ── */
+                        <>
+                          {searchHistory.length > 0 && (
+                            <>
+                              <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#eef2f8]">
+                                <span className="text-[11px] font-bold text-[#8a96aa] flex items-center gap-1.5">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                  最近搜索
+                                </span>
+                                <button type="button" onMouseDown={e => e.preventDefault()} onClick={onClearSearchHistory}
+                                  className="text-[10px] text-[#bcc6d4] hover:text-[#e74c3c] transition font-semibold">清除全部</button>
+                              </div>
+                              <ul className="py-1.5">
+                                {searchHistory.map(term => (
+                                  <li key={term}>
+                                    <button type="button" onMouseDown={e => e.preventDefault()}
+                                      onClick={() => executeAction(term)}
+                                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[#5a6d8a] hover:bg-[#f8fbff] transition">
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#bcc6d4] shrink-0">
+                                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                      </svg>
+                                      <span className="truncate font-medium">{term}</span>
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            </>
+                          )}
+
+                          {/* 水叮当快捷提问 */}
+                          <div className="px-4 py-3.5">
+                            <div className="flex items-center gap-2 mb-3">
+                              <MallAssistantAvatar size="sm" expression="normal" className="!h-5 !w-5 !p-0.5" />
+                              <span className="text-[11px] font-black text-[#5a6d8a] uppercase tracking-wider">
+                                水叮当 · 快捷提问
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {quickQuestions.map(q => (
+                                <button key={q} type="button" onMouseDown={e => e.preventDefault()}
+                                  onClick={() => { setTipsOpen(false); setDialogQuestion(q); setDialogOpen(true); }}
+                                  className="rounded-full border border-[#e1e9f4] bg-white px-3.5 py-2 text-xs font-bold text-[#5a6d8a] transition hover:border-[#6366f1] hover:text-[#4f46e5] hover:bg-violet-50/30 active:scale-95"
+                                >{q}</button>
+                              ))}
+                            </div>
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            {quickQuestions.map(q => (
-                              <button key={q} type="button" onMouseDown={e => e.preventDefault()}
-                                onClick={() => { setTipsOpen(false); setDialogQuestion(q); setDialogOpen(true); }}
-                                className="rounded-full border border-[#e1e9f4] bg-white px-3.5 py-2 text-xs font-bold text-[#5a6d8a] transition hover:border-[#6366f1] hover:text-[#4f46e5] hover:bg-violet-50/30 active:scale-95"
-                              >{q}</button>
-                            ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                        </>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>,
+                document.body,
+              )}
 
               {/* 快捷键提示 */}
               {!hasInput && (

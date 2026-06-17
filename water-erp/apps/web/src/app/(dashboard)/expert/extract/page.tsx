@@ -486,7 +486,7 @@ function ExpertExtractPage() {
   return (
     <div className="space-y-5">
       <PageHero
-        eyebrow="专家管理中心" title="专家智能抽取"
+        title="专家智能抽取"
         description="基于项目评审需求，AI 分析专业构成并智能抽取专家组。支持多专业配额配置、供应商回避与专家负荷均衡。"
         tone="blue" icon={<UsersRound size={14} />}
         actions={rulesPopover}

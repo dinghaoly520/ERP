@@ -18,7 +18,6 @@ async function handleDelete(id:string) { await ElMessageBox.confirm('确定要�
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <div class="sp-page-eyebrow blue"><el-icon :size="13"><Phone /></el-icon>Contacts</div>
           <h1 class="sp-modern-title">联系人管理</h1>
           <p class="sp-modern-desc">管理您的企业联系人信息，支持添加、编辑和删除。</p>
         </div>

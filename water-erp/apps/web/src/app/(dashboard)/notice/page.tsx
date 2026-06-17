@@ -93,7 +93,6 @@ export default function NoticePage() {
   return (
     <div>
       <PageHero
-        eyebrow="信息发布中心"
         title="信息发布中心"
         description="招标公示、中标公示、政策法规、平台通知；起草并配齐招标文件/附件后再发布。"
         tone="blue"

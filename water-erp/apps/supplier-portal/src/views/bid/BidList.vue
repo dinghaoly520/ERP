@@ -57,7 +57,6 @@ function isDeadlinePassed(deadline: string) { return new Date(deadline) < new Da
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <div class="sp-page-eyebrow blue"><el-icon :size="13"><Document /></el-icon>Tender Opportunities</div>
           <h1 class="sp-modern-title">招标机会</h1>
           <p class="sp-modern-desc">按项目关键节点快速筛选与进入详情，持续关注最新招标。</p>
         </div>

@@ -55,7 +55,6 @@ export default function ExpertProfilePage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="个人信息"
         tone="purple"
         icon={<UserCircle size={14} strokeWidth={1.5} />}
         title="个人信息"

@@ -97,7 +97,6 @@ export default function BidClarificationsPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="澄清答疑"
         tone="cyan"
         icon={<MessageSquare size={14} strokeWidth={1.5} />}
         title="澄清与答疑"

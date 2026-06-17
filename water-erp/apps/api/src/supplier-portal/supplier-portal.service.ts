@@ -645,6 +645,12 @@ export class SupplierPortalService {
       distinct: ['group', 'category'],
       orderBy: [{ group: 'asc' }, { category: 'asc' }],
     });
+    // Count items per group
+    const groupCounts = await this.prisma.catalogItem.groupBy({
+      by: ['group'],
+      _count: { _all: true },
+    });
+    const countMap = new Map(groupCounts.map(g => [g.group, g._count._all]));
     const map = new Map<string, string[]>();
     for (const r of rows) {
       if (!r.group) continue;
@@ -653,7 +659,11 @@ export class SupplierPortalService {
         map.get(r.group)!.push(r.category);
       }
     }
-    return Array.from(map.entries()).map(([group, categories]) => ({ group, categories }));
+    return Array.from(map.entries()).map(([group, categories]) => ({
+      group,
+      categories,
+      itemCount: countMap.get(group) ?? 0,
+    }));
   }
 
   async listCatalogItems(params: { category?: string; group?: string; search?: string }) {

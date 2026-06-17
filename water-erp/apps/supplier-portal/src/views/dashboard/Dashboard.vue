@@ -5,10 +5,8 @@ import { useSupplierStore } from '@/stores/supplier'
 import { useNotificationStore } from '@/stores/notification'
 import { useBidStore } from '@/stores/bid'
 import { useAuthStore } from '@/stores/auth'
-import { supplierApi } from '@/api/supplier'
 import SkeletonCard from '@/components/SkeletonCard.vue'
 import CountdownTimer from '@/components/CountdownTimer.vue'
-import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -19,10 +17,6 @@ const authStore = useAuthStore()
 
 const loading = ref(true)
 const error = ref(false)
-const pwdDialog = ref(false)
-const pwdLoading = ref(false)
-const pwdForm = ref({ old: '', newPwd: '', confirm: '' })
-
 onMounted(async () => {
   try {
     await Promise.all([
@@ -104,27 +98,6 @@ function statSuffix(key: string): string {
   return ''
 }
 
-async function handleChangePassword() {
-  if (pwdForm.value.newPwd !== pwdForm.value.confirm) {
-    ElMessage.warning('两次输入的密码不一致')
-    return
-  }
-  if (pwdForm.value.newPwd.length < 6) {
-    ElMessage.warning('新密码不少于6位')
-    return
-  }
-  pwdLoading.value = true
-  try {
-    await supplierApi.changePassword(pwdForm.value.old, pwdForm.value.newPwd)
-    ElMessage.success('密码修改成功')
-    pwdDialog.value = false
-    pwdForm.value = { old: '', newPwd: '', confirm: '' }
-  } catch {
-    ElMessage.error('密码修改失败，请检查原密码')
-  } finally {
-    pwdLoading.value = false
-  }
-}
 </script>
 
 <template>

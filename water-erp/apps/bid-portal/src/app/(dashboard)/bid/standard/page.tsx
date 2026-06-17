@@ -105,7 +105,6 @@ export default function BidStandardPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="评标办法"
         tone="blue"
         icon={<ListChecks size={14} strokeWidth={1.5} />}
         title="评分标准编制"

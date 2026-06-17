@@ -74,7 +74,6 @@ async function confirmSubmit() { submitDialogVisible.value = false; submitting.v
       <div class="sp-page-hero-card">
         <div class="sp-page-hero-inner">
           <div class="sp-page-hero-body">
-            <div class="sp-page-eyebrow blue"><el-icon :size="13"><Upload /></el-icon>Submit Bid</div>
             <h1 class="sp-modern-title">{{ project.name }}</h1>
             <p class="sp-modern-desc">{{ project.projectCode }} · {{ project.procurementMethod }} · 截止 {{ dayjs(project.deadline).format('MM-DD HH:mm') }}</p>
           </div>

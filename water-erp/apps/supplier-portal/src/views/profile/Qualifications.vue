@@ -28,7 +28,6 @@ const healthRingDash = computed(() => { const pct=healthSummary.value.healthScor
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <div class="sp-page-eyebrow blue"><el-icon :size="13"><Medal /></el-icon>Qualifications</div>
           <h1 class="sp-modern-title">资质管理</h1>
           <p class="sp-modern-desc">管理企业资质材料，确保证照在有效期内。过期材料将影响投标资格。</p>
         </div>

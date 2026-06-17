@@ -42,7 +42,6 @@ function canConfirmOpening(row: any) { const stage = row.project?.stage; return 
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <div class="sp-page-eyebrow blue"><el-icon :size="13"><DocumentChecked /></el-icon>Bid Progress</div>
           <h1 class="sp-modern-title">投标进展</h1>
           <p class="sp-modern-desc">跟踪已提交的投标记录与当前状态。</p>
         </div>

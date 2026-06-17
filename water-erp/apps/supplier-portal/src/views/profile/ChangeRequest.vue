@@ -100,7 +100,6 @@ const statusMap: Record<string, { label: string; cls: string }> = {
       <div class="sp-page-hero-card">
         <div class="sp-page-hero-inner">
           <div class="sp-page-hero-body">
-            <div class="sp-page-eyebrow blue"><el-icon :size="13"><EditPen /></el-icon>Change Requests</div>
             <h1 class="sp-modern-title">信息变更</h1>
             <p class="sp-modern-desc">申请修改企业信息，提交后需等待管理员审核。</p>
           </div>

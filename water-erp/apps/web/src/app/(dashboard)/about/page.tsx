@@ -16,7 +16,6 @@ export default function AboutPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="系统信息"
         title="关于智慧水发 · 招采ERP"
         description="全流程电子化招标采购管理平台。按《中华人民共和国招标投标法》、《政府采购法》及实施条例设计开发，确保招标采购活动公开、公平、公正。"
         tone="blue"

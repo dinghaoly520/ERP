@@ -85,7 +85,6 @@ export default function BidDashboard() {
     <div className="space-y-6">
       {/* ── Page Hero ── */}
       <PageHero
-        eyebrow="开评标管理"
         tone="blue"
         icon={<Gavel size={14} strokeWidth={1.5} />}
         title="开评标管理系统"

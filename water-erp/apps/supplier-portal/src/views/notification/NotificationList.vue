@@ -33,7 +33,6 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <div class="sp-page-eyebrow blue"><el-icon :size="13"><ChatDotRound /></el-icon>Notifications</div>
           <h1 class="sp-modern-title">消息中心</h1>
           <p class="sp-modern-desc">查看系统通知和业务消息，及时处理重要提醒。</p>
         </div>

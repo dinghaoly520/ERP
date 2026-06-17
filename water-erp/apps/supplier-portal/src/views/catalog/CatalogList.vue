@@ -44,7 +44,6 @@ onMounted(loadAll)
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <div class="sp-page-eyebrow blue"><el-icon :size="13"><Goods /></el-icon>Procurement Catalog</div>
           <h1 class="sp-modern-title">集中采购目录</h1>
           <p class="sp-modern-desc">浏览集团集中采购目录品类，申请加入供货或调整报价。</p>
         </div>
@@ -56,7 +55,7 @@ onMounted(loadAll)
         <div class="cat-sidebar-title">品类导航</div>
         <div class="cat-tree">
           <div v-for="node in categoryTree" :key="node.group" class="cat-node">
-            <div class="cat-group" :class="{active:selectedGroup===node.group}" @click="selectGroup(node.group)"><span>{{ node.group }}</span><span class="cat-count">{{ node.categories.length }}</span></div>
+            <div class="cat-group" :class="{active:selectedGroup===node.group}" @click="selectGroup(node.group)"><span>{{ node.group }}</span><span class="cat-count">{{ node.itemCount }}</span></div>
             <transition name="cat-sub"><div v-if="selectedGroup===node.group" class="cat-sub"><div v-for="c in node.categories" :key="c" class="cat-leaf" :class="{active:selectedCategory===c}" @click.stop="selectCategory(c)">{{ c }}</div></div></transition>
           </div>
         </div>

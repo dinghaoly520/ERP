@@ -86,7 +86,6 @@ export default function BidSupervisePage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="监督端"
         tone="orange"
         icon={<Shield size={14} strokeWidth={1.5} />}
         title="监督端"

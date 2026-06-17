@@ -36,7 +36,6 @@ const weakest = computed(()=>dimensionAverages.value[0]); const strongest = comp
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <div class="sp-page-eyebrow purple"><el-icon :size="13"><Star /></el-icon>Performance Reviews</div>
           <h1 class="sp-modern-title">评价记录</h1>
           <p class="sp-modern-desc">查看采购方对您企业的履约综合评价，包含完整度、响应度、合作度、合规度等维度。</p>
         </div>

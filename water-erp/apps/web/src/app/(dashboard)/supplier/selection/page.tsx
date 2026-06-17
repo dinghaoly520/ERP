@@ -350,7 +350,7 @@ export default function SupplierSelectionPage() {
   return (
     <div className="space-y-5">
       <PageHero
-        eyebrow="供应商管理中心" title="供应商智能选取"
+        title="供应商智能选取"
         description="基于采购需求多维度分析，AI 从供应商库中智能匹配并推荐最优候选。支持项目关联、资质过滤、候选对比与结构化导出。"
         tone="green" icon={<Building2 size={14} />}
         actions={rulesPopover}

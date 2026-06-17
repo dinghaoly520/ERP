@@ -26,7 +26,6 @@ const profileRows = computed(() => {
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <div class="sp-page-eyebrow blue"><el-icon :size="13"><OfficeBuilding /></el-icon>Company Profile</div>
           <h1 class="sp-modern-title">企业信息</h1>
           <p class="sp-modern-desc">企业抬头与详细信息，支持发起资料变更申请。</p>
         </div>

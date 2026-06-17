@@ -34,7 +34,6 @@ onMounted(load)
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <div class="sp-page-eyebrow blue"><el-icon :size="13"><Connection /></el-icon>Supply Applications</div>
           <h1 class="sp-modern-title">我的供货申请</h1>
           <p class="sp-modern-desc">查看新增品类 / 加入供货 / 改报价申请的审核进度与议价记录。</p>
         </div>

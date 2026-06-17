@@ -316,7 +316,6 @@ export default function BidEvaluatePage() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="评标管理端"
         tone="purple"
         icon={<ClipboardCheck size={14} strokeWidth={1.5} />}
         title="专家评标管理端"
