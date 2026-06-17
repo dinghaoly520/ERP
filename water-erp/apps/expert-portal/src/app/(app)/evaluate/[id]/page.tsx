@@ -69,11 +69,32 @@ export default function ExpertEvaluatePage() {
   };
 
   const { connection: _wsConn, lastEventAt: _wsLastEvent, reconnectNow: _wsReconnect } = useExpertWebSocket(projectId, {
-    onAggregatePresence: (d: any) => setAggregatePresence(d),
-    onDecryptStatus: (d: any) => pushLiveEvent(`${d.supplierName} 解密${d.decryptStatus === 'SUCCESS' ? '成功' : '异常'}`, 'decrypt'),
-    onStageChange: (d: any) => pushLiveEvent(`项目阶段: ${d.from} → ${d.to}`, 'stage'),
-    onClarificationCreated: (d: any) => pushLiveEvent(`新澄清: ${d.questionPreview.slice(0, 30)}`, 'clarify'),
-    onClarificationReplied: (d: any) => pushLiveEvent(`澄清已回复: ${d.replyPreview.slice(0, 30)}`, 'clarify'),
+    onAggregatePresence: (d: any) => {
+      setAggregatePresence(d);
+      // P3-4: notify when all experts have confirmed reports
+      if (d.reportConfirmedCount === d.totalExperts && d.totalExperts > 0) {
+        toast.success('所有专家已完成评审报告确认');
+      }
+    },
+    onDecryptStatus: (d: any) => {
+      pushLiveEvent(`${d.supplierName} 解密${d.decryptStatus === 'SUCCESS' ? '成功' : '异常'}`, 'decrypt');
+      // P3-4: auto-refresh documents when decrypt status changes
+      if (activeSupplier) loadDocuments(activeSupplier);
+    },
+    onStageChange: (d: any) => {
+      pushLiveEvent(`项目阶段: ${d.from} → ${d.to}`, 'stage');
+      // P3-4: reload project data on stage transitions
+      loadProject();
+    },
+    onClarificationCreated: (d: any) => {
+      pushLiveEvent(`新澄清: ${d.questionPreview.slice(0, 30)}`, 'clarify');
+      // P3-4: refresh clarifications if panel is open
+      if (showClarifications) loadClarifications();
+    },
+    onClarificationReplied: (d: any) => {
+      pushLiveEvent(`澄清已回复: ${d.replyPreview.slice(0, 30)}`, 'clarify');
+      if (showClarifications) loadClarifications();
+    },
   });
 
   const [documents, setDocuments] = useState<DecryptedDocuments | null>(null);
@@ -123,11 +144,6 @@ export default function ExpertEvaluatePage() {
     api.get<ExpertProjectDetail>(`/expert/projects/${projectId}`)
       .then(p => {
         setProject(p);
-        if (p.suppliers.length > 0 && !p.suppliers.some(su => su.id === activeSupplier)) {
-          setActiveSupplier(p.suppliers[0].id);
-        } else if (p.suppliers.length > 0 && !activeSupplier) {
-          setActiveSupplier(p.suppliers[0].id);
-        }
         // P0-1: hydrate with composite keys so each supplier's scores are isolated.
         const existing: Record<string, { score: number; reason: string }> = {};
         p.myScores.forEach((rec: { supplierId: string; scoreItemId: string; score: number; reason?: string }) => {
@@ -140,7 +156,14 @@ export default function ExpertEvaluatePage() {
       })
       .catch((e: any) => toast.error(e?.message || '加载项目失败'))
       .finally(() => setLoading(false));
-  }, [projectId, activeSupplier]);
+  }, [projectId]);
+
+  // P3-3: default supplier selection decoupled from project load — avoids re-fetch on switch
+  useEffect(() => {
+    if (project && project.suppliers.length > 0 && !activeSupplier) {
+      setActiveSupplier(project.suppliers[0].id);
+    }
+  }, [project, activeSupplier]);
 
   // P0-3: on first project load, check for an unrecovered draft.
   const expertId = project?.myExpertRecord?.id;

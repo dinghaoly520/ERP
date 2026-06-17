@@ -190,7 +190,7 @@ describe('ExpertService', () => {
 
   describe('confirmReport', () => {
     it('locks scoring by setting reportConfirmed and reportConfirmedAt', async () => {
-      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, progress: 100 });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, signedIn: true, avoidanceConfirmed: true, progress: 100 });
       prisma.bidExpert.update.mockResolvedValue({});
       prisma.bidSupervisionLog.create.mockResolvedValue({});
 

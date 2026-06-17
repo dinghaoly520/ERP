@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';

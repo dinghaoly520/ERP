@@ -23,7 +23,7 @@
     "procurementMethod": "公开招标",
     "openTime": "2026-07-16T02:00:00.000Z",
     "deadline": "2026-07-15T09:00:00.000Z",
-    "stage": "DOWNLOAD",
+    "stage": "EVALUATING",
     "riskNote": "（来自公告自动创建）",
     "budget": "6800000",
     "scope": "水利信息化平台升级改造，含数据中台扩容200TB、12套业务系统迁移、智能调度模块开发、统一身份认证平台建设及iOS/Android/小程序移动端适配",
@@ -32,5 +32,39 @@
     "encryptionKeyId": null,
     "createdAt": "2026-06-17T01:51:36.710Z",
     "updatedAt": "2026-06-17T01:51:36.710Z"
+  },
+  {
+    "id": "cmqseed-submit-proj01",
+    "projectCode": "BID-SEED-SUBMIT",
+    "name": "2026年度水库安全监测设备采购项目",
+    "procurementMethod": "公开招标",
+    "openTime": "2026-08-15T10:00:00.000Z",
+    "deadline": "2026-08-14T09:00:00.000Z",
+    "stage": "SUBMIT",
+    "riskNote": "种子数据-已开放投递",
+    "budget": "3200000",
+    "scope": "水库安全监测设备采购，含大坝位移监测传感器120套、水位雨量遥测站35座、视频监控点位80处及中央控制平台1套",
+    "qualification": "1.独立法人资格\n2.电子与智能化工程专业承包二级及以上\n3.近三年类似水利监测项目业绩不少于2个",
+    "contact": "联系人：工程部王工\n电话：028-88888002",
+    "encryptionKeyId": null,
+    "createdAt": "2026-06-17T02:00:00.000Z",
+    "updatedAt": "2026-06-17T02:00:00.000Z"
+  },
+  {
+    "id": "cmqseed-open-proj01",
+    "projectCode": "BID-SEED-OPENING",
+    "name": "2026年度城乡供水一体化管网建设项目",
+    "procurementMethod": "公开招标",
+    "openTime": "2026-07-20T10:00:00.000Z",
+    "deadline": "2026-07-19T09:00:00.000Z",
+    "stage": "OPENING",
+    "riskNote": "种子数据-开标中",
+    "budget": "8500000",
+    "scope": "城乡供水一体化管网建设，含DN300-DN800球墨铸铁管铺设45km、加压泵站8座、水质在线监测系统及智慧水务管理平台",
+    "qualification": "1.独立法人资格\n2.水利水电工程施工总承包二级及以上\n3.近五年类似供水管网项目业绩不少于3个（合同额≥1000万元）",
+    "contact": "联系人：供水事业部张经理\n电话：028-88888003",
+    "encryptionKeyId": null,
+    "createdAt": "2026-06-17T02:00:00.000Z",
+    "updatedAt": "2026-06-17T02:30:00.000Z"
   }
 ]

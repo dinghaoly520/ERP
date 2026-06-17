@@ -58,14 +58,15 @@ export class ExpertService {
     const totalScoreSum = records.reduce((s, e) => s + Number(e.totalScore), 0);
     const averageScore = records.length > 0 ? Math.round((totalScoreSum / records.length) * 10) / 10 : 0;
 
-    // 获取专家名称用于查询监督日志
+    // 获取专家名称用于查询监督日志；无项目分配时跳过查询避免全量泄露
     const expertName = records.length > 0 ? records[0].expertName : '';
-
-    const recentActivity = await this.prisma.bidSupervisionLog.findMany({
-      where: { target: { contains: expertName } },
-      orderBy: { time: 'desc' },
-      take: 5,
-    });
+    const recentActivity = expertName
+      ? await this.prisma.bidSupervisionLog.findMany({
+          where: { target: { contains: expertName } },
+          orderBy: { time: 'desc' },
+          take: 5,
+        })
+      : [];
 
     return { totalProjects, completedProjects, signedInProjects, pendingProjects, averageScore, recentActivity };
   }
@@ -104,7 +105,7 @@ export class ExpertService {
         suppliers: true,
         openingSession: true,
         openingRecords: true,
-        experts: { include: { scoreRecords: { include: { scoreItem: true } } } },
+        experts: { select: { id: true, expertName: true, major: true, signedIn: true, avoidanceConfirmed: true, progress: true, reportConfirmed: true } },
         scoreItems: { orderBy: [{ category: 'asc' }, { createdAt: 'asc' }] },
         clarifications: { orderBy: { createdAt: 'desc' } },
         supervisionLogs: { orderBy: { time: 'desc' }, take: 20 },
@@ -149,13 +150,14 @@ export class ExpertService {
       });
     }
 
-    this.gateway?.notifyExpertPresence(expert.projectId, {
-      expertId: expert.id, expertName: '', milestone: 'signed_in', progressPercent: expert.progress ?? 0,
-    });
-    return this.prisma.bidExpert.update({
+    const updated = await this.prisma.bidExpert.update({
       where: { id: expert.id },
       data: { signedIn: true },
     });
+    this.gateway?.notifyExpertPresence(expert.projectId, {
+      expertId: expert.id, expertName: '', milestone: 'signed_in', progressPercent: updated.progress ?? 0,
+    });
+    return updated;
   }
 
   async confirmAvoidance(userId: string, projectId: string, conflictedSupplierIds?: string[]) {
@@ -173,13 +175,14 @@ export class ExpertService {
       // 仅自动检测出冲突时，仍允许确认（前端会提示），但阻止对冲突供应商评分。
     }
 
-    this.gateway?.notifyExpertPresence(expert.projectId, {
-      expertId: expert.id, expertName: '', milestone: 'avoidance_confirmed', progressPercent: expert.progress ?? 0,
-    });
-    return this.prisma.bidExpert.update({
+    const updated = await this.prisma.bidExpert.update({
       where: { id: expert.id },
       data: { avoidanceConfirmed: true, conflictedSupplierIds: allConflictIds.length > 0 ? (allConflictIds as any) : undefined },
     });
+    this.gateway?.notifyExpertPresence(expert.projectId, {
+      expertId: expert.id, expertName: '', milestone: 'avoidance_confirmed', progressPercent: updated.progress ?? 0,
+    });
+    return updated;
   }
 
   /* ── 标书解密获取 ── */
@@ -276,6 +279,9 @@ export class ExpertService {
         conflictSupplierIds: [...new Set(conflictSuppliers)],
       });
     }
+    if (!dto.scores || dto.scores.length === 0) {
+      throw new BadRequestException({ error: '评分列表不能为空', code: 'SCORES_EMPTY' });
+    }
 
     // Validate project is in EVALUATING stage
     const project = await this.prisma.bidProject.findUnique({
@@ -287,18 +293,21 @@ export class ExpertService {
       throw new BadRequestException({ error: '项目不在评标阶段', code: 'PROJECT_NOT_EVALUATING' });
     }
 
-    // Validate scores don't exceed maxScore
+    // Validate scores don't exceed maxScore — 限定当前项目防止跨项目注入
     const scoreItemIds = dto.scores.map(s => s.scoreItemId);
     const scoreItems = await this.prisma.bidScoreItem.findMany({
-      where: { id: { in: scoreItemIds } },
+      where: { id: { in: scoreItemIds }, projectId },
       select: { id: true, maxScore: true },
     });
+    if (scoreItems.length !== new Set(scoreItemIds).size) {
+      throw new BadRequestException({ error: '评分项不属于当前项目', code: 'SCORE_ITEM_NOT_IN_PROJECT' });
+    }
     const maxScoreMap = new Map(scoreItems.map(si => [si.id, Number(si.maxScore)]));
 
     const supplierIds = Array.from(new Set(dto.scores.map(s => s.supplierId)));
     const bidSuppliers = await this.prisma.bidSupplier.findMany({
       where: { id: { in: supplierIds }, projectId },
-      select: { id: true, decryptStatus: true, submitStatus: true },
+      select: { id: true, supplierName: true, decryptStatus: true, submitStatus: true },
     });
     if (bidSuppliers.length !== supplierIds.length) {
       throw new BadRequestException({ error: '评分供应商不属于当前项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
@@ -318,17 +327,9 @@ export class ExpertService {
       }
     }
 
-    // P0: deleteMany + createMany 用事务包裹，防止崩溃时评分永久丢失
-    await this.prisma.$transaction([
-      this.prisma.bidScoreRecord.deleteMany({
-        where: {
-          expertId: expert.id,
-          supplierId: { in: dto.scores.map(i => i.supplierId) },
-          scoreItemId: { in: dto.scores.map(i => i.scoreItemId) },
-        },
-      }),
-      // createMany 不能直接用于 transaction 数组（返回 count），改为批量 upsert
-      ...dto.scores.map(item =>
+    // 批量 upsert——唯一复合索引 (expertId, scoreItemId, supplierId) 保证幂等
+    await this.prisma.$transaction(
+      dto.scores.map(item =>
         this.prisma.bidScoreRecord.upsert({
           where: {
             expertId_scoreItemId_supplierId: {
@@ -347,7 +348,7 @@ export class ExpertService {
           },
         }),
       ),
-    ]);
+    );
 
     // 查询新创建的记录用于返回值
     const records = await this.prisma.bidScoreRecord.findMany({
@@ -387,7 +388,7 @@ export class ExpertService {
         time: new Date(),
         role: '评审专家',
         target: expert.expertName,
-        action: `提交评分（供应商：${dto.supplierName}）`,
+        action: `提交评分（供应商：${bidSuppliers.map(s => s.supplierName).join('、')}）`,
         result: `共${dto.scores.length}项评分`,
         riskFlag: '无',
       },
@@ -401,6 +402,9 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed) {
+      throw new ForbiddenException({ error: '请先完成身份核验和回避确认', code: 'VERIFICATION_REQUIRED' });
+    }
 
     return this.prisma.bidScoreRecord.findMany({
       where: { expertId: expert.id },
@@ -435,6 +439,9 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed) {
+      throw new ForbiddenException({ error: '请先完成身份核验和回避确认', code: 'VERIFICATION_REQUIRED' });
+    }
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException({ error: '用户不存在', code: 'USER_NOT_FOUND' });
@@ -506,6 +513,9 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed) {
+      throw new ForbiddenException({ error: '请先完成身份核验和回避确认', code: 'VERIFICATION_REQUIRED' });
+    }
     if (expert.progress < 100) throw new ForbiddenException({ error: '评分未完成，无法确认报告', code: 'SCORING_INCOMPLETE' });
 
     // 记录监督日志
@@ -521,12 +531,13 @@ export class ExpertService {
       },
     });
 
-    this.gateway?.notifyExpertPresence(expert.projectId, {
-      expertId: expert.id, expertName: expert.expertName, milestone: 'report_confirmed', progressPercent: 100,
-    });
-    return this.prisma.bidExpert.update({
+    const updated = await this.prisma.bidExpert.update({
       where: { id: expert.id },
       data: { progress: 100, reportConfirmed: true, reportConfirmedAt: new Date() },
     });
+    this.gateway?.notifyExpertPresence(expert.projectId, {
+      expertId: expert.id, expertName: expert.expertName, milestone: 'report_confirmed', progressPercent: 100,
+    });
+    return updated;
   }
 }
