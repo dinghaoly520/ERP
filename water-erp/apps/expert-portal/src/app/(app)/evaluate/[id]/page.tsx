@@ -49,6 +49,8 @@ export default function ExpertEvaluatePage() {
   const [showClarifications, setShowClarifications] = useState(false);
   const [clarifications, setClarifications] = useState<any[]>([]);
   const [clarQuestion, setClarQuestion] = useState('');
+  const [clarSupplier, setClarSupplier] = useState('');
+  const [clarSupplierId, setClarSupplierId] = useState('');
   const [clarPosting, setClarPosting] = useState(false);
   // P3: real-time status board
   const [liveEvents, setLiveEvents] = useState<{ time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[]>([]);
@@ -280,14 +282,15 @@ export default function ExpertEvaluatePage() {
   };
 
   const loadClarifications = async () => {
-    try { setClarifications(await api.get<any[]>(`/bid/projects/${projectId}/clarifications`)); }
+    try { setClarifications(await api.get<any[]>(`/expert/projects/${projectId}/clarifications`)); }
     catch { setClarifications([]); }
   };
 
   const postClarification = async () => {
     if (!clarQuestion.trim()) { toast.error('请输入问题'); return; }
+    if (!clarSupplier) { toast.error('请选择目标供应商'); return; }
     setClarPosting(true);
-    try { await api.post(`/bid/projects/${projectId}/clarifications`, { question: clarQuestion, issuer: expert?.expertName || '评审专家', supplierName: '评标委员会' }); toast.success('澄清已发起'); setClarQuestion(''); loadClarifications(); }
+    try { await api.post(`/expert/projects/${projectId}/clarifications`, { question: clarQuestion, supplierName: clarSupplier, supplierId: clarSupplierId || undefined }); toast.success('澄清已发起'); setClarQuestion(''); loadClarifications(); }
     catch (e: any) { toast.error(e.message || '发起失败'); }
     setClarPosting(false);
   };
@@ -429,15 +432,28 @@ export default function ExpertEvaluatePage() {
             </div>
           )}
           {/* Post new question */}
-          <div className="border-t border-[oklch(0.91_0.006_264)] pt-3 flex items-center gap-2">
-            <input value={clarQuestion} onChange={e => setClarQuestion(e.target.value)}
-              placeholder="向招标人提问…"
-              onKeyDown={e => e.key === 'Enter' && postClarification()}
-              className="flex-1 border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#064ea2]" />
-            <button onClick={postClarification} disabled={clarPosting}
-              className="px-3 py-1.5 bg-[#064ea2] text-white text-xs font-bold rounded-lg hover:bg-[#054280] transition disabled:opacity-50">
-              {clarPosting ? '…' : '发送'}
-            </button>
+          <div className="border-t border-[oklch(0.91_0.006_264)] pt-3 space-y-2">
+            <select value={clarSupplier} onChange={e => {
+                const sel = project.suppliers.find(s => s.supplierName === e.target.value);
+                setClarSupplier(e.target.value);
+                setClarSupplierId(sel?.supplierId || '');
+              }}
+              className="w-full border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs bg-white focus:outline-none focus:border-[#064ea2]">
+              <option value="">选择供应商（必选）</option>
+              {project.suppliers.map(s => (
+                <option key={s.id} value={s.supplierName}>{s.supplierName}</option>
+              ))}
+            </select>
+            <div className="flex items-center gap-2">
+              <input value={clarQuestion} onChange={e => setClarQuestion(e.target.value)}
+                placeholder="向所选供应商发起澄清…"
+                onKeyDown={e => e.key === 'Enter' && postClarification()}
+                className="flex-1 border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#064ea2]" />
+              <button onClick={postClarification} disabled={clarPosting}
+                className="px-3 py-1.5 bg-[#064ea2] text-white text-xs font-bold rounded-lg hover:bg-[#054280] transition disabled:opacity-50">
+                {clarPosting ? '…' : '发送'}
+              </button>
+            </div>
           </div>
         </div>
       )}

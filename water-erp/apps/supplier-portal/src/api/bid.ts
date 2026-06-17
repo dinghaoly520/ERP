@@ -12,4 +12,8 @@ export const bidApi = {
   getProjectBidDocument(projectId: string) {
     return api.get(`/supplier-portal/bid-projects/${projectId}/bid-document`)
   },
+  // 供应商提问（答疑）
+  createQuestion(projectId: string, question: string) {
+    return api.post(`/supplier-portal/bid-projects/${projectId}/questions`, { question })
+  },
 }

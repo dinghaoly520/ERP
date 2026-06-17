@@ -422,6 +422,7 @@ export class ExpertService {
         question: dto.question,
         issuer: expert.expertName,
         supplierName: dto.supplierName,
+        supplierId: dto.supplierId || null,
         status: '待回复',
       },
     });

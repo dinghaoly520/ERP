@@ -19,6 +19,8 @@ export default function BidClarificationsPage() {
   const [question, setQuestion] = useState('');
   const [issuer, setIssuer] = useState('');
   const [supplierName, setSupplierName] = useState('');
+  const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  const [clarType, setClarType] = useState('clarification');
   const [submitting, setSubmitting] = useState(false);
   const [replying, setReplying] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
@@ -62,15 +64,19 @@ export default function BidClarificationsPage() {
     setSubmitting(true);
     try {
       await api.post(`/bid/projects/${projectId}/clarifications`, {
+        type: clarType,
         question: question.trim(),
         issuer: issuer.trim(),
         supplierName: supplierName.trim(),
+        supplierId: selectedSupplierId || undefined,
       });
       toast.success('澄清已发起');
       setShowForm(false);
       setQuestion('');
       setIssuer('');
       setSupplierName('');
+      setSelectedSupplierId('');
+      setClarType('clarification');
       const updated = await api.get<BidClarification[]>(`/bid/projects/${projectId}/clarifications`);
       setClarifications(updated);
     } catch (e: any) {
@@ -134,6 +140,16 @@ export default function BidClarificationsPage() {
             <div className="px-6 py-5 space-y-4">
               <div>
                 <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
+                  类型 <span className="text-[oklch(0.50_0.18_22)]">*</span>
+                </label>
+                <select value={clarType} onChange={e => setClarType(e.target.value)}
+                  className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors">
+                  <option value="clarification">澄清（招标人发起）</option>
+                  <option value="question">答疑（回复供应商提问）</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
                   发起人 <span className="text-[oklch(0.50_0.18_22)]">*</span>
                 </label>
                 <input value={issuer} onChange={e => setIssuer(e.target.value)}
@@ -144,7 +160,11 @@ export default function BidClarificationsPage() {
                 <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
                   供应商 <span className="text-[oklch(0.50_0.18_22)]">*</span>
                 </label>
-                <select value={supplierName} onChange={e => setSupplierName(e.target.value)}
+                <select value={supplierName} onChange={e => {
+                    const sel = project.suppliers.find(s => s.supplierName === e.target.value);
+                    setSupplierName(e.target.value);
+                    setSelectedSupplierId(sel?.supplierId || '');
+                  }}
                   className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors">
                   <option value="">选择供应商</option>
                   {project.suppliers.map(s => (
@@ -192,6 +212,7 @@ export default function BidClarificationsPage() {
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
+                <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">类型</th>
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">发起人</th>
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">供应商</th>
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">问题</th>
@@ -209,6 +230,12 @@ export default function BidClarificationsPage() {
                 const statusColor = statusLabel === '已回复' ? '#11a874' : statusLabel === '已关闭' ? '#6b7280' : '#f5a623';
                 return (<>
                 <tr key={c.id} className={`border-b border-[oklch(0.94_0.004_264)] align-top ${isReplied ? '' : 'bg-amber-50/30'}`}>
+                  <td className="px-5 py-3">
+                    <span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{
+                      color: c.type === 'question' ? '#7c3aed' : '#f5a623',
+                      backgroundColor: c.type === 'question' ? '#7c3aed18' : '#f5a62318',
+                    }}>{c.type === 'question' ? '答疑' : '澄清'}</span>
+                  </td>
                   <td className="px-5 py-3 text-[oklch(0.42_0.14_260)] font-medium">{c.issuer}</td>
                   <td className="px-5 py-3 text-[oklch(0.18_0.012_265)]">{c.supplierName}</td>
                   <td className="px-5 py-3 text-[oklch(0.18_0.012_265)] max-w-[200px]">{c.question}</td>

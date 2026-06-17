@@ -37,6 +37,21 @@ async function loadBidDoc() { bidDocLoading.value = true; try { bidDoc.value = a
 async function doPay() { if (!bidDoc.value?.announcementId) return; paying.value = true; try { await announcementApi.payBidDocument(bidDoc.value.announcementId, paymentRef.value || undefined); ElMessage.success('付款凭证已提交'); payDialog.value = false; paymentRef.value = ''; await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '提交失败') } paying.value = false }
 async function doDownload() { if (!bidDoc.value?.announcementId) return; downloading.value = true; try { const { blob, fileName } = await announcementApi.downloadBidDocument(bidDoc.value.announcementId); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName; a.click(); URL.revokeObjectURL(url); await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '下载失败') } downloading.value = false }
 function scopeHint(scope: string) { if (scope === 'DESIGNATED') return '仅指定供应商可下载'; if (scope === 'INVITED') return '仅受邀供应商可下载'; return '全库供应商可下载' }
+
+// 澄清答疑 — 提问
+const questionText = ref('')
+const questionPosting = ref(false)
+async function postQuestion() {
+  if (!questionText.value.trim()) { ElMessage.warning('请输入问题'); return }
+  questionPosting.value = true
+  try {
+    await bidApi.createQuestion(projectId.value, questionText.value.trim())
+    ElMessage.success('问题已提交，等待回复')
+    questionText.value = ''
+    await bidStore.fetchProject(projectId.value) // refresh clarifications
+  } catch (e: any) { ElMessage.error(e?.message || '提交失败') }
+  questionPosting.value = false
+}
 onMounted(async () => { try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc() } catch { error.value = true } finally { loading.value = false } })
 async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc() } catch { error.value = true } finally { loading.value = false } }
 function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.status !== 'APPROVED') { ElMessage.warning('只有已入库供应商可以提交标书'); return } router.push(`/bids/${projectId.value}/submit`) }
@@ -78,10 +93,24 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
           <div class="detail-card timeline-card" style="margin-top:16px;padding:16px 24px"><div style="font-size:12px;font-weight:700;color:var(--sp-gray-500);margin-bottom:12px">项目进度</div><BidStageTimeline :stage="project.stage" /></div>
         </el-tab-pane>
         <el-tab-pane label="澄清答疑" name="clarifications">
-          <div class="detail-card">
+          <div class="detail-card" style="display:flex;flex-direction:column;gap:16px">
+            <!-- 我要提问 -->
+            <div style="background:var(--sp-bg-secondary);border-radius:var(--sp-radius-md);padding:16px">
+              <div style="font-size:13px;font-weight:700;color:var(--sp-gray-700);margin-bottom:10px">我要提问</div>
+              <div style="display:flex;gap:10px">
+                <el-input v-model="questionText" placeholder="对招标文件或项目有疑问？在此向招标人提问…" :rows="2" type="textarea" style="flex:1" />
+                <el-button type="primary" :loading="questionPosting" @click="postQuestion" style="align-self:flex-end">提交问题</el-button>
+              </div>
+            </div>
+            <!-- 澄清答疑列表 -->
             <div v-if="project.clarifications?.length">
               <div v-for="c in project.clarifications" :key="c.id" class="clarification-item">
-                <div class="clarification-q"><el-tag type="warning" size="small" effect="plain">问题</el-tag><span>{{ c.question }}</span><span class="clarification-issuer">— {{ c.issuer }}</span></div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <el-tag :type="c.type === 'question' ? 'info' : 'warning'" size="small" effect="plain">{{ c.type === 'question' ? '答疑' : '澄清' }}</el-tag>
+                  <span class="clarification-issuer">— {{ c.issuer }}</span>
+                  <span style="font-size:11px;color:var(--sp-gray-400);margin-left:auto">{{ new Date(c.createdAt).toLocaleString('zh-CN') }}</span>
+                </div>
+                <div class="clarification-q"><span>{{ c.question }}</span></div>
                 <div class="clarification-a" v-if="c.reply"><el-tag type="success" size="small" effect="plain">回复</el-tag><span>{{ c.reply }}</span></div>
               </div>
             </div>

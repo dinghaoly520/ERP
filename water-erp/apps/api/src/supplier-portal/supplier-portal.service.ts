@@ -4,6 +4,7 @@ import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
+import { CreateQuestionDto } from './dto/create-question.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
@@ -263,9 +264,38 @@ export class SupplierPortalService {
         createdAt: true,
         clarifications: {
           orderBy: { createdAt: 'asc' },
-          select: { id: true, question: true, issuer: true, reply: true, createdAt: true },
+          select: { id: true, type: true, question: true, issuer: true, reply: true, createdAt: true },
         },
         _count: { select: { suppliers: true } },
+      },
+    });
+  }
+
+  /**
+   * 供应商提问（答疑）
+   */
+  async createQuestion(supplierId: string, projectId: string, dto: CreateQuestionDto) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true, name: true },
+    });
+    if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'SUPPLIER_NOT_FOUND' });
+
+    // Verify the supplier is registered for this project
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierId },
+    });
+    if (!bidSupplier) throw new BadRequestException({ error: '您未参与该项目投标', code: 'NOT_PROJECT_SUPPLIER' });
+
+    return this.prisma.bidClarification.create({
+      data: {
+        projectId,
+        type: 'question',
+        question: dto.question,
+        issuer: supplier.name,
+        supplierName: supplier.name,
+        supplierId: supplier.id,
+        status: '待回复',
       },
     });
   }

@@ -740,7 +740,7 @@ export class BidService {
 
   createClarification(projectId: string, dto: CreateClarificationDto) {
     return this.prisma.bidClarification.create({
-      data: { projectId, question: dto.question, issuer: dto.issuer, supplierName: dto.supplierName },
+      data: { projectId, type: dto.type || 'clarification', question: dto.question, issuer: dto.issuer, supplierName: dto.supplierName, supplierId: dto.supplierId || null },
     }).then((created) => {
       this.gateway?.notifyClarificationCreated(projectId, {
         id: created.id, issuer: dto.issuer, issuerRole: 'host',

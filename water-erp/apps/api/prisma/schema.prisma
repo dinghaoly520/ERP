@@ -228,12 +228,15 @@ model BidScoreRecord {
 model BidClarification {
   id           String     @id @default(cuid())
   projectId    String
+  type         String     @default("clarification")
   question     String
   issuer       String
   supplierName String
+  supplierId   String?
   status       String     @default("待回复")
   reply        String?
   project      BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier     Supplier?  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 }
@@ -379,6 +382,7 @@ model Supplier {
   bidDocumentAccesses BidDocumentAccess[]
   catalogApplications SupplierCatalogApplication[]
   catalogSupplies     CatalogSupplier[]
+  clarifications      BidClarification[]
 
   @@index([status])
   @@index([creditCode])

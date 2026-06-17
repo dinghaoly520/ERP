@@ -4,6 +4,7 @@ import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
+import { CreateQuestionDto } from './dto/create-question.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('supplier-portal')
@@ -141,6 +142,18 @@ export class SupplierPortalController {
   async getBidProjectDocument(@Request() req: any, @Param('id') id: string) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.getBidProjectDocument(id, supplierId);
+  }
+
+  // ─── 澄清答疑 ───
+
+  @Post('bid-projects/:id/questions')
+  async createQuestion(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() dto: CreateQuestionDto,
+  ) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.createQuestion(supplierId, id, dto);
   }
 
   // ─── Bid Submissions ───

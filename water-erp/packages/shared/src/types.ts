@@ -42,6 +42,7 @@ export interface BidProject {
 
 export interface BidSupplier {
   id: string;
+  supplierId?: string;
   supplierName: string;
   downloadStatus: string;
   submitStatus: string;
@@ -94,9 +95,11 @@ export interface BidArchiveItem {
 
 export interface BidClarification {
   id: string;
+  type: string;
   question: string;
   issuer: string;
   supplierName: string;
+  supplierId?: string;
   status: string;
   reply?: string;
   createdAt: string;
