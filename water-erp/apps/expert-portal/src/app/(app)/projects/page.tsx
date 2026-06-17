@@ -3,16 +3,47 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ClipboardList, ArrowLeft, Building2, FileText, MessageSquare, Calendar } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Building2, FileText, MessageSquare, Calendar, Clock, Lock, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ExpertProject } from '@/lib/types';
-import { PageHero, SectionCard } from '@water-erp/ui';
+import { PageHero } from '@water-erp/ui';
+
+const stageLabel: Record<string, string> = {
+  DOWNLOAD: '文件下载',
+  SUBMIT: '加密投递',
+  OPENING: '在线开标',
+  EVALUATING: '专家评标',
+  ARCHIVED: '资料归档',
+};
+
+const stageColor: Record<string, string> = {
+  OPENING: '#f5a623',
+  EVALUATING: '#064ea2',
+  ARCHIVED: '#11a874',
+};
+
+const stageBg: Record<string, string> = {
+  OPENING: '#fff7ed',
+  EVALUATING: '#eff6ff',
+  ARCHIVED: '#f0fdf4',
+};
+
+const stageBorder: Record<string, string> = {
+  OPENING: '#fed7aa',
+  EVALUATING: '#bfdbfe',
+  ARCHIVED: '#bbf7d0',
+};
+
+function isActive(stage: string) {
+  return stage === 'OPENING' || stage === 'EVALUATING';
+}
 
 export default function ExpertProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<ExpertProject[]>([]);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'active' | 'done'>('all');
+  const [filter, setFilter] = useState<'reviewable' | 'upcoming' | 'archived' | 'all'>('reviewable');
   const [loading, setLoading] = useState(true);
+  const [overviewProject, setOverviewProject] = useState<ExpertProject | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -23,26 +54,34 @@ export default function ExpertProjectsPage() {
   }, []);
 
   const filtered = projects.filter(ep => {
-    if (filter === 'pending') return !ep.signedIn;
-    if (filter === 'active') return ep.signedIn && ep.progress < 100;
-    if (filter === 'done') return ep.progress >= 100;
+    const s = ep.project.stage;
+    if (filter === 'reviewable') return isActive(s);
+    if (filter === 'upcoming') return s === 'DOWNLOAD' || s === 'SUBMIT';
+    if (filter === 'archived') return s === 'ARCHIVED';
     return true;
   });
 
-  const stageLabel: Record<string, string> = { DOWNLOAD: '文件下载', SUBMIT: '加密投递', OPENING: '在线开标', EVALUATING: '专家评标', ARCHIVED: '资料归档' };
   const statusCounts = {
     all: projects.length,
-    pending: projects.filter(e => !e.signedIn).length,
-    active: projects.filter(e => e.signedIn && e.progress < 100).length,
-    done: projects.filter(e => e.progress >= 100).length,
+    reviewable: projects.filter(e => isActive(e.project.stage)).length,
+    upcoming: projects.filter(e => e.project.stage === 'DOWNLOAD' || e.project.stage === 'SUBMIT').length,
+    archived: projects.filter(e => e.project.stage === 'ARCHIVED').length,
   };
 
   const filterTabs = [
-    { key: 'all' as const, label: '全部', tone: 'purple' as const },
-    { key: 'pending' as const, label: '待核验', tone: 'orange' as const },
-    { key: 'active' as const, label: '评审中', tone: 'purple' as const },
-    { key: 'done' as const, label: '已完成', tone: 'green' as const },
+    { key: 'reviewable' as const, label: '可评审', desc: 'OPENING + EVALUATING' },
+    { key: 'upcoming' as const, label: '待开标', desc: 'DOWNLOAD + SUBMIT' },
+    { key: 'archived' as const, label: '已归档', desc: 'ARCHIVED' },
+    { key: 'all' as const, label: '全部', desc: 'ALL' },
   ];
+
+  const handleCardClick = (ep: ExpertProject) => {
+    if (isActive(ep.project.stage)) {
+      router.push(`/evaluate/${ep.project.id}`);
+    } else {
+      setOverviewProject(ep);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -64,7 +103,7 @@ export default function ExpertProjectsPage() {
         }
       />
 
-      {/* 筛选标签 — pill-style matching web/supplier pattern */}
+      {/* 筛选标签 — stage-driven */}
       <div className="flex flex-wrap gap-2">
         {filterTabs.map(f => (
           <button
@@ -91,96 +130,214 @@ export default function ExpertProjectsPage() {
       ) : filtered.length === 0 ? (
         <div className="glass-card glass-card-blue rounded-2xl p-12 text-center">
           <ClipboardList size={48} strokeWidth={1} className="text-[#cbd5e1] mx-auto mb-4" />
-          <h3 className="text-base font-bold text-[#18243a] mb-2">暂无{filter === 'all' ? '' : '符合条件的'}项目</h3>
-          <p className="text-sm text-[#8a96aa]">请等待管理员分配评审任务</p>
+          <h3 className="text-base font-bold text-[#18243a] mb-2">
+            {filter === 'reviewable' ? '暂无可评审项目' : filter === 'upcoming' ? '暂无待开标项目' : filter === 'archived' ? '暂无已归档项目' : '暂无项目'}
+          </h3>
+          <p className="text-sm text-[#8a96aa]">
+            {filter === 'reviewable' ? '请等待管理端启动开标，可评审项目将显示在这里' : '请等待管理员分配评审任务'}
+          </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map(ep => (
-            <div key={ep.id}
-              className="glass-card glass-card-lighter glass-card-emerald rounded-2xl hover:shadow-sm hover:border-[#bfdbfe] transition-all cursor-pointer overflow-hidden"
-              onClick={() => router.push(`/evaluate/${ep.project.id}`)}
-            >
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-lg font-black text-white">
-                      {ep.project.name[0]}
+          {filtered.map(ep => {
+            const active = isActive(ep.project.stage);
+            const sc = stageColor[ep.project.stage] || '#5a6d8a';
+            const sbg = stageBg[ep.project.stage] || '#f8fafc';
+            const sbd = stageBorder[ep.project.stage] || '#e5ecf4';
+
+            return (
+              <div key={ep.id}
+                onClick={() => handleCardClick(ep)}
+                className={`rounded-2xl overflow-hidden transition-all ${
+                  active
+                    ? 'glass-card glass-card-lighter glass-card-emerald hover:shadow-sm hover:border-[#bfdbfe] cursor-pointer'
+                    : 'glass-card opacity-60 cursor-default'
+                }`}
+              >
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-lg font-black text-white ${
+                        active ? 'bg-gradient-to-br from-[#064ea2] to-[#0b63ce]' : 'bg-gradient-to-br from-[#94a3b8] to-[#64748b]'
+                      }`}>
+                        {ep.project.name[0]}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-black text-[#18243a]">{ep.project.name}</h3>
+                          {active && (
+                            <span className="relative flex h-2.5 w-2.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                                style={{ backgroundColor: sc }} />
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5"
+                                style={{ backgroundColor: sc }} />
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-mono text-[#5a6d8a]">{ep.project.projectCode}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-base font-black text-[#18243a]">{ep.project.name}</h3>
-                      <p className="text-sm font-mono text-[#5a6d8a]">{ep.project.projectCode}</p>
+                    <div className="flex items-center gap-2">
+                      {/* Expert status badges — only show for active projects */}
+                      {active && !ep.signedIn && (
+                        <span className="inline-flex items-center rounded-full border border-[#fed7aa] bg-[#fff7ed] px-2.5 py-0.5 text-xs font-bold text-[#f5a623]">
+                          待核验
+                        </span>
+                      )}
+                      {active && ep.signedIn && !ep.avoidanceConfirmed && (
+                        <span className="inline-flex items-center rounded-full border border-[#fed7aa] bg-[#fff7ed] px-2.5 py-0.5 text-xs font-bold text-[#f5a623]">
+                          待回避确认
+                        </span>
+                      )}
+                      {ep.progress >= 100 && (
+                        <span className="inline-flex items-center rounded-full border border-[#bbf7d0] bg-[#f0fdf4] px-2.5 py-0.5 text-xs font-bold text-[#11a874]">
+                          已完成
+                        </span>
+                      )}
+                      {active && ep.signedIn && ep.avoidanceConfirmed && ep.progress < 100 && (
+                        <span className="inline-flex items-center rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-2.5 py-0.5 text-xs font-bold text-[#064ea2]">
+                          评审中
+                        </span>
+                      )}
+                      {/* Stage badge — always shown, color-coded */}
+                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold border"
+                        style={{ color: sc, backgroundColor: sbg, borderColor: sbd }}>
+                        {stageLabel[ep.project.stage] || ep.project.stage}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {!ep.signedIn && (
-                      <span className="inline-flex items-center rounded-full border border-[#fed7aa] bg-[#fff7ed] px-2.5 py-0.5 text-xs font-bold text-[#f5a623]">
-                        待核验
-                      </span>
-                    )}
-                    {ep.signedIn && !ep.avoidanceConfirmed && (
-                      <span className="inline-flex items-center rounded-full border border-[#fed7aa] bg-[#fff7ed] px-2.5 py-0.5 text-xs font-bold text-[#f5a623]">
-                        待回避确认
-                      </span>
-                    )}
-                    {ep.progress >= 100 && (
-                      <span className="inline-flex items-center rounded-full border border-[#bbf7d0] bg-[#f0fdf4] px-2.5 py-0.5 text-xs font-bold text-[#11a874]">
-                        已完成
-                      </span>
-                    )}
-                    {ep.signedIn && ep.avoidanceConfirmed && ep.progress < 100 && (
-                      <span className="inline-flex items-center rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-2.5 py-0.5 text-xs font-bold text-[#064ea2]">
-                        评审中
-                      </span>
-                    )}
-                    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
-                      style={{
-                        color: ep.project.stage === 'EVALUATING' ? '#064ea2' : '#5a6d8a',
-                        backgroundColor: ep.project.stage === 'EVALUATING' ? '#eff6ff' : '#f8fafc',
-                        borderColor: ep.project.stage === 'EVALUATING' ? '#bfdbfe' : '#e5ecf4',
-                      }}>
-                      {stageLabel[ep.project.stage] || ep.project.stage}
+                  <div className="flex items-center gap-6 text-sm text-[#5a6d8a] mb-4">
+                    <span className="flex items-center gap-1.5">
+                      <Building2 size={14} strokeWidth={1.5} />
+                      {ep.project.suppliers?.length ?? 0} 家投标单位
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <FileText size={14} strokeWidth={1.5} />
+                      {ep.project.scoreItems?.length ?? 0} 项评分
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <MessageSquare size={14} strokeWidth={1.5} />
+                      {ep.project._count?.clarifications ?? 0} 条澄清
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Calendar size={14} strokeWidth={1.5} />
+                      开标：{new Date(ep.project.openTime).toLocaleDateString('zh-CN')}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-2.5 bg-[#e8f0fa] rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${ep.progress}%`,
+                          background: ep.progress >= 100
+                            ? 'linear-gradient(90deg, #11a874, #34d399)'
+                            : active
+                              ? 'linear-gradient(90deg, #064ea2, #0b63ce)'
+                              : 'linear-gradient(90deg, #94a3b8, #cbd5e1)',
+                        }}
+                      />
+                    </div>
+                    <span className={`text-sm font-bold w-14 text-right ${active ? 'text-[#064ea2]' : 'text-[#94a3b8]'}`}>
+                      {ep.progress}%
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-6 text-sm text-[#5a6d8a] mb-4">
-                  <span className="flex items-center gap-1.5">
-                    <Building2 size={14} strokeWidth={1.5} />
-                    {ep.project.suppliers?.length ?? 0} 家投标单位
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <FileText size={14} strokeWidth={1.5} />
-                    {ep.project.scoreItems?.length ?? 0} 项评分
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <MessageSquare size={14} strokeWidth={1.5} />
-                    {ep.project._count?.clarifications ?? 0} 条澄清
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Calendar size={14} strokeWidth={1.5} />
-                    开标：{new Date(ep.project.openTime).toLocaleDateString('zh-CN')}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-2.5 bg-[#e8f0fa] rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{
-                        width: `${ep.progress}%`,
-                        background: ep.progress >= 100
-                          ? 'linear-gradient(90deg, #11a874, #34d399)'
-                          : 'linear-gradient(90deg, #064ea2, #0b63ce)',
-                      }}
-                    />
-                  </div>
-                  <span className="text-sm font-bold text-[#064ea2] w-14 text-right">{ep.progress}%</span>
+                <div className={`border-t px-6 py-3 flex items-center justify-between ${
+                  active ? 'border-[#edf2f7] bg-[#f8fafc]' : 'border-[#e5e7eb] bg-[#f9fafb]'
+                }`}>
+                  <span className="text-xs text-[#5a6d8a]">专业领域：{ep.major || '综合评审'}</span>
+                  {active ? (
+                    <span className="text-sm font-bold text-[#064ea2] hover:text-[#054280] transition">进入评审 →</span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-sm font-bold text-[#94a3b8]">
+                      <Lock size={12} strokeWidth={1.5} />
+                      查看概要
+                    </span>
+                  )}
                 </div>
               </div>
-              <div className="border-t border-[#edf2f7] bg-[#f8fafc] px-6 py-3 flex items-center justify-between">
-                <span className="text-xs text-[#5a6d8a]">专业领域：{ep.major || '综合评审'}</span>
-                <span className="text-sm font-bold text-[#064ea2] hover:text-[#054280] transition">进入评审 →</span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Overview Modal for inactive projects */}
+      {overviewProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+          onClick={() => setOverviewProject(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-[#edf2f7] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock size={16} strokeWidth={1.5} className="text-[#8a96aa]" />
+                <h3 className="text-base font-bold text-[#18243a]">项目概要</h3>
+              </div>
+              <button onClick={() => setOverviewProject(null)}
+                className="rounded-lg p-1.5 text-[#8a96aa] hover:bg-[#f1f5f9] hover:text-[#18243a] transition">
+                <X size={16} strokeWidth={1.5} />
+              </button>
+            </div>
+            {/* Body */}
+            <div className="px-6 py-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#94a3b8] to-[#64748b] text-base font-black text-white">
+                  {overviewProject.project.name[0]}
+                </div>
+                <div>
+                  <p className="font-bold text-[#18243a]">{overviewProject.project.name}</p>
+                  <p className="text-sm font-mono text-[#5a6d8a]">{overviewProject.project.projectCode}</p>
+                </div>
+              </div>
+
+              <div className="h-px bg-[#edf2f7]" />
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-[#8a96aa] text-xs mb-0.5">当前阶段</p>
+                  <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold border"
+                    style={{
+                      color: stageColor[overviewProject.project.stage] || '#5a6d8a',
+                      backgroundColor: stageBg[overviewProject.project.stage] || '#f8fafc',
+                      borderColor: stageBorder[overviewProject.project.stage] || '#e5ecf4',
+                    }}>
+                    {stageLabel[overviewProject.project.stage] || overviewProject.project.stage}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-[#8a96aa] text-xs mb-0.5">投标单位</p>
+                  <p className="font-semibold text-[#18243a]">{overviewProject.project.suppliers?.length ?? 0} 家</p>
+                </div>
+                <div>
+                  <p className="text-[#8a96aa] text-xs mb-0.5">开标时间</p>
+                  <p className="font-semibold text-[#18243a]">
+                    {new Date(overviewProject.project.openTime).toLocaleDateString('zh-CN')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[#8a96aa] text-xs mb-0.5">专业领域</p>
+                  <p className="font-semibold text-[#18243a]">{overviewProject.major || '综合评审'}</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 flex items-start gap-2.5">
+                <Lock size={14} strokeWidth={1.5} className="text-amber-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-amber-700">该项目尚未进入开评标阶段</p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    请等待管理端启动开标。开标后，您将可以进入评审向导进行身份核验与专家打分。
+                  </p>
+                </div>
               </div>
             </div>
-          ))}
+            {/* Footer */}
+            <div className="border-t border-[#edf2f7] bg-[#f8fafc] px-6 py-3 flex justify-end">
+              <button onClick={() => setOverviewProject(null)}
+                className="rounded-xl bg-white border border-[#dce6f3] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f1f5f9] transition">
+                关闭
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

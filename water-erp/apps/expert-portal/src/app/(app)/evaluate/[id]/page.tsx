@@ -141,8 +141,14 @@ export default function ExpertEvaluatePage() {
 
   const loadProject = useCallback(() => {
     setLoading(true);
-    api.get<ExpertProjectDetail>(`/expert/projects/${projectId}`)
+    api.get<ExpertProjectDetail & { restricted?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
+        // Stage gate: redirect if project is not in an active review stage
+        if (p.restricted || (p.stage !== 'OPENING' && p.stage !== 'EVALUATING')) {
+          toast.error('该项目尚未进入开评标阶段');
+          router.replace('/projects');
+          return;
+        }
         setProject(p);
         // P0-1: hydrate with composite keys so each supplier's scores are isolated.
         const existing: Record<string, { score: number; reason: string }> = {};
@@ -405,7 +411,7 @@ export default function ExpertEvaluatePage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)]">
+    <div className="flex flex-col h-full">
       {/* 顶部导航 */}
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -428,7 +434,7 @@ export default function ExpertEvaluatePage() {
 
       {/* P2: clarifications panel (toggled from header) */}
       {showClarifications && (
-        <div className="glass-card glass-card-purple rounded-xl p-5 mb-4 flex-shrink-0 space-y-3 max-h-[300px] overflow-y-auto">
+        <div className="glass-card glass-card-purple rounded-xl p-5 mb-4 flex-shrink-0 space-y-3 max-h-[300px] !overflow-y-auto">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]"><MessageSquare size={14} strokeWidth={1.5} className="inline mr-1" />澄清与答疑</h3>
             <button onClick={() => setShowClarifications(false)} className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.18_0.012_265)]">✕</button>
@@ -513,7 +519,7 @@ export default function ExpertEvaluatePage() {
       {/* 主内容区 */}
       <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
         {/* 左侧供应商列表 */}
-        <div className="w-56 flex-shrink-0 glass-card glass-card-purple rounded-xl overflow-y-auto">
+        <div className="w-56 flex-shrink-0 glass-card glass-card-purple rounded-xl !overflow-y-auto">
           <div className="p-4 border-b border-[oklch(0.91_0.006_264)]">
             <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]">投标单位</h3>
             <p className="text-xs text-[oklch(0.55_0.01_264)] mt-1">{project.suppliers.length} 家</p>
@@ -537,7 +543,7 @@ export default function ExpertEvaluatePage() {
         </div>
 
         {/* 右侧主内容 */}
-        <div className="flex-1 glass-card glass-card-blue rounded-xl overflow-y-auto">
+        <div className="flex-1 glass-card glass-card-blue rounded-xl !overflow-y-auto">
           {/* ====== 身份核验 ====== */}
           {step === 'verify' && (
             <div className="p-6 max-w-3xl mx-auto">

@@ -255,26 +255,26 @@ export default function BidDashboard() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-bold text-[#18243a]">供应商提交进度</span>
                 <span className="text-xs font-mono text-[#5a6d8a]">
-                  {workspaceData?.supplierSubmitted ?? 0} / {workspaceData?.supplierTotal ?? 0}
+                  {workspaceData?.stats?.submitted ?? 0} / {workspaceData?.stats?.supplierTotal ?? 0}
                 </span>
               </div>
               <div className="w-full h-2 bg-[#e8f0fa] rounded-full overflow-hidden">
                 <div
                   className="h-2 rounded-full transition-all duration-300"
                   style={{
-                    width: `${workspaceData?.supplierTotal > 0 ? ((workspaceData?.supplierSubmitted ?? 0) / workspaceData.supplierTotal) * 100 : 0}%`,
-                    backgroundColor: workspaceData?.supplierSubmitted === workspaceData?.supplierTotal && workspaceData?.supplierTotal > 0
+                    width: `${(workspaceData?.stats?.supplierTotal ?? 0) > 0 ? ((workspaceData?.stats?.submitted ?? 0) / workspaceData.stats.supplierTotal) * 100 : 0}%`,
+                    backgroundColor: (workspaceData?.stats?.submitted ?? 0) === (workspaceData?.stats?.supplierTotal ?? 0) && (workspaceData?.stats?.supplierTotal ?? 0) > 0
                       ? '#11a874'
-                      : workspaceData?.supplierSubmitted > 0
+                      : (workspaceData?.stats?.submitted ?? 0) > 0
                         ? '#f5a623'
                         : '#d1d5db',
                   }}
                 />
               </div>
               <p className="mt-1 text-xs text-[#8a96aa]">
-                {workspaceData?.supplierSubmitted === workspaceData?.supplierTotal && workspaceData?.supplierTotal > 0
+                {(workspaceData?.stats?.submitted ?? 0) === (workspaceData?.stats?.supplierTotal ?? 0) && (workspaceData?.stats?.supplierTotal ?? 0) > 0
                   ? '全部供应商已提交'
-                  : workspaceData?.supplierSubmitted > 0
+                  : (workspaceData?.stats?.submitted ?? 0) > 0
                     ? '部分供应商已提交'
                     : '暂无供应商提交'}
               </p>
@@ -285,18 +285,18 @@ export default function BidDashboard() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-bold text-[#18243a]">专家签到状态</span>
                 <span className="text-xs font-mono text-[#5a6d8a]">
-                  {workspaceData?.expertSignedIn ?? 0} / {workspaceData?.expertTotal ?? 0}
+                  {workspaceData?.stats?.expertSignedIn ?? 0} / {workspaceData?.stats?.expertCount ?? 0}
                 </span>
               </div>
               <div className="flex gap-3 text-xs">
                 <span className="text-[#064ea2] font-semibold">
-                  已签到：{workspaceData?.expertSignedIn ?? '—'}
+                  已签到：{workspaceData?.stats?.expertSignedIn ?? '—'}
                 </span>
                 <span className="text-[#e74c3c] font-semibold">
-                  未签到：{(workspaceData?.expertTotal ?? 0) - (workspaceData?.expertSignedIn ?? 0)}
+                  未签到：{(workspaceData?.stats?.expertCount ?? 0) - (workspaceData?.stats?.expertSignedIn ?? 0)}
                 </span>
                 <span className="text-[#8a96aa]">
-                  回避：{workspaceData?.expertRecused ?? '—'}
+                  回避：{workspaceData?.experts?.filter((e: any) => e.avoidanceConfirmed).length ?? '—'}
                 </span>
               </div>
             </div>
@@ -305,8 +305,12 @@ export default function BidDashboard() {
             <div className="flex items-center gap-3 pt-4 border-t border-[#edf2f7]">
               <span className="text-sm font-bold text-[#18243a]">整体就绪状态</span>
               {(() => {
-                const allSubmitted = (workspaceData?.supplierSubmitted ?? 0) === (workspaceData?.supplierTotal ?? 0) && (workspaceData?.supplierTotal ?? 0) > 0;
-                const allSignedIn = (workspaceData?.expertSignedIn ?? 0) === (workspaceData?.expertTotal ?? 0) && (workspaceData?.expertTotal ?? 0) > 0;
+                const submitted = workspaceData?.stats?.submitted ?? 0;
+                const supplierTotal = workspaceData?.stats?.supplierTotal ?? 0;
+                const signedIn = workspaceData?.stats?.expertSignedIn ?? 0;
+                const expertTotal = workspaceData?.stats?.expertCount ?? 0;
+                const allSubmitted = submitted === supplierTotal && supplierTotal > 0;
+                const allSignedIn = signedIn === expertTotal && expertTotal > 0;
                 if (allSubmitted && allSignedIn) {
                   return (
                     <span className="flex items-center gap-1.5 text-xs font-bold text-[#064ea2]">
@@ -315,7 +319,7 @@ export default function BidDashboard() {
                     </span>
                   );
                 }
-                if (allSubmitted || allSignedIn || (workspaceData?.supplierSubmitted ?? 0) > 0 || (workspaceData?.expertSignedIn ?? 0) > 0) {
+                if (allSubmitted || allSignedIn || submitted > 0 || signedIn > 0) {
                   return (
                     <span className="flex items-center gap-1.5 text-xs font-bold text-[#f5a623]">
                       <span className="w-2 h-2 rounded-full bg-[#f5a623]" />

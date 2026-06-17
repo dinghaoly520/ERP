@@ -23,6 +23,9 @@ export default function ExpertDashboardPage() {
   }, []);
 
   const stageLabel: Record<string, string> = { DOWNLOAD: '文件下载', SUBMIT: '加密投递', OPENING: '在线开标', EVALUATING: '专家评标', ARCHIVED: '资料归档' };
+  const isProjectActive = (stage: string) => stage === 'OPENING' || stage === 'EVALUATING';
+  const activeProjects = projects.filter(p => isProjectActive(p.project.stage));
+  const totalProjectCount = projects.length;
 
   return (
     <div className="space-y-6">
@@ -49,26 +52,48 @@ export default function ExpertDashboardPage() {
             <button onClick={() => router.push('/projects')} className="text-sm text-[#064ea2] hover:underline font-semibold">查看全部 →</button>
           </div>
 
-          {projects.length === 0 ? (
+          {activeProjects.length === 0 ? (
             <div className="glass-card glass-card-blue rounded-2xl p-12 text-center">
-              <Clipboard size={48} strokeWidth={1} className="text-[oklch(0.80_0.006_264)] mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-[oklch(0.18_0.012_265)] mb-2">暂无评审任务</h3>
-              <p className="text-sm text-[oklch(0.55_0.01_264)]">当您被分配为评审专家时，任务将显示在这里</p>
+              <Clock size={48} strokeWidth={1} className="text-[oklch(0.80_0.006_264)] mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-[oklch(0.18_0.012_265)] mb-2">
+                {totalProjectCount > 0 ? '暂无可评审项目' : '暂无评审任务'}
+              </h3>
+              <p className="text-sm text-[oklch(0.55_0.01_264)]">
+                {totalProjectCount > 0
+                  ? '您有已分配的项目，但尚未进入开评标阶段。请等待管理端启动开标。'
+                  : '当您被分配为评审专家时，任务将显示在这里'}
+              </p>
+              {totalProjectCount > 0 && (
+                <button onClick={() => router.push('/projects')}
+                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-[#064ea2] hover:underline">
+                  查看全部项目 →
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
-              {projects.slice(0, 5).map(ep => {
+              {activeProjects.slice(0, 5).map(ep => {
                 const stageColor: Record<string, string> = { EVALUATING: '#064ea2', OPENING: '#f5a623', ARCHIVED: '#11a874' };
+                const sc = stageColor[ep.project.stage] || '#5a6d8a';
                 return (
                   <div key={ep.id} onClick={() => router.push(`/evaluate/${ep.project.id}`)}
                     className="glass-card glass-card-lighter glass-card-emerald rounded-2xl p-5 hover:shadow-md hover:border-[#bfdbfe] transition-all cursor-pointer">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-semibold text-[#064ea2] bg-[#eff6ff] px-3 py-1 rounded-lg">{ep.project.projectCode}</span>
-                        <h3 className="font-bold text-[oklch(0.18_0.012_265)]">{ep.project.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-[oklch(0.18_0.012_265)]">{ep.project.name}</h3>
+                          {/* Pulsing dot for active projects */}
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                              style={{ backgroundColor: sc }} />
+                            <span className="relative inline-flex rounded-full h-2 w-2"
+                              style={{ backgroundColor: sc }} />
+                          </span>
+                        </div>
                       </div>
                       <span className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                        style={{ color: stageColor[ep.project.stage] || '#5a6d8a', backgroundColor: (stageColor[ep.project.stage] || '#5a6d8a') + '18' }}>
+                        style={{ color: sc, backgroundColor: sc + '18' }}>
                         {stageLabel[ep.project.stage] || ep.project.stage}
                       </span>
                     </div>

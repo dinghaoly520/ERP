@@ -74,7 +74,7 @@ export class ExpertService {
   /* ── 项目列表 ── */
 
   async listProjects(userId: string) {
-    return this.prisma.bidExpert.findMany({
+    const records = await this.prisma.bidExpert.findMany({
       where: { userId },
       include: {
         project: {
@@ -87,6 +87,15 @@ export class ExpertService {
         scoreRecords: true,
       },
       orderBy: { createdAt: 'desc' },
+    });
+
+    // Sort: active projects (OPENING > EVALUATING) first, then others by createdAt desc.
+    const stagePriority: Record<string, number> = { OPENING: 0, EVALUATING: 1 };
+    return records.sort((a, b) => {
+      const pa = stagePriority[a.project.stage] ?? 2;
+      const pb = stagePriority[b.project.stage] ?? 2;
+      if (pa !== pb) return pa - pb;
+      return 0; // preserve existing createdAt desc order
     });
   }
 
@@ -111,12 +120,9 @@ export class ExpertService {
         supervisionLogs: { orderBy: { time: 'desc' }, take: 20 },
       },
     });
+    if (!project) throw new NotFoundException('项目不存在');
 
-    // 获取当前专家自己的评分记录
-    const myScores = await this.prisma.bidScoreRecord.findMany({
-      where: { expertId: expertRecord.id },
-      include: { scoreItem: true },
-    });
+    const isActive = project.stage === 'OPENING' || project.stage === 'EVALUATING';
 
     // Compute masked phone from ExpertProfile
     const phone = expertRecord.user?.expertProfile?.phone ?? null;
@@ -132,7 +138,42 @@ export class ExpertService {
       user: undefined,
     };
 
-    return { ...project, myExpertRecord, myScores };
+    if (!isActive) {
+      // Return restricted data for non-active projects — no suppliers, experts, scores, etc.
+      return {
+        id: project.id,
+        projectCode: project.projectCode,
+        name: project.name,
+        stage: project.stage,
+        openTime: project.openTime,
+        deadline: project.deadline,
+        procurementMethod: project.procurementMethod,
+        budget: project.budget,
+        scope: project.scope,
+        qualification: project.qualification,
+        contact: project.contact,
+        riskNote: project.riskNote,
+        _count: { suppliers: project.suppliers?.length ?? 0 },
+        suppliers: [] as any[],
+        openingSession: null,
+        openingRecords: [] as any[],
+        experts: [] as any[],
+        scoreItems: [] as any[],
+        clarifications: [] as any[],
+        supervisionLogs: [] as any[],
+        myExpertRecord,
+        myScores: [] as any[],
+        restricted: true,
+      };
+    }
+
+    // 获取当前专家自己的评分记录
+    const myScores = await this.prisma.bidScoreRecord.findMany({
+      where: { expertId: expertRecord.id },
+      include: { scoreItem: true },
+    });
+
+    return { ...project, myExpertRecord, myScores, restricted: false };
   }
 
   /* ── 身份核验 ── */
