@@ -13,7 +13,6 @@ import {
 import { PageHero, SectionCard } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ConnectionIndicator } from '@/components/connection-indicator';
-import { useKeyboardShortcuts } from '@/components/keyboard-shortcuts';
 import { DECRYPT_LABEL, SEMANTIC } from '@water-erp/shared';
 import { toast } from 'sonner';
 
@@ -115,8 +114,6 @@ export default function BidOpenPage() {
   const [disputeHandleResult, setDisputeHandleResult] = useState('');
   const [disputeHandleConfirm, setDisputeHandleConfirm] = useState<'confirmed' | 'rejected' | null>(null);
   const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string } | null>(null);
-  const { show: _showShortcuts, panel: _shortcutsPanel } = useKeyboardShortcuts();
-
   const [recordDraft, setRecordDraft] = useState({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
   const seenDecrypt = useRef<Set<string>>(new Set());
   const prevDecryptStatuses = useRef<Map<string, string>>(new Map());
@@ -299,28 +296,11 @@ export default function BidOpenPage() {
     return () => clearInterval(timer);
   }, [remaining, soundEnabled, session]);
 
-  // ═══ Keyboard shortcuts ═══
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      switch (e.key) {
-        case 'd': case 'D': if (project) handleDecrypt(project.suppliers[0]?.id); break;
-        case 'b': case 'B': handleBulkDecrypt(); break;
-        case 'r': case 'R': api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject); break;
-        case 'm': case 'M': setBigScreen(prev => !prev); break;
-        case 's': case 'S': setSoundEnabled(prev => !prev); break;
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [projectId, project]);
-
   if (loading) return <TableSkeleton rows={8} cols={6} />;
   if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20 tracking-tight">暂无项目数据</div>;
 
   return (
     <div className={`space-y-5 ${bigScreen ? 'text-[115%]' : ''}`}>
-      {_shortcutsPanel}
       {/* ═══ PageHero with controls ═══ */}
       <PageHero
         eyebrow="开标大厅"

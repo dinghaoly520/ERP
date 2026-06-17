@@ -6,7 +6,6 @@ import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
-import { useKeyboardShortcuts } from '@/components/keyboard-shortcuts';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, ArrowLeft, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Wrench, Clipboard, Gavel, Building2, Megaphone, Star, Search, UserCircle, TrendingUp, Clock, ScrollText, Pencil, ShoppingCart, Inbox, Construction, MessageSquare } from 'lucide-react';
 
@@ -59,22 +58,11 @@ export default function ExpertEvaluatePage() {
     setLiveEvents(prev => [{ time: Date.now(), label, icon }, ...prev].slice(0, 20));
   };
 
-  const { show: _showShortcuts, panel: _shortcutsPanel } = useKeyboardShortcuts();
-
   // P5: keyboard navigation for scoring — Enter on last item's reason submits
   const handleScoringKeyDown = (e: React.KeyboardEvent, isLastItem: boolean) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || isLastItem)) {
       e.preventDefault();
       handleSubmitScores();
-    }
-  };
-
-  const handleStepKey = (e: React.KeyboardEvent) => {
-    // 忽略输入框内的数字键，避免验证码输入时跳转步骤
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-    if (e.key >= '1' && e.key <= '6') {
-      const target = STEPS[parseInt(e.key) - 1];
-      if (target && stepAccessible(target.key)) setStep(target.key);
     }
   };
 
@@ -391,8 +379,7 @@ export default function ExpertEvaluatePage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)]" onKeyDown={handleStepKey}>
-      {_shortcutsPanel}
+    <div className="flex flex-col h-[calc(100vh-7rem)]">
       {/* 顶部导航 */}
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
