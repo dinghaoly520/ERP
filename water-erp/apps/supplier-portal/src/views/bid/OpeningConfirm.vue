@@ -41,7 +41,7 @@ async function handleDispute() { let reason=''; try{const res=await ElMessageBox
 </template>
 
 <style scoped>
-.detail-card { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); padding: 24px; }
+.detail-card { position: relative; background: rgba(255,255,255,0.78); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.55); border-radius: var(--sp-radius-md); padding: 24px; }
 .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .card-title { font-size: 16px; font-weight: 800; color: var(--sp-gray-900); }
 .opening-actions { display: flex; gap: 12px; margin-top: 20px; }

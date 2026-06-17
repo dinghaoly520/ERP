@@ -1055,41 +1055,78 @@ export class SupplierPortalService {
     };
   }
 
-  private calculateProfileCompleteness(supplier: any): { score: number; missing: string[] } {
-    let score = 0
-    const total = 100
-    const missing: string[] = []
+  private calculateProfileCompleteness(supplier: any): {
+    score: number;
+    missing: string[];
+    categories: {
+      basic: { score: number; max: number; filled: number; total: number; missing: string[] };
+      contacts: { score: number; max: number; filled: number; total: number; missing: string[] };
+      qualifications: { score: number; max: number; filled: number; total: number; missing: string[] };
+      classification: { score: number; max: number };
+    };
+  } {
+    const missing: string[] = [];
 
     // Basic info (40 points)
-    if (supplier.name) score += 8; else missing.push('企业名称')
-    if (supplier.creditCode) score += 8; else missing.push('统一社会信用代码')
-    if (supplier.enterpriseType) score += 6; else missing.push('企业类型')
-    if (supplier.legalPerson) score += 6; else missing.push('法定代表人')
-    if (supplier.registeredAddress) score += 6; else missing.push('注册地址')
-    if (supplier.businessScope) score += 6; else missing.push('经营范围')
+    let basicScore = 0;
+    const basicMax = 40;
+    const basicMissing: string[] = [];
+    const basicTotal = 6;
+    let basicFilled = 0;
+    if (supplier.name) { basicScore += 8; basicFilled++; } else basicMissing.push('企业名称');
+    if (supplier.creditCode) { basicScore += 8; basicFilled++; } else basicMissing.push('统一社会信用代码');
+    if (supplier.enterpriseType) { basicScore += 6; basicFilled++; } else basicMissing.push('企业类型');
+    if (supplier.legalPerson) { basicScore += 6; basicFilled++; } else basicMissing.push('法定代表人');
+    if (supplier.registeredAddress) { basicScore += 6; basicFilled++; } else basicMissing.push('注册地址');
+    if (supplier.businessScope) { basicScore += 6; basicFilled++; } else basicMissing.push('经营范围');
+    missing.push(...basicMissing);
 
     // Contacts (20 points)
+    let contactScore = 0;
+    const contactMax = 20;
+    let contactFilled = 0;
+    const contactTotal = 1;
+    const contactMissing: string[] = [];
     if (supplier.contacts?.length > 0) {
-      score += 12
-      const hasPrimary = supplier.contacts.some((c: any) => c.isPrimary)
-      if (hasPrimary) score += 8; else missing.push('主要联系人')
+      contactScore += 12; contactFilled = 1;
+      const hasPrimary = supplier.contacts.some((c: any) => c.isPrimary);
+      if (hasPrimary) contactScore += 8; else contactMissing.push('主要联系人');
     } else {
-      missing.push('联系人')
+      contactMissing.push('联系人');
     }
+    missing.push(...contactMissing);
 
     // Qualifications (30 points)
+    let qualScore = 0;
+    const qualMax = 30;
+    let qualFilled = 0;
+    const qualTotal = 1;
+    const qualMissing: string[] = [];
     if (supplier.qualifications?.length > 0) {
-      score += 15
-      const hasLicense = supplier.qualifications.some((q: any) => q.type === '营业执照')
-      if (hasLicense) score += 15; else missing.push('营业执照')
+      qualScore += 15; qualFilled = 1;
+      const hasLicense = supplier.qualifications.some((q: any) => q.type === '营业执照');
+      if (hasLicense) qualScore += 15; else qualMissing.push('营业执照');
     } else {
-      missing.push('资质材料')
+      qualMissing.push('资质材料');
     }
+    missing.push(...qualMissing);
 
     // Classification (10 points)
-    if (supplier.classificationId) score += 10; else missing.push('供应商分类')
+    let classScore = 0;
+    if (supplier.classificationId) classScore = 10; else { classScore = 0; missing.push('供应商分类'); }
 
-    return { score, missing }
+    const score = basicScore + contactScore + qualScore + classScore;
+
+    return {
+      score,
+      missing,
+      categories: {
+        basic: { score: basicScore, max: basicMax, filled: basicFilled, total: basicTotal, missing: basicMissing },
+        contacts: { score: contactScore, max: contactMax, filled: contactFilled, total: contactTotal, missing: contactMissing },
+        qualifications: { score: qualScore, max: qualMax, filled: qualFilled, total: qualTotal, missing: qualMissing },
+        classification: { score: classScore, max: 10 },
+      },
+    };
   }
 
   // ─── Password ───

@@ -29,8 +29,8 @@ function scrollTop() { window.scrollTo({ top: 0, behavior: 'smooth' }) }
 <style scoped>
 .btt-btn {
   position: fixed; bottom: 32px; right: 32px; z-index: 999;
-  width: 44px; height: 44px; border-radius: 14px; border: 1px solid var(--sp-border);
-  background: #fff; color: var(--sp-gray-600); cursor: pointer;
+  width: 44px; height: 44px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.48);
+  background: rgba(255,255,255,0.78); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); color: var(--sp-gray-600); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 4px 16px rgba(15,47,87,0.08); transition: all 0.2s;
 }

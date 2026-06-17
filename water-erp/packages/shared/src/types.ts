@@ -231,6 +231,7 @@ export interface Supplier {
   returnReason?: string;
   createdAt: string;
   updatedAt: string;
+  user?: { id: string; username: string; displayName: string; email?: string; role: string; isActive: boolean };
   classification?: SupplierClassification;
   contacts?: SupplierContact[];
   qualifications?: SupplierQualification[];

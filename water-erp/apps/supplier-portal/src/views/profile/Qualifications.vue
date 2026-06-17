@@ -103,20 +103,24 @@ const healthRingDash = computed(() => { const pct=healthSummary.value.healthScor
 .qual-file { display: flex; align-items: center; gap: 4px; }
 .qual-file-link { color: var(--sp-primary); text-decoration: none; }
 .qual-file-link:hover { text-decoration: underline; }
-.qual-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 14px; border-top: 1px solid var(--sp-border-light); }
+.qual-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(0,0,0,0.05); }
 .upload-meta { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; color: var(--sp-gray-500); }
 .upload-meta-size { color: var(--sp-gray-400); }
 .upload-hint { display: block; margin-top: 6px; color: var(--sp-gray-400); font-size: 13px; }
-.detail-card { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); padding: 24px; }
-.qual-health { display: flex; align-items: center; gap: 20px; padding: 16px 20px; border: 1px solid var(--sp-border); border-left: 4px solid; border-radius: var(--sp-radius-md); background: #fff; margin-bottom: 16px; }
+.detail-card { position: relative; background: rgba(255,255,255,0.62); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); padding: 24px; }
+.detail-card::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.36; border-radius: inherit; background-image: radial-gradient(ellipse at 10% 6%, rgba(96,165,250,0.16), transparent 55%), radial-gradient(ellipse at 85% 12%, rgba(56,189,248,0.10), transparent 55%), radial-gradient(ellipse at 38% 90%, rgba(6,78,162,0.05), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
+.detail-card > * { position: relative; z-index: 1; }
+.qual-health { position: relative; display: flex; align-items: center; gap: 20px; padding: 16px 20px; border: 1px solid rgba(255,255,255,0.50); border-left: 4px solid; border-radius: var(--sp-radius-md); background: rgba(255,255,255,0.62); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); margin-bottom: 16px; }
+.qual-health::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.32; border-radius: inherit; background-image: radial-gradient(ellipse at 14% 6%, rgba(96,165,250,0.12), transparent 55%), radial-gradient(ellipse at 80% 10%, rgba(56,189,248,0.08), transparent 55%), radial-gradient(ellipse at 36% 90%, rgba(6,78,162,0.04), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
+.qual-health > * { position: relative; z-index: 1; }
 .qual-health-ring { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
 .qual-health-score { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 900; color: var(--sp-gray-900); }
 .qual-health-info { flex: 1; min-width: 0; }
 .qual-health-counts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
-.qual-health-count { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
-.qual-health-count.valid { background: #ecfdf5; color: #059669; }
-.qual-health-count.long-term { background: #eff6ff; color: #064ea2; }
-.qual-health-count.expiring { background: #fffbeb; color: #d97706; }
-.qual-health-count.expired { background: #fef2f2; color: #dc2626; }
+.qual-health-count { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.qual-health-count.valid { background: rgba(236,253,245,0.70); color: #059669; }
+.qual-health-count.long-term { background: rgba(239,246,255,0.70); color: #064ea2; }
+.qual-health-count.expiring { background: rgba(255,251,235,0.70); color: #d97706; }
+.qual-health-count.expired { background: rgba(254,242,242,0.70); color: #dc2626; }
 .qual-health-hint { font-size: 13px; color: var(--sp-gray-500); margin: 0; }
 </style>

@@ -64,19 +64,21 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 </template>
 
 <style scoped>
-.notif-list { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); overflow: hidden; }
-.notif-row { display: flex; align-items: flex-start; gap: 14px; padding: 16px 20px; border-bottom: 1px solid var(--sp-border-light); cursor: pointer; transition: background 0.15s; }
+.notif-list { position: relative; background: rgba(255,255,255,0.58); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); overflow: hidden; }
+.notif-list::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.36; border-radius: inherit; background-image: radial-gradient(ellipse at 10% 6%, rgba(96,165,250,0.16), transparent 55%), radial-gradient(ellipse at 85% 12%, rgba(56,189,248,0.10), transparent 55%), radial-gradient(ellipse at 38% 90%, rgba(6,78,162,0.05), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
+.notif-list > * { position: relative; z-index: 1; }
+.notif-row { display: flex; align-items: flex-start; gap: 14px; padding: 16px 20px; border-bottom: 1px solid rgba(0,0,0,0.04); cursor: pointer; transition: background 0.15s; }
 .notif-row:last-child { border-bottom: none; }
-.notif-row:hover { background: var(--sp-surface-hover); }
-.notif-row.unread { background: #f0f7ff; }
-.notif-row.unread:hover { background: #e6f0ff; }
+.notif-row:hover { background: rgba(248,251,255,0.50); }
+.notif-row.unread { background: rgba(239,246,255,0.48); }
+.notif-row.unread:hover { background: rgba(224,238,255,0.55); }
 .notif-icon { font-size: 28px; flex-shrink: 0; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
 .notif-body { flex: 1; min-width: 0; }
 .notif-row-title { font-size: 15px; font-weight: 700; color: var(--sp-gray-900); margin-bottom: 4px; }
 .notif-row-content { font-size: 13px; color: var(--sp-gray-500); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .notif-right { text-align: right; flex-shrink: 0; }
 .notif-row-time { font-size: 12px; color: var(--sp-gray-400); margin-bottom: 4px; }
-.sp-empty-panel { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); padding: 64px 20px; text-align: center; color: var(--sp-gray-400); }
+
 .sp-empty-text { font-size: 15px; font-weight: 700; color: var(--sp-gray-500); margin-top: 12px; }
 .sp-empty-desc { font-size: 13px; margin-top: 4px; }
 </style>

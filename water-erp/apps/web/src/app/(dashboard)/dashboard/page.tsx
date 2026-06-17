@@ -102,17 +102,15 @@ export default function DashboardPage() {
   const trendSupplier = useTrend('supplier-approved', supplierApproved);
   const trendExpert = useTrend('expert-total', expertTotal);
   const trendCatalog = useTrend('catalog-active', mallCatalogActive);
-  const trendPending = useTrend('supplier-pending', pendingSuppliers);
 
   return (
     <div className="min-h-full space-y-6">
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="信息发布" value={loading ? '—' : `${announcementPublished}/${announcementTotal}`} hint="已发布 / 信息总量" tone="blue" icon={<Megaphone size={18} strokeWidth={1.7} />} onClick={() => router.push('/notice')} trendDirection="up-good" trendDelta={trendAnnouncement?.delta ?? null} trendHistory={trendAnnouncement} />
         <MetricCard label="供应商资源" value={loading ? '—' : `${supplierApproved}/${supplierTotal}`} hint="已入库 / 供应商总数" tone="green" icon={<Building2 size={18} strokeWidth={1.7} />} onClick={() => router.push('/supplier/repository')} trendDirection="up-good" trendDelta={trendSupplier?.delta ?? null} trendHistory={trendSupplier} />
         <MetricCard label="专家资源" value={loading ? '—' : `${expertTotal}`} hint={`${expertAssignments} 条参与记录`} tone="purple" icon={<UsersRound size={18} strokeWidth={1.7} />} onClick={() => router.push('/expert/repository')} trendDirection="neutral" trendHistory={trendExpert} />
         <MetricCard label="商城目录" value={loading ? '—' : `${mallCatalogActive}/${mallCatalogTotal}`} hint="有效目录 / 目录总量" tone="cyan" icon={<ShoppingCart size={18} strokeWidth={1.7} />} onClick={() => router.push('/mall-management/catalog')} trendDirection="up-good" trendDelta={trendCatalog?.delta ?? null} trendHistory={trendCatalog} />
-        <MetricCard label="供应商待审批" value={loading ? '—' : pendingSuppliers} hint="注册入库待审核" tone="orange" icon={<Building2 size={18} strokeWidth={1.7} />} onClick={() => router.push('/supplier/approval')} trendDirection="up-bad" trendDelta={trendPending?.delta ?? null} trendHistory={trendPending} />
       </section>
 
       <DashboardAiPanel context={dashboardContext} ready={!loading} />

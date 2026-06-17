@@ -80,7 +80,7 @@ export default function CatalogManagementPage() {
         <button onClick={load} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white">刷新</button>
       </DataToolbar>
 
-      <SectionCard className="overflow-hidden p-0">
+      <SectionCard className="p-0">
         <table className="workbench-table">
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>

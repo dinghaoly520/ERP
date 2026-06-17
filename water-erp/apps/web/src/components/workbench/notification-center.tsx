@@ -57,7 +57,7 @@ export function NotificationCenter() {
       </button>
 
       {open && (
-        <div className="modal-content absolute right-0 top-11 z-50 w-[380px] overflow-hidden rounded-2xl border border-[#e5ecf4] bg-white shadow-[0_18px_60px_rgba(15,47,87,0.16)]">
+        <div className="modal-content glass-card glass-card-lighter absolute right-0 top-11 z-50 w-[380px] rounded-2xl">
           <div className="flex items-center justify-between border-b border-[#eef3f8] px-4 py-3">
             <span className="text-sm font-extrabold text-[#18243a]">通知</span>
             <button onClick={markAllRead} className="text-xs font-bold text-[#064ea2] hover:underline">全部已读</button>

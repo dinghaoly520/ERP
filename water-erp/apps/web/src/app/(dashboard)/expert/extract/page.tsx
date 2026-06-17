@@ -558,7 +558,7 @@ function ExpertExtractPage() {
                   </div>
                 )}
 
-                <SectionCard title={`正选专家组 · ${preview.selected.length} 人`} className="overflow-hidden p-0">
+                <SectionCard title={`正选专家组 · ${preview.selected.length} 人`} className="p-0">
                   {preview.selected.length === 0 ? (
                     <div className="py-10 text-center text-sm text-[#8a99ad]">
                       合规候选不足，请调整专业配额或先录入更多专家
@@ -601,7 +601,7 @@ function ExpertExtractPage() {
                 </SectionCard>
 
                 {preview.alternatives.length > 0 && (
-                  <SectionCard title={`候补专家 · ${preview.alternatives.length} 人`} className="overflow-hidden p-0">
+                  <SectionCard title={`候补专家 · ${preview.alternatives.length} 人`} className="p-0">
                     {preview.alternatives.map((s, i) => (
                       <div key={s.userId} className={`flex items-center justify-between px-4 py-2.5 ${i < preview.alternatives.length - 1 ? 'border-b border-[#edf2f7]' : ''}`}>
                         <div className="flex items-center gap-2 min-w-0">

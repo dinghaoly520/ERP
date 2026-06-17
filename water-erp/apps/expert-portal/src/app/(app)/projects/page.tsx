@@ -85,11 +85,11 @@ export default function ExpertProjectsPage() {
       </div>
 
       {loading ? (
-        <div className="rounded-2xl border border-[#e5ecf4] bg-white p-12 text-center text-sm text-[#8a96aa]">
+        <div className="glass-card glass-card-blue rounded-2xl p-12 text-center text-sm text-[#8a96aa]">
           加载中...
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-[#e5ecf4] bg-white p-12 text-center">
+        <div className="glass-card glass-card-blue rounded-2xl p-12 text-center">
           <ClipboardList size={48} strokeWidth={1} className="text-[#cbd5e1] mx-auto mb-4" />
           <h3 className="text-base font-bold text-[#18243a] mb-2">暂无{filter === 'all' ? '' : '符合条件的'}项目</h3>
           <p className="text-sm text-[#8a96aa]">请等待管理员分配评审任务</p>
@@ -98,7 +98,7 @@ export default function ExpertProjectsPage() {
         <div className="space-y-4">
           {filtered.map(ep => (
             <div key={ep.id}
-              className="rounded-2xl border border-[#e5ecf4] bg-white hover:shadow-sm hover:border-[#bfdbfe] transition-all cursor-pointer overflow-hidden"
+              className="glass-card glass-card-lighter glass-card-emerald rounded-2xl hover:shadow-sm hover:border-[#bfdbfe] transition-all cursor-pointer overflow-hidden"
               onClick={() => router.push(`/evaluate/${ep.project.id}`)}
             >
               <div className="p-6">

@@ -13,7 +13,7 @@ interface SectionCardProps {
 
 export function SectionCard({ id, title, description, icon, action, children, className }: SectionCardProps) {
   return (
-    <section id={id} className={cn('rounded-2xl border border-[#e5ecf4] bg-white p-6 shadow-sm section-enter overflow-x-auto', className)}>
+    <section id={id} className={cn('glass-card glass-card-blue rounded-2xl p-6 section-enter overflow-x-auto', className)}>
       {(title || description || icon || action) && (
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">

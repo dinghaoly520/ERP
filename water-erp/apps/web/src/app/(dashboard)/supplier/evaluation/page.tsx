@@ -90,7 +90,7 @@ export default function SupplierEvaluationPage() {
       </div>
 
       {/* Summary bar */}
-      <div className="flex items-center gap-6 rounded-2xl border border-[#dce6f3] bg-white px-5 py-3 text-sm">
+      <div className="flex items-center gap-6 glass-card glass-card-lighter rounded-2xl px-5 py-3 text-sm">
         <span className="text-[#5a6d8a]">累计评价 <strong className="tabular-nums text-[#18243a]">{evalStats.total}</strong> 次</span>
         <span className="text-[#5a6d8a]">平均得分 <strong className="tabular-nums text-[#064ea2]">{evalStats.avgScore.toFixed(1)}</strong></span>
       </div>
@@ -103,7 +103,7 @@ export default function SupplierEvaluationPage() {
         </div>
       </DataToolbar>
 
-      <SectionCard className="overflow-hidden p-0">
+      <SectionCard className="p-0">
         <table className="workbench-table">
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>

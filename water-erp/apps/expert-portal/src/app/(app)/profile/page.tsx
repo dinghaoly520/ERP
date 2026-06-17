@@ -184,7 +184,7 @@ export default function ExpertProfilePage() {
               <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
                 {profile.assignments.map(a => (
                   <div key={a.id}
-                    className="rounded-xl border border-[#bfdbfe] bg-[#eff6ff] p-4 hover:border-[#bfdbfe] transition cursor-pointer"
+                    className="glass-card glass-card-lighter glass-card-purple rounded-xl p-4 hover:border-[#bfdbfe] transition cursor-pointer"
                     onClick={() => router.push(`/evaluate/${a.project.id}`)}
                   >
                     <div className="flex items-center justify-between mb-2">

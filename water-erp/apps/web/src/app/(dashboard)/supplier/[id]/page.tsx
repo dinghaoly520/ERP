@@ -7,11 +7,10 @@ import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualificati
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification, SupplierClassification } from '@/lib/types';
 import { AlertBanner, type AlertSeverity, Breadcrumb } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
-import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, Phone, ShieldCheck, Clock, Calendar, FileText, Award } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Clock, Calendar, Award, FileText } from 'lucide-react';
 
 type TabKey = 'info' | 'contacts' | 'qualifications' | 'evaluations' | 'changes';
 
-/* ── 统一状态色板 ── */
 const statusColor: Record<string, { label: string; color: string; bg: string }> = {
   PENDING:   { label: '待审核',     color: '#f5a623', bg: '#f5a62318' },
   RETURNED:  { label: '退回补正',   color: '#e67e22', bg: '#e67e2218' },
@@ -49,8 +48,13 @@ export default function SupplierDetailPage() {
   const [reviewReason, setReviewReason] = useState('');
   const [reviewLoading, setReviewLoading] = useState(false);
 
-  // 状态操作弹窗
-  const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return' | 'disable' | 'blacklist'; supplier: Supplier } | null>(null);
+  // 审批操作（内联底部栏，仅 approve/reject/return）
+  const [approvalMode, setApprovalMode] = useState<'approve' | 'reject' | 'return' | null>(null);
+  const [approvalReason, setApprovalReason] = useState('');
+  const [approvalLoading, setApprovalLoading] = useState(false);
+
+  // 状态操作弹窗（停用/黑名单，保留 modal）
+  const [actionModal, setActionModal] = useState<{ type: 'disable' | 'blacklist'; supplier: Supplier } | null>(null);
   const [actionReason, setActionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -60,7 +64,9 @@ export default function SupplierDetailPage() {
   const [selectedClassId, setSelectedClassId] = useState('');
   const [classLoading, setClassLoading] = useState(false);
 
-  const loadAll = async () => {
+  const closeApproval = () => { setApprovalMode(null); setApprovalReason(''); };
+
+  const loadAll = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     const [s, q, e, c] = await Promise.all([
@@ -74,9 +80,9 @@ export default function SupplierDetailPage() {
     setEvaluations(e);
     setChanges(c);
     setLoading(false);
-  };
+  }, [id]);
 
-  useEffect(() => { loadAll(); }, [id]);
+  useEffect(() => { loadAll(); }, [loadAll]);
   useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); }, []);
 
   const supplierAlerts = useSupplierAlerts(id as string);
@@ -86,6 +92,7 @@ export default function SupplierDetailPage() {
     return { severity, title: `${prefix}：${q.name}`, detail: `有效期至 ${new Date(q.validTo).toLocaleDateString('zh-CN')}（${q.daysLeft < 0 ? '已过期' : `剩 ${q.daysLeft} 天`}）` };
   });
 
+  // ── 变更审核 ──
   const handleReviewChange = async () => {
     if (!reviewModal) return;
     setReviewLoading(true);
@@ -93,44 +100,65 @@ export default function SupplierDetailPage() {
       if (reviewModal.type === 'approve') await approveChange(reviewModal.changeId);
       else await rejectChange(reviewModal.changeId, reviewReason);
       toast.success(reviewModal.type === 'approve' ? '变更已通过' : '变更已拒绝');
-      setReviewModal(null);
-      setReviewReason('');
-      loadAll();
+      setReviewModal(null); setReviewReason(''); loadAll();
     } catch { toast.error('操作失败'); }
     setReviewLoading(false);
   };
 
-  const handleAction = async () => {
-    if (!actionModal) return;
+  // ── 审批操作（乐观更新 + 撤销 toast）──
+  const handleApproval = async () => {
+    if (!supplier || !approvalMode) return;
+    if (approvalMode !== 'approve' && !approvalReason.trim()) { toast.error('请填写原因'); return; }
+
+    const label = approvalMode === 'approve' ? '已通过' : approvalMode === 'return' ? '已退回补正' : '已拒绝';
+    const prevStatus = supplier.status as string;
+    const prevReturn = supplier.returnReason;
+    const prevReject = supplier.rejectReason;
+    const newStatus = (approvalMode === 'approve' ? 'APPROVED' : approvalMode === 'return' ? 'RETURNED' : 'REJECTED') as Supplier['status'];
+
+    // 乐观更新
+    setSupplier(s => s ? { ...s, status: newStatus, returnReason: approvalMode === 'return' ? approvalReason : undefined, rejectReason: approvalMode === 'reject' ? approvalReason : undefined } : s);
+    closeApproval();
+
+    let cancelled = false;
+    toast(`${label}「${supplier.name}」`, {
+      description: '4 秒内可撤销',
+      duration: 4000,
+      action: { label: '撤销', onClick: () => { cancelled = true; setSupplier(s => s ? { ...s, status: prevStatus as Supplier['status'], returnReason: prevReturn, rejectReason: prevReject } : s); } },
+    });
+
+    await new Promise(r => setTimeout(r, 4200));
+    if (cancelled) return;
+
+    setApprovalLoading(true);
+    try {
+      if (approvalMode === 'approve') await approveSupplier(supplier.id);
+      else if (approvalMode === 'reject') await rejectSupplier(supplier.id, approvalReason);
+      else if (approvalMode === 'return') await returnSupplier(supplier.id, approvalReason);
+      loadAll();
+    } catch (e: any) { toast.error(e?.message || '操作失败'); loadAll(); }
+    setApprovalLoading(false);
+  };
+
+  // ── 状态操作（停用/黑名单）──
+  const handleStatusAction = async () => {
+    if (!actionModal || !actionReason.trim()) { toast.error('请填写原因'); return; }
     setActionLoading(true);
     try {
-      const { type, supplier: s } = actionModal;
-      if (type === 'approve') await approveSupplier(s.id);
-      else if (type === 'reject') await rejectSupplier(s.id, actionReason);
-      else if (type === 'return') await returnSupplier(s.id, actionReason);
-      else if (type === 'disable') await updateSupplierStatus(s.id, 'DISABLED', actionReason);
-      else if (type === 'blacklist') await updateSupplierStatus(s.id, 'BLACKLIST', actionReason);
-      toast.success('操作成功');
-      setActionModal(null);
-      setActionReason('');
-      loadAll();
+      await updateSupplierStatus(actionModal.supplier.id, actionModal.type === 'disable' ? 'DISABLED' : 'BLACKLIST', actionReason);
+      toast.success(actionModal.type === 'disable' ? '已停用' : '已加入黑名单');
+      setActionModal(null); setActionReason(''); loadAll();
     } catch { toast.error('操作失败'); }
     setActionLoading(false);
   };
 
+  // ── 分类分配 ──
   const handleAssignClass = async () => {
     if (!selectedClassId || !supplier) return;
     setClassLoading(true);
     try {
-      // 更新供应商分类 — 后端 PATCH /supplier/:id/classification
-      await fetch(`/api/supplier/${supplier.id}/classification`, {
-        method: 'PATCH', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ classificationId: selectedClassId }),
-      });
-      toast.success('分类已更新');
-      setClassModal(false);
-      loadAll();
+      await fetch(`/api/supplier/${supplier.id}/classification`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ classificationId: selectedClassId }) });
+      toast.success('分类已更新'); setClassModal(false); loadAll();
     } catch { toast.error('分类更新失败'); }
     setClassLoading(false);
   };
@@ -147,6 +175,8 @@ export default function SupplierDetailPage() {
   if (!supplier) return <div className="text-[#e74c3c] py-20 text-center">供应商不存在</div>;
 
   const st = statusColor[supplier.status] || { label: supplier.status, color: '#999', bg: '#99918' };
+  const isPending = supplier.status === 'PENDING' || supplier.status === 'RETURNED';
+  const daysSinceReg = Math.floor((Date.now() - new Date(supplier.createdAt).getTime()) / (1000 * 60 * 60 * 24));
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'info', label: '基本信息' },
@@ -156,7 +186,6 @@ export default function SupplierDetailPage() {
     { key: 'changes', label: '变更记录', count: changes.length },
   ];
 
-  /* ── 资质到期判定 ── */
   const getQualStatus = (q: SupplierQualification) => {
     if (!q.validTo) return { label: '长期有效', color: '#11a874', bg: '#11a87418' };
     const end = new Date(q.validTo);
@@ -167,44 +196,46 @@ export default function SupplierDetailPage() {
     return { label: '有效', color: '#11a874', bg: '#11a87418' };
   };
 
-  /* ── 计算综合评价 ── */
   const avgScore = evaluations.length > 0
-    ? (evaluations.reduce((s, e) => s + e.overallScore, 0) / evaluations.length).toFixed(1)
+    ? (evaluations.reduce((s, e) => s + Number(e.overallScore), 0) / evaluations.length).toFixed(1)
     : null;
 
+  const qualStats = {
+    total: qualifications.length,
+    valid: qualifications.filter(q => getQualStatus(q).label === '有效').length,
+    expiring: qualifications.filter(q => getQualStatus(q).label === '即将到期').length,
+    expired: qualifications.filter(q => getQualStatus(q).label === '已过期').length,
+  };
+
   return (
-    <div>
+    <div className={isPending ? 'pb-24' : ''}>
       <Breadcrumb items={[{ label: '供应商库', path: '/supplier/repository' }, { label: supplier?.name || '详情' }]} />
 
-      {/* ═══ 顶部品牌横幅 ═══ */}
-      <div className="bg-gradient-to-r from-[#064ea2] to-[#0891b2] rounded-xl p-5 mb-6 text-white flex items-center gap-5">
-        <img src="/assets/logo.png" alt="智慧水发 · 蜀水云采" className="w-12 h-12 rounded-xl object-cover border-2 border-white/30 flex-shrink-0" />
+      {/* ═══ 顶部横幅（根据状态改变颜色）═══ */}
+      <div className={`rounded-xl p-5 mb-6 text-white flex items-center gap-5 ${
+        isPending ? 'bg-gradient-to-r from-[#f5a623] to-[#e67e22]' :
+        supplier.status === 'REJECTED' ? 'bg-gradient-to-r from-[#e74c3c] to-[#c0392b]' :
+        'bg-gradient-to-r from-[#064ea2] to-[#0891b2]'
+      }`}>
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 flex-shrink-0 text-2xl font-black">{supplier.name[0]}</div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold">{supplier.name}</h1>
-            <span className="px-2.5 py-1 rounded text-xs font-semibold" style={{ color: st.color, backgroundColor: st.bg }}>{st.label}</span>
+            <span className="px-2.5 py-1 rounded text-xs font-semibold border border-white/30" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>{st.label}</span>
           </div>
-          <div className="flex items-center gap-4 mt-1 text-sm text-white/70">
-            <span>信用代码：{supplier.creditCode}</span>
-            <span>·</span>
-            <span>分类：{supplier.classification?.name || '未分类'}</span>
+          <div className="flex items-center gap-4 mt-1 text-sm text-white/70 flex-wrap">
+            <span>信用代码：{supplier.creditCode || '—'}</span>
+            {supplier.classification && <><span>·</span><span>分类：{supplier.classification.name}</span></>}
             {avgScore && <><span>·</span><span>综合评分：{avgScore}</span></>}
+            <span>·</span><span>注册 {daysSinceReg} 天</span>
           </div>
         </div>
-        {/* 快捷操作 */}
         <div className="flex gap-2 flex-shrink-0">
-          {(supplier.status === 'PENDING' || supplier.status === 'RETURNED') && (
-            <>
-              <button onClick={() => setActionModal({ type: 'approve', supplier })} className="px-4 py-2 bg-white/20 text-white rounded-lg text-sm font-semibold hover:bg-white/30 transition">通过审核</button>
-              <button onClick={() => { setActionReason(''); setActionModal({ type: 'return', supplier }); }} className="px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-semibold hover:bg-white/20 transition">退回补正</button>
-              <button onClick={() => { setActionReason(''); setActionModal({ type: 'reject', supplier }); }} className="px-4 py-2 bg-[#e74c3c]/80 text-white rounded-lg text-sm font-semibold hover:bg-[#e74c3c] transition">拒绝</button>
-            </>
-          )}
           {supplier.status === 'APPROVED' && (
             <>
-              <button onClick={() => { setSelectedClassId(supplier.classificationId || ''); setClassModal(true); }} className="px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-semibold hover:bg-white/20 transition">分配分类</button>
-              <button onClick={() => { setActionReason(''); setActionModal({ type: 'disable', supplier }); }} className="px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-semibold hover:bg-white/20 transition">停用</button>
-              <button onClick={() => { setActionReason(''); setActionModal({ type: 'blacklist', supplier }); }} className="px-4 py-2 bg-[#e74c3c]/80 text-white rounded-lg text-sm font-semibold hover:bg-[#e74c3c] transition">黑名单</button>
+              <button onClick={() => { setSelectedClassId(supplier.classificationId || ''); setClassModal(true); }} className="btn-press px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-semibold hover:bg-white/20 transition">分配分类</button>
+              <button onClick={() => { setActionReason(''); setActionModal({ type: 'disable', supplier }); }} className="btn-press px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-semibold hover:bg-white/20 transition">停用</button>
+              <button onClick={() => { setActionReason(''); setActionModal({ type: 'blacklist', supplier }); }} className="btn-press px-4 py-2 bg-[#e74c3c]/80 text-white rounded-lg text-sm font-semibold hover:bg-[#e74c3c] transition">黑名单</button>
             </>
           )}
           <button onClick={() => router.push('/supplier')} className="px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-semibold hover:bg-white/20 transition">← 返回列表</button>
@@ -213,11 +244,101 @@ export default function SupplierDetailPage() {
 
       <div className="mb-4"><AlertBanner items={alertItems} /></div>
 
+      {/* ═══ 注册审核摘要（仅 PENDING/RETURNED）═══ */}
+      {isPending && (
+        <div className="glass-card glass-card-lighter card-enter mb-6 rounded-2xl">
+          <div className="flex items-center gap-2 border-b border-[#eef3f8]/60 px-5 py-3">
+            <FileCheck size={14} className="text-[#f5a623]" />
+            <span className="text-sm font-extrabold text-[#18243a]">注册审核摘要</span>
+            {supplier.status === 'RETURNED' && supplier.returnReason && (
+              <span className="ml-auto rounded-full bg-[#f5a62310] px-2.5 py-0.5 text-xs font-bold text-[#f5a623]">退回原因：{supplier.returnReason}</span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-5">
+            {[
+              { icon: Building2, label: '企业类型', value: supplier.enterpriseType },
+              { icon: ShieldCheck, label: '法定代表人', value: supplier.legalPerson },
+              { icon: Calendar, label: '注册申请时间', value: new Date(supplier.createdAt).toLocaleDateString('zh-CN') },
+              { icon: Award, label: '提交资质', value: `${qualifications.length} 份材料` },
+            ].map(item => (
+              <div key={item.label} className="flex items-start gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f8fafc] flex-shrink-0"><item.icon size={14} className="text-[#5a6d8a]" /></span>
+                <div><p className="text-xs text-[#8a96aa]">{item.label}</p><p className="text-sm font-bold text-[#18243a]">{item.value}</p></div>
+              </div>
+            ))}
+          </div>
+          {/* 资质速览标签 */}
+          {qualifications.length > 0 && (
+            <div className="border-t border-[#eef3f8] px-5 py-3">
+              <p className="text-xs font-bold text-[#5a6d8a] mb-2">资质清单</p>
+              <div className="flex flex-wrap gap-2">
+                {qualifications.map((q) => {
+                  const qs = getQualStatus(q);
+                  return (
+                    <span key={q.id} className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5ecf4] bg-[#f8fafc] pl-2 pr-2.5 py-1">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: qs.color }} />
+                      <span className="text-xs font-semibold text-[#18243a]">{q.name}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ 状态时间线（仅 PENDING/RETURNED）═══ */}
+      {isPending && (
+        <div className="glass-card glass-card-lighter card-enter mb-6 rounded-2xl px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock size={14} className="text-[#5a6d8a]" />
+            <span className="text-xs font-bold text-[#5a6d8a]">状态时间线</span>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="flex flex-col items-center pt-1">
+              <div className="w-3 h-3 rounded-full bg-[#11a874] ring-2 ring-[#11a87420]" />
+              <div className="w-0.5 h-10 bg-[#e5ecf4]" />
+              <div className="w-3 h-3 rounded-full ring-2" style={{ backgroundColor: supplier.status === 'RETURNED' ? '#e67e22' : '#f5a623', borderColor: supplier.status === 'RETURNED' ? '#e67e2220' : '#f5a62320' }} />
+            </div>
+            <div className="space-y-4 flex-1 pb-1">
+              <div>
+                <p className="text-sm font-semibold text-[#18243a]">供应商注册</p>
+                <p className="text-xs text-[#8a96aa]">{new Date(supplier.createdAt).toLocaleDateString('zh-CN')} · 提交注册申请及{qualifications.length}份资质材料</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: supplier.status === 'RETURNED' ? '#e67e22' : '#f5a623' }}>
+                  {supplier.status === 'RETURNED' ? '退回补正' : '待审核'}
+                </p>
+                <p className="text-xs text-[#8a96aa]">
+                  {supplier.status === 'RETURNED'
+                    ? `${new Date(supplier.updatedAt).toLocaleDateString('zh-CN')} · 审核退回，需补正材料后重新提交`
+                    : '等待采购管理员审核'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ 退回/不通过原因提示 ═══ */}
+      {supplier.returnReason && supplier.status === 'RETURNED' && (
+        <div className="mb-6 p-4 bg-[#f5a62310] rounded-xl border border-[#f5a62330] flex items-start gap-3">
+          <RotateCcw size={16} className="text-[#f5a623] mt-0.5 flex-shrink-0" />
+          <div><p className="text-xs text-[#f5a623] font-semibold mb-1">退回补正原因</p><p className="text-sm text-[#18243a]">{supplier.returnReason}</p></div>
+        </div>
+      )}
+      {supplier.rejectReason && (
+        <div className="mb-6 p-4 bg-[#e74c3c10] rounded-xl border border-[#e74c3c30] flex items-start gap-3">
+          <XCircle size={16} className="text-[#e74c3c] mt-0.5 flex-shrink-0" />
+          <div><p className="text-xs text-[#e74c3c] font-semibold mb-1">审核不通过原因</p><p className="text-sm text-[#18243a]">{supplier.rejectReason}</p></div>
+        </div>
+      )}
+
       {/* ═══ Tab 导航 ═══ */}
-      <div className="flex border-b border-[#e5ecf4] mb-6">
+      <div className="flex border-b border-[#e5ecf4] mb-6 overflow-x-auto">
         {tabs.map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-            className={`px-5 py-3 text-sm font-semibold transition border-b-2 -mb-px ${
+            className={`px-5 py-3 text-sm font-semibold transition border-b-2 -mb-px whitespace-nowrap ${
               activeTab === tab.key ? 'text-[#064ea2] border-[#064ea2]' : 'text-[#5a6d8a] border-transparent hover:text-[#18243a]'
             }`}>
             {tab.label}{tab.count !== undefined && <span className="ml-1.5 text-xs opacity-50">({tab.count})</span>}
@@ -226,21 +347,24 @@ export default function SupplierDetailPage() {
       </div>
 
       {/* ═══ Tab 内容 ═══ */}
-      <div className="bg-white rounded-xl border border-[#e5ecf4] p-6">
+      <div className="glass-card glass-card-lighter rounded-xl p-6">
         {/* ── 基本信息 ── */}
         {activeTab === 'info' && (
           <div>
             <div className="grid grid-cols-3 gap-x-10 gap-y-5">
               {[
                 ['企业名称', supplier.name],
-                ['统一社会信用代码', supplier.creditCode],
+                ['统一社会信用代码', supplier.creditCode || '—'],
                 ['企业类型', supplier.enterpriseType],
                 ['法定代表人', supplier.legalPerson],
                 ['注册地址', supplier.registeredAddress || '—'],
                 ['经营范围', supplier.businessScope || '—'],
                 ['分类', supplier.classification?.name || '未分类'],
+                ['用户名', supplier.user?.username || '—'],
+                ['账户状态', supplier.user?.isActive ? '已激活' : '未激活'],
                 ['注册时间', new Date(supplier.createdAt).toLocaleDateString('zh-CN')],
                 ['更新时间', new Date(supplier.updatedAt).toLocaleDateString('zh-CN')],
+                ['注册邮箱', supplier.user?.email || '—'],
               ].map(([label, value]) => (
                 <div key={label as string}>
                   <p className="text-xs text-[#8a96aa] mb-1">{label}</p>
@@ -248,24 +372,6 @@ export default function SupplierDetailPage() {
                 </div>
               ))}
             </div>
-            {supplier.returnReason && (
-              <div className="mt-5 p-4 bg-[#f5a62310] rounded-xl border border-[#f5a62330] flex items-start gap-3">
-                <span className="text-lg">⚠️</span>
-                <div>
-                  <p className="text-xs text-[#f5a623] font-semibold mb-1">退回补正原因</p>
-                  <p className="text-sm text-[#18243a]">{supplier.returnReason}</p>
-                </div>
-              </div>
-            )}
-            {supplier.rejectReason && (
-              <div className="mt-5 p-4 bg-[#e74c3c10] rounded-xl border border-[#e74c3c30] flex items-start gap-3">
-                <span className="text-lg">❌</span>
-                <div>
-                  <p className="text-xs text-[#e74c3c] font-semibold mb-1">审核不通过原因</p>
-                  <p className="text-sm text-[#18243a]">{supplier.rejectReason}</p>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -283,7 +389,7 @@ export default function SupplierDetailPage() {
                 </thead>
                 <tbody>
                   {supplier.contacts.map(c => (
-                    <tr key={c.id} className="border-b border-[#e5ecf4] hover:bg-[#f7f9fc]">
+                    <tr key={c.id} className="border-b border-[#e5ecf4] hover:bg-[#f7f9fc] row-clickable">
                       <td className="py-3 px-4 font-semibold text-[#18243a]">{c.name}</td>
                       <td className="py-3 px-4 text-[#5a6d8a] font-mono text-xs">{c.phone}</td>
                       <td className="py-3 px-4 text-[#5a6d8a]">{c.email || '—'}</td>
@@ -306,22 +412,61 @@ export default function SupplierDetailPage() {
             {qualifications.length === 0 ? (
               <p className="text-[#8a96aa] text-center py-10">暂无资质材料</p>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
-                {qualifications.map(q => {
-                  const qs = getQualStatus(q);
-                  return (
-                    <div key={q.id} className="border border-[#e5ecf4] rounded-xl p-5 hover:shadow-sm transition">
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="px-2.5 py-1 text-xs bg-[#064ea212] text-[#064ea2] rounded font-semibold">{q.type}</span>
-                        <span className="text-xs px-2.5 py-1 rounded font-semibold" style={{ color: qs.color, backgroundColor: qs.bg }}>{qs.label}</span>
-                      </div>
-                      <p className="font-bold text-[#18243a] text-sm mb-2">{q.name}</p>
-                      <p className="text-xs text-[#8a96aa]">
-                        有效期：{q.validFrom ? new Date(q.validFrom).toLocaleDateString('zh-CN') : '—'} ~ {q.validTo ? new Date(q.validTo).toLocaleDateString('zh-CN') : '长期'}
-                      </p>
+              <div className="space-y-4">
+                {/* 资质统计条 */}
+                <div className="flex items-center gap-5 pb-3 border-b border-[#eef3f8]">
+                  {[
+                    { label: '总资质', value: qualStats.total, color: '#064ea2' },
+                    { label: '有效', value: qualStats.valid, color: '#11a874' },
+                    { label: '即将到期', value: qualStats.expiring, color: '#f5a623' },
+                    { label: '已过期', value: qualStats.expired, color: '#e74c3c' },
+                  ].map(stat => (
+                    <div key={stat.label} className="flex items-center gap-1.5">
+                      <span className="text-xs text-[#8a96aa]">{stat.label}</span>
+                      <span className="text-lg font-black tabular-nums" style={{ color: stat.color }}>{stat.value}</span>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+                {/* 资质卡片 grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {qualifications.map(q => {
+                    const qs = getQualStatus(q);
+                    const now = new Date();
+                    const totalDays = q.validFrom && q.validTo
+                      ? (new Date(q.validTo).getTime() - new Date(q.validFrom).getTime()) / (1000 * 60 * 60 * 24)
+                      : 0;
+                    const elapsedDays = q.validFrom
+                      ? (now.getTime() - new Date(q.validFrom).getTime()) / (1000 * 60 * 60 * 24)
+                      : 0;
+                    const pct = totalDays > 0 ? Math.max(0, Math.min(100, (elapsedDays / totalDays) * 100)) : 0;
+                    const barColor = qs.label === '已过期' ? '#e74c3c' : qs.label === '即将到期' ? '#f5a623' : '#11a874';
+
+                    return (
+                      <div key={q.id} className="card-enter border border-[#e5ecf4] rounded-xl p-5 hover:shadow-sm transition">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded" style={{ color: '#064ea2', backgroundColor: '#064ea212' }}>{q.type}</span>
+                          </div>
+                          <span className="text-xs px-2.5 py-1 rounded font-semibold" style={{ color: qs.color, backgroundColor: qs.bg }}>{qs.label}</span>
+                        </div>
+                        <p className="font-bold text-[#18243a] text-sm mb-3">{q.name}</p>
+                        {q.validFrom && q.validTo ? (
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between text-[10px]">
+                              <span className="text-[#8a96aa]">{new Date(q.validFrom).toLocaleDateString('zh-CN')}</span>
+                              <span className="text-[#8a96aa]">{new Date(q.validTo).toLocaleDateString('zh-CN')}</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-[#f1f5f9] overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: barColor }} />
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-[#11a874] font-semibold">长期有效</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -334,7 +479,6 @@ export default function SupplierDetailPage() {
               <p className="text-[#8a96aa] text-center py-10">暂无履约评价记录</p>
             ) : (
               <>
-                {/* 评价概要卡片 */}
                 <div className="grid grid-cols-4 gap-4 mb-6">
                   {[
                     { label: '评价次数', value: evaluations.length, color: '#064ea2' },
@@ -361,15 +505,13 @@ export default function SupplierDetailPage() {
                     {evaluations.map(e => {
                       const lc = levelColor[e.level] || levelColor.D;
                       return (
-                        <tr key={e.id} className="border-b border-[#e5ecf4] hover:bg-[#f7f9fc]">
-                          <td className="py-3 px-4 font-bold text-[#18243a]">{e.overallScore.toFixed(1)}</td>
-                          <td className="py-3 px-4">
-                            <span className="px-2.5 py-1 text-xs font-semibold rounded" style={{ color: lc.color, backgroundColor: lc.bg }}>{lc.label} ({e.level})</span>
-                          </td>
-                          <td className="py-3 px-4 text-[#5a6d8a]">{e.completenessScore}</td>
-                          <td className="py-3 px-4 text-[#5a6d8a]">{e.responsivenessScore}</td>
-                          <td className="py-3 px-4 text-[#5a6d8a]">{e.cooperationScore}</td>
-                          <td className="py-3 px-4 text-[#5a6d8a]">{e.complianceScore}</td>
+                        <tr key={e.id} className="border-b border-[#e5ecf4] hover:bg-[#f7f9fc] row-clickable">
+                          <td className="py-3 px-4 font-bold text-[#18243a]">{Number(e.overallScore).toFixed(1)}</td>
+                          <td className="py-3 px-4"><span className="px-2.5 py-1 text-xs font-semibold rounded" style={{ color: lc.color, backgroundColor: lc.bg }}>{lc.label} ({e.level})</span></td>
+                          <td className="py-3 px-4 text-[#5a6d8a]">{Number(e.completenessScore).toFixed(1)}</td>
+                          <td className="py-3 px-4 text-[#5a6d8a]">{Number(e.responsivenessScore).toFixed(1)}</td>
+                          <td className="py-3 px-4 text-[#5a6d8a]">{Number(e.cooperationScore).toFixed(1)}</td>
+                          <td className="py-3 px-4 text-[#5a6d8a]">{Number(e.complianceScore).toFixed(1)}</td>
                           <td className="py-3 px-4 text-[#5a6d8a]">{e.evaluator?.displayName || '—'}</td>
                           <td className="py-3 px-4 text-[#8a96aa]">{new Date(e.createdAt).toLocaleDateString('zh-CN')}</td>
                         </tr>
@@ -401,22 +543,18 @@ export default function SupplierDetailPage() {
                   {changes.map(c => {
                     const cs = changeStatusColor[c.status] || { label: c.status, color: '#999', bg: '#99918' };
                     return (
-                      <tr key={c.id} className="border-b border-[#e5ecf4] hover:bg-[#f7f9fc]">
+                      <tr key={c.id} className="border-b border-[#e5ecf4] hover:bg-[#f7f9fc] row-clickable">
                         <td className="py-3 px-4 font-semibold text-[#18243a]">{c.fieldLabel}</td>
                         <td className="py-3 px-4 text-[#8a96aa] max-w-[150px] truncate">{c.oldValue || '—'}</td>
                         <td className="py-3 px-4 text-[#064ea2] font-medium max-w-[150px] truncate">{c.newValue || '—'}</td>
                         <td className="py-3 px-4 text-[#8a96aa] max-w-[150px] truncate">{c.reason || '—'}</td>
-                        <td className="py-3 px-4">
-                          <span className="px-2.5 py-1 text-xs font-semibold rounded" style={{ color: cs.color, backgroundColor: cs.bg }}>{cs.label}</span>
-                        </td>
+                        <td className="py-3 px-4"><span className="px-2.5 py-1 text-xs font-semibold rounded" style={{ color: cs.color, backgroundColor: cs.bg }}>{cs.label}</span></td>
                         <td className="py-3 px-4 text-[#8a96aa]">{new Date(c.createdAt).toLocaleDateString('zh-CN')}</td>
                         <td className="py-3 px-4 text-right">
                           {c.status === 'PENDING' && (
                             <div className="flex justify-end gap-2">
-                              <button onClick={() => { setReviewReason(''); setReviewModal({ changeId: c.id, type: 'approve' }); }}
-                                className="px-3 py-1.5 text-xs font-semibold text-white bg-[#11a874] rounded-lg hover:bg-[#0e8c5f] transition">通过</button>
-                              <button onClick={() => { setReviewReason(''); setReviewModal({ changeId: c.id, type: 'reject' }); }}
-                                className="px-3 py-1.5 text-xs font-semibold text-white bg-[#e74c3c] rounded-lg hover:bg-[#c0392b] transition">拒绝</button>
+                              <button onClick={() => { setReviewReason(''); setReviewModal({ changeId: c.id, type: 'approve' }); }} className="btn-press px-3 py-1.5 text-xs font-semibold text-white bg-[#11a874] rounded-lg hover:bg-[#0e8c5f] transition">通过</button>
+                              <button onClick={() => { setReviewReason(''); setReviewModal({ changeId: c.id, type: 'reject' }); }} className="btn-press px-3 py-1.5 text-xs font-semibold text-white bg-[#e74c3c] rounded-lg hover:bg-[#c0392b] transition">拒绝</button>
                             </div>
                           )}
                         </td>
@@ -430,36 +568,56 @@ export default function SupplierDetailPage() {
         )}
       </div>
 
-      {/* ═══ 状态操作弹窗 ═══ */}
-      {actionModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setActionModal(null)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <img src="/assets/logo.png" alt="" className="w-8 h-8 rounded-lg" />
-              <h3 className="text-lg font-bold text-[#18243a]">
-                {actionModal.type === 'approve' && '确认审核通过'}
-                {actionModal.type === 'reject' && '审核不通过'}
-                {actionModal.type === 'return' && '退回补正'}
-                {actionModal.type === 'disable' && '停用供应商'}
-                {actionModal.type === 'blacklist' && '加入黑名单'}
-              </h3>
+      {/* ═══ 审批操作栏（PENDING/RETURNED 时固定在底部）═══ */}
+      {isPending && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/82 backdrop-blur-lg border-t border-white/30 shadow-[0_-4px_24px_rgba(0,0,0,0.04)] px-6 py-3">
+          <div className="max-w-6xl mx-auto flex items-center gap-4">
+            <div className="flex-1 flex items-center gap-3">
+              <span className="text-sm font-bold text-[#18243a]">审批操作</span>
+              {approvalMode === null ? (
+                <span className="text-xs text-[#8a96aa]">选择审批意见，处理该供应商的注册申请</span>
+              ) : (
+                <span className="text-xs font-semibold" style={{ color: approvalMode === 'approve' ? '#11a874' : approvalMode === 'return' ? '#f5a623' : '#e74c3c' }}>
+                  {approvalMode === 'approve' ? '审核通过 — 供应商入库，账户激活' : approvalMode === 'return' ? '退回补正 — 供应商可修改后重新提交' : '审核不通过 — 拒绝注册申请'}
+                </span>
+              )}
             </div>
-            <p className="text-sm text-[#5a6d8a] mb-3">供应商：<strong className="text-[#18243a]">{actionModal.supplier.name}</strong></p>
-            {actionModal.type !== 'approve' && (
-              <textarea value={actionReason} onChange={e => setActionReason(e.target.value)}
-                placeholder={actionModal.type === 'return' ? '请填写退回补正原因...' : '请填写原因...'}
-                className="w-full px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm mb-4 h-24 resize-none focus:outline-none focus:border-[#064ea2]" />
-            )}
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setActionModal(null)} className="px-4 py-2 text-sm text-[#5a6d8a] hover:bg-[#f7f9fc] rounded-lg transition">取消</button>
-              <button onClick={handleAction} disabled={actionLoading || (actionModal.type !== 'approve' && !actionReason.trim())}
-                className={`px-4 py-2 text-sm text-white rounded-lg transition disabled:opacity-50 ${
-                  actionModal.type === 'approve' ? 'bg-[#11a874] hover:bg-[#0e8c5f]' :
-                  actionModal.type === 'return' ? 'bg-[#f5a623] hover:bg-[#d9921e]' :
-                  'bg-[#e74c3c] hover:bg-[#c0392b]'
-                }`}>
-                {actionLoading ? '处理中...' : '确认'}
-              </button>
+            <div className="flex items-center gap-3">
+              {approvalMode !== null && approvalMode !== 'approve' && (
+                <input
+                  value={approvalReason}
+                  onChange={e => setApprovalReason(e.target.value)}
+                  placeholder={approvalMode === 'return' ? '退回补正原因（供供应商修改）...' : '不通过原因...'}
+                  className="w-64 px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm h-10 focus:outline-none focus:border-[#064ea2]"
+                />
+              )}
+              {approvalMode === null ? (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setApprovalMode('approve')}
+                    className="btn-press inline-flex items-center gap-2 rounded-xl bg-[#11a874] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0e8c5f] transition">
+                    <CheckCircle2 size={16} />通过
+                  </button>
+                  <button onClick={() => setApprovalMode('return')}
+                    className="btn-press inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-5 py-2.5 text-sm font-bold text-amber-700 hover:bg-amber-100 transition">
+                    <RotateCcw size={16} />退回
+                  </button>
+                  <button onClick={() => setApprovalMode('reject')}
+                    className="btn-press inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-bold text-red-700 hover:bg-red-100 transition">
+                    <XCircle size={16} />拒绝
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button onClick={closeApproval} className="rounded-xl border border-[#dce3eb] px-4 py-2.5 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+                  <button onClick={handleApproval} disabled={approvalLoading || (approvalMode !== 'approve' && !approvalReason.trim())}
+                    className={`rounded-xl px-5 py-2.5 text-sm font-bold text-white transition disabled:opacity-50 ${
+                      approvalMode === 'approve' ? 'bg-[#11a874] hover:bg-[#0e8c5f]' :
+                      approvalMode === 'return' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-500 hover:bg-red-600'
+                    }`}>
+                    {approvalLoading ? '处理中...' : `确认${approvalMode === 'approve' ? '通过' : approvalMode === 'return' ? '退回' : '拒绝'}`}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -467,25 +625,48 @@ export default function SupplierDetailPage() {
 
       {/* ═══ 变更审核弹窗 ═══ */}
       {reviewModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setReviewModal(null)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <img src="/assets/logo.png" alt="" className="w-8 h-8 rounded-lg" />
-              <h3 className="text-lg font-bold text-[#18243a]">
-                {reviewModal.type === 'approve' ? '确认通过变更' : '拒绝变更'}
-              </h3>
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setReviewModal(null)}>
+          <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="border-b border-[#edf2f7]/60 px-6 py-4 flex items-center gap-3">
+              <FileText size={18} className="text-[#064ea2]" />
+              <div><h3 className="text-base font-bold text-[#18243a]">{reviewModal.type === 'approve' ? '确认通过变更' : '拒绝变更'}</h3></div>
             </div>
-            {reviewModal.type === 'reject' && (
-              <textarea value={reviewReason} onChange={e => setReviewReason(e.target.value)}
-                placeholder="请填写拒绝原因..."
-                className="w-full px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm mb-4 h-24 resize-none focus:outline-none focus:border-[#064ea2]" />
-            )}
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setReviewModal(null)} className="px-4 py-2 text-sm text-[#5a6d8a] hover:bg-[#f7f9fc] rounded-lg transition">取消</button>
-              <button onClick={handleReviewChange} disabled={reviewLoading || (reviewModal.type === 'reject' && !reviewReason.trim())}
-                className={`px-4 py-2 text-sm text-white rounded-lg transition disabled:opacity-50 ${reviewModal.type === 'approve' ? 'bg-[#11a874] hover:bg-[#0e8c5f]' : 'bg-[#e74c3c] hover:bg-[#c0392b]'}`}>
-                {reviewLoading ? '处理中...' : '确认'}
-              </button>
+            <div className="p-6">
+              {reviewModal.type === 'reject' && (
+                <textarea value={reviewReason} onChange={e => setReviewReason(e.target.value)} placeholder="请填写拒绝原因..."
+                  className="w-full px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm h-24 resize-none focus:outline-none focus:border-[#064ea2]" />
+              )}
+              <div className="flex justify-end gap-3 mt-4">
+                <button onClick={() => setReviewModal(null)} className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+                <button onClick={handleReviewChange} disabled={reviewLoading || (reviewModal.type === 'reject' && !reviewReason.trim())}
+                  className={`rounded-xl px-4 py-2 text-sm font-bold text-white transition disabled:opacity-50 ${reviewModal.type === 'approve' ? 'bg-[#11a874] hover:bg-[#0e8c5f]' : 'bg-[#e74c3c] hover:bg-[#c0392b]'}`}>
+                  {reviewLoading ? '处理中...' : '确认'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ 状态操作弹窗（停用/黑名单）═══ */}
+      {actionModal && (
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setActionModal(null)}>
+          <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="border-b border-[#edf2f7]/60 px-6 py-4 flex items-center gap-3">
+              <Building2 size={18} className={actionModal.type === 'blacklist' ? 'text-[#e74c3c]' : 'text-[#5a6d8a]'} />
+              <div><h3 className="text-base font-bold text-[#18243a]">{actionModal.type === 'disable' ? '停用供应商' : '加入黑名单'}</h3></div>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-[#5a6d8a] mb-3">供应商：<strong className="text-[#18243a]">{actionModal.supplier.name}</strong></p>
+              <textarea value={actionReason} onChange={e => setActionReason(e.target.value)} placeholder="请填写原因..."
+                className="w-full px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm h-24 resize-none focus:outline-none focus:border-[#064ea2]" />
+              <div className="flex justify-end gap-3 mt-4">
+                <button onClick={() => setActionModal(null)} className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+                <button onClick={handleStatusAction} disabled={actionLoading || !actionReason.trim()}
+                  className={`rounded-xl px-4 py-2 text-sm font-bold text-white transition disabled:opacity-50 ${actionModal.type === 'blacklist' ? 'bg-[#e74c3c] hover:bg-[#c0392b]' : 'bg-[#5a6d8a] hover:bg-[#4a5d7a]'}`}>
+                  {actionLoading ? '处理中...' : '确认'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -493,23 +674,25 @@ export default function SupplierDetailPage() {
 
       {/* ═══ 分类分配弹窗 ═══ */}
       {classModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setClassModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <img src="/assets/logo.png" alt="" className="w-8 h-8 rounded-lg" />
-              <h3 className="text-lg font-bold text-[#18243a]">分配供应商分类</h3>
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setClassModal(false)}>
+          <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="border-b border-[#edf2f7]/60 px-6 py-4 flex items-center gap-3">
+              <Award size={18} className="text-[#064ea2]" />
+              <div><h3 className="text-base font-bold text-[#18243a]">分配供应商分类</h3></div>
             </div>
-            <select value={selectedClassId} onChange={e => setSelectedClassId(e.target.value)}
-              className="w-full px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm focus:outline-none focus:border-[#064ea2] mb-4">
-              <option value="">不分类</option>
-              {classifications.map(c => <option key={c.id} value={c.id}>{c.name}（{c.code}）</option>)}
-            </select>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setClassModal(false)} className="px-4 py-2 text-sm text-[#5a6d8a] hover:bg-[#f7f9fc] rounded-lg transition">取消</button>
-              <button onClick={handleAssignClass} disabled={classLoading}
-                className="px-4 py-2 text-sm text-white bg-[#064ea2] rounded-lg hover:bg-[#0e62d0] disabled:opacity-50 transition">
-                {classLoading ? '保存中...' : '保存'}
-              </button>
+            <div className="p-6">
+              <select value={selectedClassId} onChange={e => setSelectedClassId(e.target.value)}
+                className="w-full px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm focus:outline-none focus:border-[#064ea2] mb-4">
+                <option value="">不分类</option>
+                {classifications.map(c => <option key={c.id} value={c.id}>{c.name}（{c.code}）</option>)}
+              </select>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setClassModal(false)} className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+                <button onClick={handleAssignClass} disabled={classLoading}
+                  className="rounded-xl px-4 py-2 text-sm font-bold text-white bg-[#064ea2] hover:bg-[#0e62d0] disabled:opacity-50 transition">
+                  {classLoading ? '保存中...' : '保存'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -121,7 +121,7 @@ export default function SupplierRepositoryPage() {
 
       {/* Classification management panel */}
       {showClassMgr && (
-        <div className="rounded-2xl border border-[#dce6f3] bg-white p-5 shadow-sm">
+        <div className="glass-card glass-card-lighter rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold text-[#18243a]">业务分类管理</h2>
             <button onClick={() => openClassEditor(null)}
@@ -201,7 +201,7 @@ export default function SupplierRepositoryPage() {
           className="rounded-xl border border-[#dce3eb] px-3 py-2 text-sm font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] transition">重置</button>
       </DataToolbar>
 
-      <SectionCard className="overflow-hidden p-0">
+      <SectionCard className="p-0">
         <table className="workbench-table">
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>

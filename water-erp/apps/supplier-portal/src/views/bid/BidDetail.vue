@@ -141,8 +141,8 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 </template>
 
 <style scoped>
-.detail-card { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); padding: 20px; }
-.clarification-item { padding: 16px 0; border-bottom: 1px solid var(--sp-border-light); }
+.detail-card { position: relative; background: rgba(255,255,255,0.78); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.55); border-radius: var(--sp-radius-md); padding: 20px; }
+.clarification-item { padding: 16px 0; border-bottom: 1px solid rgba(0,0,0,0.05); }
 .clarification-item:last-child { border-bottom: none; }
 .clarification-q, .clarification-a { display: flex; align-items: flex-start; gap: 10px; line-height: 1.6; }
 .clarification-a { margin-top: 10px; padding-left: 4px; }

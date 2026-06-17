@@ -79,6 +79,11 @@ body {
   text-align: left;
 }
 
+.workbench-table thead {
+  background: rgba(255, 255, 255, 0.40);
+  backdrop-filter: blur(4px);
+}
+
 .workbench-table th,
 .workbench-table td {
   padding: 0.875rem 1.25rem;
@@ -86,6 +91,7 @@ body {
 
 .workbench-table tbody tr {
   border-bottom: 1px solid #eef3f8;
+  background: transparent;
 }
 
 .workbench-table tbody tr:last-child {
@@ -274,7 +280,7 @@ input[type="range"].range-enhanced::-webkit-slider-thumb:active {
 }
 
 .workbench-table tbody tr:hover {
-  background: #f4f8fe;
+  background: rgba(248, 251, 255, 0.70);
   box-shadow: inset 3px 0 0 #0b63ce;
 }
 
@@ -304,7 +310,8 @@ input[type="range"].range-enhanced::-webkit-slider-thumb:active {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f3f7fc;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(8px);
 }
 
 /* staggered row delays */
@@ -325,4 +332,130 @@ input[type="range"].range-enhanced::-webkit-slider-thumb:active {
   0% { background-position: 0% center; }
   50% { background-position: 100% center; }
   100% { background-position: 0% center; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Glass Morphism Design System
+   ═══════════════════════════════════════════════════════════ */
+
+@keyframes glass-glow-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(1.2%, -0.8%) scale(1.02); }
+  50%      { transform: translate(-0.6%, 1%) scale(1.01); }
+  75%      { transform: translate(0.4%, -0.4%) scale(1.015); }
+}
+
+@keyframes glass-glow-drift-reverse {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(-1%, 0.6%) scale(1.02); }
+  50%      { transform: translate(0.8%, -0.8%) scale(1.01); }
+  75%      { transform: translate(-0.5%, 0.5%) scale(1.015); }
+}
+
+/* ── Base glass card ── */
+.glass-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 1px 2px rgba(15, 35, 65, 0.02),
+    0 4px 16px rgba(91, 155, 213, 0.04);
+}
+
+/* ── 彩光伪元素 ── */
+.glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.48;
+  border-radius: inherit;
+  background-image:
+    radial-gradient(ellipse at 24% 8%, rgba(147, 197, 253, 0.32), transparent 52%),
+    radial-gradient(ellipse at 82% 22%, rgba(196, 181, 253, 0.26), transparent 54%),
+    radial-gradient(ellipse at 46% 94%, rgba(167, 243, 208, 0.24), transparent 50%);
+  animation: glass-glow-drift 18s ease-in-out infinite;
+  transition: opacity 0.4s ease;
+}
+
+.glass-card:hover::before {
+  opacity: 0.62;
+}
+
+/* ── 透明/深度变体 ── */
+.glass-card-deeper {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+.glass-card-lighter {
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(12px) saturate(1.15);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  border-color: rgba(255, 255, 255, 0.42);
+}
+
+/* ── 色调变体（仅调整 ::before 光晕色）── */
+.glass-card-blue::before {
+  background-image:
+    radial-gradient(ellipse at 24% 10%, rgba(96, 165, 250, 0.38), transparent 54%),
+    radial-gradient(ellipse at 80% 20%, rgba(125, 211, 252, 0.24), transparent 50%),
+    radial-gradient(ellipse at 44% 92%, rgba(186, 230, 253, 0.28), transparent 48%);
+}
+
+.glass-card-purple::before {
+  background-image:
+    radial-gradient(ellipse at 18% 14%, rgba(168, 139, 250, 0.34), transparent 54%),
+    radial-gradient(ellipse at 86% 18%, rgba(196, 167, 250, 0.22), transparent 50%),
+    radial-gradient(ellipse at 40% 90%, rgba(221, 214, 254, 0.28), transparent 46%);
+}
+
+.glass-card-emerald::before {
+  background-image:
+    radial-gradient(ellipse at 22% 12%, rgba(52, 211, 153, 0.32), transparent 52%),
+    radial-gradient(ellipse at 78% 18%, rgba(110, 231, 183, 0.22), transparent 50%),
+    radial-gradient(ellipse at 48% 94%, rgba(167, 243, 208, 0.30), transparent 48%);
+}
+
+.glass-card-amber::before {
+  background-image:
+    radial-gradient(ellipse at 20% 10%, rgba(251, 191, 36, 0.28), transparent 52%),
+    radial-gradient(ellipse at 84% 20%, rgba(252, 211, 77, 0.20), transparent 50%),
+    radial-gradient(ellipse at 42% 88%, rgba(253, 230, 138, 0.24), transparent 46%);
+}
+
+.glass-card-rose::before {
+  background-image:
+    radial-gradient(ellipse at 18% 12%, rgba(251, 113, 133, 0.26), transparent 52%),
+    radial-gradient(ellipse at 82% 16%, rgba(253, 164, 175, 0.20), transparent 50%),
+    radial-gradient(ellipse at 44% 90%, rgba(254, 205, 211, 0.22), transparent 46%);
+}
+
+/* ── 表内透明化（玻璃卡片内部表格）── */
+.glass-table thead {
+  background: rgba(255, 255, 255, 0.40);
+  backdrop-filter: blur(4px);
+}
+
+.glass-table tbody tr {
+  background: transparent;
+}
+
+.glass-table tbody tr:hover {
+  background: rgba(248, 251, 255, 0.70);
+}
+
+/* ── 无障碍降级 ── */
+@media (prefers-reduced-motion: reduce) {
+  .glass-card::before {
+    animation: none;
+    opacity: 0.22;
+  }
+  .glass-card:hover::before {
+    opacity: 0.22;
+  }
 }
