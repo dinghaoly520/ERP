@@ -77,7 +77,9 @@ export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregat
             </span>
           </div>
           {/* Progress bar */}
-          <div className="h-1.5 bg-[#e8eef5] rounded-full overflow-hidden">
+          <div className="h-1.5 bg-[#e8eef5] rounded-full overflow-hidden"
+            role="progressbar" aria-valuenow={aggregate.averageProgressPercent} aria-valuemin={0} aria-valuemax={100}
+            aria-label={`评审总进度 ${aggregate.averageProgressPercent}%`}>
             <div className="h-full bg-[#0b63ce] rounded-full transition-all duration-700"
               style={{ width: `${aggregate.averageProgressPercent}%` }} />
           </div>

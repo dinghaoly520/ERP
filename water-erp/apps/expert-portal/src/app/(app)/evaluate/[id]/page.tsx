@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
-import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, ArrowLeft, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Wrench, Clipboard, Gavel, Building2, Megaphone, Star, Search, UserCircle, TrendingUp, Clock, ScrollText, Pencil, ShoppingCart, Inbox, Construction, MessageSquare } from 'lucide-react';
+import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, Gavel, MessageSquare } from 'lucide-react';
 
 type Step = 'verify' | 'documents' | 'assist' | 'scoring' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
@@ -163,7 +163,7 @@ export default function ExpertEvaluatePage() {
         });
         setScores(existing);
         // P2: sync per-supplier conflicts from server
-        const serverConflicts: string[] = (p.myExpertRecord as any)?.conflictedSupplierIds || [];
+        const serverConflicts: string[] = p.myExpertRecord?.conflictedSupplierIds || [];
         if (serverConflicts.length > 0) setConflictedSupplierIds(new Set(serverConflicts));
       })
       .catch((e: any) => toast.error(e?.message || '加载项目失败'))
@@ -358,7 +358,7 @@ export default function ExpertEvaluatePage() {
     const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
     // P2: also block if expert declared conflict with this supplier
     && !conflictedSupplierIds.has(activeSupplier)
-    && !((project?.myExpertRecord as any)?.conflictedSupplierIds || []).includes(activeSupplier);
+    && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier);
     if (!canScoreActiveSupplier) {
       toast.warning('该投标单位未解密成功或已撤回，不能评分');
       return;
@@ -417,7 +417,7 @@ export default function ExpertEvaluatePage() {
   const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
     // P2: also block if expert declared conflict with this supplier
     && !conflictedSupplierIds.has(activeSupplier)
-    && !((project?.myExpertRecord as any)?.conflictedSupplierIds || []).includes(activeSupplier);
+    && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier);
   const scoreLocked = !!expert?.reportConfirmed;
 
   const formatBytes = (n: number) => {
@@ -429,6 +429,16 @@ export default function ExpertEvaluatePage() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* P3: disconnected banner */}
+      {_wsConn !== 'connected' && (
+        <div className={`mb-3 px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-between flex-shrink-0 ${
+          _wsConn === 'reconnecting' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-red-50 text-red-600 border border-red-200'
+        }`}>
+          <span>⚠ {_wsConn === 'reconnecting' ? '实时连接中断，正在重连…' : '实时连接已断开，数据可能不是最新'}</span>
+          <button onClick={_wsReconnect} className="underline hover:no-underline">重试</button>
+        </div>
+      )}
+
       {/* 顶部导航 */}
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -515,15 +525,17 @@ export default function ExpertEvaluatePage() {
               <div key={s.key} className="flex items-center flex-1">
                 <button onClick={() => { if (accessible) setStep(s.key); }}
                   disabled={!accessible}
+                  aria-current={isCurrent ? 'step' : undefined}
+                  aria-label={!accessible && !completed ? `${s.label}（需先完成前置步骤）` : s.label}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-semibold ${
                     isCurrent ? 'bg-[#064ea2] text-white shadow-md'
                     : completed ? 'text-[#11a874] bg-emerald-50 border border-emerald-100'
                     : accessible ? 'text-[oklch(0.55_0.01_264)] hover:bg-blue-50'
                     : 'text-[oklch(0.72_0.008_264)] cursor-not-allowed'
                   }`}>
-                  {completed ? <CheckCircle size={14} strokeWidth={1.5} className="text-[#11a874]" />
-                   : !accessible ? <Lock size={12} strokeWidth={1.5} />
-                   : <s.Icon size={16} strokeWidth={1.5} />}
+                  {completed ? <CheckCircle size={14} strokeWidth={1.5} className="text-[#11a874]" aria-hidden="true" />
+                   : !accessible ? <Lock size={12} strokeWidth={1.5} aria-hidden="true" />
+                   : <s.Icon size={16} strokeWidth={1.5} aria-hidden="true" />}
                   {s.label}
                 </button>
                 {i < STEPS.length - 1 && <div className="flex-1 h-px bg-[#e8f0fa] mx-2" />}
@@ -871,7 +883,7 @@ export default function ExpertEvaluatePage() {
                 </>
               ) : (
                 <div className="text-center py-12 text-[oklch(0.55_0.01_264)]">
-                  <div className="text-4xl mb-3"><FileText size={14} strokeWidth={1.5} /></div>
+                  <div className="mb-3"><FileText size={40} strokeWidth={1} className="text-[#cbd5e1]" /></div>
                   <p>请先在左侧选择一个投标单位查看标书</p>
                 </div>
               )}
@@ -1030,7 +1042,7 @@ export default function ExpertEvaluatePage() {
                 </div>
               ) : (
                 <div className="text-center py-12 text-[oklch(0.55_0.01_264)]">
-                  <div className="text-4xl mb-3"><Sparkles size={14} strokeWidth={1.5} /></div>
+                  <div className="mb-3"><Sparkles size={40} strokeWidth={1} className="text-[#cbd5e1]" /></div>
                   <p>请先在左侧选择一个投标单位</p>
                   <p className="text-xs mt-1">AI 引擎将分析投标文件并生成辅助评估报告</p>
                 </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BarChart3, Clock, CheckCircle, TrendingUp, Clipboard, ScrollText, Inbox, Megaphone, Building2, Edit3, MessageSquare, Pencil, AlertTriangle, UserCircle } from 'lucide-react';
+import { Clock, CheckCircle, TrendingUp, Clipboard, ScrollText, UserCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { ExpertStatistics, ExpertProject, User } from '@/lib/types';

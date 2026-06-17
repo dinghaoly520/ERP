@@ -523,14 +523,20 @@ export class ExpertAdminService {
     return candidates;
   }
 
-  /** 人工确认退库：写入停用 + retiredAt + retireReason。 */
+  /** 人工确认退库：写入停用 + retiredAt + retireReason，同步禁用登录。 */
   async confirmRetire(userId: string, reason: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('专家不存在');
-    await this.prisma.expertProfile.updateMany({
-      where: { userId },
-      data: { availability: '停用', retiredAt: new Date(), retireReason: reason },
-    });
+    await Promise.all([
+      this.prisma.expertProfile.updateMany({
+        where: { userId },
+        data: { availability: '停用', retiredAt: new Date(), retireReason: reason },
+      }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { isActive: false },
+      }),
+    ]);
     return { success: true };
   }
 
