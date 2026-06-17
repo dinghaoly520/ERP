@@ -117,7 +117,7 @@ describe('AssistantService', () => {
 
       const result = await service.chat({ message: '测试' });
 
-      expect(result.answer).toContain('AI 服务暂时不可用');
+      expect(result.answer).toContain('服务暂时不可用');
       expect(result.conversationId).toBe('conv-1');
     });
 

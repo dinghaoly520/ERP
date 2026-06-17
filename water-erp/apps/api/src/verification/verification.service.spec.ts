@@ -8,7 +8,12 @@ describe('VerificationService', () => {
   let redisMock: any;
   let prismaMock: any;
 
+  const OLD_DEBUG = process.env.SMS_DEBUG_BYPASS;
+
   beforeEach(async () => {
+    // Disable debug bypass so unit tests exercise real code paths
+    delete process.env.SMS_DEBUG_BYPASS;
+
     redisMock = {
       get: jest.fn(),
       set: jest.fn(),
@@ -34,6 +39,13 @@ describe('VerificationService', () => {
     }).compile();
 
     service = module.get<VerificationService>(VerificationService);
+  });
+
+  afterEach(() => {
+    // Restore debug bypass
+    if (OLD_DEBUG !== undefined) {
+      process.env.SMS_DEBUG_BYPASS = OLD_DEBUG;
+    }
   });
 
   describe('verifyCode', () => {
