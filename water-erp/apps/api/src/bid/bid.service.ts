@@ -80,6 +80,108 @@ export class BidService {
     });
   }
 
+  /**
+   * Dashboard 聚合端点：一次返回项目列表 + 就绪状态 + 阶段分布。
+   * 避免前端 N+1 次工作区查询，在表格中直接呈现供应商/专家就绪信号。
+   */
+  async getProjectsDashboard() {
+    const projects = await this.prisma.bidProject.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        _count: { select: { suppliers: true, experts: true } },
+      },
+    });
+
+    const projectIds = projects.map(p => p.id);
+
+    // 批量获取各项目的供应商提交数与专家签到数（单次 groupBy，避免 N+1）
+    const [submissionCounts, expertSignInCounts] = await Promise.all([
+      projectIds.length > 0
+        ? this.prisma.supplierBidSubmission.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: projectIds }, status: 'submitted' },
+            _count: { projectId: true },
+          })
+        : ([] as { projectId: string; _count: { projectId: number } }[]),
+      projectIds.length > 0
+        ? this.prisma.bidExpert.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: projectIds }, signedIn: true },
+            _count: { projectId: true },
+          })
+        : ([] as { projectId: string; _count: { projectId: number } }[]),
+    ]);
+
+    const submittedMap = new Map(submissionCounts.map(s => [s.projectId, s._count.projectId]));
+    const signedInMap = new Map(expertSignInCounts.map(e => [e.projectId, e._count.projectId]));
+
+    const projectRows = projects.map(p => {
+      const supplierCount = p._count.suppliers;
+      const supplierSubmitted = submittedMap.get(p.id) ?? 0;
+      const expertCount = p._count.experts;
+      const expertSignedIn = signedInMap.get(p.id) ?? 0;
+
+      let readiness: 'ready' | 'partial' | 'not-ready' | 'archived';
+      if (p.stage === 'ARCHIVED') {
+        readiness = 'archived';
+      } else if (
+        supplierCount > 0 &&
+        supplierSubmitted === supplierCount &&
+        expertCount > 0 &&
+        expertSignedIn === expertCount
+      ) {
+        readiness = 'ready';
+      } else if (supplierSubmitted > 0 || expertSignedIn > 0) {
+        readiness = 'partial';
+      } else {
+        readiness = 'not-ready';
+      }
+
+      return {
+        id: p.id,
+        projectCode: p.projectCode,
+        name: p.name,
+        procurementMethod: p.procurementMethod,
+        openTime: p.openTime,
+        deadline: p.deadline,
+        stage: p.stage,
+        riskNote: p.riskNote,
+        budget: p.budget,
+        scope: p.scope,
+        qualification: p.qualification,
+        contact: p.contact,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        supplierCount,
+        supplierSubmitted,
+        expertCount,
+        expertSignedIn,
+        readiness,
+      };
+    });
+
+    const stageCounts = await this.prisma.bidProject.groupBy({
+      by: ['stage'],
+      _count: { stage: true },
+    });
+    const stageDistribution: Record<string, number> = {};
+    stageCounts.forEach(s => {
+      stageDistribution[s.stage] = s._count.stage;
+    });
+
+    const totalProjects = projects.length;
+    const activeProjects = projectRows.filter(
+      p => p.stage === 'OPENING' || p.stage === 'EVALUATING' || p.stage === 'SUBMIT',
+    ).length;
+
+    return {
+      projects: projectRows,
+      stageDistribution,
+      totalProjects,
+      activeProjects,
+    };
+  }
+
   getProject(id: string) {
     return this.prisma.bidProject.findUnique({
       where: { id },

@@ -37,6 +37,39 @@ export function getDashboardStats() {
   }>('/bid/dashboard-stats');
 }
 
+export interface DashboardProject {
+  id: string;
+  projectCode: string;
+  name: string;
+  procurementMethod: string;
+  openTime: string;
+  deadline: string;
+  stage: string;
+  riskNote?: string;
+  budget?: number;
+  scope?: string;
+  qualification?: string;
+  contact?: string;
+  createdAt: string;
+  updatedAt: string;
+  supplierCount: number;
+  supplierSubmitted: number;
+  expertCount: number;
+  expertSignedIn: number;
+  readiness: 'ready' | 'partial' | 'not-ready' | 'archived';
+}
+
+export interface DashboardResponse {
+  projects: DashboardProject[];
+  stageDistribution: Record<string, number>;
+  totalProjects: number;
+  activeProjects: number;
+}
+
+export function getProjectsDashboard() {
+  return api.get<DashboardResponse>('/bid/projects/dashboard');
+}
+
 export function openSubmission(projectId: string) {
   return api.post<BidProjectDetail>(`/bid/projects/${projectId}/open-submission`, {});
 }

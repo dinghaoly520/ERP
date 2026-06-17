@@ -31,6 +31,10 @@ export class BidController {
   @ApiOperation({ summary: '项目列表' })
   listProjects() { return this.bidService.listProjects(); }
 
+  @Get('projects/dashboard')
+  @ApiOperation({ summary: 'Dashboard 聚合：项目列表 + 就绪状态 + 阶段分布' })
+  getProjectsDashboard() { return this.bidService.getProjectsDashboard(); }
+
   @Post('projects')
   @ApiOperation({ summary: '创建项目' })
   createProject(@Body() dto: CreateBidProjectDto) { return this.bidService.createProject(dto); }
