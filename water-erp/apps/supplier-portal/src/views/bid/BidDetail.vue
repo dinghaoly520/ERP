@@ -26,6 +26,11 @@ const project = computed(() => bidStore.currentProject)
 const isApproved = computed(() => supplierStore.profile?.status === 'APPROVED')
 const canSubmit = computed(() => { if (!project.value || !isApproved.value) return false; const p = project.value; return (p.stage === 'DOWNLOAD' || p.stage === 'SUBMIT') && new Date(p.deadline) > new Date() })
 const supplierCount = computed(() => project.value?.suppliers?.length || project.value?._count?.suppliers || 0)
+// 开标前隐藏投标方数量，防止串标围标
+const showSupplierCount = computed(() => {
+  const stage = project.value?.stage
+  return stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED'
+})
 
 const bidDoc = ref<any>(null); const bidDocLoading = ref(false); const paying = ref(false); const downloading = ref(false); const payDialog = ref(false); const paymentRef = ref('')
 async function loadBidDoc() { bidDocLoading.value = true; try { bidDoc.value = await bidApi.getProjectBidDocument(projectId.value) as any } catch { bidDoc.value = null } bidDocLoading.value = false }
@@ -68,7 +73,7 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
             <el-descriptions-item label="投标截止">{{ dayjs(project.deadline).format('YYYY-MM-DD HH:mm:ss') }}</el-descriptions-item>
             <el-descriptions-item label="开标时间">{{ dayjs(project.openTime).format('YYYY-MM-DD HH:mm:ss') }}</el-descriptions-item>
             <el-descriptions-item label="当前阶段">{{ stageMap[project.stage]?.label || project.stage }}</el-descriptions-item>
-            <el-descriptions-item label="投标方">{{ supplierCount }} 家</el-descriptions-item>
+            <el-descriptions-item v-if="showSupplierCount" label="投标方">{{ supplierCount }} 家</el-descriptions-item>
             <el-descriptions-item label="风险提示" :span="2" v-if="project.riskNote"><span style="color: var(--sp-orange);">{{ project.riskNote }}</span></el-descriptions-item>
           </el-descriptions></div>
           <div class="detail-card timeline-card" style="margin-top:16px;padding:16px 24px"><div style="font-size:12px;font-weight:700;color:var(--sp-gray-500);margin-bottom:12px">项目进度</div><BidStageTimeline :stage="project.stage" /></div>
