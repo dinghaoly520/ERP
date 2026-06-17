@@ -6,6 +6,7 @@ import type { BidProjectDetail } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import StartOpeningDialog from '@/components/start-opening-dialog';
+import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
 import {
   Unlock, Clock, Shield, Play, CheckCircle, AlertTriangle, ChevronRight,
   Volume2, VolumeX, Maximize, Minimize, Zap, Loader,
@@ -108,6 +109,7 @@ export default function BidOpenPage() {
   // ═══ New UX state ═══
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
   const [bulkDecrypting, setBulkDecrypting] = useState(false);
+  const [decryptTarget, setDecryptTarget] = useState<{ id: string; name: string }[] | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [bigScreen, setBigScreen] = useState(false);
   const [inlineDispute, setInlineDispute] = useState<string | null>(null);
@@ -176,27 +178,33 @@ export default function BidOpenPage() {
     setDisputeHandleConfirm(null);
   };
 
-  const handleDecrypt = async (sid: string) => {
-    setDecrypting(prev => new Set(prev).add(sid));
-    try {
-      await api.post(`/bid/projects/${projectId}/decrypt/${sid}`, {});
-    } catch { /* error handled by WebSocket update */ }
-    setDecrypting(prev => { const n = new Set(prev); n.delete(sid); return n; });
+  const executeDecrypt = async (targets: { id: string; name: string }[]) => {
+    const isBulk = targets.length > 1;
+    if (isBulk) setBulkDecrypting(true);
+
+    for (const t of targets) {
+      if (!isBulk) setDecrypting(prev => new Set(prev).add(t.id));
+      try {
+        await api.post(`/bid/projects/${projectId}/decrypt/${t.id}`, {});
+      } catch { /* error handled by WebSocket update */ }
+      if (!isBulk) setDecrypting(prev => { const n = new Set(prev); n.delete(t.id); return n; });
+    }
+
+    if (isBulk) {
+      setBulkDecrypting(false);
+      api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
+    }
   };
 
-  const handleBulkDecrypt = async () => {
-    const pending = project?.suppliers.filter(s => s.decryptStatus !== 'SUCCESS') ?? [];
+  const handleDecrypt = (sid: string) => {
+    const supplier = project?.suppliers.find(s => s.id === sid);
+    if (supplier) setDecryptTarget([{ id: sid, name: supplier.supplierName }]);
+  };
+
+  const handleBulkDecrypt = () => {
+    const pending = (project?.suppliers ?? []).filter(s => s.decryptStatus !== 'SUCCESS');
     if (pending.length === 0) return;
-    setBulkDecrypting(true);
-    let success = 0, fail = 0;
-    for (const s of pending) {
-      try {
-        await api.post(`/bid/projects/${projectId}/decrypt/${s.id}`, {});
-        success++;
-      } catch { fail++; }
-    }
-    setBulkDecrypting(false);
-    api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
+    setDecryptTarget(pending.map(s => ({ id: s.id, name: s.supplierName })));
   };
 
   const handleOpenSubmission = async () => {
@@ -590,6 +598,20 @@ export default function BidOpenPage() {
           api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
         }}
       />
+
+      <DecryptConfirmDialog
+        open={decryptTarget !== null}
+        suppliers={decryptTarget ?? []}
+        loading={bulkDecrypting || (decryptTarget?.length === 1 && decrypting.has(decryptTarget[0].id))}
+        onConfirm={() => {
+          if (decryptTarget) {
+            executeDecrypt(decryptTarget);
+            setDecryptTarget(null);
+          }
+        }}
+        onClose={() => setDecryptTarget(null)}
+      />
+
       {/* ═══ 唱标信息录入（修复开标闭环：解密后主持人补录报价/工期/质量/保证金）═══ */}
       {recordEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setRecordEntry(null)}>
