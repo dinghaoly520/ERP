@@ -410,6 +410,12 @@ export class BidService {
         throw new BadRequestException({ error: '标书已解密成功，无需重复解密', code: 'ALREADY_DECRYPTED' });
       }
 
+      // P0: 显式阶段门控 — 仅 OPENING 阶段可解密（兜底 session 校验）
+      const project = await tx.bidProject.findUnique({ where: { id: projectId } });
+      if (!project || project.stage !== 'OPENING') {
+        throw new BadRequestException({ error: '项目不在开标阶段，无法解密', code: 'PROJECT_NOT_OPENING' });
+      }
+
       // P0: 解密窗口校验 — 开标未启动或窗口未开启/已关闭时拒绝解密
       const session = await tx.bidOpeningSession.findUnique({ where: { projectId } });
       if (!session) {
@@ -608,6 +614,12 @@ export class BidService {
     const record = await this.prisma.bidOpeningRecord.findFirst({ where: { id: recordId, projectId } });
     if (!record) throw new BadRequestException({ error: '开标记录不存在', code: 'NOT_FOUND' });
 
+    // P0: 阶段门控 — 仅在开标阶段可处理异议
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '项目不在开标阶段，无法处理异议', code: 'PROJECT_NOT_OPENING' });
+    }
+
     const now = new Date();
     const confirmStatus = dto.confirm ? '异议已处理-确认' : '异议已处理-退回';
     await this.prisma.bidOpeningRecord.update({
@@ -698,6 +710,12 @@ export class BidService {
   }
 
   async submitScore(projectId: string, dto: CreateScoreDto) {
+    // P0: 阶段门控 — 仅在评标阶段可提交评分
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || project.stage !== 'EVALUATING') {
+      throw new BadRequestException({ error: '项目不在评标阶段，无法提交评分', code: 'PROJECT_NOT_EVALUATING' });
+    }
+
     // 校验 expert 属于该项目
     const expert = await this.prisma.bidExpert.findFirst({
       where: { id: dto.expertId, projectId },
@@ -752,6 +770,12 @@ export class BidService {
   }
 
   async replyClarification(projectId: string, cid: string, dto: ReplyClarificationDto) {
+    // P1: 阶段门控 — 归档后不可回复澄清
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (project?.stage === 'ARCHIVED') {
+      throw new BadRequestException({ error: '项目已归档，无法回复澄清', code: 'PROJECT_ARCHIVED' });
+    }
+
     const reply = dto.reply;
     const status = dto.status || '已回复';
     const result = await this.prisma.bidClarification.update({
@@ -764,7 +788,13 @@ export class BidService {
     return result;
   }
 
-  createClarification(projectId: string, dto: CreateClarificationDto) {
+  async createClarification(projectId: string, dto: CreateClarificationDto) {
+    // P1: 阶段门控 — 归档后不可发起澄清
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (project?.stage === 'ARCHIVED') {
+      throw new BadRequestException({ error: '项目已归档，无法发起澄清', code: 'PROJECT_ARCHIVED' });
+    }
+
     return this.prisma.bidClarification.create({
       data: { projectId, type: dto.type || 'clarification', question: dto.question, issuer: dto.issuer, supplierName: dto.supplierName, supplierId: dto.supplierId || null },
     }).then((created) => {

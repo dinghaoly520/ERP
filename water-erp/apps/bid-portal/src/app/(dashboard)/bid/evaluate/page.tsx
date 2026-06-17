@@ -723,7 +723,7 @@ export default function BidEvaluatePage() {
                 </span>
               )}
               <button onClick={() => { setWizardStep(0); setShowWizard(true); }}
-                disabled={generating || !allReportsConfirmed}
+                disabled={generating || !allReportsConfirmed || project.stage !== 'EVALUATING'}
                 className="px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50 rounded-xl">
                 {generating ? '生成中…' : '生成评标结果'}
               </button>

@@ -87,6 +87,7 @@ describe('ExpertService', () => {
 
   describe('signIn', () => {
     it('签到成功应更新专家状态', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
       prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, signedIn: true });
 
@@ -105,6 +106,7 @@ describe('ExpertService', () => {
 
   describe('getAssistData', () => {
     it('应调用 AI 引擎进行分析', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
       ai.analyzeBid.mockResolvedValue({ supplierName: '川水建设', keyPoints: [] });
 
@@ -190,6 +192,7 @@ describe('ExpertService', () => {
 
   describe('confirmReport', () => {
     it('locks scoring by setting reportConfirmed and reportConfirmedAt', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, signedIn: true, avoidanceConfirmed: true, progress: 100 });
       prisma.bidExpert.update.mockResolvedValue({});
       prisma.bidSupervisionLog.create.mockResolvedValue({});
@@ -208,6 +211,7 @@ describe('ExpertService', () => {
     const signedExpert = { ...mockExpert, signedIn: true, avoidanceConfirmed: true };
 
     beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
     });
 

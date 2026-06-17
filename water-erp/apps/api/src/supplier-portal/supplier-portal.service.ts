@@ -275,6 +275,12 @@ export class SupplierPortalService {
    * 供应商提问（答疑）
    */
   async createQuestion(supplierId: string, projectId: string, dto: CreateQuestionDto) {
+    // P2: 阶段门控 — 归档后不可提问
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (project?.stage === 'ARCHIVED') {
+      throw new BadRequestException({ error: '项目已归档，无法提问', code: 'PROJECT_ARCHIVED' });
+    }
+
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
       select: { id: true, name: true },
@@ -606,6 +612,12 @@ export class SupplierPortalService {
   }
 
   async confirmOpening(supplierId: string, projectId: string) {
+    // P0: 阶段门控 — 仅在开标阶段可确认唱标
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '项目不在开标阶段，无法确认', code: 'PROJECT_NOT_OPENING' });
+    }
+
     const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { supplierId, projectId } });
     if (!bidSupplier) throw new BadRequestException({ error: '投标记录不存在', code: 'BID_SUPPLIER_NOT_FOUND' });
     if (bidSupplier.decryptStatus !== 'SUCCESS') {
@@ -632,6 +644,13 @@ export class SupplierPortalService {
     if (!reason?.trim()) {
       throw new BadRequestException({ error: '请填写异议原因', code: 'MISSING_REASON' });
     }
+
+    // P0: 阶段门控 — 仅在开标阶段可提出异议
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '项目不在开标阶段，无法提出异议', code: 'PROJECT_NOT_OPENING' });
+    }
+
     const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { supplierId, projectId } });
     if (!bidSupplier) throw new BadRequestException({ error: '投标记录不存在', code: 'BID_SUPPLIER_NOT_FOUND' });
 

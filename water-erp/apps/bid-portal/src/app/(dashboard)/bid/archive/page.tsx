@@ -113,7 +113,7 @@ export default function BidArchivePage() {
         </div>
         <div className="flex items-center gap-2">
         <button
-          disabled={project.stage === 'ARCHIVED' || archiving}
+          disabled={project.stage !== 'EVALUATING' || archiving}
           onClick={async () => {
             setArchiving(true);
             try {
@@ -127,7 +127,7 @@ export default function BidArchivePage() {
             }
           }}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#064ea2] text-white text-xs font-bold hover:bg-[#054280] transition transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-          <Package size={14} strokeWidth={1.5} /> {archiving ? '归档中…' : project.stage === 'ARCHIVED' ? '已归档' : '一键归档'}
+          <Package size={14} strokeWidth={1.5} /> {archiving ? '归档中…' : project.stage === 'ARCHIVED' ? '已归档' : project.stage === 'EVALUATING' ? '一键归档' : '待评标完成'}
         </button>
         <button
           onClick={() => handleExportArchive('json')}

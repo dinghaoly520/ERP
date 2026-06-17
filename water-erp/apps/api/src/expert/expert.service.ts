@@ -138,6 +138,12 @@ export class ExpertService {
   /* ── 身份核验 ── */
 
   async signIn(userId: string, projectId: string) {
+    // P1: 阶段门控 — 仅开标/评标阶段可签到
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可签到阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -161,6 +167,12 @@ export class ExpertService {
   }
 
   async confirmAvoidance(userId: string, projectId: string, conflictedSupplierIds?: string[]) {
+    // P1: 阶段门控 — 仅开标/评标阶段可确认回避
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可确认回避阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -188,6 +200,12 @@ export class ExpertService {
   /* ── 标书解密获取 ── */
 
   async getDecryptedDocuments(userId: string, projectId: string, supplierId: string) {
+    // P2: 阶段门控 — 仅开标/评标阶段可获取解密文件
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可获取文件阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -245,6 +263,12 @@ export class ExpertService {
   /* ── 辅助评标（AI引擎驱动） ── */
 
   async getAssistData(userId: string, projectId: string, supplierId: string) {
+    // P2: 阶段门控 — 仅开标/评标阶段可获取辅助评标数据
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可获取辅助数据阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -415,6 +439,12 @@ export class ExpertService {
   /* ── 澄清答疑 ── */
 
   async createClarification(userId: string, projectId: string, dto: CreateExpertClarificationDto) {
+    // P2: 阶段门控 — 归档后不可发起澄清
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (project?.stage === 'ARCHIVED') {
+      throw new ForbiddenException({ error: '项目已归档，无法发起澄清', code: 'PROJECT_ARCHIVED' });
+    }
+
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -509,6 +539,12 @@ export class ExpertService {
   }
 
   async confirmReport(userId: string, projectId: string, comment?: string) {
+    // P1: 阶段门控 — 仅在评标阶段可确认报告
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || project.stage !== 'EVALUATING') {
+      throw new ForbiddenException({ error: '项目不在评标阶段，无法确认报告', code: 'PROJECT_NOT_EVALUATING' });
+    }
+
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });

@@ -118,7 +118,8 @@ export default function BidClarificationsPage() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors"
+          disabled={project?.stage === 'ARCHIVED'}
+          className="flex items-center gap-1.5 px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50"
         >
           <Plus size={13} strokeWidth={2} /> 发起澄清
         </button>
@@ -252,11 +253,13 @@ export default function BidClarificationsPage() {
                     {!isReplied ? (
                       isReplying ? (
                         <span className="text-[11px] text-[oklch(0.55_0.01_264)]">回复中…</span>
-                      ) : (
+                      ) : project?.stage !== 'ARCHIVED' ? (
                         <button onClick={() => { setReplying(c.id); setReplyText(''); }}
                           className="text-[11px] font-semibold text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] transition-colors">
                           回复
                         </button>
+                      ) : (
+                        <span className="text-[11px] text-[oklch(0.62_0.008_264)]">已归档</span>
                       )
                     ) : (
                       <span className="text-[11px] text-[oklch(0.62_0.008_264)]">已回复</span>

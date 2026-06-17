@@ -265,6 +265,8 @@ describe('BidService — stage transitions', () => {
         decryptWindowStart: new Date(Date.now() - 3600_000),
         decryptWindowEnd: new Date(Date.now() + 3600_000),
       });
+      // Default: project is in OPENING stage (decryptSupplier 阶段门控)
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
     });
 
     it('succeeds deterministically by default', async () => {
@@ -347,6 +349,7 @@ describe('BidService — stage transitions', () => {
 
   describe('resolveOpeningDispute', () => {
     it('updates record handle result and BidSupplier status on confirm', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidOpeningRecord.findFirst.mockResolvedValue({
         id: 'r1', projectId: 'p1', supplierName: '测试供应商', bidSupplierId: 'bs-1',
       });
@@ -366,6 +369,7 @@ describe('BidService — stage transitions', () => {
     });
 
     it('sets BidSupplier EXCEPTION when dispute is not confirmed', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidOpeningRecord.findFirst.mockResolvedValue({
         id: 'r1', projectId: 'p1', supplierName: '测试供应商', bidSupplierId: 'bs-1',
       });
@@ -525,6 +529,7 @@ describe('BidService — stage transitions', () => {
 
   describe('submitScore', () => {
     it('validates expert belongs to project', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue(null); // expert not in project
 
       await expect(service.submitScore('p1', {
@@ -533,6 +538,7 @@ describe('BidService — stage transitions', () => {
     });
 
     it('validates scoreItem belongs to project', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
       prisma.bidScoreItem.findFirst.mockResolvedValue(null); // scoreItem not in project
 
@@ -542,6 +548,7 @@ describe('BidService — stage transitions', () => {
     });
 
     it('upserts score record on valid input', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1' });
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1', score: 10 });
@@ -592,6 +599,7 @@ describe('BidService — stage transitions', () => {
       const logCreate = jest.fn().mockResolvedValue({});
       prisma.$transaction = jest.fn(async (fn: any) => {
         const tx = {
+          bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
           bidSupplier: {
             findFirst: jest.fn().mockResolvedValue({ id: 'bs-1', supplierName: '供应商A', supplierId: 's1', decryptStatus: 'PENDING' }),
             update: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' }),
@@ -623,6 +631,7 @@ describe('BidService — stage transitions', () => {
 describe('BidService — decryptSupplier 真实校验', () => {
   it('无投标文件引用时仍返回 SUCCESS（保持开标流程）', async () => {
     const tx: any = {
+      bidProject: { findUnique: jest.fn(async () => ({ stage: 'OPENING' })) },
       bidSupplier: {
         findFirst: jest.fn(async () => ({ id: 'bs1', projectId: 'p1', supplierName: 'S1' })),
         update: jest.fn(async ({ data }: any) => ({

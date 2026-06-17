@@ -365,6 +365,7 @@ describe('SupplierPortalService', () => {
     };
 
     it('confirmOpening marks record and BidSupplier as confirmed', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
       prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
       prisma.bidSupplier.update.mockResolvedValue(decryptedSupplier);
@@ -383,6 +384,7 @@ describe('SupplierPortalService', () => {
     });
 
     it('confirmOpening rejects when supplier not decrypted', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue({ ...decryptedSupplier, decryptStatus: 'PENDING' });
 
       await expect(service.confirmOpening('supplier-1', 'project-1'))
@@ -390,6 +392,7 @@ describe('SupplierPortalService', () => {
     });
 
     it('disputeOpening marks record disputed with reason and BidSupplier DISPUTED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
       prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
       prisma.bidSupplier.update.mockResolvedValue(decryptedSupplier);

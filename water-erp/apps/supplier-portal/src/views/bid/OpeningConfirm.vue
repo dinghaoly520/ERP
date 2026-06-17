@@ -3,15 +3,16 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { supplierApi } from '@/api/supplier'
+import { bidApi } from '@/api/bid'
 
 const route = useRoute(); const router = useRouter(); const projectId = computed(() => route.params.projectId as string)
-const loading = ref(true); const error = ref(false); const acting = ref(false); const record = ref<any>(null)
-async function load() { loading.value = true; error.value = false; try { record.value = await supplierApi.getOpeningRecord(projectId.value) as any } catch { error.value = true } finally { loading.value = false } }
+const loading = ref(true); const error = ref(false); const acting = ref(false); const record = ref<any>(null); const projectStage = ref<string>('')
+async function load() { loading.value = true; error.value = false; try { const [rec, proj] = await Promise.all([supplierApi.getOpeningRecord(projectId.value) as any, bidApi.getProject(projectId.value) as any]) as any; record.value = rec; projectStage.value = proj?.stage || '' } catch { error.value = true } finally { loading.value = false } }
 async function retryLoad() { await load() }
 onMounted(load)
 
 const statusLabel: Record<string, { text: string; type: string }> = { '待供应商确认':{text:'待您确认',type:'warning'}, '供应商已确认':{text:'已确认',type:'success'}, '供应商提出异议':{text:'已提出异议',type:'danger'}, '异议已处理-确认':{text:'异议已处理',type:'success'}, '异议已处理-退回':{text:'异议已退回',type:'info'}, '待确认':{text:'待确认',type:'warning'} }
-const canAct = computed(() => { const s = record.value?.confirmStatus; return s==='待供应商确认'||s==='待确认' })
+const canAct = computed(() => { const s = record.value?.confirmStatus; return (s==='待供应商确认'||s==='待确认') && projectStage.value === 'OPENING' })
 
 async function handleConfirm() { await ElMessageBox.confirm('确认开标记录无误？','确认唱标信息',{type:'warning'}); acting.value=true; try{await supplierApi.confirmOpening(projectId.value);ElMessage.success('已确认开标信息');await load()}catch(err:any){ElMessage.error(err?.response?.data?.error||'确认失败')}finally{acting.value=false} }
 async function handleDispute() { let reason=''; try{const res=await ElMessageBox.prompt('请填写异议原因','提出开标异议',{type:'warning',confirmButtonText:'提交异议',inputPlaceholder:'例如：唱标报价与我方提交的不一致',inputValidator:(v:string)=>(v&&v.trim().length>0)||'请填写异议原因'});reason=res.value}catch{return}; acting.value=true; try{await supplierApi.disputeOpening(projectId.value,reason);ElMessage.success('异议已提交');await load()}catch(err:any){ElMessage.error(err?.response?.data?.error||'提交失败')}finally{acting.value=false} }

@@ -56,15 +56,17 @@ function RingCountdown({ remaining, big }: { remaining: number; big?: boolean })
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
   const pct = Math.min(1, remaining / (60 * 30)); // 30-min window baseline
-  const circumference = 2 * Math.PI * 40;
+  const radius = big ? 47 : 37;
+  const cx = big ? 50 : 40;
+  const circumference = 2 * Math.PI * radius;
   const dash = circumference * pct;
   const isUrgent = remaining <= 60;
   const ringColor = isUrgent ? '#e74c3c' : remaining <= 300 ? '#f5a623' : '#ffffff';
   return (
     <div className={`flex items-center gap-3 ${big ? 'scale-125' : ''}`}>
-      <svg width={big ? 100 : 80} height={big ? 100 : 80} className="-rotate-90">
-        <circle cx={big ? 50 : 40} cy={big ? 50 : 40} r={40} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={6} />
-        <circle cx={big ? 50 : 40} cy={big ? 50 : 40} r={40} fill="none" stroke={ringColor} strokeWidth={6}
+      <svg width={big ? 100 : 80} height={big ? 100 : 80} className="-rotate-90" style={{ overflow: 'visible' }}>
+        <circle cx={cx} cy={cx} r={radius} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={6} />
+        <circle cx={cx} cy={cx} r={radius} fill="none" stroke={ringColor} strokeWidth={6}
           strokeDasharray={`${dash} ${circumference}`} strokeLinecap="round"
           className="transition-all duration-1000" />
       </svg>
@@ -391,7 +393,7 @@ export default function BidOpenPage() {
                 <ChevronRight size={13} strokeWidth={2} /> {openingSubmission ? '处理中…' : '开放投递'}
               </button>
             )}
-            {project.stage !== 'OPENING' && (
+            {project.stage === 'SUBMIT' && (
               <button onClick={() => setStartOpen(true)}
                 className="flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-4 py-2 text-xs font-bold text-white hover:bg-[#054280] transition">
                 <Play size={13} strokeWidth={2} /> 启动开标
@@ -546,7 +548,7 @@ export default function BidOpenPage() {
                       <span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{ color: sm.color, backgroundColor: sm.bg }}>{sm.label}</span>
                     </td>
                     <td className="px-5 py-3">
-                      {isDisputed && (
+                      {isDisputed && project.stage === 'OPENING' && (
                         <button onClick={() => { setInlineDispute(disputeOpen ? null : r.id); setDisputeHandleResult(''); setDisputeHandleConfirm(null); }}
                           className={`flex items-center gap-1 text-[11px] font-semibold tracking-tight transition-colors ${
                             disputeOpen ? 'text-[oklch(0.55_0.01_264)]' : 'text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)]'
