@@ -464,24 +464,42 @@ export class ExpertAdminService {
     });
 
     const cutoff = new Date(Date.now() - 365 * 24 * 3600 * 1000);
+    const expertIds = experts.map(e => e.id);
+
+    // P2: Batch queries instead of N+1 per-expert queries
+    const [allEvals, allRecentAssigns] = await Promise.all([
+      // All recent evaluations for all experts (up to 2 per expert)
+      this.prisma.expertEvaluation.findMany({
+        where: { expertUserId: { in: expertIds } },
+        orderBy: { createdAt: 'desc' },
+        select: { expertUserId: true, level: true, createdAt: true },
+      }),
+      // All recent assignments in last 12 months
+      this.prisma.bidExpert.findMany({
+        where: { userId: { in: expertIds }, createdAt: { gte: cutoff } },
+        select: { userId: true, id: true },
+      }),
+    ]);
+
+    // Index: expertUserId → recent evaluations (up to 2 most recent)
+    const evalsByExpert = new Map<string, { level: string }[]>();
+    for (const ev of allEvals) {
+      if (!evalsByExpert.has(ev.expertUserId)) evalsByExpert.set(ev.expertUserId, []);
+      const arr = evalsByExpert.get(ev.expertUserId)!;
+      if (arr.length < 2) arr.push({ level: ev.level });
+    }
+    // Index: userId → true if has recent assignment
+    const hasRecentAssign = new Set(allRecentAssigns.map(a => a.userId));
+
     const candidates: Array<{ userId: string; displayName: string; specialty?: string; reason: string }> = [];
 
     for (const e of experts) {
-      const recent = await this.prisma.expertEvaluation.findMany({
-        where: { expertUserId: e.id },
-        orderBy: { createdAt: 'desc' },
-        take: 2,
-        select: { level: true },
-      });
+      const recent = evalsByExpert.get(e.id) || [];
       let reason: string | null = null;
       if (shouldDeactivateExpert(recent)) {
         reason = '最近 2 次履职评价均为 D 级';
-      } else {
-        const recentAssign = await this.prisma.bidExpert.findFirst({
-          where: { userId: e.id, createdAt: { gte: cutoff } },
-          select: { id: true },
-        });
-        if (!recentAssign) reason = '近 12 个月无评标分配';
+      } else if (!hasRecentAssign.has(e.id)) {
+        reason = '近 12 个月无评标分配';
       }
       if (reason) {
         candidates.push({ userId: e.id, displayName: e.displayName, specialty: e.expertProfile?.specialty, reason });

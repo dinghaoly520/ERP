@@ -495,6 +495,12 @@ export class BidService {
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'EVALUATING');
 
+    // P2: Prevent deadlock — ensure at least one expert is assigned
+    const expertCount = await this.prisma.bidExpert.count({ where: { projectId: id } });
+    if (expertCount === 0) {
+      throw new BadRequestException({ error: '项目未分配评审专家，无法启动评标', code: 'NO_EXPERTS_ASSIGNED' });
+    }
+
     const updated = await this.prisma.bidProject.update({
       where: { id },
       data: { stage: 'EVALUATING' },

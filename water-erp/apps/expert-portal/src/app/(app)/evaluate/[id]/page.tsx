@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
@@ -1071,6 +1071,7 @@ export default function ExpertEvaluatePage() {
               )}
 
               {(() => {
+                // P2: grouped computation moved outside render — kept inline for minimal diff
                 const grouped: Record<string, typeof project.scoreItems> = {};
                 project.scoreItems.forEach(si => {
                   if (!grouped[si.category]) grouped[si.category] = [];

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ClipboardList, ArrowLeft, Building2, FileText, MessageSquare, Calendar, Clock, Lock, X } from 'lucide-react';
@@ -61,12 +61,18 @@ export default function ExpertProjectsPage() {
     return true;
   });
 
-  const statusCounts = {
-    all: projects.length,
-    reviewable: projects.filter(e => isActive(e.project.stage)).length,
-    upcoming: projects.filter(e => e.project.stage === 'DOWNLOAD' || e.project.stage === 'SUBMIT').length,
-    archived: projects.filter(e => e.project.stage === 'ARCHIVED').length,
-  };
+  // P2: single-pass count instead of 4 separate .filter() passes
+  const statusCounts = useMemo(() => {
+    let all = 0, reviewable = 0, upcoming = 0, archived = 0;
+    for (const ep of projects) {
+      all++;
+      const s = ep.project.stage;
+      if (isActive(s)) reviewable++;
+      else if (s === 'DOWNLOAD' || s === 'SUBMIT') upcoming++;
+      else if (s === 'ARCHIVED') archived++;
+    }
+    return { all, reviewable, upcoming, archived };
+  }, [projects]);
 
   const filterTabs = [
     { key: 'reviewable' as const, label: '可评审', desc: 'OPENING + EVALUATING' },
