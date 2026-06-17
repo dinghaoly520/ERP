@@ -62,37 +62,34 @@ const progressDetail = computed<{ tone: string; text: string } | null>(() => { c
 </template>
 
 <style scoped>
-.onboarding-card { padding: 28px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); background: #fff; }
+.onboarding-card { position: relative; padding: 28px; border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); background: rgba(255,255,255,0.58); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); }
+.onboarding-card::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.36; border-radius: inherit; background-image: radial-gradient(ellipse at 10% 6%, rgba(96,165,250,0.16), transparent 55%), radial-gradient(ellipse at 85% 12%, rgba(56,189,248,0.10), transparent 55%), radial-gradient(ellipse at 38% 90%, rgba(6,78,162,0.05), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
+.onboarding-card > * { position: relative; z-index: 1; }
 .status-summary { display: grid; grid-template-columns: 72px minmax(0,1fr) auto; gap: 20px; align-items: center; }
-.status-icon-wrap { width: 72px; height: 72px; border-radius: var(--sp-radius-md); display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--status-color) 12%, white); }
+.status-icon-wrap { width: 72px; height: 72px; border-radius: var(--sp-radius-md); display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--status-color) 12%, white); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .status-summary h2 { margin: 0; color: var(--sp-gray-900); font-size: 24px; font-weight: 900; }
 .status-summary p { margin: 6px 0 0; color: var(--sp-gray-500); }
-.status-date { padding: 14px 18px; border-radius: var(--sp-radius-sm); background: var(--sp-gray-50); text-align: right; border: 1px solid var(--sp-border-light); }
+.status-date { padding: 14px 18px; border-radius: var(--sp-radius-sm); background: rgba(255,255,255,0.44); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); text-align: right; border: 1px solid rgba(0,0,0,0.04); }
 .status-date span { display: block; color: var(--sp-gray-400); font-size: 12px; }
 .status-date strong { display: block; margin-top: 4px; color: var(--sp-gray-900); }
 .status-steps { display: grid; grid-template-columns: 120px minmax(40px,1fr) 120px minmax(40px,1fr) 120px; align-items: center; margin: 32px 0; }
 .step { display: grid; justify-items: center; gap: 8px; color: var(--sp-gray-400); }
-.step span { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--sp-gray-100); font-weight: 900; }
+.step span { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(0,0,0,0.05); font-weight: 900; }
 .step.active span { background: var(--sp-primary); color: #fff; }
 .step.active strong { color: var(--sp-gray-900); }
-.line { height: 2px; background: var(--sp-gray-200); border-radius: 1px; }
+.line { height: 2px; background: rgba(0,0,0,0.06); border-radius: 1px; }
 .line.active { background: var(--sp-primary); }
 .reason-card { margin-top: 16px; padding: 14px 18px; border-radius: var(--sp-radius-sm); }
 .reason-card strong { display: block; margin-bottom: 4px; }
 .reason-card p { margin: 0; }
-.reason-card.error { color: var(--sp-red); background: var(--sp-red-light); }
-.reason-card.warning { color: #92400e; background: var(--sp-orange-light); }
-.progress-detail { display: flex; align-items: flex-start; gap: 10px; padding: 14px 18px; border-radius: var(--sp-radius-sm); margin-top: 16px; font-size: 13px; line-height: 1.6; }
+.reason-card.error { color: var(--sp-red); background: rgba(254,226,226,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(239,68,68,0.12); }
+.reason-card.warning { color: #92400e; background: rgba(254,243,199,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(253,230,138,0.35); }
+.progress-detail { display: flex; align-items: flex-start; gap: 8px; padding: 12px 16px; border-radius: var(--sp-radius-sm); margin-top: 16px; font-size: 13px; font-weight: 600; line-height: 1.5; }
 .progress-detail .el-icon { flex-shrink: 0; margin-top: 1px; font-size: 16px; }
-.progress-detail.info { background: #eff6ff; color: #064ea2; border: 1px solid #bfdbfe; }
-.progress-detail.success { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
-.progress-detail.warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
-.progress-detail.error { background: #fef2f2; color: var(--sp-red); border: 1px solid #fecaca; }
-.status-actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 20px; border-top: 1px solid var(--sp-border-light); }
-.progress-detail { display: flex; align-items: center; gap: 8px; margin-top: 16px; padding: 12px 16px; border-radius: var(--sp-radius-sm); font-size: 13px; font-weight: 600; line-height: 1.5; }
-.progress-detail.info { color: var(--sp-primary); background: var(--sp-primary-lighter); }
-.progress-detail.success { color: #065f46; background: var(--sp-green-light); }
-.progress-detail.warning { color: #92400e; background: var(--sp-orange-light); }
-.progress-detail.error { color: var(--sp-red); background: var(--sp-red-light); }
+.progress-detail.info { color: #064ea2; background: rgba(239,246,255,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(191,219,254,0.40); }
+.progress-detail.success { color: #065f46; background: rgba(236,253,245,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(167,243,208,0.35); }
+.progress-detail.warning { color: #92400e; background: rgba(255,251,235,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(253,230,138,0.35); }
+.progress-detail.error { color: var(--sp-red); background: rgba(254,242,242,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(254,202,202,0.40); }
+.status-actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 20px; border-top: 1px solid rgba(0,0,0,0.04); }
 @media (max-width:768px) { .status-summary { grid-template-columns: 1fr; } .status-date { text-align: left; } .status-steps { grid-template-columns: 1fr; gap: 10px; } .line { display: none; } }
 </style>

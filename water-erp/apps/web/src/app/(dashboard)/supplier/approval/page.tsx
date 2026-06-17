@@ -118,8 +118,8 @@ function SupplierApprovalPage() {
       <div className="grid gap-4 md:grid-cols-3">
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`text-left rounded-2xl border bg-white p-5 transition ${
-              tab === t.key ? 'border-[#064ea2] ring-1 ring-[#064ea2]/20' : 'border-[#dce6f3] hover:border-[#bcd0e8]'
+            className={`glass-card glass-card-lighter text-left rounded-2xl p-5 transition ${
+              tab === t.key ? 'border-[#064ea2] ring-1 ring-[#064ea2]/20' : 'border-white/40 hover:border-[#bcd0e8]'
             }`}>
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-[#5a6d8a]">{t.label}</span>
@@ -138,7 +138,7 @@ function SupplierApprovalPage() {
         </h2>
       </div>
 
-      <SectionCard className="overflow-hidden p-0">
+      <SectionCard className="p-0">
         {selected.size > 0 && (
           <div className="flex items-center gap-3 bg-[#eff6ff] border-b border-[#bfdbfe] px-4 py-2.5">
             <span className="text-xs font-extrabold text-[#064ea2]">已选 {selected.size} 项</span>

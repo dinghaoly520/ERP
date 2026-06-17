@@ -74,7 +74,7 @@ export default function MallManagementLogsPage() {
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索操作对象或详情" className="workbench-input flex-1 text-sm" />
       </DataToolbar>
 
-      <SectionCard className="overflow-hidden p-0">
+      <SectionCard className="p-0">
         <table className="workbench-table">
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr><th className="px-4 py-3">时间</th><th className="px-4 py-3">操作人</th><th className="px-4 py-3">类型</th><th className="px-4 py-3">对象</th><th className="px-4 py-3">详情</th></tr>

@@ -102,30 +102,34 @@ function isDeadlinePassed(deadline: string) { return new Date(deadline) < new Da
 </template>
 
 <style scoped>
-.header-stat { padding: 12px 16px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-sm); background: #fff; text-align: center; min-width: 80px; }
+.header-stat { padding: 12px 16px; border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-sm); background: rgba(255,255,255,0.62); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); text-align: center; min-width: 80px; }
 .header-stat strong { display: block; color: var(--sp-gray-900); font-size: 22px; line-height: 1; }
 .header-stat span { display: block; margin-top: 4px; color: var(--sp-gray-500); font-size: 11px; }
-.compact-filter { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: center; padding: 12px 16px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); background: #fff; }
+.compact-filter { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: center; padding: 12px 16px; position: relative; background: rgba(255,255,255,0.72); backdrop-filter: blur(10px) saturate(1.1); -webkit-backdrop-filter: blur(10px) saturate(1.1); border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); }
+.compact-filter > * { position: relative; z-index: 1; }
 .stage-tabs { display: flex; gap: 8px; overflow-x: auto; }
-.stage-tabs button { border: 1px solid var(--sp-border); border-radius: 999px; background: #fff; color: var(--sp-gray-600); padding: 8px 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-size: 13px; }
+.stage-tabs button { border: 1px solid rgba(255,255,255,0.45); border-radius: 999px; background: rgba(255,255,255,0.60); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: var(--sp-gray-600); padding: 8px 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-size: 13px; }
 .stage-tabs button span { margin-left: 5px; color: var(--sp-gray-400); }
 .stage-tabs button.active { border-color: var(--sp-primary); background: var(--sp-primary); color: #fff; }
 .stage-tabs button.active span { color: rgba(255,255,255,.76); }
 .opportunity-list { display: grid; gap: 10px; margin-top: 18px; }
-.opportunity-row { display: grid; grid-template-columns: minmax(0,1fr) 170px auto; gap: 18px; align-items: center; padding: 16px 20px; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); background: #fff; cursor: pointer; transition: border-color 0.15s; }
-.opportunity-row:hover { border-color: var(--sp-primary); }
+.opportunity-row { display: grid; grid-template-columns: minmax(0,1fr) 170px auto; gap: 18px; align-items: center; padding: 16px 20px; position: relative; background: rgba(255,255,255,0.58); backdrop-filter: blur(10px) saturate(1.1); -webkit-backdrop-filter: blur(10px) saturate(1.1); border: 1px solid rgba(255,255,255,0.42); border-radius: var(--sp-radius-md); cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+.opportunity-row::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.38; border-radius: inherit; background-image: radial-gradient(ellipse at 12% 8%, rgba(96,165,250,0.16), transparent 55%), radial-gradient(ellipse at 82% 16%, rgba(56,189,248,0.10), transparent 55%), radial-gradient(ellipse at 38% 88%, rgba(6,78,162,0.06), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
+.opportunity-row:hover::before { opacity: 0.55; }
+.opportunity-row:hover { border-color: var(--sp-primary); box-shadow: 0 1px 8px rgba(15,47,87,0.08); }
+.opportunity-row > * { position: relative; z-index: 1; }
 .row-title-line { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .row-title-line h3 { margin: 0; color: var(--sp-gray-900); font-size: 16px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 7px; color: var(--sp-gray-500); font-size: 12px; }
-.row-deadline { padding-left: 18px; border-left: 1px solid var(--sp-border-light); }
+.row-deadline { padding-left: 18px; border-left: 1px solid rgba(0,0,0,0.05); }
 .row-deadline small { display: block; color: var(--sp-gray-400); font-size: 11px; }
 .row-deadline strong { display: block; color: var(--sp-gray-900); font-size: 14px; margin-top: 2px; }
 .row-deadline.expired strong { color: var(--sp-red); }
-.sp-empty-panel { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); padding: 64px 20px; text-align: center; color: var(--sp-gray-400); }
+
 .sp-empty-text { font-size: 15px; font-weight: 700; color: var(--sp-gray-500); margin-top: 12px; }
 .sp-empty-desc { font-size: 13px; margin-top: 4px; }
 .skel-wrap{display:flex;flex-direction:column;gap:14px}
-.skel-hero{background:#fff;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);padding:24px;display:flex;flex-direction:column}
+.skel-hero{background:rgba(255,255,255,0.60);border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);padding:24px;display:flex;flex-direction:column}
 .skel-filter{display:flex;gap:14px;padding:12px 16px;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);background:#fff}
 .skel-row{display:flex;align-items:center;gap:18px;padding:16px 20px;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);background:#fff}
 @media (max-width: 900px) { .compact-filter { grid-template-columns: 1fr; } .opportunity-row { grid-template-columns: 1fr; } .row-deadline { padding-left: 0; border-left: 0; } }

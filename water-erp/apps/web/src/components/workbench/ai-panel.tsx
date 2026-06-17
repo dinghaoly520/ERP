@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles, RefreshCw, ArrowRight, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/api';
 
 export interface DashboardContext {
   supplier?: { total: number; approved: number; pending: number; risk: number };
@@ -97,12 +98,7 @@ export function DashboardAiPanel({
     setLoading(true);
     setError(false);
     try {
-      const res = await fetch('/api/ai/dashboard-summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(context), credentials: 'include',
-      });
-      const data = await res.json();
+      const data = await api.post<AiInsightResult>('/ai/dashboard-summary', context);
       if (data.overview) {
         setResult(data);
         writeCache(data, context);
@@ -129,9 +125,9 @@ export function DashboardAiPanel({
   if (!ready) return null;
 
   return (
-    <section className={cn('relative overflow-hidden rounded-[20px] bg-white shadow-[0_4px_24px_rgba(15,23,42,0.06)] ring-1 ring-black/[0.03]', className)}>
+    <section className={cn('glass-card glass-card-deeper glass-card-blue relative overflow-hidden rounded-[20px]', className)}>
       {/* ── Header ── */}
-      <div className="flex items-center justify-between border-b border-[#f0edf6] px-6 py-4">
+      <div className="flex items-center justify-between border-b border-[#f0edf6]/60 px-6 py-4 relative z-10">
         <div className="flex items-center gap-3">
           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#18181b] text-white">
             <Sparkles size={14} strokeWidth={1.6} />
@@ -146,7 +142,7 @@ export function DashboardAiPanel({
         </button>
       </div>
 
-      <div className="px-6 py-5">
+      <div className="px-6 py-5 relative z-10">
         {/* ── Loading ── */}
         {loading && (
           <div className="space-y-4 py-2">

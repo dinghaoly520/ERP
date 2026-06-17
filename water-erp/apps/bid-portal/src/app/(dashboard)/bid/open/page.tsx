@@ -358,7 +358,7 @@ export default function BidOpenPage() {
 
       {/* ═══ Session header with ring countdown + stage stepper ═══ */}
       {session && (
-        <div className="rounded-2xl bg-gradient-to-r from-[#064ea2] to-[#0b63ce] text-white p-6 space-y-4">
+        <div className="glass-card glass-card-blue rounded-2xl text-white p-6 space-y-4" style={{ background: 'linear-gradient(135deg, rgba(6,78,162,0.92), rgba(11,99,206,0.88))' }}>
           <div className="flex items-center gap-8 flex-wrap">
             <div className="flex-1 min-w-0">
               <h2 className={`font-black tracking-tight mb-2 ${bigScreen ? 'text-2xl' : 'text-lg'}`}>
@@ -625,7 +625,7 @@ export default function BidOpenPage() {
       {/* ═══ 唱标信息录入（修复开标闭环：解密后主持人补录报价/工期/质量/保证金）═══ */}
       {recordEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setRecordEntry(null)}>
-          <div className="w-[480px] rounded-2xl border border-[#dce6f3] bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="w-[480px] rounded-2xl glass-card-deeper glass-card-blue p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-black text-[#18243a]">录入唱标信息 — {recordEntry.supplierName}</h3>
             <p className="mt-1 text-xs text-[#8a96aa]">据解密后的投标内容填写，提交后生成开标记录（待供应商确认）。</p>
             <div className="mt-4 grid grid-cols-2 gap-3">

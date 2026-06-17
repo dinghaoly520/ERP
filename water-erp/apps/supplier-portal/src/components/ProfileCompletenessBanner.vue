@@ -106,7 +106,7 @@ const scoreLabel = computed(() => {
   align-items: center;
   gap: 24px;
   background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
+  border: 1px solid rgba(255,255,255,0.48);
   border-radius: var(--sp-radius-md);
   padding: 16px 24px;
 }

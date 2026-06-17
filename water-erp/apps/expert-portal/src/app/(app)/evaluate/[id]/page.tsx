@@ -428,7 +428,7 @@ export default function ExpertEvaluatePage() {
 
       {/* P2: clarifications panel (toggled from header) */}
       {showClarifications && (
-        <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-5 mb-4 flex-shrink-0 space-y-3 max-h-[300px] overflow-y-auto">
+        <div className="glass-card glass-card-purple rounded-xl p-5 mb-4 flex-shrink-0 space-y-3 max-h-[300px] overflow-y-auto">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]"><MessageSquare size={14} strokeWidth={1.5} className="inline mr-1" />澄清与答疑</h3>
             <button onClick={() => setShowClarifications(false)} className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.18_0.012_265)]">✕</button>
@@ -482,7 +482,7 @@ export default function ExpertEvaluatePage() {
       )}
 
       {/* 步骤指示器 · P2: step gating — locked steps show lock icon, completed show checkmark */}
-      <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-4 mb-4 flex-shrink-0">
+      <div className="glass-card glass-card-blue rounded-xl p-4 mb-4 flex-shrink-0">
         <div className="flex items-center">
           {STEPS.map((s, i) => {
             const accessible = stepAccessible(s.key);
@@ -513,7 +513,7 @@ export default function ExpertEvaluatePage() {
       {/* 主内容区 */}
       <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
         {/* 左侧供应商列表 */}
-        <div className="w-56 flex-shrink-0 bg-white rounded-xl border border-[oklch(0.91_0.006_264)] overflow-y-auto">
+        <div className="w-56 flex-shrink-0 glass-card glass-card-purple rounded-xl overflow-y-auto">
           <div className="p-4 border-b border-[oklch(0.91_0.006_264)]">
             <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]">投标单位</h3>
             <p className="text-xs text-[oklch(0.55_0.01_264)] mt-1">{project.suppliers.length} 家</p>
@@ -537,7 +537,7 @@ export default function ExpertEvaluatePage() {
         </div>
 
         {/* 右侧主内容 */}
-        <div className="flex-1 bg-white rounded-xl border border-[oklch(0.91_0.006_264)] overflow-y-auto">
+        <div className="flex-1 glass-card glass-card-blue rounded-xl overflow-y-auto">
           {/* ====== 身份核验 ====== */}
           {step === 'verify' && (
             <div className="p-6 max-w-3xl mx-auto">

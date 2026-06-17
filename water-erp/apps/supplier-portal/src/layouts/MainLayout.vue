@@ -310,10 +310,10 @@ notifStore.fetchUnreadCount()
   justify-content: space-between;
   height: 68px;
   padding: 0 24px;
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid #dbe6f3;
+  background: rgba(255, 255, 255, 0.70);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.40);
 }
 
 .sp-header-left,
@@ -491,13 +491,30 @@ notifStore.fetchUnreadCount()
   margin: 12px 0 12px 12px;
   overflow: hidden;
   border-radius: 24px;
-  border: 1px solid #dbe6f3;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.50);
+  background: rgba(255, 255, 255, 0.74);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
   box-shadow: 0 18px 60px rgba(15, 47, 87, 0.10);
   transition: width 0.2s ease;
+  position: relative;
 }
+.sp-sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.44;
+  border-radius: 24px;
+  background-image:
+    radial-gradient(ellipse at 10% 6%,  rgba(168, 139, 250, 0.20), transparent 55%),
+    radial-gradient(ellipse at 85% 12%, rgba(192, 132, 252, 0.12), transparent 55%),
+    radial-gradient(ellipse at 40% 90%, rgba(91, 33, 182, 0.07),  transparent 55%);
+  animation: glass-glow-drift 18s ease-in-out infinite;
+}
+.sp-sidebar:hover::before { opacity: 0.58; }
+.sp-sidebar > * { position: relative; z-index: 1; }
 
 .sp-sidebar.collapsed {
   width: 68px;

@@ -23,7 +23,7 @@ export function MetricCard({ label, value, hint, tone = 'blue', icon, onClick, f
   return (
     <Component
       onClick={onClick}
-      className={cn('group rounded-2xl border bg-white p-4 text-left shadow-sm transition', onClick && 'hover:-translate-y-0.5 hover:shadow-lg', className)}
+      className={cn('group rounded-2xl border p-4 text-left transition glass-card glass-card-lighter', onClick && 'hover:-translate-y-0.5 hover:shadow-lg', className)}
       style={{ borderColor: toneConfig.border }}
     >
       <div className="mb-2 flex items-start justify-between gap-3">

@@ -311,6 +311,12 @@ export function HeroSection({
           ))}
         </div>
         </div>
+        {/* ── 磨砂玻璃彩光层 ── */}
+        <div className="absolute inset-0 pointer-events-none rounded-[28px] overflow-hidden" style={{ zIndex: 1 }}>
+          <div className="absolute inset-0 opacity-[0.50] animate-[hero-glow-drift_20s_ease-in-out_infinite]" style={{
+            backgroundImage: 'radial-gradient(ellipse 50% 40% at 15% 25%, rgba(147,197,253,.40), transparent 55%), radial-gradient(ellipse 45% 55% at 80% 70%, rgba(168,139,250,.28), transparent 60%), radial-gradient(ellipse 40% 35% at 50% 50%, rgba(52,211,153,.14), transparent 60%)',
+          }} />
+        </div>
         {/* ── 主内容 ── */}
         <div className="relative px-8 py-6 lg:px-10">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">

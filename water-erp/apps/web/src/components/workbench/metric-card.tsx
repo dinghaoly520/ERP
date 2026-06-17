@@ -9,6 +9,16 @@ import { TrendChip } from './trend-chip';
 import { MiniSparkline } from '@/lib/hooks/use-trend';
 import type { TrendDirection, TrendHistory } from '@/lib/hooks/use-trend';
 
+const TONE_GLASS: Record<string, string> = {
+  blue: 'glass-card-blue',
+  green: 'glass-card-emerald',
+  orange: 'glass-card-amber',
+  red: 'glass-card-rose',
+  purple: 'glass-card-purple',
+  cyan: 'glass-card-blue',
+  gray: 'glass-card-blue',
+};
+
 interface MetricCardProps {
   label: string;
   value: ReactNode;
@@ -54,16 +64,17 @@ export function MetricCard({ label, value, hint, tone = 'blue', icon, onClick, f
   const animatedValue = useCountUp(numericValue);
   const displayValue = !isNaN(numericValue) ? animatedValue : value;
 
+  const glass = TONE_GLASS[tone] || 'glass-card-blue';
+
   return (
     <Component
       onClick={onClick}
       className={cn(
-        'card-enter group rounded-2xl border bg-white p-4 text-left shadow-sm transition',
-        'hover:-translate-y-0.5 hover:shadow-lg',
-        onClick && 'btn-press',
+        'glass-card glass-card-lighter card-enter group rounded-2xl p-4 text-left transition',
+        glass,
+        onClick && 'hover:-translate-y-0.5 hover:shadow-lg btn-press',
         className
       )}
-      style={{ borderColor: toneConfig.border }}
     >
       <div className="mb-2 flex items-start justify-between gap-3">
         <span className="text-xs font-bold text-[#5a6d8a]">{label}</span>

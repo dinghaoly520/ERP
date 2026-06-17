@@ -88,7 +88,7 @@ export default function ExpertEvaluationPage() {
         </div>
       </DataToolbar>
 
-      <SectionCard className="overflow-hidden p-0">
+      <SectionCard className="p-0">
         <table className="workbench-table">
           <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
             <tr>

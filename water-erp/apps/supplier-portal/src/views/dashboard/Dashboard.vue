@@ -26,11 +26,7 @@ onMounted(async () => {
       bidStore.fetchProjects(1, 20),
       notifStore.fetchNotifications(1, 10),
     ])
-  } catch {
-    error.value = true
-  } finally {
-    loading.value = false
-  }
+  } catch { error.value = true } finally { loading.value = false }
 })
 
 async function retryLoad() {
@@ -47,7 +43,6 @@ async function retryLoad() {
   } catch { error.value = true } finally { loading.value = false }
 }
 
-// ── Derived state ──
 const stats = computed(() => supplierStore.dashboardStats)
 const statusInfo = computed(() => supplierStore.status)
 const evalStats = computed(() => supplierStore.evaluationStats)
@@ -62,37 +57,41 @@ const statusType: Record<string, string> = {
 }
 
 const STAGES = [
-  { key: 'DOWNLOAD',    label: '文件下载', color: '#0891b2', icon: 'Download' },
-  { key: 'SUBMIT',      label: '加密投递', color: '#0a5eb8', icon: 'Upload'  },
-  { key: 'OPENING',     label: '在线开标', color: '#d97706', icon: 'View'    },
-  { key: 'EVALUATING',  label: '专家评标', color: '#7c3aed', icon: 'Edit'    },
-  { key: 'ARCHIVED',    label: '已归档',   color: '#059669', icon: 'Folder'  },
+  { key: 'DOWNLOAD',    label: '文件下载', color: '#0891b2' },
+  { key: 'SUBMIT',      label: '加密投递', color: '#0a5eb8' },
+  { key: 'OPENING',     label: '在线开标', color: '#d97706' },
+  { key: 'EVALUATING',  label: '专家评标', color: '#7c3aed' },
+  { key: 'ARCHIVED',    label: '已归档',   color: '#059669' },
 ] as const
 
-// ── KPI strip (6 cells with secondary context) ──
-interface KpiCell { key: string; value: number; label: string; sub: string; subTone: string; path: string; tone?: string }
+// ── KPI strip ──
+interface KpiCell { key: string; value: number; label: string; path: string; tone?: string }
 const kpiCells = computed<KpiCell[]>(() => {
-  const s = stats.value
-  if (!s) return []
-  const qs = supplierStore.qualifications
-  const now = Date.now()
-  const expiring30d = qs.filter((q: any) => q.validTo && new Date(q.validTo).getTime() - now < 30*86400000 && new Date(q.validTo).getTime() > now).length
-  const expired = qs.filter((q: any) => q.validTo && new Date(q.validTo).getTime() < now).length
+  const s = stats.value; if (!s) return []
   return [
-    { key:'submissions', value:s.submissionCount, label:'投标记录', sub:s.submissionCount>0?'已提交标书':'暂无记录', subTone:s.submissionCount>0?'blue':'gray', path:'/my-bids' },
-    { key:'quals',       value:s.qualificationCount, label:'资质证照', sub:`${qs.length-expired-expiring30d} 有效`, subTone:'green', path:'/qualifications' },
-    { key:'changes',     value:s.pendingChanges, label:'待审变更', sub:s.pendingChanges>0?'等待审核':'无待办', subTone:s.pendingChanges>0?'orange':'gray', path:'/change-records' },
-    { key:'expiring',    value:expiring30d+expired, label:'到期风险', sub:expired>0?`${expired} 已过期`:expiring30d>0?`${expiring30d} 项30天内`: '状态良好', subTone:expired>0?'red':expiring30d>0?'orange':'green', path:'/qualifications', tone:'var(--sp-red)' },
-    { key:'completeness',value:s.profileCompleteness?.score??0, label:'资料完整度', sub:s.profileCompleteness?.score>=80?'完善':s.profileCompleteness?.score>=50?'待补充':'需完善', subTone:s.profileCompleteness?.score>=80?'green':s.profileCompleteness?.score>=50?'orange':'red', path:'/profile', tone:'var(--sp-primary)' },
-    { key:'unread',      value:s.unreadNotifications, label:'未读消息', sub:s.unreadNotifications>0?`${s.unreadNotifications} 条未读`:'全部已读', subTone:s.unreadNotifications>0?'blue':'gray', path:'/notifications', tone:'var(--sp-cyan)' },
+    { key:'submissions',  value:s.submissionCount,          label:'投标记录', path:'/my-bids' },
+    { key:'quals',        value:s.qualificationCount,       label:'资质证照', path:'/qualifications' },
+    { key:'changes',      value:s.pendingChanges,           label:'待审变更', path:'/change-records' },
+    { key:'expiring',     value:s.expiringQualifications,   label:'到期风险', path:'/qualifications', tone:'var(--sp-red)' },
+    { key:'completeness', value:s.profileCompleteness?.score??0, label:'资料完整度',path:'/profile', tone:'var(--sp-primary)' },
+    { key:'unread',       value:s.unreadNotifications,      label:'未读消息', path:'/notifications', tone:'var(--sp-cyan)' },
   ]
 })
 
-function kpiSubClass(tone: string) {
-  return `db-kpi-sub ${tone}`
-}
+// ── Profile completeness categories ──
+interface CatDim { key: string; label: string; score: number; max: number; filled: number; total: number; icon: string; color: string; missing: string[] }
+const completenessCats = computed<CatDim[]>(() => {
+  const cats = stats.value?.profileCompleteness?.categories
+  if (!cats) return []
+  return [
+    { key:'basic', label:'基本资料', ...cats.basic, icon:'OfficeBuilding', color:'#064ea2' },
+    { key:'contacts', label:'联系人', ...cats.contacts, icon:'Phone', color:'#0a5eb8' },
+    { key:'qualifications', label:'资质材料', ...cats.qualifications, icon:'Medal', color:'#059669' },
+  ]
+})
+const profileScore = computed(() => stats.value?.profileCompleteness?.score ?? 0)
 
-// ── Projects with urgency ──
+// ── Projects ──
 interface ProjectRow { project: any; daysLeft: number; urgency: 'critical'|'warning'|'normal'|'past' }
 const projectRows = computed<ProjectRow[]>(() => {
   const now = Date.now()
@@ -104,52 +103,21 @@ const projectRows = computed<ProjectRow[]>(() => {
     else if (daysLeft <= 3) urgency = 'critical'
     else if (daysLeft <= 14) urgency = 'warning'
     return { project: p, daysLeft, urgency }
-  }).sort((a, b) => {
-    const o = { critical:0, warning:1, normal:2, past:3 }
-    return (o[a.urgency]??2) - (o[b.urgency]??2)
-  })
+  }).sort((a, b) => ({ critical:0, warning:1, normal:2, past:3 } as any)[a.urgency] - ({ critical:0, warning:1, normal:2, past:3 } as any)[b.urgency])
 })
 
-// ── Qualification health ──
-const qualHealth = computed(() => {
-  const qs = supplierStore.qualifications
-  const now = Date.now()
-  let valid=0, expiring=0, expired=0, longTerm=0
-  const expiringList: any[] = []
-  qs.forEach((q: any) => {
-    if (!q.validTo) { longTerm++; return }
-    const diff = (new Date(q.validTo).getTime() - now) / 86400000
-    if (diff < 0) { expired++; expiringList.push({...q, daysLeft: Math.round(diff)}) }
-    else if (diff < 30) { expiring++; expiringList.push({...q, daysLeft: Math.round(diff)}) }
-    else valid++
+// ── Notifications ──
+const notifFeed = computed(() =>
+  notifStore.notifications.slice(0, 6).map((n: any) => {
+    let tone = 'gray'
+    if (n.type === 'BID') tone = 'blue'
+    else if (n.type === 'QUALIFICATION') tone = 'orange'
+    else if (n.type === 'SYSTEM') tone = 'purple'
+    return { ...n, tone }
   })
-  const total = qs.length
-  const healthScore = total > 0 ? Math.round(((valid + longTerm) / total) * 100) : 0
-  return { total, valid, expiring, expired, longTerm, healthScore, expiringList: expiringList.slice(0, 3) }
-})
-const healthRingDash = computed(() => {
-  const pct = qualHealth.value.healthScore
-  const c = 2 * Math.PI * 34
-  return `${(c * pct) / 100} ${c - (c * pct) / 100}`
-})
-const healthColor = computed(() => {
-  if (qualHealth.value.expired > 0) return 'var(--sp-red)'
-  if (qualHealth.value.expiring > 0) return 'var(--sp-orange)'
-  return 'var(--sp-green)'
-})
+)
 
-// ── Notification feed with type icons ──
-const notifFeed = computed(() => {
-  return notifStore.notifications.slice(0, 6).map((n: any) => {
-    let icon = 'Bell'; let tone = 'gray'
-    if (n.type === 'BID') { icon = 'Document'; tone = 'blue' }
-    else if (n.type === 'QUALIFICATION') { icon = 'Medal'; tone = 'orange' }
-    else if (n.type === 'SYSTEM') { icon = 'Setting'; tone = 'purple' }
-    return { ...n, icon, tone }
-  })
-})
-
-// ── Registration days ──
+// ── Days since registration ──
 const daysSinceReg = computed(() => {
   const created = statusInfo.value?.createdAt
   if (!created) return null
@@ -159,7 +127,7 @@ const daysSinceReg = computed(() => {
 
 <template>
   <div class="page-container">
-    <!-- ═══ Error State ═══ -->
+    <!-- Error -->
     <div v-if="error && !loading" class="sp-error-block">
       <div class="sp-error-icon">⚠</div>
       <div class="sp-error-text">数据加载失败</div>
@@ -167,22 +135,23 @@ const daysSinceReg = computed(() => {
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
 
-    <!-- ═══ Skeleton ═══ -->
+    <!-- Skeleton -->
     <template v-else-if="loading">
       <SkeletonCard :lines="2" style="margin-bottom:20px" />
       <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:0;margin-bottom:20px">
         <SkeletonCard v-for="i in 6" :key="i" :lines="1" />
       </div>
-      <SkeletonCard :lines="1" style="margin-bottom:20px;height:56px" />
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
-        <SkeletonCard v-for="i in 3" :key="i" :lines="5" />
+      <div style="display:grid;grid-template-columns:1fr 380px;gap:20px">
+        <SkeletonCard :lines="8" />
+        <div style="display:grid;gap:20px">
+          <SkeletonCard :lines="5" />
+          <SkeletonCard :lines="4" />
+        </div>
       </div>
     </template>
 
     <template v-else-if="statusInfo">
-      <!-- ═══════════════════════════════════════════
-           ROW 0: HERO — compact operational summary
-           ═══════════════════════════════════════════ -->
+      <!-- ═══════════════════════ Hero ═══════════════════════ -->
       <div class="db-hero">
         <div class="db-hero-left">
           <div class="db-hero-topline">
@@ -193,31 +162,23 @@ const daysSinceReg = computed(() => {
           <div class="db-hero-subline">
             <template v-if="statusInfo.status === 'APPROVED'">
               <span class="db-hero-stat">
-                <span class="db-hero-stat-label">综合评分</span>
                 <span class="db-hero-stat-value">{{ evalStats?.avgScore ? evalStats.avgScore.toFixed(1) : '--' }}</span>
-                <span class="db-hero-stat-unit">分</span>
+                <span class="db-hero-stat-suffix">分</span>
               </span>
               <span class="db-hero-div">·</span>
               <span class="db-hero-stat">
-                <span class="db-hero-stat-label">评价次数</span>
                 <span class="db-hero-stat-value">{{ evalStats?.total ?? 0 }}</span>
-                <span class="db-hero-stat-unit">次</span>
-              </span>
-              <span class="db-hero-div">·</span>
-              <span class="db-hero-stat">
-                <span class="db-hero-stat-label">A级评价</span>
-                <span class="db-hero-stat-value">{{ evalStats?.levelCounts?.A ?? 0 }}</span>
-                <span class="db-hero-stat-unit">次</span>
+                <span class="db-hero-stat-suffix">次评价</span>
               </span>
             </template>
             <template v-else-if="statusInfo.status === 'PENDING'">
               <span class="db-hero-hint">审核中 — 通常 3 个工作日内完成</span>
             </template>
             <template v-else-if="statusInfo.status === 'RETURNED'">
-              <span class="db-hero-hint warn">{{ statusInfo.returnReason || '资料被退回，请根据审核意见补正' }}</span>
+              <span class="db-hero-hint warn">{{ statusInfo.returnReason || '资料被退回，请补正' }}</span>
             </template>
             <template v-else>
-              <span class="db-hero-hint">{{ new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好' }}，欢迎回来</span>
+              <span class="db-hero-hint">{{ new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好' }}</span>
             </template>
           </div>
         </div>
@@ -228,9 +189,7 @@ const daysSinceReg = computed(() => {
         </div>
       </div>
 
-      <!-- ═══════════════════════════════════════════
-           ROW 1: KPI STRIP — 6 cells with sub-metrics
-           ═══════════════════════════════════════════ -->
+      <!-- ═══════════════════════ KPI Strip ═══════════════════════ -->
       <div class="sp-stat-row db-kpi-row" v-if="stats">
         <div
           v-for="cell in kpiCells"
@@ -243,16 +202,13 @@ const daysSinceReg = computed(() => {
             {{ cell.value }}<span v-if="cell.key==='completeness'" class="db-kpi-suffix">%</span>
           </div>
           <div class="db-kpi-label">{{ cell.label }}</div>
-          <div class="db-kpi-sub" :class="cell.subTone">{{ cell.sub }}</div>
         </div>
       </div>
 
-      <!-- ═══════════════════════════════════════════
-           ROW 2: THREE-PANEL GRID
-           ═══════════════════════════════════════════ -->
-      <div class="db-panels">
-        <!-- ── PANEL A: Projects ── -->
-        <section class="sp-module db-panel">
+      <!-- ═══════════════════════ Two-column body ═══════════════════════ -->
+      <div class="db-body">
+        <!-- LEFT: bid projects -->
+        <section class="sp-module db-panel-left">
           <div class="sp-module-header">
             <h2 class="sp-module-title">招标项目</h2>
             <el-button link type="primary" @click="router.push('/bids')">全部<el-icon style="margin-left:2px;font-size:12px"><ArrowRight /></el-icon></el-button>
@@ -261,448 +217,253 @@ const daysSinceReg = computed(() => {
             <div class="sp-empty-icon"><el-icon :size="20"><Folder /></el-icon></div>
             <div class="sp-empty-text">暂无招标项目</div>
           </div>
-          <div v-else class="db-project-list">
+          <div v-else class="db-list">
             <div
-              v-for="row in projectRows"
+              v-for="(row, idx) in projectRows"
               :key="row.project.id"
-              class="db-project-row"
-              :class="row.urgency"
+              class="db-list-row"
+              :class="[row.urgency, { 'is-last': idx === projectRows.length - 1 }]"
               @click="router.push(`/bids/${row.project.id}`)"
             >
-              <div class="db-project-left">
-                <span class="db-project-name">{{ row.project.name }}</span>
-                <span class="db-project-code">{{ row.project.projectCode }}</span>
+              <div class="db-list-info">
+                <span class="db-list-name">{{ row.project.name }}</span>
+                <span class="db-list-code">{{ row.project.projectCode }}</span>
               </div>
-              <div class="db-project-right">
+              <div class="db-list-right">
                 <span
-                  class="db-project-stage-tag"
+                  class="db-list-stage"
                   :style="{ background: (STAGES.find(s=>s.key===row.project.stage)?.color||'#94a3b8')+'14', color: STAGES.find(s=>s.key===row.project.stage)?.color||'#94a3b8' }"
                 >{{ STAGES.find(s=>s.key===row.project.stage)?.label||row.project.stage }}</span>
-                <span class="db-project-deadline" :class="row.urgency">
-                  {{ row.urgency==='past'?'已截止':row.urgency==='critical'?`${row.daysLeft}天后`:`${row.daysLeft}天` }}
+                <span class="db-list-dl" :class="row.urgency">
+                  {{ row.urgency==='past'?'已截止':row.urgency==='critical'?`剩${row.daysLeft}天`:`${row.daysLeft}天` }}
                 </span>
               </div>
             </div>
           </div>
         </section>
 
-        <!-- ── PANEL B: Qualification Health ── -->
-        <section class="sp-module db-panel">
-          <div class="sp-module-header">
-            <h2 class="sp-module-title">资质健康</h2>
-            <el-button link type="primary" @click="router.push('/qualifications')">管理<el-icon style="margin-left:2px;font-size:12px"><ArrowRight /></el-icon></el-button>
-          </div>
-          <div v-if="qualHealth.total === 0" class="sp-empty" style="padding:32px 0">
-            <div class="sp-empty-icon"><el-icon :size="20"><Medal /></el-icon></div>
-            <div class="sp-empty-text">暂无资质材料</div>
-          </div>
-          <div v-else class="db-health-body">
-            <div class="db-health-top">
-              <div class="db-health-ring">
-                <svg width="76" height="76" viewBox="0 0 76 76">
-                  <circle cx="38" cy="38" r="32" fill="none" stroke="var(--sp-gray-100)" stroke-width="6"/>
-                  <circle cx="38" cy="38" r="32" fill="none" :stroke="healthColor" stroke-width="6" stroke-linecap="round" :stroke-dasharray="healthRingDash" transform="rotate(-90 38 38)"/>
+        <!-- RIGHT: profile + notifications stack -->
+        <div class="db-right-stack">
+          <!-- RIGHT TOP: 资料完整度 -->
+          <section class="sp-module db-panel-comp">
+            <div class="sp-module-header">
+              <h2 class="sp-module-title">资料完善</h2>
+              <el-button link type="primary" @click="router.push('/profile')">完善<el-icon style="margin-left:2px;font-size:12px"><ArrowRight /></el-icon></el-button>
+            </div>
+            <!-- Ring + total score -->
+            <div class="db-comp-top">
+              <div class="db-comp-ring">
+                <svg width="72" height="72" viewBox="0 0 72 72">
+                  <circle cx="36" cy="36" r="30" fill="none" stroke="var(--sp-gray-100)" stroke-width="5"/>
+                  <circle
+                    cx="36" cy="36" r="30"
+                    fill="none"
+                    :stroke="profileScore >= 80 ? 'var(--sp-green)' : profileScore >= 50 ? 'var(--sp-orange)' : 'var(--sp-red)'"
+                    stroke-width="5"
+                    stroke-linecap="round"
+                    :stroke-dasharray="`${2 * Math.PI * 30 * profileScore / 100} ${2 * Math.PI * 30 * (1 - profileScore/100)}`"
+                    transform="rotate(-90 36 36)"
+                  />
                 </svg>
-                <span class="db-health-score">{{ qualHealth.healthScore }}<small>%</small></span>
+                <span class="db-comp-score">{{ profileScore }}<small>分</small></span>
               </div>
-              <div class="db-health-counts">
-                <div class="db-health-count valid">{{ qualHealth.valid }}<span>有效</span></div>
-                <div class="db-health-count expiring">{{ qualHealth.expiring }}<span>即将</span></div>
-                <div class="db-health-count expired">{{ qualHealth.expired }}<span>过期</span></div>
+              <div class="db-comp-bars">
+                <div v-for="cat in completenessCats" :key="cat.key" class="db-comp-bar-row">
+                  <div class="db-comp-bar-head">
+                    <span class="db-comp-bar-icon" :style="{ background: cat.color+'18', color: cat.color }"><el-icon :size="13"><component :is="cat.icon" /></el-icon></span>
+                    <span class="db-comp-bar-label">{{ cat.label }}</span>
+                    <span class="db-comp-bar-stat">{{ cat.filled }}/{{ cat.total }}</span>
+                  </div>
+                  <div class="db-comp-bar-track">
+                    <div
+                      class="db-comp-bar-fill"
+                      :style="{ width: cat.max>0 ? (cat.score/cat.max*100)+'%' : '0%', background: cat.color }"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-            <div v-if="qualHealth.expiringList.length > 0" class="db-health-list">
-              <div v-for="q in qualHealth.expiringList" :key="q.id" class="db-health-item">
-                <span class="db-health-item-dot" :class="{ red: q.daysLeft < 0 }"></span>
-                <span class="db-health-item-name">{{ q.name }}</span>
-                <span class="db-health-item-date" :class="{ red: q.daysLeft < 0 }">
-                  {{ q.daysLeft < 0 ? `已过期${Math.abs(q.daysLeft)}天` : `${q.daysLeft}天后到期` }}
+            <!-- Missing hints -->
+            <div v-if="completenessCats.some(c => c.missing.length > 0)" class="db-comp-missing">
+              <span v-for="cat in completenessCats" :key="'m-'+cat.key">
+                <span v-for="m in cat.missing" :key="m" class="db-comp-missing-tag" @click="router.push('/profile')">
+                  <span class="db-comp-missing-dot" :style="{ background: cat.color }" />
+                  {{ m }}
                 </span>
-              </div>
+              </span>
             </div>
-          </div>
-        </section>
+            <div v-else class="db-comp-done">
+              <el-icon><CircleCheckFilled /></el-icon> 所有资料已完善
+            </div>
+          </section>
 
-        <!-- ── PANEL C: Notifications ── -->
-        <section class="sp-module db-panel">
-          <div class="sp-module-header">
-            <h2 class="sp-module-title">最近消息</h2>
-            <el-button link type="primary" @click="router.push('/notifications')">全部<el-icon style="margin-left:2px;font-size:12px"><ArrowRight /></el-icon></el-button>
-          </div>
-          <div v-if="notifFeed.length === 0" class="sp-empty" style="padding:32px 0">
-            <div class="sp-empty-icon"><el-icon :size="20"><Bell /></el-icon></div>
-            <div class="sp-empty-text">暂无消息</div>
-          </div>
-          <div v-else class="db-notif-list">
-            <div
-              v-for="n in notifFeed"
-              :key="n.id"
-              class="db-notif-row"
-              :class="{ unread: !n.isRead }"
-              @click="router.push('/notifications')"
-            >
-              <span class="db-notif-dot" :class="n.tone"></span>
-              <div class="db-notif-body">
-                <span class="db-notif-title">{{ n.title }}</span>
-                <span class="db-notif-ct" v-if="n.content">{{ n.content }}</span>
-              </div>
-              <span class="db-notif-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</span>
+          <!-- RIGHT BOTTOM: notifications -->
+          <section class="sp-module db-panel-msg">
+            <div class="sp-module-header">
+              <h2 class="sp-module-title">最近消息</h2>
+              <el-button link type="primary" @click="router.push('/notifications')">全部<el-icon style="margin-left:2px;font-size:12px"><ArrowRight /></el-icon></el-button>
             </div>
-          </div>
-        </section>
+            <div v-if="notifFeed.length === 0" class="sp-empty" style="padding:24px 0">
+              <div class="sp-empty-icon"><el-icon :size="18"><Bell /></el-icon></div>
+              <div class="sp-empty-text">暂无消息</div>
+            </div>
+            <div v-else class="db-msg-list">
+              <div
+                v-for="(n, idx) in notifFeed"
+                :key="n.id"
+                class="db-msg-row"
+                :class="{ unread: !n.isRead, 'is-last': idx === notifFeed.length - 1 }"
+                @click="router.push('/notifications')"
+              >
+                <span class="db-msg-dot" :class="n.tone" />
+                <div class="db-msg-body">
+                  <span class="db-msg-title" :class="{ unread: !n.isRead }">{{ n.title }}</span>
+                  <span v-if="n.content" class="db-msg-ct">{{ n.content }}</span>
+                </div>
+                <span class="db-msg-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</span>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
     </template>
   </div>
 </template>
 
 <style scoped>
-/* ═══════════════════════════════════════════════
-   HERO — compact operational strip
-   ═══════════════════════════════════════════════ */
+/* ═══════════════ Hero ═══════════════ */
 .db-hero {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
-  border-radius: var(--sp-radius-lg);
-  padding: 20px 24px;
-  margin-bottom: 20px;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  position: relative;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--sp-radius-lg); padding: 20px 24px; margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(15, 47, 87, 0.04), 0 6px 24px rgba(91, 155, 213, 0.06);
 }
-.db-hero-left { min-width: 0; }
-.db-hero-topline {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
+.db-hero::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  opacity: 0.50; border-radius: inherit;
+  background-image:
+    radial-gradient(ellipse at 8% 4%,  rgba(147, 197, 253, 0.24), transparent 55%),
+    radial-gradient(ellipse at 88% 10%, rgba(168, 139, 250, 0.18), transparent 55%),
+    radial-gradient(ellipse at 35% 85%, rgba(110, 231, 183, 0.14), transparent 55%);
+  animation: glass-glow-drift 20s ease-in-out infinite;
 }
-.db-hero-name {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  color: var(--sp-gray-900);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.db-hero-meta {
-  font-size: 12px;
-  color: var(--sp-gray-400);
-  font-variant-numeric: tabular-nums;
-}
-.db-hero-subline {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-}
-.db-hero-stat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-}
-.db-hero-stat-label { color: var(--sp-gray-400); font-size: 12px; }
-.db-hero-stat-value {
-  font-size: 18px;
-  font-weight: 900;
-  color: var(--sp-primary);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-.db-hero-stat-unit { color: var(--sp-gray-400); font-size: 12px; }
-.db-hero-div { color: var(--sp-gray-300); margin: 0 2px; }
+.db-hero:hover::before { opacity: 0.64; }
+.db-hero > * { position: relative; z-index: 1; }
+.db-hero-left { min-width: 0; overflow: hidden; }
+.db-hero-topline { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.db-hero-name { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: -0.02em; color: var(--sp-gray-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
+.db-hero-meta { font-size: 12px; color: var(--sp-gray-400); font-variant-numeric: tabular-nums; }
+.db-hero-subline { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.db-hero-stat { display: inline-flex; align-items: baseline; gap: 3px; }
+.db-hero-stat-value { font-size: 16px; font-weight: 900; color: var(--sp-primary); font-variant-numeric: tabular-nums; line-height: 1; }
+.db-hero-stat-suffix { color: var(--sp-gray-400); font-size: 12px; }
+.db-hero-div { color: var(--sp-gray-300); }
 .db-hero-hint { color: var(--sp-gray-500); font-size: 13px; }
 .db-hero-hint.warn { color: var(--sp-orange); font-weight: 600; }
 .db-hero-right { display: flex; gap: 8px; flex-shrink: 0; }
 
-/* ═══════════════════════════════════════════════
-   KPI STRIP — 6 cells with sub-metrics
-   ═══════════════════════════════════════════════ */
-.db-kpi-row {
-  margin-bottom: 16px;
-}
-.db-kpi-cell {
-  padding: 14px 16px;
-  cursor: default;
-}
-.db-kpi-cell.clickable {
-  cursor: pointer;
-  transition: background var(--sp-duration-fast) var(--sp-ease);
-}
-.db-kpi-cell.clickable:hover { background: var(--sp-gray-50); }
-.db-kpi-value {
-  font-size: 22px;
-  font-weight: 900;
-  color: var(--sp-gray-900);
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.db-kpi-suffix {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--sp-gray-400);
-  margin-left: 1px;
-}
-.db-kpi-label {
-  margin-top: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--sp-gray-500);
-}
-.db-kpi-sub {
-  margin-top: 3px;
-  font-size: 11px;
-  font-weight: 600;
-}
-.db-kpi-sub.green  { color: var(--sp-green); }
-.db-kpi-sub.orange { color: var(--sp-orange); }
-.db-kpi-sub.red    { color: var(--sp-red); }
-.db-kpi-sub.blue   { color: var(--sp-primary); }
-.db-kpi-sub.gray   { color: var(--sp-gray-400); }
+/* ═══════════════ KPI strip ═══════════════ */
+.db-kpi-row { margin-bottom: 20px; }
+.db-kpi-cell { padding: 14px 16px; }
+.db-kpi-cell.clickable { cursor: pointer; transition: background var(--sp-duration-fast) var(--sp-ease); }
+.db-kpi-cell.clickable:hover { background: rgba(255,255,255,0.52); }
+.db-kpi-value { font-size: 22px; font-weight: 900; color: var(--sp-gray-900); line-height: 1; font-variant-numeric: tabular-nums; }
+.db-kpi-suffix { font-size: 13px; font-weight: 600; color: var(--sp-gray-400); margin-left: 1px; }
+.db-kpi-label { margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--sp-gray-500); }
 
-/* ═══════════════════════════════════════════════
-   THREE-PANEL GRID
-   ═══════════════════════════════════════════════ */
-.db-panels {
+/* ═══════════════ Two-column body ═══════════════ */
+.db-body {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
   gap: 20px;
   align-items: start;
 }
-.db-panel {
-  min-height: 200px;
-}
+.db-right-stack { display: grid; gap: 20px; min-width: 0; }
+.db-panel-left { min-height: 200px; min-width: 0; overflow: hidden; }
+.db-panel-comp { min-width: 0; }
+.db-panel-msg { min-width: 0; }
 
-/* ── Panel A: Project list ── */
-.db-project-list {
-  display: flex;
-  flex-direction: column;
+/* ── LEFT: Project list ── */
+.db-list { display: flex; flex-direction: column; }
+.db-list-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 11px 0; border-bottom: 1px solid rgba(0,0,0,0.05);
+  cursor: pointer; transition: background var(--sp-duration-fast) var(--sp-ease);
 }
-.db-project-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--sp-border-light);
-  cursor: pointer;
-  transition: background var(--sp-duration-fast) var(--sp-ease);
-}
-.db-project-row:last-child { border-bottom: none; }
-.db-project-row:hover { background: var(--sp-gray-50); margin: 0 -16px; padding: 10px 16px; }
-.db-project-row.critical { background: linear-gradient(90deg, var(--sp-red-light) 0%, transparent 30%); }
-.db-project-row.critical:hover { background: linear-gradient(90deg, var(--sp-red-light) 0%, var(--sp-gray-50) 60%); margin: 0 -16px; padding: 10px 16px; }
-.db-project-left { min-width: 0; flex: 1; }
-.db-project-name {
-  display: block;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--sp-gray-900);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.db-project-code {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--sp-gray-400);
-  font-family: 'SF Mono', 'JetBrains Mono', monospace;
-}
-.db-project-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.db-project-stage-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 7px;
-  border-radius: 5px;
-  font-size: 10.5px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.db-project-deadline {
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--sp-gray-500);
-  min-width: 48px;
-  text-align: right;
-}
-.db-project-deadline.critical { color: var(--sp-red); }
-.db-project-deadline.warning  { color: var(--sp-orange); }
-.db-project-deadline.past     { color: var(--sp-gray-400); text-decoration: line-through; }
+.db-list-row.is-last { border-bottom: none; }
+.db-list-row:hover { background: rgba(248, 251, 255, 0.55); margin: 0 -16px; padding: 11px 16px; }
+.db-list-row.critical { background: linear-gradient(90deg, var(--sp-red-light) 0%, transparent 26%); }
+.db-list-row.critical:hover { background: linear-gradient(90deg, var(--sp-red-light) 0%, rgba(248, 251, 255, 0.55) 50%); margin: 0 -16px; padding: 11px 16px; }
+.db-list-info { min-width: 0; flex: 1; overflow: hidden; }
+.db-list-name { display: block; font-size: 13px; font-weight: 700; color: var(--sp-gray-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.db-list-code { display: block; margin-top: 2px; font-size: 11px; color: var(--sp-gray-400); font-family: 'SF Mono','JetBrains Mono',monospace; }
+.db-list-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.db-list-stage { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.db-list-dl { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--sp-gray-500); min-width: 44px; text-align: right; }
+.db-list-row { border-bottom: 1px solid rgba(0, 0, 0, 0.05); }
+.db-list-row.is-last { border-bottom: none; }
+.db-list-dl.critical { color: var(--sp-red); }
+.db-list-dl.warning  { color: var(--sp-orange); }
+.db-list-dl.past     { color: var(--sp-gray-400); text-decoration: line-through; }
 
-/* ── Panel B: Qualification health ── */
-.db-health-body { }
-.db-health-top {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 14px;
+/* ── RIGHT TOP: Profile completeness ── */
+.db-comp-top { display: flex; gap: 18px; margin-bottom: 12px; }
+.db-comp-ring { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
+.db-comp-score { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 900; color: var(--sp-gray-900); }
+.db-comp-score small { font-size: 11px; font-weight: 600; color: var(--sp-gray-400); margin-left: 1px; }
+.db-comp-bars { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.db-comp-bar-row { display: flex; flex-direction: column; gap: 4px; }
+.db-comp-bar-head { display: flex; align-items: center; gap: 6px; }
+.db-comp-bar-icon { width: 20px; height: 20px; border-radius: 5px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.db-comp-bar-label { font-size: 12px; font-weight: 600; color: var(--sp-gray-700); }
+.db-comp-bar-stat { font-size: 11px; font-weight: 700; color: var(--sp-gray-400); margin-left: auto; font-variant-numeric: tabular-nums; }
+.db-comp-bar-track { height: 5px; border-radius: 3px; background: rgba(0,0,0,0.05); overflow: hidden; }
+.db-comp-bar-fill { height: 100%; border-radius: 3px; transition: width 0.8s cubic-bezier(0.22,0.61,0.36,1); }
+.db-comp-missing { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 12px; }
+.db-comp-missing-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 6px; background: rgba(255,255,255,0.52);
+  font-size: 11px; font-weight: 600; color: var(--sp-gray-600); cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.04); transition: border-color 0.15s;
 }
-.db-health-ring {
-  position: relative;
-  width: 76px;
-  height: 76px;
-  flex-shrink: 0;
-}
-.db-health-score {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: 900;
-  color: var(--sp-gray-900);
-  line-height: 1;
-}
-.db-health-score small {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--sp-gray-400);
-  margin-left: 1px;
-}
-.db-health-counts {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-}
-.db-health-count {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-.db-health-count.valid    { background: #ecfdf5; color: #059669; }
-.db-health-count.expiring { background: #fffbeb; color: #d97706; }
-.db-health-count.expired  { background: #fef2f2; color: #dc2626; }
-.db-health-count span { font-size: 10px; opacity: 0.7; }
-.db-health-list {
-  border-top: 1px solid var(--sp-border-light);
-  padding-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.db-health-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-.db-health-item-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--sp-orange);
-  flex-shrink: 0;
-}
-.db-health-item-dot.red { background: var(--sp-red); }
-.db-health-item-name {
-  flex: 1;
-  font-weight: 600;
-  color: var(--sp-gray-700);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.db-health-item-date {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--sp-orange);
-  white-space: nowrap;
-}
-.db-health-item-date.red { color: var(--sp-red); }
+.db-comp-missing-tag:hover { border-color: var(--sp-primary); }
+.db-comp-missing-dot { width: 5px; height: 5px; border-radius: 50%; }
+.db-comp-done { border-top: 1px solid rgba(0,0,0,0.05); padding-top: 12px; font-size: 12px; font-weight: 600; color: var(--sp-green); display: flex; align-items: center; gap: 5px; }
 
-/* ── Panel C: Notification feed ── */
-.db-notif-list {
-  display: flex;
-  flex-direction: column;
-}
-.db-notif-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--sp-border-light);
-  cursor: pointer;
-  transition: background var(--sp-duration-fast) var(--sp-ease);
-}
-.db-notif-row:last-child { border-bottom: none; }
-.db-notif-row:hover { background: var(--sp-gray-50); margin: 0 -16px; padding: 10px 16px; }
-.db-notif-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 4px;
-  flex-shrink: 0;
-  background: var(--sp-gray-300);
-}
-.db-notif-dot.blue   { background: var(--sp-primary); }
-.db-notif-dot.orange { background: var(--sp-orange); }
-.db-notif-dot.purple { background: var(--sp-purple); }
-.db-notif-row.unread .db-notif-dot {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-primary) 18%, transparent);
-}
-.db-notif-body { flex: 1; min-width: 0; }
-.db-notif-title {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--sp-gray-600);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.db-notif-row.unread .db-notif-title {
-  font-weight: 700;
-  color: var(--sp-gray-900);
-}
-.db-notif-ct {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--sp-gray-400);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.db-notif-time {
-  font-size: 10px;
-  color: var(--sp-gray-400);
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
+/* ── RIGHT BOTTOM: Notifications ── */
+.db-msg-list { display: flex; flex-direction: column; }
+.db-msg-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 0; border-bottom: 1px solid rgba(0,0,0,0.05); cursor: pointer; transition: background var(--sp-duration-fast) var(--sp-ease); }
+.db-msg-row.is-last { border-bottom: none; }
+.db-msg-row:hover { background: rgba(248, 251, 255, 0.45); margin: 0 -16px; padding: 9px 16px; }
+.db-msg-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; background: var(--sp-gray-300); }
+.db-msg-dot.blue { background: var(--sp-primary); }
+.db-msg-dot.orange { background: var(--sp-orange); }
+.db-msg-dot.purple { background: var(--sp-purple); }
+.db-msg-row.unread .db-msg-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-primary) 18%, transparent); }
+.db-msg-body { flex: 1; min-width: 0; }
+.db-msg-title { display: block; font-size: 12px; font-weight: 600; color: var(--sp-gray-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-msg-title.unread { font-weight: 700; color: var(--sp-gray-900); }
+.db-msg-ct { display: block; margin-top: 1px; font-size: 11px; color: var(--sp-gray-400); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-msg-time { font-size: 10px; color: var(--sp-gray-400); font-variant-numeric: tabular-nums; flex-shrink: 0; margin-top: 2px; }
 
-/* ═══════════════════════════════════════════════
-   RESPONSIVE
-   ═══════════════════════════════════════════════ */
-@media (max-width: 1300px) {
-  .db-panels { grid-template-columns: 1fr 1fr; }
-}
+/* ═══════════════ Responsive ═══════════════ */
 @media (max-width: 1100px) {
+  .db-body { grid-template-columns: 1fr; }
   .db-hero { flex-direction: column; align-items: stretch; }
   .db-hero-right { justify-content: flex-start; }
   .db-kpi-row { grid-template-columns: repeat(3, 1fr); }
-  .db-kpi-cell:nth-child(n+4) { border-bottom: 1px solid var(--sp-border-light); }
+  .db-kpi-cell:nth-child(n+4) { border-bottom: 1px solid rgba(0,0,0,0.05); }
   .db-kpi-cell:nth-child(3) { border-right: none; }
 }
 @media (max-width: 768px) {
   .db-kpi-row { grid-template-columns: repeat(2, 1fr); }
   .db-kpi-cell:nth-child(3) { border-right: 1px solid var(--sp-border-light); }
-  .db-panels { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .db-comp-bar-fill { transition: none; }
 }
 </style>

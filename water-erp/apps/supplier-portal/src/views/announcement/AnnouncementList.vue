@@ -55,20 +55,22 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 </template>
 
 <style scoped>
-.announcement-list { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); overflow: hidden; }
-.announcement-row { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--sp-border-light); cursor: pointer; transition: background 0.15s; }
+.announcement-list { position: relative; background: rgba(255,255,255,0.58); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); overflow: hidden; }
+.announcement-list::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.36; border-radius: inherit; background-image: radial-gradient(ellipse at 10% 6%, rgba(96,165,250,0.16), transparent 55%), radial-gradient(ellipse at 85% 12%, rgba(56,189,248,0.10), transparent 55%), radial-gradient(ellipse at 38% 90%, rgba(6,78,162,0.05), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
+.announcement-list > * { position: relative; z-index: 1; }
+.announcement-row { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid rgba(0,0,0,0.04); cursor: pointer; transition: background 0.15s; }
 .announcement-row:last-child { border-bottom: none; }
-.announcement-row:hover { background: var(--sp-surface-hover); }
+.announcement-row:hover { background: rgba(248,251,255,0.50); }
 .ann-row-left { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 0; }
 .ann-row-body { display: flex; flex-direction: column; min-width: 0; }
 .ann-row-title { font-size: 15px; font-weight: 700; color: var(--sp-gray-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ann-row-summary { font-size: 13px; color: var(--sp-gray-500); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ann-row-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-.top-badge { font-size: 11px; font-weight: 700; color: var(--sp-red); background: var(--sp-red-light); padding: 2px 8px; border-radius: 6px; }
-.new-badge { font-size: 11px; font-weight: 700; color: var(--sp-primary); background: var(--sp-primary-lighter); padding: 2px 8px; border-radius: 6px; margin-right: 8px; }
+.top-badge { font-size: 11px; font-weight: 700; color: var(--sp-red); background: rgba(254,226,226,0.72); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); padding: 2px 8px; border-radius: 6px; }
+.new-badge { font-size: 11px; font-weight: 700; color: var(--sp-primary); background: rgba(239,246,255,0.72); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); padding: 2px 8px; border-radius: 6px; margin-right: 8px; }
 .ann-row-date { font-size: 13px; color: var(--sp-gray-400); white-space: nowrap; }
 .ann-arrow { color: var(--sp-gray-300); }
-.sp-empty-panel { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); padding: 64px 20px; text-align: center; color: var(--sp-gray-400); }
+
 .sp-empty-text { font-size: 15px; font-weight: 700; color: var(--sp-gray-500); margin-top: 12px; }
 .sp-empty-desc { font-size: 13px; margin-top: 4px; }
 </style>

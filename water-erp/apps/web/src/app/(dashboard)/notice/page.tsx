@@ -108,7 +108,7 @@ export default function NoticePage() {
       </div>
 
       {/* ── 分段控件条 + 搜索 ── */}
-      <div className="mt-6 rounded-2xl border border-[#e5ecf4] bg-white overflow-hidden">
+      <div className="mt-6 glass-card glass-card-blue rounded-2xl">
         {/* 类型分段控件 */}
         <div className="flex items-center border-b border-[#edf2f7]">
           <div className="flex">
@@ -530,7 +530,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function Modal({ title, onClose, wide, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) {
   return (
     <div className="modal-backdrop fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className={'modal-content bg-white rounded-xl shadow-xl max-h-[92vh] overflow-y-auto ' + (wide ? 'w-full max-w-3xl' : 'w-full max-w-lg')} onClick={e => e.stopPropagation()}>
+      <div className={'modal-content glass-card rounded-xl shadow-xl max-h-[92vh] overflow-y-auto ' + (wide ? 'w-full max-w-3xl' : 'w-full max-w-lg')} onClick={e => e.stopPropagation()}>
         <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-[#e5ecf4] z-10">
           <h3 className="text-lg font-bold text-[#18243a]">{title}</h3>
           <button onClick={onClose} className="text-[#5a6d8a] hover:text-[#18243a] text-xl leading-none">×</button>

@@ -73,9 +73,12 @@ onMounted(load)
 
 <style scoped>
 .supply-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-.supply-card { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); overflow: hidden; transition: border-color 0.2s; }
-.supply-card:hover { border-color: var(--sp-primary); }
-.supply-card-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--sp-border-light); }
+.supply-card { position: relative; background: rgba(255,255,255,0.52); backdrop-filter: blur(12px) saturate(1.1); -webkit-backdrop-filter: blur(12px) saturate(1.1); border: 1px solid rgba(255,255,255,0.42); border-radius: var(--sp-radius-md); overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s; }
+.supply-card::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.34; border-radius: inherit; background-image: radial-gradient(ellipse at 14% 6%, rgba(96,165,250,0.14), transparent 55%), radial-gradient(ellipse at 84% 12%, rgba(56,189,248,0.08), transparent 55%), radial-gradient(ellipse at 40% 90%, rgba(6,78,162,0.04), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
+.supply-card:hover { border-color: var(--sp-primary); box-shadow: 0 1px 8px rgba(15,47,87,0.08); }
+.supply-card:hover::before { opacity: 0.48; }
+.supply-card > * { position: relative; z-index: 1; }
+.supply-card-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid rgba(0,0,0,0.04); }
 .supply-code { font-family: monospace; font-size: 11px; color: var(--sp-primary); font-weight: 700; }
 .supply-name { font-size: 15px; font-weight: 800; color: var(--sp-gray-900); margin-top: 3px; }
 .supply-spec { font-size: 12px; color: var(--sp-gray-400); margin-top: 2px; }
@@ -86,8 +89,8 @@ onMounted(load)
 .supply-price-value small { font-size: 12px; color: var(--sp-gray-400); font-weight: 400; }
 .supply-meta { font-size: 12px; color: var(--sp-gray-500); }
 .supply-time { font-size: 11px; color: var(--sp-gray-400); margin-top: 6px; }
-.supply-card-foot { padding: 12px 18px; border-top: 1px solid var(--sp-border-light); background: var(--sp-gray-50); }
-.sp-empty-panel { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); padding: 64px 20px; text-align: center; color: var(--sp-gray-400); }
+.supply-card-foot { padding: 12px 18px; border-top: 1px solid rgba(0,0,0,0.04); background: rgba(255,255,255,0.40); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+
 .sp-empty-text { font-size: 15px; font-weight: 700; color: var(--sp-gray-500); margin-top: 12px; }
 .sp-empty-desc { font-size: 13px; margin-top: 4px; }
 </style>

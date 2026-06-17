@@ -20,7 +20,7 @@ export default function DecryptConfirmDialog({ open, suppliers, loading, onConfi
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(15,18,28,0.45)' }}>
-      <div className="bg-white border border-[oklch(0.91_0.006_264)] w-full max-w-md mx-4">
+      <div className="glass-card glass-card-deeper glass-card-rose w-full max-w-md mx-4 rounded-2xl overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-[oklch(0.91_0.006_264)] flex items-center justify-between">
           <h3

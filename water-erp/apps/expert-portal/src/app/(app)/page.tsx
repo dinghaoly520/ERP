@@ -50,7 +50,7 @@ export default function ExpertDashboardPage() {
           </div>
 
           {projects.length === 0 ? (
-            <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-12 text-center">
+            <div className="glass-card glass-card-blue rounded-2xl p-12 text-center">
               <Clipboard size={48} strokeWidth={1} className="text-[oklch(0.80_0.006_264)] mx-auto mb-4" />
               <h3 className="text-lg font-bold text-[oklch(0.18_0.012_265)] mb-2">暂无评审任务</h3>
               <p className="text-sm text-[oklch(0.55_0.01_264)]">当您被分配为评审专家时，任务将显示在这里</p>
@@ -61,7 +61,7 @@ export default function ExpertDashboardPage() {
                 const stageColor: Record<string, string> = { EVALUATING: '#064ea2', OPENING: '#f5a623', ARCHIVED: '#11a874' };
                 return (
                   <div key={ep.id} onClick={() => router.push(`/evaluate/${ep.project.id}`)}
-                    className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-5 hover:shadow-md hover:border-[#bfdbfe] transition-all cursor-pointer">
+                    className="glass-card glass-card-lighter glass-card-emerald rounded-2xl p-5 hover:shadow-md hover:border-[#bfdbfe] transition-all cursor-pointer">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-semibold text-[#064ea2] bg-[#eff6ff] px-3 py-1 rounded-lg">{ep.project.projectCode}</span>
@@ -96,7 +96,7 @@ export default function ExpertDashboardPage() {
         {/* 右侧面板 */}
         <div className="space-y-4">
           {/* 快捷操作 */}
-          <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-5">
+          <div className="glass-card glass-card-purple rounded-2xl p-5">
             <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-4">快捷操作</h3>
             <div className="grid grid-cols-2 gap-3">
               {[
@@ -114,7 +114,7 @@ export default function ExpertDashboardPage() {
           </div>
 
           {/* 评审须知 */}
-          <div className="bg-gradient-to-br from-[#eff6ff] to-[#ecfeff] rounded-xl border border-[#bfdbfe] p-5">
+          <div className="glass-card glass-card-blue rounded-2xl p-5">
             <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3"><ScrollText size={14} strokeWidth={1.5} className="inline" /> 评审须知</h3>
             <ul className="space-y-2 text-sm text-[oklch(0.55_0.01_264)]">
               <li className="flex items-start gap-2"><span className="text-[#064ea2] mt-0.5">•</span>评审前需完成身份核验与回避确认</li>

@@ -142,7 +142,7 @@ export default function SupplierSelectionPage() {
       <button className="inline-flex items-center gap-1.5 rounded-xl border border-[#e5ecf4] bg-white px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:border-[#11a874] hover:text-[#11a874] transition">
         <Sparkles size={12} />规则
       </button>
-      <div className="absolute right-0 top-full mt-2 w-[380px] rounded-2xl border border-[#dce6f3] bg-white p-5 shadow-[0_18px_60px_rgba(15,47,87,0.12)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition duration-150 z-50">
+      <div className="absolute right-0 top-full mt-2 w-[380px] glass-card glass-card-lighter rounded-2xl p-5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition duration-150 z-50">
         <h3 className="text-xs font-bold uppercase tracking-wider text-[#5a6d8a] mb-3">供应商 AI 匹配规则</h3>
         <ol className="space-y-2 text-xs text-[#5a6d8a] leading-relaxed">
           <li className="flex gap-2">

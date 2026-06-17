@@ -18,7 +18,7 @@ defineProps<{ lines?: number; avatar?: boolean }>()
   padding: 20px;
   background: var(--sp-surface);
   border-radius: var(--sp-radius-md);
-  border: 1px solid var(--sp-border);
+  border: 1px solid rgba(255,255,255,0.40);
 }
 
 .skeleton-avatar {

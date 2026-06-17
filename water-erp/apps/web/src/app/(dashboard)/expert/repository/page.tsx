@@ -80,7 +80,7 @@ export default function ExpertRepositoryPage() {
         <button onClick={load} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white hover:bg-[#054280] transition">刷新</button>
       </DataToolbar>
 
-      <SectionCard className="overflow-hidden p-0">
+      <SectionCard className="p-0">
         {loading ? (
           <table className="workbench-table"><tbody><TableSkeleton cols={8} rows={5} /></tbody></table>
         ) : experts.length === 0 ? (

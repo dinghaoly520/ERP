@@ -104,13 +104,13 @@ async function handleWithdraw(id: string) {
 
     <!-- ═══ Skeleton ═══ -->
     <template v-else-if="loading && firstLoad">
-      <div style="background:#fff;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);padding:24px;margin-bottom:16px">
+      <div style="background:rgba(255,255,255,0.60);border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);padding:24px;margin-bottom:16px">
         <span class="sp-skel" style="width:100px;height:13px;display:block" />
         <span class="sp-skel" style="width:200px;height:24px;margin-top:12px;display:block" />
         <span class="sp-skel" style="width:280px;height:14px;margin-top:10px;display:block" />
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
-        <div v-for="i in 4" :key="i" style="padding:16px 18px;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);background:#fff">
+        <div v-for="i in 4" :key="i" style="padding:16px 18px;border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);background:rgba(255,255,255,0.60)">
           <span class="sp-skel" style="width:40px;height:26px;display:block" />
           <span class="sp-skel" style="width:60px;height:12px;margin-top:6px;display:block" />
         </div>
@@ -119,7 +119,7 @@ async function handleWithdraw(id: string) {
         <span v-for="i in 5" :key="i" class="sp-skel" :style="{flex:'1',height:'100%',marginRight:i<5?'3px':'0'}" />
       </div>
       <div style="display:grid;gap:10px">
-        <div v-for="i in 3" :key="i" style="display:flex;gap:14px;align-items:center;padding:16px 20px;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);background:#fff">
+        <div v-for="i in 3" :key="i" style="display:flex;gap:14px;align-items:center;padding:16px 20px;border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);background:rgba(255,255,255,0.60)">
           <div style="flex:1"><span class="sp-skel" style="width:50%;height:16px;display:block" /><span class="sp-skel" style="width:35%;height:12px;margin-top:8px;display:block" /></div>
           <span class="sp-skel" style="width:80px;height:28px;display:block" />
         </div>
@@ -172,7 +172,6 @@ async function handleWithdraw(id: string) {
             v-for="s in pipeline"
             :key="s.key"
             class="mb-pipeline-seg"
-            :style="{ flex: s.count || 0.2 }"
           >
             <div class="mb-pipeline-bar-wrap">
               <div
@@ -353,16 +352,26 @@ async function handleWithdraw(id: string) {
    HERO
    ═══════════════════════════════════════════════ */
 .mb-hero {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
-  border-radius: var(--sp-radius-lg);
-  padding: 20px 24px;
-  margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  position: relative;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--sp-radius-lg); padding: 20px 24px; margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(15, 47, 87, 0.04), 0 6px 24px rgba(91, 155, 213, 0.06);
 }
+.mb-hero::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  opacity: 0.50; border-radius: inherit;
+  background-image:
+    radial-gradient(ellipse at 8% 4%,  rgba(147, 197, 253, 0.24), transparent 55%),
+    radial-gradient(ellipse at 88% 10%, rgba(168, 139, 250, 0.18), transparent 55%),
+    radial-gradient(ellipse at 35% 85%, rgba(110, 231, 183, 0.14), transparent 55%);
+  animation: glass-glow-drift 20s ease-in-out infinite;
+}
+.mb-hero:hover::before { opacity: 0.64; }
+.mb-hero > * { position: relative; z-index: 1; }
 .mb-hero-left { min-width: 0; }
 .mb-hero-topline {
   display: flex;
@@ -374,7 +383,7 @@ async function handleWithdraw(id: string) {
   font-size: 12px;
   font-weight: 800;
   color: var(--sp-primary);
-  background: var(--sp-primary-lighter);
+  background: rgba(239,246,255,0.72); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
   border: 1px solid color-mix(in srgb, var(--sp-primary) 20%, transparent);
   padding: 2px 10px;
   border-radius: 999px;
@@ -389,20 +398,24 @@ async function handleWithdraw(id: string) {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 2px;
-  border: 1px solid var(--sp-border);
+  border: 1px solid rgba(255,255,255,0.48);
   border-radius: var(--sp-radius-md);
   overflow: hidden;
-  background: var(--sp-border);
+  background: rgba(0,0,0,0.04);
   margin-bottom: 16px;
 }
 .mb-summary-cell {
+  position: relative;
   padding: 14px 18px;
-  background: var(--sp-surface);
+  background: rgba(255,255,255,0.58);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;
   gap: 4px;
   transition: background var(--sp-duration-fast) var(--sp-ease);
 }
+.mb-summary-cell > * { position: relative; z-index: 1; }
 .mb-summary-value {
   font-size: 26px;
   font-weight: 900;
@@ -422,12 +435,31 @@ async function handleWithdraw(id: string) {
    PIPELINE — animated stage distribution bar
    ═══════════════════════════════════════════════ */
 .mb-pipeline {
-  background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
+  position: relative;
+  background: rgba(255,255,255,0.52);
+  backdrop-filter: blur(12px) saturate(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  border: 1px solid rgba(255,255,255,0.40);
   border-radius: var(--sp-radius-md);
   padding: 14px 18px;
   margin-bottom: 16px;
 }
+.mb-pipeline::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.34;
+  border-radius: inherit;
+  background-image:
+    radial-gradient(ellipse at 14% 6%,  rgba(96,165,250,0.16), transparent 55%),
+    radial-gradient(ellipse at 84% 14%, rgba(56,189,248,0.10), transparent 55%),
+    radial-gradient(ellipse at 40% 90%, rgba(6,78,162,0.06),  transparent 55%);
+  animation: glass-glow-drift 18s ease-in-out infinite;
+}
+.mb-pipeline:hover::before { opacity: 0.50; }
+.mb-pipeline > * { position: relative; z-index: 1; }
 .mb-pipeline-head {
   display: flex;
   align-items: center;
@@ -453,13 +485,13 @@ async function handleWithdraw(id: string) {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 1;
   min-width: 0;
-  transition: flex 0.5s var(--sp-ease);
 }
 .mb-pipeline-bar-wrap {
   height: 6px;
   border-radius: 3px;
-  background: var(--sp-gray-100);
+  background: rgba(0,0,0,0.05);
   overflow: hidden;
 }
 .mb-pipeline-bar {
@@ -499,19 +531,37 @@ async function handleWithdraw(id: string) {
   gap: 10px;
 }
 .mb-card {
-  display: flex;
-  gap: 0;
-  background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
+  display: flex; gap: 0;
+  position: relative;
+  background: rgba(255,255,255,0.50);
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  border: 1px solid rgba(255,255,255,0.40);
   border-radius: var(--sp-radius-md);
   overflow: hidden;
-  animation: mbCardIn 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation: mbCardIn 0.4s cubic-bezier(0.22,0.61,0.36,1) both;
   transition: border-color 0.2s var(--sp-ease), box-shadow 0.2s var(--sp-ease);
 }
+.mb-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.36;
+  border-radius: inherit;
+  background-image:
+    radial-gradient(ellipse at 12% 8%, rgba(96,165,250,0.16), transparent 55%),
+    radial-gradient(ellipse at 82% 16%, rgba(56,189,248,0.10), transparent 55%),
+    radial-gradient(ellipse at 38% 88%, rgba(6,78,162,0.06), transparent 55%);
+  animation: glass-glow-drift 18s ease-in-out infinite;
+}
+.mb-card:hover::before { opacity: 0.52; }
 .mb-card:hover {
   border-color: var(--sp-primary);
-  box-shadow: 0 1px 6px rgba(15,47,87,0.06);
+  box-shadow: 0 1px 8px rgba(15,47,87,0.08);
 }
+.mb-card > * { position: relative; z-index: 1; }
 @keyframes mbCardIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -521,7 +571,7 @@ async function handleWithdraw(id: string) {
 .mb-card-accent {
   width: 4px;
   flex-shrink: 0;
-  background: var(--sp-gray-200);
+  background: rgba(0,0,0,0.04);
   transition: background 0.3s var(--sp-ease);
 }
 .mb-card.submitted .mb-card-accent { background: var(--sp-green); }
@@ -623,12 +673,12 @@ async function handleWithdraw(id: string) {
 .mb-stage-track {
   margin-top: 8px;
   padding-top: 10px;
-  border-top: 1px dashed var(--sp-border-light);
+  border-top: 1px dashed rgba(0,0,0,0.06);
 }
 .mb-stage-track-bg {
   height: 4px;
   border-radius: 2px;
-  background: var(--sp-gray-100);
+  background: rgba(0,0,0,0.05);
   overflow: hidden;
   margin-bottom: 10px;
 }
@@ -663,7 +713,7 @@ async function handleWithdraw(id: string) {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--sp-gray-200);
+  background: rgba(0,0,0,0.04);
   border: 2px solid var(--sp-gray-200);
   transition: all 0.4s var(--sp-ease);
   position: relative;
@@ -694,7 +744,7 @@ async function handleWithdraw(id: string) {
 .mb-draft-hint {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px dashed var(--sp-border-light);
+  border-top: 1px dashed rgba(0,0,0,0.06);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -721,19 +771,23 @@ async function handleWithdraw(id: string) {
   gap: 6px;
   padding: 16px 14px;
   flex-shrink: 0;
-  border-left: 1px solid var(--sp-border-light);
+  border-left: 1px solid rgba(0,0,0,0.05);
   justify-content: center;
 }
 
 /* ── Empty ── */
 .sp-empty-panel {
-  background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
+  position: relative;
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  border: 1px solid rgba(255,255,255,0.48);
   border-radius: var(--sp-radius-md);
   padding: 64px 20px;
   text-align: center;
   color: var(--sp-gray-400);
 }
+.sp-empty-panel > * { position: relative; z-index: 1; }
 .sp-empty-text {
   font-size: 15px;
   font-weight: 700;
@@ -751,7 +805,7 @@ async function handleWithdraw(id: string) {
 @media (max-width: 1100px) {
   .mb-card { flex-direction: column; }
   .mb-card-accent { width: 100%; height: 3px; }
-  .mb-card-actions { flex-direction: row; border-left: none; border-top: 1px solid var(--sp-border-light); padding: 10px 18px; }
+  .mb-card-actions { flex-direction: row; border-left: none; border-top: 1px solid rgba(0,0,0,0.05); padding: 10px 18px; }
   .mb-stage-nodes { overflow-x: auto; }
   .mb-stage-label { font-size: 9px; }
 }

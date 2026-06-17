@@ -4,11 +4,12 @@ import { catalogApi } from '@/api/catalog'
 import ApplicationDialog from './ApplicationDialog.vue'
 
 const loading = ref(true); const firstLoad = ref(true); const error = ref(false); const items = ref<any[]>([]); const categoryTree = ref<{group:string;categories:string[]}[]>([]); const myApplications = ref<any[]>([]); const mySupply = ref<any[]>([])
-const selectedGroup = ref<string>(''); const selectedCategory = ref<string>(''); const search = ref('')
+const selectedGroup = ref<string>('工程材料'); const selectedCategory = ref<string>(''); const search = ref('')
 const dialogVisible = ref(false); const dialogMode = ref<'NEW_ITEM'|'JOIN_EXISTING'|'UPDATE_QUOTE'|'edit'>('JOIN_EXISTING'); const dialogItem = ref<any>(null)
+const tableLoading = ref(false)
 
 async function loadAll() { loading.value = true; error.value = false; try { const [tree,apps,supply] = await Promise.all([catalogApi.listCategories(),catalogApi.listApplications(),catalogApi.listSupply()]); categoryTree.value = tree as any; myApplications.value = apps as any; mySupply.value = supply as any; await loadItems() } catch { error.value = true } finally { loading.value = false; firstLoad.value = false } }
-async function loadItems() { loading.value = true; try { items.value = await catalogApi.listItems({group:selectedGroup.value||undefined,category:selectedCategory.value||undefined,search:search.value.trim()||undefined}) as any } catch { error.value = true } finally { loading.value = false } }
+async function loadItems() { tableLoading.value = true; try { items.value = await catalogApi.listItems({group:selectedGroup.value||undefined,category:selectedCategory.value||undefined,search:search.value.trim()||undefined}) as any } catch { error.value = true } finally { tableLoading.value = false } }
 function retryLoad() { loadAll() }
 function onSearch() { loadItems() }
 function selectGroup(g:string) { selectedGroup.value = selectedGroup.value===g?'':g; selectedCategory.value=''; loadItems() }
@@ -69,7 +70,16 @@ onMounted(loadAll)
           <el-button type="primary" @click="openNewItem">新增品类申请</el-button>
         </div>
 
-        <div class="cat-filter-bar" v-if="selectedGroup||selectedCategory||search"><el-tag closable @close="resetFilters" type="primary" effect="light">当前筛选：{{ [selectedGroup,selectedCategory,search].filter(Boolean).join(' / ') }}</el-tag><span class="cat-result-count">共 {{ items.length }} 项</span></div>
+        <div class="cat-filter-bar">
+          <span class="cat-filter-label">当前筛选：</span>
+          <span class="cat-filter-body">
+            <Transition name="filter-fade" mode="out-in">
+              <el-tag v-if="selectedGroup||selectedCategory||search" key="tag" closable @close="resetFilters" type="primary" effect="light">{{ [selectedGroup,selectedCategory,search].filter(Boolean).join(' / ') }}</el-tag>
+              <span v-else key="none" class="cat-filter-none">全部品类</span>
+            </Transition>
+          </span>
+          <span class="cat-result-count">共 {{ items.length }} 项</span>
+        </div>
 
         <div class="cat-table-wrap">
           <el-table :data="items" stripe style="width:100%" :show-overflow-tooltip="true" empty-text="暂无匹配的目录条目">
@@ -100,34 +110,44 @@ onMounted(loadAll)
 
 <style scoped>
 .catalog-layout { display: flex; gap: 16px; align-items: flex-start; }
-.cat-sidebar { width: 220px; flex-shrink: 0; background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); padding: 14px; position: sticky; top: 16px; max-height: calc(100vh - 120px); overflow-y: auto; }
+.cat-sidebar { width: 220px; flex-shrink: 0; position: relative; background: rgba(255,255,255,0.74); backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); padding: 14px; position: sticky; top: 16px; max-height: calc(100vh - 120px); overflow-y: scroll; scrollbar-gutter: stable; }
+.cat-sidebar::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.44; border-radius: inherit; background-image: radial-gradient(ellipse at 10% 6%, rgba(168,139,250,0.20), transparent 55%), radial-gradient(ellipse at 85% 12%, rgba(192,132,252,0.12), transparent 55%), radial-gradient(ellipse at 40% 90%, rgba(91,33,182,0.07), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
+.cat-sidebar:hover::before { opacity: 0.58; }
+.cat-sidebar > * { position: relative; z-index: 1; }
 .cat-sidebar-title { font-size: 12px; font-weight: 800; color: var(--sp-gray-500); padding: 4px 8px 10px; letter-spacing: 0.05em; text-transform: uppercase; }
 .cat-node { margin-bottom: 2px; }
 .cat-group { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: var(--sp-radius-sm); font-size: 14px; font-weight: 700; color: var(--sp-gray-700); cursor: pointer; transition: all 0.15s; }
-.cat-group:hover { background: var(--sp-gray-50); color: var(--sp-primary); }
+.cat-group:hover { background: rgba(255,255,255,0.52); color: var(--sp-primary); }
 .cat-group.active { background: var(--sp-primary); color: #fff; }
 .cat-group.active .cat-count { background: rgba(255,255,255,.25); color: #fff; }
-.cat-count { font-size: 11px; font-weight: 700; background: var(--sp-gray-100); color: var(--sp-gray-500); padding: 1px 8px; border-radius: 10px; }
+.cat-count { font-size: 11px; font-weight: 700; background: rgba(255,255,255,0.60); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); color: var(--sp-gray-500); padding: 1px 8px; border-radius: 10px; }
 .cat-sub { padding: 4px 0 6px 8px; }
 .cat-leaf { padding: 7px 14px; font-size: 13px; color: var(--sp-gray-600); border-radius: var(--sp-radius-sm); cursor: pointer; transition: all 0.15s; }
-.cat-leaf:hover { background: var(--sp-gray-50); color: var(--sp-primary); }
-.cat-leaf.active { color: var(--sp-primary); font-weight: 700; background: var(--sp-primary-lighter); }
+.cat-leaf:hover { background: rgba(255,255,255,0.52); color: var(--sp-primary); }
+.cat-leaf.active { color: var(--sp-primary); font-weight: 700; background: rgba(239,246,255,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
 .cat-main { flex: 1; min-width: 0; }
-.cat-toolbar { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); padding: 14px 16px; margin-bottom: 12px; }
-.cat-filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 0 4px; }
+.cat-toolbar { display: flex; align-items: center; gap: 10px; position: relative; background: rgba(255,255,255,0.72); backdrop-filter: blur(10px) saturate(1.1); -webkit-backdrop-filter: blur(10px) saturate(1.1); border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); padding: 14px 16px; margin-bottom: 12px; }
+.cat-filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 0 4px; min-height: 28px; }
+.cat-filter-label { font-size: 12px; font-weight: 600; color: var(--sp-gray-400); flex-shrink: 0; }
+.cat-filter-body { position: relative; display: inline-flex; align-items: center; min-width: 80px; }
+.cat-filter-none { font-size: 12px; font-weight: 600; color: var(--sp-gray-400); }
 .cat-result-count { font-size: 13px; color: var(--sp-gray-400); }
-.cat-table-wrap { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); overflow: hidden; }
+.filter-fade-enter-active,
+.filter-fade-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; position: absolute; }
+.filter-fade-enter-from { opacity: 0; transform: translateY(2px); }
+.filter-fade-leave-to   { opacity: 0; transform: translateY(-2px); }
+/* cat-table-wrap glass styles are in global.css for full Element Plus table penetration */
 .cell-code { font-family: monospace; font-size: 12px; color: var(--sp-primary); font-weight: 700; }
 .cell-name { font-size: 14px; color: var(--sp-gray-900); font-weight: 600; margin-top: 2px; }
 .cell-count { font-size: 16px; font-weight: 800; color: var(--sp-gray-900); }
 .cell-count-label { font-size: 12px; color: var(--sp-gray-400); margin-left: 2px; }
-.cat-sub-enter-active,.cat-sub-leave-active { transition: all 0.2s ease; overflow: hidden; }
-.cat-sub-enter-from,.cat-sub-leave-to { opacity: 0; max-height: 0; }
-.cat-sub-enter-to,.cat-sub-leave-from { opacity: 1; max-height: 400px; }
+.cat-sub-enter-active,.cat-sub-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+.cat-sub-enter-from,.cat-sub-leave-to { opacity: 0; transform: translateY(-6px); }
+.cat-sub-enter-to,.cat-sub-leave-from { opacity: 1; transform: translateY(0); }
 .skel-wrap{display:flex;flex-direction:column;gap:14px}
-.skel-hero{background:#fff;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);padding:24px;display:flex;flex-direction:column}
+.skel-hero{background:rgba(255,255,255,0.60);border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);padding:24px;display:flex;flex-direction:column}
 .skel-cat{display:flex;gap:16px;height:340px}
-.skel-sidebar{width:220px;background:#fff;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);padding:14px;display:flex;flex-direction:column;gap:4px}
-.skel-main{flex:1;background:#fff;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);padding:14px 16px;display:flex;flex-direction:column}
+.skel-sidebar{width:220px;background:rgba(255,255,255,0.60);border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);padding:14px;display:flex;flex-direction:column;gap:4px}
+.skel-main{flex:1;background:rgba(255,255,255,0.60);border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);padding:14px 16px;display:flex;flex-direction:column}
 @media (max-width:900px) { .catalog-layout { flex-direction: column; } .cat-sidebar { width: 100%; position: static; max-height: none; } }
 </style>

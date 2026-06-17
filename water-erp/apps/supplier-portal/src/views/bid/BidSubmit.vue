@@ -118,19 +118,19 @@ async function confirmSubmit() { submitDialogVisible.value = false; submitting.v
 </template>
 
 <style scoped>
-.detail-card { background: #fff; border: 1px solid var(--sp-border); border-radius: var(--sp-radius-md); padding: 24px; }
-.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--sp-border-light); }
+.detail-card { position: relative; background: rgba(255,255,255,0.78); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.55); border-radius: var(--sp-radius-md); padding: 24px; }
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid rgba(0,0,0,0.05); }
 .card-title { font-size: 15px; font-weight: 800; color: var(--sp-gray-900); }
 .file-area { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .file-hint { font-size: 12px; color: var(--sp-gray-400); }
 .file-name { font-size: 13px; color: var(--sp-primary); font-weight: 600; }
-.submit-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--sp-border-light); }
+.submit-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(0,0,0,0.05); }
 .auto-save-hint { font-size: 12px; color: var(--sp-gray-400); margin-right: auto; display: flex; align-items: center; }
 .preflight-list { display: flex; flex-direction: column; gap: 12px; }
-.preflight-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; background: var(--sp-gray-50); }
+.preflight-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,0.52); }
 .preflight-icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; flex-shrink: 0; }
 .preflight-icon.green { background: #ecfdf5; color: #059669; }
-.preflight-icon.orange { background: #fffbeb; color: #d97706; }
+.preflight-icon.orange { background: rgba(255,251,235,0.72); color: #d97706; }
 .preflight-icon.red { background: #fef2f2; color: #dc2626; }
 .preflight-text { display: flex; flex-direction: column; gap: 2px; }
 .preflight-label { font-size: 14px; font-weight: 700; color: var(--sp-gray-900); }
