@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { api, enterOpeningRecord } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
+import { useBidProjects } from '@/hooks/use-bid-projects';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import StartOpeningDialog from '@/components/start-opening-dialog';
@@ -26,15 +27,10 @@ const decryptColors: Record<string, { color: string; bg: string }> = {
 
 const STAGES = ['投递中', '解密中', '确认中', '已完成'] as const;
 
-/* ── Sound Engine (Web Audio API) ── */
-let audioCtx: AudioContext | null = null;
-function getCtx() {
-  if (!audioCtx) audioCtx = new AudioContext();
-  return audioCtx;
-}
-function playTone(freq: number, duration: number, type: OscillatorType = 'sine') {
+/* ── Sound Engine helpers (pure functions, no module-level state) ── */
+function playTone(ctx: AudioContext | null, freq: number, duration: number, type: OscillatorType = 'sine') {
+  if (!ctx) return;
   try {
-    const ctx = getCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type; osc.frequency.value = freq;
@@ -44,12 +40,14 @@ function playTone(freq: number, duration: number, type: OscillatorType = 'sine')
     osc.start(); osc.stop(ctx.currentTime + duration);
   } catch { /* silent fail */ }
 }
-const sfx = {
-  decryptSuccess: () => { playTone(880, 0.12); setTimeout(() => playTone(1100, 0.15), 120); },
-  decryptFail: () => playTone(180, 0.3, 'square'),
-  tick: () => playTone(600, 0.05),
-  warning: () => playTone(440, 0.4, 'sawtooth'),
-};
+function createSfx(ctx: AudioContext | null) {
+  return {
+    decryptSuccess: () => { playTone(ctx, 880, 0.12); setTimeout(() => playTone(ctx, 1100, 0.15), 120); },
+    decryptFail: () => playTone(ctx, 180, 0.3, 'square'),
+    tick: () => playTone(ctx, 600, 0.05),
+    warning: () => playTone(ctx, 440, 0.4, 'sawtooth'),
+  };
+}
 
 /* ── Ring Countdown ── */
 function RingCountdown({ remaining, big }: { remaining: number; big?: boolean }) {
@@ -104,12 +102,19 @@ function StageStepper({ step }: { step: number }) {
 }
 
 export default function BidOpenPage() {
-  const [projects, setProjects] = useState<{ id: string }[]>([]);
-  const [projectId, setProjectId] = useState('');
+  const { projectId, setProjectId } = useBidProjects();
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [startOpen, setStartOpen] = useState(false);
   const [openingSubmission, setOpeningSubmission] = useState(false);
+
+  // ═── Audio context with proper lifecycle (no module-level leak) ──
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const sfx = createSfx(audioCtxRef.current);
+  useEffect(() => {
+    audioCtxRef.current = new AudioContext();
+    return () => { audioCtxRef.current?.close(); audioCtxRef.current = null; };
+  }, []);
 
   // ═══ New UX state ═══
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
@@ -194,17 +199,20 @@ export default function BidOpenPage() {
 
   const executeDecrypt = async (targets: { id: string; name: string }[]) => {
     const isBulk = targets.length > 1;
-    if (isBulk) setBulkDecrypting(true);
-
-    for (const t of targets) {
-      if (!isBulk) setDecrypting(prev => new Set(prev).add(t.id));
+    if (!isBulk) {
+      // Single decrypt: show spinner inline
+      const t = targets[0];
+      setDecrypting(prev => new Set(prev).add(t.id));
       try {
         await api.post(`/bid/projects/${projectId}/decrypt/${t.id}`, {});
       } catch { /* error handled by WebSocket update */ }
-      if (!isBulk) setDecrypting(prev => { const n = new Set(prev); n.delete(t.id); return n; });
-    }
-
-    if (isBulk) {
+      setDecrypting(prev => { const n = new Set(prev); n.delete(t.id); return n; });
+    } else {
+      // Bulk decrypt: parallelize with Promise.allSettled for partial-failure resilience
+      setBulkDecrypting(true);
+      const results = await Promise.allSettled(
+        targets.map(t => api.post(`/bid/projects/${projectId}/decrypt/${t.id}`, {}).catch(() => {})),
+      );
       setBulkDecrypting(false);
       api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
     }
@@ -255,13 +263,6 @@ export default function BidOpenPage() {
   };
 
   // ═══ Data loading ═══
-  useEffect(() => {
-    api.get<{ id: string }[]>('/bid/projects').then(ps => {
-      setProjects(ps);
-      if (ps.length) setProjectId(ps[0].id);
-    });
-  }, []);
-
   useEffect(() => {
     if (!projectId) return;
     setLoading(true);

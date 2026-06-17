@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
+import { useBidProjects } from '@/hooks/use-bid-projects';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
@@ -11,7 +12,7 @@ import { Archive, CheckCircle, AlertTriangle, Package, Download } from 'lucide-r
 import { PageHero, SectionCard } from '@water-erp/ui';
 
 export default function BidArchivePage() {
-  const [projectId, setProjectId] = useState('');
+  const { projectId, setProjectId } = useBidProjects();
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,10 +49,6 @@ export default function BidArchivePage() {
       toast.success('归档包导出成功');
     } catch { toast.error('导出失败'); }
   };
-
-  useEffect(() => {
-    api.get<{id:string}[]>('/bid/projects').then(ps => { if (ps.length) setProjectId(ps[0].id); });
-  }, []);
 
   useEffect(() => { load(); }, [projectId]);
 

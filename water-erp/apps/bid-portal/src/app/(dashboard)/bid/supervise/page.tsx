@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail, BidSupervisionAnnotation } from '@/lib/types';
+import { useBidProjects } from '@/hooks/use-bid-projects';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { Shield, AlertTriangle, Eye, Download } from 'lucide-react';
@@ -10,7 +11,6 @@ import { PageHero, SectionCard } from '@water-erp/ui';
 import { toast } from 'sonner';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ConnectionIndicator } from '@/components/connection-indicator';
-import { Pagination } from '@/components/pagination';
 
 function exportSupervisionCSV(logs: Array<{ time: string; role: string; target: string; action: string; result: string; riskFlag: string }>) {
   const BOM = '﻿';
@@ -37,7 +37,7 @@ function exportSupervisionCSV(logs: Array<{ time: string; role: string; target: 
 }
 
 export default function BidSupervisePage() {
-  const [projectId, setProjectId] = useState('');
+  const { projectId, setProjectId } = useBidProjects();
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [supervisionLogs, setSupervisionLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,14 +46,6 @@ export default function BidSupervisePage() {
   const [anomalyNotes, setAnomalyNotes] = useState<Map<string, string>>(new Map());
   const [annotatingId, setAnnotatingId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
-  // P4: pagination
-  const [logsPage, setLogsPage] = useState(1);
-  const [realtimeAnomalies, setRealtimeAnomalies] = useState<any[]>([]);
-  const LOGS_PAGE_SIZE = 30;
-
-  useEffect(() => {
-    api.get<{id:string}[]>('/bid/projects').then(ps => { if (ps.length) setProjectId(ps[0].id); });
-  }, []);
 
   useEffect(() => {
     if (!projectId) return;
@@ -94,7 +86,6 @@ export default function BidSupervisePage() {
       }
     },
     onAnomalyDetected: (data) => {
-      setRealtimeAnomalies(prev => [data, ...prev]);
       const variant = data.severity === 'danger' ? 'error' : 'warning';
       (toast as any)[variant]?.(data.detail ?? '检测到异常') || toast.warning(data.detail ?? '检测到异常');
     },

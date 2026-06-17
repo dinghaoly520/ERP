@@ -152,5 +152,26 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     };
   }, [projectId, connect, clearTimers]);
 
+  // Suspend/resume WebSocket based on page visibility to save resources
+  useEffect(() => {
+    if (!projectId) return;
+    const handleVisibility = () => {
+      if (document.hidden) {
+        // Tab hidden: disconnect to save resources
+        clearTimers();
+        if (socketRef.current) {
+          socketRef.current.disconnect();
+          socketRef.current = null;
+        }
+        setConnection('disconnected');
+      } else {
+        // Tab visible again: reconnect
+        connect();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [projectId, connect, clearTimers]);
+
   return { socket: socketRef.current, connection, lastEventAt, reconnectNow };
 }

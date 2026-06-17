@@ -8,17 +8,17 @@ interface SlimProject {
 }
 
 export function useBidProjects() {
-  const [projectIds, setProjectIds] = useState<SlimProject[]>([]);
-  const [firstId, setFirstId] = useState('');
+  const [projects, setProjects] = useState<SlimProject[]>([]);
+  const [projectId, setProjectId] = useState('');
 
   useEffect(() => {
     api.get<SlimProject[]>('/bid/projects')
       .then(ps => {
-        setProjectIds(ps);
-        if (ps.length) setFirstId(ps[0].id);
+        setProjects(ps);
+        if (ps.length && !projectId) setProjectId(ps[0].id);
       })
       .catch(() => {});
   }, []);
 
-  return { projectIds, firstId };
+  return { projects, projectId, setProjectId };
 }

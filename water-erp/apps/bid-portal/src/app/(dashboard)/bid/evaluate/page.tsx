@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail, BidExpert, BidSupplier, BidScoreItem } from '@/lib/types';
+import { useBidProjects } from '@/hooks/use-bid-projects';
 import { CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
@@ -155,7 +156,7 @@ function CellTooltip({ cell, supplierName, expertName, onClose }: {
 
 /* ═══ Page ═══ */
 export default function BidEvaluatePage() {
-  const [projectId, setProjectId] = useState('');
+  const { projectId, setProjectId } = useBidProjects();
   const [project, setProject] = useState<BidProjectEvalDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<EvalResult[]>([]);
@@ -169,13 +170,8 @@ export default function BidEvaluatePage() {
   const [wizardStep, setWizardStep] = useState<0 | 1 | 2>(0);
   const [showWizard, setShowWizard] = useState(false);
   const [revealResults, setRevealResults] = useState(false);
-  const [liveScores, setLiveScores] = useState<Set<string>>(new Set());
 
   /* ── Data loading ── */
-  useEffect(() => {
-    api.get<{ id: string }[]>('/bid/projects').then(ps => { if (ps.length) setProjectId(ps[0].id); });
-  }, []);
-
   useEffect(() => {
     if (!projectId) return;
     setLoading(true);
@@ -530,7 +526,6 @@ export default function BidEvaluatePage() {
                           const avg = supplierAverages.get(s.id) ?? 0;
                           const cellPct = cell && cell.maxScore > 0 ? (cell.totalScore / cell.maxScore) * 100 : null;
                           const isAnomaly = cellPct !== null && avg > 0 && Math.abs(cellPct - avg) > anomalyThreshold;
-                          const isLive = liveScores.has(`${expert.id}-${s.id}`);
                           if (!cell || cell.scoredCount === 0) {
                             return <td key={s.id} className="px-5 py-3 text-[12px] text-[oklch(0.62_0.008_264)]">—</td>;
                           }
@@ -538,7 +533,7 @@ export default function BidEvaluatePage() {
                             <td key={s.id} className="px-5 py-3 relative">
                               <div className={`inline-flex items-center gap-1 cursor-default rounded-md px-2 py-1 transition-all ${
                                 isAnomaly ? 'border border-[#f5a623] bg-[#fef6e8]' : ''
-                              } ${isLive ? 'animate-[flash_500ms_ease-out]' : ''}`}
+                              }`}
                                 onMouseEnter={() => setTooltip({ cell, expertName: expert.expertName, supplierName: s.supplierName })}
                                 onMouseLeave={() => setTooltip(null)}
                               >

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail, BidClarification } from '@/lib/types';
+import { useBidProjects } from '@/hooks/use-bid-projects';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
@@ -10,7 +11,7 @@ import { MessageSquare, Send, Plus, X, AlertTriangle } from 'lucide-react';
 import { PageHero } from '@water-erp/ui';
 
 export default function BidClarificationsPage() {
-  const [projectId, setProjectId] = useState('');
+  const { projectId, setProjectId } = useBidProjects();
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,12 +25,6 @@ export default function BidClarificationsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [replying, setReplying] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
-
-  useEffect(() => {
-    api.get<{ id: string }[]>('/bid/projects').then(ps => {
-      if (ps.length) setProjectId(ps[0].id);
-    });
-  }, []);
 
   const load = () => {
     if (!projectId) return;

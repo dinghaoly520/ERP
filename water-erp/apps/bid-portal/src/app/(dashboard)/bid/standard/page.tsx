@@ -6,7 +6,7 @@ import {
   listScoreItems, createScoreItem, updateScoreItem, deleteScoreItem, applyScoreItemTemplate,
   type ScoreItem,
 } from '@/lib/api/bid';
-import type { BidProject } from '@/lib/types';
+import { useBidProjects } from '@/hooks/use-bid-projects';
 import ProjectSelector from '@/components/project-selector';
 import { PageHero, SectionCard } from '@water-erp/ui';
 import { ListChecks, Plus, Pencil, Trash2, Check, X, FileSpreadsheet, Lock } from 'lucide-react';
@@ -17,7 +17,7 @@ const CATEGORY_OPTIONS = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL'
 const inputCls = 'workbench-input';
 
 export default function BidStandardPage() {
-  const [projectId, setProjectId] = useState('');
+  const { projectId, setProjectId } = useBidProjects();
   const [stage, setStage] = useState('');
   const [items, setItems] = useState<ScoreItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,10 +25,6 @@ export default function BidStandardPage() {
   const [draft, setDraft] = useState({ category: 'TECHNICAL', name: '', maxScore: 0 });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({ category: 'TECHNICAL', name: '', maxScore: 0 });
-
-  useEffect(() => {
-    api.get<BidProject[]>('/bid/projects').then(ps => { if (ps.length) setProjectId(ps[0].id); });
-  }, []);
 
   useEffect(() => {
     if (!projectId) return;
