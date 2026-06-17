@@ -822,13 +822,28 @@ export class BidService {
       s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED',
     );
 
+    // P0: Single batch query instead of per-supplier N+1 — fetch all scores at once
+    const activeSupplierIds = activeSuppliers.map(s => s.id);
+    const allScoreRecords = activeSupplierIds.length > 0
+      ? await this.prisma.bidScoreRecord.findMany({
+          where: { supplierId: { in: activeSupplierIds }, expert: { projectId } },
+        })
+      : [];
+    // Group records by supplierId for O(1) lookup
+    const recordsBySupplier = new Map<string, typeof allScoreRecords>();
+    for (const record of allScoreRecords) {
+      const arr = recordsBySupplier.get(record.supplierId);
+      if (arr) {
+        arr.push(record);
+      } else {
+        recordsBySupplier.set(record.supplierId, [record]);
+      }
+    }
+
     const ranked: { supplierId: string; supplierName: string; totalScore: number; averageScore: number }[] = [];
     for (const supplier of activeSuppliers) {
-      const records = await this.prisma.bidScoreRecord.findMany({
-        where: { supplierId: supplier.id, expert: { projectId } },
-      });
+      const records = recordsBySupplier.get(supplier.id) ?? [];
       const totalScore = records.reduce((sum, r) => sum + Number(r.score), 0);
-      // Count only experts who actually scored this supplier (not all assigned experts)
       const scoringExpertCount = new Set(records.map(r => r.expertId)).size;
       const averageScore = scoringExpertCount > 0 ? totalScore / scoringExpertCount : 0;
       ranked.push({
