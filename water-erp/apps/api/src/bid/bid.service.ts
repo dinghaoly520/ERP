@@ -18,6 +18,7 @@ import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-ar
 import { decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
+import { checkScoreAnomaly, type ScoreRecordInput } from '../expert/expert-deviation';
 import { ScoreCategory } from '@prisma/client';
 
 @Injectable()
@@ -755,7 +756,31 @@ export class BidService {
         reason: dto.reason,
       },
     });
-    // P1: 不再广播分数值（专家独立评审）。仅通知"评分活动"里程碑 + 刷新聚合在场（无分数）。
+    // P1: 评分偏差实时检测
+    const existingScores: ScoreRecordInput[] = await this.prisma.bidScoreRecord.findMany({
+      where: { scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, expertId: { not: dto.expertId } },
+      select: { expertId: true, scoreItemId: true, supplierId: true, score: true },
+    }).then(rows => rows.map(r => ({
+      expertId: r.expertId, scoreItemId: r.scoreItemId,
+      supplierId: r.supplierId, score: Number(r.score),
+    })));
+
+    const alert = checkScoreAnomaly(
+      { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: Number(dto.score) },
+      existingScores,
+    );
+    if (alert) {
+      this.logger.warn(`[ScoreAnomaly] project=${projectId} ${alert.detail}`);
+      this.gateway?.notifyAnomaly(projectId, {
+        type: 'score_deviation',
+        supplierId: dto.supplierId,
+        supplierName: '',
+        detail: alert.detail,
+        severity: alert.severity,
+      });
+    }
+
+    // P2: 不再广播分数值（专家独立评审）。仅通知"评分活动"里程碑 + 刷新聚合在场（无分数）。
     this.gateway?.notifyExpertPresence(projectId, {
       expertId: dto.expertId, expertName: '', milestone: 'scoring_activity',
       progressPercent: 0,

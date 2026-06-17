@@ -24,7 +24,7 @@ const stageMap: Record<string, { label: string; color: string }> = {
 }
 const project = computed(() => bidStore.currentProject)
 const isApproved = computed(() => supplierStore.profile?.status === 'APPROVED')
-const canSubmit = computed(() => { if (!project.value || !isApproved.value) return false; const p = project.value; return (p.stage === 'DOWNLOAD' || p.stage === 'SUBMIT') && new Date(p.deadline) > new Date() })
+const canSubmit = computed(() => { if (!project.value || !isApproved.value) return false; const p = project.value; return p.stage === 'SUBMIT' && new Date(p.deadline) > new Date() })
 const supplierCount = computed(() => project.value?.suppliers?.length || project.value?._count?.suppliers || 0)
 // 开标前隐藏投标方数量，防止串标围标
 const showSupplierCount = computed(() => {

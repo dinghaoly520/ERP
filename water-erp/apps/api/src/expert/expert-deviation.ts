@@ -54,3 +54,52 @@ export function meanOrNull(arr: number[]): number | null {
   if (arr.length === 0) return null;
   return Math.round((arr.reduce((s, x) => s + x, 0) / arr.length) * 10) / 10;
 }
+
+/** 评分偏差告警阈值 */
+export const DEVIATION_THRESHOLD = {
+  WARNING: 0.20,  // 20% 偏离均值 → 黄色告警
+  DANGER: 0.30,   // 30% 偏离均值 → 红色告警
+} as const;
+
+export interface ScoreAnomalyAlert {
+  anomaly: true;
+  severity: 'warning' | 'danger';
+  expertId: string;
+  detail: string;
+}
+
+/**
+ * 检测新提交的评分是否异常偏离同组（相同 scoreItem + supplier）其他专家的评分。
+ * 仅在同组 ≥2 位专家时生效（含新评分），否则返回 null。
+ */
+export function checkScoreAnomaly(
+  newRecord: ScoreRecordInput,
+  existingGroupScores: ScoreRecordInput[],
+): ScoreAnomalyAlert | null {
+  const group = [...existingGroupScores, newRecord];
+  if (group.length < 2) return null;
+
+  const mean = group.reduce((s, r) => s + r.score, 0) / group.length;
+  if (mean === 0) return null; // 避免除以零（所有评分均为 0 的极端情况）
+
+  const deviation = Math.abs(newRecord.score - mean);
+  const deviationRatio = deviation / mean;
+
+  if (deviationRatio >= DEVIATION_THRESHOLD.DANGER) {
+    return {
+      anomaly: true,
+      severity: 'danger',
+      expertId: newRecord.expertId,
+      detail: `专家评分异常偏离：评分 ${newRecord.score.toFixed(1)}，组均值 ${mean.toFixed(1)}，偏离 ${(deviationRatio * 100).toFixed(0)}%（超过危险阈值 ${DEVIATION_THRESHOLD.DANGER * 100}%）`,
+    };
+  }
+  if (deviationRatio >= DEVIATION_THRESHOLD.WARNING) {
+    return {
+      anomaly: true,
+      severity: 'warning',
+      expertId: newRecord.expertId,
+      detail: `专家评分偏高：评分 ${newRecord.score.toFixed(1)}，组均值 ${mean.toFixed(1)}，偏离 ${(deviationRatio * 100).toFixed(0)}%（超过警告阈值 ${DEVIATION_THRESHOLD.WARNING * 100}%）`,
+    };
+  }
+  return null;
+}

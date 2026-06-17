@@ -116,7 +116,7 @@ export default function ExpertEvaluatePage() {
       case 'documents': return !!expert?.signedIn;
       case 'assist': return !!expert?.signedIn;
       case 'scoring': return !!expert?.signedIn && !!expert?.avoidanceConfirmed;
-      case 'report': return true;
+      case 'report': return !!expert?.reportConfirmed || (expert?.progress ?? 0) >= 100;
     }
   };
   const stepCompleted = (sKey: Step): boolean => {

@@ -38,7 +38,7 @@ onMounted(async () => {
 })
 async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); try { const sub = await supplierApi.getBidSubmission(projectId.value) as any; if (sub) { existingSubmission.value = sub; form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', technicalFileAssetId: sub.technicalFileAssetId||'', businessFileAssetId: sub.businessFileAssetId||'', coverLetter: sub.coverLetter||'' } } } catch {} } catch { error.value = true } finally { loading.value = false } }
 const isApproved = computed(() => supplierStore.profile?.status === 'APPROVED')
-const canSubmit = computed(() => { if (!project.value||!isApproved.value) return false; return (project.value.stage==='DOWNLOAD'||project.value.stage==='SUBMIT') && new Date(project.value.deadline) > new Date() })
+const canSubmit = computed(() => { if (!project.value||!isApproved.value) return false; return project.value.stage==='SUBMIT' && new Date(project.value.deadline) > new Date() })
 async function saveDraft() { saving.value = true; try { await supplierApi.saveBidDraft(projectId.value, form.value); ElMessage.success('草稿已保存') } catch { ElMessage.error('保存失败') } finally { saving.value = false } }
 const preflightItems = computed(() => {
   const d = project.value?.deadline ? new Date(project.value.deadline) : null

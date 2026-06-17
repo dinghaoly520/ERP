@@ -48,6 +48,7 @@ export default function BidSupervisePage() {
   const [noteDraft, setNoteDraft] = useState('');
   // P4: pagination
   const [logsPage, setLogsPage] = useState(1);
+  const [realtimeAnomalies, setRealtimeAnomalies] = useState<any[]>([]);
   const LOGS_PAGE_SIZE = 30;
 
   useEffect(() => {
@@ -91,6 +92,11 @@ export default function BidSupervisePage() {
       if (projectId) {
         api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(p => { setProject(p); });
       }
+    },
+    onAnomalyDetected: (data) => {
+      setRealtimeAnomalies(prev => [data, ...prev]);
+      const variant = data.severity === 'danger' ? 'error' : 'warning';
+      (toast as any)[variant]?.(data.detail ?? '检测到异常') || toast.warning(data.detail ?? '检测到异常');
     },
   });
 
