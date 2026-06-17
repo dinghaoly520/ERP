@@ -106,8 +106,9 @@ model BidProject {
   clarifications      BidClarification[]
   supervisionLogs     BidSupervisionLog[]
   archiveItems        BidArchiveItem[]
-  evaluationResults   BidEvaluationResult[]
-  supplierSubmissions SupplierBidSubmission[]
+  evaluationResults        BidEvaluationResult[]
+  supervisionAnnotations   BidSupervisionAnnotation[]
+  supplierSubmissions      SupplierBidSubmission[]
   procurementProject  ProcurementProject?
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt
@@ -130,8 +131,9 @@ model BidSupplier {
   supplier        Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
-  bidScoreRecords BidScoreRecord[]
-  decryptError    String?          // 解密失败原因
+  bidScoreRecords       BidScoreRecord[]
+  supervisionAnnotation BidSupervisionAnnotation?
+  decryptError          String?          // 解密失败原因
 
   @@unique([projectId, supplierName])
   @@index([supplierId])
@@ -252,6 +254,22 @@ model BidSupervisionLog {
   riskFlag  String     @default("无")
   project   BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt DateTime   @default(now())
+}
+
+model BidSupervisionAnnotation {
+  id         String   @id @default(cuid())
+  projectId  String
+  supplierId String   @unique
+  status     String   @default("flagged")
+  notes      String?
+  createdBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  project  BidProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier BidSupplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 model BidArchiveItem {

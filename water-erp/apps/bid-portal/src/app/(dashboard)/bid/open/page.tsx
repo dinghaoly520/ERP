@@ -117,8 +117,17 @@ export default function BidOpenPage() {
   const [disputeHandleConfirm, setDisputeHandleConfirm] = useState<'confirmed' | 'rejected' | null>(null);
   const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string } | null>(null);
   const [recordDraft, setRecordDraft] = useState({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
+  const [serverTimeOffset, setServerTimeOffset] = useState(0);
   const seenDecrypt = useRef<Set<string>>(new Set());
   const prevDecryptStatuses = useRef<Map<string, string>>(new Map());
+
+  // Sync server time for authoritative countdown
+  useEffect(() => {
+    if (!projectId || !project?.openingSession) return;
+    api.get<{ serverTime: number; remainingSeconds: number }>(`/bid/projects/${projectId}/opening-session/time`)
+      .then(data => { setServerTimeOffset(data.serverTime - Date.now()); })
+      .catch(() => {});
+  }, [projectId, project?.openingSession]);
 
   const openingStatusMeta = (status?: string | null) => {
     switch (status) {
@@ -165,7 +174,7 @@ export default function BidOpenPage() {
   }, [project]);
 
   const session = project?.openingSession;
-  const remaining = session ? Math.max(0, Math.floor((new Date(session.decryptWindowEnd).getTime() - Date.now()) / 1000)) : 0;
+  const remaining = session ? Math.max(0, Math.floor((new Date(session.decryptWindowEnd).getTime() - Date.now() - serverTimeOffset) / 1000)) : 0;
   const timeWarning = remaining <= 0 ? 'none' : remaining <= 60 ? '1min' : remaining <= 300 ? '5min' : 'none';
 
   // ═══ API ═══
@@ -297,7 +306,7 @@ export default function BidOpenPage() {
   useEffect(() => {
     if (remaining <= 0) return;
     const timer = setInterval(() => {
-      const r = Math.max(0, Math.floor((new Date(session!.decryptWindowEnd).getTime() - Date.now()) / 1000));
+      const r = Math.max(0, Math.floor((new Date(session!.decryptWindowEnd).getTime() - Date.now() - serverTimeOffset) / 1000));
       if (r <= 60 && soundEnabled) sfx.tick();
       if (r === 300 && soundEnabled) sfx.warning();
     }, 1000);

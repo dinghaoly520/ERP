@@ -84,6 +84,17 @@ export interface BidSupervisionLog {
   riskFlag: string;
 }
 
+export interface BidSupervisionAnnotation {
+  id: string;
+  projectId: string;
+  supplierId: string;
+  status: 'flagged' | 'escalated' | 'cleared';
+  notes?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface BidArchiveItem {
   id: string;
   name: string;
@@ -120,6 +131,7 @@ export interface BidProjectDetail extends BidProject {
   clarifications: BidClarification[];
   supervisionLogs: BidSupervisionLog[];
   archiveItems: BidArchiveItem[];
+  supervisionAnnotations?: BidSupervisionAnnotation[];
 }
 
 /* ── 专家端 ── */

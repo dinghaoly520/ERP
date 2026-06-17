@@ -268,5 +268,275 @@
     "score": "24",
     "reason": "报价合理",
     "createdAt": "2026-06-16T08:48:36.576Z"
+  },
+  {
+    "id": "cmqseed-eval-sr01",
+    "expertId": "cmqhf0ke0000bvk18exp0101a",
+    "scoreItemId": "cmqhf0ke0000evk18si0qual01",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "0",
+    "reason": "审查通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr02",
+    "expertId": "cmqhf0ke0000bvk18exp0101a",
+    "scoreItemId": "cmqhf0ke0000fvk18si0resp02",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "0",
+    "reason": "审查通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr03",
+    "expertId": "cmqhf0ke0000bvk18exp0101a",
+    "scoreItemId": "cmqhf0ke0000gvk18si0biz003",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "16",
+    "reason": "评审通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr04",
+    "expertId": "cmqhf0ke0000bvk18exp0101a",
+    "scoreItemId": "cmqhf0ke0000hvk18si0tec004",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "42",
+    "reason": "技术方案可行",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr05",
+    "expertId": "cmqhf0ke0000bvk18exp0101a",
+    "scoreItemId": "cmqhf0ke0000ivk18si0prc005",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "25",
+    "reason": "报价合理",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr06",
+    "expertId": "cmqhf0ke0000cvk18exp0202b",
+    "scoreItemId": "cmqhf0ke0000evk18si0qual01",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "0",
+    "reason": "审查通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr07",
+    "expertId": "cmqhf0ke0000cvk18exp0202b",
+    "scoreItemId": "cmqhf0ke0000fvk18si0resp02",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "0",
+    "reason": "审查通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr08",
+    "expertId": "cmqhf0ke0000cvk18exp0202b",
+    "scoreItemId": "cmqhf0ke0000gvk18si0biz003",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "15",
+    "reason": "评审通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr09",
+    "expertId": "cmqhf0ke0000cvk18exp0202b",
+    "scoreItemId": "cmqhf0ke0000hvk18si0tec004",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "40",
+    "reason": "技术方案基本可行",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr10",
+    "expertId": "cmqhf0ke0000cvk18exp0202b",
+    "scoreItemId": "cmqhf0ke0000ivk18si0prc005",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "24",
+    "reason": "报价合理",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr11",
+    "expertId": "cmqhf0ke0000dvk18exp0303c",
+    "scoreItemId": "cmqhf0ke0000evk18si0qual01",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "0",
+    "reason": "审查通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr12",
+    "expertId": "cmqhf0ke0000dvk18exp0303c",
+    "scoreItemId": "cmqhf0ke0000fvk18si0resp02",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "0",
+    "reason": "审查通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr13",
+    "expertId": "cmqhf0ke0000dvk18exp0303c",
+    "scoreItemId": "cmqhf0ke0000gvk18si0biz003",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "17",
+    "reason": "评审通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr14",
+    "expertId": "cmqhf0ke0000dvk18exp0303c",
+    "scoreItemId": "cmqhf0ke0000hvk18si0tec004",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "43",
+    "reason": "技术方案优秀",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr15",
+    "expertId": "cmqhf0ke0000dvk18exp0303c",
+    "scoreItemId": "cmqhf0ke0000ivk18si0prc005",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "26",
+    "reason": "报价合理",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr16",
+    "expertId": "cmqhf0ke0000bvk18exp0101a",
+    "scoreItemId": "cmqhf0ke0000evk18si0qual01",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "0",
+    "reason": "审查通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr17",
+    "expertId": "cmqhf0ke0000bvk18exp0101a",
+    "scoreItemId": "cmqhf0ke0000fvk18si0resp02",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "0",
+    "reason": "审查通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr18",
+    "expertId": "cmqhf0ke0000bvk18exp0101a",
+    "scoreItemId": "cmqhf0ke0000gvk18si0biz003",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "18",
+    "reason": "评审通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr19",
+    "expertId": "cmqhf0ke0000bvk18exp0101a",
+    "scoreItemId": "cmqhf0ke0000hvk18si0tec004",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "44",
+    "reason": "技术方案优秀",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr20",
+    "expertId": "cmqhf0ke0000bvk18exp0101a",
+    "scoreItemId": "cmqhf0ke0000ivk18si0prc005",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "27",
+    "reason": "报价合理",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr21",
+    "expertId": "cmqhf0ke0000cvk18exp0202b",
+    "scoreItemId": "cmqhf0ke0000evk18si0qual01",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "0",
+    "reason": "审查通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr22",
+    "expertId": "cmqhf0ke0000cvk18exp0202b",
+    "scoreItemId": "cmqhf0ke0000fvk18si0resp02",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "0",
+    "reason": "审查通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr23",
+    "expertId": "cmqhf0ke0000cvk18exp0202b",
+    "scoreItemId": "cmqhf0ke0000gvk18si0biz003",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "17",
+    "reason": "评审通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr24",
+    "expertId": "cmqhf0ke0000cvk18exp0202b",
+    "scoreItemId": "cmqhf0ke0000hvk18si0tec004",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "42",
+    "reason": "技术方案可行",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr25",
+    "expertId": "cmqhf0ke0000cvk18exp0202b",
+    "scoreItemId": "cmqhf0ke0000ivk18si0prc005",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "25",
+    "reason": "报价合理",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr26",
+    "expertId": "cmqhf0ke0000dvk18exp0303c",
+    "scoreItemId": "cmqhf0ke0000evk18si0qual01",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "0",
+    "reason": "审查通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr27",
+    "expertId": "cmqhf0ke0000dvk18exp0303c",
+    "scoreItemId": "cmqhf0ke0000fvk18si0resp02",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "0",
+    "reason": "审查通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr28",
+    "expertId": "cmqhf0ke0000dvk18exp0303c",
+    "scoreItemId": "cmqhf0ke0000gvk18si0biz003",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "18",
+    "reason": "评审通过",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr29",
+    "expertId": "cmqhf0ke0000dvk18exp0303c",
+    "scoreItemId": "cmqhf0ke0000hvk18si0tec004",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "45",
+    "reason": "技术方案优秀",
+    "createdAt": "2026-06-17T02:45:00.000Z"
+  },
+  {
+    "id": "cmqseed-eval-sr30",
+    "expertId": "cmqhf0ke0000dvk18exp0303c",
+    "scoreItemId": "cmqhf0ke0000ivk18si0prc005",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "24",
+    "reason": "报价合理",
+    "createdAt": "2026-06-17T02:45:00.000Z"
   }
 ]

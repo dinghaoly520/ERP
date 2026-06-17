@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import type { BidProjectDetail } from '@/lib/types';
+import type { BidProjectDetail, BidSupervisionAnnotation } from '@/lib/types';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { Shield, AlertTriangle, Eye, Download } from 'lucide-react';
@@ -58,6 +58,23 @@ export default function BidSupervisePage() {
     if (!projectId) return;
     setLoading(true);
     api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(p => { setProject(p); setLoading(false); });
+  }, [projectId]);
+
+  // Load persisted annotations from API
+  useEffect(() => {
+    if (!projectId) return;
+    api.get<BidSupervisionAnnotation[]>(`/bid/projects/${projectId}/supervision-annotations`)
+      .then(annotations => {
+        const flagMap = new Map<string, 'flagged' | 'escalated' | null>();
+        const noteMap = new Map<string, string>();
+        annotations.forEach(a => {
+          flagMap.set(a.supplierId, a.status === 'cleared' ? null : a.status as 'flagged' | 'escalated');
+          if (a.notes) noteMap.set(a.supplierId, a.notes);
+        });
+        setAnomalyFlags(flagMap);
+        setAnomalyNotes(noteMap);
+      })
+      .catch(() => {});
   }, [projectId]);
 
   useEffect(() => {
@@ -155,7 +172,16 @@ export default function BidSupervisePage() {
                         placeholder="批注内容…" rows={3}
                         className="w-full border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#064ea2] resize-none" />
                       <div className="flex items-center gap-2">
-                        <button onClick={() => { setAnomalyNotes(prev => { const m = new Map(prev); m.set(s.id, noteDraft); return m; }); setAnnotatingId(null); }}
+                        <button onClick={async () => {
+                          setAnomalyNotes(prev => { const m = new Map(prev); m.set(s.id, noteDraft); return m; });
+                          setAnnotatingId(null);
+                          const flag = anomalyFlags.get(s.id) || 'flagged';
+                          try {
+                            await api.post(`/bid/projects/${projectId}/supervision-annotations`, {
+                              supplierId: s.id, status: flag, notes: noteDraft,
+                            });
+                          } catch { /* silent */ }
+                        }}
                           className="text-[11px] font-bold text-white bg-[#064ea2] px-3 py-1 rounded hover:bg-[#054280] transition">保存批注</button>
                         <button onClick={() => { setAnnotatingId(null); }} className="text-[11px] text-[oklch(0.55_0.01_264)] hover:underline">取消</button>
                       </div>
@@ -163,12 +189,34 @@ export default function BidSupervisePage() {
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                  <button onClick={() => setAnomalyFlags(prev => { const m = new Map(prev); m.set(s.id, flag === 'flagged' ? null : 'flagged'); return m; })}
+                  <button onClick={async () => {
+                    const flag = anomalyFlags.get(s.id);
+                    const newStatus = flag === 'flagged' ? null : 'flagged';
+                    setAnomalyFlags(prev => { const m = new Map(prev); m.set(s.id, newStatus); return m; });
+                    try {
+                      if (newStatus) {
+                        await api.post(`/bid/projects/${projectId}/supervision-annotations`, { supplierId: s.id, status: newStatus });
+                      } else {
+                        await api.delete(`/bid/projects/${projectId}/supervision-annotations/${s.id}`);
+                      }
+                    } catch { /* silent */ }
+                  }}
                     title="标记关注"
                     className={`text-[11px] font-bold px-2 py-1 rounded transition ${
                       flag === 'flagged' ? 'bg-amber-100 text-amber-600' : 'text-[oklch(0.62_0.008_264)] hover:bg-amber-50 hover:text-amber-600'
                     }`}>关注</button>
-                  <button onClick={() => setAnomalyFlags(prev => { const m = new Map(prev); m.set(s.id, flag === 'escalated' ? null : 'escalated'); return m; })}
+                  <button onClick={async () => {
+                    const flag = anomalyFlags.get(s.id);
+                    const newStatus = flag === 'escalated' ? null : 'escalated';
+                    setAnomalyFlags(prev => { const m = new Map(prev); m.set(s.id, newStatus); return m; });
+                    try {
+                      if (newStatus) {
+                        await api.post(`/bid/projects/${projectId}/supervision-annotations`, { supplierId: s.id, status: newStatus });
+                      } else {
+                        await api.delete(`/bid/projects/${projectId}/supervision-annotations/${s.id}`);
+                      }
+                    } catch { /* silent */ }
+                  }}
                     title="上报"
                     className={`text-[11px] font-bold px-2 py-1 rounded transition ${
                       flag === 'escalated' ? 'bg-red-100 text-red-600' : 'text-[oklch(0.62_0.008_264)] hover:bg-red-50 hover:text-red-600'

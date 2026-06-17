@@ -32,6 +32,18 @@ export interface DecryptStatusPayload {
   timestamp: number;
 }
 
+export interface SubmissionOpenedPayload {
+  projectId: string;
+  timestamp: number;
+}
+
+export interface OpeningStartedPayload {
+  projectId: string;
+  host: string;
+  supervisor: string;
+  timestamp: number;
+}
+
 export interface StageChangePayload {
   projectId: string;
   from: string;

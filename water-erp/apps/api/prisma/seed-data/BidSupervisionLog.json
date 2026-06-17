@@ -295,5 +295,60 @@
     "result": "归档 7 项",
     "riskFlag": "无",
     "createdAt": "2026-06-16T08:48:44.233Z"
+  },
+  {
+    "id": "cmqseed-submit-sl01",
+    "projectId": "cmqseed-submit-proj01",
+    "time": "2026-06-17T02:05:00.000Z",
+    "role": "系统",
+    "target": "2026年度水库安全监测设备采购项目",
+    "action": "开放投递 (DOWNLOAD→SUBMIT)",
+    "result": "阶段变更成功",
+    "riskFlag": "无",
+    "createdAt": "2026-06-17T02:05:00.000Z"
+  },
+  {
+    "id": "cmqseed-open-sl01",
+    "projectId": "cmqseed-open-proj01",
+    "time": "2026-06-17T02:25:00.000Z",
+    "role": "系统",
+    "target": "2026年度城乡供水一体化管网建设项目",
+    "action": "开放投递 (DOWNLOAD→SUBMIT)",
+    "result": "阶段变更成功",
+    "riskFlag": "无",
+    "createdAt": "2026-06-17T02:25:00.000Z"
+  },
+  {
+    "id": "cmqseed-open-sl02",
+    "projectId": "cmqseed-open-proj01",
+    "time": "2026-06-17T02:30:00.000Z",
+    "role": "李主任",
+    "target": "2026年度城乡供水一体化管网建设项目",
+    "action": "启动开标 (SUBMIT→OPENING)",
+    "result": "阶段变更成功",
+    "riskFlag": "无",
+    "createdAt": "2026-06-17T02:30:00.000Z"
+  },
+  {
+    "id": "cmqseed-open-sl03",
+    "projectId": "cmqseed-open-proj01",
+    "time": "2026-06-17T02:35:00.000Z",
+    "role": "系统",
+    "target": "四川川水建设工程有限公司",
+    "action": "标书解密",
+    "result": "解密成功，等待供应商确认唱标信息",
+    "riskFlag": "无",
+    "createdAt": "2026-06-17T02:35:00.000Z"
+  },
+  {
+    "id": "cmqseed-open-sl04",
+    "projectId": "cmqseed-open-proj01",
+    "time": "2026-06-17T02:36:00.000Z",
+    "role": "系统",
+    "target": "成都华西物资供应有限公司",
+    "action": "标书解密",
+    "result": "解密异常：文件完整性校验不通过",
+    "riskFlag": "高风险",
+    "createdAt": "2026-06-17T02:36:00.000Z"
   }
 ]

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Res, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { BidService } from './bid.service';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -12,6 +12,7 @@ import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
 import { UpdateScoreItemDto } from './dto/update-score-item.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
+import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 
 @ApiTags('开评标管理')
 @ApiCookieAuth('token')
@@ -150,4 +151,48 @@ export class BidController {
   @Post('projects/:id/archive-all')
   @ApiOperation({ summary: '一键归档' })
   archiveAll(@Param('id') id: string) { return this.bidService.archiveAll(id); }
+
+  @Post('projects/:id/supervision-annotations')
+  @ApiOperation({ summary: '创建或更新监督标注' })
+  upsertSupervisionAnnotation(@Param('id') id: string, @Body() dto: UpsertSupervisionAnnotationDto) {
+    return this.bidService.upsertSupervisionAnnotation(id, dto);
+  }
+
+  @Delete('projects/:id/supervision-annotations/:supplierId')
+  @ApiOperation({ summary: '清除监督标注' })
+  deleteSupervisionAnnotation(@Param('id') id: string, @Param('supplierId') supplierId: string) {
+    return this.bidService.deleteSupervisionAnnotation(id, supplierId);
+  }
+
+  @Get('projects/:id/supervision-annotations')
+  @ApiOperation({ summary: '查看项目监督标注列表' })
+  listSupervisionAnnotations(@Param('id') id: string) {
+    return this.bidService.listSupervisionAnnotations(id);
+  }
+
+  @Get('projects/:id/opening-session/time')
+  @ApiOperation({ summary: '获取服务器当前时间及解密窗口剩余秒数' })
+  async getSessionTime(@Param('id') id: string) {
+    const session = await this.bidService.getOpeningSession(id);
+    if (!session) throw new BadRequestException({ error: '开标会话不存在', code: 'NOT_FOUND' });
+    const now = Date.now();
+    const remaining = Math.max(0, Math.floor((new Date(session.decryptWindowEnd).getTime() - now) / 1000));
+    return { serverTime: now, remainingSeconds: remaining, decryptWindowStart: session.decryptWindowStart, decryptWindowEnd: session.decryptWindowEnd };
+  }
+
+  @Get('projects/:id/archive-package/export')
+  @ApiOperation({ summary: '导出归档包（JSON 或 CSV 格式，含哈希链）' })
+  async exportArchivePackage(
+    @Param('id') id: string,
+    @Query('format') format?: string,
+    @Res() res?: any,
+  ) {
+    const data = await this.bidService.exportArchivePackage(id, (format === 'csv' ? 'csv' : 'json'));
+    if (format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="archive-${id.slice(-12)}.csv"`);
+      return res.send(data);
+    }
+    return data;
+  }
 }

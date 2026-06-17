@@ -34,5 +34,41 @@
     "handledBy": null,
     "handleResult": null,
     "createdAt": "2026-06-16T08:47:32.820Z"
+  },
+  {
+    "id": "cmqseed-open-or01",
+    "projectId": "cmqseed-open-proj01",
+    "supplierName": "四川川水建设工程有限公司",
+    "amount": "780万元",
+    "period": "360天",
+    "qualityTarget": "合格",
+    "bondStatus": "已缴纳",
+    "decryptResult": "解密成功",
+    "confirmStatus": "供应商已确认",
+    "bidSupplierId": "cmqseed-open-bs01",
+    "objectionReason": null,
+    "confirmedAt": "2026-06-17T02:40:00.000Z",
+    "handledAt": null,
+    "handledBy": null,
+    "handleResult": null,
+    "createdAt": "2026-06-17T02:40:00.000Z"
+  },
+  {
+    "id": "cmqseed-open-or02",
+    "projectId": "cmqseed-open-proj01",
+    "supplierName": "成都华西物资供应有限公司",
+    "amount": "820万元",
+    "period": "330天",
+    "qualityTarget": "优良",
+    "bondStatus": "待确认",
+    "decryptResult": "解密失败",
+    "confirmStatus": "待供应商确认",
+    "bidSupplierId": "cmqseed-open-bs02",
+    "objectionReason": "解密校验不通过，文件完整性异常",
+    "confirmedAt": null,
+    "handledAt": null,
+    "handledBy": null,
+    "handleResult": null,
+    "createdAt": "2026-06-17T02:40:00.000Z"
   }
 ]

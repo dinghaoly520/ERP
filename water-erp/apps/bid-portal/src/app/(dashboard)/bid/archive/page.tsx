@@ -27,59 +27,26 @@ export default function BidArchivePage() {
       .finally(() => setLoading(false));
   };
 
-  const handleExportArchive = () => {
+  const handleExportArchive = async (format: 'json' | 'csv') => {
     if (!project) return;
-
-    const BOM = '﻿';
-    const lines: string[] = [];
-
-    const esc = (v: unknown) => {
-      const s = String(v ?? '');
-      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-        return `"${s.replace(/"/g, '""')}"`;
+    try {
+      if (format === 'csv') {
+        const a = document.createElement('a');
+        a.href = `/api/bid/projects/${projectId}/archive-package/export?format=csv`;
+        a.download = `归档包_${project.projectCode}_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+      } else {
+        const data = await api.get(`/bid/projects/${projectId}/archive-package/export?format=json`);
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `归档包_${project.projectCode}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
       }
-      return s;
-    };
-
-    // Section 1: 招标项目基础信息
-    lines.push('招标项目基础信息');
-    lines.push(['项目编号', '项目名称', '采购方式', '开标时间', '截标时间', '当前阶段', '风险备注'].map(esc).join(','));
-    lines.push([
-      project.projectCode, project.name, project.procurementMethod,
-      project.openTime, project.deadline, project.stage, project.riskNote || '',
-    ].map(esc).join(','));
-    lines.push('');
-
-    // Section 2: 投标供应商名单
-    lines.push('投标供应商名单');
-    lines.push(['供应商名称', '下载状态', '提交状态', '加密状态', '回执编号', '解密状态', '确认状态'].map(esc).join(','));
-    for (const s of project.suppliers) {
-      lines.push([
-        s.supplierName, s.downloadStatus, s.submitStatus, s.encryptStatus,
-        s.receiptNo || '', s.decryptStatus, s.confirmStatus,
-      ].map(esc).join(','));
-    }
-    lines.push('');
-
-    // Section 3: 开标记录表
-    lines.push('开标记录表');
-    lines.push(['供应商名称', '报价金额', '工期', '质量目标', '保证金状态', '解密结果', '确认状态', '异议原因', '处理结果'].map(esc).join(','));
-    for (const r of project.openingRecords) {
-      lines.push([
-        r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus,
-        r.decryptResult, r.confirmStatus, r.objectionReason || '', r.handleResult || '',
-      ].map(esc).join(','));
-    }
-
-    const csv = BOM + lines.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `归档包_${project.projectCode}_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('归档包导出成功');
+      toast.success('归档包导出成功');
+    } catch { toast.error('导出失败'); }
   };
 
   useEffect(() => {
@@ -163,9 +130,16 @@ export default function BidArchivePage() {
           <Package size={14} strokeWidth={1.5} /> {archiving ? '归档中…' : project.stage === 'ARCHIVED' ? '已归档' : '一键归档'}
         </button>
         <button
-          onClick={handleExportArchive}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#064ea2] text-[#064ea2] hover:bg-[#064ea2] hover:text-white transition transition-colors">
-          <Download size={14} strokeWidth={1.5} /> 导出归档包
+          onClick={() => handleExportArchive('json')}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#064ea2] text-[#064ea2] hover:bg-[#064ea2] hover:text-white transition transition-colors"
+          title="导出 JSON（含完整哈希链）">
+          <Download size={14} strokeWidth={1.5} /> 导出归档包 JSON
+        </button>
+        <button
+          onClick={() => handleExportArchive('csv')}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[oklch(0.62_0.008_264)] text-[oklch(0.42_0.14_260)] hover:bg-[oklch(0.94_0.004_264)] transition transition-colors text-xs"
+          title="导出 CSV（含哈希验证摘要）">
+          CSV
         </button>
         </div>
       </SectionCard>

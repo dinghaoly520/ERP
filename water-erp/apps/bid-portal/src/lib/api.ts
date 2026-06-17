@@ -1,3 +1,5 @@
+import { toast } from 'sonner';
+
 const BASE = '/api';
 const PORTAL = 'web';
 
@@ -27,6 +29,10 @@ async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
       if (body.error) message = body.error;
     } catch {
       // response body is not JSON, keep default message
+    }
+    // Auto-toast on errors (skip 401 handled by auth middleware)
+    if (res.status !== 401) {
+      toast.error(message, { id: `api-error-${code}`, duration: 5000 });
     }
     throw new ApiError(res.status, code, message);
   }

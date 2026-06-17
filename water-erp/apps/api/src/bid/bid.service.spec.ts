@@ -636,7 +636,7 @@ describe('BidService — decryptSupplier 真实校验', () => {
       providers: [
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { create: jest.fn() } },
-        { provide: BidGateway, useValue: { notifyDecryptStatus: jest.fn() } },
+        { provide: BidGateway, useValue: { notifyDecryptStatus: jest.fn(), notifyStageChange: jest.fn(), notifyAnomaly: jest.fn(), notifySupervisionLog: jest.fn(), notifySubmissionOpened: jest.fn(), notifyOpeningStarted: jest.fn(), notifyEvaluationStarted: jest.fn(), broadcastAggregatePresence: jest.fn() } },
         BidService,
       ],
     }).compile();

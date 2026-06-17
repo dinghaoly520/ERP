@@ -12,8 +12,9 @@ import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
 import { UpdateScoreItemDto } from './dto/update-score-item.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
+import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { assertBidStageTransition, type BidStage } from './bid-state';
-import { computeArchiveChain } from './bid-archive.digest';
+import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { ScoreCategory } from '@prisma/client';
@@ -300,6 +301,10 @@ export class BidService {
       data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '开放投递 (DOWNLOAD→SUBMIT)', result: '阶段变更成功', riskFlag: '无' },
     });
 
+    this.gateway?.notifyStageChange(id, 'DOWNLOAD', 'SUBMIT', 'host');
+    this.gateway?.notifySubmissionOpened(id);
+    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '开放投递 (DOWNLOAD→SUBMIT)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
+
     return updated;
   }
 
@@ -334,11 +339,14 @@ export class BidService {
     return this.prisma.$transaction(async (tx) => {
       if (dto?.host && dto?.supervisor && dto?.decryptWindowStart && dto?.decryptWindowEnd) {
         const existingSession = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
+        const decryptWindowEnd = new Date(dto.decryptWindowEnd);
+        const remainingSeconds = Math.max(0, Math.floor((decryptWindowEnd.getTime() - Date.now()) / 1000));
         const sessionData = {
           host: dto.host,
           supervisor: dto.supervisor,
           decryptWindowStart: new Date(dto.decryptWindowStart),
-          decryptWindowEnd: new Date(dto.decryptWindowEnd),
+          decryptWindowEnd,
+          remainingSeconds,
           status: '待开标' as const,
         };
         if (existingSession) {
@@ -358,6 +366,8 @@ export class BidService {
       });
 
       this.gateway?.notifyStageChange(id, 'SUBMIT', 'OPENING', 'host');
+      this.gateway?.notifyOpeningStarted(id, { host: dto?.host || '系统', supervisor: dto?.supervisor || '系统' });
+      this.gateway?.notifySupervisionLog(id, { role: dto?.host || '系统', action: '启动开标 (SUBMIT→OPENING)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
 
       return updated;
     });
@@ -382,6 +392,8 @@ export class BidService {
     await this.prisma.bidSupervisionLog.create({
       data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '启动评标 (OPENING→EVALUATING)', result: '阶段变更成功', riskFlag: '无' },
     });
+
+    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '启动评标 (OPENING→EVALUATING)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
 
     return updated;
   }
@@ -447,6 +459,8 @@ export class BidService {
         await tx.bidSupervisionLog.create({
           data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${reason}`, riskFlag: '高风险' },
         });
+        this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密异常：${reason}`, riskFlag: '高风险' });
+        this.gateway?.notifyAnomaly(projectId, { type: 'decrypt_failure', supplierId, supplierName: bidSupplier.supplierName, detail: reason, severity: 'danger' });
         return tx.bidSupplier.findUnique({ where: { id: supplierId } });
       }
 
@@ -487,6 +501,8 @@ export class BidService {
         await tx.bidSupervisionLog.create({
           data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${reason}`, riskFlag: '高风险' },
         });
+        this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密异常：${reason}`, riskFlag: '高风险' });
+        this.gateway?.notifyAnomaly(projectId, { type: 'decrypt_failure', supplierId, supplierName: bidSupplier.supplierName, detail: reason, severity: 'danger' });
         return tx.bidSupplier.findUnique({ where: { id: supplierId } });
       }
 
@@ -520,8 +536,14 @@ export class BidService {
         data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密成功，等待供应商确认唱标信息${legacyNote}`, riskFlag: '无' },
       });
 
+      this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密成功，等待供应商确认唱标信息${legacyNote}`, riskFlag: '无' });
+
       return confirmed;
     });
+  }
+
+  async getOpeningSession(projectId: string) {
+    return this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
   }
 
   listOpeningRecords(projectId: string) {
@@ -577,6 +599,7 @@ export class BidService {
         action: '录入唱标信息', result: `报价 ${dto.amount} / 工期 ${dto.period}`, riskFlag: '无',
       },
     });
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '录入唱标信息', target: bidSupplier.supplierName, result: `报价 ${dto.amount} / 工期 ${dto.period}`, riskFlag: '无' });
     return record;
   }
 
@@ -602,6 +625,7 @@ export class BidService {
         action: '处理开标异议', result: dto.result, riskFlag: '中风险',
       },
     });
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '处理开标异议', target: record.supplierName, result: dto.result, riskFlag: '中风险' });
     return this.prisma.bidOpeningRecord.findUnique({ where: { id: recordId } });
   }
 
@@ -667,6 +691,7 @@ export class BidService {
         action: '生成评标结果', result: `生成${ranked.length}家供应商排名`, riskFlag: '无',
       },
     });
+    this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名`, riskFlag: '无' });
 
     return this.listEvaluationResults(projectId);
   }
@@ -845,10 +870,125 @@ export class BidService {
       }),
     ]);
 
+    this.gateway?.notifyStageChange(id, 'EVALUATING', 'ARCHIVED', 'host');
+    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${archiveItems.length} 项`, riskFlag: '无' });
+
     return this.prisma.bidProject.findUnique({
       where: { id },
       include: { archiveItems: true },
     });
+  }
+
+  async exportArchivePackage(projectId: string, format: 'json' | 'csv' = 'json') {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      include: {
+        suppliers: true,
+        openingSession: true,
+        openingRecords: true,
+        experts: { include: { scoreRecords: { include: { scoreItem: true } } } },
+        scoreItems: true,
+        clarifications: true,
+        supervisionLogs: { orderBy: { time: 'asc' } },
+        archiveItems: true,
+        evaluationResults: { orderBy: { rank: 'asc' } },
+      },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const chain = computeArchiveChain(
+      { id: project.id, projectCode: project.projectCode, name: project.name, stage: project.stage },
+      project.archiveItems,
+    );
+    const genesis = project.archiveItems.length > 0
+      ? archiveGenesisHash({ id: project.id, projectCode: project.projectCode, name: project.name, stage: project.stage })
+      : '';
+
+    if (format === 'csv') {
+      const BOM = '﻿';
+      const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const lines: string[] = [];
+      lines.push('=== 招标项目基础信息 ===');
+      lines.push(['项目编号', '项目名称', '采购方式', '预算', '招标范围', '资质要求', '联系人', '阶段'].map(esc).join(','));
+      lines.push([project.projectCode, project.name, project.procurementMethod, project.budget, project.scope, project.qualification, project.contact, project.stage].map(esc).join(','));
+      lines.push('');
+      lines.push('=== 投标供应商名单 ===');
+      lines.push(['供应商名称', '下载状态', '提交状态', '加密状态', '解密状态', '确认状态'].map(esc).join(','));
+      project.suppliers.forEach(s => lines.push([s.supplierName, s.downloadStatus, s.submitStatus, s.encryptStatus, s.decryptStatus, s.confirmStatus].map(esc).join(',')));
+      lines.push('');
+      lines.push('=== 开标记录表 ===');
+      lines.push(['供应商', '报价', '工期', '质量目标', '保证金', '解密结果', '确认状态'].map(esc).join(','));
+      project.openingRecords.forEach(r => lines.push([r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus, r.decryptResult, r.confirmStatus].map(esc).join(',')));
+      lines.push('');
+      lines.push('=== 供应商确认/异议记录 ===');
+      lines.push(['供应商', '确认状态', '异议原因'].map(esc).join(','));
+      project.suppliers.filter(s => s.confirmStatus !== 'PENDING').forEach(s => lines.push([s.supplierName, s.confirmStatus, s.decryptError || ''].map(esc).join(',')));
+      project.openingRecords.filter(r => r.objectionReason).forEach(r => lines.push([r.supplierName, r.confirmStatus, r.objectionReason || ''].map(esc).join(',')));
+      lines.push('');
+      lines.push('=== 专家评分明细 ===');
+      lines.push(['专家', '供应商', '评分项', '分数', '评语'].map(esc).join(','));
+      project.experts.forEach(e => e.scoreRecords.forEach(sr => lines.push([e.expertName, project.suppliers.find(s => s.id === sr.supplierId)?.supplierName || '', sr.scoreItem?.name || '', sr.score, sr.reason].map(esc).join(','))));
+      lines.push('');
+      lines.push('=== 评标结果汇总 ===');
+      lines.push(['排名', '供应商', '总分', '平均分', '推荐'].map(esc).join(','));
+      project.evaluationResults.forEach(r => lines.push([String(r.rank), r.supplierName, r.totalScore, r.averageScore, r.recommended ? '是' : '否'].map(esc).join(',')));
+      lines.push('');
+      lines.push('=== 监督日志 ===');
+      lines.push(['时间', '角色', '对象', '操作', '结果', '风险标识'].map(esc).join(','));
+      project.supervisionLogs.forEach(l => lines.push([String(l.time), l.role, l.target, l.action, l.result, l.riskFlag].map(esc).join(',')));
+      lines.push('');
+      lines.push('=== 澄清答疑记录 ===');
+      lines.push(['类型', '发起人', '供应商', '问题', '状态', '回复'].map(esc).join(','));
+      project.clarifications.forEach(c => lines.push([c.type, c.issuer, c.supplierName, c.question, c.status, c.reply || ''].map(esc).join(',')));
+      lines.push('');
+      lines.push('=== 档案哈希链验证摘要 ===');
+      lines.push(['算法', 'SHA-256'].join(','));
+      lines.push(['创世哈希', genesis].join(','));
+      const chainArr = Array.from(chain.entries());
+      chainArr.forEach(([itemId, hash], i) => {
+        const item = project.archiveItems.find(a => a.id === itemId);
+        lines.push([`#${i + 1} ${item?.name || itemId}`, hash].map(esc).join(','));
+      });
+      return BOM + lines.join('\n');
+    }
+
+    // JSON format
+    return {
+      manifest: {
+        exportedAt: new Date().toISOString(),
+        projectId: project.id,
+        projectCode: project.projectCode,
+        format: 'application/json',
+        version: '1.0',
+      },
+      projectInfo: {
+        projectCode: project.projectCode,
+        name: project.name,
+        procurementMethod: project.procurementMethod,
+        budget: project.budget,
+        scope: project.scope,
+        qualification: project.qualification,
+        contact: project.contact,
+        stage: project.stage,
+      },
+      sections: {
+        suppliers: project.suppliers.map(s => ({ supplierName: s.supplierName, downloadStatus: s.downloadStatus, submitStatus: s.submitStatus, encryptStatus: s.encryptStatus, decryptStatus: s.decryptStatus, confirmStatus: s.confirmStatus })),
+        openingRecords: project.openingRecords,
+        expertScores: project.experts.map(e => ({ expertName: e.expertName, major: e.major, scores: e.scoreRecords.map(sr => ({ supplierId: sr.supplierId, scoreItemName: sr.scoreItem?.name, score: sr.score, reason: sr.reason })) })),
+        evaluationResults: project.evaluationResults,
+        supervisionLogs: project.supervisionLogs,
+        clarifications: project.clarifications,
+        confirmationRecords: project.suppliers.filter(s => s.confirmStatus !== 'PENDING').map(s => ({ supplierName: s.supplierName, status: s.confirmStatus, error: s.decryptError })),
+      },
+      hashChain: {
+        algorithm: 'SHA-256',
+        genesisHash: genesis,
+        chain: Array.from(chain.entries()).map(([itemId, hash]) => {
+          const item = project.archiveItems.find(a => a.id === itemId);
+          return { itemId, name: item?.name, hash };
+        }),
+      },
+    };
   }
 
   /* ── 评分标准编制（评标办法）──
@@ -889,6 +1029,7 @@ export class BidService {
         action: '编制评分标准', result: `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`, riskFlag: '无',
       },
     });
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result: `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`, riskFlag: '无' });
     return created;
   }
 
@@ -930,6 +1071,7 @@ export class BidService {
         action: '编制评分标准', result: `删除评分项「${existing.name}」`, riskFlag: '无',
       },
     });
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result: `删除评分项「${existing.name}」`, riskFlag: '无' });
     return this.prisma.bidScoreItem.delete({ where: { id: itemId } });
   }
 
@@ -964,7 +1106,40 @@ export class BidService {
           action: '编制评分标准', result: `应用标准模板，新增 ${toCreate.length} 项`, riskFlag: '无',
         },
       });
+      this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result: `应用标准模板，新增 ${toCreate.length} 项`, riskFlag: '无' });
     }
     return this.listScoreItems(projectId);
+  }
+
+  // ── Supervision Annotations ──
+
+  async upsertSupervisionAnnotation(projectId: string, dto: UpsertSupervisionAnnotationDto) {
+    return this.prisma.bidSupervisionAnnotation.upsert({
+      where: { supplierId: dto.supplierId },
+      create: {
+        projectId,
+        supplierId: dto.supplierId,
+        status: dto.status,
+        notes: dto.notes,
+        createdBy: dto.createdBy,
+      },
+      update: {
+        status: dto.status,
+        notes: dto.notes,
+        createdBy: dto.createdBy,
+      },
+    });
+  }
+
+  async deleteSupervisionAnnotation(projectId: string, supplierId: string) {
+    return this.prisma.bidSupervisionAnnotation.delete({
+      where: { supplierId },
+    }).catch(() => null);
+  }
+
+  async listSupervisionAnnotations(projectId: string) {
+    return this.prisma.bidSupervisionAnnotation.findMany({
+      where: { projectId },
+    });
   }
 }

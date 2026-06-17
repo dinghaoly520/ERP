@@ -10,5 +10,17 @@
     "remainingSeconds": 0,
     "createdAt": "2026-06-16T08:45:58.663Z",
     "updatedAt": "2026-06-16T08:45:58.663Z"
+  },
+  {
+    "id": "cmqseed-open-os01",
+    "projectId": "cmqseed-open-proj01",
+    "host": "李主任",
+    "supervisor": "周老师",
+    "status": "开标中",
+    "decryptWindowStart": "2026-07-20T09:30:00.000Z",
+    "decryptWindowEnd": "2026-07-20T11:00:00.000Z",
+    "remainingSeconds": 3600,
+    "createdAt": "2026-06-17T02:30:00.000Z",
+    "updatedAt": "2026-06-17T02:30:00.000Z"
   }
 ]

@@ -12,6 +12,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   BID_EVENT,
   type DecryptStatusPayload,
+  type SubmissionOpenedPayload,
+  type OpeningStartedPayload,
   type StageChangePayload,
   type EvaluationStartedPayload,
   type ExpertPresencePayload,
@@ -111,6 +113,16 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   notifyEvaluationStarted(projectId: string) {
     const payload: EvaluationStartedPayload = { projectId, timestamp: Date.now() };
     this.server.to(`project:${projectId}`).emit(BID_EVENT.EVALUATION_STARTED, payload);
+  }
+
+  notifySubmissionOpened(projectId: string) {
+    const payload: SubmissionOpenedPayload = { projectId, timestamp: Date.now() };
+    this.server.to(`project:${projectId}`).emit(BID_EVENT.SUBMISSION_OPENED, payload);
+  }
+
+  notifyOpeningStarted(projectId: string, data: { host: string; supervisor: string }) {
+    const payload: OpeningStartedPayload = { projectId, host: data.host, supervisor: data.supervisor, timestamp: Date.now() };
+    this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_STARTED, payload);
   }
 
   notifyClarificationCreated(projectId: string, data: { id: string; issuer: string; issuerRole: string; supplierName: string; questionPreview: string }) {

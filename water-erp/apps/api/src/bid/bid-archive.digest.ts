@@ -19,7 +19,7 @@ function sortByItemId(items: ArchiveItemLike[]): ArchiveItemLike[] {
 }
 
 /** 创世哈希：基于项目元数据，作为链首的前驱。 */
-function genesisHash(project: ArchiveProject): string {
+export function genesisHash(project: ArchiveProject): string {
   const genesisPayload = JSON.stringify({
     projectId: project.id,
     projectCode: project.projectCode,
