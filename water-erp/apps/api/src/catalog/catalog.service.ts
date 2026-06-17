@@ -218,7 +218,7 @@ export class CatalogService {
       this.prisma.catalogItem.count({ where: { status: { in: ['下架', '停用'] } } }),
       this.prisma.catalogItem.count({ where: { status: { in: ['待复核', '价格波动', '即将过期'] } } }),
       this.prisma.catalogItem.count({ where: { updatedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
-      this.prisma.supplierCatalogApplication.count({ where: { status: { in: ['PENDING', 'COUNTERED', 'RETURNED'] } } }),
+      this.prisma.supplierCatalogApplication.count({ where: { status: 'PENDING' } }),
     ]);
     return { total, active, inactive, review, updatedThisMonth, pendingApplications };
   }

@@ -46,7 +46,6 @@ const ALL_TABLES = [
   'SupplierCatalogApplication', 'CatalogSupplier',
   'AssistantConversation', 'AssistantMessage', 'AssistantActionLog',
   'BidEvaluationResult',
-  'BidSupervisionAnnotation',
 ] as const;
 
 // 按外键依赖分三层写入（父表在前）。空快照 createMany 等价于空操作。
@@ -94,7 +93,6 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['AssistantMessage', 'assistantMessage'], // Level 2：依赖 AssistantConversation
   ['AssistantActionLog', 'assistantActionLog'], // Level 2：依赖 AssistantConversation（可选）
   ['BidEvaluationResult', 'bidEvaluationResult'], // Level 2：依赖 BidProject
-  ['BidSupervisionAnnotation', 'bidSupervisionAnnotation'], // Level 2：依赖 BidProject + BidSupplier
 ];
 
 async function main() {

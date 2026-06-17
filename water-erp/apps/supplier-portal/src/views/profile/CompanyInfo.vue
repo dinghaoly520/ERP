@@ -57,15 +57,15 @@ const profileRows = computed(() => {
 </template>
 
 <style scoped>
-.detail-card { position: relative; padding: 28px; background: rgba(255,255,255,0.62); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); }
-.detail-card::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.36; border-radius: inherit; background-image: radial-gradient(ellipse at 10% 6%, rgba(96,165,250,0.16), transparent 55%), radial-gradient(ellipse at 85% 12%, rgba(56,189,248,0.10), transparent 55%), radial-gradient(ellipse at 38% 90%, rgba(6,78,162,0.05), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
+.detail-card { position: relative; padding: 28px; background: radial-gradient(ellipse at 50% 0%, rgba(147,197,253,0.12), transparent 60%), radial-gradient(ellipse at 50% 100%, rgba(168,139,250,0.08), transparent 60%), rgba(255,255,255,0.55); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); border: 1px solid rgba(255,255,255,0.45); border-radius: var(--sp-radius-md); }
+.detail-card::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.55; border-radius: inherit; background-image: radial-gradient(ellipse at 15% 10%, rgba(96,165,250,0.28), transparent 50%), radial-gradient(ellipse at 80% 18%, rgba(168,139,250,0.18), transparent 50%), radial-gradient(ellipse at 40% 85%, rgba(52,211,153,0.12), transparent 50%); animation: glass-glow-drift 18s ease-in-out infinite; }
 .detail-card > * { position: relative; z-index: 1; }
 .company-identity { display: flex; align-items: center; gap: 20px; padding-bottom: 24px; border-bottom: 1px solid rgba(0,0,0,0.05); }
 .company-avatar { width: 72px; height: 72px; border-radius: var(--sp-radius-sm); display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--sp-primary-dark), var(--sp-primary)); color: #fff; font-size: 32px; font-weight: 900; box-shadow: 0 4px 12px rgba(6,78,162,0.20); }
 .company-title h2 { margin: 0; color: var(--sp-gray-900); font-size: 24px; font-weight: 900; }
 .company-subline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; color: var(--sp-gray-500); font-family: monospace; }
 .info-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 24px; }
-.info-item { padding: 16px 18px; border-radius: var(--sp-radius-sm); background: rgba(255,255,255,0.48); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(0,0,0,0.04); }
+.info-item { padding: 16px 18px; border-radius: var(--sp-radius-sm); background: rgba(255,255,255,0.44); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.40); }
 .info-item.wide { grid-column: 1/-1; }
 .info-item span { display: block; color: var(--sp-gray-400); font-size: 12px; }
 .info-item strong { display: block; margin-top: 6px; color: var(--sp-gray-900); font-size: 14px; line-height: 1.6; }
