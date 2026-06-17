@@ -135,7 +135,7 @@ export default function ExpertEvaluationPage() {
       {/* Evaluation Modal */}
       {target && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={closeModal}>
-          <div className="modal-content w-full max-w-lg overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="modal-content glass-card w-full max-w-lg rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[#edf2f7] px-6 py-4">
               <div>
                 <h3 className="text-base font-bold text-[#18243a]">专家履职评价</h3>

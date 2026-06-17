@@ -777,7 +777,7 @@ export default function BidEvaluatePage() {
       {showWizard && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/30" onClick={() => setShowWizard(false)} />
-          <div className="relative bg-white rounded-2xl border border-[#dce6f3] p-6 w-full max-w-lg mx-4 shadow-[0_24px_80px_rgba(15,47,87,0.18)]">
+          <div className="relative glass-card glass-card-deeper glass-card-purple rounded-2xl p-6 w-full max-w-lg mx-4 shadow-[0_24px_80px_rgba(15,47,87,0.18)]">
             {/* Header */}
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-sm font-black text-[#18243a]">生成评标结果</h3>

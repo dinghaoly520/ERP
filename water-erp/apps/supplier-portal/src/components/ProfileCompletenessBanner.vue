@@ -105,7 +105,7 @@ const scoreLabel = computed(() => {
   display: flex;
   align-items: center;
   gap: 24px;
-  background: var(--sp-surface);
+  background: rgba(255,255,255,0.72); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255,255,255,0.48);
   border-radius: var(--sp-radius-md);
   padding: 16px 24px;

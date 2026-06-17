@@ -96,7 +96,7 @@ export default function EditProjectDialog({ open, project, onClose, onUpdated }:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="bg-white w-full max-w-[480px] border border-[oklch(0.91_0.006_264)] shadow-sm">
+      <div className="glass-card glass-card-deeper glass-card-blue w-full max-w-[480px] shadow-sm rounded-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[oklch(0.91_0.006_264)]">
           <h2

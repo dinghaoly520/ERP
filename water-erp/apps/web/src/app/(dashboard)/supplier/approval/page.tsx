@@ -220,7 +220,7 @@ function SupplierApprovalPage() {
       {/* Action modal */}
       {actionModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setActionModal(null)}>
-          <div className="modal-content w-full max-w-md overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="border-b border-[#edf2f7] px-6 py-4">
               <h3 className="text-base font-bold text-[#18243a]">
                 {actionModal.type === 'approve' ? '确认审核通过' : actionModal.type === 'reject' ? '审核不通过' : '退回补正'}

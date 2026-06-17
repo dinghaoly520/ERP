@@ -39,7 +39,7 @@ export default function NotificationsPage() {
         <button onClick={onAllRead} className="rounded-xl border border-[#dce6f3] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc]">全部已读</button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[#e5ecf4] bg-white">
+      <div className="glass-card glass-card-lighter overflow-hidden rounded-2xl">
         {loading ? (
           <div className="py-16 text-center text-sm text-[#8a99ad]">加载中...</div>
         ) : items.length === 0 ? (

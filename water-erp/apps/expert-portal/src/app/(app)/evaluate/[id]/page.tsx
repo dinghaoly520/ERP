@@ -560,7 +560,7 @@ export default function ExpertEvaluatePage() {
                   </div>
                   {/* 手机验证 + 签到 — 未签到时显示 */}
                   {!expert?.signedIn && (
-                    <div className="mt-3 p-4 bg-white border border-[oklch(0.91_0.006_264)] rounded-xl">
+                    <div className="mt-3 p-4 glass-card glass-card-lighter glass-card-blue rounded-xl">
                       {!phoneMasked && !codeSent ? (
                         <div className="text-center py-2">
                           <p className="text-sm text-[oklch(0.55_0.01_264)] mb-2">未绑定手机号，请联系管理员完善资料</p>
@@ -962,7 +962,7 @@ export default function ExpertEvaluatePage() {
                     <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3"><Lightbulb size={14} strokeWidth={1.5} /> AI 评分建议</h3>
                     <div className="grid grid-cols-3 gap-4">
                       {assistData.scoreSuggestion.map((sug: any, i: number) => (
-                        <div key={i} className="bg-white rounded-lg p-4 border border-blue-100 hover:shadow-md transition-shadow">
+                        <div key={i} className="glass-card glass-card-lighter glass-card-blue rounded-lg p-4 hover:shadow-md transition-shadow">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ color: CATEGORY_COLOR[sug.category], backgroundColor: CATEGORY_COLOR[sug.category] + '18' }}>
                               {CATEGORY_LABEL[sug.category] || sug.category}
@@ -1082,7 +1082,7 @@ export default function ExpertEvaluatePage() {
                               const pct = max > 0 ? (currentScore / max) * 100 : 0;
                               const reasonMissing = missingReasons.has(item.id);
                               return (
-                                <div key={item.id} data-score-item={item.id} className={`bg-white rounded-lg p-4 border ${reasonMissing ? 'border-red-300 ring-1 ring-red-200' : 'border-blue-100'}`}>
+                                <div key={item.id} data-score-item={item.id} className={`glass-card glass-card-lighter rounded-lg p-4 ${reasonMissing ? 'border-red-300 ring-1 ring-red-200' : 'border-blue-100'}`}>
                                   <div className="flex items-center justify-between mb-3">
                                     <h4 className="font-semibold text-[oklch(0.18_0.012_265)]">{item.name}</h4>
                                     <span className="text-sm text-[oklch(0.55_0.01_264)]">满分 {max}</span>
@@ -1119,7 +1119,7 @@ export default function ExpertEvaluatePage() {
                     })}
 
                     {/* 汇总 */}
-                    <div className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] p-6">
+                    <div className="glass-card glass-card-blue rounded-xl p-6">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="font-bold text-lg text-[oklch(0.18_0.012_265)]">评分汇总 — {scoringSupplierName}</h3>
                         <div className="text-right">
@@ -1190,7 +1190,7 @@ export default function ExpertEvaluatePage() {
                   </div>
 
                   {report.supplierScores.map((ss, i) => (
-                    <div key={i} className="bg-white rounded-xl border border-[oklch(0.91_0.006_264)] overflow-hidden">
+                    <div key={i} className="glass-card glass-card-blue rounded-xl overflow-hidden">
                       <div className="flex items-center justify-between p-5 border-b border-[oklch(0.91_0.006_264)]">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0b63ce] flex items-center justify-center text-white font-bold text-sm">{i + 1}</div>

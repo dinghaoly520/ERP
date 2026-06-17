@@ -49,7 +49,7 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="bg-white w-full max-w-[480px] rounded-2xl border border-[#e5ecf4] shadow-sm">
+      <div className="glass-card glass-card-deeper glass-card-blue w-full max-w-[480px] rounded-2xl shadow-sm">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5ecf4]">
           <h2 className="text-sm font-black text-[#18243a]">

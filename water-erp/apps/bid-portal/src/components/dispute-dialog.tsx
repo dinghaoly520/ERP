@@ -34,7 +34,7 @@ export default function DisputeDialog({ open, recordId, supplierName, objectionR
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="bg-white w-full max-w-[460px] border border-[oklch(0.91_0.006_264)] shadow-sm">
+      <div className="glass-card glass-card-deeper glass-card-rose w-full max-w-[460px] shadow-sm rounded-2xl overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-[oklch(0.91_0.006_264)]">
           <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight"
             style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>

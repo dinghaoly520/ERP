@@ -435,7 +435,7 @@ function ExpertExtractPage() {
       <button className="inline-flex items-center gap-1.5 rounded-xl border border-[#e5ecf4] bg-white px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:border-[#064ea2] hover:text-[#064ea2] transition">
         <Sparkles size={12} />规则
       </button>
-      <div className="absolute right-0 top-full mt-2 w-[380px] rounded-2xl border border-[#dce6f3] bg-white p-5 shadow-[0_18px_60px_rgba(15,47,87,0.12)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition duration-150 z-50">
+      <div className="absolute right-0 top-full mt-2 w-[380px] glass-card glass-card-lighter rounded-2xl p-5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition duration-150 z-50">
         <h3 className="text-xs font-bold uppercase tracking-wider text-[#5a6d8a] mb-3">专家抽取规则</h3>
         <ol className="space-y-2 text-xs text-[#5a6d8a] leading-relaxed">
           <li className="flex gap-2">
@@ -465,7 +465,7 @@ function ExpertExtractPage() {
 
   // ── Shared: pool card ──
   const poolCard = pool.size > 0 ? (
-    <div className="rounded-2xl border border-[#dce6f3] bg-white p-5">
+    <div className="glass-card glass-card-lighter rounded-2xl p-5">
       <h3 className="text-xs font-bold uppercase tracking-wider text-[#5a6d8a] mb-3">专家库各专业可用人数</h3>
       <div className="space-y-1.5">
         {[...pool.entries()].sort((a, b) => b[1] - a[1]).map(([specialty, count]) => {

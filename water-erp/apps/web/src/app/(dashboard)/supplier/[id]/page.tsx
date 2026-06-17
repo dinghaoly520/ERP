@@ -167,7 +167,7 @@ export default function SupplierDetailPage() {
     <div className="space-y-6 animate-pulse">
       <div className="h-20 rounded-xl bg-gradient-to-r from-[#e8eef5] to-[#dce4f0]" />
       <div className="flex gap-4 pb-2"><div className="skeleton h-9 w-20 rounded-lg" /><div className="skeleton h-9 w-20 rounded-lg" /><div className="skeleton h-9 w-20 rounded-lg" /></div>
-      <div className="rounded-xl border border-[#e5ecf4] bg-white p-6 space-y-4">
+      <div className="glass-card glass-card-lighter rounded-xl p-6 space-y-4">
         <div className="grid grid-cols-3 gap-6">{Array.from({ length: 9 }).map((_, i) => <div key={i}><div className="skeleton h-3 w-16 mb-1" /><div className="skeleton h-5 w-32" /></div>)}</div>
       </div>
     </div>

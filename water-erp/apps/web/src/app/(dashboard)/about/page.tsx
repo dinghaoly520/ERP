@@ -63,7 +63,7 @@ export default function AboutPage() {
         </div>
       </SectionCard>
 
-      <div className="rounded-2xl border border-[#dce6f3] bg-white p-5 text-xs leading-relaxed text-[#5a6d8a]">
+      <div className="glass-card glass-card-lighter rounded-2xl p-5 text-xs leading-relaxed text-[#5a6d8a]">
         本平台所有招标采购信息均受法律保护。任何单位和个人不得以任何形式复制、传播或用于商业目的。平台保留对违规行为的追诉权。使用本平台即表示您同意遵守相关法律法规和平台使用条款。
       </div>
     </div>

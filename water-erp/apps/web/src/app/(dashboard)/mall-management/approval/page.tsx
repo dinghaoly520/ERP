@@ -150,7 +150,7 @@ export default function PriceApprovalPage() {
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="rounded-2xl border border-[#dce6f3] bg-white shadow-sm p-5">
+            <div key={i} className="glass-card glass-card-lighter rounded-2xl p-5">
               <div className="flex items-center gap-4">
                 <Skeleton className="h-6 w-16 rounded-full" />
                 <Skeleton className="h-5 w-12 rounded-full" />
@@ -164,7 +164,7 @@ export default function PriceApprovalPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[#b8c7dc] bg-white p-10 text-center shadow-sm">
+        <div className="glass-card glass-card-lighter rounded-2xl border-dashed border-[#b8c7dc]/40 p-10 text-center">
           <div className="text-lg font-black text-[#18243a]">
             {status === 'PENDING' && type === '全部' && !search.trim() ? '暂无待审批申请' : '无匹配申请记录'}
           </div>
@@ -178,7 +178,7 @@ export default function PriceApprovalPage() {
         const canAct = ['PENDING', 'COUNTERED', 'RETURNED'].includes(app.status);
 
         return (
-          <div key={app.id} className="rounded-2xl border border-[#dce6f3] bg-white shadow-sm overflow-hidden">
+          <div key={app.id} className="glass-card glass-card-lighter rounded-2xl">
             {/* Summary row */}
             <div className="flex items-center gap-4 px-5 py-4 cursor-pointer" onClick={() => toggleExpand(app.id)}>
               <StatusBadge tone={app.status === "APPROVED" ? "green" : app.status === "PENDING" ? "blue" : app.status === "COUNTERED" ? "purple" : app.status === "RETURNED" ? "orange" : app.status === "REJECTED" ? "red" : "gray"}>{STATUS_LABELS[app.status]}</StatusBadge>
@@ -216,7 +216,7 @@ export default function PriceApprovalPage() {
 
             {/* Expanded detail */}
             {isOpen && (
-              <div className="border-t border-[#edf2f7] bg-[#fafbfc] px-5 py-4 text-sm space-y-3">
+              <div className="border-t border-[#edf2f7]/40 px-5 py-4 text-sm space-y-3">
                 <div className="grid gap-3 md:grid-cols-2">
                   <div><span className="text-[#8a99ad]">申请类型：</span><span className="font-bold text-[#18243a]">{TYPE_LABELS[app.type] || app.type}</span></div>
                   <div><span className="text-[#8a99ad]">供应商：</span><span className="font-bold text-[#18243a]">{app.supplier?.name || '-'}</span></div>

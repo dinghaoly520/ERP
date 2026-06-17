@@ -449,7 +449,7 @@ function BidDocSection({ annId, bidDoc, onChanged }: { annId: string | null; bid
       <div className="text-xs font-bold text-[#7c3aed] mb-3">招标文件（AES-256-GCM 加密 · 受控分发 · 首页不公开）</div>
       {!annId ? <p className="text-xs text-[#8a96aa]">保存草稿后可上传招标文件</p> : bidDoc ? (
         <div className="space-y-3">
-          <div className="rounded-lg border border-[#e5ecf4] bg-white p-3">
+          <div className="glass-card glass-card-lighter rounded-lg p-3">
             <div className="flex items-center justify-between">
               <div><strong className="text-[#18243a]">🔒 {bidDoc.title}</strong><span className="ml-2 text-xs text-[#5a6d8a]">{bidDoc.fileName} · {(bidDoc.fileSize / 1024).toFixed(0)} KB · 下载 {bidDoc.downloadCount} 次</span></div>
               <button onClick={removeDoc} className="text-xs text-[#e74c3c] hover:underline">删除</button>
@@ -459,7 +459,7 @@ function BidDocSection({ annId, bidDoc, onChanged }: { annId: string | null; bid
           {picker}
           <button onClick={saveConfig} disabled={busy} className="px-4 py-1.5 text-sm text-white bg-[#7c3aed] hover:bg-[#6d28d9] rounded-lg disabled:opacity-50">{busy ? '保存中...' : '保存访问配置'}</button>
           {bidDoc.accesses.length > 0 && (
-            <div className="rounded-lg border border-[#e5ecf4] bg-white p-3">
+            <div className="glass-card glass-card-lighter rounded-lg p-3">
               <div className="text-xs font-bold text-[#7c3aed] mb-2">访问与到账</div>
               <table className="w-full text-sm"><tbody>
                 {bidDoc.accesses.map(a => (

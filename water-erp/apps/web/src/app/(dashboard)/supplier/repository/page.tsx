@@ -149,7 +149,7 @@ export default function SupplierRepositoryPage() {
 
           {/* Classification editor */}
           {(editClass || classForm.name || classForm.code) && (
-            <div className="rounded-xl border border-[#bcd0e8] bg-white p-4">
+            <div className="glass-card glass-card-lighter rounded-xl p-4">
               <h3 className="text-sm font-bold text-[#18243a] mb-3">{editClass ? '编辑分类' : '新增分类'}</h3>
               <div className="grid grid-cols-3 gap-3 mb-3">
                 <input value={classForm.name} onChange={e => setClassForm({ ...classForm, name: e.target.value })}
@@ -272,7 +272,7 @@ export default function SupplierRepositoryPage() {
       {/* Status change modal */}
       {statusModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setStatusModal(null)}>
-          <div className="modal-content w-full max-w-md overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="border-b border-[#edf2f7] px-6 py-4">
               <h3 className="text-base font-bold text-[#18243a]">
                 {statusModal.type === 'disable' ? '停用供应商' : '加入黑名单'}

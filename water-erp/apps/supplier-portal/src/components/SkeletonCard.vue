@@ -16,7 +16,7 @@ defineProps<{ lines?: number; avatar?: boolean }>()
   display: flex;
   gap: 16px;
   padding: 20px;
-  background: var(--sp-surface);
+  background: rgba(255,255,255,0.60); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   border-radius: var(--sp-radius-md);
   border: 1px solid rgba(255,255,255,0.40);
 }

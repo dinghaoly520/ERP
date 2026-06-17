@@ -130,7 +130,7 @@ function isDeadlinePassed(deadline: string) { return new Date(deadline) < new Da
 .sp-empty-desc { font-size: 13px; margin-top: 4px; }
 .skel-wrap{display:flex;flex-direction:column;gap:14px}
 .skel-hero{background:rgba(255,255,255,0.60);border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);padding:24px;display:flex;flex-direction:column}
-.skel-filter{display:flex;gap:14px;padding:12px 16px;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);background:#fff}
-.skel-row{display:flex;align-items:center;gap:18px;padding:16px 20px;border:1px solid var(--sp-border);border-radius:var(--sp-radius-md);background:#fff}
+.skel-filter{display:flex;gap:14px;padding:12px 16px;border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);background:rgba(255,255,255,0.60)}
+.skel-row{display:flex;align-items:center;gap:18px;padding:16px 20px;border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);background:rgba(255,255,255,0.60)}
 @media (max-width: 900px) { .compact-filter { grid-template-columns: 1fr; } .opportunity-row { grid-template-columns: 1fr; } .row-deadline { padding-left: 0; border-left: 0; } }
 </style>

@@ -276,7 +276,7 @@ export default function SupplierSelectionPage() {
 
   // ── Shortlist panel (only shown when results are present) ──
   const shortlistPanel = (
-    <div className="rounded-2xl border border-[#dce6f3] bg-white p-5 lg:sticky lg:top-20">
+    <div className="glass-card glass-card-lighter rounded-2xl p-5 lg:sticky lg:top-20">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Award size={15} className="text-[#064ea2]" />
@@ -368,7 +368,7 @@ export default function SupplierSelectionPage() {
             )}
 
             {/* AI Summary */}
-            <div className="rounded-2xl border border-[#dce6f3] bg-white p-4">
+            <div className="glass-card glass-card-lighter rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <FileSearch size={16} className="text-[#064ea2]" />
                 <h2 className="text-sm font-bold text-[#18243a]">智能分析摘要</h2>
@@ -388,7 +388,7 @@ export default function SupplierSelectionPage() {
               const inList = shortlist.has(r.supplierId);
               const contact = r.contacts?.find(c => c.isPrimary) || r.contacts?.[0];
               return (
-                <div key={r.supplierId} className={`rounded-2xl border bg-white p-4 transition ${
+                <div key={r.supplierId} className={`glass-card glass-card-lighter rounded-2xl p-4 transition ${
                   inList ? 'border-[#11a874] ring-1 ring-[#11a874]/20' : 'border-[#dce6f3]'
                 }`}>
                   <div className="flex items-start gap-3">
