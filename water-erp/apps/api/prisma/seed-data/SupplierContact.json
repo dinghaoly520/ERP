@@ -2278,5 +2278,105 @@
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.347Z",
     "updatedAt": "2026-06-13T11:02:26.347Z"
+  },
+  {
+    "id": "ccb0ea80ff846559347d673",
+    "supplierId": "ca7634a7eb2f8aed8d5f464",
+    "name": "陈建国",
+    "phone": "13880003001",
+    "email": "chenjianguo@shugong.com",
+    "isPrimary": true,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "cbf925c0983d3d189a7db86",
+    "supplierId": "ca7634a7eb2f8aed8d5f464",
+    "name": "李小红",
+    "phone": "13880003002",
+    "email": "lixiaohong@shugong.com",
+    "isPrimary": false,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "cb003ddf9223684f396feed",
+    "supplierId": "cd70c655c595af2a3d78f8d",
+    "name": "王志强",
+    "phone": "13980004001",
+    "email": "wangzhiqiang@jincheng-ep.com",
+    "isPrimary": true,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "cbf30eb46a835026f0c3cef",
+    "supplierId": "cd70c655c595af2a3d78f8d",
+    "name": "赵敏",
+    "phone": "13980004002",
+    "email": "zhaomin@jincheng-ep.com",
+    "isPrimary": false,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "cae213101fe0ce54ff793c5",
+    "supplierId": "c7562bf161b1d39b7075dd2",
+    "name": "刘伟华",
+    "phone": "13780005001",
+    "email": "liuweihua@chuanneng.com",
+    "isPrimary": true,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "c1707d2b48eb26847665a19",
+    "supplierId": "c7562bf161b1d39b7075dd2",
+    "name": "周磊",
+    "phone": "13780005002",
+    "email": "zhoulei@chuanneng.com",
+    "isPrimary": false,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "c07fe989ae8a37d7983506c",
+    "supplierId": "ce3a956466cb5b10e626ce5",
+    "name": "杨光明",
+    "phone": "13680006001",
+    "email": "yangguangming@chenguang-it.com",
+    "isPrimary": true,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "c4841a2524d50e82cf77d35",
+    "supplierId": "ce3a956466cb5b10e626ce5",
+    "name": "陈静",
+    "phone": "13680006002",
+    "email": "chenjing@chenguang-it.com",
+    "isPrimary": false,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "c2641677b365378470fb506",
+    "supplierId": "cc3801b0a615504db8a92e9",
+    "name": "钱学明",
+    "phone": "13580007001",
+    "email": "qianxueming@huayu-water.com",
+    "isPrimary": true,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "cb8296ce51964a0e4cf10f3",
+    "supplierId": "cc3801b0a615504db8a92e9",
+    "name": "黄丽",
+    "phone": "13580007002",
+    "email": "huangli@huayu-water.com",
+    "isPrimary": false,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
   }
 ]

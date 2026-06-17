@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getClassifications } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification, SupplierClassification } from '@/lib/types';
 import { AlertBanner, type AlertSeverity, Breadcrumb } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
+import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, Phone, ShieldCheck, Clock, Calendar, FileText, Award } from 'lucide-react';
 
 type TabKey = 'info' | 'contacts' | 'qualifications' | 'evaluations' | 'changes';
 

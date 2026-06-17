@@ -50,7 +50,7 @@ onMounted(() => { notifStore.fetchUnreadCount(); const timer = setInterval(() =>
 const menuItems = [
   { path: '/dashboard', title: '业务工作台', icon: HomeFilled, desc: '状态与待办总览' },
   { divider: true, label: '投标中心' },
-  { path: '/bids', title: '招标机会', icon: Document, desc: '发现可参与项目' },
+  { path: '/bids', title: '可投标项目', icon: Document, desc: '发现可参与项目' },
   { path: '/my-bids', title: '投标进展', icon: DocumentChecked, desc: '跟踪已投项目' },
   { divider: true, label: '供货合作' },
   { path: '/catalog', title: '采购目录', icon: Goods, desc: '浏览品类并申请供货' },
