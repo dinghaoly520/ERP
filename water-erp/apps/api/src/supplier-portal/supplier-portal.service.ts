@@ -8,7 +8,9 @@ import { CreateQuestionDto } from './dto/create-question.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
+import { SignatureService } from '../common/crypto/signature.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
+import * as crypto from 'crypto';
 
 /** 供应商投标提交/草稿共用的可持久化字段 */
 type BidSubmissionData = {
@@ -20,6 +22,8 @@ type BidSubmissionData = {
   technicalFileAssetId?: string;
   businessFileAssetId?: string;
   coverLetterAssetId?: string;
+  fileHash?: string;
+  signature?: string;
 };
 
 @Injectable()
@@ -27,6 +31,7 @@ export class SupplierPortalService {
   constructor(
     private prisma: PrismaService,
     private bidDocumentService: BidDocumentService,
+    private signatureService: SignatureService,
   ) {}
 
   /**
@@ -404,6 +409,18 @@ export class SupplierPortalService {
       data.businessFileAssetId,
       data.coverLetterAssetId,
     ]);
+
+    // ── Layer C: SM2 digital signature verification (anti-repudiation) ──
+    if (data.signature && data.fileHash) {
+      const pubKey = supplier.sm2PublicKey;
+      if (!pubKey) {
+        throw new BadRequestException({ error: '供应商未配置 SM2 公钥，无法验签', code: 'SM2_PUBLIC_KEY_MISSING' });
+      }
+      const isValid = this.signatureService.verify(data.fileHash, data.signature, pubKey);
+      if (!isValid) {
+        throw new BadRequestException({ error: '数字签名验证失败：标书文件哈希与签名不匹配', code: 'SM2_SIGNATURE_INVALID' });
+      }
+    }
 
     // ── Layer B: encrypt submitted bid files at rest (new sealed path, no overwrite) ──
     const assetIds = [data.technicalFileAssetId, data.businessFileAssetId, data.coverLetterAssetId].filter(Boolean) as string[];

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SupplierPortalService } from './supplier-portal.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
+import { SignatureService } from '../common/crypto/signature.service';
 
 jest.mock('../announcement/bid-document.crypto', () => ({
   encryptBuffer: jest.fn().mockReturnValue({
@@ -79,6 +80,7 @@ describe('SupplierPortalService', () => {
         SupplierPortalService,
         { provide: PrismaService, useValue: prisma },
         { provide: BidDocumentService, useValue: { getForSupplier: jest.fn() } },
+        { provide: SignatureService, useValue: { verify: jest.fn().mockReturnValue(true), isValidPublicKey: jest.fn().mockReturnValue(true) } },
       ],
     }).compile();
 

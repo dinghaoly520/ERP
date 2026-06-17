@@ -386,6 +386,7 @@ model Supplier {
   classificationId  String?
   rejectReason      String?
   returnReason      String?
+  sm2PublicKey      String?        // SM2 公钥（04 开头 hex，用于验证投标签名）
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
@@ -643,6 +644,10 @@ model SupplierBidSubmission {
   technicalSealedKey    String?
   businessSealedKey     String?
   coverLetterSealedKey  String?
+  // SM2 抗抵赖签名字段（可选，兼容存量数据）
+  fileHash              String?   // 投标文件整体 SHA-256（签名前计算）
+  signature             String?   // SM2 签名值 hex
+  signedAt              DateTime? // 签名时间
   status                String    @default("draft") // draft, submitted, withdrawn
   submittedAt           DateTime?
   createdAt             DateTime  @default(now())
