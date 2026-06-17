@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ClipboardList, ArrowLeft, Building2, FileText, MessageSquare, Calendar, Clock, Lock, X } from 'lucide-react';
@@ -52,6 +52,14 @@ export default function ExpertProjectsPage() {
       .catch(() => toast.error('加载项目列表失败'))
       .finally(() => setLoading(false));
   }, []);
+
+  // P3: Auto-focus modal close button when opened
+  const modalCloseRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (overviewProject && modalCloseRef.current) {
+      modalCloseRef.current.focus();
+    }
+  }, [overviewProject]);
 
   const filtered = projects.filter(ep => {
     const s = ep.project.stage;
@@ -153,8 +161,10 @@ export default function ExpertProjectsPage() {
 
             return (
               <div key={ep.id}
+                role="button" tabIndex={0}
                 onClick={() => handleCardClick(ep)}
-                className={`rounded-2xl overflow-hidden transition-all ${
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick(ep); } }}
+                className={`rounded-2xl overflow-hidden transition-all focus-visible:ring-2 focus-visible:ring-[#064ea2] focus-visible:outline-none ${
                   active
                     ? 'glass-card glass-card-lighter glass-card-emerald hover:shadow-sm hover:border-[#bfdbfe] cursor-pointer'
                     : 'glass-card opacity-60 cursor-default'
@@ -270,17 +280,21 @@ export default function ExpertProjectsPage() {
       {/* Overview Modal for inactive projects */}
       {overviewProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
-          onClick={() => setOverviewProject(null)}>
+          role="dialog" aria-modal="true" aria-label="项目概要"
+          onClick={() => setOverviewProject(null)}
+          onKeyDown={(e) => { if (e.key === 'Escape') { setOverviewProject(null); } }}>
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden"
-            onClick={e => e.stopPropagation()}>
+            onClick={e => e.stopPropagation()}
+            onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOverviewProject(null); } }}>
             {/* Header */}
             <div className="px-6 py-4 border-b border-[#edf2f7] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Clock size={16} strokeWidth={1.5} className="text-[#8a96aa]" />
                 <h3 className="text-base font-bold text-[#18243a]">项目概要</h3>
               </div>
-              <button onClick={() => setOverviewProject(null)}
-                className="rounded-lg p-1.5 text-[#8a96aa] hover:bg-[#f1f5f9] hover:text-[#18243a] transition">
+              <button ref={modalCloseRef} onClick={() => setOverviewProject(null)}
+                className="rounded-lg p-1.5 text-[#8a96aa] hover:bg-[#f1f5f9] hover:text-[#18243a] transition"
+                aria-label="关闭">
                 <X size={16} strokeWidth={1.5} />
               </button>
             </div>

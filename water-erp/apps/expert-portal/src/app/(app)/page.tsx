@@ -76,7 +76,9 @@ export default function ExpertDashboardPage() {
                 const stageColor: Record<string, string> = { EVALUATING: '#064ea2', OPENING: '#f5a623', ARCHIVED: '#11a874' };
                 const sc = stageColor[ep.project.stage] || '#5a6d8a';
                 return (
-                  <div key={ep.id} onClick={() => router.push(`/evaluate/${ep.project.id}`)}
+                  <div key={ep.id} role="button" tabIndex={0}
+                    onClick={() => router.push(`/evaluate/${ep.project.id}`)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/evaluate/${ep.project.id}`); } }}
                     className="glass-card glass-card-lighter glass-card-emerald rounded-2xl p-5 hover:shadow-md hover:border-[#bfdbfe] transition-all cursor-pointer">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">

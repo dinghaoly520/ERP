@@ -97,7 +97,7 @@ export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregat
               <span className="text-[10px] tabular-nums text-[#9aa9bb] w-12">
                 {new Date(e.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
               </span>
-              <span className="flex-shrink-0">{eventIcons[e.icon]}</span>
+              <span className="flex-shrink-0" aria-hidden="true">{eventIcons[e.icon]}</span>
               <span className="truncate">{e.label}</span>
             </div>
           ))}

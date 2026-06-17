@@ -105,6 +105,7 @@ export default function ExpertEvaluatePage() {
 
   const [documents, setDocuments] = useState<DecryptedDocuments | null>(null);
   const [assistData, setAssistData] = useState<AssistData | null>(null);
+  const [assistLoading, setAssistLoading] = useState(false);
   // P0-1: scores keyed by `${supplierId}:${scoreItemId}` (composite) — never flat by scoreItemId.
   const [scores, setScores] = useState<Record<string, { score: number; reason: string }>>({});
   const [report, setReport] = useState<EvaluationReport | null>(null);
@@ -338,11 +339,12 @@ export default function ExpertEvaluatePage() {
 
   const loadAssist = async (sid: string) => {
     const seq = ++assistSeqRef.current;
+    setAssistLoading(true);
     try {
       const data = await api.get<AssistData>(`/expert/projects/${projectId}/assist/${sid}`);
-      if (seq === assistSeqRef.current) setAssistData(data);
+      if (seq === assistSeqRef.current) { setAssistData(data); setAssistLoading(false); }
     }
-    catch (e: any) { if (seq === assistSeqRef.current) toast.error(e.message || '加载AI数据失败'); }
+    catch (e: any) { if (seq === assistSeqRef.current) { toast.error(e.message || '加载AI数据失败'); setAssistLoading(false); } }
   };
 
   useEffect(() => {
@@ -1038,6 +1040,15 @@ export default function ExpertEvaluatePage() {
                         </li>
                       ))}
                     </ul>
+                  </div>
+                </div>
+              ) : assistLoading ? (
+                <div className="text-center py-12 text-[oklch(0.55_0.01_264)]">
+                  <div className="mb-4"><Sparkles size={40} strokeWidth={1} className="text-[#064ea2] animate-pulse" /></div>
+                  <p className="font-semibold text-[oklch(0.18_0.012_265)]">AI 正在分析投标文件…</p>
+                  <p className="text-xs mt-1">正在生成合规性检查、风险分析与评分建议，请耐心等待</p>
+                  <div className="mt-4 flex justify-center gap-1">
+                    {[0,1,2].map(i => <div key={i} className="w-2 h-2 rounded-full bg-[#064ea2] animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
                   </div>
                 </div>
               ) : (
