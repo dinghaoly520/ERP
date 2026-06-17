@@ -503,130 +503,205 @@ export default function ExpertEvaluatePage() {
           {step === 'verify' && (
             <div className="p-6 max-w-3xl mx-auto">
               <h2 className="text-xl font-bold text-[oklch(0.18_0.012_265)] mb-6">身份核验与承诺确认</h2>
+
               <div className="space-y-4 mb-6">
-                {[
-                  { label: '身份核验', desc: '确认您的专家身份信息', done: !!expert?.signedIn, action: !expert?.signedIn ? handleSignIn : undefined, isIdentity: true },
-                  { label: '保密承诺', desc: '承诺不泄露评标过程中获取的信息', done: confidentialityAgreed, action: undefined, isIdentity: false },
-                  { label: '评标纪律', desc: '遵守独立评审原则', done: disciplineAgreed, action: undefined, isIdentity: false },
-                ].map((item, i) => (
-                  <div key={i}>
-                    <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${item.done ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-[oklch(0.91_0.006_264)]'}`}>
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${item.done ? 'bg-emerald-500 text-white' : 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'}`}>
-                        {item.done ? '✓' : i + 1}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className={`font-bold ${item.done ? 'text-emerald-600' : 'text-[oklch(0.18_0.012_265)]'}`}>{item.label}</h3>
-                        <p className="text-sm text-[oklch(0.55_0.01_264)]">{item.desc}</p>
-                      </div>
-                      {item.action && !item.isIdentity && (
-                        <button onClick={item.action} disabled={busy}
-                          className="px-4 py-2 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50">确认</button>
-                      )}
+                {/* ===== ① 身份核验 — 始终可用 ===== */}
+                <div>
+                  <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${expert?.signedIn ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-[oklch(0.91_0.006_264)]'}`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${expert?.signedIn ? 'bg-emerald-500 text-white' : 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'}`}>
+                      {expert?.signedIn ? '✓' : '1'}
                     </div>
-
-                    {/* Phone verification — shown inside the identity card when not yet done */}
-                    {item.isIdentity && !item.done && (
-                      <div className="mt-3 p-4 bg-white border border-[oklch(0.91_0.006_264)] rounded-xl">
-                        {!phoneMasked && !codeSent ? (
-                          <div className="text-center py-2">
-                            <p className="text-sm text-[oklch(0.55_0.01_264)] mb-2">未绑定手机号，请联系管理员完善资料</p>
-                          </div>
-                        ) : phoneVerified ? (
-                          <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                            <span className="text-lg">✅</span>
-                            <div>
-                              <p className="text-sm font-semibold text-emerald-600">手机验证通过</p>
-                              <p className="text-xs text-emerald-500">{phoneMasked}</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <p className="text-sm font-semibold text-[oklch(0.18_0.012_265)] mb-1">📱 手机验证</p>
-                            <p className="text-xs text-[oklch(0.55_0.01_264)] mb-3">
-                              验证码将发送至 {phoneMasked || '注册手机号'}
-                            </p>
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                maxLength={6}
-                                value={verificationCode}
-                                onChange={e => {
-                                  const v = e.target.value.replace(/\D/g, '').slice(0, 6);
-                                  setVerificationCode(v);
-                                  setCodeError('');
-                                  if (v.length === 6) handleVerifyCode(v);
-                                }}
-                                placeholder="输入6位验证码"
-                                disabled={verifying || !codeSent}
-                                className="flex-1 px-3 py-2 text-center text-lg tracking-[8px] border border-[oklch(0.91_0.006_264)] rounded-lg focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none disabled:opacity-50 font-mono"
-                              />
-                              <button
-                                onClick={handleSendCode}
-                                disabled={sendingCode || countdown > 0 || verifying}
-                                className="px-4 py-2 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50 whitespace-nowrap"
-                              >
-                                {sendingCode ? '发送中…' : countdown > 0 ? `${countdown}s 后重发` : codeSent ? '重新获取' : '获取验证码'}
-                              </button>
-                            </div>
-                            {codeError && (
-                              <p className="mt-2 text-xs text-red-500">{codeError}</p>
-                            )}
-                            {!codeError && codeSent && !phoneVerified && (
-                              <p className="mt-2 text-xs text-[oklch(0.55_0.01_264)]">
-                                验证码6位数字，5分钟内有效
-                                {attemptsLeft < 5 && ` · 剩余 ${attemptsLeft} 次尝试`}
-                              </p>
-                            )}
-                          </>
-                        )}
-
-                        {/* Sign-in button — only shown when phone is verified */}
-                        {phoneVerified && item.action && (
-                          <button
-                            onClick={item.action}
-                            disabled={busy}
-                            className="mt-3 w-full px-4 py-2.5 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50 font-semibold"
-                          >
-                            {busy ? '请稍候…' : '确认签到并完成身份核验'}
-                          </button>
-                        )}
-                      </div>
+                    <div className="flex-1">
+                      <h3 className={`font-bold ${expert?.signedIn ? 'text-emerald-600' : 'text-[oklch(0.18_0.012_265)]'}`}>身份核验</h3>
+                      <p className="text-sm text-[oklch(0.55_0.01_264)]">确认您的专家身份信息</p>
+                    </div>
+                    {!expert?.signedIn && (
+                      <span className="text-xs text-[oklch(0.72_0.008_264)] bg-[oklch(0.96_0.004_264)] px-2 py-1 rounded font-semibold">待完成</span>
                     )}
                   </div>
-                ))}
+                  {/* 手机验证 + 签到 — 未签到时显示 */}
+                  {!expert?.signedIn && (
+                    <div className="mt-3 p-4 bg-white border border-[oklch(0.91_0.006_264)] rounded-xl">
+                      {!phoneMasked && !codeSent ? (
+                        <div className="text-center py-2">
+                          <p className="text-sm text-[oklch(0.55_0.01_264)] mb-2">未绑定手机号，请联系管理员完善资料</p>
+                        </div>
+                      ) : phoneVerified ? (
+                        <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                          <span className="text-lg">✅</span>
+                          <div>
+                            <p className="text-sm font-semibold text-emerald-600">手机验证通过</p>
+                            <p className="text-xs text-emerald-500">{phoneMasked}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm font-semibold text-[oklch(0.18_0.012_265)] mb-1">📱 手机验证</p>
+                          <p className="text-xs text-[oklch(0.55_0.01_264)] mb-3">
+                            验证码将发送至 {phoneMasked || '注册手机号'}
+                          </p>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={6}
+                              value={verificationCode}
+                              onChange={e => {
+                                const v = e.target.value.replace(/\D/g, '').slice(0, 6);
+                                setVerificationCode(v);
+                                setCodeError('');
+                                if (v.length === 6) handleVerifyCode(v);
+                              }}
+                              placeholder="输入6位验证码"
+                              disabled={verifying || !codeSent}
+                              className="flex-1 px-3 py-2 text-center text-lg tracking-[8px] border border-[oklch(0.91_0.006_264)] rounded-lg focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none disabled:opacity-50 font-mono"
+                            />
+                            <button
+                              onClick={handleSendCode}
+                              disabled={sendingCode || countdown > 0 || verifying}
+                              className="px-4 py-2 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50 whitespace-nowrap"
+                            >
+                              {sendingCode ? '发送中…' : countdown > 0 ? `${countdown}s 后重发` : codeSent ? '重新获取' : '获取验证码'}
+                            </button>
+                          </div>
+                          {codeError && (
+                            <p className="mt-2 text-xs text-red-500">{codeError}</p>
+                          )}
+                          {!codeError && codeSent && !phoneVerified && (
+                            <p className="mt-2 text-xs text-[oklch(0.55_0.01_264)]">
+                              验证码6位数字，5分钟内有效
+                              {attemptsLeft < 5 && ` · 剩余 ${attemptsLeft} 次尝试`}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      {/* 签到按钮 — 手机验证通过后显示 */}
+                      {phoneVerified && (
+                        <button
+                          onClick={handleSignIn}
+                          disabled={busy}
+                          className="mt-3 w-full px-4 py-2.5 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50 font-semibold"
+                        >
+                          {busy ? '请稍候…' : '确认签到并完成身份核验'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* ===== ② 保密承诺 — 签到完成后解锁 ===== */}
+                <div className={!expert?.signedIn ? 'opacity-50 pointer-events-none select-none' : ''}>
+                  <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
+                    confidentialityAgreed ? 'bg-emerald-50 border-emerald-200'
+                    : expert?.signedIn ? 'bg-white border-[oklch(0.91_0.006_264)]'
+                    : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
+                      confidentialityAgreed ? 'bg-emerald-500 text-white'
+                      : expert?.signedIn ? 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'
+                      : 'bg-gray-200 text-gray-400'
+                    }`}>
+                      {confidentialityAgreed ? '✓' : expert?.signedIn ? '2' : <Lock size={16} strokeWidth={1.5} />}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className={`font-bold ${
+                        confidentialityAgreed ? 'text-emerald-600'
+                        : expert?.signedIn ? 'text-[oklch(0.18_0.012_265)]'
+                        : 'text-gray-400'
+                      }`}>保密承诺</h3>
+                      <p className="text-sm text-[oklch(0.55_0.01_264)]">承诺不泄露评标过程中获取的信息</p>
+                    </div>
+                    {!expert?.signedIn && (
+                      <span className="text-xs text-[oklch(0.72_0.008_264)] bg-[oklch(0.96_0.004_264)] px-2 py-1 rounded font-semibold">需先完成身份核验</span>
+                    )}
+                    {expert?.signedIn && !confidentialityAgreed && (
+                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded font-semibold">待签署</span>
+                    )}
+                  </div>
+                  {/* 保密承诺书 — 解锁后且未签署时显示 */}
+                  {expert?.signedIn && !confidentialityAgreed && (
+                    <div className="mt-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                      <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-2 flex items-center gap-2">
+                        <Clipboard size={14} strokeWidth={1.5} /> 保密承诺书
+                      </h3>
+                      <p className="text-sm text-[oklch(0.55_0.01_264)] leading-relaxed mb-4">
+                        本人作为本项目评审专家，郑重承诺：在评标过程中严格遵守保密规定，不向任何第三方泄露评标过程中获取的投标文件内容、评审意见及其他相关信息。如有违反，愿意承担相应法律责任。
+                      </p>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked={confidentialityAgreed} onChange={e => setConfidentialityAgreed(e.target.checked)}
+                          className="w-4 h-4 rounded border-blue-200 text-[#064ea2] focus:ring-[#064ea2]" />
+                        <span className="text-sm text-[oklch(0.18_0.012_265)] font-semibold">本人已阅读并同意以上保密承诺</span>
+                      </label>
+                    </div>
+                  )}
+                  {/* 已签署确认条 */}
+                  {expert?.signedIn && confidentialityAgreed && (
+                    <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
+                      <CheckCircle size={14} strokeWidth={1.5} className="text-emerald-500" />
+                      <span className="text-sm text-emerald-600 font-semibold">已签署保密承诺书</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* ===== ③ 评标纪律 — 保密承诺签署后解锁 ===== */}
+                <div className={!confidentialityAgreed ? 'opacity-50 pointer-events-none select-none' : ''}>
+                  <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
+                    disciplineAgreed ? 'bg-emerald-50 border-emerald-200'
+                    : confidentialityAgreed ? 'bg-white border-[oklch(0.91_0.006_264)]'
+                    : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
+                      disciplineAgreed ? 'bg-emerald-500 text-white'
+                      : confidentialityAgreed ? 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'
+                      : 'bg-gray-200 text-gray-400'
+                    }`}>
+                      {disciplineAgreed ? '✓' : confidentialityAgreed ? '3' : <Lock size={16} strokeWidth={1.5} />}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className={`font-bold ${
+                        disciplineAgreed ? 'text-emerald-600'
+                        : confidentialityAgreed ? 'text-[oklch(0.18_0.012_265)]'
+                        : 'text-gray-400'
+                      }`}>评标纪律</h3>
+                      <p className="text-sm text-[oklch(0.55_0.01_264)]">遵守独立评审原则</p>
+                    </div>
+                    {!confidentialityAgreed && (
+                      <span className="text-xs text-[oklch(0.72_0.008_264)] bg-[oklch(0.96_0.004_264)] px-2 py-1 rounded font-semibold">需先签署保密承诺</span>
+                    )}
+                    {confidentialityAgreed && !disciplineAgreed && (
+                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded font-semibold">待确认</span>
+                    )}
+                  </div>
+                  {/* 评标纪律 — 解锁后且未确认时显示 */}
+                  {confidentialityAgreed && !disciplineAgreed && (
+                    <div className="mt-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                      <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-2 flex items-center gap-2">
+                        <Gavel size={14} strokeWidth={1.5} /> 评标纪律承诺
+                      </h3>
+                      <ul className="space-y-2 text-sm text-[oklch(0.55_0.01_264)] mb-4">
+                        <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>严格按照招标文件规定的评审标准和方法进行评审</li>
+                        <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>独立评审，不与其他专家串通或私下交流评审意见</li>
+                        <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>客观公正，不带任何偏见和个人倾向</li>
+                        <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>对评审过程和结果保密，不向任何人透露</li>
+                      </ul>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked={disciplineAgreed} onChange={e => setDisciplineAgreed(e.target.checked)}
+                          className="w-4 h-4 rounded border-blue-200 text-[#064ea2] focus:ring-[#064ea2]" />
+                        <span className="text-sm text-[oklch(0.18_0.012_265)] font-semibold">本人已阅读并同意遵守以上评标纪律</span>
+                      </label>
+                    </div>
+                  )}
+                  {/* 已确认条 */}
+                  {confidentialityAgreed && disciplineAgreed && (
+                    <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
+                      <CheckCircle size={14} strokeWidth={1.5} className="text-emerald-500" />
+                      <span className="text-sm text-emerald-600 font-semibold">已确认评标纪律</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* 保密承诺书 */}
-              <div className="bg-blue-50 rounded-xl border border-blue-100 p-6 mb-4">
-                <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3"><Clipboard size={14} strokeWidth={1.5} /> 保密承诺书</h3>
-                <p className="text-sm text-[oklch(0.55_0.01_264)] leading-relaxed mb-4">
-                  本人作为本项目评审专家，郑重承诺：在评标过程中严格遵守保密规定，不向任何第三方泄露评标过程中获取的投标文件内容、评审意见及其他相关信息。如有违反，愿意承担相应法律责任。
-                </p>
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input type="checkbox" checked={confidentialityAgreed} onChange={e => setConfidentialityAgreed(e.target.checked)}
-                    className="w-4 h-4 rounded border-blue-200 text-[#064ea2] focus:ring-[#064ea2]" />
-                  <span className="text-sm text-[oklch(0.18_0.012_265)] font-semibold">本人已阅读并同意以上保密承诺</span>
-                </label>
-              </div>
-
-              {/* 评标纪律 */}
-              <div className="bg-blue-50 rounded-xl border border-blue-100 p-6">
-                <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3"><Gavel size={14} strokeWidth={1.5} /> 评标纪律承诺</h3>
-                <ul className="space-y-2 text-sm text-[oklch(0.55_0.01_264)] mb-4">
-                  <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>严格按照招标文件规定的评审标准和方法进行评审</li>
-                  <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>独立评审，不与其他专家串通或私下交流评审意见</li>
-                  <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>客观公正，不带任何偏见和个人倾向</li>
-                  <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>对评审过程和结果保密，不向任何人透露</li>
-                </ul>
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input type="checkbox" checked={disciplineAgreed} onChange={e => setDisciplineAgreed(e.target.checked)}
-                    className="w-4 h-4 rounded border-blue-200 text-[#064ea2] focus:ring-[#064ea2]" />
-                  <span className="text-sm text-[oklch(0.18_0.012_265)] font-semibold">本人已阅读并同意遵守以上评标纪律</span>
-                </label>
-              </div>
-
-              {/* P2: per-supplier avoidance declaration — replaces the single "确认" button */}
+              {/* P2: per-supplier avoidance declaration */}
               {!expert?.avoidanceConfirmed && (
                 <div className="mt-6 bg-amber-50 rounded-xl border border-amber-200 p-5">
                   <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-2 flex items-center gap-2">
