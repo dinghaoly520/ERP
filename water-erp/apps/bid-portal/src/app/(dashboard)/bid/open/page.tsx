@@ -397,7 +397,7 @@ export default function BidOpenPage() {
                 <Play size={13} strokeWidth={2} /> 启动开标
               </button>
             )}
-            {decryptProgress.total > 0 && decryptProgress.pending > 0 && (
+            {project.stage === 'OPENING' && decryptProgress.total > 0 && decryptProgress.pending > 0 && (
               <button onClick={handleBulkDecrypt} disabled={bulkDecrypting}
                 className="flex items-center gap-1.5 rounded-xl border border-[#f5a623] bg-[#fef6e8] px-4 py-2 text-xs font-bold text-[#92400e] hover:bg-[#fef0c0] transition disabled:opacity-50">
                 <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : `全部解密 (${decryptProgress.pending})`}
@@ -477,7 +477,7 @@ export default function BidOpenPage() {
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
-                      {s.decryptStatus !== 'SUCCESS' && (
+                      {project.stage === 'OPENING' && s.decryptStatus !== 'SUCCESS' && (
                         <button onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting}
                           className="flex items-center gap-1 text-[11px] font-semibold text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] tracking-tight transition-colors disabled:opacity-50">
                           {isDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}

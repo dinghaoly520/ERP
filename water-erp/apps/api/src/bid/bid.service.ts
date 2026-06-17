@@ -410,16 +410,17 @@ export class BidService {
         throw new BadRequestException({ error: '标书已解密成功，无需重复解密', code: 'ALREADY_DECRYPTED' });
       }
 
-      // P0: 解密窗口校验 — 窗口未开启或已关闭时拒绝解密
+      // P0: 解密窗口校验 — 开标未启动或窗口未开启/已关闭时拒绝解密
       const session = await tx.bidOpeningSession.findUnique({ where: { projectId } });
-      if (session) {
-        const now = new Date();
-        if (now < session.decryptWindowStart) {
-          throw new BadRequestException({ error: '解密窗口尚未开启', code: 'DECRYPT_WINDOW_NOT_OPEN' });
-        }
-        if (now > session.decryptWindowEnd) {
-          throw new BadRequestException({ error: '解密窗口已关闭', code: 'DECRYPT_WINDOW_CLOSED' });
-        }
+      if (!session) {
+        throw new BadRequestException({ error: '开标尚未启动，无法解密', code: 'OPENING_NOT_STARTED' });
+      }
+      const now = new Date();
+      if (now < session.decryptWindowStart) {
+        throw new BadRequestException({ error: '解密窗口尚未开启', code: 'DECRYPT_WINDOW_NOT_OPEN' });
+      }
+      if (now > session.decryptWindowEnd) {
+        throw new BadRequestException({ error: '解密窗口已关闭', code: 'DECRYPT_WINDOW_CLOSED' });
       }
 
       // Phase 1: 开始解密

@@ -260,6 +260,11 @@ describe('BidService — stage transitions', () => {
       });
       prisma.bidOpeningRecord.create.mockResolvedValue({});
       prisma.bidSupervisionLog.create.mockResolvedValue({});
+      // Default: session exists with open window (大多数测试解密成功需此前提)
+      prisma.bidOpeningSession.findUnique = jest.fn().mockResolvedValue({
+        decryptWindowStart: new Date(Date.now() - 3600_000),
+        decryptWindowEnd: new Date(Date.now() + 3600_000),
+      });
     });
 
     it('succeeds deterministically by default', async () => {
@@ -333,10 +338,10 @@ describe('BidService — stage transitions', () => {
       });
     });
 
-    it('allows decrypt when no session exists (legacy)', async () => {
+    it('rejects decrypt when no session exists (开标未启动)', async () => {
       prisma.bidOpeningSession.findUnique = jest.fn().mockResolvedValue(null);
-      const result = await service.decryptSupplier('p1', 'bs-1', {} as any);
-      expect(result).toBeDefined();
+      await expect(service.decryptSupplier('p1', 'bs-1', {} as any))
+        .rejects.toMatchObject({ response: { code: 'OPENING_NOT_STARTED' } });
     });
   });
 
@@ -594,7 +599,7 @@ describe('BidService — stage transitions', () => {
           },
           bidOpeningRecord: { create: jest.fn().mockResolvedValue({}) },
           bidSupervisionLog: { create: logCreate },
-          bidOpeningSession: { findUnique: jest.fn().mockResolvedValue(null) },
+          bidOpeningSession: { findUnique: jest.fn().mockResolvedValue({ decryptWindowStart: new Date(Date.now() - 3600_000), decryptWindowEnd: new Date(Date.now() + 3600_000) }) },
         };
         return fn(tx);
       });
@@ -629,7 +634,7 @@ describe('BidService — decryptSupplier 真实校验', () => {
       },
       bidOpeningRecord: { create: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
-      bidOpeningSession: { findUnique: jest.fn(async () => null) },
+      bidOpeningSession: { findUnique: jest.fn(async () => ({ decryptWindowStart: new Date(Date.now() - 3600_000), decryptWindowEnd: new Date(Date.now() + 3600_000) })) },
     };
     const prisma: any = { $transaction: jest.fn(async (cb: any) => cb(tx)) };
     const module = await Test.createTestingModule({
