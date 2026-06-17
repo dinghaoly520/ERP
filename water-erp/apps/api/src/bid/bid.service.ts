@@ -789,13 +789,15 @@ export class BidService {
       s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED',
     );
 
-    const ranked = [];
+    const ranked: { supplierId: string; supplierName: string; totalScore: number; averageScore: number }[] = [];
     for (const supplier of activeSuppliers) {
       const records = await this.prisma.bidScoreRecord.findMany({
         where: { supplierId: supplier.id, expert: { projectId } },
       });
       const totalScore = records.reduce((sum, r) => sum + Number(r.score), 0);
-      const averageScore = project.experts.length > 0 ? totalScore / project.experts.length : 0;
+      // Count only experts who actually scored this supplier (not all assigned experts)
+      const scoringExpertCount = new Set(records.map(r => r.expertId)).size;
+      const averageScore = scoringExpertCount > 0 ? totalScore / scoringExpertCount : 0;
       ranked.push({
         supplierId: supplier.id,
         supplierName: supplier.supplierName,
@@ -805,26 +807,29 @@ export class BidService {
     }
     ranked.sort((a, b) => b.averageScore - a.averageScore);
 
-    await this.prisma.bidEvaluationResult.deleteMany({ where: { projectId } });
-    if (ranked.length > 0) {
-      await this.prisma.bidEvaluationResult.createMany({
-        data: ranked.map((r, index) => ({
-          projectId,
-          supplierId: r.supplierId,
-          supplierName: r.supplierName,
-          totalScore: r.totalScore,
-          averageScore: r.averageScore,
-          rank: index + 1,
-          recommended: index === 0,
-        })),
+    // Wrap deleteMany + createMany + supervision log in a transaction
+    // to prevent data loss if createMany fails after deleteMany succeeds.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bidEvaluationResult.deleteMany({ where: { projectId } });
+      if (ranked.length > 0) {
+        await tx.bidEvaluationResult.createMany({
+          data: ranked.map((r, index) => ({
+            projectId,
+            supplierId: r.supplierId,
+            supplierName: r.supplierName,
+            totalScore: r.totalScore,
+            averageScore: r.averageScore,
+            rank: index + 1,
+            recommended: index === 0,
+          })),
+        });
+      }
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '系统', target: project.name,
+          action: '生成评标结果', result: `生成${ranked.length}家供应商排名`, riskFlag: '无',
+        },
       });
-    }
-
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId, time: new Date(), role: '系统', target: project.name,
-        action: '生成评标结果', result: `生成${ranked.length}家供应商排名`, riskFlag: '无',
-      },
     });
     this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名`, riskFlag: '无' });
     if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_RESULTS_GENERATED', target: `BidProject:${projectId}`, detail: { rankedCount: ranked.length } } });
@@ -900,7 +905,7 @@ export class BidService {
 
     // P2: 不再广播分数值（专家独立评审）。仅通知"评分活动"里程碑 + 刷新聚合在场（无分数）。
     this.gateway?.notifyExpertPresence(projectId, {
-      expertId: dto.expertId, expertName: '', milestone: 'scoring_activity',
+      expertId: dto.expertId, expertName: expert.expertName, milestone: 'scoring_activity',
       progressPercent: 0,
     });
     return record;

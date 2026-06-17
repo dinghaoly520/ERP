@@ -24,14 +24,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(u => { if (!u) window.location.href = LOGIN_URL; else setUser(u); })
-      .catch(() => { window.location.href = LOGIN_URL; });
+      .then(r => {
+        if (r.status === 401) { router.replace(LOGIN_URL); return null; }
+        return r.ok ? r.json() : null;
+      })
+      .then(u => { if (!u) router.replace(LOGIN_URL); else setUser(u); })
+      .catch(() => {
+        // Transient network error — don't log out, show retry
+        console.error('Auth check failed — will retry on next navigation');
+      });
   }, []);
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    window.location.href = LOGIN_URL;
+    router.replace(LOGIN_URL);
   };
 
   const isActive = (path: string) => {

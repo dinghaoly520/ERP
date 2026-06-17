@@ -34,13 +34,24 @@ export class ExpertService {
   }
 
   async updateProfile(userId: string, dto: UpdateExpertProfileDto) {
-    return this.prisma.user.update({
+    const data: Record<string, string> = {};
+    if (dto.displayName) data.displayName = dto.displayName;
+    if (dto.email) data.email = dto.email;
+
+    await this.prisma.user.update({
       where: { id: userId },
-      data: {
-        ...(dto.displayName && { displayName: dto.displayName }),
-        ...(dto.email && { email: dto.email }),
-      },
+      data,
     });
+
+    // Persist major to the expert's BidExpert records (current active assignments)
+    if (dto.major) {
+      await this.prisma.bidExpert.updateMany({
+        where: { userId, signedIn: false },
+        data: { major: dto.major },
+      });
+    }
+
+    return this.prisma.user.findUnique({ where: { id: userId } });
   }
 
   /* ── 统计概览 ── */
@@ -202,7 +213,7 @@ export class ExpertService {
       data: { signedIn: true },
     });
     this.gateway?.notifyExpertPresence(expert.projectId, {
-      expertId: expert.id, expertName: '', milestone: 'signed_in', progressPercent: updated.progress ?? 0,
+      expertId: expert.id, expertName: expert.expertName, milestone: 'signed_in', progressPercent: updated.progress ?? 0,
     });
     return updated;
   }
@@ -233,7 +244,7 @@ export class ExpertService {
       data: { avoidanceConfirmed: true, conflictedSupplierIds: allConflictIds.length > 0 ? (allConflictIds as any) : undefined },
     });
     this.gateway?.notifyExpertPresence(expert.projectId, {
-      expertId: expert.id, expertName: '', milestone: 'avoidance_confirmed', progressPercent: updated.progress ?? 0,
+      expertId: expert.id, expertName: expert.expertName, milestone: 'avoidance_confirmed', progressPercent: updated.progress ?? 0,
     });
     return updated;
   }
@@ -348,16 +359,6 @@ export class ExpertService {
       throw new BadRequestException({ error: '评分列表不能为空', code: 'SCORES_EMPTY' });
     }
 
-    // Validate project is in EVALUATING stage
-    const project = await this.prisma.bidProject.findUnique({
-      where: { id: projectId },
-      select: { stage: true },
-    });
-    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    if (project.stage !== 'EVALUATING') {
-      throw new BadRequestException({ error: '项目不在评标阶段', code: 'PROJECT_NOT_EVALUATING' });
-    }
-
     // Validate scores don't exceed maxScore — 限定当前项目防止跨项目注入
     const scoreItemIds = dto.scores.map(s => s.scoreItemId);
     const scoreItems = await this.prisma.bidScoreItem.findMany({
@@ -392,10 +393,22 @@ export class ExpertService {
       }
     }
 
-    // 批量 upsert——唯一复合索引 (expertId, scoreItemId, supplierId) 保证幂等
-    await this.prisma.$transaction(
-      dto.scores.map(item =>
-        this.prisma.bidScoreRecord.upsert({
+    // Wrap stage check + upsert + progress-recalc + supervision log in a single transaction
+    // to prevent TOCTOU race conditions and ensure aggregate consistency.
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Re-check stage inside transaction to close the TOCTOU window
+      const currentProject = await tx.bidProject.findUnique({
+        where: { id: projectId },
+        select: { stage: true },
+      });
+      if (!currentProject) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+      if (currentProject.stage !== 'EVALUATING') {
+        throw new BadRequestException({ error: '项目不在评标阶段', code: 'PROJECT_NOT_EVALUATING' });
+      }
+
+      // Batch upsert — unique composite index guarantees idempotency
+      for (const item of dto.scores) {
+        await tx.bidScoreRecord.upsert({
           where: {
             expertId_scoreItemId_supplierId: {
               expertId: expert.id,
@@ -411,55 +424,56 @@ export class ExpertService {
             score: item.score,
             reason: item.reason,
           },
-        }),
-      ),
-    );
+        });
+      }
 
-    // 查询新创建的记录用于返回值
-    const records = await this.prisma.bidScoreRecord.findMany({
-      where: {
-        expertId: expert.id,
-        scoreItemId: { in: dto.scores.map(i => i.scoreItemId) },
-        supplierId: { in: dto.scores.map(i => i.supplierId) },
-      },
+      // Recalculate progress and totalScore within the same transaction
+      const allScoreItems = await tx.bidScoreItem.findMany({ where: { projectId } });
+      const activeSupplierCount = await tx.bidSupplier.count({
+        where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+      });
+      const totalItems = allScoreItems.length * activeSupplierCount;
+      const scoredItems = await tx.bidScoreRecord.count({
+        where: { expertId: expert.id, scoreItem: { projectId } },
+      });
+      const progress = totalItems > 0 ? Math.round((scoredItems / totalItems) * 100) : 0;
+
+      const allRecords = await tx.bidScoreRecord.findMany({
+        where: { expertId: expert.id, scoreItem: { projectId } },
+      });
+      const totalScore = allRecords.reduce((sum, r) => sum + Number(r.score), 0);
+
+      await tx.bidExpert.update({
+        where: { id: expert.id },
+        data: { progress, totalScore },
+      });
+
+      // Supervision log
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId,
+          time: new Date(),
+          role: '评审专家',
+          target: expert.expertName,
+          action: `提交评分（供应商：${bidSuppliers.map(s => s.supplierName).join('、')}）`,
+          result: `共${dto.scores.length}项评分`,
+          riskFlag: '无',
+        },
+      });
+
+      return { records: allRecords, progress, totalScore };
     });
 
-    // 更新专家的进度和总分
-    const allScoreItems = await this.prisma.bidScoreItem.findMany({ where: { projectId } });
-    const activeSupplierCount = await this.prisma.bidSupplier.count({
-      where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+    // Emit WebSocket events after successful commit
+    this.gateway?.notifyExpertPresence?.(projectId, {
+      expertId: expert.id,
+      expertName: expert.expertName,
+      milestone: 'scoring_activity',
+      progressPercent: result.progress,
     });
-    const totalItems = allScoreItems.length * activeSupplierCount;
-    const scoredItems = await this.prisma.bidScoreRecord.count({
-      where: { expertId: expert.id, scoreItem: { projectId } },
-    });
-    const progress = totalItems > 0 ? Math.round((scoredItems / totalItems) * 100) : 0;
+    this.gateway?.broadcastAggregatePresence?.(projectId);
 
-    // 计算总分
-    const allRecords = await this.prisma.bidScoreRecord.findMany({
-      where: { expertId: expert.id, scoreItem: { projectId } },
-    });
-    const totalScore = allRecords.reduce((sum, r) => sum + Number(r.score), 0);
-
-    await this.prisma.bidExpert.update({
-      where: { id: expert.id },
-      data: { progress, totalScore },
-    });
-
-    // 记录监督日志
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId,
-        time: new Date(),
-        role: '评审专家',
-        target: expert.expertName,
-        action: `提交评分（供应商：${bidSuppliers.map(s => s.supplierName).join('、')}）`,
-        result: `共${dto.scores.length}项评分`,
-        riskFlag: '无',
-      },
-    });
-
-    return { records, progress, totalScore };
+    return result;
   }
 
   async getMyScores(userId: string, projectId: string) {
@@ -478,6 +492,21 @@ export class ExpertService {
   }
 
   /* ── 澄清答疑 ── */
+
+  async listClarifications(userId: string, projectId: string) {
+    // Verify expert is assigned to this project
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { userId, projectId },
+      select: { id: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+
+    // Lightweight query — only fetch clarifications, not the entire project
+    return this.prisma.bidClarification.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 
   async createClarification(userId: string, projectId: string, dto: CreateExpertClarificationDto) {
     // P2: 阶段门控 — 归档后不可发起澄清

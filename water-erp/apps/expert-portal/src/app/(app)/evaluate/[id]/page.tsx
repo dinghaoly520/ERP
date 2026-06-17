@@ -45,6 +45,8 @@ export default function ExpertEvaluatePage() {
   const [countdown, setCountdown] = useState(0);
   const [codeError, setCodeError] = useState('');
   const [attemptsLeft, setAttemptsLeft] = useState(5);
+  // P0: auto-verify on first 6-digit input only; disable after first failure
+  const autoVerifyRef = useRef(true);
   // P2: clarifications panel
   const [showClarifications, setShowClarifications] = useState(false);
   const [clarifications, setClarifications] = useState<any[]>([]);
@@ -67,6 +69,10 @@ export default function ExpertEvaluatePage() {
       handleSubmitScores();
     }
   };
+
+  // P0: request sequence counter to discard stale responses on rapid supplier switching
+  const docSeqRef = useRef(0);
+  const assistSeqRef = useRef(0);
 
   const { connection: _wsConn, lastEventAt: _wsLastEvent, reconnectNow: _wsReconnect } = useExpertWebSocket(projectId, {
     onAggregatePresence: (d: any) => {
@@ -258,6 +264,7 @@ export default function ExpertEvaluatePage() {
       setCountdown(60);
       setAttemptsLeft(5);
       setVerificationCode('');
+      autoVerifyRef.current = true; // re-enable auto-verify on new code
       const timer = setInterval(() => {
         setCountdown(prev => {
           if (prev <= 1) { clearInterval(timer); return 0; }
@@ -285,6 +292,7 @@ export default function ExpertEvaluatePage() {
     } catch (e: any) {
       const data = e.data;
       setCodeError(data?.error || '验证失败');
+      autoVerifyRef.current = false; // disable auto-verify after first failure
       if (data?.code === 'ATTEMPTS_EXCEEDED' || data?.code === 'CODE_EXPIRED') {
         setCodeSent(false);
         setVerificationCode('');
@@ -306,8 +314,12 @@ export default function ExpertEvaluatePage() {
   };
 
   const loadDocuments = async (sid: string) => {
-    try { setDocuments(await api.get<DecryptedDocuments>(`/expert/projects/${projectId}/documents/${sid}`)); }
-    catch (e: any) { toast.error(e.message || '加载标书失败'); }
+    const seq = ++docSeqRef.current;
+    try {
+      const data = await api.get<DecryptedDocuments>(`/expert/projects/${projectId}/documents/${sid}`);
+      if (seq === docSeqRef.current) setDocuments(data);
+    }
+    catch (e: any) { if (seq === docSeqRef.current) toast.error(e.message || '加载标书失败'); }
   };
 
   const loadClarifications = async () => {
@@ -325,8 +337,12 @@ export default function ExpertEvaluatePage() {
   };
 
   const loadAssist = async (sid: string) => {
-    try { setAssistData(await api.get<AssistData>(`/expert/projects/${projectId}/assist/${sid}`)); }
-    catch (e: any) { toast.error(e.message || '加载AI数据失败'); }
+    const seq = ++assistSeqRef.current;
+    try {
+      const data = await api.get<AssistData>(`/expert/projects/${projectId}/assist/${sid}`);
+      if (seq === assistSeqRef.current) setAssistData(data);
+    }
+    catch (e: any) { if (seq === assistSeqRef.current) toast.error(e.message || '加载AI数据失败'); }
   };
 
   useEffect(() => {
@@ -387,6 +403,7 @@ export default function ExpertEvaluatePage() {
   useEffect(() => { if (step === 'report') loadReport(); }, [step]);
 
   const handleConfirmReport = async () => {
+    if (!confirm('确认后将锁定所有评分，不可再修改。是否继续？')) return;
     setBusy(true);
     try { await api.post(`/expert/projects/${projectId}/report/confirm`, { comment: '确认完成评审' }); loadProject(); toast.success('评审报告已确认'); }
     catch (e: any) { toast.error(e.message || '确认失败'); }
@@ -595,7 +612,8 @@ export default function ExpertEvaluatePage() {
                                 const v = e.target.value.replace(/\D/g, '').slice(0, 6);
                                 setVerificationCode(v);
                                 setCodeError('');
-                                if (v.length === 6) handleVerifyCode(v);
+                                // Only auto-verify on first attempt; after failure, user must manually confirm
+                                if (v.length === 6 && autoVerifyRef.current) handleVerifyCode(v);
                               }}
                               placeholder="输入6位验证码"
                               disabled={verifying || !codeSent}

@@ -187,7 +187,7 @@ model BidExpert {
   avoidanceConfirmed  Boolean          @default(false)
   conflictedSupplierIds Json            @default("[]")
   progress           Int              @default(0)
-  totalScore         Decimal          @default("0") @db.Decimal(5, 1)
+  totalScore         Decimal          @default("0") @db.Decimal(8, 1)
   reportConfirmed    Boolean          @default(false)
   reportConfirmedAt  DateTime?
   user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -220,7 +220,7 @@ model BidScoreRecord {
   reason      String?
   expert      BidExpert    @relation(fields: [expertId], references: [id], onDelete: Cascade)
   scoreItem   BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
-  supplier    BidSupplier  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  supplier    BidSupplier  @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   createdAt   DateTime     @default(now())
 
   @@unique([expertId, scoreItemId, supplierId])

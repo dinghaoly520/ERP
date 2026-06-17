@@ -2,10 +2,17 @@ const BASE = '/api';
 const PORTAL = 'expert';
 
 async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
+  // Merge headers safely: handle both plain objects and Headers instances
+  const mergedHeaders = new Headers({ 'X-Portal': PORTAL });
+  if (init?.headers) {
+    const src = new Headers(init.headers as HeadersInit);
+    for (const [k, v] of src) mergedHeaders.set(k, v);
+  }
+
   const res = await fetch(`${BASE}${path}`, {
     credentials: 'include',
     ...init,
-    headers: { 'X-Portal': PORTAL, ...((init?.headers as Record<string, string>) || {}) },
+    headers: mergedHeaders,
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

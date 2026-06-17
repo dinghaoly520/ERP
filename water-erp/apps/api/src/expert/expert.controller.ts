@@ -7,6 +7,7 @@ import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { ConfirmReportDto } from './dto/confirm-report.dto';
+import { ConfirmAvoidanceDto } from './dto/confirm-avoidance.dto';
 
 @ApiTags('专家评审')
 @Controller('expert')
@@ -49,7 +50,7 @@ export class ExpertController {
   }
 
   @Post('projects/:projectId/avoidance')
-  confirmAvoidance(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Body() body?: { conflictedSupplierIds?: string[] }) {
+  confirmAvoidance(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Body() body?: ConfirmAvoidanceDto) {
     return this.expertService.confirmAvoidance(userId, projectId, body?.conflictedSupplierIds);
   }
 
@@ -95,7 +96,7 @@ export class ExpertController {
   /* ── 澄清答疑 ── */
   @Get('projects/:projectId/clarifications')
   listClarifications(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
-    return this.expertService.getProject(userId, projectId).then(p => p.clarifications);
+    return this.expertService.listClarifications(userId, projectId);
   }
 
   @Post('projects/:projectId/clarifications')
