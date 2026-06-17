@@ -7678,5 +7678,65 @@
     "departmentId": null,
     "createdAt": "2026-06-13T06:18:29.739Z",
     "updatedAt": "2026-06-16T08:44:35.228Z"
+  },
+  {
+    "id": "c4f5b9037502f86dc65aee9",
+    "username": "supplier3",
+    "displayName": "陈建国",
+    "email": "chenjianguo@shugong.com",
+    "passwordHash": "$2b$10$Zq3MkEsMJr4cU4qhReUS/uqIzTOkBanE15HJzcVTyTp/BSD9P8.6O",
+    "role": "supplier",
+    "isActive": false,
+    "departmentId": null,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "c456f34af9e5ca11387a838",
+    "username": "supplier4",
+    "displayName": "王志强",
+    "email": "wangzhiqiang@jincheng-ep.com",
+    "passwordHash": "$2b$10$4ZrQvEzGh6Q5nB3cVhpgw.G6lra63zOqaQmrz4Fv./TRxexTDoeMe",
+    "role": "supplier",
+    "isActive": false,
+    "departmentId": null,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "c87562d065e47aef4827551",
+    "username": "supplier5",
+    "displayName": "刘伟华",
+    "email": "liuweihua@chuanneng.com",
+    "passwordHash": "$2b$10$J0CAlaL8QQ4g0ChVSNW3LOOGCrjmimCjn91hYeQ8zp/UyMeJZh0rC",
+    "role": "supplier",
+    "isActive": false,
+    "departmentId": null,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "c9d843a16f4b123f484c4cf",
+    "username": "supplier6",
+    "displayName": "杨光明",
+    "email": "yangguangming@chenguang-it.com",
+    "passwordHash": "$2b$10$m1zJ7xywTaI.ssanB3f7vuJ7GGWuqGqU6t0TIMeiJDJdrqnvrJ1de",
+    "role": "supplier",
+    "isActive": false,
+    "departmentId": null,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "c0b734182fd6ff54d7e8816",
+    "username": "supplier7",
+    "displayName": "钱学明",
+    "email": "qianxueming@huayu-water.com",
+    "passwordHash": "$2b$10$/4VsO.c1OatfklHQEiyGwe3asa8fvus5rYvcL4.b0tqCLC1yIVp4K",
+    "role": "supplier",
+    "isActive": false,
+    "departmentId": null,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
   }
 ]
