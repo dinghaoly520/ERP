@@ -62,20 +62,23 @@ function RingCountdown({ remaining, big }: { remaining: number; big?: boolean })
   const dash = circumference * pct;
   const isUrgent = remaining <= 60;
   const ringColor = isUrgent ? '#e74c3c' : remaining <= 300 ? '#f5a623' : '#ffffff';
+  const size = big ? 100 : 80;
+  const fontSize = big ? 'text-2xl' : 'text-lg';
+  const labelSize = big ? 'text-[10px]' : 'text-[9px]';
   return (
-    <div className={`flex items-center gap-3 ${big ? 'scale-125' : ''}`}>
-      <svg width={big ? 100 : 80} height={big ? 100 : 80} className="-rotate-90" style={{ overflow: 'visible' }}>
+    <div className={`relative inline-flex items-center justify-center ${big ? 'scale-125' : ''}`} style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="absolute inset-0 -rotate-90" style={{ overflow: 'visible' }}>
         <circle cx={cx} cy={cx} r={radius} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={6} />
         <circle cx={cx} cy={cx} r={radius} fill="none" stroke={ringColor} strokeWidth={6}
           strokeDasharray={`${dash} ${circumference}`} strokeLinecap="round"
           className="transition-all duration-1000" />
       </svg>
-      <div>
-        <div className={`font-mono font-black tracking-tight ${big ? 'text-3xl' : 'text-xl'} ${isUrgent ? 'animate-pulse' : ''}`}
+      <div className="relative z-10 flex flex-col items-center">
+        <div className={`font-mono font-black tracking-tight ${fontSize} ${isUrgent ? 'animate-pulse' : ''}`}
           style={{ color: ringColor }}>
           {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
         </div>
-        <div className="text-xs text-white/50 uppercase tracking-widest">剩余</div>
+        <div className={`${labelSize} text-white/50 uppercase tracking-widest`}>剩余</div>
       </div>
     </div>
   );
