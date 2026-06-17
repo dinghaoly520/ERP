@@ -69,7 +69,7 @@ export class BidService {
       totalExperts: totalExperts.length,
       totalAnnouncements,
       stageDistribution,
-      recentActivity: recentLogs,
+      recentLogs,
     };
   }
 

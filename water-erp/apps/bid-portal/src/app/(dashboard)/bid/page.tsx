@@ -175,7 +175,7 @@ export default function BidDashboard() {
                       <td className="px-5 py-3 font-mono text-sm font-semibold text-[#064ea2]">{p.projectCode}</td>
                       <td className="px-5 py-3 text-sm font-medium text-[#18243a]">{p.name}</td>
                       <td className="px-5 py-3">
-                        {p.riskNote?.includes('来自公告自动创建') ? (
+                        {p.riskNote?.includes('来自公告') ? (
                           <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold text-[#11a874] bg-[#11a87418]">
                             来自公告
                           </span>
@@ -187,7 +187,7 @@ export default function BidDashboard() {
                       </td>
                       <td className="px-5 py-3 text-sm text-[#5a6d8a]">{p.procurementMethod}</td>
                       <td className="px-5 py-3 text-sm text-[#5a6d8a] font-mono">
-                        {new Date(p.openTime).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })}
+                        {p.openTime ? new Date(p.openTime).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'}
                       </td>
                       <td className="px-5 py-3">
                         <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold" style={{ color, backgroundColor: `${color}18` }}>
