@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import type { BidProjectDetail, BidSupervisionAnnotation } from '@/lib/types';
+import type { BidProjectDetail } from '@/lib/types';
+import { getSupervisionAnnotations, upsertSupervisionAnnotation, deleteSupervisionAnnotation } from '@/lib/api/bid';
 import { useBidProjects } from '@/hooks/use-bid-projects';
 import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
@@ -56,7 +57,7 @@ export default function BidSupervisePage() {
   // Load persisted annotations from API
   useEffect(() => {
     if (!projectId) return;
-    api.get<BidSupervisionAnnotation[]>(`/bid/projects/${projectId}/supervision-annotations`)
+    getSupervisionAnnotations(projectId)
       .then(annotations => {
         const flagMap = new Map<string, 'flagged' | 'escalated' | null>();
         const noteMap = new Map<string, string>();
@@ -174,7 +175,7 @@ export default function BidSupervisePage() {
                           setAnnotatingId(null);
                           const flag = anomalyFlags.get(s.id) || 'flagged';
                           try {
-                            await api.post(`/bid/projects/${projectId}/supervision-annotations`, {
+                            await upsertSupervisionAnnotation(projectId, {
                               supplierId: s.id, status: flag, notes: noteDraft,
                             });
                           } catch { /* silent */ }
@@ -192,9 +193,9 @@ export default function BidSupervisePage() {
                     setAnomalyFlags(prev => { const m = new Map(prev); m.set(s.id, newStatus); return m; });
                     try {
                       if (newStatus) {
-                        await api.post(`/bid/projects/${projectId}/supervision-annotations`, { supplierId: s.id, status: newStatus });
+                        await upsertSupervisionAnnotation(projectId, { supplierId: s.id, status: newStatus });
                       } else {
-                        await api.delete(`/bid/projects/${projectId}/supervision-annotations/${s.id}`);
+                        await deleteSupervisionAnnotation(projectId, s.id);
                       }
                     } catch { /* silent */ }
                   }}
@@ -208,9 +209,9 @@ export default function BidSupervisePage() {
                     setAnomalyFlags(prev => { const m = new Map(prev); m.set(s.id, newStatus); return m; });
                     try {
                       if (newStatus) {
-                        await api.post(`/bid/projects/${projectId}/supervision-annotations`, { supplierId: s.id, status: newStatus });
+                        await upsertSupervisionAnnotation(projectId, { supplierId: s.id, status: newStatus });
                       } else {
-                        await api.delete(`/bid/projects/${projectId}/supervision-annotations/${s.id}`);
+                        await deleteSupervisionAnnotation(projectId, s.id);
                       }
                     } catch { /* silent */ }
                   }}

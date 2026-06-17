@@ -25,6 +25,7 @@ export default function BidStandardPage() {
   const [draft, setDraft] = useState({ category: 'TECHNICAL', name: '', maxScore: 0 });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({ category: 'TECHNICAL', name: '', maxScore: 0 });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -80,13 +81,19 @@ export default function BidStandardPage() {
     } catch (e: any) { toast.error(e.message || '保存失败'); }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`确认删除评分项「${name}」？`)) return;
+  const handleDelete = (id: string, name: string) => {
+    setDeleteConfirm({ id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { id } = deleteConfirm;
     try {
       await deleteScoreItem(projectId, id);
       setItems(prev => prev.filter(i => i.id !== id));
       toast.success('已删除');
     } catch (e: any) { toast.error(e.message || '删除失败'); }
+    setDeleteConfirm(null);
   };
 
   const CategoryBadge = ({ category }: { category: string }) => {
@@ -296,6 +303,32 @@ export default function BidStandardPage() {
           </div>
         )}
       </SectionCard>
+
+      {/* Delete confirmation dialog */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="glass-card w-full max-w-[360px] rounded-2xl p-6 shadow-lg">
+            <h3 className="text-sm font-bold text-[#18243a] mb-2">确认删除</h3>
+            <p className="text-xs text-[#5a6d8a] mb-4">
+              确定要删除评分项「{deleteConfirm.name}」？此操作不可撤销。
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="rounded-xl px-4 py-2 text-xs font-bold text-[#5a6d8a] hover:text-[#18243a] transition"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="rounded-xl px-4 py-2 text-xs font-bold bg-[#e74c3c] text-white hover:bg-[#dc2626] transition"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

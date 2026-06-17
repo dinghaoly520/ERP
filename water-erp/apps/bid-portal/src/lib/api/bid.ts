@@ -168,3 +168,45 @@ export function archiveAll(projectId: string) {
 export function getWorkspace(projectId: string) {
   return api.get(`/bid/projects/${projectId}/workspace`);
 }
+
+// ── Opening hall ──
+export function getOpeningSessionTime(projectId: string) {
+  return api.get<{ serverTime: number; remainingSeconds: number }>(`/bid/projects/${projectId}/opening-session/time`);
+}
+
+export function decryptBid(projectId: string, supplierId: string) {
+  return api.post(`/bid/projects/${projectId}/decrypt/${supplierId}`, {});
+}
+
+// ── Supervision ──
+export interface SupervisionAnnotation {
+  id: string; projectId: string; supplierId: string;
+  status: string; notes?: string; createdBy?: string;
+  createdAt: string; updatedAt: string;
+}
+
+export function getSupervisionAnnotations(projectId: string) {
+  return api.get<SupervisionAnnotation[]>(`/bid/projects/${projectId}/supervision-annotations`);
+}
+
+export function upsertSupervisionAnnotation(projectId: string, body: {
+  supplierId: string; status: string; notes?: string; createdBy?: string;
+}) {
+  return api.post<SupervisionAnnotation>(`/bid/projects/${projectId}/supervision-annotations`, body);
+}
+
+export function deleteSupervisionAnnotation(projectId: string, supplierId: string) {
+  return api.delete(`/bid/projects/${projectId}/supervision-annotations/${supplierId}`);
+}
+
+// ── Archive ──
+export function exportArchivePackage(projectId: string, format: 'json' | 'csv' = 'json') {
+  return api.get(`/bid/projects/${projectId}/archive-package/export?format=${format}`);
+}
+
+// ── Clarifications ──
+export function replyClarification(projectId: string, clarificationId: string, body: {
+  reply: string;
+}) {
+  return api.patch(`/bid/projects/${projectId}/clarifications/${clarificationId}/reply`, body);
+}

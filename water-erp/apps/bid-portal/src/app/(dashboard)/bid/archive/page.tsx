@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { exportArchivePackage } from '@/lib/api/bid';
 import type { BidProjectDetail } from '@/lib/types';
 import { useBidProjects } from '@/hooks/use-bid-projects';
 import ProjectSelector from '@/components/project-selector';
@@ -37,7 +38,7 @@ export default function BidArchivePage() {
         a.download = `归档包_${project.projectCode}_${new Date().toISOString().slice(0, 10)}.csv`;
         a.click();
       } else {
-        const data = await api.get(`/bid/projects/${projectId}/archive-package/export?format=json`);
+        const data = await exportArchivePackage(projectId, 'json');
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');

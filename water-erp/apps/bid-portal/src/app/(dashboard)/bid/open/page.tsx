@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { api, enterOpeningRecord } from '@/lib/api';
+import { api, enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import { useBidProjects } from '@/hooks/use-bid-projects';
 import ProjectSelector from '@/components/project-selector';
@@ -134,7 +134,7 @@ export default function BidOpenPage() {
   // Sync server time for authoritative countdown
   useEffect(() => {
     if (!projectId || !project?.openingSession) return;
-    api.get<{ serverTime: number; remainingSeconds: number }>(`/bid/projects/${projectId}/opening-session/time`)
+    getOpeningSessionTime(projectId)
       .then(data => { setServerTimeOffset(data.serverTime - Date.now()); })
       .catch(() => {});
   }, [projectId, project?.openingSession]);
@@ -189,7 +189,7 @@ export default function BidOpenPage() {
 
   // ═══ API ═══
   const handleResolveDispute = async (recordId: string, result: string, confirm: boolean) => {
-    await api.post(`/bid/projects/${projectId}/opening-records/${recordId}/resolve-dispute`, { result, confirm });
+    await resolveOpeningDispute(projectId, recordId, { result, confirm });
     const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
     setProject(updated);
     setInlineDispute(null);
@@ -204,14 +204,14 @@ export default function BidOpenPage() {
       const t = targets[0];
       setDecrypting(prev => new Set(prev).add(t.id));
       try {
-        await api.post(`/bid/projects/${projectId}/decrypt/${t.id}`, {});
+        await decryptBid(projectId, t.id);
       } catch { /* error handled by WebSocket update */ }
       setDecrypting(prev => { const n = new Set(prev); n.delete(t.id); return n; });
     } else {
       // Bulk decrypt: parallelize with Promise.allSettled for partial-failure resilience
       setBulkDecrypting(true);
       const results = await Promise.allSettled(
-        targets.map(t => api.post(`/bid/projects/${projectId}/decrypt/${t.id}`, {}).catch(() => {})),
+        targets.map(t => decryptBid(projectId, t.id).catch(() => {})),
       );
       setBulkDecrypting(false);
       api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
