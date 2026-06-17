@@ -53,7 +53,7 @@ const progressDetail = computed<{ tone: string; text: string } | null>(() => { c
       <div v-if="status.status==='REJECTED'&&status.rejectReason" class="reason-card error"><strong>审核不通过原因</strong><p>{{ status.rejectReason }}</p></div>
       <div v-if="status.status==='RETURNED'&&status.returnReason" class="reason-card warning"><strong>退回补正原因</strong><p>{{ status.returnReason }}</p></div>
       <div class="status-actions">
-        <el-button v-if="status.status==='APPROVED'" type="primary" @click="router.push('/bids')">浏览招标机会</el-button>
+        <el-button v-if="status.status==='APPROVED'" type="primary" @click="router.push('/bids')">浏览投标机会</el-button>
         <el-button v-if="status.status==='RETURNED'" type="primary" @click="router.push('/profile')">修改企业信息</el-button>
         <el-button v-if="status.status==='PENDING'" @click="router.push('/dashboard')">返回工作台</el-button>
       </div>

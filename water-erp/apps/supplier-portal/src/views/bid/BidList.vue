@@ -57,8 +57,8 @@ function isDeadlinePassed(deadline: string) { return new Date(deadline) < new Da
     <div class="sp-page-hero-card">
       <div class="sp-page-hero-inner">
         <div class="sp-page-hero-body">
-          <h1 class="sp-modern-title">招标机会</h1>
-          <p class="sp-modern-desc">按项目关键节点快速筛选与进入详情，持续关注最新招标。</p>
+          <h1 class="sp-modern-title">投标机会</h1>
+          <p class="sp-modern-desc">按项目关键节点快速筛选与进入详情，持续关注最新招标公告。</p>
         </div>
         <div class="sp-page-hero-actions">
           <div class="header-stat"><strong>{{ bidStore.projects.length }}</strong><span>全部</span></div>

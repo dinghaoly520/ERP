@@ -140,7 +140,7 @@ async function handleWithdraw(id: string) {
           <p class="sp-modern-desc">跟踪已提交的投标记录与各项目所处阶段，及时关注开标进展。</p>
         </div>
         <div class="mb-hero-right">
-          <el-button type="primary" size="large" @click="router.push('/bids')"><el-icon><Plus /></el-icon>浏览招标机会</el-button>
+          <el-button type="primary" size="large" @click="router.push('/bids')"><el-icon><Plus /></el-icon>浏览投标机会</el-button>
         </div>
       </div>
 
@@ -340,7 +340,7 @@ async function handleWithdraw(id: string) {
         <div class="sp-empty-icon"><el-icon :size="24"><Document /></el-icon></div>
         <p class="sp-empty-text">暂无投标记录</p>
         <p class="sp-empty-desc">浏览招标项目并提交您的标书</p>
-        <el-button type="primary" style="margin-top:16px" @click="router.push('/bids')">浏览招标机会</el-button>
+        <el-button type="primary" style="margin-top:16px" @click="router.push('/bids')">浏览投标机会</el-button>
       </div>
     </div>
     </template>

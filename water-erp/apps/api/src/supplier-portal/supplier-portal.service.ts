@@ -227,7 +227,7 @@ export class SupplierPortalService {
     return { total, avgScore: Math.round(avgScore * 10) / 10, levelCounts };
   }
 
-  // ─── Bid Projects (招标机会 — supplier-facing) ───
+  // ─── Bid Projects (投标机会 — supplier-facing) ───
   // 仅返回项目公开字段 + 投标方数量。绝不暴露其他投标方身份、开标记录、
   // 专家名单与评分等评审内部信息（这些是 BidController 受角色保护的原因）。
   async listBidProjects(page = 1, pageSize = 20) {

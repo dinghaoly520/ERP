@@ -120,7 +120,7 @@ export class SupplierPortalController {
     return this.portalService.getEvaluationStats(supplierId);
   }
 
-  // ─── Bid Projects (招标机会) ───
+  // ─── Bid Projects (投标机会) ───
 
   @Get('bid-projects')
   async listBidProjects(
