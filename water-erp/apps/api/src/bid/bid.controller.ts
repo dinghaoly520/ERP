@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Res, BadRequestException } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { BidService } from './bid.service';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -63,6 +64,7 @@ export class BidController {
 
   @Post('projects/:id/decrypt/:supplierId')
   @ApiOperation({ summary: '解密供应商投标' })
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto) { return this.bidService.decryptSupplier(id, supplierId, dto); }
 
   @Get('projects/:id/opening-records')

@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, ForbiddenException,
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { encryptBuffer, decryptBuffer, streamToBuffer } from './bid-document.crypto';
+import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import * as crypto from 'crypto';
 
 export type AccessScope = 'OPEN' | 'DESIGNATED' | 'INVITED';
@@ -55,7 +56,7 @@ export class BidDocumentService {
         accessScope,
         requirePayment: config.requirePayment ?? false,
         price: config.requirePayment ? config.price : null,
-        decryptKey,
+        decryptKey: wrapKey(decryptKey, process.env.KMS_SECRET!),
         bidProjectId: accessScope === 'INVITED' ? config.bidProjectId : null,
       },
     });
@@ -256,7 +257,10 @@ export class BidDocumentService {
     // 读取密文 → 解密
     const objStream = await minioClient.getObject(MINIO_BUCKET, doc.fileAsset.key);
     const ciphertext = await streamToBuffer(objStream);
-    const plaintext = decryptBuffer(ciphertext, doc.decryptKey);
+    const rawKey = isWrappedKey(doc.decryptKey)
+      ? unwrapKey(doc.decryptKey, process.env.KMS_SECRET!)
+      : doc.decryptKey;
+    const plaintext = decryptBuffer(ciphertext, rawKey);
 
     // 记录下载
     await this.prisma.$transaction([

@@ -7,6 +7,7 @@ import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dt
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
+import { wrapKey } from '../common/crypto/envelope-crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
 /** 供应商投标提交/草稿共用的可持久化字段 */
@@ -404,10 +405,11 @@ export class SupplierPortalService {
       data.coverLetterAssetId,
     ]);
 
-    // ── Layer B: encrypt submitted bid files at rest ──
+    // ── Layer B: encrypt submitted bid files at rest (new sealed path, no overwrite) ──
     const assetIds = [data.technicalFileAssetId, data.businessFileAssetId, data.coverLetterAssetId].filter(Boolean) as string[];
     const sealedKeys: Record<string, string> = {};
-    const plaintextBackups: Map<string, Buffer> = new Map();
+    const sealedPaths: Record<string, string> = {};
+    const newlySealedPaths: string[] = []; // for cleanup on failure
 
     try {
       for (const assetId of assetIds) {
@@ -416,37 +418,36 @@ export class SupplierPortalService {
 
         const objStream = await minioClient.getObject(MINIO_BUCKET, asset.key);
         const plaintext = await streamToBuffer(objStream);
-        plaintextBackups.set(assetId, plaintext);
 
         const { ciphertext, decryptKey } = encryptBuffer(plaintext);
-        sealedKeys[assetId] = decryptKey;
+        sealedKeys[assetId] = wrapKey(decryptKey, process.env.KMS_SECRET!);
 
-        await minioClient.putObject(MINIO_BUCKET, asset.key, ciphertext, ciphertext.length, {
+        // Write ciphertext to a NEW path (do not overwrite original plaintext)
+        const sealedPath = `sealed/${projectId}/${supplierId}/${asset.key.split('/').pop()}.enc`;
+        await minioClient.putObject(MINIO_BUCKET, sealedPath, ciphertext, ciphertext.length, {
           'Content-Type': 'application/octet-stream',
         });
-
-        await this.prisma.fileAsset.update({
-          where: { id: assetId },
-          data: { encrypted: true },
-        });
+        sealedPaths[assetId] = sealedPath;
+        newlySealedPaths.push(sealedPath);
       }
     } catch (err) {
-      // Rollback: restore plaintext for any files we may have overwritten
-      for (const [assetId, plaintext] of plaintextBackups) {
+      // Clean up any newly written sealed files on failure
+      for (const path of newlySealedPaths) {
         try {
-          const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
-          if (asset) {
-            await minioClient.putObject(MINIO_BUCKET, asset.key, plaintext, plaintext.length, {
-              'Content-Type': asset.mimeType,
-            });
-            await this.prisma.fileAsset.update({
-              where: { id: assetId },
-              data: { encrypted: false },
-            });
-          }
-        } catch (_) { /* best-effort rollback */ }
+          await minioClient.removeObject(MINIO_BUCKET, path);
+        } catch (_) { /* best-effort cleanup */ }
       }
       throw err;
+    }
+
+    // Update FileAsset records with sealedPath (no overwrite of plaintext)
+    for (const assetId of assetIds) {
+      if (sealedPaths[assetId]) {
+        await this.prisma.fileAsset.update({
+          where: { id: assetId },
+          data: { encrypted: true, sealedPath: sealedPaths[assetId] },
+        });
+      }
     }
 
     const now = new Date();

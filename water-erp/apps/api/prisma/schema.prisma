@@ -674,6 +674,7 @@ model FileAsset {
   encryptionKeyId String?                      // Track C: 项目数据密钥引用
   iv              String?                      // Track C: AES-GCM iv (base64)
   authTag         String?                      // Track C: AES-GCM authTag (base64)
+  sealedPath      String?                      // Layer B: 密文存储路径（不覆盖原明文）
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

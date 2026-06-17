@@ -16,6 +16,7 @@ import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotat
 import { assertBidStageTransition, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
+import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { ScoreCategory } from '@prisma/client';
 
@@ -476,11 +477,15 @@ export class BidService {
         const asset = await this.prisma.fileAsset.findUnique({ where: { id: ref.assetId } });
         if (!asset) { errorMsg = `投标文件记录缺失: ${ref.assetId}`; break; }
         try {
-          const objStream = await minioClient.getObject(MINIO_BUCKET, asset.key);
+          const readKey = asset.sealedPath || asset.key; // 兼容存量：无 sealedPath 时回退到原路径
+          const objStream = await minioClient.getObject(MINIO_BUCKET, readKey);
           let buffer = await streamToBuffer(objStream);
           // Layer B：有 sealedKey 时执行真实 AES 解密
           if (ref.sealedKey) {
-            buffer = decryptBuffer(buffer, ref.sealedKey);
+            const rawKey = isWrappedKey(ref.sealedKey)
+              ? unwrapKey(ref.sealedKey, process.env.KMS_SECRET!)
+              : ref.sealedKey;
+            buffer = decryptBuffer(buffer, rawKey);
             decryptOk = true;
           }
           // Layer A：完整性校验（解密后的明文 vs 存储 sha256）

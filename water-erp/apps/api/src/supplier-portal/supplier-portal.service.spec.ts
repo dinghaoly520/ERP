@@ -16,6 +16,7 @@ jest.mock('../upload/minio.client', () => ({
   minioClient: {
     getObject: jest.fn().mockResolvedValue({}),
     putObject: jest.fn().mockResolvedValue({}),
+    removeObject: jest.fn().mockResolvedValue({}),
   },
   MINIO_BUCKET: 'test-bucket',
 }));
@@ -315,13 +316,17 @@ describe('SupplierPortalService', () => {
 
       expect(encryptBuffer).toHaveBeenCalled();
       expect(minioClient.getObject).toHaveBeenCalledWith('test-bucket', mockAsset.key);
+      // Writes ciphertext to NEW sealed path (does not overwrite original)
       expect(minioClient.putObject).toHaveBeenCalledWith(
-        'test-bucket', mockAsset.key,
+        'test-bucket', expect.stringContaining('sealed/project-1/supplier-1/'),
         expect.any(Buffer), expect.any(Number),
         expect.objectContaining({ 'Content-Type': 'application/octet-stream' }),
       );
       expect(prisma.fileAsset.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'fa-1' }, data: { encrypted: true } }),
+        expect.objectContaining({
+          where: { id: 'fa-1' },
+          data: { encrypted: true, sealedPath: expect.stringContaining('sealed/') },
+        }),
       );
       expect(prisma.supplierBidSubmission.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -332,7 +337,7 @@ describe('SupplierPortalService', () => {
       );
     });
 
-    it('rolls back plaintext on encryption failure', async () => {
+    it('cleans up sealed files on encryption failure', async () => {
       // MinIO failure on the 2nd file
       (minioClient.putObject as jest.Mock)
         .mockResolvedValueOnce({})  // first file: success
@@ -349,12 +354,10 @@ describe('SupplierPortalService', () => {
         technicalFileAssetId: 'fa-1', businessFileAssetId: 'fa-2',
       })).rejects.toThrow('minio write error');
 
-      // Should restore plaintext for fa-1 (putObject with original mime type, not octet-stream)
-      const putObjectCalls = (minioClient.putObject as jest.Mock).mock.calls;
-      const restoreCall = putObjectCalls.find((c: any[]) =>
-        c[1] === mockAsset.key && c[4]?.['Content-Type'] === 'application/pdf',
+      // Should clean up the sealed file that was already written (fa-1)
+      expect(minioClient.removeObject).toHaveBeenCalledWith(
+        'test-bucket', expect.stringContaining('sealed/project-1/supplier-1/'),
       );
-      expect(restoreCall).toBeDefined();
     });
   });
 
