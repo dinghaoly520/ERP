@@ -194,10 +194,25 @@ export class UploadService implements OnModuleInit {
         where: { userId: user.sub, projectId: submission.projectId },
       });
       if (!expert) return false;
-      const decrypted = await this.prisma.bidSupplier.findFirst({
+      const bidSupplier = await this.prisma.bidSupplier.findFirst({
         where: { projectId: submission.projectId, supplierId: submission.supplierId, decryptStatus: 'SUCCESS' },
       });
-      return !!decrypted;
+      if (!bidSupplier) return false;
+
+      // 审计：记录专家文件访问
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId: submission.projectId,
+          time: new Date(),
+          role: '专家',
+          target: bidSupplier.supplierName,
+          action: '文件访问',
+          result: `专家预览/下载投标文件 (asset: ${asset.id})`,
+          riskFlag: '无',
+        },
+      });
+
+      return true;
     }
 
     return false;

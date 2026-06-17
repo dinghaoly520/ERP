@@ -20,6 +20,7 @@ describe('UploadService — download permission', () => {
       bidExpert: { findFirst: jest.fn() },
       supplierBidSubmission: { findFirst: jest.fn() },
       bidSupplier: { findFirst: jest.fn() },
+      bidSupervisionLog: { create: jest.fn() },
     };
     res = { setHeader: jest.fn() };
 
@@ -72,7 +73,7 @@ describe('UploadService — download permission', () => {
     prisma.fileAsset.findUnique.mockResolvedValue(asset);
     prisma.supplierBidSubmission.findFirst.mockResolvedValue({ supplierId: 's1', projectId: 'p1' });
     prisma.bidExpert.findFirst.mockResolvedValue({ projectId: 'p1' });
-    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '测试供应商' });
 
     await service.streamFile('fa-1', { sub: 'u-exp', role: 'bid_expert' }, res);
 
@@ -81,6 +82,14 @@ describe('UploadService — download permission', () => {
       expect.objectContaining({ where: expect.objectContaining({ userId: 'u-exp', projectId: 'p1' }) }),
     );
     expect(minioClient.getObject).toHaveBeenCalled();
+    // 审计：记录专家文件访问
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          projectId: 'p1', role: '专家', target: '测试供应商', action: '文件访问',
+        }),
+      }),
+    );
   });
 
   it('allows a multi-project expert to view an asset from their other project', async () => {
@@ -88,7 +97,7 @@ describe('UploadService — download permission', () => {
     prisma.fileAsset.findUnique.mockResolvedValue(asset);
     prisma.supplierBidSubmission.findFirst.mockResolvedValue({ supplierId: 's1', projectId: 'p2' });
     prisma.bidExpert.findFirst.mockResolvedValue({ projectId: 'p2' });
-    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '测试供应商' });
 
     await service.streamFile('fa-1', { sub: 'u-exp', role: 'bid_expert' }, res);
 
