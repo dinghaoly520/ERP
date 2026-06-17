@@ -318,14 +318,18 @@ function EditorModal({ announcement, onClose, onSaved }: { announcement: Announc
         <div className="rounded-xl border border-[#dce6f3] bg-[#f8fafc] p-4">
           <div className="text-xs font-bold text-[#064ea2] mb-3">{typeMap[type].label} · 结构化信息</div>
           <div className="grid grid-cols-2 gap-3">
-            {TYPE_META[type].map(f => (
+            {TYPE_META[type].map(f => {
+              const isBidDatetime = type === 'BID_NOTICE' && (f.key === 'deadline' || f.key === 'openTime');
+              return (
               <div key={f.key} className={f.area ? 'col-span-2' : ''}>
                 <label className="block text-xs font-semibold text-[#5a6d8a] mb-1">{f.label}</label>
                 {f.area
                   ? <textarea value={metadata[f.key] || ''} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className={inputCls + ' h-16 resize-none'} />
-                  : <input value={metadata[f.key] || ''} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className={inputCls} />}
+                  : isBidDatetime
+                    ? <input type="datetime-local" value={metadata[f.key] || ''} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className={inputCls} />
+                    : <input value={metadata[f.key] || ''} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className={inputCls} />}
               </div>
-            ))}
+            )})}
           </div>
         </div>
 

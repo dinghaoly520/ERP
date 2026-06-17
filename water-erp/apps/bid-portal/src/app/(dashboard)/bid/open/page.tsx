@@ -396,12 +396,20 @@ export default function BidOpenPage() {
                 <ChevronRight size={13} strokeWidth={2} /> {openingSubmission ? '处理中…' : '开放投递'}
               </button>
             )}
-            {project.stage === 'SUBMIT' && (
+            {project.stage === 'SUBMIT' && (() => {
+              const deadlinePassed = new Date() >= new Date(project.deadline);
+              return (
               <button onClick={() => setStartOpen(true)}
-                className="flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-4 py-2 text-xs font-bold text-white hover:bg-[#054280] transition">
-                <Play size={13} strokeWidth={2} /> 启动开标
+                disabled={!deadlinePassed}
+                title={deadlinePassed ? '启动开标' : '尚未截标——投标截止时间未到，无法启动开标'}
+                className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white transition ${
+                  deadlinePassed
+                    ? 'bg-[#064ea2] hover:bg-[#054280]'
+                    : 'bg-[#94a3b8] cursor-not-allowed'
+                }`}>
+                <Play size={13} strokeWidth={2} /> {deadlinePassed ? '启动开标' : '尚未截标'}
               </button>
-            )}
+            )})()}
             {!!session && project.stage === 'OPENING' && decryptProgress.total > 0 && decryptProgress.pending > 0 && (
               <button onClick={handleBulkDecrypt} disabled={bulkDecrypting}
                 className="flex items-center gap-1.5 rounded-xl border border-[#f5a623] bg-[#fef6e8] px-4 py-2 text-xs font-bold text-[#92400e] hover:bg-[#fef0c0] transition disabled:opacity-50">

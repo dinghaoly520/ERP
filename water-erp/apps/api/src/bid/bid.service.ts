@@ -314,10 +314,18 @@ export class BidService {
   private async startOpeningInternal(id: string, dto?: StartOpeningDto, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true },
+      select: { stage: true, name: true, deadline: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'OPENING');
+
+    // P1: 截标时间校验——投标截止时间未到，不允许启动开标
+    if (new Date() < new Date(project.deadline)) {
+      throw new BadRequestException({
+        error: '投标截止时间未到，无法启动开标',
+        code: 'DEADLINE_NOT_PASSED',
+      });
+    }
 
     // P1: 整个阶段变更 + Session 创建用事务包裹，防止并发竞争
     const isTransitioning = project.stage !== 'OPENING';
@@ -367,7 +375,7 @@ export class BidService {
       await tx.bidSupervisionLog.create({
         data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action: '启动开标 (SUBMIT→OPENING)', result: '阶段变更成功', riskFlag: '无' },
       });
-      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'SUBMIT', to: 'OPENING', stage: 'OPENING', host: dto?.host, supervisor: dto?.supervisor } } });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'SUBMIT', to: 'OPENING', stage: 'OPENING', host: dto?.host, supervisor: dto?.supervisor, deadline: project.deadline } } });
 
       this.gateway?.notifyStageChange(id, 'SUBMIT', 'OPENING', 'host');
       this.gateway?.notifyOpeningStarted(id, { host: dto?.host || '系统', supervisor: dto?.supervisor || '系统' });
