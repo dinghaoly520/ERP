@@ -191,9 +191,6 @@ export default function MallPage() {
 
   useEffect(() => { setMounted(true); }, []);
 
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
-  const prevItemsLen = useRef(0);
-
   useEffect(() => {
     fetch('/api/auth/me', { headers: { 'X-Portal': 'mall' }, credentials: 'include' })
       .then(async r => {
@@ -209,21 +206,14 @@ export default function MallPage() {
 
   // ===== 数据获取：useAsyncState（消灭静默吞错） =====
   const catalogAsync = useAsyncState(async () => {
-    const r = await fetch('/api/catalog', { headers: { 'X-Portal': 'mall' }, credentials: 'include' });
+    const r = await fetch('/api/catalog?includeInactive=true', { headers: { 'X-Portal': 'mall' }, credentials: 'include' });
     if (!r.ok) throw new Error(`目录加载失败（${r.status}）`);
     const data = await r.json();
-    return (Array.isArray(data) ? (data as CatalogItem[]) : []).filter(item => item.status === '有效');
+    return Array.isArray(data) ? (data as CatalogItem[]) : [];
   }, { deps: [] });
 
   const items = catalogAsync.data ?? [];
   const catalogLoading = catalogAsync.status === 'loading' || catalogAsync.status === 'idle';
-
-  useEffect(() => {
-    if (items.length > 0 && items.length !== prevItemsLen.current) {
-      setLastUpdatedAt(new Date());
-      prevItemsLen.current = items.length;
-    }
-  }, [items.length]);
 
   const suppliersAsync = useAsyncState(async () => {
     const r = await fetch('/api/catalog/suppliers', { headers: { 'X-Portal': 'mall' }, credentials: 'include' });
@@ -375,8 +365,6 @@ export default function MallPage() {
     updated: items.filter(item => new Date(item.updatedAt) >= new Date(Date.now() - 30 * 86400000)).length,
     alerts: items.filter(item => item.status !== '有效').length,
   }), [items]);
-
-  const focusItems = useMemo(() => items.filter(item => item.status !== '有效' || Math.abs(item.changeRate) >= 6).slice(0, 4), [items]);
 
   const aiRiskSummary = useMemo(() => ({
     safe: items.filter(item => item.status === '有效' && Math.abs(item.changeRate) < 6).length,
@@ -743,55 +731,56 @@ export default function MallPage() {
           formatPrice={formatPrice}
         />
 
-        {/* ── 指挥台：全局渐变流动 ── */}
+        {/* ── 指挥台：七区等比网格 ── */}
         <motion.section
-          className="mt-3 flex items-center rounded-xl border border-[#cdd9ea] overflow-hidden h-12"
+          className="mt-3 grid rounded-xl border border-[#cdd9ea] overflow-hidden h-14"
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1 }}
           style={{
             background: 'linear-gradient(90deg, #f8fafc 0%, #f1f5f9 8%, #eff6ff 16%, #f0f9ff 28%, #ecfdf5 44%, #f0fdf4 56%, #fff7ed 66%, #fffbeb 72%, #f5f3ff 82%, #faf5ff 92%, #f8fafc 100%)',
+            gridTemplateColumns: '1fr 0.45fr 1.5fr 0.85fr 0.5fr 0.4fr 0.45fr 0.35fr',
           }}
         >
           {/* ━━ ① 统计 ━━ */}
-          <div className="flex items-center h-full shrink-0 border-r border-[#cbd5e1]/40">
+          <div className="flex items-center h-full border-r border-[#cbd5e1]/40">
             {catalogLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className={`flex items-center gap-1.5 px-3 ${i > 0 ? 'border-l border-[#cbd5e1]/30' : ''}`}>
+                <div key={i} className={`flex items-center justify-center gap-1 flex-1 h-full ${i > 0 ? 'border-l border-[#cbd5e1]/30' : ''}`}>
                   <div className="h-2.5 w-8 skeleton-shimmer rounded" />
-                  <div className="h-4 w-5 skeleton-shimmer rounded" />
+                  <div className="h-3.5 w-5 skeleton-shimmer rounded" />
                 </div>
               ))
             ) : (
               <>
-                <div className="flex items-center gap-1.5 px-3 h-full">
-                  <span className="text-xs font-semibold text-[#64748b]">目录</span>
-                  <span className="text-sm font-black text-[#5b9bd5] tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace"}}>{stats.total}</span>
+                <div className="flex items-center justify-center gap-1 flex-1 h-full">
+                  <span className="text-sm font-semibold text-[#64748b]">目录</span>
+                  <span className="text-base font-black tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace",color:'#5b9bd5'}}>{stats.total}</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-3 h-full border-l border-[#cbd5e1]/30">
-                  <span className="text-xs font-semibold text-[#64748b]">供应商</span>
-                  <span className="text-sm font-black text-[#0891b2] tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace"}}>{stats.suppliers}</span>
+                <div className="flex items-center justify-center gap-1 flex-1 h-full border-l border-[#cbd5e1]/30">
+                  <span className="text-sm font-semibold text-[#64748b]">供应商</span>
+                  <span className="text-base font-black tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace",color:'#0891b2'}}>{stats.suppliers}</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-3 h-full border-l border-[#cbd5e1]/30">
-                  <span className="text-xs font-semibold text-[#64748b]">月更</span>
-                  <span className="text-sm font-black text-[#059669] tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace"}}>{stats.updated}</span>
+                <div className="flex items-center justify-center gap-1 flex-1 h-full border-l border-[#cbd5e1]/30">
+                  <span className="text-sm font-semibold text-[#64748b]">月更</span>
+                  <span className="text-base font-black tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace",color:'#059669'}}>{stats.updated}</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-3 h-full border-l border-[#fcd34d]/30 bg-[#fef3c7]/10">
-                  <span className="text-xs font-semibold text-[#64748b]">预警</span>
-                  <span className="text-sm font-black text-[#d97706] tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace"}}>{stats.alerts}</span>
+                <div className="flex items-center justify-center gap-1 flex-1 h-full border-l border-[#fcd34d]/30 bg-[#fef3c7]/10">
+                  <span className="text-sm font-semibold text-[#64748b]">预警</span>
+                  <span className="text-base font-black tabular-nums" style={{fontFamily:"'SF Mono','Menlo',monospace",color:'#d97706'}}>{stats.alerts}</span>
                 </div>
               </>
             )}
           </div>
 
           {/* ━━ ② 视切 ━━ */}
-          <div className="flex items-center h-full shrink-0 border-r border-[#cbd5e1]/40">
-            <div className="flex items-center gap-0 rounded border border-[#cbd5e1]/60 bg-white/80 p-0.5 mx-2.5 relative">
+          <div className="flex items-center justify-center h-full border-r border-[#cbd5e1]/40">
+            <div className="flex items-center gap-0 rounded border border-[#cbd5e1]/60 bg-white/80 p-0.5 relative whitespace-nowrap">
               <motion.button onClick={() => setView('catalog')}
-                className={`relative z-10 rounded-sm px-3 py-1 text-[11px] font-bold transition-colors ${view === 'catalog' ? 'text-white' : 'text-[#64748b] hover:text-[#334155]'}`}
+                className={`relative z-10 rounded-sm px-2.5 py-1 text-[11px] font-bold transition-colors ${view === 'catalog' ? 'text-white' : 'text-[#64748b] hover:text-[#334155]'}`}
                 whileTap={{ scale: 0.95 }}>目录清单</motion.button>
               <motion.button onClick={() => setView('supplier')}
-                className={`relative z-10 rounded-sm px-3 py-1 text-[11px] font-bold transition-colors ${view === 'supplier' ? 'text-white' : 'text-[#64748b] hover:text-[#334155]'}`}
+                className={`relative z-10 rounded-sm px-2.5 py-1 text-[11px] font-bold transition-colors ${view === 'supplier' ? 'text-white' : 'text-[#64748b] hover:text-[#334155]'}`}
                 whileTap={{ scale: 0.95 }}>供应商清单</motion.button>
               <motion.div className="absolute z-0 rounded-sm bg-[#5b9bd5]"
                 layoutId="toolbar-view-toggle"
@@ -801,8 +790,8 @@ export default function MallPage() {
           </div>
 
           {/* ━━ ③ 筛选 ━━ */}
-          <div className="flex items-center h-full gap-0 border-r border-[#bfdbfe]/30 flex-1 min-w-0">
-            <div className="flex items-center gap-3 flex-1 flex-wrap px-3">
+          <div className="flex items-center justify-center h-full border-r border-[#bfdbfe]/30">
+            <div className="flex items-center gap-1.5 px-2 whitespace-nowrap">
               {([
                 ['区域', region, setRegion, REGIONS] as const,
                 ['状态', status, setStatus, STATUSES] as const,
@@ -810,25 +799,23 @@ export default function MallPage() {
               ]).map(([label, val, setter, options]) => {
                 const hasValue = (val as string) !== '全部';
                 return (
-                  <div key={label} className="flex items-center gap-1.5 group">
-                    <span className="text-xs font-semibold text-[#64748b] group-hover:text-[#334155] select-none">{label}</span>
+                  <div key={label} className="flex items-center gap-1 group shrink-0">
+                    <span className="text-sm font-semibold text-[#64748b] group-hover:text-[#334155] select-none">{label}</span>
                     <div className="relative">
                       <select value={val as string} onChange={e => setter(e.target.value as never)}
-                        className={`h-7 rounded-md border bg-white/80 pl-2 pr-5 text-xs font-semibold outline-none transition appearance-none cursor-pointer ${
+                        className={`h-7 rounded-md border bg-white/80 pl-2.5 pr-5 text-sm font-semibold outline-none transition appearance-none cursor-pointer ${
                           hasValue ? 'border-[#5b9bd5] text-[#5b9bd5] bg-[#eff6ff]/80' : 'border-transparent text-[#475569] hover:border-[#cbd5e1] hover:bg-white'
                         }`}
                         style={{ textAlignLast: 'center', textAlign: 'center' as React.CSSProperties['textAlign'] }}>
                         {options.map(v => <option key={v as string} value={v as string}>{v as string}</option>)}
                       </select>
-                      <svg className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={hasValue ? '#5b9bd5' : '#94a3b8'} strokeWidth="2.5" strokeLinecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                      <svg className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={hasValue ? '#5b9bd5' : '#94a3b8'} strokeWidth="2.5" strokeLinecap="round"><path d="m6 9 6 6 6-6"/></svg>
                     </div>
                   </div>
                 );
               })}
-            </div>
-            <div className="flex items-center gap-0 shrink-0 border-l border-[#bfdbfe]/40 pl-2">
               <button onClick={() => setShowFavoritesOnly(v => !v)}
-                  className={`flex items-center h-7 rounded px-2 text-xs font-semibold transition ${
+                  className={`flex items-center h-7 rounded-md px-2 text-sm font-semibold transition shrink-0 ${
                     showFavoritesOnly ? 'bg-amber-50/80 text-amber-600 ring-1 ring-amber-200/60' : 'text-[#94a3b8] hover:text-[#5b9bd5] hover:bg-white/80'
                   }`} title="只看收藏">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill={showFavoritesOnly ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -837,7 +824,7 @@ export default function MallPage() {
                   收藏
                 </button>
                 <button onClick={resetFilters}
-                  className={`flex items-center h-7 rounded px-2 text-xs font-semibold transition ${
+                  className={`flex items-center h-7 rounded-md px-2 text-sm font-semibold transition shrink-0 ${
                     (search || category !== '全部' || region !== '全部' || status !== '全部' || source !== '全部' || showFavoritesOnly)
                       ? 'text-[#ef4444] hover:bg-red-50/80' : 'text-[#cbd5e1] cursor-default'
                   }`} title="重置筛选">
@@ -848,9 +835,9 @@ export default function MallPage() {
           </div>
 
           {/* ━━ ④ 排序 ━━ */}
-          <div className="flex items-center h-full gap-1.5 px-2 border-r border-[#a7f3d0]/30 shrink-0">
-            <div className="flex items-center gap-1 h-7 rounded-md bg-[#059669]/6 px-2 ring-1 ring-[#34d399]/15">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <div className="flex items-center justify-center h-full gap-1 border-r border-[#a7f3d0]/30">
+            <div className="flex items-center gap-0.5 h-8 rounded-md bg-[#059669]/6 px-1.5 ring-1 ring-[#34d399]/15 shrink-0">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="4" y1="6" x2="16" y2="6"/><line x1="4" y1="12" x2="12" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/>
                 <polyline points="14 15 18 18 22 12"/>
               </svg>
@@ -866,13 +853,13 @@ export default function MallPage() {
               const dir = isActive ? sort!.dir : null;
               return (
                 <button key={col} onClick={() => toggleSort(col)}
-                  className={`flex items-center justify-center gap-0.5 h-7 rounded px-1.5 text-xs font-semibold transition min-w-[3.25rem] ring-1 ${
+                  className={`flex items-center justify-center gap-0.5 h-8 rounded px-1.5 text-xs font-semibold transition shrink-0 min-w-\[2.75rem\] ring-1 ${
                     isActive ? 'bg-white text-[#059669] ring-[#34d399]/30 shadow-sm' : 'text-[#64748b] ring-transparent hover:text-[#059669] hover:bg-white/80'
                   }`}>
                   <span>{label}</span>
                   <span className="inline-flex items-center w-2 h-2">
                     {isActive ? (
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                         {dir === 'asc' ? <path d="m18 15-6-6-6 6"/> : <path d="m6 9 6 6 6-6"/>}
                       </svg>
                     ) : null}
@@ -881,83 +868,63 @@ export default function MallPage() {
               );
             })}
             <button onClick={sort ? () => setSort(null) : undefined}
-              className={`ml-0.5 text-[10px] transition ${sort ? 'text-[#94a3b8] hover:text-[#ef4444] cursor-pointer' : 'text-transparent cursor-default'}`}
+              className={`ml-0.5 text-[11px] transition shrink-0 ${sort ? 'text-[#94a3b8] hover:text-[#ef4444] cursor-pointer' : 'text-transparent cursor-default'}`}
               title={sort ? '取消排序' : ''}>
-              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
 
           {/* ━━ ⑤ 行动 ━━ */}
-          <div className="flex items-center h-full gap-1.5 px-2.5 border-r border-[#fed7aa]/30 shrink-0">
+          <div className="flex items-center justify-center h-full gap-1 border-r border-[#fed7aa]/30">
             <motion.button onClick={() => setBudgetOpen(true)}
-              className="relative h-7 rounded bg-[#5b9bd5] px-2.5 text-xs font-bold text-white hover:bg-[#4a89c4] active:scale-95 transition"
+              className="relative h-8 rounded bg-[#5b9bd5] px-2 text-sm font-bold text-white hover:bg-[#4a89c4] active:scale-95 transition shrink-0 whitespace-nowrap"
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }}>预算清单
               {saveStatus === 'saving' && <span className="ml-1 inline-block h-1.5 w-1.5 animate-spin rounded-full border border-white/30 border-t-white" />}
               <AnimatePresence>{lines.length > 0 && (
                 <motion.span key="badge" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                  className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#ef4444] px-1 text-[10px] font-bold text-white">{lines.length}</motion.span>
+                  className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#ef4444] px-1 text-[9px] font-bold text-white">{lines.length}</motion.span>
               )}</AnimatePresence>
             </motion.button>
             <button onClick={openAudit}
-              className="flex items-center h-7 rounded border border-[#e5e7eb] bg-white/80 px-2 text-xs font-semibold text-[#64748b] hover:border-[#5b9bd5] hover:text-[#5b9bd5] transition">操作记录</button>
+              className="flex items-center h-8 rounded border border-[#e5e7eb] bg-white/80 px-1.5 text-sm font-semibold text-[#64748b] hover:border-[#5b9bd5] hover:text-[#5b9bd5] transition shrink-0 whitespace-nowrap">操作记录</button>
           </div>
 
-          {/* ━━ 密度 ━━ */}
-          <div className="flex items-center h-full gap-1.5 px-3 border-r border-[#e2e8f0]/30 shrink-0">
-            <span className="text-xs font-semibold text-[#94a3b8] select-none">密度</span>
-            <div className="flex items-center gap-0 rounded border border-[#e2e8f0] bg-white/60 p-0.5">
+          {/* ━━ ⑥ 密度 ━━ */}
+          <div className="flex items-center justify-center h-full gap-1 border-r border-[#e2e8f0]/30">
+            <span className="text-sm font-semibold text-[#94a3b8] select-none shrink-0">密度</span>
+            <div className="flex items-center gap-0 rounded border border-[#e2e8f0] bg-white/60 p-0.5 whitespace-nowrap shrink-0">
               <button onClick={() => setDensity('comfortable')}
-                className={`rounded-sm px-2.5 py-1 text-xs font-bold transition-colors ${density === 'comfortable' ? 'bg-[#5b9bd5] text-white shadow-sm' : 'text-[#94a3b8] hover:text-[#64748b]'}`}>
+                className={`rounded-sm px-2 py-1 text-[11px] font-bold transition-colors ${density === 'comfortable' ? 'bg-[#5b9bd5] text-white shadow-sm' : 'text-[#94a3b8] hover:text-[#64748b]'}`}>
                 舒适
               </button>
               <button onClick={() => setDensity('compact')}
-                className={`rounded-sm px-2.5 py-1 text-xs font-bold transition-colors ${density === 'compact' ? 'bg-[#5b9bd5] text-white shadow-sm' : 'text-[#94a3b8] hover:text-[#64748b]'}`}>
+                className={`rounded-sm px-2 py-1 text-[11px] font-bold transition-colors ${density === 'compact' ? 'bg-[#5b9bd5] text-white shadow-sm' : 'text-[#94a3b8] hover:text-[#64748b]'}`}>
                 紧凑
               </button>
             </div>
           </div>
 
-          {/* ━━ ⑥ 操作 ━━ */}
-          <div className="flex items-center h-full gap-1 px-2 border-r border-[#c4b5fd]/25 shrink-0">
-            <AnimatePresence>{selectedIds.size > 0 && (
-              <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}
-                className="flex items-center gap-1 overflow-hidden">
-                <span className="text-[11px] font-semibold text-[#7c3aed] tabular-nums whitespace-nowrap">已选{selectedIds.size}</span>
-                <button onClick={batchAddToBudget} className="flex items-center gap-0.5 h-7 rounded bg-[#7c3aed] px-2 text-[11px] font-bold text-white hover:bg-[#6d28d9] active:scale-95 transition">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>加入预算
-                </button>
-                {selectedIds.size >= 2 && selectedIds.size <= 4 && (
-                  <button onClick={() => setCompareOpen(true)} className="flex items-center h-7 rounded border border-[#c4b5fd]/50 bg-white/80 px-1.5 text-[11px] font-bold text-[#7c3aed] hover:bg-[#f5f3ff]/80 active:scale-95 transition">对比</button>
-                )}
-                <button onClick={clearSelection} className="h-6 rounded px-1 text-[11px] font-semibold text-[#94a3b8] hover:text-[#334155] transition">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 1l10 10M11 1L1 11"/></svg>
-                </button>
-              </motion.div>
-            )}</AnimatePresence>
+          {/* ━━ ⑦ 操作 ━━ */}
+          <div className="flex items-center justify-center h-full gap-0.5 border-r border-[#c4b5fd]/25">
             <button onClick={() => setAssistantInitialQuestion(buildAnalysisQuestion())}
-              className="flex items-center gap-0.5 h-7 rounded border border-[#bfd4f4]/60 bg-white/60 px-2.5 text-xs font-bold text-[#5b9bd5] hover:border-[#5b9bd5] hover:bg-white active:scale-95 transition">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>分析
+              className="flex items-center gap-0.5 h-8 rounded border border-[#bfd4f4]/60 bg-white/60 px-2 text-sm font-bold text-[#5b9bd5] hover:border-[#5b9bd5] hover:bg-white active:scale-95 transition shrink-0">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>分析
             </button>
-            <button onClick={() => { catalogAsync.retry(); suppliersAsync.retry(); favoritesAsync.retry(); }} disabled={catalogLoading}
-              className="flex items-center gap-0.5 h-7 rounded px-1.5 text-[11px] font-semibold text-[#94a3b8] hover:text-[#5b9bd5] hover:bg-white/60 transition disabled:opacity-50" title="刷新">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className={catalogLoading ? 'animate-spin' : ''}>
-                <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            </button>
-            {lastUpdatedAt && (
-              <span className="text-[11px] text-[#bcc6d4] tabular-nums" title={`更新于 ${lastUpdatedAt.toLocaleString('zh-CN')}`}>
-                {(() => {const d=Math.floor((Date.now()-lastUpdatedAt.getTime())/1000);if(d<60)return'刚刚';if(d<3600)return`${Math.floor(d/60)}分`;if(d<86400)return`${Math.floor(d/3600)}时`;return lastUpdatedAt.toLocaleDateString('zh-CN',{month:'short',day:'numeric'});})()}
-              </span>
-            )}
             <button onClick={exportCatalog} disabled={exporting === 'catalog'}
-              className="flex items-center gap-0.5 h-7 rounded border border-[#e5e7eb] bg-white/60 px-2.5 text-xs font-semibold text-[#64748b] hover:border-[#5b9bd5] hover:text-[#5b9bd5] disabled:opacity-50 transition">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel
+              className="flex items-center gap-0.5 h-8 rounded border border-[#e5e7eb] bg-white/60 px-2 text-sm font-semibold text-[#64748b] hover:border-[#5b9bd5] hover:text-[#5b9bd5] disabled:opacity-50 transition shrink-0">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel
             </button>
           </div>
 
-          {/* ━━ 实时计数 ━━ */}
-          <div className="flex items-center h-full border-l border-[#e2e8f0]/50 px-3 shrink-0 bg-white/20">
+          {/* ━━ ⑧ 实时计数 ━━ */}
+          <div className="flex items-center justify-center h-full gap-1.5 bg-white/20">
+            <button onClick={() => { catalogAsync.retry(); suppliersAsync.retry(); favoritesAsync.retry(); }} disabled={catalogLoading}
+              className="flex items-center justify-center h-7 w-7 rounded text-[#94a3b8] hover:text-[#5b9bd5] hover:bg-white/60 transition disabled:opacity-50 shrink-0" title="刷新数据">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className={catalogLoading ? 'animate-spin' : ''}>
+                <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            </button>
             <span className={`text-sm font-semibold tabular-nums ${filtered.length === 0 ? 'text-[#ef4444]' : 'text-[#475569]'}`}>
-              总共 <span className={`text-sm font-black ${filtered.length === 0 ? 'text-[#ef4444]' : 'text-[#5b9bd5]'}`}>{filtered.length}</span> 项
+              总共 <span className={`text-base font-black ${filtered.length === 0 ? 'text-[#ef4444]' : 'text-[#5b9bd5]'}`}>{filtered.length}</span> 项
             </span>
           </div>
         </motion.section>
@@ -988,20 +955,7 @@ export default function MallPage() {
             </div>
           </aside>
 
-          <div className="min-w-0 space-y-5">
-            {focusItems.length > 0 && (
-              <motion.section
-                className="grid gap-4 xl:grid-cols-4"
-                initial="hidden"
-                animate="show"
-                variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.15 } } }}
-              >
-                {focusItems.map(item => (
-                  <FocusCard key={item.id} item={item} onSelect={setDetail} formatPrice={formatPrice} formatDate={formatDate} statusStyles={statusStyles} STATUS_SHORT={STATUS_SHORT} />
-                ))}
-              </motion.section>
-            )}
-
+          <div className="min-w-0">
             <AnimatePresence mode="wait">
               {view === 'supplier' && (
                 <motion.section
@@ -1080,6 +1034,33 @@ export default function MallPage() {
                   <h2 className="text-base font-black text-[#334155]">目录清单</h2>
                   <p className="mt-0.5 text-[11px] text-[#8a96aa]">参考价用于预算编制与询价比价，最终以采购文件及成交结果为准。</p>
                 </div>
+                <AnimatePresence>
+                  {selectedIds.size > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, x: 8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 8 }}
+                      className="flex items-center gap-2"
+                    >
+                      <span className="text-xs font-semibold text-[#5b9bd5] tabular-nums">已选 {selectedIds.size} 项</span>
+                      <button onClick={batchAddToBudget}
+                        className="flex items-center gap-1 h-8 rounded-lg bg-[#5b9bd5] px-3 text-xs font-bold text-white hover:bg-[#4a89c4] active:scale-95 transition">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        加入预算
+                      </button>
+                      {selectedIds.size >= 2 && selectedIds.size <= 4 && (
+                        <button onClick={() => setCompareOpen(true)}
+                          className="flex items-center h-8 rounded-lg border border-[#5b9bd5]/30 bg-white px-2.5 text-xs font-bold text-[#5b9bd5] hover:bg-[#f3f8ff] active:scale-95 transition">
+                          对比
+                        </button>
+                      )}
+                      <button onClick={clearSelection}
+                        className="flex items-center justify-center h-8 w-8 rounded-lg text-sm text-[#bcc6d4] hover:text-[#334155] hover:bg-[#f1f5f9] transition">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
               {/* ===== 内容区：error / loading / empty / filtered-empty / success ===== */}
               {catalogAsync.status === 'error' ? (
@@ -1469,34 +1450,6 @@ function Info({ label, value, strong = false }: { label: string; value: string; 
   return <div><div className="text-xs font-bold text-[#6a7890]">{label}</div><div className={`mt-1 text-sm ${strong ? 'text-xl font-black text-[#e74c3c]' : 'font-semibold text-[#334155]'}`}>{value}</div></div>;
 }
 
-/** Focus item card */
-function FocusCard({ item, onSelect, formatPrice, formatDate, statusStyles, STATUS_SHORT }: {
-  item: CatalogItem; onSelect: (item: CatalogItem) => void;
-  formatPrice: (p: number) => string; formatDate: (d: string | null) => string;
-  statusStyles: Record<PriceStatus, string>; STATUS_SHORT: Record<PriceStatus, string>;
-}) {
-  return (
-    <motion.button
-      variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } } }}
-      onClick={() => onSelect(item)}
-      className="group rounded-xl border border-[#e1e9f4] bg-white p-3.5 text-left shadow-[0_1px_3px_rgba(15,35,65,.03)]"
-      whileHover={{ y: -2, borderColor: 'rgba(91,155,213,.3)', boxShadow: '0 8px 24px rgba(91,155,213,.08)' }}
-      whileTap={{ scale: 0.98 }}
-    >
-      <div className="mb-2.5 flex items-center justify-between gap-2">
-        <span title={item.status} className={`rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span>
-        <span className={`text-[10px] font-bold tabular-nums ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#6a7890]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</span>
-      </div>
-      <h3 className="line-clamp-1 text-sm font-bold text-[#334155] group-hover:text-[#5b9bd5]">{item.name}</h3>
-      <p className="mt-0.5 line-clamp-1 text-[11px] text-[#8a96aa]">{item.specification}</p>
-      <div className="mt-2.5 flex items-end justify-between">
-        <div><span className="text-lg font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-[10px] text-[#8a96aa]">/{item.unit}</span></div>
-        <span className="text-[10px] font-semibold text-[#8a96aa]">{formatDate(item.validUntil)}</span>
-      </div>
-    </motion.button>
-  );
-}
-
 /** Collapsible category group */
 function CategoryGroup({ section, selectedCategory, onSelect, items, searchActive, searchTerm, filtered }: {
   section: { group: string; children: string[] };
@@ -1549,7 +1502,7 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
           <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
         </motion.svg>
         <span className="flex-1 text-left">{section.group}</span>
-        <span className="text-[10px] tabular-nums text-[#bcc6d4] font-medium">{groupCount}</span>
+        <span className="text-xs tabular-nums text-[#bcc6d4] font-medium">{groupCount}</span>
       </button>
       <AnimatePresence initial={false}>
         {!collapsed && (
@@ -1582,7 +1535,7 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
                       }`}
                     >
                       <span>{child}</span>
-                      <span className={`text-xs ${active ? 'text-white/70' : 'text-[#6a7890]'}`}>{count}</span>
+                      <span className={`text-[10px] ${active ? 'text-[#5b9bd5]' : 'text-[#bcc6d4]'}`}>{count}</span>
                     </button>
                   );
                 })}
