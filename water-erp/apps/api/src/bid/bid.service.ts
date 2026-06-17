@@ -282,11 +282,11 @@ export class BidService {
     return this.prisma.bidSupplier.findMany({ where: { projectId } });
   }
 
-  startOpening(projectId: string, dto?: StartOpeningDto) {
-    return this.startOpeningInternal(projectId, dto);
+  startOpening(projectId: string, dto?: StartOpeningDto, userId?: string) {
+    return this.startOpeningInternal(projectId, dto, userId);
   }
 
-  async openSubmission(id: string) {
+  async openSubmission(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: { stage: true, name: true },
@@ -302,6 +302,7 @@ export class BidService {
     await this.prisma.bidSupervisionLog.create({
       data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '开放投递 (DOWNLOAD→SUBMIT)', result: '阶段变更成功', riskFlag: '无' },
     });
+    if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'DOWNLOAD', to: 'SUBMIT', stage: 'SUBMIT' } } });
 
     this.gateway?.notifyStageChange(id, 'DOWNLOAD', 'SUBMIT', 'host');
     this.gateway?.notifySubmissionOpened(id);
@@ -310,7 +311,7 @@ export class BidService {
     return updated;
   }
 
-  private async startOpeningInternal(id: string, dto?: StartOpeningDto) {
+  private async startOpeningInternal(id: string, dto?: StartOpeningDto, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: { stage: true, name: true },
@@ -366,6 +367,7 @@ export class BidService {
       await tx.bidSupervisionLog.create({
         data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action: '启动开标 (SUBMIT→OPENING)', result: '阶段变更成功', riskFlag: '无' },
       });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'SUBMIT', to: 'OPENING', stage: 'OPENING', host: dto?.host, supervisor: dto?.supervisor } } });
 
       this.gateway?.notifyStageChange(id, 'SUBMIT', 'OPENING', 'host');
       this.gateway?.notifyOpeningStarted(id, { host: dto?.host || '系统', supervisor: dto?.supervisor || '系统' });
@@ -375,7 +377,7 @@ export class BidService {
     });
   }
 
-  async startEvaluation(id: string) {
+  async startEvaluation(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: { stage: true, name: true },
@@ -394,13 +396,14 @@ export class BidService {
     await this.prisma.bidSupervisionLog.create({
       data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '启动评标 (OPENING→EVALUATING)', result: '阶段变更成功', riskFlag: '无' },
     });
+    if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'OPENING', to: 'EVALUATING', stage: 'EVALUATING' } } });
 
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '启动评标 (OPENING→EVALUATING)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
 
     return updated;
   }
 
-  async decryptSupplier(projectId: string, supplierId: string, dto?: DecryptSupplierDto) {
+  async decryptSupplier(projectId: string, supplierId: string, dto?: DecryptSupplierDto, actorId?: string) {
     return this.prisma.$transaction(async (tx) => {
       const bidSupplier = await tx.bidSupplier.findFirst({
         where: { projectId, id: supplierId },
@@ -470,6 +473,7 @@ export class BidService {
         });
         this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密异常：${reason}`, riskFlag: '高风险' });
         this.gateway?.notifyAnomaly(projectId, { type: 'decrypt_failure', supplierId, supplierName: bidSupplier.supplierName, detail: reason, severity: 'danger' });
+        if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', target: `${bidSupplier.supplierName}:${supplierId}`, detail: { projectId, outcome: 'DANGER', reason, phase: 'no_files' } } });
         return tx.bidSupplier.findUnique({ where: { id: supplierId } });
       }
 
@@ -516,6 +520,7 @@ export class BidService {
         });
         this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密异常：${reason}`, riskFlag: '高风险' });
         this.gateway?.notifyAnomaly(projectId, { type: 'decrypt_failure', supplierId, supplierName: bidSupplier.supplierName, detail: reason, severity: 'danger' });
+        if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', target: `${bidSupplier.supplierName}:${supplierId}`, detail: { projectId, outcome: 'DANGER', reason, phase: 'decrypt_verify' } } });
         return tx.bidSupplier.findUnique({ where: { id: supplierId } });
       }
 
@@ -550,6 +555,7 @@ export class BidService {
       });
 
       this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密成功，等待供应商确认唱标信息${legacyNote}`, riskFlag: '无' });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', target: `${bidSupplier.supplierName}:${supplierId}`, detail: { projectId, outcome: 'SUCCESS' } } });
 
       return confirmed;
     });
@@ -656,7 +662,7 @@ export class BidService {
     return this.prisma.bidEvaluationResult.findMany({ where: { projectId }, orderBy: { rank: 'asc' } });
   }
 
-  async generateEvaluationResults(projectId: string) {
+  async generateEvaluationResults(projectId: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
       include: { experts: true, suppliers: true },
@@ -711,6 +717,7 @@ export class BidService {
       },
     });
     this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名`, riskFlag: '无' });
+    if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_RESULTS_GENERATED', target: `BidProject:${projectId}`, detail: { rankedCount: ranked.length } } });
 
     return this.listEvaluationResults(projectId);
   }
@@ -757,13 +764,14 @@ export class BidService {
       },
     });
     // P1: 评分偏差实时检测
-    const existingScores: ScoreRecordInput[] = await this.prisma.bidScoreRecord.findMany({
+    const existingRows = await this.prisma.bidScoreRecord.findMany({
       where: { scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, expertId: { not: dto.expertId } },
       select: { expertId: true, scoreItemId: true, supplierId: true, score: true },
-    }).then(rows => rows.map(r => ({
+    });
+    const existingScores: ScoreRecordInput[] = (existingRows ?? []).map(r => ({
       expertId: r.expertId, scoreItemId: r.scoreItemId,
       supplierId: r.supplierId, score: Number(r.score),
-    })));
+    }));
 
     const alert = checkScoreAnomaly(
       { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: Number(dto.score) },
@@ -865,7 +873,7 @@ export class BidService {
     }
   }
 
-  async archiveAll(id: string) {
+  async archiveAll(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: { id: true, projectCode: true, stage: true, name: true },
@@ -920,7 +928,7 @@ export class BidService {
         data: { status: 'ARCHIVED', hashDigest: chain.get(item.id)!, archivedAt: now },
       }),
     );
-    await this.prisma.$transaction([
+    const txOps: any[] = [
       ...itemUpdates,
       this.prisma.bidProject.update({
         where: { id },
@@ -929,7 +937,9 @@ export class BidService {
       this.prisma.bidSupervisionLog.create({
         data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '一键归档', result: `归档 ${archiveItems.length} 项`, riskFlag: '无' },
       }),
-    ]);
+    ];
+    if (actorId) txOps.push(this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'EVALUATING', to: 'ARCHIVED', stage: 'ARCHIVED', archiveItems: archiveItems.length } } }));
+    await this.prisma.$transaction(txOps);
 
     this.gateway?.notifyStageChange(id, 'EVALUATING', 'ARCHIVED', 'host');
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${archiveItems.length} 项`, riskFlag: '无' });

@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { BidService } from './bid.service';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { CreateScoreDto } from './dto/create-score.dto';
@@ -52,20 +53,20 @@ export class BidController {
 
   @Post('projects/:id/open-submission')
   @ApiOperation({ summary: '开放投递 (DOWNLOAD→SUBMIT)' })
-  openSubmission(@Param('id') id: string) { return this.bidService.openSubmission(id); }
+  openSubmission(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.openSubmission(id, userId); }
 
   @Post('projects/:id/open')
   @ApiOperation({ summary: '启动开标' })
-  startOpening(@Param('id') id: string, @Body() dto?: StartOpeningDto) { return this.bidService.startOpening(id, dto); }
+  startOpening(@Param('id') id: string, @Body() dto?: StartOpeningDto, @CurrentUser('sub') userId?: string) { return this.bidService.startOpening(id, dto, userId); }
 
   @Post('projects/:id/start-evaluation')
   @ApiOperation({ summary: '启动评标 (OPENING→EVALUATING)' })
-  startEvaluation(@Param('id') id: string) { return this.bidService.startEvaluation(id); }
+  startEvaluation(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.startEvaluation(id, userId); }
 
   @Post('projects/:id/decrypt/:supplierId')
   @ApiOperation({ summary: '解密供应商投标' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
-  decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto) { return this.bidService.decryptSupplier(id, supplierId, dto); }
+  decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto, @CurrentUser('sub') userId?: string) { return this.bidService.decryptSupplier(id, supplierId, dto, userId); }
 
   @Get('projects/:id/opening-records')
   @ApiOperation({ summary: '开标记录' })
@@ -95,7 +96,7 @@ export class BidController {
 
   @Post('projects/:id/evaluation-results/generate')
   @ApiOperation({ summary: '生成评标结果与候选人' })
-  generateEvaluationResults(@Param('id') id: string) { return this.bidService.generateEvaluationResults(id); }
+  generateEvaluationResults(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.generateEvaluationResults(id, userId); }
 
   @Post('projects/:id/scores')
   @ApiOperation({ summary: '提交评分' })
@@ -152,7 +153,7 @@ export class BidController {
 
   @Post('projects/:id/archive-all')
   @ApiOperation({ summary: '一键归档' })
-  archiveAll(@Param('id') id: string) { return this.bidService.archiveAll(id); }
+  archiveAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.archiveAll(id, userId); }
 
   @Post('projects/:id/supervision-annotations')
   @ApiOperation({ summary: '创建或更新监督标注' })
