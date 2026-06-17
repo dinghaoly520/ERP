@@ -13,13 +13,14 @@ export default function ExpertDashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [stats, setStats] = useState<ExpertStatistics | null>(null);
   const [projects, setProjects] = useState<ExpertProject[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(setUser);
-    api.get<ExpertStatistics>('/expert/statistics').then(setStats).catch(() => toast.error('加载统计数据失败'));
-    api.get<ExpertProject[]>('/expert/projects').then(setProjects).catch(() => toast.error('加载项目列表失败'));
+    Promise.allSettled([
+      fetch('/api/auth/me', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then(setUser),
+      api.get<ExpertStatistics>('/expert/statistics').then(setStats).catch(() => toast.error('加载统计数据失败')),
+      api.get<ExpertProject[]>('/expert/projects').then(setProjects).catch(() => toast.error('加载项目列表失败')),
+    ]).finally(() => setLoading(false));
   }, []);
 
   const stageLabel: Record<string, string> = { DOWNLOAD: '文件下载', SUBMIT: '加密投递', OPENING: '在线开标', EVALUATING: '专家评标', ARCHIVED: '资料归档' };
@@ -38,10 +39,29 @@ export default function ExpertDashboardPage() {
 
       {/* 统计卡片 */}
       <div className="grid gap-4 md:grid-cols-4">
-        <MetricCard label="分配项目" value={stats?.totalProjects ?? 0} tone="purple" icon={<Clipboard size={16} strokeWidth={1.5} />} />
-        <MetricCard label="进行中" value={stats?.signedInProjects ?? 0} tone="orange" icon={<Clock size={16} strokeWidth={1.5} />} />
-        <MetricCard label="已完成" value={stats?.completedProjects ?? 0} tone="green" icon={<CheckCircle size={16} strokeWidth={1.5} />} />
-        <MetricCard label="平均得分" value={stats?.averageScore ?? 0} tone="purple" icon={<TrendingUp size={16} strokeWidth={1.5} />} />
+        {loading ? (
+          <>
+            {[{ label: '分配项目', Icon: Clipboard, tone: 'purple' as const }, { label: '进行中', Icon: Clock, tone: 'orange' as const }, { label: '已完成', Icon: CheckCircle, tone: 'green' as const }, { label: '平均得分', Icon: TrendingUp, tone: 'purple' as const }].map(card => (
+              <div key={card.label} className="glass-card glass-card-blue rounded-2xl p-5 animate-pulse">
+                <div className="flex items-center gap-3">
+                  <card.Icon size={16} strokeWidth={1.5} className="text-[#cbd5e1]" />
+                  <div className="flex-1">
+                    <div className="h-3 w-16 bg-[#e8f0fa] rounded mb-2" />
+                    <div className="h-6 w-10 bg-[#e8f0fa] rounded" />
+                  </div>
+                </div>
+              </div>
+            ))
+          }
+          </>
+        ) : (
+          <>
+            <MetricCard label="分配项目" value={stats?.totalProjects ?? 0} tone="purple" icon={<Clipboard size={16} strokeWidth={1.5} />} />
+            <MetricCard label="进行中" value={stats?.signedInProjects ?? 0} tone="orange" icon={<Clock size={16} strokeWidth={1.5} />} />
+            <MetricCard label="已完成" value={stats?.completedProjects ?? 0} tone="green" icon={<CheckCircle size={16} strokeWidth={1.5} />} />
+            <MetricCard label="平均得分" value={stats?.averageScore ?? 0} tone="purple" icon={<TrendingUp size={16} strokeWidth={1.5} />} />
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-[1fr_340px] gap-6">
@@ -52,7 +72,30 @@ export default function ExpertDashboardPage() {
             <button onClick={() => router.push('/projects')} className="text-sm text-[#064ea2] hover:underline font-semibold">查看全部 →</button>
           </div>
 
-          {activeProjects.length === 0 ? (
+          {loading ? (
+            <div className="space-y-3">
+              {[1,2,3].map(i => (
+                <div key={i} className="glass-card glass-card-blue rounded-2xl p-5 animate-pulse">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-7 w-20 bg-[#e8f0fa] rounded-lg" />
+                      <div className="h-5 w-40 bg-[#e8f0fa] rounded" />
+                    </div>
+                    <div className="h-5 w-16 bg-[#e8f0fa] rounded-full" />
+                  </div>
+                  <div className="flex gap-6 mb-3">
+                    <div className="h-4 w-24 bg-[#e8f0fa] rounded" />
+                    <div className="h-4 w-20 bg-[#e8f0fa] rounded" />
+                    <div className="h-4 w-16 bg-[#e8f0fa] rounded" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-2 bg-[#e8f0fa] rounded-full" />
+                    <div className="h-4 w-10 bg-[#e8f0fa] rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : activeProjects.length === 0 ? (
             <div className="glass-card glass-card-blue rounded-2xl p-12 text-center">
               <Clock size={48} strokeWidth={1} className="text-[oklch(0.80_0.006_264)] mx-auto mb-4" />
               <h3 className="text-lg font-bold text-[oklch(0.18_0.012_265)] mb-2">

@@ -396,16 +396,21 @@ export class BidService {
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'SUBMIT');
 
-    const updated = await this.prisma.bidProject.update({
-      where: { id },
-      data: { stage: 'SUBMIT' },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.bidProject.update({
+        where: { id },
+        data: { stage: 'SUBMIT' },
+      });
+
+      await tx.bidSupervisionLog.create({
+        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '开放投递 (DOWNLOAD→SUBMIT)', result: '阶段变更成功', riskFlag: '无' },
+      });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'DOWNLOAD', to: 'SUBMIT', stage: 'SUBMIT' } } });
+
+      return result;
     });
 
-    await this.prisma.bidSupervisionLog.create({
-      data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '开放投递 (DOWNLOAD→SUBMIT)', result: '阶段变更成功', riskFlag: '无' },
-    });
-    if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'DOWNLOAD', to: 'SUBMIT', stage: 'SUBMIT' } } });
-
+    // Defer WebSocket notifications until after transaction commits
     this.gateway?.notifyStageChange(id, 'DOWNLOAD', 'SUBMIT', 'host');
     this.gateway?.notifySubmissionOpened(id);
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '开放投递 (DOWNLOAD→SUBMIT)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
@@ -501,19 +506,23 @@ export class BidService {
       throw new BadRequestException({ error: '项目未分配评审专家，无法启动评标', code: 'NO_EXPERTS_ASSIGNED' });
     }
 
-    const updated = await this.prisma.bidProject.update({
-      where: { id },
-      data: { stage: 'EVALUATING' },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.bidProject.update({
+        where: { id },
+        data: { stage: 'EVALUATING' },
+      });
+
+      await tx.bidSupervisionLog.create({
+        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '启动评标 (OPENING→EVALUATING)', result: '阶段变更成功', riskFlag: '无' },
+      });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'OPENING', to: 'EVALUATING', stage: 'EVALUATING' } } });
+
+      return result;
     });
 
+    // Defer WebSocket notifications until after transaction commits
     this.gateway?.notifyStageChange(id, 'OPENING', 'EVALUATING', 'host');
     this.gateway?.notifyEvaluationStarted(id);
-
-    await this.prisma.bidSupervisionLog.create({
-      data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '启动评标 (OPENING→EVALUATING)', result: '阶段变更成功', riskFlag: '无' },
-    });
-    if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'OPENING', to: 'EVALUATING', stage: 'EVALUATING' } } });
-
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '启动评标 (OPENING→EVALUATING)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
 
     return updated;
@@ -557,8 +566,9 @@ export class BidService {
       });
 
       // 查找该供应商的提交记录（含加密封存密钥与文件引用）
+      // P0: Use tx (transaction client) for consistency inside $transaction
       const submission = bidSupplier.supplierId
-        ? await this.prisma.supplierBidSubmission.findUnique({
+        ? await tx.supplierBidSubmission.findUnique({
             where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
           })
         : null;
@@ -595,7 +605,8 @@ export class BidService {
 
       for (const ref of fileRefs) {
         if (!ref.assetId) continue;
-        const asset = await this.prisma.fileAsset.findUnique({ where: { id: ref.assetId } });
+        // P0: Use tx (transaction client) for consistency inside $transaction
+        const asset = await tx.fileAsset.findUnique({ where: { id: ref.assetId } });
         if (!asset) { errorMsg = `投标文件记录缺失: ${ref.assetId}`; break; }
         try {
           const readKey = asset.sealedPath || asset.key; // 兼容存量：无 sealedPath 时回退到原路径
@@ -621,8 +632,14 @@ export class BidService {
       }
 
       const hasSealedKey = !!submission && !!(submission.technicalSealedKey || submission.businessSealedKey || submission.coverLetterSealedKey);
-      const outcome = dto?.simulateDanger === true
-        ? 'DANGER' as const  // 保留显式模拟开关用于演练（覆盖真实结果）
+      // P0 Security: simulateDanger is gated to non-production environments only.
+      // In production, any attempt to force DANGER is rejected with an explicit error.
+      const simulateOk = dto?.simulateDanger === true;
+      if (simulateOk && process.env.NODE_ENV === 'production') {
+        throw new BadRequestException({ error: 'simulateDanger 不可在生产环境使用', code: 'FORBIDDEN_IN_PRODUCTION' });
+      }
+      const outcome = simulateOk
+        ? 'DANGER' as const  // 仅非生产环境可用：显式模拟开关用于演练（覆盖真实结果）
         : (errorMsg && integrityOk !== true && decryptOk !== true
             ? 'DANGER' as const
             : classifyDecryptOutcome({ hasSealedKey, decryptOk, integrityOk }));
@@ -719,21 +736,26 @@ export class BidService {
       confirmStatus: '待供应商确认',
     };
 
-    const existing = await this.prisma.bidOpeningRecord.findFirst({
-      where: { projectId, bidSupplierId: bidSupplier.id },
-    });
-    const record = existing
-      ? await this.prisma.bidOpeningRecord.update({ where: { id: existing.id }, data: payload })
-      : await this.prisma.bidOpeningRecord.create({
-          data: { projectId, supplierName: bidSupplier.supplierName, bidSupplierId: bidSupplier.id, ...payload },
-        });
+    // P0: Wrap check-then-act + log in transaction to prevent duplicate record race
+    const record = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.bidOpeningRecord.findFirst({
+        where: { projectId, bidSupplierId: bidSupplier.id },
+      });
+      const rec = existing
+        ? await tx.bidOpeningRecord.update({ where: { id: existing.id }, data: payload })
+        : await tx.bidOpeningRecord.create({
+            data: { projectId, supplierName: bidSupplier.supplierName, bidSupplierId: bidSupplier.id, ...payload },
+          });
 
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName,
-        action: '录入唱标信息', result: `报价 ${dto.amount} / 工期 ${dto.period}`, riskFlag: '无',
-      },
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName,
+          action: '录入唱标信息', result: `报价 ${dto.amount} / 工期 ${dto.period}`, riskFlag: '无',
+        },
+      });
+      return rec;
     });
+
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '录入唱标信息', target: bidSupplier.supplierName, result: `报价 ${dto.amount} / 工期 ${dto.period}`, riskFlag: '无' });
     return record;
   }
@@ -750,22 +772,27 @@ export class BidService {
 
     const now = new Date();
     const confirmStatus = dto.confirm ? '异议已处理-确认' : '异议已处理-退回';
-    await this.prisma.bidOpeningRecord.update({
-      where: { id: recordId },
-      data: { confirmStatus, handleResult: dto.result, handledAt: now },
-    });
-    if (record.bidSupplierId) {
-      await this.prisma.bidSupplier.update({
-        where: { id: record.bidSupplierId },
-        data: { confirmStatus: dto.confirm ? 'CONFIRMED' : 'EXCEPTION' },
+
+    // P0: Wrap record update + supplier update + supervision log in transaction
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bidOpeningRecord.update({
+        where: { id: recordId },
+        data: { confirmStatus, handleResult: dto.result, handledAt: now },
       });
-    }
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId, time: now, role: '开标主持人', target: record.supplierName,
-        action: '处理开标异议', result: dto.result, riskFlag: '中风险',
-      },
+      if (record.bidSupplierId) {
+        await tx.bidSupplier.update({
+          where: { id: record.bidSupplierId },
+          data: { confirmStatus: dto.confirm ? 'CONFIRMED' : 'EXCEPTION' },
+        });
+      }
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: now, role: '开标主持人', target: record.supplierName,
+          action: '处理开标异议', result: dto.result, riskFlag: '中风险',
+        },
+      });
     });
+
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '处理开标异议', target: record.supplierName, result: dto.result, riskFlag: '中风险' });
     return this.prisma.bidOpeningRecord.findUnique({ where: { id: recordId } });
   }
@@ -974,7 +1001,12 @@ export class BidService {
   }
 
   /** 一键归档前自动补齐标准归档材料清单（幂等：已存在则跳过） */
-  private async ensureArchiveItems(projectId: string) {
+  /**
+   * Ensure standard archive items exist for a project.
+   * When called with a transaction client, uses it; otherwise uses this.prisma.
+   */
+  private async ensureArchiveItems(projectId: string, tx?: any) {
+    const db = tx ?? this.prisma;
     const standards = [
       { name: '招标项目基础信息', ownerRole: '系统' },
       { name: '投标供应商名单', ownerRole: '开标主持人' },
@@ -984,10 +1016,17 @@ export class BidService {
       { name: '评标结果汇总', ownerRole: '评审委员会' },
       { name: '监督日志', ownerRole: '监督人' },
     ];
-    for (const item of standards) {
-      const exists = await this.prisma.bidArchiveItem.findFirst({ where: { projectId, name: item.name } });
-      if (!exists) {
-        await this.prisma.bidArchiveItem.create({
+    // Use a single findMany + createMany to avoid N+1
+    const names = standards.map(s => s.name);
+    const existing: Array<{ name: string }> = await db.bidArchiveItem.findMany({
+      where: { projectId, name: { in: names } },
+      select: { name: true },
+    });
+    const existingNames = new Set(existing.map(e => e.name));
+    const missing = standards.filter(s => !existingNames.has(s.name));
+    if (missing.length > 0) {
+      for (const item of missing) {
+        await db.bidArchiveItem.create({
           data: { projectId, name: item.name, ownerRole: item.ownerRole, status: 'PENDING_CONFIRM' },
         });
       }
@@ -1010,65 +1049,71 @@ export class BidService {
       });
     }
 
-    // 防止"跳过评标"归档：存在已确认的可评供应商但未生成评标结果时阻断
-    const [confirmableCount, resultCount] = await Promise.all([
-      this.prisma.bidSupplier.count({
-        where: { projectId: id, decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: { not: '已撤回' } },
-      }),
-      this.prisma.bidEvaluationResult.count({ where: { projectId: id } }),
-    ]);
-    if (confirmableCount > 0 && resultCount === 0) {
-      throw new ConflictException({
-        error: '存在已确认的可评供应商，请先生成评标结果再归档',
-        code: 'EVALUATION_RESULTS_REQUIRED',
-      });
-    }
-
-    // 自动补齐标准归档材料，避免“无可归档项”阻塞
-    await this.ensureArchiveItems(id);
-
-    const archiveItems = await this.prisma.bidArchiveItem.findMany({
-      where: { projectId: id, status: { not: 'ARCHIVED' } },
-    });
-
-    if (archiveItems.length === 0) {
-      throw new BadRequestException({ error: '没有可归档的项目', code: 'NO_ITEMS_TO_ARCHIVE' });
-    }
-
+    // P0: Wrap ALL reads + writes in a single transaction to prevent race conditions.
+    // The ensureArchiveItems, counts check, item fetch, and all updates happen atomically.
     const now = new Date();
-    // P0-4: 逐项 SHA-256 哈希链 — 每个归档项拥有独立哈希，链式防篡改。
-    const chain = computeArchiveChain(
-      { id: project.id, projectCode: project.projectCode, name: project.name, stage: 'ARCHIVED' },
-      archiveItems,
-    );
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 防止”跳过评标”归档：存在已确认的可评供应商但未生成评标结果时阻断
+      const [confirmableCount, resultCount] = await Promise.all([
+        tx.bidSupplier.count({
+          where: { projectId: id, decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: { not: '已撤回' } },
+        }),
+        tx.bidEvaluationResult.count({ where: { projectId: id } }),
+      ]);
+      if (confirmableCount > 0 && resultCount === 0) {
+        throw new ConflictException({
+          error: '存在已确认的可评供应商，请先生成评标结果再归档',
+          code: 'EVALUATION_RESULTS_REQUIRED',
+        });
+      }
 
-    // 事务：逐项归档更新（各自哈希）+ 项目状态变更 + 监督日志 原子执行
-    const itemUpdates = archiveItems.map(item =>
-      this.prisma.bidArchiveItem.update({
-        where: { id: item.id },
-        data: { status: 'ARCHIVED', hashDigest: chain.get(item.id)!, archivedAt: now },
-      }),
-    );
-    const txOps: any[] = [
-      ...itemUpdates,
-      this.prisma.bidProject.update({
+      // 自动补齐标准归档材料，避免”无可归档项”阻塞
+      await this.ensureArchiveItems(id, tx);
+
+      const archiveItems = await tx.bidArchiveItem.findMany({
+        where: { projectId: id, status: { not: 'ARCHIVED' } },
+      });
+
+      if (archiveItems.length === 0) {
+        throw new BadRequestException({ error: '没有可归档的项目', code: 'NO_ITEMS_TO_ARCHIVE' });
+      }
+
+      // P0-4: 逐项 SHA-256 哈希链 — 每个归档项拥有独立哈希，链式防篡改。
+      const chain = computeArchiveChain(
+        { id: project.id, projectCode: project.projectCode, name: project.name, stage: 'ARCHIVED' },
+        archiveItems,
+      );
+
+      // 逐项归档更新（各自哈希）+ 项目状态变更 + 监督日志
+      for (const item of archiveItems) {
+        await tx.bidArchiveItem.update({
+          where: { id: item.id },
+          data: { status: 'ARCHIVED', hashDigest: chain.get(item.id)!, archivedAt: now },
+        });
+      }
+      await tx.bidProject.update({
         where: { id },
         data: { stage: 'ARCHIVED' },
-      }),
-      this.prisma.bidSupervisionLog.create({
+      });
+      await tx.bidSupervisionLog.create({
         data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '一键归档', result: `归档 ${archiveItems.length} 项`, riskFlag: '无' },
-      }),
-    ];
-    if (actorId) txOps.push(this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'EVALUATING', to: 'ARCHIVED', stage: 'ARCHIVED', archiveItems: archiveItems.length } } }));
-    await this.prisma.$transaction(txOps);
+      });
+      if (actorId) {
+        await tx.auditLog.create({
+          data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'EVALUATING', to: 'ARCHIVED', stage: 'ARCHIVED', archiveItems: archiveItems.length } },
+        });
+      }
+
+      return tx.bidProject.findUnique({
+        where: { id },
+        include: { archiveItems: true },
+      });
+    });
 
     this.gateway?.notifyStageChange(id, 'EVALUATING', 'ARCHIVED', 'host');
-    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${archiveItems.length} 项`, riskFlag: '无' });
+    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${result?.archiveItems?.length ?? 0} 项`, riskFlag: '无' });
 
-    return this.prisma.bidProject.findUnique({
-      where: { id },
-      include: { archiveItems: true },
-    });
+    return result;
   }
 
   async exportArchivePackage(projectId: string, format: 'json' | 'csv' = 'json') {
@@ -1212,15 +1257,19 @@ export class BidService {
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     this.assertScoreItemsEditable(project.stage);
 
-    const created = await this.prisma.bidScoreItem.create({
-      data: { projectId, category: dto.category, name: dto.name, maxScore: dto.maxScore },
+    const created = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.bidScoreItem.create({
+        data: { projectId, category: dto.category, name: dto.name, maxScore: dto.maxScore },
+      });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '开标主持人', target: project.name,
+          action: '编制评分标准', result: `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`, riskFlag: '无',
+        },
+      });
+      return result;
     });
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId, time: new Date(), role: '开标主持人', target: project.name,
-        action: '编制评分标准', result: `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`, riskFlag: '无',
-      },
-    });
+
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result: `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`, riskFlag: '无' });
     return created;
   }
@@ -1257,14 +1306,18 @@ export class BidService {
     const existing = await this.prisma.bidScoreItem.findFirst({ where: { id: itemId, projectId } });
     if (!existing) throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
 
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId, time: new Date(), role: '开标主持人', target: project.name,
-        action: '编制评分标准', result: `删除评分项「${existing.name}」`, riskFlag: '无',
-      },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '开标主持人', target: project.name,
+          action: '编制评分标准', result: `删除评分项「${existing.name}」`, riskFlag: '无',
+        },
+      });
+      await tx.bidScoreItem.delete({ where: { id: itemId } });
     });
+
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result: `删除评分项「${existing.name}」`, riskFlag: '无' });
-    return this.prisma.bidScoreItem.delete({ where: { id: itemId } });
+    return { deleted: true };
   }
 
   /** 应用标准评分模板（幂等：按 name 去重，已存在的项不重复创建）。立即解除新建项目的评标死锁。 */
