@@ -965,17 +965,8 @@ export default function MallPage() {
 
         <section className="mt-3 grid gap-4 lg:grid-cols-[280px_1fr]">
           <aside className="flex flex-col rounded-xl border border-[#e1e9f4] bg-white p-3.5 shadow-[0_4px_12px_rgba(15,35,65,.03)] lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-7rem)]">
-            <div className="mb-2.5 flex items-center justify-between shrink-0">
+            <div className="mb-2.5 shrink-0">
               <h2 className="text-sm font-black text-[#334155]">集中采购目录</h2>
-              <motion.span
-                className="rounded-md bg-[#f1f5fb] px-1.5 py-0.5 text-[10px] font-bold text-[#5b9bd5] tabular-nums"
-                key={filtered.length}
-                initial={{ scale: 1.15 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-              >
-                {filtered.length}
-              </motion.span>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
             <LayoutGroup>
@@ -1520,6 +1511,27 @@ function CategoryGroup({ section, selectedCategory, onSelect, items, searchActiv
   const groupCount = section.children.reduce((sum, child) =>
     sum + (child === '全部' ? items.length : items.filter(item => item.category === child || item.group === child).length), 0
   );
+
+  // 全部目录：直接点击选中，不折叠
+  if (section.group === '全部目录') {
+    const active = selectedCategory === '全部';
+    return (
+      <div key={section.group}>
+        <button
+          onClick={() => onSelect('全部')}
+          className={`flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+            active
+              ? 'bg-[#5b9bd5]/10 text-[#5b9bd5] font-bold'
+              : 'text-[#5a6d8a] hover:bg-[#f3f7fc] hover:text-[#334155]'
+          }`}
+        >
+          <span>{section.group}</span>
+          <span className={`text-xs ${active ? 'text-[#5b9bd5]' : 'text-[#6a7890]'}`}>{groupCount}</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div key={section.group}>
       <button
