@@ -3,15 +3,15 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail, BidClarification } from '@/lib/types';
-import { useBidProjects } from '@/hooks/use-bid-projects';
-import ProjectSelector from '@/components/project-selector';
+import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import { MessageSquare, Send, Plus, X, AlertTriangle } from 'lucide-react';
 import { PageHero } from '@water-erp/ui';
 
 export default function BidClarificationsPage() {
-  const { projectId, setProjectId } = useBidProjects();
+  const { projectId: _pid } = useBidProjectContext();
+  const projectId = _pid!;
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +102,6 @@ export default function BidClarificationsPage() {
         icon={<MessageSquare size={14} strokeWidth={1.5} />}
         title="澄清与答疑"
         description="发起澄清 · 供应商回复 · 全程留痕"
-        actions={<ProjectSelector value={projectId} onChange={setProjectId} />}
       />
 
       {/* Action bar */}

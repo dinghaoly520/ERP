@@ -3,9 +3,9 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail, BidExpert, BidSupplier, BidScoreItem } from '@/lib/types';
-import { useBidProjects } from '@/hooks/use-bid-projects';
+import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
-import ProjectSelector from '@/components/project-selector';
+
 import { TableSkeleton } from '@/components/skeleton';
 import { MetricCard, PageHero } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
@@ -156,7 +156,8 @@ function CellTooltip({ cell, supplierName, expertName, onClose }: {
 
 /* ═══ Page ═══ */
 export default function BidEvaluatePage() {
-  const { projectId, setProjectId } = useBidProjects();
+  const { projectId: _pid } = useBidProjectContext();
+  const projectId = _pid!;
   const [project, setProject] = useState<BidProjectEvalDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<EvalResult[]>([]);
@@ -316,7 +317,7 @@ export default function BidEvaluatePage() {
         icon={<ClipboardCheck size={14} strokeWidth={1.5} />}
         title="专家评标管理端"
         description="专家组状态 · 评分概览 · 结果汇总"
-        actions={<><ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} /><ProjectSelector value={projectId} onChange={setProjectId} /></>}
+        actions={<ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} />}
       />
 
       {/* ═══ Progress dashboard ═══ */}

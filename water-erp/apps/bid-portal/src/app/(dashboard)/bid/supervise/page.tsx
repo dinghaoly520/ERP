@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import { getSupervisionAnnotations, upsertSupervisionAnnotation, deleteSupervisionAnnotation } from '@/lib/api/bid';
-import { useBidProjects } from '@/hooks/use-bid-projects';
-import ProjectSelector from '@/components/project-selector';
+import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { TableSkeleton } from '@/components/skeleton';
 import { Shield, AlertTriangle, Eye, Download } from 'lucide-react';
 import { PageHero, SectionCard } from '@water-erp/ui';
@@ -38,7 +37,8 @@ function exportSupervisionCSV(logs: Array<{ time: string; role: string; target: 
 }
 
 export default function BidSupervisePage() {
-  const { projectId, setProjectId } = useBidProjects();
+  const { projectId: _pid } = useBidProjectContext();
+  const projectId = _pid!;
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [supervisionLogs, setSupervisionLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,7 +105,7 @@ export default function BidSupervisePage() {
         icon={<Shield size={14} strokeWidth={1.5} />}
         title="监督端"
         description="全程监督 · 不可干预"
-        actions={<><ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} /><ProjectSelector value={projectId} onChange={setProjectId} /></>}
+        actions={<ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} />}
       />
 
       {/* Permission notice */}

@@ -3,8 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { api, enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
-import { useBidProjects } from '@/hooks/use-bid-projects';
-import ProjectSelector from '@/components/project-selector';
+import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { TableSkeleton } from '@/components/skeleton';
 import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
@@ -105,7 +104,8 @@ function StageStepper({ step }: { step: number }) {
 }
 
 export default function BidOpenPage() {
-  const { projectId, setProjectId } = useBidProjects();
+  const { projectId: _pid } = useBidProjectContext();
+  const projectId = _pid!;
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [startOpen, setStartOpen] = useState(false);
@@ -346,7 +346,6 @@ export default function BidOpenPage() {
               {bigScreen ? <Minimize size={14} /> : <Maximize size={14} />}
             </button>
             <ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} />
-            <ProjectSelector value={projectId} onChange={setProjectId} />
           </div>
         }
       />

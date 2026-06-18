@@ -6,8 +6,7 @@ import {
   listScoreItems, createScoreItem, updateScoreItem, deleteScoreItem, applyScoreItemTemplate,
   type ScoreItem,
 } from '@/lib/api/bid';
-import { useBidProjects } from '@/hooks/use-bid-projects';
-import ProjectSelector from '@/components/project-selector';
+import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { PageHero, SectionCard } from '@water-erp/ui';
 import { ListChecks, Plus, Pencil, Trash2, Check, X, FileSpreadsheet, Lock } from 'lucide-react';
 import { CATEGORY_LABEL, CATEGORY_COLOR, STAGE_LABEL } from '@water-erp/shared';
@@ -17,7 +16,8 @@ const CATEGORY_OPTIONS = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL'
 const inputCls = 'workbench-input';
 
 export default function BidStandardPage() {
-  const { projectId, setProjectId } = useBidProjects();
+  const { projectId: _pid } = useBidProjectContext();
+  const projectId = _pid!;
   const [stage, setStage] = useState('');
   const [items, setItems] = useState<ScoreItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,11 +112,6 @@ export default function BidStandardPage() {
         icon={<ListChecks size={14} strokeWidth={1.5} />}
         title="评分标准编制"
         description="评标前置环节 · 编制评分项与满分 · 专家据此打分"
-        actions={
-          <div className="flex items-center gap-2">
-            <ProjectSelector value={projectId} onChange={setProjectId} />
-          </div>
-        }
       />
 
       {locked && (
