@@ -97,8 +97,18 @@ export async function fetchAnnouncementsServer(apiBase: string): Promise<Announc
   const settled = await Promise.all(
     types.map(type =>
       fetch(`${apiBase}/api/announcements/public?type=${type}&pageSize=5`, { cache: 'no-store' })
-        .then(r => (r.ok ? r.json() : { items: [] }))
-        .catch(() => ({ items: [] })),
+        .then(async r => {
+          if (!r.ok) {
+            const body = await r.text().catch(() => '');
+            console.warn(`[fetchAnnouncementsServer] ${type} → ${r.status}: ${body.slice(0, 200)}`);
+            return { items: [] };
+          }
+          return r.json();
+        })
+        .catch(err => {
+          console.warn(`[fetchAnnouncementsServer] ${type} fetch error:`, (err as Error).message);
+          return { items: [] };
+        }),
     ),
   );
   return settled.flatMap(r => (r.items || []).map(toAnnouncementItem));

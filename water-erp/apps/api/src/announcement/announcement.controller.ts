@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Request, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { AnnouncementService } from './announcement.service';
 import { BidDocumentService } from './bid-document.service';
 import { AnnouncementAttachmentService } from './announcement-attachment.service';
@@ -21,6 +22,7 @@ export class AnnouncementController {
 
   @Get('public')
   @Public()
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({ summary: '公开公告列表' })
   async publicList(
     @Query('type') type?: string,
@@ -33,6 +35,7 @@ export class AnnouncementController {
 
   @Get('public/:id')
   @Public()
+  @SkipThrottle()
   @ApiOperation({ summary: '公开公告详情' })
   async getPublic(@Param('id') id: string) {
     return this.announcementService.getPublic(id);

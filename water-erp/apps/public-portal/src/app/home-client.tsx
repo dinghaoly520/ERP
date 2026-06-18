@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -58,8 +58,9 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   };
 
   // 从后端 API 按公告类型分别获取，避免全局分页导致各类型数量不均
-  const typeGroups = ['BID_NOTICE', 'WIN_NOTICE', 'POLICY', 'PLATFORM'];
+  const typeGroups = useMemo(() => ['BID_NOTICE', 'WIN_NOTICE', 'POLICY', 'PLATFORM'], []);
   const [fetchedAnnouncements, setFetchedAnnouncements] = useState<AnnouncementItem[]>(initialAnnouncements);
+  const hasInitialData = useRef(initialAnnouncements.length > 0);
   const [announcementsLoading, setAnnouncementsLoading] = useState(initialAnnouncements.length === 0);
   const [announcementsError, setAnnouncementsError] = useState(false);
   const loadAnnouncements = useCallback(() => {
@@ -76,6 +77,17 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   }, []);
 
   useEffect(() => {
+    // 已有服务端预取数据时，仅做后台静默刷新，不触发 loading/error 状态切换
+    if (hasInitialData.current) {
+      // 静默刷新：成功则更新，失败保留已有数据
+      Promise.allSettled(typeGroups.map(type => fetchPublicAnnouncements({ type, pageSize: 5 })))
+        .then(results => {
+          const items = results.map(r => (r.status === 'fulfilled' ? r.value.items : [])).flat();
+          if (items.length > 0) setFetchedAnnouncements(items);
+        })
+        .catch(() => { /* 静默失败，保留已有数据 */ });
+      return;
+    }
     loadAnnouncements();
     // 浏览器后退(bfcache 恢复)与切回标签页时都重新拉取
     const onShow = () => loadAnnouncements();
@@ -86,7 +98,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
       window.removeEventListener('pageshow', onShow);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [loadAnnouncements]);
+  }, [loadAnnouncements, typeGroups]);
 
   // 从数据按类型分组（仅展示数据库中的真实数据，不使用本地兜底）
   const announceData = typeGroups.map(type => {
