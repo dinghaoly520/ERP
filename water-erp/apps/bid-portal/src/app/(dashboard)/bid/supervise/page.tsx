@@ -37,8 +37,7 @@ function exportSupervisionCSV(logs: Array<{ time: string; role: string; target: 
 }
 
 export default function BidSupervisePage() {
-  const { projectId: _pid } = useBidProjectContext();
-  const projectId = _pid!;
+  const { projectId } = useBidProjectContext();
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [supervisionLogs, setSupervisionLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,6 +94,7 @@ export default function BidSupervisePage() {
 
   if (loading) return <TableSkeleton rows={6} cols={6} />;
   if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20">暂无项目数据</div>;
+  if (!projectId) return null;
 
   const anomalies = project.suppliers.filter(s => s.decryptStatus === 'DANGER');
 
@@ -171,6 +171,7 @@ export default function BidSupervisePage() {
                         className="w-full border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#064ea2] resize-none" />
                       <div className="flex items-center gap-2">
                         <button onClick={async () => {
+                          if (!projectId) return;
                           setAnomalyNotes(prev => { const m = new Map(prev); m.set(s.id, noteDraft); return m; });
                           setAnnotatingId(null);
                           const flag = anomalyFlags.get(s.id) || 'flagged';
@@ -188,6 +189,7 @@ export default function BidSupervisePage() {
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                   <button onClick={async () => {
+                    if (!projectId) return;
                     const flag = anomalyFlags.get(s.id);
                     const newStatus = flag === 'flagged' ? null : 'flagged';
                     setAnomalyFlags(prev => { const m = new Map(prev); m.set(s.id, newStatus); return m; });
@@ -204,6 +206,7 @@ export default function BidSupervisePage() {
                       flag === 'flagged' ? 'bg-amber-100 text-amber-600' : 'text-[oklch(0.62_0.008_264)] hover:bg-amber-50 hover:text-amber-600'
                     }`}>关注</button>
                   <button onClick={async () => {
+                    if (!projectId) return;
                     const flag = anomalyFlags.get(s.id);
                     const newStatus = flag === 'escalated' ? null : 'escalated';
                     setAnomalyFlags(prev => { const m = new Map(prev); m.set(s.id, newStatus); return m; });

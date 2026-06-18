@@ -104,8 +104,7 @@ function StageStepper({ step }: { step: number }) {
 }
 
 export default function BidOpenPage() {
-  const { projectId: _pid } = useBidProjectContext();
-  const projectId = _pid!;
+  const { projectId } = useBidProjectContext();
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [startOpen, setStartOpen] = useState(false);
@@ -192,6 +191,7 @@ export default function BidOpenPage() {
 
   // ═══ API ═══
   const handleResolveDispute = async (recordId: string, result: string, confirm: boolean) => {
+    if (!projectId) return;
     await resolveOpeningDispute(projectId, recordId, { result, confirm });
     const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
     setProject(updated);
@@ -201,6 +201,7 @@ export default function BidOpenPage() {
   };
 
   const executeDecrypt = async (targets: { id: string; name: string }[]) => {
+    if (!projectId) return;
     const isBulk = targets.length > 1;
     if (!isBulk) {
       // Single decrypt: show spinner inline
@@ -251,7 +252,7 @@ export default function BidOpenPage() {
   };
 
   const handleEnterRecord = async () => {
-    if (!recordEntry) return;
+    if (!projectId || !recordEntry) return;
     const { amount, period, qualityTarget, bondStatus } = recordDraft;
     if (!amount.trim() || !period.trim() || !qualityTarget.trim() || !bondStatus.trim()) {
       toast.error('请完整填写唱标信息'); return;
@@ -273,7 +274,7 @@ export default function BidOpenPage() {
   }, [projectId]);
 
   // ═══ WebSocket ═══
-  const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId, {
+  const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId ?? undefined, {
     onDecryptStatus: (data) => {
       setProject(prev => {
         if (!prev) return prev;
@@ -324,6 +325,7 @@ export default function BidOpenPage() {
 
   if (loading) return <TableSkeleton rows={8} cols={6} />;
   if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20 tracking-tight">暂无项目数据</div>;
+  if (!projectId) return null;
 
   return (
     <div className={`space-y-5 ${bigScreen ? 'text-[115%]' : ''}`}>

@@ -13,7 +13,7 @@ interface TabDef {
   stageHint: string;  // 阶段不满足时的提示语
 }
 
-const TABS: TabDef[] = [
+export const TABS: TabDef[] = [
   {
     key: 'open',
     label: '开标大厅',

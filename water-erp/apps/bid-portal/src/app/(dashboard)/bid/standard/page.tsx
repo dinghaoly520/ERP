@@ -16,8 +16,7 @@ const CATEGORY_OPTIONS = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL'
 const inputCls = 'workbench-input';
 
 export default function BidStandardPage() {
-  const { projectId: _pid } = useBidProjectContext();
-  const projectId = _pid!;
+  const { projectId } = useBidProjectContext();
   const [stage, setStage] = useState('');
   const [items, setItems] = useState<ScoreItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +45,7 @@ export default function BidStandardPage() {
   );
 
   const handleApplyTemplate = async () => {
+    if (!projectId) return;
     try {
       const updated = await applyScoreItemTemplate(projectId);
       setItems(updated);
@@ -54,6 +54,7 @@ export default function BidStandardPage() {
   };
 
   const handleCreate = async () => {
+    if (!projectId) return;
     if (!draft.name.trim()) { toast.error('请填写评分项名称'); return; }
     try {
       const created = await createScoreItem(projectId, { category: draft.category, name: draft.name.trim(), maxScore: Number(draft.maxScore) });
@@ -70,6 +71,7 @@ export default function BidStandardPage() {
   };
 
   const handleSaveEdit = async (id: string) => {
+    if (!projectId) return;
     if (!editDraft.name.trim()) { toast.error('请填写评分项名称'); return; }
     try {
       const updated = await updateScoreItem(projectId, id, {
@@ -86,7 +88,7 @@ export default function BidStandardPage() {
   };
 
   const confirmDelete = async () => {
-    if (!deleteConfirm) return;
+    if (!projectId || !deleteConfirm) return;
     const { id } = deleteConfirm;
     try {
       await deleteScoreItem(projectId, id);

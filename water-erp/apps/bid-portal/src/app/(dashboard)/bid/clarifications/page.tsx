@@ -10,8 +10,7 @@ import { MessageSquare, Send, Plus, X, AlertTriangle } from 'lucide-react';
 import { PageHero } from '@water-erp/ui';
 
 export default function BidClarificationsPage() {
-  const { projectId: _pid } = useBidProjectContext();
-  const projectId = _pid!;
+  const { projectId } = useBidProjectContext();
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +41,7 @@ export default function BidClarificationsPage() {
   useEffect(() => { load(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReply = async (cid: string) => {
+    if (!projectId) return;
     if (!replyText.trim()) { toast.error('请先填写回复内容'); return; }
     setSubmitting(true);
     try {
@@ -53,6 +53,7 @@ export default function BidClarificationsPage() {
   };
 
   const handleCreate = async () => {
+    if (!projectId) return;
     if (!question.trim()) { toast.error('请输入澄清问题'); return; }
     if (!issuer.trim()) { toast.error('请输入发起人'); return; }
     if (!supplierName.trim()) { toast.error('请输入供应商名称'); return; }
@@ -94,6 +95,7 @@ export default function BidClarificationsPage() {
       暂无项目数据
     </div>
   );
+  if (!projectId) return null;
 
   return (
     <div className="space-y-6">

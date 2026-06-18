@@ -77,15 +77,26 @@ export class BidService {
     const where = stages && stages.length > 0
       ? { stage: { in: stages as BidStage[] } }
       : {};
+
+    // 当按阶段筛选时返回精简字段（用于搜索选择器）
+    // 无筛选时返回完整字段（用于归档/仪表盘等向后兼容）
+    if (stages && stages.length > 0) {
+      return this.prisma.bidProject.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
+        select: {
+          id: true,
+          projectCode: true,
+          name: true,
+          stage: true,
+        },
+      });
+    }
+
     return this.prisma.bidProject.findMany({
       where,
-      orderBy: { updatedAt: 'desc' },
-      select: {
-        id: true,
-        projectCode: true,
-        name: true,
-        stage: true,
-      },
+      orderBy: { createdAt: 'desc' },
+      include: { _count: { select: { suppliers: true } } },
     });
   }
 

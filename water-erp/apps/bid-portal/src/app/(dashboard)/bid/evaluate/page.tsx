@@ -156,8 +156,7 @@ function CellTooltip({ cell, supplierName, expertName, onClose }: {
 
 /* ═══ Page ═══ */
 export default function BidEvaluatePage() {
-  const { projectId: _pid } = useBidProjectContext();
-  const projectId = _pid!;
+  const { projectId } = useBidProjectContext();
   const [project, setProject] = useState<BidProjectEvalDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<EvalResult[]>([]);
@@ -181,7 +180,7 @@ export default function BidEvaluatePage() {
   }, [projectId]);
 
   /* ── WebSocket: live scoring updates ── */
-  const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId, {
+  const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId ?? undefined, {
     onStageChange: () => {
       if (projectId) api.get<BidProjectEvalDetail>(`/bid/projects/${projectId}`).then(setProject);
     },
@@ -190,6 +189,7 @@ export default function BidEvaluatePage() {
 
   /* ── Operations ── */
   const handleGenerate = async () => {
+    if (!projectId) return;
     setGenerating(true);
     try {
       const r = await api.post<EvalResult[]>(`/bid/projects/${projectId}/evaluation-results/generate`, {});
@@ -203,6 +203,7 @@ export default function BidEvaluatePage() {
   };
 
   const handleStartEvaluation = async () => {
+    if (!projectId) return;
     setStartingEvaluation(true);
     try {
       await api.post(`/bid/projects/${projectId}/start-evaluation`, {});
@@ -307,6 +308,7 @@ export default function BidEvaluatePage() {
   /* ── Loading / empty ── */
   if (loading) return <TableSkeleton rows={8} cols={6} />;
   if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20">暂无项目数据</div>;
+  if (!projectId) return null;
 
   const { experts, suppliers } = project;
 
