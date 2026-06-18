@@ -6,9 +6,9 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Pagination } from '@/components/pagination';
 import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
-import { Gavel, Plus, Search, Pencil, ChevronDown, ChevronRight, AlertTriangle, Clock, Users, UserCheck } from 'lucide-react';
+import { Plus, Search, Pencil, ChevronDown, ChevronRight, AlertTriangle, Clock, Users, UserCheck } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
-import { PageHero, SectionCard, MetricCard, DataToolbar } from '@water-erp/ui';
+import { SectionCard, MetricCard, DataToolbar } from '@water-erp/ui';
 import CreateProjectDialog from '@/components/create-project-dialog';
 import EditProjectDialog from '@/components/edit-project-dialog';
 
@@ -152,14 +152,6 @@ export default function BidDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* ── Page Hero ── */}
-      <PageHero
-        tone="blue"
-        icon={<Gavel size={14} strokeWidth={1.5} />}
-        title="开评标管理系统"
-        description="统一入口 · 多端协同 · 限时开标 · 全程留痕"
-      />
-
       {/* ── Key metrics ── */}
       <div className="grid gap-4 md:grid-cols-4">
         <MetricCard label="项目总数" value={total} tone="blue" />
