@@ -80,8 +80,50 @@ describe('ExpertService', () => {
       expect(stats.pendingProjects).toBe(1);
       expect(stats.averageScore).toBeGreaterThan(0);
       expect(stats.recentActivity).toBeDefined();
+      // 统计应仅计算 OPENING+ 阶段的项目
+      expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'user-1', project: { stage: { in: ['OPENING', 'EVALUATING', 'ARCHIVED'] } } },
+        }),
+      );
       // 不应调用 user.findUnique
       expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listProjects', () => {
+    it('应仅返回 OPENING/EVALUATING/ARCHIVED 阶段的项目', async () => {
+      prisma.bidExpert.findMany.mockResolvedValue([
+        {
+          id: 'exp-1', expertName: '王建国', major: '水利工程', signedIn: true,
+          progress: 50, totalScore: 80, createdAt: new Date(),
+          project: { id: 'proj-1', stage: 'OPENING', projectCode: 'GC-001', name: '水库项目', openTime: new Date(), suppliers: [], scoreItems: [], _count: { clarifications: 0 } },
+          scoreRecords: [],
+        },
+      ]);
+
+      const result = await service.listProjects('user-1');
+
+      expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'user-1', project: { stage: { in: ['OPENING', 'EVALUATING', 'ARCHIVED'] } } },
+        }),
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].project.stage).toBe('OPENING');
+    });
+
+    it('应将 OPENING 排在 EVALUATING 之前', async () => {
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { id: 'exp-2', expertName: '李专家', major: '电气', signedIn: false, progress: 0, totalScore: 0, createdAt: new Date('2026-01-02'), project: { id: 'proj-2', stage: 'EVALUATING', projectCode: 'GC-002', name: '电网项目', openTime: new Date(), suppliers: [], scoreItems: [], _count: { clarifications: 0 } }, scoreRecords: [] },
+        { id: 'exp-1', expertName: '王建国', major: '水利', signedIn: true, progress: 50, totalScore: 80, createdAt: new Date('2026-01-01'), project: { id: 'proj-1', stage: 'OPENING', projectCode: 'GC-001', name: '水库项目', openTime: new Date(), suppliers: [], scoreItems: [], _count: { clarifications: 0 } }, scoreRecords: [] },
+      ]);
+
+      const result = await service.listProjects('user-1');
+
+      // OPENING（priority 0）在 EVALUATING（priority 1）之前
+      expect(result[0].project.stage).toBe('OPENING');
+      expect(result[1].project.stage).toBe('EVALUATING');
     });
   });
 
@@ -276,9 +318,9 @@ describe('ExpertService', () => {
 
       expect(result).toHaveProperty('assignments');
       expect(result).not.toHaveProperty('passwordHash');
-      // 应通过 userId 查询专家记录
+      // 应通过 userId + 阶段过滤查询专家记录
       expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { userId: 'user-1' } }),
+        expect.objectContaining({ where: { userId: 'user-1', project: { stage: { in: ['OPENING', 'EVALUATING', 'ARCHIVED'] } } } }),
       );
     });
   });

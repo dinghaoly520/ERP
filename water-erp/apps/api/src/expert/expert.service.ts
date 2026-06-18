@@ -22,7 +22,10 @@ export class ExpertService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException({ error: '用户不存在', code: 'USER_NOT_FOUND' });
     const expertRecords = await this.prisma.bidExpert.findMany({
-      where: { userId },
+      where: {
+        userId,
+        project: { stage: { in: ['OPENING', 'EVALUATING', 'ARCHIVED'] } },
+      },
       include: {
         project: { select: { id: true, projectCode: true, name: true, stage: true, openTime: true } },
         scoreRecords: { include: { scoreItem: true } },
@@ -58,7 +61,10 @@ export class ExpertService {
 
   async getStatistics(userId: string) {
     const records = await this.prisma.bidExpert.findMany({
-      where: { userId },
+      where: {
+        userId,
+        project: { stage: { in: ['OPENING', 'EVALUATING', 'ARCHIVED'] } },
+      },
       include: { scoreRecords: true, project: true },
     });
 
@@ -86,7 +92,10 @@ export class ExpertService {
 
   async listProjects(userId: string) {
     const records = await this.prisma.bidExpert.findMany({
-      where: { userId },
+      where: {
+        userId,
+        project: { stage: { in: ['OPENING', 'EVALUATING', 'ARCHIVED'] } },
+      },
       include: {
         project: {
           include: {

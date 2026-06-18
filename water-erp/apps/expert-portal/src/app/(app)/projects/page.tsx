@@ -41,7 +41,7 @@ function isActive(stage: string) {
 export default function ExpertProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<ExpertProject[]>([]);
-  const [filter, setFilter] = useState<'reviewable' | 'upcoming' | 'archived' | 'all'>('reviewable');
+  const [filter, setFilter] = useState<'reviewable' | 'archived' | 'all'>('reviewable');
   const [loading, setLoading] = useState(true);
   const [overviewProject, setOverviewProject] = useState<ExpertProject | null>(null);
 
@@ -64,27 +64,24 @@ export default function ExpertProjectsPage() {
   const filtered = projects.filter(ep => {
     const s = ep.project.stage;
     if (filter === 'reviewable') return isActive(s);
-    if (filter === 'upcoming') return s === 'DOWNLOAD' || s === 'SUBMIT';
     if (filter === 'archived') return s === 'ARCHIVED';
     return true;
   });
 
-  // P2: single-pass count instead of 4 separate .filter() passes
+  // P2: single-pass count instead of separate .filter() passes
   const statusCounts = useMemo(() => {
-    let all = 0, reviewable = 0, upcoming = 0, archived = 0;
+    let all = 0, reviewable = 0, archived = 0;
     for (const ep of projects) {
       all++;
       const s = ep.project.stage;
       if (isActive(s)) reviewable++;
-      else if (s === 'DOWNLOAD' || s === 'SUBMIT') upcoming++;
       else if (s === 'ARCHIVED') archived++;
     }
-    return { all, reviewable, upcoming, archived };
+    return { all, reviewable, archived };
   }, [projects]);
 
   const filterTabs = [
     { key: 'reviewable' as const, label: '可评审', desc: 'OPENING + EVALUATING' },
-    { key: 'upcoming' as const, label: '待开标', desc: 'DOWNLOAD + SUBMIT' },
     { key: 'archived' as const, label: '已归档', desc: 'ARCHIVED' },
     { key: 'all' as const, label: '全部', desc: 'ALL' },
   ];
@@ -145,10 +142,10 @@ export default function ExpertProjectsPage() {
         <div className="glass-card glass-card-blue rounded-2xl p-12 text-center">
           <ClipboardList size={48} strokeWidth={1} className="text-[#cbd5e1] mx-auto mb-4" />
           <h3 className="text-base font-bold text-[#18243a] mb-2">
-            {filter === 'reviewable' ? '暂无可评审项目' : filter === 'upcoming' ? '暂无待开标项目' : filter === 'archived' ? '暂无已归档项目' : '暂无项目'}
+            {filter === 'reviewable' ? '暂无可评审项目' : filter === 'archived' ? '暂无已归档项目' : '暂无项目'}
           </h3>
           <p className="text-sm text-[#8a96aa]">
-            {filter === 'reviewable' ? '请等待管理端启动开标，可评审项目将显示在这里' : '请等待管理员分配评审任务'}
+            {filter === 'reviewable' ? '请等待管理端启动开标，可评审项目将显示在这里' : '暂无匹配的项目'}
           </p>
         </div>
       ) : (
@@ -340,15 +337,27 @@ export default function ExpertProjectsPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 flex items-start gap-2.5">
-                <Lock size={14} strokeWidth={1.5} className="text-amber-500 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-bold text-amber-700">该项目尚未进入开评标阶段</p>
-                  <p className="text-xs text-amber-600 mt-0.5">
-                    请等待管理端启动开标。开标后，您将可以进入评审向导进行身份核验与专家打分。
-                  </p>
+              {overviewProject.project.stage === 'ARCHIVED' ? (
+                <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 flex items-start gap-2.5">
+                  <ClipboardList size={14} strokeWidth={1.5} className="text-emerald-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-emerald-700">该项目已完成全部评审流程并归档</p>
+                    <p className="text-xs text-emerald-600 mt-0.5">
+                      归档期意味着招标及评审环节已经结束，所有评分与报告均已定稿。您可以在个人中心查看您的评审记录。
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 flex items-start gap-2.5">
+                  <Lock size={14} strokeWidth={1.5} className="text-amber-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-amber-700">该项目尚未进入开评标阶段</p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      请等待管理端启动开标。开标后，您将可以进入评审向导进行身份核验与专家打分。
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
             {/* Footer */}
             <div className="border-t border-[#edf2f7] bg-[#f8fafc] px-6 py-3 flex justify-end">
