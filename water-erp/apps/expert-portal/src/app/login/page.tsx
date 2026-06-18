@@ -102,7 +102,7 @@ const DEMO_ACCOUNTS: Record<Tab, { username: string; password: string }> =
 export default function ExpertLoginPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('expert');
-  const [form, setForm] = useState({ username: DEMO_ACCOUNTS.expert.username, password: DEMO_ACCOUNTS.expert.password });
+  const [form, setForm] = useState({ ...DEMO_ACCOUNTS.expert });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {

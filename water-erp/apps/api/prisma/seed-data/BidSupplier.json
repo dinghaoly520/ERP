@@ -30,36 +30,6 @@
     "decryptError": null
   },
   {
-    "id": "cmqhf0kkd0007vk18ikuf9mwu",
-    "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
-    "supplierName": "四川川水建设工程有限公司",
-    "downloadStatus": "已下载",
-    "submitStatus": "已提交",
-    "encryptStatus": "密文已校验",
-    "receiptNo": "TB-20260617-701",
-    "decryptStatus": "SUCCESS",
-    "confirmStatus": "CONFIRMED",
-    "createdAt": "2026-06-17T01:51:36.734Z",
-    "updatedAt": "2026-06-17T01:51:36.734Z",
-    "decryptError": null
-  },
-  {
-    "id": "cmqhf0kkh0009vk18sblw0e1k",
-    "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "supplierId": "cmqbysdm50029koh18g2n7p54",
-    "supplierName": "成都华西物资供应有限公司",
-    "downloadStatus": "已下载",
-    "submitStatus": "已提交",
-    "encryptStatus": "密文已校验",
-    "receiptNo": "TB-20260617-702",
-    "decryptStatus": "SUCCESS",
-    "confirmStatus": "CONFIRMED",
-    "createdAt": "2026-06-17T01:51:36.737Z",
-    "updatedAt": "2026-06-17T01:51:36.737Z",
-    "decryptError": null
-  },
-  {
     "id": "cmqseed-submit-bs01",
     "projectId": "cmqseed-submit-proj01",
     "supplierId": "cmqbysdkb001lkoh1lif07y1g",

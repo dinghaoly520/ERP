@@ -10,29 +10,5 @@
     "reply": "本项目不指定品牌，但球墨铸铁管须符合GB/T 13295-2019标准，投标人须在投标文件中注明拟选用品牌及型号。",
     "createdAt": "2026-06-17T02:10:00.000Z",
     "updatedAt": "2026-06-17T02:35:00.000Z"
-  },
-  {
-    "id": "cmqseed-eval-cl01",
-    "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "type": "澄清",
-    "question": "请澄清贵司数据中台扩容方案中关于数据迁移零停机时间的技术可行性",
-    "issuer": "评审委员会",
-    "supplierName": "四川川水建设工程有限公司",
-    "status": "待回复",
-    "reply": null,
-    "createdAt": "2026-06-17T02:20:00.000Z",
-    "updatedAt": "2026-06-17T02:20:00.000Z"
-  },
-  {
-    "id": "cmqseed-eval-cl02",
-    "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "type": "答疑",
-    "question": "智能调度模块的开发周期能否缩短至6个月？",
-    "issuer": "成都华西物资供应有限公司",
-    "supplierName": "成都华西物资供应有限公司",
-    "status": "已回复",
-    "reply": "根据项目复杂度评估，智能调度模块至少需要8个月开发周期（含需求分析、设计、编码、测试、联调），无法压缩至6个月。",
-    "createdAt": "2026-06-17T02:15:00.000Z",
-    "updatedAt": "2026-06-17T02:45:00.000Z"
   }
 ]

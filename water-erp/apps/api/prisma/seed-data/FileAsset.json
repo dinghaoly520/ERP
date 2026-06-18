@@ -158,21 +158,5 @@
     "authTag": null,
     "createdAt": "2026-06-16T08:45:45.961Z",
     "updatedAt": "2026-06-16T08:45:45.961Z"
-  },
-  {
-    "id": "cmqhf0kk60003vk18wsn40ktu",
-    "key": "bid-doc/20260617/94d48e403ac62469.enc",
-    "originalName": "2026年度水利信息化平台升级改造项目-招标文件.txt",
-    "mimeType": "text/plain; charset=utf-8",
-    "size": 9332,
-    "sha256": "3ae3774762252afd7b4be45219da64d13b1aa07a5481688d8a82c87501e53fcc",
-    "category": "bid_document",
-    "uploaderId": "cmqbysdbl0002koh10l78cjr3",
-    "encrypted": false,
-    "encryptionKeyId": null,
-    "iv": null,
-    "authTag": null,
-    "createdAt": "2026-06-17T01:51:36.727Z",
-    "updatedAt": "2026-06-17T01:51:36.727Z"
   }
 ]
