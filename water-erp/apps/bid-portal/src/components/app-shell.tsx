@@ -8,8 +8,6 @@ import {
   LayoutDashboard, Archive,
   LogOut, PanelLeftClose, PanelLeft,
 } from 'lucide-react';
-import GlobalProjectSearch from './global-project-search';
-import RecentProjects from './recent-projects';
 import { portalURL } from '@water-erp/config';
 
 // 未登录/登出时跳转"在线开评标系统"统一登录入口（专家门户）。
@@ -90,14 +88,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* ── Body: floating sidebar + content ── */}
       <div className="flex flex-1 overflow-hidden">
         <aside className={`${collapsed ? 'w-[68px]' : 'w-[272px]'} m-3 mr-0 flex flex-shrink-0 flex-col overflow-hidden rounded-[24px] border border-[#dbe6f3] bg-white/88 shadow-[0_18px_60px_rgba(15,47,87,0.10)] backdrop-blur transition-all duration-200`}>
-          {/* ── Global project search + recent projects ── */}
-          {!collapsed && (
-            <>
-              <GlobalProjectSearch />
-              <RecentProjects />
-            </>
-          )}
-
           <nav className="flex-1 overflow-y-auto px-2 py-3">
             {navItems.map(item => (
               <button
