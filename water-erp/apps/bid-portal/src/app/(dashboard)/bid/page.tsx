@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Pagination } from '@/components/pagination';
 import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
-import { Gavel, ArrowRight, Plus, Search, Pencil, ChevronDown, ChevronRight, AlertTriangle, Clock, Users, UserCheck } from 'lucide-react';
+import { Gavel, Plus, Search, Pencil, ChevronDown, ChevronRight, AlertTriangle, Clock, Users, UserCheck } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 import { PageHero, SectionCard, MetricCard, DataToolbar } from '@water-erp/ui';
 import CreateProjectDialog from '@/components/create-project-dialog';
@@ -111,13 +111,6 @@ export default function BidDashboard() {
   const submitting = stageDistribution['SUBMIT'] ?? 0;
   const readyCount = projects.filter(p => p.readiness === 'ready').length;
   const notReadyCount = projects.filter(p => p.readiness === 'not-ready').length;
-
-  const entries = [
-    { label: '开标主持端', hint: '在线解密 · 开标记录', path: '/bid', tone: 'blue' as const, count: opening },
-    { label: '专家评标端', hint: '独立评分 · 报告确认', path: '/bid', tone: 'purple' as const, count: evaluating },
-    { label: '监督端',     hint: '日志追溯 · 不可干预', path: '/bid', tone: 'orange' as const, count: undefined },
-    { label: '归档端',     hint: '资料归档 · 防篡改',   path: '/bid/archive', tone: 'green' as const, count: archived },
-  ];
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -237,21 +230,6 @@ export default function BidDashboard() {
           </div>
         )}
       </SectionCard>
-
-      {/* ── Quick entry ── */}
-      <div className="grid gap-4 md:grid-cols-4">
-        {entries.map(e => (
-          <MetricCard
-            key={e.label}
-            label={e.label}
-            value={e.count !== undefined ? e.count : <ArrowRight size={18} strokeWidth={2} />}
-            hint={e.hint}
-            tone={e.tone}
-            onClick={e.path !== '/bid' ? () => router.push(e.path) : undefined}
-          />
-        ))}
-      </div>
-      <p className="text-center text-[10px] text-[#8a96aa] -mt-2">请在下方表格中选择项目</p>
 
       {/* ── Filter bar ── */}
       <DataToolbar>
