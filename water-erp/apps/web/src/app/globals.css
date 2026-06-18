@@ -80,8 +80,7 @@ body {
 }
 
 .workbench-table thead {
-  background: rgba(255, 255, 255, 0.40);
-  backdrop-filter: blur(4px);
+  background: transparent;
 }
 
 .workbench-table th,
@@ -280,8 +279,7 @@ input[type="range"].range-enhanced::-webkit-slider-thumb:active {
 }
 
 .workbench-table tbody tr:hover {
-  background: rgba(248, 251, 255, 0.70);
-  box-shadow: inset 3px 0 0 #0b63ce;
+  background: rgba(248, 251, 255, 0.50);
 }
 
 .workbench-table tbody tr:active {
@@ -310,8 +308,7 @@ input[type="range"].range-enhanced::-webkit-slider-thumb:active {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(8px);
+  background: transparent;
 }
 
 /* staggered row delays */
@@ -323,6 +320,30 @@ input[type="range"].range-enhanced::-webkit-slider-thumb:active {
 .workbench-table tbody tr:nth-child(6)  { animation-delay: 0.15s; }
 .workbench-table tbody tr:nth-child(7)  { animation-delay: 0.18s; }
 .workbench-table tbody tr:nth-child(8)  { animation-delay: 0.21s; }
+
+/* Transparent scrollbar track — prevent glass-card glow from bleeding through */
+* {
+  scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.45);
+}
 .workbench-table tbody tr:nth-child(9)  { animation-delay: 0.24s; }
 .workbench-table tbody tr:nth-child(10) { animation-delay: 0.27s; }
 .workbench-table tbody tr:nth-child(n+11) { animation-delay: 0.30s; }
@@ -354,8 +375,14 @@ input[type="range"].range-enhanced::-webkit-slider-thumb:active {
 
 /* ── Base glass card ── */
 .glass-card {
+  --glass-alpha: 0.78;
   position: relative;
-  background: rgba(255, 255, 255, 0.78);
+  background-color: transparent;
+  background-image:
+    radial-gradient(ellipse at 24% 8%, rgba(147, 197, 253, 0.15), transparent 52%),
+    radial-gradient(ellipse at 82% 22%, rgba(196, 181, 253, 0.12), transparent 54%),
+    radial-gradient(ellipse at 46% 94%, rgba(167, 243, 208, 0.11), transparent 50%),
+    linear-gradient(rgba(255, 255, 255, var(--glass-alpha)), rgba(255, 255, 255, var(--glass-alpha)));
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
   border: 1px solid rgba(255, 255, 255, 0.55);
@@ -364,75 +391,51 @@ input[type="range"].range-enhanced::-webkit-slider-thumb:active {
     0 4px 16px rgba(91, 155, 213, 0.04);
 }
 
-/* ── 彩光伪元素 ── */
-.glass-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.48;
-  border-radius: inherit;
-  background-image:
-    radial-gradient(ellipse at 24% 8%, rgba(147, 197, 253, 0.32), transparent 52%),
-    radial-gradient(ellipse at 82% 22%, rgba(196, 181, 253, 0.26), transparent 54%),
-    radial-gradient(ellipse at 46% 94%, rgba(167, 243, 208, 0.24), transparent 50%);
-  animation: glass-glow-drift 18s ease-in-out infinite;
-  transition: opacity 0.4s ease;
-}
-
-.glass-card:hover::before {
-  opacity: 0.62;
-}
+.glass-card::before { content: none; }
 
 /* ── 透明/深度变体 ── */
-.glass-card-deeper {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
-  border-color: rgba(255, 255, 255, 0.65);
-}
+.glass-card-deeper { --glass-alpha: 0.85; backdrop-filter: blur(20px) saturate(1.2); -webkit-backdrop-filter: blur(20px) saturate(1.2); }
+.glass-card-lighter { --glass-alpha: 0.62; backdrop-filter: blur(12px) saturate(1.15); -webkit-backdrop-filter: blur(12px) saturate(1.15); }
 
-.glass-card-lighter {
-  background: rgba(255, 255, 255, 0.62);
-  backdrop-filter: blur(12px) saturate(1.15);
-  -webkit-backdrop-filter: blur(12px) saturate(1.15);
-  border-color: rgba(255, 255, 255, 0.42);
-}
-
-/* ── 色调变体（仅调整 ::before 光晕色）── */
-.glass-card-blue::before {
+/* ── 色调变体 ── */
+.glass-card-blue {
   background-image:
-    radial-gradient(ellipse at 24% 10%, rgba(96, 165, 250, 0.38), transparent 54%),
-    radial-gradient(ellipse at 80% 20%, rgba(125, 211, 252, 0.24), transparent 50%),
-    radial-gradient(ellipse at 44% 92%, rgba(186, 230, 253, 0.28), transparent 48%);
+    radial-gradient(ellipse at 24% 10%, rgba(96, 165, 250, 0.18), transparent 54%),
+    radial-gradient(ellipse at 80% 20%, rgba(125, 211, 252, 0.11), transparent 50%),
+    radial-gradient(ellipse at 44% 92%, rgba(186, 230, 253, 0.13), transparent 48%),
+    linear-gradient(rgba(255, 255, 255, var(--glass-alpha)), rgba(255, 255, 255, var(--glass-alpha)));
 }
 
-.glass-card-purple::before {
+.glass-card-purple {
   background-image:
-    radial-gradient(ellipse at 18% 14%, rgba(168, 139, 250, 0.34), transparent 54%),
-    radial-gradient(ellipse at 86% 18%, rgba(196, 167, 250, 0.22), transparent 50%),
-    radial-gradient(ellipse at 40% 90%, rgba(221, 214, 254, 0.28), transparent 46%);
+    radial-gradient(ellipse at 18% 14%, rgba(168, 139, 250, 0.16), transparent 54%),
+    radial-gradient(ellipse at 86% 18%, rgba(196, 167, 250, 0.10), transparent 50%),
+    radial-gradient(ellipse at 40% 90%, rgba(221, 214, 254, 0.13), transparent 46%),
+    linear-gradient(rgba(255, 255, 255, var(--glass-alpha)), rgba(255, 255, 255, var(--glass-alpha)));
 }
 
-.glass-card-emerald::before {
+.glass-card-emerald {
   background-image:
-    radial-gradient(ellipse at 22% 12%, rgba(52, 211, 153, 0.32), transparent 52%),
-    radial-gradient(ellipse at 78% 18%, rgba(110, 231, 183, 0.22), transparent 50%),
-    radial-gradient(ellipse at 48% 94%, rgba(167, 243, 208, 0.30), transparent 48%);
+    radial-gradient(ellipse at 22% 12%, rgba(52, 211, 153, 0.15), transparent 52%),
+    radial-gradient(ellipse at 78% 18%, rgba(110, 231, 183, 0.10), transparent 50%),
+    radial-gradient(ellipse at 48% 94%, rgba(167, 243, 208, 0.14), transparent 48%),
+    linear-gradient(rgba(255, 255, 255, var(--glass-alpha)), rgba(255, 255, 255, var(--glass-alpha)));
 }
 
-.glass-card-amber::before {
+.glass-card-amber {
   background-image:
-    radial-gradient(ellipse at 20% 10%, rgba(251, 191, 36, 0.28), transparent 52%),
-    radial-gradient(ellipse at 84% 20%, rgba(252, 211, 77, 0.20), transparent 50%),
-    radial-gradient(ellipse at 42% 88%, rgba(253, 230, 138, 0.24), transparent 46%);
+    radial-gradient(ellipse at 20% 10%, rgba(251, 191, 36, 0.13), transparent 52%),
+    radial-gradient(ellipse at 84% 20%, rgba(252, 211, 77, 0.09), transparent 50%),
+    radial-gradient(ellipse at 42% 88%, rgba(253, 230, 138, 0.11), transparent 46%),
+    linear-gradient(rgba(255, 255, 255, var(--glass-alpha)), rgba(255, 255, 255, var(--glass-alpha)));
 }
 
-.glass-card-rose::before {
+.glass-card-rose {
   background-image:
-    radial-gradient(ellipse at 18% 12%, rgba(251, 113, 133, 0.26), transparent 52%),
-    radial-gradient(ellipse at 82% 16%, rgba(253, 164, 175, 0.20), transparent 50%),
-    radial-gradient(ellipse at 44% 90%, rgba(254, 205, 211, 0.22), transparent 46%);
+    radial-gradient(ellipse at 18% 12%, rgba(251, 113, 133, 0.12), transparent 52%),
+    radial-gradient(ellipse at 82% 16%, rgba(253, 164, 175, 0.09), transparent 50%),
+    radial-gradient(ellipse at 44% 90%, rgba(254, 205, 211, 0.10), transparent 46%),
+    linear-gradient(rgba(255, 255, 255, var(--glass-alpha)), rgba(255, 255, 255, var(--glass-alpha)));
 }
 
 /* ── 表内透明化（玻璃卡片内部表格）── */
@@ -451,11 +454,8 @@ input[type="range"].range-enhanced::-webkit-slider-thumb:active {
 
 /* ── 无障碍降级 ── */
 @media (prefers-reduced-motion: reduce) {
-  .glass-card::before {
-    animation: none;
-    opacity: 0.22;
-  }
-  .glass-card:hover::before {
-    opacity: 0.22;
+  .glass-glow-drift,
+  .glass-glow-drift-reverse {
+    animation: none !important;
   }
 }

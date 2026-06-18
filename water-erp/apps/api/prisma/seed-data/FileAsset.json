@@ -12,6 +12,7 @@
     "encryptionKeyId": null,
     "iv": null,
     "authTag": null,
+    "sealedPath": null,
     "createdAt": "2026-06-13T06:57:56.349Z",
     "updatedAt": "2026-06-16T08:44:14.131Z"
   },
@@ -28,6 +29,7 @@
     "encryptionKeyId": null,
     "iv": null,
     "authTag": null,
+    "sealedPath": null,
     "createdAt": "2026-06-16T08:44:54.342Z",
     "updatedAt": "2026-06-16T08:44:54.342Z"
   },
@@ -44,6 +46,7 @@
     "encryptionKeyId": null,
     "iv": null,
     "authTag": null,
+    "sealedPath": null,
     "createdAt": "2026-06-16T08:45:06.598Z",
     "updatedAt": "2026-06-16T08:45:06.598Z"
   },
@@ -60,6 +63,7 @@
     "encryptionKeyId": null,
     "iv": null,
     "authTag": null,
+    "sealedPath": null,
     "createdAt": "2026-06-16T08:45:06.671Z",
     "updatedAt": "2026-06-16T08:45:06.671Z"
   },
@@ -76,6 +80,7 @@
     "encryptionKeyId": null,
     "iv": null,
     "authTag": null,
+    "sealedPath": null,
     "createdAt": "2026-06-16T08:45:45.682Z",
     "updatedAt": "2026-06-16T08:45:45.682Z"
   },
@@ -92,6 +97,7 @@
     "encryptionKeyId": null,
     "iv": null,
     "authTag": null,
+    "sealedPath": null,
     "createdAt": "2026-06-16T08:45:45.743Z",
     "updatedAt": "2026-06-16T08:45:45.743Z"
   },
@@ -108,6 +114,7 @@
     "encryptionKeyId": null,
     "iv": null,
     "authTag": null,
+    "sealedPath": null,
     "createdAt": "2026-06-16T08:45:45.805Z",
     "updatedAt": "2026-06-16T08:45:45.805Z"
   },
@@ -124,6 +131,7 @@
     "encryptionKeyId": null,
     "iv": null,
     "authTag": null,
+    "sealedPath": null,
     "createdAt": "2026-06-16T08:45:45.852Z",
     "updatedAt": "2026-06-16T08:45:45.852Z"
   },
@@ -140,6 +148,7 @@
     "encryptionKeyId": null,
     "iv": null,
     "authTag": null,
+    "sealedPath": null,
     "createdAt": "2026-06-16T08:45:45.898Z",
     "updatedAt": "2026-06-16T08:45:45.898Z"
   },
@@ -156,7 +165,25 @@
     "encryptionKeyId": null,
     "iv": null,
     "authTag": null,
+    "sealedPath": null,
     "createdAt": "2026-06-16T08:45:45.961Z",
     "updatedAt": "2026-06-16T08:45:45.961Z"
+  },
+  {
+    "id": "cmqhf0kk60003vk18wsn40ktu",
+    "key": "bid-doc/20260617/94d48e403ac62469.enc",
+    "originalName": "2026年度水利信息化平台升级改造项目-招标文件.txt",
+    "mimeType": "text/plain; charset=utf-8",
+    "size": 9332,
+    "sha256": "3ae3774762252afd7b4be45219da64d13b1aa07a5481688d8a82c87501e53fcc",
+    "category": "bid_document",
+    "uploaderId": "cmqbysdbl0002koh10l78cjr3",
+    "encrypted": false,
+    "encryptionKeyId": null,
+    "iv": null,
+    "authTag": null,
+    "sealedPath": null,
+    "createdAt": "2026-06-17T01:51:36.727Z",
+    "updatedAt": "2026-06-17T01:51:36.727Z"
   }
 ]

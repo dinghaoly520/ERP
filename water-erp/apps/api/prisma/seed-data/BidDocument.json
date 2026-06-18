@@ -26,5 +26,19 @@
     "downloadCount": 0,
     "createdAt": "2026-06-16T08:44:54.345Z",
     "updatedAt": "2026-06-16T08:44:54.345Z"
+  },
+  {
+    "id": "cmqhf0kka0005vk187uzb4yds",
+    "announcementId": "cmqhf0kju0001vk18dac29eqe",
+    "fileAssetId": "cmqhf0kk60003vk18wsn40ktu",
+    "title": "招标文件",
+    "accessScope": "OPEN",
+    "requirePayment": false,
+    "price": null,
+    "decryptKey": "d5fba4d4b337a8487a918f934de78cd2ad3bf537e2d384fd279a787bd5a02b32:47ccf1f5c3214cea6add416e:3d32404031a99dcb39e68061010f8c99",
+    "bidProjectId": "cmqhf0kjq0000vk182j1xsjbg",
+    "downloadCount": 1,
+    "createdAt": "2026-06-17T01:51:36.730Z",
+    "updatedAt": "2026-06-17T01:52:10.924Z"
   }
 ]
