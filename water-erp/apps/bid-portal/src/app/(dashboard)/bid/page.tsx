@@ -106,7 +106,6 @@ export default function BidDashboard() {
   const total = dash?.totalProjects ?? projects.length;
   const opening = stageDistribution['OPENING'] ?? 0;
   const evaluating = stageDistribution['EVALUATING'] ?? 0;
-  const archived = stageDistribution['ARCHIVED'] ?? 0;
   const downloading = stageDistribution['DOWNLOAD'] ?? 0;
   const submitting = stageDistribution['SUBMIT'] ?? 0;
   const readyCount = projects.filter(p => p.readiness === 'ready').length;
@@ -153,7 +152,7 @@ export default function BidDashboard() {
   return (
     <div className="space-y-6">
       {/* ── Key metrics ── */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <MetricCard label="项目总数" value={total} tone="blue" />
         <MetricCard
           label="就绪可开"
@@ -167,7 +166,6 @@ export default function BidDashboard() {
           tone="red"
           hint={`${downloading + submitting} 个在准备阶段`}
         />
-        <MetricCard label="已归档" value={archived} tone="gray" />
       </div>
 
       {/* ── Stage pipeline ── */}
