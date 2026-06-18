@@ -5,9 +5,11 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
 import {
-  LayoutDashboard, Unlock, Shield, ClipboardCheck, Archive, MessageSquare, ListChecks,
+  LayoutDashboard, Archive,
   LogOut, PanelLeftClose, PanelLeft,
 } from 'lucide-react';
+import GlobalProjectSearch from './global-project-search';
+import RecentProjects from './recent-projects';
 import { portalURL } from '@water-erp/config';
 
 // 未登录/登出时跳转"在线开评标系统"统一登录入口（专家门户）。
@@ -23,12 +25,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: '开评标总览', caption: '项目总览', path: '/bid', icon: LayoutDashboard },
-  { label: '评分标准', caption: '评标办法编制', path: '/bid/standard', icon: ListChecks },
-  { label: '开标大厅', caption: '开标管理', path: '/bid/open', icon: Unlock },
-  { label: '监督端', caption: '过程监督', path: '/bid/supervise', icon: Shield },
-  { label: '评标端', caption: '评审打分', path: '/bid/evaluate', icon: ClipboardCheck },
   { label: '归档端', caption: '项目归档', path: '/bid/archive', icon: Archive },
-  { label: '澄清答疑', caption: '沟通记录', path: '/bid/clarifications', icon: MessageSquare },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -93,6 +90,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* ── Body: floating sidebar + content ── */}
       <div className="flex flex-1 overflow-hidden">
         <aside className={`${collapsed ? 'w-[68px]' : 'w-[272px]'} m-3 mr-0 flex flex-shrink-0 flex-col overflow-hidden rounded-[24px] border border-[#dbe6f3] bg-white/88 shadow-[0_18px_60px_rgba(15,47,87,0.10)] backdrop-blur transition-all duration-200`}>
+          {/* ── Global project search + recent projects ── */}
+          {!collapsed && (
+            <>
+              <GlobalProjectSearch />
+              <RecentProjects />
+            </>
+          )}
+
           <nav className="flex-1 overflow-y-auto px-2 py-3">
             {navItems.map(item => (
               <button
