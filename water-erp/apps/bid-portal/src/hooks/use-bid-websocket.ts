@@ -158,6 +158,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     const handleVisibility = () => {
       if (document.hidden) {
         // Tab hidden: disconnect to save resources
+        manualClose.current = true;
         clearTimers();
         if (socketRef.current) {
           socketRef.current.disconnect();

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 export function useBidProject<T>(projectId: string, opts?: { pollIntervalMs?: number; enabled?: boolean }) {
   const [project, setProject] = useState<T | null>(null);
@@ -13,7 +14,9 @@ export function useBidProject<T>(projectId: string, opts?: { pollIntervalMs?: nu
     setLoading(true);
     api.get<T>(`/bid/projects/${projectId}`)
       .then(p => setProject(p))
-      .catch(() => {})
+      .catch((e: any) => {
+        if (e?.status !== 401) toast.error(e?.message || '加载项目详情失败');
+      })
       .finally(() => setLoading(false));
   };
 

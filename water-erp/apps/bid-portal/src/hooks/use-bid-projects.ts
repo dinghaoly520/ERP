@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface SlimProject {
   id: string;
@@ -17,7 +18,9 @@ export function useBidProjects() {
         setProjects(ps);
         if (ps.length && !projectId) setProjectId(ps[0].id);
       })
-      .catch(() => {});
+      .catch((e: any) => {
+        if (e?.status !== 401) toast.error(e?.message || '加载项目列表失败');
+      });
   }, []);
 
   return { projects, projectId, setProjectId };

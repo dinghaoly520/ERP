@@ -27,9 +27,8 @@ const decryptColors: Record<string, { color: string; bg: string }> = {
 
 const STAGES = ['投递中', '解密中', '确认中', '已完成'] as const;
 
-/* ── Sound Engine helpers (pure functions, no module-level state) ── */
-function playTone(ctx: AudioContext | null, freq: number, duration: number, type: OscillatorType = 'sine') {
-  if (!ctx) return;
+/* ── Sound Engine helpers (ref-based, no module-level state) ── */
+function playTone(ctx: AudioContext, freq: number, duration: number, type: OscillatorType = 'sine') {
   try {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -40,12 +39,16 @@ function playTone(ctx: AudioContext | null, freq: number, duration: number, type
     osc.start(); osc.stop(ctx.currentTime + duration);
   } catch { /* silent fail */ }
 }
-function createSfx(ctx: AudioContext | null) {
+function createSfx(ctxRef: React.RefObject<AudioContext | null>) {
   return {
-    decryptSuccess: () => { playTone(ctx, 880, 0.12); setTimeout(() => playTone(ctx, 1100, 0.15), 120); },
-    decryptFail: () => playTone(ctx, 180, 0.3, 'square'),
-    tick: () => playTone(ctx, 600, 0.05),
-    warning: () => playTone(ctx, 440, 0.4, 'sawtooth'),
+    decryptSuccess: () => {
+      const ctx = ctxRef.current; if (!ctx) return;
+      playTone(ctx, 880, 0.12);
+      setTimeout(() => { const c = ctxRef.current; if (c) playTone(c, 1100, 0.15); }, 120);
+    },
+    decryptFail: () => { const ctx = ctxRef.current; if (ctx) playTone(ctx, 180, 0.3, 'square'); },
+    tick: () => { const ctx = ctxRef.current; if (ctx) playTone(ctx, 600, 0.05); },
+    warning: () => { const ctx = ctxRef.current; if (ctx) playTone(ctx, 440, 0.4, 'sawtooth'); },
   };
 }
 
@@ -110,7 +113,7 @@ export default function BidOpenPage() {
 
   // ═── Audio context with proper lifecycle (no module-level leak) ──
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const sfx = createSfx(audioCtxRef.current);
+  const sfx = createSfx(audioCtxRef);
   useEffect(() => {
     audioCtxRef.current = new AudioContext();
     return () => { audioCtxRef.current?.close(); audioCtxRef.current = null; };
