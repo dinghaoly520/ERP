@@ -161,7 +161,7 @@ export default function BidDashboard() {
           hint={`${opening} 个在开标阶段`}
         />
         <MetricCard
-          label="进行中·阻塞"
+          label="准备中"
           value={notReadyCount}
           tone="red"
           hint={`${downloading + submitting} 个在准备阶段`}
