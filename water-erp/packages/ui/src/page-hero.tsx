@@ -26,11 +26,25 @@ const toneClass = {
 };
 
 export function PageHero({ eyebrow, title, description, tone = 'blue', icon, actions, children, className }: PageHeroProps) {
+  const glassToneClass: Record<string, string> = {
+    blue:   'glass-card-blue',
+    cyan:   'glass-card-blue',
+    green:  'glass-card-emerald',
+    orange: 'glass-card-amber',
+    red:    'glass-card-rose',
+    purple: 'glass-card-purple',
+    gray:   'glass-card-blue',
+  };
+
   return (
     <section className={cn(
-      'glass-card glass-card-lighter rounded-[24px] p-6',
+      'glass-card glass-card-deeper rounded-[28px] p-6',
+      glassToneClass[tone] || 'glass-card-blue',
       className
-    )}>
+    )}
+    style={{
+      boxShadow: '0 1px 3px rgba(15,47,87,0.04), 0 6px 24px rgba(91,155,213,0.06)',
+    }}>
       <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           {eyebrow && (

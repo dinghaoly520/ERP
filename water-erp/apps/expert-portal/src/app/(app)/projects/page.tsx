@@ -104,7 +104,7 @@ export default function ExpertProjectsPage() {
         actions={
           <button
             onClick={() => router.push('/')}
-            className="rounded-xl border border-[#dce6f3] bg-white px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
+            className="rounded-xl border border-[#dce6f3] bg-white/70 px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-white transition"
           >
             <span className="flex items-center gap-1.5">
               <ArrowLeft size={14} strokeWidth={1.5} />
@@ -122,8 +122,8 @@ export default function ExpertProjectsPage() {
             onClick={() => setFilter(f.key)}
             className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
               filter === f.key
-                ? 'bg-[#064ea2] text-white shadow-sm'
-                : 'bg-white text-[#5a6d8a] border border-[#dce6f3] hover:border-[#bfdbfe] hover:text-[#064ea2]'
+                ? 'bg-[#064ea2]/80 backdrop-blur-sm text-white shadow-sm'
+                : 'bg-white/70 text-[#5a6d8a] border border-[#dce6f3] hover:border-[#bfdbfe] hover:text-[#064ea2]'
             }`}
           >
             {f.label}
@@ -171,7 +171,7 @@ export default function ExpertProjectsPage() {
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-lg font-black text-white ${
-                        active ? 'bg-gradient-to-br from-[#064ea2] to-[#0b63ce]' : 'bg-gradient-to-br from-[#94a3b8] to-[#64748b]'
+                        active ? 'bg-[#064ea2]/70 backdrop-blur-sm' : 'bg-[#94a3b8]/50 backdrop-blur-sm'
                       }`}>
                         {ep.project.name[0]}
                       </div>
@@ -193,22 +193,22 @@ export default function ExpertProjectsPage() {
                     <div className="flex items-center gap-2">
                       {/* Expert status badges — only show for active projects */}
                       {active && !ep.signedIn && (
-                        <span className="inline-flex items-center rounded-full border border-[#fed7aa] bg-[#fff7ed] px-2.5 py-0.5 text-xs font-bold text-[#f5a623]">
+                        <span className="inline-flex items-center rounded-full border border-[#fed7aa] bg-[#fff7ed]/60 px-2.5 py-0.5 text-xs font-bold text-[#f5a623]">
                           待核验
                         </span>
                       )}
                       {active && ep.signedIn && !ep.avoidanceConfirmed && (
-                        <span className="inline-flex items-center rounded-full border border-[#fed7aa] bg-[#fff7ed] px-2.5 py-0.5 text-xs font-bold text-[#f5a623]">
+                        <span className="inline-flex items-center rounded-full border border-[#fed7aa] bg-[#fff7ed]/60 px-2.5 py-0.5 text-xs font-bold text-[#f5a623]">
                           待回避确认
                         </span>
                       )}
                       {ep.progress >= 100 && (
-                        <span className="inline-flex items-center rounded-full border border-[#bbf7d0] bg-[#f0fdf4] px-2.5 py-0.5 text-xs font-bold text-[#11a874]">
+                        <span className="inline-flex items-center rounded-full border border-[#bbf7d0] bg-[#f0fdf4]/60 px-2.5 py-0.5 text-xs font-bold text-[#11a874]">
                           已完成
                         </span>
                       )}
                       {active && ep.signedIn && ep.avoidanceConfirmed && ep.progress < 100 && (
-                        <span className="inline-flex items-center rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-2.5 py-0.5 text-xs font-bold text-[#064ea2]">
+                        <span className="inline-flex items-center rounded-full border border-[#bfdbfe] bg-[#eff6ff]/60 px-2.5 py-0.5 text-xs font-bold text-[#064ea2]">
                           评审中
                         </span>
                       )}
@@ -238,7 +238,7 @@ export default function ExpertProjectsPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="flex-1 h-2.5 bg-[#e8f0fa] rounded-full overflow-hidden">
+                    <div className="flex-1 h-2.5 bg-white/25 rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all duration-700"
                         style={{
                           width: `${ep.progress}%`,
@@ -255,7 +255,7 @@ export default function ExpertProjectsPage() {
                     </span>
                   </div>
                 </div>
-                <div className={`border-t px-6 py-3 flex items-center justify-between ${
+                <div className={`border-t px-6 py-3 flex items-center justify-between bg-white/40 ${
                   active ? 'border-[#edf2f7] bg-[#f8fafc]' : 'border-[#e5e7eb] bg-[#f9fafb]'
                 }`}>
                   <span className="text-xs text-[#5a6d8a]">专业领域：{ep.major || '综合评审'}</span>
@@ -280,7 +280,7 @@ export default function ExpertProjectsPage() {
           role="dialog" aria-modal="true" aria-label="项目概要"
           onClick={() => setOverviewProject(null)}
           onKeyDown={(e) => { if (e.key === 'Escape') { setOverviewProject(null); } }}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden"
+          <div className="glass-card glass-card-deeper glass-card-blue rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden"
             onClick={e => e.stopPropagation()}
             onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOverviewProject(null); } }}>
             {/* Header */}
@@ -307,7 +307,7 @@ export default function ExpertProjectsPage() {
                 </div>
               </div>
 
-              <div className="h-px bg-[#edf2f7]" />
+              <div className="h-px bg-white/30" />
 
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
@@ -338,7 +338,7 @@ export default function ExpertProjectsPage() {
               </div>
 
               {overviewProject.project.stage === 'ARCHIVED' ? (
-                <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 flex items-start gap-2.5">
+                <div className="rounded-xl bg-emerald-50/50 border border-emerald-100/50 px-4 py-3 flex items-start gap-2.5">
                   <ClipboardList size={14} strokeWidth={1.5} className="text-emerald-500 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-bold text-emerald-700">该项目已完成全部评审流程并归档</p>
@@ -348,7 +348,7 @@ export default function ExpertProjectsPage() {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 flex items-start gap-2.5">
+                <div className="rounded-xl bg-amber-50/50 border border-amber-100/50 px-4 py-3 flex items-start gap-2.5">
                   <Lock size={14} strokeWidth={1.5} className="text-amber-500 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-bold text-amber-700">该项目尚未进入开评标阶段</p>
@@ -360,9 +360,9 @@ export default function ExpertProjectsPage() {
               )}
             </div>
             {/* Footer */}
-            <div className="border-t border-[#edf2f7] bg-[#f8fafc] px-6 py-3 flex justify-end">
+            <div className="border-t border-[#edf2f7] bg-white/30 px-6 py-3 flex justify-end">
               <button onClick={() => setOverviewProject(null)}
-                className="rounded-xl bg-white border border-[#dce6f3] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f1f5f9] transition">
+                className="rounded-xl bg-white/70 border border-[#dce6f3] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-white transition">
                 关闭
               </button>
             </div>

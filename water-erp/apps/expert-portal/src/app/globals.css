@@ -111,7 +111,6 @@ body {
 /* ─── Base Glass Card ─── */
 .glass-card {
   position: relative;
-  overflow: hidden;
   background: rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
@@ -191,6 +190,13 @@ body {
   25%      { transform: translate(1.2%, -0.8%) scale(1.02); }
   50%      { transform: translate(-0.6%, 1%) scale(1.01); }
   75%      { transform: translate(0.4%, -0.4%) scale(1.015); }
+}
+
+@keyframes glass-glow-drift-reverse {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(-1.2%, 0.8%) scale(1.02); }
+  50%      { transform: translate(0.6%, -1%) scale(1.01); }
+  75%      { transform: translate(-0.4%, 0.4%) scale(1.015); }
 }
 
 @media (prefers-reduced-motion: reduce) {

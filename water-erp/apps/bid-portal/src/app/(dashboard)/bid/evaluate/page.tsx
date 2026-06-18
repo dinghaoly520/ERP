@@ -383,7 +383,7 @@ export default function BidEvaluatePage() {
               const scoredCount = row ? Array.from(row.values()).filter(c => c.scoredCount > 0).length : 0;
               return (
                 <div key={expert.id}
-                  className={`flex-1 min-w-[240px] bg-white border p-4 cursor-pointer transition-all duration-300 ${
+                  className={`flex-1 min-w-[240px] glass-card-lighter glass-card-blue border p-4 cursor-pointer transition-all duration-300 ${
                     expert.signedIn && expert.avoidanceConfirmed && expert.reportConfirmed
                       ? 'border-[#11a874]/30 hover:border-[#11a874]'
                       : 'border-[oklch(0.91_0.006_264)] hover:border-[oklch(0.82_0.04_258)]'
@@ -475,7 +475,7 @@ export default function BidEvaluatePage() {
           <span className="text-[12px] text-[oklch(0.18_0.012_265)]">暂无供应商数据。</span>
         </div>
       ) : (
-        <div className="bg-white border border-[oklch(0.91_0.006_264)] mb-8">
+        <div className="glass-card glass-card-blue mb-8">
           <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
             <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
               专家评分概览
@@ -573,7 +573,7 @@ export default function BidEvaluatePage() {
                           const cell = row.get(supplier.id);
                           if (!cell || cell.scoredCount === 0) return null;
                           return (
-                            <div key={supplier.id} className="bg-white border border-[oklch(0.91_0.006_264)] p-4">
+                            <div key={supplier.id} className="glass-card glass-card-lighter glass-card-blue p-4">
                               <div className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] mb-2 tracking-tight">{supplier.supplierName}</div>
                               {cell.items.map(item => (
                                 <div key={item.name} className="flex justify-between items-center text-[12px] py-1.5 border-b border-[oklch(0.94_0.004_264)] last:border-0">
@@ -600,7 +600,7 @@ export default function BidEvaluatePage() {
 
       {/* ═══ Section 3: Supplier score summary ═══ */}
       {suppliers.length > 0 && (
-        <div className="bg-white border border-[oklch(0.91_0.006_264)] mb-8">
+        <div className="glass-card glass-card-blue mb-8">
           <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
             <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
               供应商评分汇总
@@ -692,7 +692,7 @@ export default function BidEvaluatePage() {
       )}
 
       {/* ═══ Section 4: Results generation ═══ */}
-      <div className="bg-white border border-[oklch(0.91_0.006_264)]">
+      <div className="glass-card glass-card-blue">
         <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
           <div className="flex items-center justify-between">
             <div>

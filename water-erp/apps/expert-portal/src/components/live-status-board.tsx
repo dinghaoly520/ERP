@@ -41,7 +41,7 @@ export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregat
           </button>
         ) : (
           <span title={tooltip}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#e5ecf4] bg-white px-2.5 py-1 text-[11px] font-bold text-[#5a6d8a]"
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/50 px-2.5 py-1 text-[11px] font-bold text-[#5a6d8a] backdrop-blur-sm"
           >
             <span className={`h-2 w-2 rounded-full ${dot}`} />
             {label}

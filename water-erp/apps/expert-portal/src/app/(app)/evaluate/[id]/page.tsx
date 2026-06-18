@@ -445,7 +445,7 @@ export default function ExpertEvaluatePage() {
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push('/projects')} className="text-[oklch(0.55_0.01_264)] hover:text-[#064ea2] transition">← 返回</button>
-          <div className="w-px h-6 bg-[#e8f0fa]" />
+          <div className="w-px h-6 bg-white/30" />
           <h1 className="text-xl font-bold text-[oklch(0.18_0.012_265)]">{project.name}</h1>
           <span className="text-sm text-[oklch(0.55_0.01_264)]">{project.projectCode}</span>
         </div>
@@ -496,7 +496,7 @@ export default function ExpertEvaluatePage() {
                 setClarSupplier(e.target.value);
                 setClarSupplierId(sel?.supplierId || '');
               }}
-              className="w-full border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs bg-white focus:outline-none focus:border-[#064ea2]">
+              className="w-full border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs bg-white/60 focus:outline-none focus:border-[#064ea2]">
               <option value="">选择供应商（必选）</option>
               {project.suppliers.map(s => (
                 <option key={s.id} value={s.supplierName}>{s.supplierName}</option>
@@ -506,7 +506,7 @@ export default function ExpertEvaluatePage() {
               <input value={clarQuestion} onChange={e => setClarQuestion(e.target.value)}
                 placeholder="向所选供应商发起澄清…"
                 onKeyDown={e => e.key === 'Enter' && postClarification()}
-                className="flex-1 border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#064ea2]" />
+                className="flex-1 border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs bg-white/60 focus:outline-none focus:border-[#064ea2]" />
               <button onClick={postClarification} disabled={clarPosting}
                 className="px-3 py-1.5 bg-[#064ea2] text-white text-xs font-bold rounded-lg hover:bg-[#054280] transition disabled:opacity-50">
                 {clarPosting ? '…' : '发送'}
@@ -540,7 +540,7 @@ export default function ExpertEvaluatePage() {
                    : <s.Icon size={16} strokeWidth={1.5} aria-hidden="true" />}
                   {s.label}
                 </button>
-                {i < STEPS.length - 1 && <div className="flex-1 h-px bg-[#e8f0fa] mx-2" />}
+                {i < STEPS.length - 1 && <div className="flex-1 h-px bg-white/30 mx-2" />}
               </div>
             );
           })}
@@ -670,7 +670,7 @@ export default function ExpertEvaluatePage() {
                 <div className={!expert?.signedIn ? 'opacity-50 pointer-events-none select-none' : ''}>
                   <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
                     confidentialityAgreed ? 'bg-emerald-50 border-emerald-200'
-                    : expert?.signedIn ? 'bg-white border-[oklch(0.91_0.006_264)]'
+                    : expert?.signedIn ? 'bg-white/70 border-[oklch(0.91_0.006_264)]'
                     : 'bg-gray-50 border-gray-200'
                   }`}>
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
@@ -724,7 +724,7 @@ export default function ExpertEvaluatePage() {
                 <div className={!confidentialityAgreed ? 'opacity-50 pointer-events-none select-none' : ''}>
                   <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
                     disciplineAgreed ? 'bg-emerald-50 border-emerald-200'
-                    : confidentialityAgreed ? 'bg-white border-[oklch(0.91_0.006_264)]'
+                    : confidentialityAgreed ? 'bg-white/70 border-[oklch(0.91_0.006_264)]'
                     : 'bg-gray-50 border-gray-200'
                   }`}>
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
@@ -978,12 +978,12 @@ export default function ExpertEvaluatePage() {
                           <span className="text-lg flex-shrink-0">{risk.level === 'danger' ? '🚨' : risk.level === 'warning' ? <AlertTriangle size={16} strokeWidth={1.5} className="text-amber-500" /> : risk.level === 'success' ? <CheckCircle size={16} strokeWidth={1.5} className="text-emerald-500" /> : 'ℹ️'}</span>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-bold px-2 py-0.5 rounded bg-white">{risk.category}</span>
+                              <span className="text-xs font-bold px-2 py-0.5 rounded bg-white/70">{risk.category}</span>
                               <span className="text-sm text-[oklch(0.18_0.012_265)]">{risk.content}</span>
                             </div>
                             {risk.confidence != null && (
                               <div className="flex items-center gap-2">
-                                <div className="flex-1 h-1 bg-white rounded-full overflow-hidden max-w-[120px]">
+                                <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden max-w-[120px]">
                                   <div className={`h-full rounded-full ${risk.confidence >= 85 ? 'bg-emerald-500' : risk.confidence >= 70 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${risk.confidence}%` }} />
                                 </div>
                                 <span className="text-[10px] text-[oklch(0.72_0.008_264)]">置信度 {risk.confidence}%</span>
@@ -1013,7 +1013,7 @@ export default function ExpertEvaluatePage() {
                           </div>
                           <div className="h-2 bg-[oklch(0.94_0.004_264)] rounded-full overflow-hidden mb-2">
                             {sug.maxScore > 0 && (
-                              <div className="h-full bg-[#064ea2] rounded-full" style={{ width: `${(sug.suggestedScore / sug.maxScore) * 100}%` }} />
+                              <div className="h-full bg-[#064ea2]/60 rounded-full" style={{ width: `${(sug.suggestedScore / sug.maxScore) * 100}%` }} />
                             )}
                           </div>
                           <p className="text-[11px] text-[oklch(0.55_0.01_264)] mb-2">{sug.reason}</p>
@@ -1048,7 +1048,7 @@ export default function ExpertEvaluatePage() {
                   <p className="font-semibold text-[oklch(0.18_0.012_265)]">AI 正在分析投标文件…</p>
                   <p className="text-xs mt-1">正在生成合规性检查、风险分析与评分建议，请耐心等待</p>
                   <div className="mt-4 flex justify-center gap-1">
-                    {[0,1,2].map(i => <div key={i} className="w-2 h-2 rounded-full bg-[#064ea2] animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
+                    {[0,1,2].map(i => <div key={i} className="w-2 h-2 rounded-full bg-[#064ea2]/50 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
                   </div>
                 </div>
               ) : (
@@ -1072,7 +1072,7 @@ export default function ExpertEvaluatePage() {
                 <div className="flex items-center gap-3">
                   <label className="text-sm text-[oklch(0.55_0.01_264)]">评分对象：</label>
                   <select value={activeSupplier} onChange={e => { setActiveSupplier(e.target.value); setMissingReasons(new Set()); }}
-                    className="text-sm border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-2 bg-white focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none">
+                    className="text-sm border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-2 bg-white/60 focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none">
                     {project.suppliers.map(s => <option key={s.id} value={s.id}>{s.supplierName}</option>)}
                   </select>
                 </div>

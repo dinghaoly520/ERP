@@ -73,7 +73,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-xl border border-[#e5ecf4] bg-white px-3 py-2 shadow-sm">
+            <div className="flex items-center gap-2 rounded-xl border border-white/30 bg-white/50 px-3 py-2 shadow-sm backdrop-blur-sm">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-xs font-black text-white">
                 {userInitial}
               </span>
@@ -83,7 +83,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <button
               onClick={logout}
-              className="rounded-xl border border-[#d5e0ef] bg-white px-3 py-2 text-sm font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c]"
+              className="rounded-xl border border-white/30 bg-white/50 px-3 py-2 text-sm font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c] backdrop-blur-sm"
             >
               退出登录
             </button>

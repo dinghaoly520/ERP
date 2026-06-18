@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -343,9 +343,8 @@ export default function BidDashboard() {
                   const clickable = !!STAGE_ROUTE[p.stage];
 
                   return (
-                    <>
+                    <Fragment key={p.id}>
                     <tr
-                      key={p.id}
                       onClick={() => clickable && handleRowClick(p)}
                       className={`transition-colors ${clickable ? 'cursor-pointer hover:bg-[#f8fafc]' : ''} ${risks.length > 0 ? 'bg-[#fef9f5]' : ''}`}
                     >
@@ -601,7 +600,7 @@ export default function BidDashboard() {
                         </tr>
                       );
                     })()}
-                  </>
+                  </Fragment>
                   );
                 })}
               </tbody>

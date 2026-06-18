@@ -46,8 +46,8 @@ export default function ExpertDashboardPage() {
                 <div className="flex items-center gap-3">
                   <card.Icon size={16} strokeWidth={1.5} className="text-[#cbd5e1]" />
                   <div className="flex-1">
-                    <div className="h-3 w-16 bg-[#e8f0fa] rounded mb-2" />
-                    <div className="h-6 w-10 bg-[#e8f0fa] rounded" />
+                    <div className="h-3 w-16 bg-white/25 rounded mb-2" />
+                    <div className="h-6 w-10 bg-white/25 rounded" />
                   </div>
                 </div>
               </div>
@@ -78,19 +78,19 @@ export default function ExpertDashboardPage() {
                 <div key={i} className="glass-card glass-card-blue rounded-2xl p-5 animate-pulse">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="h-7 w-20 bg-[#e8f0fa] rounded-lg" />
-                      <div className="h-5 w-40 bg-[#e8f0fa] rounded" />
+                      <div className="h-7 w-20 bg-white/25 rounded-lg" />
+                      <div className="h-5 w-40 bg-white/25 rounded" />
                     </div>
-                    <div className="h-5 w-16 bg-[#e8f0fa] rounded-full" />
+                    <div className="h-5 w-16 bg-white/25 rounded-full" />
                   </div>
                   <div className="flex gap-6 mb-3">
-                    <div className="h-4 w-24 bg-[#e8f0fa] rounded" />
-                    <div className="h-4 w-20 bg-[#e8f0fa] rounded" />
-                    <div className="h-4 w-16 bg-[#e8f0fa] rounded" />
+                    <div className="h-4 w-24 bg-white/25 rounded" />
+                    <div className="h-4 w-20 bg-white/25 rounded" />
+                    <div className="h-4 w-16 bg-white/25 rounded" />
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="flex-1 h-2 bg-[#e8f0fa] rounded-full" />
-                    <div className="h-4 w-10 bg-[#e8f0fa] rounded" />
+                    <div className="flex-1 h-2 bg-white/25 rounded-full" />
+                    <div className="h-4 w-10 bg-white/25 rounded" />
                   </div>
                 </div>
               ))}
@@ -125,7 +125,7 @@ export default function ExpertDashboardPage() {
                     className="glass-card glass-card-lighter glass-card-emerald rounded-2xl p-5 hover:shadow-md hover:border-[#bfdbfe] transition-all cursor-pointer">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-[#064ea2] bg-[#eff6ff] px-3 py-1 rounded-lg">{ep.project.projectCode}</span>
+                        <span className="text-sm font-semibold text-[#064ea2] bg-[#eff6ff]/50 px-3 py-1 rounded-lg">{ep.project.projectCode}</span>
                         <div className="flex items-center gap-2">
                           <h3 className="font-bold text-[oklch(0.18_0.012_265)]">{ep.project.name}</h3>
                           {/* Pulsing dot for active projects */}
@@ -148,13 +148,13 @@ export default function ExpertDashboardPage() {
                       <span>澄清：{ep.project._count?.clarifications ?? 0} 条</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="flex-1 h-2 bg-[oklch(0.94_0.004_264)] rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-[#064ea2] to-[#0b63ce] rounded-full transition-all duration-500"
+                      <div className="flex-1 h-2 bg-white/25 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#064ea2]/60 rounded-full transition-all duration-500"
                           style={{ width: `${ep.progress}%` }} />
                       </div>
                       <span className="text-xs font-semibold text-[#064ea2] w-12 text-right">{ep.progress}%</span>
-                      {!ep.signedIn && <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded font-semibold">待核验</span>}
-                      {ep.progress >= 100 && <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-semibold">已完成</span>}
+                      {!ep.signedIn && <span className="text-xs bg-amber-50/50 text-amber-600 px-2 py-0.5 rounded font-semibold">待核验</span>}
+                      {ep.progress >= 100 && <span className="text-xs bg-emerald-50/50 text-emerald-600 px-2 py-0.5 rounded font-semibold">已完成</span>}
                     </div>
                   </div>
                 );
@@ -174,7 +174,7 @@ export default function ExpertDashboardPage() {
                 { label: '个人信息', desc: '管理资料', path: '/profile', Icon: UserCircle },
               ].map(action => (
                 <button key={action.path} onClick={() => router.push(action.path)}
-                  className="bg-[#eff6ff] rounded-lg p-4 text-left hover:bg-[#dbeafe] border border-[#bfdbfe] transition-all">
+                  className="bg-white/50 rounded-lg p-4 text-left hover:bg-white/80 border border-[#bfdbfe] transition-all backdrop-blur-sm">
                   <action.Icon size={20} strokeWidth={1.5} className="text-[#064ea2]" />
                   <div className="text-sm font-semibold text-[oklch(0.18_0.012_265)]">{action.label}</div>
                   <div className="text-xs text-[oklch(0.55_0.01_264)]">{action.desc}</div>
