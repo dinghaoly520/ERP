@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -37,9 +37,9 @@ const READINESS_COLOR: Record<string, string> = {
 const STAGE_ROUTE: Record<string, string> = {
   DOWNLOAD: '',
   SUBMIT: '',
-  OPENING: '/bid/open',
-  EVALUATING: '/bid/evaluate',
-  ARCHIVED: '/bid/archive',
+  OPENING: '/bid/project',
+  EVALUATING: '/bid/project',
+  ARCHIVED: '/bid/project',
 };
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -113,9 +113,9 @@ export default function BidDashboard() {
   const notReadyCount = projects.filter(p => p.readiness === 'not-ready').length;
 
   const entries = [
-    { label: '开标主持端', hint: '在线解密 · 开标记录', path: '/bid/open', tone: 'blue' as const, count: opening },
-    { label: '专家评标端', hint: '独立评分 · 报告确认', path: '/bid/evaluate', tone: 'purple' as const, count: evaluating },
-    { label: '监督端',     hint: '日志追溯 · 不可干预', path: '/bid/supervise', tone: 'orange' as const, count: undefined },
+    { label: '开标主持端', hint: '在线解密 · 开标记录', path: '/bid', tone: 'blue' as const, count: opening },
+    { label: '专家评标端', hint: '独立评分 · 报告确认', path: '/bid', tone: 'purple' as const, count: evaluating },
+    { label: '监督端',     hint: '日志追溯 · 不可干预', path: '/bid', tone: 'orange' as const, count: undefined },
     { label: '归档端',     hint: '资料归档 · 防篡改',   path: '/bid/archive', tone: 'green' as const, count: archived },
   ];
 
@@ -141,9 +141,9 @@ export default function BidDashboard() {
   const handleRowClick = (p: DashboardProject) => {
     const route = STAGE_ROUTE[p.stage];
     if (route) {
-      router.push(`${route}?projectId=${p.id}`);
+      const defaultTab = p.stage === 'EVALUATING' ? 'evaluate' : 'open';
+      router.push(`${route}/${p.id}?tab=${defaultTab}`);
     }
-    // DOWNLOAD/SUBMIT: clicking the row does nothing — use the "检查" button instead
   };
 
   // ── Collect computed risks for a project ──
@@ -242,15 +242,16 @@ export default function BidDashboard() {
       <div className="grid gap-4 md:grid-cols-4">
         {entries.map(e => (
           <MetricCard
-            key={e.path}
+            key={e.label}
             label={e.label}
             value={e.count !== undefined ? e.count : <ArrowRight size={18} strokeWidth={2} />}
             hint={e.hint}
             tone={e.tone}
-            onClick={() => router.push(e.path)}
+            onClick={e.path !== '/bid' ? () => router.push(e.path) : undefined}
           />
         ))}
       </div>
+      <p className="text-center text-[10px] text-[#8a96aa] -mt-2">请在下方表格中选择项目</p>
 
       {/* ── Filter bar ── */}
       <DataToolbar>
@@ -343,9 +344,8 @@ export default function BidDashboard() {
                   const clickable = !!STAGE_ROUTE[p.stage];
 
                   return (
-                    <>
+                    <Fragment key={p.id}>
                     <tr
-                      key={p.id}
                       onClick={() => clickable && handleRowClick(p)}
                       className={`transition-colors ${clickable ? 'cursor-pointer hover:bg-[#f8fafc]' : ''} ${risks.length > 0 ? 'bg-[#fef9f5]' : ''}`}
                     >
@@ -474,7 +474,7 @@ export default function BidDashboard() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                router.push(`/bid/open?projectId=${p.id}`);
+                                router.push(`/bid/project/${p.id}?tab=open`);
                               }}
                               className="flex items-center gap-1 rounded-lg bg-[#11a874] px-2.5 py-1 text-[10px] font-bold text-white hover:bg-[#0f9f6e] transition"
                             >
@@ -488,7 +488,7 @@ export default function BidDashboard() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                router.push(`/bid/evaluate?projectId=${p.id}`);
+                                router.push(`/bid/project/${p.id}?tab=evaluate`);
                               }}
                               className="flex items-center gap-1 rounded-lg bg-[#7c3aed] px-2.5 py-1 text-[10px] font-bold text-white hover:bg-[#6d28d9] transition"
                             >
@@ -499,7 +499,7 @@ export default function BidDashboard() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                router.push(`/bid/archive?projectId=${p.id}`);
+                                router.push(`/bid/project/${p.id}?tab=open`);
                               }}
                               className="flex items-center gap-1 rounded-lg border border-[#dce6f3] px-2.5 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
                             >
@@ -601,7 +601,7 @@ export default function BidDashboard() {
                         </tr>
                       );
                     })()}
-                  </>
+                  </Fragment>
                   );
                 })}
               </tbody>
