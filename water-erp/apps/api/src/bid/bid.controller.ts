@@ -28,8 +28,13 @@ export class BidController {
   getDashboardStats() { return this.bidService.getDashboardStats(); }
 
   @Get('projects')
-  @ApiOperation({ summary: '项目列表' })
-  listProjects() { return this.bidService.listProjects(); }
+  @ApiOperation({ summary: '项目列表（可选阶段过滤）' })
+  listProjects(@Query('stage') stage?: string | string[]) {
+    const stages = stage
+      ? (Array.isArray(stage) ? stage : [stage])
+      : undefined;
+    return this.bidService.listProjects(stages);
+  }
 
   @Get('projects/dashboard')
   @ApiOperation({ summary: 'Dashboard 聚合：项目列表 + 就绪状态 + 阶段分布' })

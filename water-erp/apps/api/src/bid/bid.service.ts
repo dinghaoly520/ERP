@@ -73,10 +73,19 @@ export class BidService {
     };
   }
 
-  listProjects() {
+  listProjects(stages?: string[]) {
+    const where = stages && stages.length > 0
+      ? { stage: { in: stages as BidStage[] } }
+      : {};
     return this.prisma.bidProject.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { suppliers: true } } },
+      where,
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        projectCode: true,
+        name: true,
+        stage: true,
+      },
     });
   }
 
