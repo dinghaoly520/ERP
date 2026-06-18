@@ -102,7 +102,7 @@ ${toolList}
 
     const messages = [
       { role: 'system' as const, content: fullSystemPrompt },
-      ...history.slice(-20),
+      ...history,
       { role: 'user' as const, content: dto.message },
     ];
 
@@ -409,31 +409,27 @@ ${toolList}
    * 安全网：剥离所有 Markdown 格式字符。
    * 无论系统提示词是否生效，最终输出不会有粗体/斜体/代码等格式。
    */
-  private stripMarkdown(text: string): string {
+    private stripMarkdown(text: string): string {
     return text
-      // 加粗 **text** 或 __text__
-      .replace(/\*\*(.+?)\*\*/g, '$1')
-      .replace(/__(.+?)__/g, '$1')
-      // 斜体 *text* 或 _text_（但不匹配 ** 残余）
-      .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '$1')
-      .replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '$1')
-      // 代码块 ```...```
-      .replace(/```[\s\S]*?```/g, '')
-      // 行内代码 `text`
-      .replace(/`(.+?)`/g, '$1')
-      // 删除线 ~~text~~
-      .replace(/~~(.+?)~~/g, '$1')
-      // 标题 # ## ### ...
+      // 暴力清除所有星号
+      .replace(/[*]+/g, '')
+      // 清除下划线
+      .replace(/_+/g, '')
+      // 清除波浪号
+      .replace(/~+/g, '')
+      // 清除反引号
+      .replace(/`+/g, '')
+      // 清除井号标题
       .replace(/^#{1,6}\s+/gm, '')
-      // 水平线 --- 或 ===
-      .replace(/^[-=]{3,}\s*$/gm, '')
-      // 引用 >
+      // 清除引用标记
       .replace(/^>\s?/gm, '')
-      // 无序列表标记 * -（行首格式，保留内容）
-      // 仅当后面有空格时去掉，不误伤正常文字中的短横线
-      .replace(/^[\*\-]\s+/gm, '')
-      // 有序列表 1. 2. ...
+      // 清除列表标记
+      .replace(/^[\s]*[\-\+\*]\s+/gm, '')
       .replace(/^\d+\.\s+/gm, '')
+      // 清除水平线
+      .replace(/^[-=]{3,}\s*$/gm, '')
+      // 清除代码块标记
+      .replace(/```[\s\S]*?```/gm, '')
       // 清理多余空行
       .replace(/\n{3,}/g, '\n\n')
       .trim();
@@ -445,14 +441,13 @@ ${toolList}
    */
   private stripEnglish(text: string): string {
     return text
-      // 保留：中文字符（Unicode 区块）、中文标点、数字、空格、换行、常用中文符号
-      .replace(/[^一-鿿　-〿＀-￯\d\s，、。；：？！""''（）《》【】…—·\-/％％％￥+]+/g, (match) => {
-        // 如果匹配到的纯英文/符号前后有中文，直接移除
-        // 保留纯数字和必要的分隔符
-        if (/^[\d\s.\-/：]+$/.test(match)) return match; // 数字日期等保留
-        return ''; // 其他英文直接删除
-      })
-      // 清理可能产生的多余空格
+      // 删除所有 ASCII 字母（a-z, A-Z）
+      .replace(/[a-zA-Z]+/g, '')
+      // 删除英文标点符号
+      .replace(/[`*_#~$%^&|\\@!=\[\]{};:'"<>?,.\/()]+/g, '')
+      // 清理可能残留的单个字母
+      .replace(/\s+[a-zA-Z]\s+/g, ' ')
+      // 清理多余空格
       .replace(/[ \t]{2,}/g, ' ')
       .replace(/\n{3,}/g, '\n\n')
       .trim();

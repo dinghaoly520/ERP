@@ -7,5 +7,5 @@ interface DataToolbarProps {
 }
 
 export function DataToolbar({ children, className }: DataToolbarProps) {
-  return <div className={cn('rounded-2xl border border-[#dbeafe] bg-white/90 p-4 shadow-sm backdrop-blur flex flex-wrap items-center gap-3', className)}>{children}</div>;
+  return <div className={cn('glass-card glass-card-lighter rounded-2xl p-4 flex flex-wrap items-center gap-3', className)}>{children}</div>;
 }

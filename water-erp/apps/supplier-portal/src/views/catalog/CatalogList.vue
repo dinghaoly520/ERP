@@ -110,7 +110,7 @@ onMounted(loadAll)
 
 <style scoped>
 .catalog-layout { display: flex; gap: 16px; align-items: flex-start; }
-.cat-sidebar { width: 220px; flex-shrink: 0; position: relative; background: rgba(255,255,255,0.74); backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); padding: 14px; position: sticky; top: 16px; max-height: calc(100vh - 120px); overflow-y: scroll; scrollbar-gutter: stable; }
+.cat-sidebar { width: 220px; flex-shrink: 0; position: relative; background: rgba(255,255,255,0.74); backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); border: 1px solid rgba(255,255,255,0.42); border-radius: var(--sp-radius-md); padding: 14px; position: sticky; top: 16px; max-height: calc(100vh - 120px); overflow-y: scroll; scrollbar-gutter: stable; }
 .cat-sidebar::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.44; border-radius: inherit; background-image: radial-gradient(ellipse at 10% 6%, rgba(168,139,250,0.20), transparent 55%), radial-gradient(ellipse at 85% 12%, rgba(192,132,252,0.12), transparent 55%), radial-gradient(ellipse at 40% 90%, rgba(91,33,182,0.07), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
 .cat-sidebar:hover::before { opacity: 0.58; }
 .cat-sidebar > * { position: relative; z-index: 1; }
@@ -126,7 +126,8 @@ onMounted(loadAll)
 .cat-leaf:hover { background: rgba(255,255,255,0.52); color: var(--sp-primary); }
 .cat-leaf.active { color: var(--sp-primary); font-weight: 700; background: rgba(239,246,255,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
 .cat-main { flex: 1; min-width: 0; }
-.cat-toolbar { display: flex; align-items: center; gap: 10px; position: relative; background: rgba(255,255,255,0.72); backdrop-filter: blur(10px) saturate(1.1); -webkit-backdrop-filter: blur(10px) saturate(1.1); border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); padding: 14px 16px; margin-bottom: 12px; }
+.cat-toolbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px; margin-bottom: 12px; background: rgba(255,255,255,0.18); backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3); border: 1px solid rgba(255,255,255,0.32); border-radius: var(--sp-radius-md); }
+.cat-toolbar > * { position: relative; z-index: 1; }
 .cat-filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 0 4px; min-height: 28px; }
 .cat-filter-label { font-size: 12px; font-weight: 600; color: var(--sp-gray-400); flex-shrink: 0; }
 .cat-filter-body { position: relative; display: inline-flex; align-items: center; min-width: 80px; }

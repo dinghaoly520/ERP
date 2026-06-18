@@ -41,7 +41,7 @@ export class DeepSeekProvider extends AssistantModelProvider {
           model: this.model,
           messages,
           temperature: options?.temperature ?? 0.7,
-          max_tokens: options?.maxTokens ?? 4000,
+          max_tokens: options?.maxTokens ?? 8192,
         }),
         signal: controller.signal,
       });

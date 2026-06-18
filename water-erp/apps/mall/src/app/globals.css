@@ -118,6 +118,14 @@ body {
   75%      { transform: translate(0.4%, -0.4%) scale(1.015); }
 }
 
+/* 聊天气泡彩光漂移 */
+@keyframes msg-glow-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(2%, -1.5%) scale(1.03); }
+  50%      { transform: translate(-1%, 1.5%) scale(1.02); }
+  75%      { transform: translate(0.8%, -0.8%) scale(1.025); }
+}
+
 /* ── glass-card 子变体 ── */
 .glass-card-deeper {
   background: rgba(255, 255, 255, 0.85);

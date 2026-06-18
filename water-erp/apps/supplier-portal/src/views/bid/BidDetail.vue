@@ -59,7 +59,7 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 
 <template>
   <div class="page-container" v-loading="loading">
-    <el-button link @click="router.push('/bids')" style="margin-bottom: 16px;"><el-icon><ArrowLeft /></el-icon> 返回招标列表</el-button>
+    <el-button class="back-link" @click="router.push('/bids')"><el-icon><ArrowLeft /></el-icon>返回可投标项目列表</el-button>
     <div v-if="error" class="sp-error-block">
       <div class="sp-error-icon">⚠</div>
       <div class="sp-error-text">数据加载失败</div>
@@ -95,7 +95,7 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
         <el-tab-pane label="澄清答疑" name="clarifications">
           <div class="detail-card" style="display:flex;flex-direction:column;gap:16px">
             <!-- 我要提问 -->
-            <div style="background:var(--sp-bg-secondary);border-radius:var(--sp-radius-md);padding:16px">
+            <div class="question-box">
               <div style="font-size:13px;font-weight:700;color:var(--sp-gray-700);margin-bottom:10px">我要提问</div>
               <div style="display:flex;gap:10px">
                 <el-input v-model="questionText" placeholder="对招标文件或项目有疑问？在此向招标人提问…" :rows="2" type="textarea" style="flex:1" />
@@ -141,14 +141,43 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 </template>
 
 <style scoped>
-.detail-card { position: relative; background: rgba(255,255,255,0.78); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.55); border-radius: var(--sp-radius-md); padding: 20px; }
-.clarification-item { padding: 16px 0; border-bottom: 1px solid rgba(0,0,0,0.05); }
+/* ─── Back link ─── */
+.back-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; margin-bottom: 16px;
+  font-size: 13px; font-weight: 700; color: var(--sp-primary);
+  background: rgba(255,255,255,0.58); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.45); border-radius: var(--sp-radius-sm);
+  transition: background 0.15s, border-color 0.15s; cursor: pointer;
+}
+.back-link:hover { background: rgba(255,255,255,0.78); border-color: rgba(255,255,255,0.65); color: var(--sp-primary); }
+
+/* ─── Detail card — glass ─── */
+.detail-card { position: relative; background: rgba(255,255,255,0.55); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.48); border-radius: var(--sp-radius-md); padding: 20px; }
+.detail-card::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.44; border-radius: inherit; background-image: radial-gradient(ellipse at 12% 8%, rgba(96,165,250,0.22), transparent 55%), radial-gradient(ellipse at 82% 16%, rgba(56,189,248,0.14), transparent 55%), radial-gradient(ellipse at 38% 88%, rgba(52,211,153,0.08), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
+.detail-card > * { position: relative; z-index: 1; }
+
+/* ─── Clarifications ─── */
+.clarification-item { padding: 16px 0; border-bottom: 1px solid rgba(0,0,0,0.04); }
 .clarification-item:last-child { border-bottom: none; }
 .clarification-q, .clarification-a { display: flex; align-items: flex-start; gap: 10px; line-height: 1.6; }
 .clarification-a { margin-top: 10px; padding-left: 4px; }
 .clarification-issuer { font-size: 12px; color: var(--sp-gray-400); margin-left: auto; flex-shrink: 0; }
+
+/* ─── Bid doc section ─── */
 .bid-doc-head { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--sp-gray-900); flex-wrap: wrap; margin-bottom: 8px; }
 .bid-doc-head strong { font-weight: 700; }
 .bid-doc-hint { font-size: 12px; color: var(--sp-gray-500); margin: 0 0 16px; }
 .bid-doc-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+
+/* ─── Question input box ─── */
+.question-box { background: rgba(255,255,255,0.44); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.40); border-radius: var(--sp-radius-md); padding: 16px; }
+
+/* ─── Element Plus Descriptions table transparency ─── */
+:deep(.el-descriptions) { --el-descriptions-table-bg: transparent; }
+:deep(.el-descriptions__body) { background: transparent !important; }
+:deep(.el-descriptions__body .el-descriptions__table.is-bordered) { background: transparent !important; }
+:deep(.el-descriptions__body .el-descriptions__table.is-bordered td) { background: transparent !important; border-color: rgba(0,0,0,0.04) !important; }
+:deep(.el-descriptions__body .el-descriptions__table.is-bordered td:first-child) { background: rgba(255,255,255,0.30); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+:deep(.el-descriptions__label) { font-weight: 600; color: var(--sp-gray-500); }
 </style>

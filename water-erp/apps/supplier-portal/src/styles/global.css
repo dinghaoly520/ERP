@@ -107,7 +107,80 @@ a:hover { color: var(--sp-primary-light); }
 .el-input__wrapper,
 .el-textarea__inner {
   border-radius: var(--sp-radius-sm) !important;
-  box-shadow: 0 0 0 1px var(--sp-border) inset !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.08) inset !important;
+  background: rgba(255,255,255,0.48) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.el-input__wrapper:hover { box-shadow: 0 0 0 1px rgba(0,0,0,0.14) inset !important; }
+.el-input__wrapper.is-focus { box-shadow: 0 0 0 1px var(--sp-primary) inset !important; }
+
+/* el-input-number is a separate component with its own wrapper */
+.el-input-number .el-input__wrapper {
+  background: rgba(255,255,255,0.48) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.el-select .el-input__wrapper,
+.el-date-editor .el-input__wrapper {
+  background: rgba(255,255,255,0.48) !important;
+}
+
+/* Glass: el-alert (info/warning/error/success message banners) */
+.el-alert {
+  background: rgba(255,255,255,0.52) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0,0,0,0.05) !important;
+}
+
+/* ─── Glass: all floating panels (dropdown / picker / select / popper) ─── */
+.el-select-dropdown,
+.el-select-dropdown__list,
+.el-picker-panel,
+.el-date-picker,
+.el-date-range-picker,
+.el-time-panel,
+.el-dropdown-menu,
+.el-popper.is-light,
+.el-cascader__dropdown,
+.el-autocomplete-suggestion {
+  background: rgba(255,255,255,0.72) !important;
+  backdrop-filter: blur(20px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.15) !important;
+  border: 1px solid rgba(255,255,255,0.48) !important;
+  border-radius: var(--sp-radius-md) !important;
+  box-shadow:
+    0 2px 4px rgba(15,35,65,0.03),
+    0 8px 28px rgba(91,155,213,0.08) !important;
+}
+.el-select-dropdown__item,
+.el-cascader-node,
+.el-autocomplete-suggestion__item {
+  background: transparent !important;
+  color: var(--sp-gray-700);
+}
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover,
+.el-select-dropdown__item.is-hovering,
+.el-cascader-node:not(.is-disabled):hover,
+.el-autocomplete-suggestion__item:hover,
+.el-cascader-node.is-active {
+  background: rgba(239,246,255,0.60) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.el-select-dropdown__item.selected {
+  background: rgba(239,246,255,0.72) !important;
+  color: var(--sp-primary);
+  font-weight: 700;
+}
+/* Date picker cells */
+.el-date-table td.available:hover { color: var(--sp-primary); }
+.el-date-table td.today span { color: var(--sp-primary); font-weight: 800; }
+.el-date-table td.current:not(.disabled) span {
+  background: var(--sp-primary) !important; color: #fff;
 }
 
 .el-card {
@@ -131,8 +204,105 @@ a:hover { color: var(--sp-primary-light); }
   border-bottom: 1px solid var(--sp-border);
 }
 
-.el-dialog { border-radius: var(--sp-radius-md) !important; }
-.el-dialog__header { border-bottom: 1px solid var(--sp-border); padding-bottom: 12px; }
+/* ─── Glass: all dialogs (CSS vars + backdrop) ─── */
+.el-dialog {
+  --el-dialog-bg-color: transparent;
+  --el-bg-color: transparent;
+  --el-bg-color-overlay: transparent;
+  border-radius: var(--sp-radius-md) !important;
+  background: rgba(255,255,255,0.62) !important;
+  backdrop-filter: blur(22px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.2) !important;
+  border: 1px solid rgba(255,255,255,0.50) !important;
+  box-shadow:
+    0 4px 6px rgba(15,35,65,0.04),
+    0 12px 40px rgba(91,155,213,0.10) !important;
+}
+.el-dialog::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  opacity: 0.42; border-radius: inherit;
+  background-image:
+    radial-gradient(ellipse at 12% 10%, rgba(96,165,250,0.18),  transparent 55%),
+    radial-gradient(ellipse at 85% 15%, rgba(168,139,250,0.12), transparent 55%),
+    radial-gradient(ellipse at 40% 85%, rgba(110,231,183,0.10), transparent 55%);
+  animation: glass-glow-drift 18s ease-in-out infinite;
+}
+.el-dialog__header {
+  --el-bg-color: transparent;
+  background: rgba(255,255,255,0.28) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+  border-radius: var(--sp-radius-md) var(--sp-radius-md) 0 0 !important;
+  padding: 18px 24px 14px !important;
+}
+.el-dialog__header > * { position: relative; z-index: 1; }
+.el-dialog__title { font-size: 16px; font-weight: 800; color: var(--sp-gray-900); }
+.el-dialog__body {
+  position: relative; z-index: 1;
+  --el-bg-color: transparent;
+  background: transparent !important;
+  padding: 20px 24px !important;
+  color: var(--sp-gray-700);
+}
+.el-dialog__footer {
+  display: flex; justify-content: flex-end; gap: 10px;
+  --el-bg-color: transparent;
+  background: rgba(255,255,255,0.40) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(0,0,0,0.04) !important;
+  border-radius: 0 0 var(--sp-radius-md) var(--sp-radius-md) !important;
+  padding: 12px 24px 16px !important;
+}
+
+/* ─── Glass: input controls inside forms ─── */
+.el-form-item__content,
+.el-form-item {
+  background: transparent !important;
+}
+.el-input-group__append,
+.el-input-group__prepend {
+  background: rgba(255,255,255,0.40) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border-color: rgba(0,0,0,0.06) !important;
+}
+
+/* ─── Glass: dialog overlay tint ─── */
+.el-overlay-dialog {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* ─── Glass: message-box (confirm / prompt / alert) ─── */
+.el-message-box {
+  --el-bg-color: transparent;
+  --el-bg-color-overlay: transparent;
+  background: rgba(255,255,255,0.72) !important;
+  backdrop-filter: blur(22px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.2) !important;
+  border: 1px solid rgba(255,255,255,0.50) !important;
+  border-radius: var(--sp-radius-md) !important;
+  box-shadow:
+    0 4px 6px rgba(15,35,65,0.04),
+    0 16px 48px rgba(91,155,213,0.12) !important;
+}
+.el-message-box::before {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  opacity: 0.40; border-radius: inherit;
+  background-image:
+    radial-gradient(ellipse at 12% 10%, rgba(96,165,250,0.16),  transparent 55%),
+    radial-gradient(ellipse at 85% 15%, rgba(168,139,250,0.10), transparent 55%),
+    radial-gradient(ellipse at 40% 85%, rgba(110,231,183,0.08), transparent 55%);
+  animation: glass-glow-drift 18s ease-in-out infinite;
+}
+.el-message-box__header { position: relative; z-index: 1; background: transparent !important; }
+.el-message-box__title  { font-size: 15px; font-weight: 800; color: var(--sp-gray-900); }
+.el-message-box__content { position: relative; z-index: 1; background: transparent !important; }
+.el-message-box__message { font-size: 14px; color: var(--sp-gray-600); }
+.el-message-box__btns { position: relative; z-index: 1; background: transparent !important; }
 
 .el-tag { border-radius: 8px !important; font-weight: 600; }
 .el-tag--primary { --el-tag-bg-color: var(--sp-primary-lighter); --el-tag-border-color: #bfdbfe; --el-tag-text-color: var(--sp-primary); }
@@ -412,29 +582,25 @@ a:hover { color: var(--sp-primary-light); }
   color: var(--sp-gray-400);
 }
 
-/* ─── Filter bar (inline, not a card) ─── */
+/* ─── Filter bar — extreme glass, max transparency ─── */
 .sp-filter-bar {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
   padding: 10px 14px;
-  border: 1px solid var(--sp-border);
-  border-radius: var(--sp-radius-sm);
-  background: var(--sp-surface);
   margin-bottom: 12px;
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border: 1px solid rgba(255,255,255,0.32);
+  border-radius: var(--sp-radius-sm);
 }
+.sp-filter-bar > * { position: relative; z-index: 1; }
 
-/* ─── Chip group ─── */
-.sp-chip-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.sp-chip {
-  border-radius: var(--sp-radius-sm) !important;
-  font-weight: 700 !important;
-}
+/* Chip group */
+.sp-chip-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-chip { border-radius: var(--sp-radius-sm) !important; font-weight: 700 !important; }
 
 /* ─── Hero (used on dashboard & bid detail) ─── */
 .sp-page-hero {
@@ -758,16 +924,6 @@ a:hover { color: var(--sp-primary-light); }
 .sp-stat-row:hover::before { opacity: 0.58; }
 .sp-stat-row > * { position: relative; z-index: 1; }
 
-/* ─── Glass filter bar ─── */
-.sp-filter-bar {
-  position: relative;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(10px) saturate(1.1);
-  -webkit-backdrop-filter: blur(10px) saturate(1.1);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-}
-.sp-filter-bar > * { position: relative; z-index: 1; }
-
 /* ─── Glass table overrides (transparent rows within glass cards) ─── */
 .el-table {
   --el-table-bg-color: transparent;
@@ -852,6 +1008,8 @@ a:hover { color: var(--sp-primary-light); }
   .sp-card:hover::before,
   .sp-page-hero-card:hover::before,
   .sp-stat-row:hover::before { opacity: 0.22; }
+  .el-dialog::before { animation: none; opacity: 0.18; }
+  .el-overlay-dialog { backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 
 /* ─── Scrollbar ─── */

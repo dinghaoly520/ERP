@@ -323,34 +323,46 @@ export function HeroSection({
 
             {/* ═══════ 左侧：水叮当 + 标题 ═══════ */}
             <div className="flex items-start gap-4 shrink-0 lg:w-[20%]">
-              {/* 水叮当头像 —— 带状态环，点击打开对话框 */}
+              {/* 水叮当头像 —— 浅彩呼吸光环，点击打开对话框 */}
               <button
                 type="button"
                 className="relative shrink-0 cursor-pointer"
                 onClick={() => setDialogOpen(true)}
                 aria-label="打开水叮当对话框"
               >
-                {/* 外圈状态环 */}
+                {/* 外层七色柔和光晕 */}
                 <motion.div
-                  className={`absolute -inset-[6px] rounded-full border-2 ${hasWarnings ? 'border-orange-400/50' : 'border-[#5b9bd5]/10'}`}
-                  animate={
-                    hasWarnings
-                      ? { scale: [1, 1.06, 1], opacity: [0.5, 0.9, 0.5] }
-                      : { scale: [1, 1.03, 1], opacity: [0.3, 0.6, 0.3] }
-                  }
-                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                  className="absolute -inset-[10px] rounded-full pointer-events-none"
+                  animate={{
+                    opacity: [0.3, 0.5, 0.3],
+                    scale: [0.96, 1.06, 0.96],
+                    background: [
+                      'radial-gradient(circle, rgba(147,197,253,.22) 30%, rgba(168,139,250,.12) 55%, transparent 70%)', // 蓝
+                      'radial-gradient(circle, rgba(168,139,250,.22) 30%, rgba(244,114,182,.12) 55%, transparent 70%)', // 紫→粉
+                      'radial-gradient(circle, rgba(244,114,182,.22) 30%, rgba(251,191,36,.12) 55%, transparent 70%)', // 粉→金
+                      'radial-gradient(circle, rgba(251,191,36,.22) 30%, rgba(52,211,153,.12) 55%, transparent 70%)', // 金→绿
+                      'radial-gradient(circle, rgba(52,211,153,.22) 30%, rgba(45,212,191,.12) 55%, transparent 70%)', // 绿→青
+                      'radial-gradient(circle, rgba(45,212,191,.22) 30%, rgba(96,165,250,.12) 55%, transparent 70%)', // 青→天蓝
+                      'radial-gradient(circle, rgba(96,165,250,.22) 30%, rgba(147,197,253,.12) 55%, transparent 70%)', // 天蓝→回归
+                    ],
+                  }}
+                  transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+                  style={{
+                    filter: 'blur(8px)',
+                  }}
                 />
-                {/* 内圈脉冲光环 */}
+                {/* 内层彩色光环 */}
                 <motion.div
-                  className="absolute -inset-[3px] rounded-full border border-transparent"
-                  animate={effectiveMode === 'assistant' && hasInput
-                    ? {
-                        borderColor: ['rgba(99,102,241,.4)', 'rgba(99,102,241,.2)', 'rgba(99,102,241,.4)'],
-                        scale: [1, 1.15, 1],
-                      }
-                    : { scale: 1 }
-                  }
-                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  className="absolute -inset-[4px] rounded-full pointer-events-none"
+                  animate={{
+                    opacity: [0.3, 0.55, 0.3],
+                    scale: [0.98, 1.04, 0.98],
+                  }}
+                  transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}
+                  style={{
+                    background: 'conic-gradient(from 0deg, rgba(147,197,253,.3), rgba(168,139,250,.25), rgba(52,211,153,.2), rgba(251,191,36,.15), rgba(147,197,253,.3))',
+                    filter: 'blur(1px)',
+                  }}
                 />
                 <MallAssistantAvatar
                   size="lg"
@@ -358,30 +370,6 @@ export function HeroSection({
                   animated
                   className="relative z-10"
                 />
-                {/* 状态圆点指示器 */}
-                <AnimatePresence mode="wait">
-                  {hasWarnings ? (
-                    <motion.span
-                      key="warn"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                      className="absolute -bottom-0.5 -right-0.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[9px] font-black text-white ring-2 ring-[#f0f4fb]"
-                    >
-                      !
-                    </motion.span>
-                  ) : (
-                    <motion.span
-                      key="ok"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                      className="absolute -bottom-0.5 -right-0.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[8px] font-black text-white ring-2 ring-[#f0f4fb]"
-                    >
-                      ✓
-                    </motion.span>
-                  )}
-                </AnimatePresence>
               </button>
 
               {/* 标题 + 描述 */}

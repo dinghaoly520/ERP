@@ -1072,7 +1072,7 @@ export default function MallPage() {
                       </button>
                       {selectedIds.size >= 2 && selectedIds.size <= 4 && (
                         <button onClick={() => setCompareOpen(true)}
-                          className="flex items-center h-8 rounded-lg border border-[#5b9bd5]/30 bg-white px-2.5 text-xs font-bold text-[#5b9bd5] hover:bg-[#f3f8ff] active:scale-95 transition">
+                          className="flex items-center h-8 rounded-lg border border-[#5b9bd5]/30 bg-white/60 backdrop-blur-sm px-2.5 text-xs font-bold text-[#5b9bd5] hover:bg-[#f3f8ff] active:scale-95 transition">
                           对比
                         </button>
                       )}
@@ -1143,7 +1143,7 @@ export default function MallPage() {
             >
               <motion.div
                 ref={budgetOverlayRef}
-                className="absolute inset-0 bg-[#475569]/40 backdrop-blur-md"
+                className="absolute inset-0 bg-gradient-to-br from-[#1e293b]/25 via-[#334155]/20 to-[#0f172a]/30"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -1154,7 +1154,7 @@ export default function MallPage() {
                 role="dialog"
                 aria-modal="true"
                 aria-label="预算清单"
-                className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/20 shadow-2xl" style={{background: "linear-gradient(135deg, rgba(255,248,245,.22) 0%, rgba(255,251,248,.28) 40%, rgba(253,247,242,.22) 100%)", backdropFilter: "blur(40px) saturate(1.3)", WebkitBackdropFilter: "blur(40px) saturate(1.3)"}}
                 initial={{ opacity: 0, y: 40, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 30, scale: 0.97 }}
@@ -1167,7 +1167,7 @@ export default function MallPage() {
             <div className="border-b border-[#e5ecf4] px-6 py-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <select value={currentList?.id ?? ''} onChange={e => switchList(e.target.value)} className="min-w-0 max-w-[55%] truncate rounded-lg border border-[#cdd9ea] bg-white px-2 py-1.5 text-sm font-black text-[#334155] outline-none focus:border-[#5b9bd5]">
+                  <select value={currentList?.id ?? ''} onChange={e => switchList(e.target.value)} className="min-w-0 max-w-[55%] truncate rounded-lg border border-[#cdd9ea]/50 bg-white/15 backdrop-blur-sm px-2 py-1.5 text-sm font-black text-[#334155] outline-none focus:border-[#5b9bd5]">
                     {lists.map(l => <option key={l.id} value={l.id}>{l.name}{l.status === 'CONVERTED' ? '（已转询价单）' : l.itemCount > 0 ? `（${l.itemCount}项 · ¥${l.totalAmount ?? 0}）` : ''}</option>)}
                   </select>
                   {isConverted && <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">已转询价单</span>}
@@ -1278,7 +1278,7 @@ export default function MallPage() {
             >
               <motion.div
                 ref={detailOverlayRef}
-                className="absolute inset-0 bg-[#475569]/40 backdrop-blur-md"
+                className="absolute inset-0 bg-gradient-to-br from-[#1e293b]/25 via-[#334155]/20 to-[#0f172a]/30"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -1289,7 +1289,7 @@ export default function MallPage() {
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="detail-dialog-title"
-                className="relative max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white shadow-2xl"
+                className="relative max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl border border-white/30 shadow-2xl" style={{background: "linear-gradient(135deg, rgba(255,255,255,.28) 0%, rgba(248,251,255,.32) 30%, rgba(242,247,255,.28) 60%, rgba(248,251,255,.32) 100%)", backdropFilter: "blur(36px) saturate(1.2)", WebkitBackdropFilter: "blur(36px) saturate(1.2)", boxShadow: "0 1px 3px rgba(15,47,87,.04), 0 4px 24px rgba(91,155,213,.06)"}}
                 initial={{ opacity: 0, x: 40 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 30 }}
@@ -1298,7 +1298,7 @@ export default function MallPage() {
                 dragConstraints={{ left: 0 }}
                 dragElastic={0.1}
                 onDragEnd={(_, info) => { if (info.offset.x > 120) setDetail(null); }}
-              ><div className="border-b border-[#e5ecf4] bg-[#f8fbff] px-6 py-5"><div className="mb-3 flex items-center justify-between"><span className="font-mono text-xs font-black text-[#5b9bd5]">{detail.code}</span><button onClick={() => toggleFavorite(detail)} className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg transition hover:bg-white ${favoriteIds.includes(detail.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(detail.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(detail.id) ? '★' : '☆'}</button><button onClick={() => setDetail(null)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#6a7890] transition hover:bg-white">✕</button></div><h2 id="detail-dialog-title" className="text-2xl font-black text-[#334155]">{detail.name}</h2><p className="mt-2 text-sm text-[#5a6d8a]">{detail.specification}</p></div><div className="space-y-5 px-6 py-5"><div className="rounded-2xl border border-[#e1e9f4] p-5"><button onClick={() => setPriceOpen(o => !o)} className="mb-3 flex w-full items-center gap-2 text-left text-sm font-black text-[#334155] transition hover:text-[#5b9bd5]"><svg className={`h-3 w-3 shrink-0 text-[#5a6d8a] transition-transform duration-200 ${priceOpen ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>价格信息</button>{priceOpen && <div className="grid gap-4 sm:grid-cols-2"><Info label="当前参考价" value={`${formatPrice(detail.referencePrice)} / ${detail.unit}`} strong /><Info label="价格区间" value={`${formatPrice(detail.priceMin)} - ${formatPrice(detail.priceMax)}`} /><Info label="最近成交价" value={formatPrice(detail.lastDealPrice)} /><Info label="历史采购均价" value={formatPrice(detail.averagePrice)} /><Info label="价格变化" value={`${detail.changeRate > 0 ? '+' : ''}${detail.changeRate}%`} /><Info label="价格状态" value={detail.status} /></div>}</div><div className="rounded-2xl border border-[#e1e9f4] p-5"><button onClick={() => setSupplierOpen(o => !o)} className="mb-3 flex w-full items-center gap-2 text-left text-sm font-black text-[#334155] transition hover:text-[#5b9bd5]"><svg className={`h-3 w-3 shrink-0 text-[#5a6d8a] transition-transform duration-200 ${supplierOpen ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>供应商与适用范围</button>{supplierOpen && <div className="grid gap-4 sm:grid-cols-2"><Info label="供应商" value={detail.supplier} /><Info label="供应商类型" value={detail.supplierType} /><Info label="适用区域" value={detail.region} /><Info label="最小参考采购量" value={detail.minOrder} /><Info label="含税" value={detail.taxIncluded ? '是' : '否'} /><Info label="含运费" value={detail.freightIncluded ? '是' : '否'} /></div>}</div><div className="rounded-2xl border border-[#e1e9f4] p-5"><button onClick={() => setBasisOpen(o => !o)} className="mb-3 flex w-full items-center gap-2 text-left text-sm font-black text-[#334155] transition hover:text-[#5b9bd5]"><svg className={`h-3 w-3 shrink-0 text-[#5a6d8a] transition-transform duration-200 ${basisOpen ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>价格依据</button>{basisOpen && <div className="grid gap-4 sm:grid-cols-2"><Info label="价格来源" value={detail.priceSource} /><Info label="更新时间" value={formatDate(detail.updatedAt)} /><Info label="有效期至" value={formatDate(detail.validUntil)} /><Info label="分类目录" value={`${detail.group} / ${detail.category}`} /></div>}{basisOpen && <p className="mt-4 rounded-xl bg-[#f7faff] p-3 text-sm leading-6 text-[#5a6d8a]">{detail.remark}</p>}</div><div className="rounded-2xl border border-[#e1e9f4] p-5">
+              ><div className="border-b border-white/30 px-6 py-5 rounded-t-2xl" style={{background: "rgba(255,255,255,.18)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)"}}><div className="mb-3 flex items-center justify-between"><span className="font-mono text-xs font-black text-[#5b9bd5]">{detail.code}</span><button onClick={() => toggleFavorite(detail)} className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg transition hover:bg-white ${favoriteIds.includes(detail.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(detail.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(detail.id) ? '★' : '☆'}</button><button onClick={() => setDetail(null)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#6a7890] transition hover:bg-white">✕</button></div><h2 id="detail-dialog-title" className="text-2xl font-black text-[#334155]">{detail.name}</h2><p className="mt-2 text-sm text-[#5a6d8a]">{detail.specification}</p></div><div className="space-y-5 px-6 py-5"><div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(12px) saturate(1.15)", WebkitBackdropFilter: "blur(12px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}><button onClick={() => setPriceOpen(o => !o)} className="mb-3 flex w-full items-center gap-2 text-left text-sm font-black text-[#334155] transition hover:text-[#5b9bd5]"><svg className={`h-3 w-3 shrink-0 text-[#5a6d8a] transition-transform duration-200 ${priceOpen ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>价格信息</button>{priceOpen && <div className="grid gap-4 sm:grid-cols-2"><Info label="当前参考价" value={`${formatPrice(detail.referencePrice)} / ${detail.unit}`} strong /><Info label="价格区间" value={`${formatPrice(detail.priceMin)} - ${formatPrice(detail.priceMax)}`} /><Info label="最近成交价" value={formatPrice(detail.lastDealPrice)} /><Info label="历史采购均价" value={formatPrice(detail.averagePrice)} /><Info label="价格变化" value={`${detail.changeRate > 0 ? '+' : ''}${detail.changeRate}%`} /><Info label="价格状态" value={detail.status} /></div>}</div><div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(12px) saturate(1.15)", WebkitBackdropFilter: "blur(12px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}><button onClick={() => setSupplierOpen(o => !o)} className="mb-3 flex w-full items-center gap-2 text-left text-sm font-black text-[#334155] transition hover:text-[#5b9bd5]"><svg className={`h-3 w-3 shrink-0 text-[#5a6d8a] transition-transform duration-200 ${supplierOpen ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>供应商与适用范围</button>{supplierOpen && <div className="grid gap-4 sm:grid-cols-2"><Info label="供应商" value={detail.supplier} /><Info label="供应商类型" value={detail.supplierType} /><Info label="适用区域" value={detail.region} /><Info label="最小参考采购量" value={detail.minOrder} /><Info label="含税" value={detail.taxIncluded ? '是' : '否'} /><Info label="含运费" value={detail.freightIncluded ? '是' : '否'} /></div>}</div><div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(12px) saturate(1.15)", WebkitBackdropFilter: "blur(12px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}><button onClick={() => setBasisOpen(o => !o)} className="mb-3 flex w-full items-center gap-2 text-left text-sm font-black text-[#334155] transition hover:text-[#5b9bd5]"><svg className={`h-3 w-3 shrink-0 text-[#5a6d8a] transition-transform duration-200 ${basisOpen ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>价格依据</button>{basisOpen && <div className="grid gap-4 sm:grid-cols-2"><Info label="价格来源" value={detail.priceSource} /><Info label="更新时间" value={formatDate(detail.updatedAt)} /><Info label="有效期至" value={formatDate(detail.validUntil)} /><Info label="分类目录" value={`${detail.group} / ${detail.category}`} /></div>}{basisOpen && <p className="mt-4 rounded-xl p-3 text-sm leading-6 text-[#5a6d8a]" style={{background: "rgba(247,250,255,.18)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)"}}>{detail.remark}</p>}</div><div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(12px) saturate(1.15)", WebkitBackdropFilter: "blur(12px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}>
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-black text-[#334155]">价格趋势</div>
               {daysLeft !== null && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${daysLeft > 60 ? 'bg-emerald-50 text-emerald-700' : daysLeft > 30 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>{daysLeft > 30 ? '剩余有效期' : '即将过期'} {daysLeft} 天</span>}
@@ -1315,7 +1315,7 @@ export default function MallPage() {
               <PriceChart points={detailHistory} referencePrice={detail.referencePrice} />
             )}
           </div>
-          <div className="rounded-2xl border border-[#bfd4f4] glass-card-deeper glass-card-blue p-5"><div className="mb-3 flex items-center justify-between"><div className="text-sm font-black text-[#2c5282]">AI 价格研判</div><button onClick={() => openAssistantWithQuestion(buildDetailPrompt(detail))} className="rounded-full bg-[#5b9bd5] px-3 py-1 text-xs font-black text-white">AI 智能分析</button></div><p className="text-sm leading-6 text-[#5a6d8a]">点击分析后，AI 将结合参考价、价格区间、历史均价、供应商、价格来源和有效期，生成风险结论、询价建议和预算引用说明。</p></div><div className="grid grid-cols-2 gap-3"><button onClick={() => { navigator.clipboard?.writeText(detail.code); toast.success('目录编码已复制'); }} className="h-12 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#5b9bd5] transition hover:bg-[#f3f7fc]">复制目录编码</button><button onClick={() => { addToBudget(detail); setDetail(null); }} className="h-12 rounded-xl bg-[#5b9bd5] text-sm font-bold text-white transition hover:bg-[#4a89c4]">加入预算清单</button></div></div></motion.div></motion.div>)}</AnimatePresence>, document.body)}
+          <div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(14px) saturate(1.15)", WebkitBackdropFilter: "blur(14px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}><div className="mb-3 flex items-center justify-between"><div className="text-sm font-black text-[#2c5282]">AI 价格研判</div><button onClick={() => { const item = detail; setDetail(null); setTimeout(() => setAssistantInitialQuestion(buildDetailPrompt(item)), 200); }} className="rounded-full bg-[#5b9bd5] px-3 py-1 text-xs font-black text-white">AI 智能分析</button></div><p className="text-sm leading-6 text-[#5a6d8a]">点击分析后，AI 将结合参考价、价格区间、历史均价、供应商、价格来源和有效期，生成风险结论、询价建议和预算引用说明。</p></div><div className="grid grid-cols-2 gap-3"><button onClick={() => { navigator.clipboard?.writeText(detail.code); toast.success('目录编码已复制'); }} className="h-12 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#5b9bd5] transition hover:bg-[#f3f7fc]">复制目录编码</button><button onClick={() => { addToBudget(detail); setDetail(null); }} className="h-12 rounded-xl bg-[#5b9bd5] text-sm font-bold text-white transition hover:bg-[#4a89c4]">加入预算清单</button></div></div></motion.div></motion.div>)}</AnimatePresence>, document.body)}
       {mounted && createPortal(
         <AnimatePresence>
           {auditOpen && (
@@ -1328,7 +1328,7 @@ export default function MallPage() {
             >
               <motion.div
                 ref={auditOverlayRef}
-                className="absolute inset-0 bg-[#475569]/40 backdrop-blur-md"
+                className="absolute inset-0 bg-gradient-to-br from-[#1e293b]/25 via-[#334155]/20 to-[#0f172a]/30"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -1339,7 +1339,7 @@ export default function MallPage() {
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="audit-dialog-title"
-                className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/20 shadow-2xl" style={{background: "linear-gradient(135deg, rgba(240,253,250,.22) 0%, rgba(243,254,251,.28) 40%, rgba(238,252,248,.22) 100%)", backdropFilter: "blur(40px) saturate(1.3)", WebkitBackdropFilter: "blur(40px) saturate(1.3)"}}
                 initial={{ opacity: 0, y: 30, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 20, scale: 0.96 }}
@@ -1379,7 +1379,7 @@ export default function MallPage() {
             >
               <motion.div className="absolute inset-0 bg-[#475569]/55 backdrop-blur-md" onClick={() => setSuccessOverlay(null)} />
               <motion.div
-                className="relative flex max-w-sm flex-col items-center rounded-3xl bg-white px-8 py-10 text-center shadow-[0_40px_120px_rgba(7,24,52,.35)]"
+                className="relative flex max-w-sm flex-col items-center rounded-3xl border border-white/20 px-8 py-10 text-center shadow-[0_40px_120px_rgba(7,24,52,.25)]" style={{background:"linear-gradient(135deg,rgba(236,253,245,.22),rgba(240,253,250,.28),rgba(236,253,245,.22))",backdropFilter:"blur(40px) saturate(1.3)",WebkitBackdropFilter:"blur(40px) saturate(1.3)"}}
                 initial={{ scale: 0.85, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
@@ -1412,11 +1412,11 @@ export default function MallPage() {
             <motion.div className="fixed inset-0 z-[200] flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <motion.div className="absolute inset-0 bg-[#475569]/45 backdrop-blur-md" onClick={() => setCompareOpen(false)} />
               <motion.div
-                className="relative max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl bg-white shadow-2xl"
+                className="relative max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl border border-white/20 shadow-2xl" style={{background: "linear-gradient(135deg, rgba(242,247,255,.45) 0%, rgba(248,250,255,.52) 40%, rgba(245,248,255,.45) 100%)", backdropFilter: "blur(40px) saturate(1.3)", WebkitBackdropFilter: "blur(40px) saturate(1.3)"}}
                 initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               >
-                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#e5ecf4] bg-white px-6 py-4">
+                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#e5ecf4]/15 bg-white/15 backdrop-blur-sm rounded-t-2xl px-6 py-4">
                   <h2 className="text-lg font-black text-[#334155]">物资对比</h2>
                   <button onClick={() => setCompareOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#6a7890] hover:bg-[#f3f7fc]">✕</button>
                 </div>
@@ -1611,12 +1611,12 @@ function CompareRows({ items }: { items: CatalogItem[] }) {
   const fd = (d: string | null) => d ? d.slice(0, 10) : '长期';
   const minPrice = Math.min(...items.map(i => i.referencePrice));
   return <>
-    <tr><td className="sticky left-0 bg-white px-4 py-3 font-bold text-[#5a6d8a]">参考价</td>{items.map(i => <td key={i.id} className="px-4 py-3"><span className={i.referencePrice === minPrice ? 'text-[#18a56c] font-bold' : ''}>{fp(i.referencePrice)}</span></td>)}</tr>
-    <tr><td className="sticky left-0 bg-white px-4 py-3 font-bold text-[#5a6d8a]">价格区间</td>{items.map(i => <td key={i.id} className="px-4 py-3">{fp(i.priceMin)}~{fp(i.priceMax)}</td>)}</tr>
-    <tr><td className="sticky left-0 bg-white px-4 py-3 font-bold text-[#5a6d8a]">历史均价</td>{items.map(i => <td key={i.id} className="px-4 py-3">{fp(i.averagePrice)}</td>)}</tr>
-    <tr><td className="sticky left-0 bg-white px-4 py-3 font-bold text-[#5a6d8a]">供应商</td>{items.map(i => <td key={i.id} className="px-4 py-3">{i.supplier}</td>)}</tr>
-    <tr><td className="sticky left-0 bg-white px-4 py-3 font-bold text-[#5a6d8a]">来源</td>{items.map(i => <td key={i.id} className="px-4 py-3">{i.priceSource}</td>)}</tr>
-    <tr><td className="sticky left-0 bg-white px-4 py-3 font-bold text-[#5a6d8a]">有效期</td>{items.map(i => <td key={i.id} className="px-4 py-3">{fd(i.validUntil)}</td>)}</tr>
+    <tr><td className="sticky left-0 bg-white/15 backdrop-blur-sm px-4 py-3 font-bold text-[#5a6d8a]">参考价</td>{items.map(i => <td key={i.id} className="px-4 py-3"><span className={i.referencePrice === minPrice ? 'text-[#18a56c] font-bold' : ''}>{fp(i.referencePrice)}</span></td>)}</tr>
+    <tr><td className="sticky left-0 bg-white/15 backdrop-blur-sm px-4 py-3 font-bold text-[#5a6d8a]">价格区间</td>{items.map(i => <td key={i.id} className="px-4 py-3">{fp(i.priceMin)}~{fp(i.priceMax)}</td>)}</tr>
+    <tr><td className="sticky left-0 bg-white/15 backdrop-blur-sm px-4 py-3 font-bold text-[#5a6d8a]">历史均价</td>{items.map(i => <td key={i.id} className="px-4 py-3">{fp(i.averagePrice)}</td>)}</tr>
+    <tr><td className="sticky left-0 bg-white/15 backdrop-blur-sm px-4 py-3 font-bold text-[#5a6d8a]">供应商</td>{items.map(i => <td key={i.id} className="px-4 py-3">{i.supplier}</td>)}</tr>
+    <tr><td className="sticky left-0 bg-white/15 backdrop-blur-sm px-4 py-3 font-bold text-[#5a6d8a]">来源</td>{items.map(i => <td key={i.id} className="px-4 py-3">{i.priceSource}</td>)}</tr>
+    <tr><td className="sticky left-0 bg-white/15 backdrop-blur-sm px-4 py-3 font-bold text-[#5a6d8a]">有效期</td>{items.map(i => <td key={i.id} className="px-4 py-3">{fd(i.validUntil)}</td>)}</tr>
   </>;
 }
 

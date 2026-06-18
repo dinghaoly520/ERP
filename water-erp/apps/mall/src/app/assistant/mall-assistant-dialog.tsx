@@ -101,9 +101,9 @@ export function MallAssistantDialog({
       aria-modal="true"
       aria-label="水叮当"
     >
-      <div className="flex max-h-[calc(100vh-48px)] w-full max-w-[720px] flex-col overflow-hidden rounded-3xl bg-[#f7faff] shadow-[0_28px_80px_rgba(7,24,52,.28)] ring-1 ring-white/60 sm:h-[620px]">
+      <div className="flex max-h-[calc(100vh-48px)] w-full max-w-[720px] flex-col overflow-hidden rounded-3xl glass-card glass-card-blue shadow-[0_28px_80px_rgba(7,24,52,.14)] ring-1 ring-white/60 sm:h-[620px]" style={{background: 'rgba(248,251,255,0.94)', backdropFilter: 'blur(24px) saturate(1.3)', WebkitBackdropFilter: 'blur(24px) saturate(1.3)'}}>
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#e1e9f4] bg-white px-5 py-4">
+        <div className="relative z-10 flex items-center justify-between border-b border-[#e1e9f4]/60 bg-white/60 px-5 py-4">
           <div className="flex items-center gap-3">
             <MallAssistantAvatar
               size="sm"
@@ -124,7 +124,7 @@ export function MallAssistantDialog({
         </div>
 
         {/* Content */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto px-5 py-5">
           {!hasMessages ? (
             <MallAssistantWelcome context={context} onAsk={sendQuestion} />
           ) : (
@@ -135,7 +135,7 @@ export function MallAssistantDialog({
               {loading && (
                 <div className="flex items-center gap-3 text-sm font-semibold text-[#5a6d8a]">
                   <MallAssistantAvatar size="sm" expression="thinking" />
-                  <span className="rounded-2xl border border-[#e1e9f4] bg-white px-4 py-3">
+                  <span className="rounded-2xl border border-[#bfd4f4]/40 bg-[#f0f5fe]/80 backdrop-blur-sm px-4 py-3">
                     水叮当思考中…
                   </span>
                 </div>
@@ -147,14 +147,14 @@ export function MallAssistantDialog({
 
         {/* Error */}
         {error && (
-          <div className="border-t border-red-100 bg-red-50 px-5 py-2 text-xs font-semibold text-red-700">
+          <div className="relative z-10 border-t border-red-100 bg-red-50 px-5 py-2 text-xs font-semibold text-red-700">
             {error}
           </div>
         )}
 
         {/* Input */}
         <form
-          className="flex gap-3 border-t border-[#e1e9f4] bg-white p-4"
+          className="relative z-10 flex gap-3 border-t border-[#e1e9f4]/50 bg-white/60 backdrop-blur-sm p-4"
           onSubmit={(event) => {
             event.preventDefault();
             void sendQuestion(input);
