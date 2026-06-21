@@ -322,6 +322,20 @@ export default function BidEvaluatePage() {
 
   /* ── Loading / empty ── */
   if (loading) return <TableSkeleton rows={8} cols={6} />;
+  if (error && !project) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <AlertTriangle size={32} strokeWidth={1.5} className="text-[#e74c3c] mb-4" />
+        <p className="text-sm font-semibold text-[#5a6d8a] mb-4">{error}</p>
+        <button
+          onClick={loadProject}
+          className="rounded-xl bg-[#064ea2] px-4 py-2 text-xs font-bold text-white hover:bg-[#0b63ce] transition"
+        >
+          重试
+        </button>
+      </div>
+    );
+  }
   if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20">暂无项目数据</div>;
   if (!projectId) return null;
 

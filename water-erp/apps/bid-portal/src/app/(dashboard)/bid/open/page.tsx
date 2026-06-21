@@ -106,6 +106,7 @@ function StageStepper({ step }: { step: number }) {
 export default function BidOpenPage() {
   const { projectId } = useBidProjectContext();
   const [project, setProject] = useState<BidProjectDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [startOpen, setStartOpen] = useState(false);
   const [openingSubmission, setOpeningSubmission] = useState(false);
@@ -267,11 +268,25 @@ export default function BidOpenPage() {
   };
 
   // ═══ Data loading ═══
+  const loadProject = useCallback(async () => {
+    if (!projectId) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const p = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
+      setProject(p);
+    } catch (e: any) {
+      setError(e?.message || '加载项目数据失败');
+      toast.error(e?.message || '加载项目数据失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
   useEffect(() => {
     if (!projectId) return;
-    setLoading(true);
-    api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(p => { setProject(p); setLoading(false); });
-  }, [projectId]);
+    loadProject();
+  }, [projectId, loadProject]);
 
   // ═══ WebSocket ═══
   const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId ?? undefined, {
@@ -324,6 +339,20 @@ export default function BidOpenPage() {
   }, [remaining, soundEnabled, session]);
 
   if (loading) return <TableSkeleton rows={8} cols={6} />;
+  if (error && !project) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <AlertTriangle size={32} strokeWidth={1.5} className="text-[#e74c3c] mb-4" />
+        <p className="text-sm font-semibold text-[#5a6d8a] mb-4">{error}</p>
+        <button
+          onClick={loadProject}
+          className="rounded-xl bg-[#064ea2] px-4 py-2 text-xs font-bold text-white hover:bg-[#0b63ce] transition"
+        >
+          重试
+        </button>
+      </div>
+    );
+  }
   if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20 tracking-tight">暂无项目数据</div>;
   if (!projectId) return null;
 
