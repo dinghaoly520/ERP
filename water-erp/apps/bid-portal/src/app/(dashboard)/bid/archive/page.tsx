@@ -26,7 +26,7 @@ export default function BidArchivePage() {
 
   // 仅加载已归档（ARCHIVED）阶段的项目
   useEffect(() => {
-    api.get<ArchiveProject[]>('/bid/projects?stage[]=ARCHIVED')
+    api.get<ArchiveProject[]>('/bid/projects?stage=ARCHIVED')
       .then(ps => {
         setArchiveProjects(ps);
         if (ps.length > 0 && !projectId) setProjectId(ps[0].id);
@@ -77,8 +77,8 @@ export default function BidArchivePage() {
         <PageHero
           tone="green"
           icon={<Archive size={14} strokeWidth={1.5} />}
-          title="归档端 — 仅显示已归档项目"
-          description="测试标记 v2 — 确认新代码生效"
+          title="归档端"
+          description="资料归档 · 防篡改 · 统一管理"
         />
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Archive size={32} strokeWidth={1.5} className="text-[#94a3b8] mb-4" />
@@ -108,8 +108,8 @@ export default function BidArchivePage() {
       <PageHero
         tone="green"
         icon={<Archive size={14} strokeWidth={1.5} />}
-        title="归档端 — 仅显示已归档项目"
-        description={`已归档项目 ${archiveProjects.length} 个`}
+        title="归档端"
+        description="资料归档 · 防篡改 · 统一管理"
         actions={
           archiveProjects.length > 1 ? (
             <select
