@@ -55,13 +55,14 @@ export function getRegisterStatus() {
 }
 
 // 供应商列表
-export function getSupplierList(params?: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number }) {
+export function getSupplierList(params?: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt' }) {
   const query = new URLSearchParams();
   if (params?.status) query.set('status', params.status);
   if (params?.classificationId) query.set('classificationId', params.classificationId);
   if (params?.search) query.set('search', params.search);
   if (params?.page) query.set('page', String(params.page));
   if (params?.pageSize) query.set('pageSize', String(params.pageSize));
+  if (params?.sort) query.set('sort', params.sort);
   return api.get<SupplierListResponse>(`/supplier/list?${query.toString()}`);
 }
 

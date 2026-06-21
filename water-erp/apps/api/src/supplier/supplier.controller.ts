@@ -51,8 +51,9 @@ export class SupplierController {
     @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
+    @Query('sort') sort?: 'completeness' | 'createdAt',
   ) {
-    return this.supplierService.list({ status, classificationId, search, page, pageSize });
+    return this.supplierService.list({ status, classificationId, search, page, pageSize, sort });
   }
 
   // ─── 静态路由（必须在动态 :id 路由之前，否则会被吞掉）───

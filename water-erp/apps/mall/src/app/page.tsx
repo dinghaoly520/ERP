@@ -783,9 +783,9 @@ export default function MallPage() {
           </a>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-xl bg-[#f3f7fc] px-3 py-2">
+            <div className="flex items-center gap-2 rounded-xl bg-[#f3f7fc] px-3 py-1.5">
               <motion.span
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#5b9bd5] text-xs font-black text-white"
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-[#5b9bd5] text-[10px] font-black text-white"
                 whileHover={{ rotate: 5, scale: 1.1 }}
               >
                 {userInitial}
@@ -794,7 +794,7 @@ export default function MallPage() {
                 <div className="text-sm font-black text-[#334155]">{registeredName}</div>
               </div>
             </div>
-            <button onClick={handleLogout} className="rounded-xl border border-[#d5e0ef] bg-white px-3 py-2 text-sm font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c]">退出登录</button>
+            <button onClick={handleLogout} className="rounded-xl border border-[#d5e0ef] bg-white px-3 py-1.5 text-sm font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c]">退出登录</button>
           </div>
         </div>
       </motion.header>

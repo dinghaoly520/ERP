@@ -1234,7 +1234,7 @@
   {
     "id": "ref001543900",
     "catalogItemId": "cmqccwaeu000pkomtbens01ne",
-    "price": "398720.0",
+    "price": "398720",
     "recordedAt": "2026-05-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-05-12T12:00:00.000Z"
@@ -1242,7 +1242,7 @@
   {
     "id": "ref001551406",
     "catalogItemId": "cmqccwaeu000pkomtbens01ne",
-    "price": "398720.0",
+    "price": "398720",
     "recordedAt": "2026-06-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-06-12T12:00:00.000Z"
@@ -1594,7 +1594,7 @@
   {
     "id": "ref001992193",
     "catalogItemId": "cmqccwaf0000xkomtik6dbua0",
-    "price": "26430.0",
+    "price": "26430",
     "recordedAt": "2026-02-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-02-12T12:00:00.000Z"
@@ -3442,7 +3442,7 @@
   {
     "id": "ref004306881",
     "catalogItemId": "cmqccwafw001zkomtoa0mo00w",
-    "price": "166.0",
+    "price": "166",
     "recordedAt": "2026-05-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-05-12T12:00:00.000Z"
@@ -3610,7 +3610,7 @@
   {
     "id": "ref004518673",
     "catalogItemId": "cmqccwafz0023komtebq7jl2x",
-    "price": "275.0",
+    "price": "275",
     "recordedAt": "2026-02-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-02-12T12:00:00.000Z"
@@ -3754,7 +3754,7 @@
   {
     "id": "ref004698432",
     "catalogItemId": "cmqccwag10026komtqq3x0qyb",
-    "price": "2934.0",
+    "price": "2934",
     "recordedAt": "2026-02-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-02-12T12:00:00.000Z"
@@ -3898,7 +3898,7 @@
   {
     "id": "ref004874817",
     "catalogItemId": "cmq4963748komt834203735",
-    "price": "3969.0",
+    "price": "3969",
     "recordedAt": "2026-02-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-02-12T12:00:00.000Z"
@@ -3938,7 +3938,7 @@
   {
     "id": "ref004921422",
     "catalogItemId": "cmq9999560komt578861129",
-    "price": "4329.0",
+    "price": "4329",
     "recordedAt": "2026-01-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-01-12T12:00:00.000Z"
@@ -4162,7 +4162,7 @@
   {
     "id": "ref005206120",
     "catalogItemId": "cmq9936921komt562925021",
-    "price": "4255.0",
+    "price": "4255",
     "recordedAt": "2026-05-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-05-12T12:00:00.000Z"
@@ -4418,7 +4418,7 @@
   {
     "id": "ref005529394",
     "catalogItemId": "cmq4255287komt963478897",
-    "price": "503.0",
+    "price": "503",
     "recordedAt": "2026-01-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-01-12T12:00:00.000Z"
@@ -4914,7 +4914,7 @@
   {
     "id": "ref006143317",
     "catalogItemId": "cmq5264256komt494954778",
-    "price": "115.0",
+    "price": "115",
     "recordedAt": "2026-03-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-03-12T12:00:00.000Z"
@@ -5010,7 +5010,7 @@
   {
     "id": "ref006262657",
     "catalogItemId": "cmq9070013komt459162283",
-    "price": "4354.0",
+    "price": "4354",
     "recordedAt": "2026-03-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-03-12T12:00:00.000Z"
@@ -5506,7 +5506,7 @@
   {
     "id": "ref006886447",
     "catalogItemId": "cmq6171451komt250079308",
-    "price": "723.0",
+    "price": "723",
     "recordedAt": "2026-05-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-05-12T12:00:00.000Z"
@@ -5810,7 +5810,7 @@
   {
     "id": "ref007267077",
     "catalogItemId": "cmq6838228komt121778906",
-    "price": "190.0",
+    "price": "190",
     "recordedAt": "2026-01-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-01-12T12:00:00.000Z"
@@ -8458,7 +8458,7 @@
   {
     "id": "ref010575839",
     "catalogItemId": "cmq2412342komt386755721",
-    "price": "311.0",
+    "price": "311",
     "recordedAt": "2026-02-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-02-12T12:00:00.000Z"
@@ -9066,7 +9066,7 @@
   {
     "id": "ref011333623",
     "catalogItemId": "cmq9399269komt452336789",
-    "price": "5284.0",
+    "price": "5284",
     "recordedAt": "2026-06-12T12:00:00.000Z",
     "note": null,
     "createdAt": "2026-06-12T12:00:00.000Z"

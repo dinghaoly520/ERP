@@ -46,9 +46,9 @@ export function NotificationCenter() {
         onClick={() => setOpen((v) => !v)}
         aria-label={`通知${unreadCount > 0 ? `（${unreadCount} 条未读）` : ''}`}
         aria-expanded={open}
-        className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-[#e5ecf4] bg-white text-[#064ea2] transition hover:border-[#bfdbfe] hover:bg-[#eff6ff]"
+        className="relative flex h-8 w-8 items-center justify-center rounded-xl border border-[#e5ecf4] bg-white text-[#064ea2] transition hover:border-[#bfdbfe] hover:bg-[#eff6ff]"
       >
-        <Bell size={16} strokeWidth={1.8} />
+        <Bell size={15} strokeWidth={1.8} />
         {unreadCount > 0 && (
           <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#e74c3c] px-1 text-[10px] font-extrabold text-white">
             {unreadCount > 99 ? '99+' : unreadCount}

@@ -459,3 +459,10 @@ input[type="range"].range-enhanced::-webkit-slider-thumb:active {
     animation: none !important;
   }
 }
+
+/* ── Rich text editor placeholder ── */
+[data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+}
