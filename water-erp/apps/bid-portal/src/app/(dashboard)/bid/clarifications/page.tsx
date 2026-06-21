@@ -126,8 +126,7 @@ export default function BidClarificationsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white w-full max-w-[520px] rounded-2xl border border-[oklch(0.91_0.006_264)] shadow-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[oklch(0.91_0.006_264)]">
-              <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight"
-                style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+              <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">
                 发起澄清
               </h2>
               <button onClick={() => setShowForm(false)} className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.18_0.012_265)] transition-colors">
@@ -196,8 +195,7 @@ export default function BidClarificationsPage() {
       {/* Clarifications Table */}
       <SectionCard className="overflow-hidden p-0">
         <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
-          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight"
-            style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">
             澄清记录
           </h2>
         </div>

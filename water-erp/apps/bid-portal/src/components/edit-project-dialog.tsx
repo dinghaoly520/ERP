@@ -101,7 +101,6 @@ export default function EditProjectDialog({ open, project, onClose, onUpdated }:
         <div className="flex items-center justify-between px-6 py-4 border-b border-[oklch(0.91_0.006_264)]">
           <h2
             className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight"
-            style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}
           >
             编辑项目
           </h2>

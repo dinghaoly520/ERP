@@ -80,7 +80,7 @@ export default function BidArchivePage() {
       {/* Status header */}
       <SectionCard className="flex items-center gap-6">
         <div className="flex-1">
-          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">
             电子档案编号：ARCH-{project.projectCode}
           </h2>
           {(() => {

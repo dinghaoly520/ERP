@@ -25,7 +25,6 @@ export default function DecryptConfirmDialog({ open, suppliers, loading, onConfi
         <div className="px-6 py-4 border-b border-[oklch(0.91_0.006_264)] flex items-center justify-between">
           <h3
             className="text-[15px] font-semibold tracking-tight text-[oklch(0.18_0.012_265)] flex items-center gap-2"
-            style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}
           >
             <ShieldAlert size={16} className="text-[#e74c3c]" />
             确认解密

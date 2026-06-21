@@ -69,7 +69,7 @@ export default function StartOpeningDialog({ open, projectId, onClose, onStarted
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(15,18,28,0.45)' }}>
       <div className="glass-card glass-card-deeper glass-card-blue w-full max-w-md mx-4 rounded-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-[oklch(0.91_0.006_264)] flex items-center justify-between">
-          <h3 className="text-[15px] font-semibold tracking-tight text-[oklch(0.18_0.012_265)]" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+          <h3 className="text-[15px] font-semibold tracking-tight text-[oklch(0.18_0.012_265)]">
             启动开标
           </h3>
           <button onClick={onClose} className="text-[12px] text-[oklch(0.55_0.01_264)] hover:text-[oklch(0.18_0.012_265)] tracking-tight">取消</button>

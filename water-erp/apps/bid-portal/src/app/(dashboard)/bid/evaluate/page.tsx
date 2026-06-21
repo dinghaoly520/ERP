@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail, BidExpert, BidSupplier, BidScoreItem } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
@@ -157,6 +157,7 @@ function CellTooltip({ cell, supplierName, expertName, onClose }: {
 /* ═══ Page ═══ */
 export default function BidEvaluatePage() {
   const { projectId } = useBidProjectContext();
+  const [error, setError] = useState<string | null>(null);
   const [project, setProject] = useState<BidProjectEvalDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<EvalResult[]>([]);
@@ -172,12 +173,26 @@ export default function BidEvaluatePage() {
   const [revealResults, setRevealResults] = useState(false);
 
   /* ── Data loading ── */
+  const loadProject = useCallback(async () => {
+    if (!projectId) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const p = await api.get<BidProjectEvalDetail>(`/bid/projects/${projectId}`);
+      setProject(p);
+      api.get<EvalResult[]>(`/bid/projects/${projectId}/evaluation-results`).then(setResults).catch(() => setResults([]));
+    } catch (e: any) {
+      setError(e?.message || '加载评标数据失败');
+      toast.error(e?.message || '加载评标数据失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
   useEffect(() => {
     if (!projectId) return;
-    setLoading(true);
-    api.get<BidProjectEvalDetail>(`/bid/projects/${projectId}`).then(p => { setProject(p); setLoading(false); });
-    api.get<EvalResult[]>(`/bid/projects/${projectId}/evaluation-results`).then(setResults).catch(() => setResults([]));
-  }, [projectId]);
+    loadProject();
+  }, [projectId, loadProject]);
 
   /* ── WebSocket: live scoring updates ── */
   const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId ?? undefined, {
@@ -390,7 +405,7 @@ export default function BidEvaluatePage() {
                   {/* Name + specialty */}
                   <div className="flex items-center gap-2 mb-3">
                     <UserCircle size={14} strokeWidth={1.5} className="text-[oklch(0.42_0.14_260)] shrink-0" />
-                    <span className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight truncate" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+                    <span className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight truncate">
                       {expert.expertName}
                     </span>
                     {expert.major && <span className="text-[11px] text-[oklch(0.62_0.008_264)] shrink-0">{expert.major}</span>}
@@ -510,7 +525,7 @@ export default function BidEvaluatePage() {
                           <button onClick={() => setExpandedExpert(isExpanded ? null : expert.id)} disabled={!hasAnyScore}
                             className={`flex items-center gap-1.5 text-left ${hasAnyScore ? 'cursor-pointer hover:text-[oklch(0.42_0.14_260)]' : 'cursor-default'} transition-colors`}>
                             {hasAnyScore && (isExpanded ? <ChevronDown size={12} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)] shrink-0" /> : <ChevronRight size={12} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)] shrink-0" />)}
-                            <span className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>{expert.expertName}</span>
+                            <span className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">{expert.expertName}</span>
                           </button>
                         </td>
                         {suppliers.map(s => {
@@ -557,7 +572,7 @@ export default function BidEvaluatePage() {
                 return (
                   <div className="border-t border-[oklch(0.91_0.006_264)]">
                     <div className="p-5 bg-[oklch(0.98_0.005_264)]">
-                      <div className="text-[12px] font-semibold text-[oklch(0.42_0.14_260)] mb-3 tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+                      <div className="text-[12px] font-semibold text-[oklch(0.42_0.14_260)] mb-3 tracking-tight">
                         {expert.expertName} 详细评分
                       </div>
                       <div className="grid grid-cols-2 gap-4">
@@ -682,7 +697,7 @@ export default function BidEvaluatePage() {
         <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+              <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">
                 评标结果汇总
               </h2>
               <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">
