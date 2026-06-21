@@ -6,7 +6,8 @@ import type { BidProjectDetail, BidClarification } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
-import { MessageSquare, Send, Plus, X, AlertTriangle } from 'lucide-react';
+import { MessageSquare, Plus, AlertTriangle } from 'lucide-react';
+import Dialog from '@/components/dialog';
 import { PageHero, SectionCard } from '@water-erp/ui';
 
 export default function BidClarificationsPage() {
@@ -121,76 +122,68 @@ export default function BidClarificationsPage() {
         </button>
       </div>
 
-      {/* Create Form Modal */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-[520px] rounded-2xl border border-[oklch(0.91_0.006_264)] shadow-sm">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[oklch(0.91_0.006_264)]">
-              <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">
-                发起澄清
-              </h2>
-              <button onClick={() => setShowForm(false)} className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.18_0.012_265)] transition-colors">
-                <X size={16} strokeWidth={1.5} />
-              </button>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              <div>
-                <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
-                  类型 <span className="text-[oklch(0.50_0.18_22)]">*</span>
-                </label>
-                <select value={clarType} onChange={e => setClarType(e.target.value)}
-                  className="workbench-input w-full text-[13px]">
-                  <option value="clarification">澄清（招标人发起）</option>
-                  <option value="question">答疑（回复供应商提问）</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
-                  发起人 <span className="text-[oklch(0.50_0.18_22)]">*</span>
-                </label>
-                <input value={issuer} onChange={e => setIssuer(e.target.value)}
-                  placeholder="例：评标委员会"
-                  className="workbench-input w-full text-[13px] placeholder:text-[oklch(0.72_0.008_264)]" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
-                  供应商 <span className="text-[oklch(0.50_0.18_22)]">*</span>
-                </label>
-                <select value={supplierName} onChange={e => {
-                    const sel = project.suppliers.find(s => s.supplierName === e.target.value);
-                    setSupplierName(e.target.value);
-                    setSelectedSupplierId(sel?.supplierId || '');
-                  }}
-                  className="workbench-input w-full text-[13px]">
-                  <option value="">选择供应商</option>
-                  {project.suppliers.map(s => (
-                    <option key={s.id} value={s.supplierName}>{s.supplierName}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
-                  澄清问题 <span className="text-[oklch(0.50_0.18_22)]">*</span>
-                </label>
-                <textarea value={question} onChange={e => setQuestion(e.target.value)} rows={4}
-                  placeholder="请输入需要供应商澄清的问题…"
-                  className="workbench-input w-full text-[13px] resize-none placeholder:text-[oklch(0.72_0.008_264)]" />
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-[oklch(0.91_0.006_264)] flex items-center justify-end gap-3">
-              <button onClick={() => setShowForm(false)}
-                className="px-4 py-2 rounded-xl text-[12px] font-semibold text-[oklch(0.55_0.01_264)] tracking-tight hover:text-[oklch(0.18_0.012_265)] transition-colors">
-                取消
-              </button>
-              <button onClick={handleCreate} disabled={submitting}
-                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50">
-                <Send size={13} strokeWidth={2} />
-                {submitting ? '发送中…' : '发起澄清'}
-              </button>
-            </div>
+      {/* Create Form Dialog */}
+      <Dialog
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title="发起澄清"
+        width="max-w-[520px]"
+        footer={
+          <>
+            <button onClick={() => setShowForm(false)} className="rounded-xl border border-[#dce6f3] px-4 py-2 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">
+              取消
+            </button>
+            <button onClick={handleCreate} disabled={submitting} className="rounded-xl bg-[#064ea2] px-5 py-2 text-xs font-bold text-white hover:bg-[#0b63ce] transition disabled:opacity-40 disabled:cursor-not-allowed">
+              {submitting ? '发送中…' : '发起澄清'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-[#5a6d8a] uppercase tracking-wider mb-1.5">
+              类型 <span className="text-[oklch(0.50_0.18_22)]">*</span>
+            </label>
+            <select value={clarType} onChange={e => setClarType(e.target.value)}
+              className="workbench-input w-full text-[13px]">
+              <option value="clarification">澄清（招标人发起）</option>
+              <option value="question">答疑（回复供应商提问）</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-[#5a6d8a] uppercase tracking-wider mb-1.5">
+              发起人 <span className="text-[oklch(0.50_0.18_22)]">*</span>
+            </label>
+            <input value={issuer} onChange={e => setIssuer(e.target.value)}
+              placeholder="例：评标委员会"
+              className="workbench-input w-full text-[13px] placeholder:text-[oklch(0.72_0.008_264)]" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-[#5a6d8a] uppercase tracking-wider mb-1.5">
+              供应商 <span className="text-[oklch(0.50_0.18_22)]">*</span>
+            </label>
+            <select value={supplierName} onChange={e => {
+                const sel = project.suppliers.find(s => s.supplierName === e.target.value);
+                setSupplierName(e.target.value);
+                setSelectedSupplierId(sel?.supplierId || '');
+              }}
+              className="workbench-input w-full text-[13px]">
+              <option value="">选择供应商</option>
+              {project.suppliers.map(s => (
+                <option key={s.id} value={s.supplierName}>{s.supplierName}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-[#5a6d8a] uppercase tracking-wider mb-1.5">
+              澄清问题 <span className="text-[oklch(0.50_0.18_22)]">*</span>
+            </label>
+            <textarea value={question} onChange={e => setQuestion(e.target.value)} rows={4}
+              placeholder="请输入需要供应商澄清的问题…"
+              className="workbench-input w-full text-[13px] resize-none placeholder:text-[oklch(0.72_0.008_264)]" />
           </div>
         </div>
-      )}
+      </Dialog>
 
       {/* Clarifications Table */}
       <SectionCard className="overflow-hidden p-0">

@@ -9,6 +9,7 @@ import {
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { PageHero, SectionCard } from '@water-erp/ui';
 import { TableSkeleton } from '@/components/skeleton';
+import Dialog from '@/components/dialog';
 import { ListChecks, Plus, Pencil, Trash2, Check, X, FileSpreadsheet, Lock } from 'lucide-react';
 import { CATEGORY_LABEL, CATEGORY_COLOR, STAGE_LABEL } from '@water-erp/shared';
 import { toast } from 'sonner';
@@ -303,30 +304,26 @@ export default function BidStandardPage() {
       </SectionCard>
 
       {/* Delete confirmation dialog */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="glass-card w-full max-w-[360px] rounded-2xl p-6 shadow-lg">
-            <h3 className="text-sm font-bold text-[#18243a] mb-2">确认删除</h3>
-            <p className="text-xs text-[#5a6d8a] mb-4">
-              确定要删除评分项「{deleteConfirm.name}」？此操作不可撤销。
-            </p>
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="rounded-xl px-4 py-2 text-xs font-bold text-[#5a6d8a] hover:text-[#18243a] transition"
-              >
-                取消
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="rounded-xl px-4 py-2 text-xs font-bold bg-[#e74c3c] text-white hover:bg-[#dc2626] transition"
-              >
-                确认删除
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Dialog
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        title="确认删除"
+        width="max-w-sm"
+        footer={
+          <>
+            <button onClick={() => setDeleteConfirm(null)} className="rounded-xl border border-[#dce6f3] px-4 py-2 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">
+              取消
+            </button>
+            <button onClick={confirmDelete} className="rounded-xl bg-[#e74c3c] px-4 py-2 text-xs font-bold text-white hover:bg-[#c0392b] transition">
+              确认删除
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-[#5a6d8a]">
+          确定要删除评分项「{deleteConfirm?.name}」吗？此操作不可撤销。
+        </p>
+      </Dialog>
     </div>
   );
 }
