@@ -30,13 +30,13 @@ export const workbenchTheme = {
 export type WorkbenchTone = 'blue' | 'cyan' | 'green' | 'orange' | 'red' | 'purple' | 'gray';
 
 export const statusTone: Record<WorkbenchTone, { color: string; bg: string; border: string; gradient: string }> = {
-  blue: { color: '#064ea2', bg: '#eff6ff', border: '#bfdbfe', gradient: 'from-[#064ea2] to-[#0b63ce]' },
-  cyan: { color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc', gradient: 'from-[#0891b2] to-[#06b6d4]' },
-  green: { color: '#11a874', bg: '#f0fdf4', border: '#bbf7d0', gradient: 'from-[#0f9f6e] to-[#22c55e]' },
-  orange: { color: '#f5a623', bg: '#fff7ed', border: '#fed7aa', gradient: 'from-[#f59e0b] to-[#fb923c]' },
-  red: { color: '#e74c3c', bg: '#fef2f2', border: '#fecaca', gradient: 'from-[#dc2626] to-[#f97316]' },
-  purple: { color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', gradient: 'from-[#7c3aed] to-[#a78bfa]' },
-  gray: { color: '#5a6d8a', bg: '#f8fafc', border: '#e5ecf4', gradient: 'from-[#64748b] to-[#94a3b8]' },
+  blue: { color: '#064ea2', bg: '#eff6ff', border: '#dbe6f3', gradient: 'from-[#064ea2] to-[#0b63ce]' },
+  cyan: { color: '#0891b2', bg: '#ecfeff', border: '#dbe6f3', gradient: 'from-[#0891b2] to-[#06b6d4]' },
+  green: { color: '#11a874', bg: '#f0fdf4', border: '#dbe6f3', gradient: 'from-[#0f9f6e] to-[#22c55e]' },
+  orange: { color: '#f5a623', bg: '#fff7ed', border: '#dbe6f3', gradient: 'from-[#f59e0b] to-[#fb923c]' },
+  red: { color: '#e74c3c', bg: '#fef2f2', border: '#dbe6f3', gradient: 'from-[#dc2626] to-[#f97316]' },
+  purple: { color: '#7c3aed', bg: '#f5f3ff', border: '#dbe6f3', gradient: 'from-[#7c3aed] to-[#a78bfa]' },
+  gray: { color: '#5a6d8a', bg: '#f8fafc', border: '#dbe6f3', gradient: 'from-[#64748b] to-[#94a3b8]' },
 };
 
 export function numberOrZero(value: number | null | undefined): number {
