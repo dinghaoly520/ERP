@@ -147,9 +147,9 @@ export default function BidArchivePage() {
           <div className="px-6 py-4 border-b border-[#e5ecf4]">
             <h2 className="text-sm font-black text-[#18243a]">归档资料清单</h2>
           </div>
-          <table className="w-full text-[13px]">
+          <table className="workbench-table">
             <thead>
-              <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
+              <tr className="text-[oklch(0.55_0.01_264)]">
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">资料名称</th>
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">责任端</th>
                 <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">状态</th>
@@ -164,7 +164,7 @@ export default function BidArchivePage() {
                 const s = STATUS_COLOR[a.status] || { label: a.status, color: '#94a3b8' };
                 const digest = a.hashDigest;
                 return (
-                  <tr key={a.id} className="border-b border-[oklch(0.94_0.004_264)]">
+                  <tr key={a.id}>
                     <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">{a.name}</td>
                     <td className="px-5 py-3 text-[12px] text-[oklch(0.55_0.01_264)]">{a.ownerRole}</td>
                     <td className="px-5 py-3"><span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{ color: s.color, backgroundColor: `${s.color}18` }}>{s.label}</span></td>

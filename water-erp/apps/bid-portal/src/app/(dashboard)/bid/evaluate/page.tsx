@@ -488,9 +488,9 @@ export default function BidEvaluatePage() {
             <div className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无专家数据</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-[13px]">
+              <table className="workbench-table">
                 <thead>
-                  <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
+                  <tr className="text-[oklch(0.55_0.01_264)]">
                     <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">专家</th>
                     {suppliers.map(s => {
                       const scores = experts.map(e => {
@@ -516,7 +516,7 @@ export default function BidEvaluatePage() {
                     const row = expertMatrix.get(expert.id);
                     const hasAnyScore = Array.from(row?.values() ?? []).some(c => c.scoredCount > 0);
                     return (
-                      <tr key={expert.id} className="border-b border-[oklch(0.94_0.004_264)]">
+                      <tr key={expert.id}>
                         <td className="px-5 py-3">
                           <button onClick={() => setExpandedExpert(isExpanded ? null : expert.id)} disabled={!hasAnyScore}
                             className={`flex items-center gap-1.5 text-left ${hasAnyScore ? 'cursor-pointer hover:text-[oklch(0.42_0.14_260)]' : 'cursor-default'} transition-colors`}>
@@ -611,9 +611,9 @@ export default function BidEvaluatePage() {
             <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">按评审类别汇总平均分，作为排名依据。悬停分类得分查看专家明细。</p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
+            <table className="workbench-table">
               <thead>
-                <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
+                <tr className="text-[oklch(0.55_0.01_264)]">
                   <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">排名</th>
                   <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">投标单位</th>
                   {CATEGORY_ORDER.map(cat => (
@@ -635,7 +635,7 @@ export default function BidEvaluatePage() {
                   }
                   const overallAvg = overallMax > 0 ? ((overallSum / overallMax) * 100).toFixed(1) : null;
                   return (
-                    <tr key={supplier.id} className="border-b border-[oklch(0.94_0.004_264)] hover:bg-[oklch(0.992_0.003_264)] transition-colors">
+                    <tr key={supplier.id} className="transition-colors">
                       <td className="px-5 py-3">
                         {rank != null ? (
                           <span className="font-mono font-bold text-[oklch(0.18_0.012_265)] transition-all duration-300">#{rank}</span>
@@ -736,9 +736,9 @@ export default function BidEvaluatePage() {
             </div>
           )}
         </div>
-        <table className="w-full text-[13px]">
+        <table className="workbench-table">
           <thead>
-            <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
+            <tr className="text-[oklch(0.55_0.01_264)]">
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">排名</th>
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">投标单位</th>
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">总分</th>
@@ -751,7 +751,7 @@ export default function BidEvaluatePage() {
               <tr><td colSpan={5} className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂未生成评标结果</td></tr>
             ) : (
               results.map((r, idx) => (
-                <tr key={r.id} className={`border-b border-[oklch(0.94_0.004_264)] ${revealResults ? 'animate-[count-up_400ms_ease-out]' : ''}`}
+                <tr key={r.id} className={revealResults ? 'animate-[count-up_400ms_ease-out]' : ''}
                   style={revealResults ? { animationDelay: `${idx * 120}ms`, animationFillMode: 'backwards' } : undefined}>
                   <td className="px-5 py-3 font-mono font-bold text-[oklch(0.18_0.012_265)]">{r.rank}</td>
                   <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">{r.supplierName}</td>

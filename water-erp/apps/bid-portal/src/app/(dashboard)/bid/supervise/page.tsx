@@ -248,9 +248,9 @@ export default function BidSupervisePage() {
             </button>
           )}
         </div>
-        <table className="w-full text-[13px]">
+        <table className="workbench-table">
           <thead>
-            <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
+            <tr className="text-[oklch(0.55_0.01_264)]">
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">时间</th>
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">角色</th>
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">对象</th>
@@ -261,7 +261,7 @@ export default function BidSupervisePage() {
           </thead>
           <tbody>
             {supervisionLogs.map(log => (
-              <tr key={log.id} className="border-b border-[oklch(0.94_0.004_264)]">
+              <tr key={log.id}>
                 <td className="px-5 py-3 text-[12px] text-[oklch(0.55_0.01_264)] font-mono">{new Date(log.time).toLocaleString('zh-CN')}</td>
                 <td className="px-5 py-3 text-[12px]">{log.role}</td>
                 <td className="px-5 py-3 text-[12px]">{log.target}</td>

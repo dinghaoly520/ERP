@@ -445,9 +445,9 @@ export default function BidOpenPage() {
           </div>
         )}
 
-        <table className="w-full text-[13px]">
+        <table className="workbench-table">
           <thead>
-            <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
+            <tr className="text-[oklch(0.55_0.01_264)]">
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">投标单位</th>
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">回执编号</th>
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">密文状态</th>
@@ -465,7 +465,7 @@ export default function BidOpenPage() {
               const isDanger = s.decryptStatus === 'DANGER';
               const isDecrypting = decrypting.has(s.id);
               return (
-                <tr key={s.id} className={`border-b border-[oklch(0.94_0.004_264)] hover:bg-[oklch(0.992_0.003_264)] transition-all ${
+                <tr key={s.id} className={`transition-all ${
                   isSuccess ? 'animate-[flash_500ms_ease-out]' : isDanger ? 'animate-[shake_300ms_ease-out]' : ''
                 }`}>
                   <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)] relative">
@@ -527,9 +527,9 @@ export default function BidOpenPage() {
             {sortedRecords.length} 条 · 异议先行
           </span>
         </div>
-        <table className="w-full text-[13px]">
+        <table className="workbench-table">
           <thead>
-            <tr className="border-b border-[oklch(0.91_0.006_264)] text-left text-[oklch(0.55_0.01_264)]">
+            <tr className="text-[oklch(0.55_0.01_264)]">
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">供应商</th>
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">报价</th>
               <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">工期</th>
@@ -548,8 +548,8 @@ export default function BidOpenPage() {
               const disputeOpen = inlineDispute === r.id;
               return (
                 <React.Fragment key={r.id}>
-                  <tr className={`border-b border-[oklch(0.94_0.004_264)] align-top transition-colors ${
-                    isDisputed ? 'border-l-4 border-l-[#e74c3c] bg-[#fef9f9]' : 'hover:bg-[oklch(0.992_0.003_264)]'
+                  <tr className={`align-top transition-colors ${
+                    isDisputed ? 'border-l-4 border-l-[#e74c3c] bg-[#fef9f9]' : ''
                   }`}>
                     <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">
                       {r.supplierName}
