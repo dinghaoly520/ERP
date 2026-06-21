@@ -8,7 +8,7 @@ import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import { STATUS_COLOR } from '@water-erp/shared';
 import { Archive, CheckCircle, AlertTriangle, Package, Download } from 'lucide-react';
-import { PageHero, SectionCard } from '@water-erp/ui';
+import { SectionCard } from '@water-erp/ui';
 
 interface ArchiveProject {
   id: string;
@@ -73,18 +73,10 @@ export default function BidArchivePage() {
   // 无已归档项目
   if (!loading && !error && archiveProjects.length === 0) {
     return (
-      <div className="space-y-6">
-        <PageHero
-          tone="green"
-          icon={<Archive size={14} strokeWidth={1.5} />}
-          title="归档端"
-          description="资料归档 · 防篡改 · 统一管理"
-        />
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Archive size={32} strokeWidth={1.5} className="text-[#94a3b8] mb-4" />
-          <p className="text-sm font-semibold text-[#5a6d8a]">暂无已归档项目</p>
-          <p className="text-xs text-[#8a96aa] mt-1">项目评标完成并归档后将在此显示</p>
-        </div>
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <Archive size={32} strokeWidth={1.5} className="text-[#94a3b8] mb-4" />
+        <p className="text-sm font-semibold text-[#5a6d8a]">暂无已归档项目</p>
+        <p className="text-xs text-[#8a96aa] mt-1">项目评标完成并归档后将在此显示</p>
       </div>
     );
   }
@@ -105,27 +97,24 @@ export default function BidArchivePage() {
 
   return (
     <div className="space-y-6">
-      <PageHero
-        tone="green"
-        icon={<Archive size={14} strokeWidth={1.5} />}
-        title="归档端"
-        description="资料归档 · 防篡改 · 统一管理"
-        actions={
-          archiveProjects.length > 1 ? (
-            <select
-              value={projectId}
-              onChange={e => setProjectId(e.target.value)}
-              className="px-3 py-2 border border-[#e8f0fa] rounded-lg text-sm focus:outline-none focus:border-[#064ea2] bg-white min-w-[280px]"
-            >
-              {archiveProjects.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.projectCode} — {p.name}
-                </option>
-              ))}
-            </select>
-          ) : null
-        }
-      />
+      {/* 项目选择器 */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Archive size={18} strokeWidth={1.5} className="text-[#064ea2]" />
+          <span className="text-sm font-semibold text-[#5a6d8a]">归档项目</span>
+        </div>
+        <select
+          value={projectId}
+          onChange={e => setProjectId(e.target.value)}
+          className="px-3 py-2 border border-[#e8f0fa] rounded-lg text-sm focus:outline-none focus:border-[#064ea2] bg-white min-w-[280px]"
+        >
+          {archiveProjects.map(p => (
+            <option key={p.id} value={p.id}>
+              {p.projectCode} — {p.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Status header */}
       <SectionCard className="flex items-center gap-6">
