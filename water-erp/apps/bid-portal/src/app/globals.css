@@ -55,20 +55,28 @@ body {
   -webkit-backdrop-filter: blur(44px) saturate(1.12);
 }
 
-/* ─── Input — crisp bordered field ─── */
+/* ─── Input — glass-matching field ─── */
 .workbench-input {
-  border: 1px solid #dbe6f3;
+  border: 1px solid rgba(219, 230, 243, 0.7);
   border-radius: 0.75rem;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(6px);
   padding: 0.625rem 0.75rem;
   color: #18243a;
   outline: none;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  font-size: 0.8125rem;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.workbench-input:hover {
+  border-color: rgba(11, 99, 206, 0.25);
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .workbench-input:focus {
   border-color: #0b63ce;
-  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.12);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.10);
 }
 
 /* ─── Table — industrial data display ─── */
