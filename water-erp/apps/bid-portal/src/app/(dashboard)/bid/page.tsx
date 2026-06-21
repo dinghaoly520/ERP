@@ -200,11 +200,7 @@ export default function BidDashboard() {
                   </div>
                 </button>
                 {i < 4 && (
-                  <div className="flex-shrink-0 mx-0.5 text-[#cbd5e1]">
-                    <svg width="16" height="16" viewBox="0 0 16 16">
-                      <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </div>
+                  <ChevronRight size={14} strokeWidth={1.5} className="flex-shrink-0 text-[#cbd5e1]" />
                 )}
               </div>
             );
