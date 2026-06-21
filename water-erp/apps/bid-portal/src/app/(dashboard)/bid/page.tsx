@@ -9,6 +9,7 @@ import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
 import { Plus, Search, Pencil, ChevronDown, ChevronRight, AlertTriangle, Clock, Users, UserCheck } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 import { SectionCard, MetricCard, DataToolbar } from '@water-erp/ui';
+import { TableSkeleton } from '@/components/skeleton';
 import CreateProjectDialog from '@/components/create-project-dialog';
 import EditProjectDialog from '@/components/edit-project-dialog';
 
@@ -249,10 +250,10 @@ export default function BidDashboard() {
           className="workbench-input cursor-pointer"
         >
           <option value="">全部状态</option>
-          <option value="ready">🟢 就绪</option>
-          <option value="partial">🟡 部分就绪</option>
-          <option value="not-ready">🔴 未就绪</option>
-          <option value="archived">⚪ 已归档</option>
+          <option value="ready">● 就绪</option>
+          <option value="partial">● 部分就绪</option>
+          <option value="not-ready">● 未就绪</option>
+          <option value="archived">● 已归档</option>
         </select>
         <button
           onClick={() => setShowCreate(true)}
@@ -267,13 +268,7 @@ export default function BidDashboard() {
       <SectionCard title="项目状态" className="overflow-hidden p-0">
         <div className="overflow-x-auto">
           {loading ? (
-            <div className="p-5 space-y-3">
-              {/* Skeleton table */}
-              <div className="h-8 bg-[#f3f7fc] rounded" />
-              {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="h-11 bg-[#f8fafc] rounded animate-pulse" />
-              ))}
-            </div>
+            <TableSkeleton rows={8} cols={8} />
           ) : filtered.length === 0 ? (
             <div className="py-16 text-center space-y-3">
               <p className="text-sm text-[#8a96aa]">暂无匹配的项目</p>
