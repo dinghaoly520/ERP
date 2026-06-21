@@ -56,7 +56,7 @@ function SupplierApprovalPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getSupplierList({ status: tab, page, pageSize });
+      const res = await getSupplierList({ status: tab, page, pageSize, sort: 'completeness' });
       setData(res);
     } catch { /* empty */ }
     setLoading(false);

@@ -7,7 +7,7 @@ import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualificati
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification, SupplierClassification } from '@/lib/types';
 import { AlertBanner, type AlertSeverity, Breadcrumb } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
-import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Clock, Calendar, Award, FileText } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Clock, Calendar, Award, FileText, User, MapPin, Phone, Mail, Hash } from 'lucide-react';
 
 type TabKey = 'info' | 'contacts' | 'qualifications' | 'evaluations' | 'changes';
 
@@ -176,6 +176,7 @@ export default function SupplierDetailPage() {
 
   const st = statusColor[supplier.status] || { label: supplier.status, color: '#999', bg: '#99918' };
   const isPending = supplier.status === 'PENDING' || supplier.status === 'RETURNED';
+  const isRejected = supplier.status === 'REJECTED';
   const daysSinceReg = Math.floor((Date.now() - new Date(supplier.createdAt).getTime()) / (1000 * 60 * 60 * 24));
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
@@ -207,30 +208,63 @@ export default function SupplierDetailPage() {
     expired: qualifications.filter(q => getQualStatus(q).label === '已过期').length,
   };
 
+  // ─── 评估等级分布 ───
+  const evalLevelCounts = { A: 0, B: 0, C: 0, D: 0 };
+  evaluations.forEach(e => { if (e.level in evalLevelCounts) evalLevelCounts[e.level as keyof typeof evalLevelCounts]++; });
+
+  const primaryContact = supplier.contacts?.find(c => c.isPrimary);
+
   return (
     <div className={isPending ? 'pb-24' : ''}>
       <Breadcrumb items={[{ label: '供应商库', path: '/supplier/repository' }, { label: supplier?.name || '详情' }]} />
 
-      {/* ═══ 顶部横幅（根据状态改变颜色）═══ */}
-      <div className={`rounded-xl p-5 mb-6 text-white flex items-center gap-5 ${
+      {/* ═══════════════════════════════════════════════════
+         顶部横幅 — 仅核心识别信息（详细字段移至基本信息Tab）
+         ═══════════════════════════════════════════════════ */}
+      <div className={`rounded-xl p-5 mb-5 flex items-start gap-5 ${
         isPending ? 'bg-gradient-to-r from-[#f5a623] to-[#e67e22]' :
-        supplier.status === 'REJECTED' ? 'bg-gradient-to-r from-[#e74c3c] to-[#c0392b]' :
+        isRejected ? 'bg-gradient-to-r from-[#e74c3c] to-[#c0392b]' :
         'bg-gradient-to-r from-[#064ea2] to-[#0891b2]'
       }`}>
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 flex-shrink-0 text-2xl font-black">{supplier.name[0]}</div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold">{supplier.name}</h1>
-            <span className="px-2.5 py-1 rounded text-xs font-semibold border border-white/30" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>{st.label}</span>
-          </div>
-          <div className="flex items-center gap-4 mt-1 text-sm text-white/70 flex-wrap">
-            <span>信用代码：{supplier.creditCode || '—'}</span>
-            {supplier.classification && <><span>·</span><span>分类：{supplier.classification.name}</span></>}
-            {avgScore && <><span>·</span><span>综合评分：{avgScore}</span></>}
-            <span>·</span><span>注册 {daysSinceReg} 天</span>
+
+        {/* 左侧：首字母 + 核心信息 + 原因（如适用） */}
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/20 text-2xl font-black">{supplier.name[0]}</div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-xl font-bold text-white">{supplier.name}</h1>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border border-white/30 bg-white/15 text-white">{st.label}</span>
+              {supplier.user?.isActive !== undefined && (
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${supplier.user.isActive ? 'bg-white/15 text-white border border-white/25' : 'bg-red-400/30 text-red-100 border border-red-300/30'}`}>
+                  {supplier.user.isActive ? '账户已激活' : '账户未激活'}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-white/65 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+              <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
+              {supplier.classification && <><span className="opacity-40">·</span><span>{supplier.classification.name}</span></>}
+              {avgScore && <><span className="opacity-40">·</span><span>综合评分 {avgScore}</span></>}
+              <span className="opacity-40">·</span><span>注册 {daysSinceReg} 天</span>
+            </p>
+
+            {/* 退回/不通过原因 — 内联到 banner，不单独占用卡片 */}
+            {supplier.returnReason && supplier.status === 'RETURNED' && (
+              <div className="mt-2 flex items-start gap-1.5 text-sm">
+                <RotateCcw size={13} className="mt-0.5 flex-shrink-0 text-white/70" />
+                <span className="text-white/85"><strong>退回原因：</strong>{supplier.returnReason}</span>
+              </div>
+            )}
+            {supplier.rejectReason && (
+              <div className="mt-2 flex items-start gap-1.5 text-sm">
+                <XCircle size={13} className="mt-0.5 flex-shrink-0 text-white/70" />
+                <span className="text-white/85"><strong>不通过原因：</strong>{supplier.rejectReason}</span>
+              </div>
+            )}
           </div>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+
+        {/* 右侧操作 */}
+        <div className="flex items-center gap-2 flex-shrink-0">
           {supplier.status === 'APPROVED' && (
             <>
               <button onClick={() => { setSelectedClassId(supplier.classificationId || ''); setClassModal(true); }} className="btn-press px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-semibold hover:bg-white/20 transition">分配分类</button>
@@ -244,97 +278,106 @@ export default function SupplierDetailPage() {
 
       <div className="mb-4"><AlertBanner items={alertItems} /></div>
 
-      {/* ═══ 注册审核摘要（仅 PENDING/RETURNED）═══ */}
+      {/* ═══════════════════════════════════════════════════
+         审批进度卡片 — 合并原「审核摘要」+「状态时间线」+ 资质速览
+         仅 PENDING / RETURNED 显示
+         ═══════════════════════════════════════════════════ */}
       {isPending && (
-        <div className="glass-card glass-card-lighter card-enter mb-6 rounded-2xl">
-          <div className="flex items-center gap-2 border-b border-[#eef3f8]/60 px-5 py-3">
-            <FileCheck size={14} className="text-[#f5a623]" />
-            <span className="text-sm font-extrabold text-[#18243a]">注册审核摘要</span>
-            {supplier.status === 'RETURNED' && supplier.returnReason && (
-              <span className="ml-auto rounded-full bg-[#f5a62310] px-2.5 py-0.5 text-xs font-bold text-[#f5a623]">退回原因：{supplier.returnReason}</span>
+        <div className="glass-card glass-card-lighter card-enter mb-6 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <FileCheck size={15} className="text-[#f5a623]" />
+            <span className="text-sm font-extrabold text-[#18243a]">审批进度</span>
+            {supplier.status === 'RETURNED' && (
+              <span className="ml-auto rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-[11px] font-bold text-[#b45309]">补正中</span>
+            )}
+            {supplier.status === 'PENDING' && (
+              <span className="ml-auto rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-[11px] font-bold text-[#b45309]">待审核</span>
             )}
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-5">
-            {[
-              { icon: Building2, label: '企业类型', value: supplier.enterpriseType },
-              { icon: ShieldCheck, label: '法定代表人', value: supplier.legalPerson },
-              { icon: Calendar, label: '注册申请时间', value: new Date(supplier.createdAt).toLocaleDateString('zh-CN') },
-              { icon: Award, label: '提交资质', value: `${qualifications.length} 份材料` },
-            ].map(item => (
-              <div key={item.label} className="flex items-start gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f8fafc] flex-shrink-0"><item.icon size={14} className="text-[#5a6d8a]" /></span>
-                <div><p className="text-xs text-[#8a96aa]">{item.label}</p><p className="text-sm font-bold text-[#18243a]">{item.value}</p></div>
-              </div>
-            ))}
-          </div>
-          {/* 资质速览标签 */}
-          {qualifications.length > 0 && (
-            <div className="border-t border-[#eef3f8] px-5 py-3">
-              <p className="text-xs font-bold text-[#5a6d8a] mb-2">资质清单</p>
-              <div className="flex flex-wrap gap-2">
-                {qualifications.map((q) => {
-                  const qs = getQualStatus(q);
-                  return (
-                    <span key={q.id} className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5ecf4] bg-[#f8fafc] pl-2 pr-2.5 py-1">
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: qs.color }} />
-                      <span className="text-xs font-semibold text-[#18243a]">{q.name}</span>
-                    </span>
-                  );
-                })}
+
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+            {/* 左：时间线 */}
+            <div className="lg:col-span-2 space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="flex flex-col items-center pt-1.5">
+                  <div className="w-3 h-3 rounded-full bg-[#11a874] ring-2 ring-[#11a87420]" />
+                  <div className="w-0.5 h-9 bg-[#e5ecf4]" />
+                  <div className="w-3 h-3 rounded-full ring-2" style={{ backgroundColor: supplier.status === 'RETURNED' ? '#e67e22' : '#f5a623', boxShadow: `0 0 0 2px ${supplier.status === 'RETURNED' ? '#e67e2220' : '#f5a62320'}` }} />
+                </div>
+                <div className="space-y-3 flex-1 pb-1">
+                  <div>
+                    <p className="text-sm font-semibold text-[#18243a]">供应商注册申请</p>
+                    <p className="text-xs text-[#8a96aa] mt-0.5">{new Date(supplier.createdAt).toLocaleDateString('zh-CN')} · 提交 {qualifications.length} 份资质材料</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: supplier.status === 'RETURNED' ? '#e67e22' : '#f5a623' }}>
+                      {supplier.status === 'RETURNED' ? '退回补正' : '等待审核'}
+                    </p>
+                    <p className="text-xs text-[#8a96aa] mt-0.5">
+                      {supplier.status === 'RETURNED'
+                        ? `${new Date(supplier.updatedAt).toLocaleDateString('zh-CN')} 退回 · ${supplier.returnReason || '需补正材料后重新提交'}`
+                        : '采购管理员审核中'}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
-          )}
+
+            {/* 中：关键摘要 */}
+            <div className="space-y-2.5">
+              {[
+                { icon: Building2, label: '企业类型', value: supplier.enterpriseType },
+                { icon: ShieldCheck, label: '法定代表人', value: supplier.legalPerson },
+                { icon: MapPin, label: '注册地址', value: supplier.registeredAddress || '未登记' },
+              ].map(item => (
+                <div key={item.label} className="flex items-center gap-2">
+                  <item.icon size={13} className="text-[#8a96aa] flex-shrink-0" />
+                  <span className="text-xs text-[#8a96aa]">{item.label}：</span>
+                  <span className="text-xs font-semibold text-[#18243a] truncate">{item.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* 右：联系人与账户 */}
+            <div className="space-y-2.5">
+              {((
+                [primaryContact && { icon: User, label: '主要联系人', value: `${primaryContact.name}${primaryContact.phone ? ' · ' + primaryContact.phone : ''}` },
+                { icon: Mail, label: '注册邮箱', value: supplier.user?.email || '未登记' },
+                { icon: Calendar, label: '用户名', value: supplier.user?.username || '—' },
+              ] as { icon: React.ComponentType<{ size?: number }>; label: string; value: string }[]).filter(Boolean).map(item => (
+                <div key={item.label} className="flex items-center gap-2">
+                  <span className="text-[#8a96aa] flex-shrink-0"><item.icon size={13} /></span>
+                  <span className="text-xs text-[#8a96aa]">{item.label}：</span>
+                  <span className="text-xs font-semibold text-[#18243a] truncate">{item.value}</span>
+                </div>
+              )))}
+            </div>
+
+            {/* 边缘：资质速览（精简为计数条） */}
+            <div className="flex items-start gap-4">
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold text-[#5a6d8a] uppercase tracking-wider">资质概览</p>
+                {[
+                  { label: '总资质', value: qualStats.total, color: '#064ea2' },
+                  { label: '有效', value: qualStats.valid, color: '#11a874' },
+                  { label: '即将到期', value: qualStats.expiring, color: '#f5a623' },
+                  { label: '已过期', value: qualStats.expired, color: '#e74c3c' },
+                ].map(s => (
+                  <div key={s.label} className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
+                    <span className="text-[11px] text-[#8a96aa]">{s.label}</span>
+                    <span className="text-sm font-extrabold tabular-nums" style={{ color: s.color }}>{s.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ═══ 状态时间线（仅 PENDING/RETURNED）═══ */}
-      {isPending && (
-        <div className="glass-card glass-card-lighter card-enter mb-6 rounded-2xl px-5 py-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Clock size={14} className="text-[#5a6d8a]" />
-            <span className="text-xs font-bold text-[#5a6d8a]">状态时间线</span>
-          </div>
-          <div className="flex items-start gap-3">
-            <div className="flex flex-col items-center pt-1">
-              <div className="w-3 h-3 rounded-full bg-[#11a874] ring-2 ring-[#11a87420]" />
-              <div className="w-0.5 h-10 bg-[#e5ecf4]" />
-              <div className="w-3 h-3 rounded-full ring-2" style={{ backgroundColor: supplier.status === 'RETURNED' ? '#e67e22' : '#f5a623', borderColor: supplier.status === 'RETURNED' ? '#e67e2220' : '#f5a62320' }} />
-            </div>
-            <div className="space-y-4 flex-1 pb-1">
-              <div>
-                <p className="text-sm font-semibold text-[#18243a]">供应商注册</p>
-                <p className="text-xs text-[#8a96aa]">{new Date(supplier.createdAt).toLocaleDateString('zh-CN')} · 提交注册申请及{qualifications.length}份资质材料</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold" style={{ color: supplier.status === 'RETURNED' ? '#e67e22' : '#f5a623' }}>
-                  {supplier.status === 'RETURNED' ? '退回补正' : '待审核'}
-                </p>
-                <p className="text-xs text-[#8a96aa]">
-                  {supplier.status === 'RETURNED'
-                    ? `${new Date(supplier.updatedAt).toLocaleDateString('zh-CN')} · 审核退回，需补正材料后重新提交`
-                    : '等待采购管理员审核'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ 退回/不通过原因提示 ═══ */}
-      {supplier.returnReason && supplier.status === 'RETURNED' && (
-        <div className="mb-6 p-4 bg-[#f5a62310] rounded-xl border border-[#f5a62330] flex items-start gap-3">
-          <RotateCcw size={16} className="text-[#f5a623] mt-0.5 flex-shrink-0" />
-          <div><p className="text-xs text-[#f5a623] font-semibold mb-1">退回补正原因</p><p className="text-sm text-[#18243a]">{supplier.returnReason}</p></div>
-        </div>
-      )}
-      {supplier.rejectReason && (
-        <div className="mb-6 p-4 bg-[#e74c3c10] rounded-xl border border-[#e74c3c30] flex items-start gap-3">
-          <XCircle size={16} className="text-[#e74c3c] mt-0.5 flex-shrink-0" />
-          <div><p className="text-xs text-[#e74c3c] font-semibold mb-1">审核不通过原因</p><p className="text-sm text-[#18243a]">{supplier.rejectReason}</p></div>
-        </div>
-      )}
-
-      {/* ═══ Tab 导航 ═══ */}
+      {/* ═══════════════════════════════════════════════════
+         Tab 导航
+         ═══════════════════════════════════════════════════ */}
       <div className="flex border-b border-[#e5ecf4] mb-6 overflow-x-auto">
         {tabs.map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
@@ -346,32 +389,103 @@ export default function SupplierDetailPage() {
         ))}
       </div>
 
-      {/* ═══ Tab 内容 ═══ */}
+      {/* ═══════════════════════════════════════════════════
+         Tab 内容
+         ═══════════════════════════════════════════════════ */}
       <div className="glass-card glass-card-lighter rounded-xl p-6">
-        {/* ── 基本信息 ── */}
+        {/* ── 基本信息（合并原审核摘要字段，不再分开重复）── */}
         {activeTab === 'info' && (
-          <div>
-            <div className="grid grid-cols-3 gap-x-10 gap-y-5">
-              {[
-                ['企业名称', supplier.name],
-                ['统一社会信用代码', supplier.creditCode || '—'],
-                ['企业类型', supplier.enterpriseType],
-                ['法定代表人', supplier.legalPerson],
-                ['注册地址', supplier.registeredAddress || '—'],
-                ['经营范围', supplier.businessScope || '—'],
-                ['分类', supplier.classification?.name || '未分类'],
-                ['用户名', supplier.user?.username || '—'],
-                ['账户状态', supplier.user?.isActive ? '已激活' : '未激活'],
-                ['注册时间', new Date(supplier.createdAt).toLocaleDateString('zh-CN')],
-                ['更新时间', new Date(supplier.updatedAt).toLocaleDateString('zh-CN')],
-                ['注册邮箱', supplier.user?.email || '—'],
-              ].map(([label, value]) => (
-                <div key={label as string}>
-                  <p className="text-xs text-[#8a96aa] mb-1">{label}</p>
-                  <p className="text-sm font-semibold text-[#18243a]">{value}</p>
-                </div>
-              ))}
+          <div className="space-y-6">
+            {/* 企业信息分组 */}
+            <div>
+              <h3 className="text-[11px] font-extrabold text-[#5a6d8a] uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Building2 size={13} />企业信息
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
+                {[
+                  ['企业名称', supplier.name],
+                  ['统一社会信用代码', supplier.creditCode || '—'],
+                  ['企业类型', supplier.enterpriseType],
+                  ['法定代表人', supplier.legalPerson],
+                  ['注册地址', supplier.registeredAddress || '—'],
+                  ['经营范围', supplier.businessScope || '—'],
+                  ['供应商分类', supplier.classification?.name || '未分类'],
+                ].map(([label, value]) => (
+                  <div key={label as string}>
+                    <p className="text-[11px] text-[#8a96aa] mb-0.5">{label}</p>
+                    <p className="text-[13px] font-semibold text-[#18243a]">{value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            <hr className="border-[#eef3f8]" />
+
+            {/* 账户信息分组 */}
+            <div>
+              <h3 className="text-[11px] font-extrabold text-[#5a6d8a] uppercase tracking-wider mb-3 flex items-center gap-2">
+                <User size={13} />账户信息
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
+                {[
+                  ['用户名', supplier.user?.username || '—'],
+                  ['显示名', supplier.user?.displayName || '—'],
+                  ['注册邮箱', supplier.user?.email || '—'],
+                  ['账户状态', supplier.user?.isActive ? '已激活' : '未激活'],
+                  ['注册时间', new Date(supplier.createdAt).toLocaleDateString('zh-CN')],
+                  ['最后更新', new Date(supplier.updatedAt).toLocaleDateString('zh-CN')],
+                ].map(([label, value]) => (
+                  <div key={label as string}>
+                    <p className="text-[11px] text-[#8a96aa] mb-0.5">{label}</p>
+                    <p className="text-[13px] font-semibold text-[#18243a]">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 评价概览（如已有评价） */}
+            {evaluations.length > 0 && (
+              <>
+                <hr className="border-[#eef3f8]" />
+                <div>
+                  <h3 className="text-[11px] font-extrabold text-[#5a6d8a] uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Award size={13} />评价概览
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {[
+                      { label: '评价次数', value: evaluations.length, color: '#064ea2' },
+                      { label: '综合评价', value: avgScore || '—', color: '#11a874' },
+                      { label: 'A 级', value: evalLevelCounts.A, color: '#11a874' },
+                      { label: 'B 级', value: evalLevelCounts.B, color: '#064ea2' },
+                      { label: 'C 级', value: evalLevelCounts.C, color: '#f5a623' },
+                      { label: 'D 级', value: evalLevelCounts.D, color: '#e74c3c' },
+                    ].map(s => (
+                      <div key={s.label} className="rounded-xl bg-[#f7f9fc] p-3 text-center">
+                        <p className="text-[10px] text-[#8a96aa] mb-1">{s.label}</p>
+                        <p className="text-xl font-extrabold tabular-nums" style={{ color: s.color }}>{s.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* 主要联系人（如有） */}
+            {primaryContact && (
+              <>
+                <hr className="border-[#eef3f8]" />
+                <div>
+                  <h3 className="text-[11px] font-extrabold text-[#5a6d8a] uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Phone size={13} />主要联系人
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px]">
+                    <span><span className="text-[#8a96aa]">姓名：</span><strong className="text-[#18243a]">{primaryContact.name}</strong></span>
+                    <span><span className="text-[#8a96aa]">电话：</span><strong className="text-[#18243a] font-mono">{primaryContact.phone}</strong></span>
+                    {primaryContact.email && <span><span className="text-[#8a96aa]">邮箱：</span><strong className="text-[#18243a]">{primaryContact.email}</strong></span>}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -389,7 +503,7 @@ export default function SupplierDetailPage() {
                 </thead>
                 <tbody>
                   {supplier.contacts.map(c => (
-                    <tr key={c.id} className="border-b border-[#e5ecf4] hover:bg-[#f7f9fc] row-clickable">
+                    <tr key={c.id} className="border-b border-white/15 hover:bg-[#f7f9fc]">
                       <td className="py-3 px-4 font-semibold text-[#18243a]">{c.name}</td>
                       <td className="py-3 px-4 text-[#5a6d8a] font-mono text-xs">{c.phone}</td>
                       <td className="py-3 px-4 text-[#5a6d8a]">{c.email || '—'}</td>
@@ -442,7 +556,7 @@ export default function SupplierDetailPage() {
                     const barColor = qs.label === '已过期' ? '#e74c3c' : qs.label === '即将到期' ? '#f5a623' : '#11a874';
 
                     return (
-                      <div key={q.id} className="card-enter border border-[#e5ecf4] rounded-xl p-5 hover:shadow-sm transition">
+                      <div key={q.id} className="card-enter border border-white/15 rounded-xl p-5 hover:shadow-sm transition bg-white/40">
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex items-center gap-2">
                             <span className="px-2 py-0.5 text-[10px] font-bold rounded" style={{ color: '#064ea2', backgroundColor: '#064ea212' }}>{q.type}</span>
@@ -479,16 +593,18 @@ export default function SupplierDetailPage() {
               <p className="text-[#8a96aa] text-center py-10">暂无履约评价记录</p>
             ) : (
               <>
-                <div className="grid grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                   {[
                     { label: '评价次数', value: evaluations.length, color: '#064ea2' },
-                    { label: '平均分', value: avgScore || '—', color: '#11a874' },
-                    { label: '最高等级', value: evaluations.reduce((best, e) => e.level < best ? e.level : best, 'D'), color: '#f5a623' },
-                    { label: '最近评价', value: evaluations[0] ? new Date(evaluations[0].createdAt).toLocaleDateString('zh-CN') : '—', color: '#5a6d8a' },
+                    { label: '综合评价', value: avgScore || '—', color: '#11a874' },
+                    { label: 'A 级', value: evalLevelCounts.A, color: '#11a874' },
+                    { label: 'B 级', value: evalLevelCounts.B, color: '#064ea2' },
+                    { label: 'C 级', value: evalLevelCounts.C, color: '#f5a623' },
+                    { label: 'D 级', value: evalLevelCounts.D, color: '#e74c3c' },
                   ].map(s => (
-                    <div key={s.label} className="bg-[#f7f9fc] rounded-xl p-4">
-                      <p className="text-xs text-[#8a96aa] mb-1">{s.label}</p>
-                      <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
+                    <div key={s.label} className="bg-[#f7f9fc] rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-[#8a96aa] mb-1">{s.label}</p>
+                      <p className="text-xl font-extrabold tabular-nums" style={{ color: s.color }}>{s.value}</p>
                     </div>
                   ))}
                 </div>
@@ -505,7 +621,7 @@ export default function SupplierDetailPage() {
                     {evaluations.map(e => {
                       const lc = levelColor[e.level] || levelColor.D;
                       return (
-                        <tr key={e.id} className="border-b border-[#e5ecf4] hover:bg-[#f7f9fc] row-clickable">
+                        <tr key={e.id} className="border-b border-white/15 hover:bg-[#f7f9fc]">
                           <td className="py-3 px-4 font-bold text-[#18243a]">{Number(e.overallScore).toFixed(1)}</td>
                           <td className="py-3 px-4"><span className="px-2.5 py-1 text-xs font-semibold rounded" style={{ color: lc.color, backgroundColor: lc.bg }}>{lc.label} ({e.level})</span></td>
                           <td className="py-3 px-4 text-[#5a6d8a]">{Number(e.completenessScore).toFixed(1)}</td>
@@ -543,7 +659,7 @@ export default function SupplierDetailPage() {
                   {changes.map(c => {
                     const cs = changeStatusColor[c.status] || { label: c.status, color: '#999', bg: '#99918' };
                     return (
-                      <tr key={c.id} className="border-b border-[#e5ecf4] hover:bg-[#f7f9fc] row-clickable">
+                      <tr key={c.id} className="border-b border-white/15 hover:bg-[#f7f9fc]">
                         <td className="py-3 px-4 font-semibold text-[#18243a]">{c.fieldLabel}</td>
                         <td className="py-3 px-4 text-[#8a96aa] max-w-[150px] truncate">{c.oldValue || '—'}</td>
                         <td className="py-3 px-4 text-[#064ea2] font-medium max-w-[150px] truncate">{c.newValue || '—'}</td>

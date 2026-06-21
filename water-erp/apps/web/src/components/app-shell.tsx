@@ -99,7 +99,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const userInitial = registeredName.slice(0, 1);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden workbench-page-bg text-[#18243a]">
+    <div className="flex h-screen flex-col workbench-page-bg text-[#18243a]">
       <header className="sticky top-0 z-50 flex-shrink-0 border-b border-white/30 bg-white/78 backdrop-blur-xl">
         <div className="flex h-[68px] items-center justify-between px-6">
           <button onClick={() => router.push('/dashboard')} className="flex items-center gap-3 text-left">
@@ -124,17 +124,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-3">
             <NotificationCenter />
-            <div className="flex items-center gap-2 rounded-xl border border-[#e5ecf4] bg-white px-3 py-2 shadow-sm">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-xs font-black text-white">
+            <div className="flex items-center gap-2 rounded-xl border border-[#e5ecf4] bg-white px-3 py-1.5 shadow-sm">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-[11px] font-black text-white">
                 {userInitial}
               </span>
               <div className="hidden leading-tight sm:block">
-                <div className="text-sm font-black text-[#18243a]">{registeredName}</div>
+                <div className="text-[13px] font-black text-[#18243a]">{registeredName}</div>
               </div>
             </div>
             <button
               onClick={logout}
-              className="rounded-xl border border-[#d5e0ef] bg-white px-3 py-2 text-sm font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c]"
+              className="rounded-xl border border-[#d5e0ef] bg-white px-3 py-1.5 text-[13px] font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c]"
             >
               退出登录
             </button>

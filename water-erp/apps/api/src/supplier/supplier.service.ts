@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { hashSync } from 'bcryptjs';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
@@ -105,10 +106,11 @@ export class SupplierService {
     return { user, supplier };
   }
 
-  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number }) {
+  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt' }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
+    const sortMode = params.sort ?? 'completeness';
 
     const where: any = {};
     if (params.status) {
@@ -122,6 +124,11 @@ export class SupplierService {
         { name: { contains: params.search, mode: 'insensitive' } },
         { creditCode: { contains: params.search } },
       ];
+    }
+
+    // 资料完整度排序：关键字段填充计数降序，同分按时间降序
+    if (sortMode === 'completeness') {
+      return this.listByCompleteness(where, { page, pageSize });
     }
 
     const [total, items] = await Promise.all([
@@ -138,6 +145,62 @@ export class SupplierService {
         },
       }),
     ]);
+
+    return { total, page, pageSize, items };
+  }
+
+  /** 按资料完整度排序（PostgreSQL raw query — 4 项关键字段各计 1 分） */
+  private async listByCompleteness(
+    where: any,
+    pagination: { page: number; pageSize: number },
+  ): Promise<{ total: number; page: number; pageSize: number; items: any[] }> {
+    const { page, pageSize } = pagination;
+    const skip = (page - 1) * pageSize;
+
+    // Build WHERE clause with Prisma.sql for safety
+    const conditions: Prisma.Sql[] = [];
+    if (where.status) conditions.push(Prisma.sql`"status" = ${where.status}`);
+    if (where.classificationId) conditions.push(Prisma.sql`"classificationId" = ${where.classificationId}`);
+    if (where.OR) {
+      // search: name ILIKE or creditCode contains
+      const search = where.OR[0].name.contains;
+      conditions.push(Prisma.sql`("name" ILIKE ${'%' + search + '%'} OR "creditCode" ILIKE ${'%' + search + '%'})`);
+    }
+    const whereSql = conditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+      : Prisma.empty;
+
+    const result = await this.prisma.$queryRaw<Array<{ id: string; total_count: bigint }>>`
+      SELECT s.id, COUNT(*) OVER()::int AS total_count
+      FROM "Supplier" s
+      ${whereSql}
+      ORDER BY (
+        CASE WHEN s."creditCode" IS NOT NULL AND s."creditCode" != '' THEN 1 ELSE 0 END +
+        CASE WHEN s."businessScope" IS NOT NULL AND s."businessScope" != '' THEN 1 ELSE 0 END +
+        CASE WHEN s."registeredAddress" IS NOT NULL AND s."registeredAddress" != '' THEN 1 ELSE 0 END +
+        CASE WHEN s."classificationId" IS NOT NULL THEN 1 ELSE 0 END
+      ) DESC, s."createdAt" DESC
+      LIMIT ${pageSize} OFFSET ${skip}
+    `;
+
+    const total = result.length > 0 ? Number(result[0].total_count) : 0;
+    const ids = result.map((r: any) => r.id);
+
+    if (ids.length === 0) {
+      return { total, page, pageSize, items: [] };
+    }
+
+    const items = await this.prisma.supplier.findMany({
+      where: { id: { in: ids } },
+      include: {
+        classification: true,
+        contacts: { where: { isPrimary: true } },
+        _count: { select: { evaluations: true } },
+      },
+    });
+
+    const idOrder = new Map(ids.map((id, i) => [id, i]));
+    items.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
 
     return { total, page, pageSize, items };
   }

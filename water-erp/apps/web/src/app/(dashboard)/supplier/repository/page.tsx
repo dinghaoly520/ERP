@@ -19,6 +19,7 @@ export default function SupplierRepositoryPage() {
   const [classifications, setClassifications] = useState<SupplierClassification[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [sortMode, setSortMode] = useState<'completeness' | 'createdAt'>('completeness');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterClassification, setFilterClassification] = useState('');
   const [search, setSearch] = useState('');
@@ -40,12 +41,12 @@ export default function SupplierRepositoryPage() {
       const res = await getSupplierList({
         status: filterStatus || undefined,
         classificationId: filterClassification || undefined,
-        search: search || undefined, page, pageSize,
+        search: search || undefined, page, pageSize, sort: sortMode,
       });
       setData(res);
     } catch { /* empty */ }
     setLoading(false);
-  }, [filterStatus, filterClassification, search, page, pageSize]);
+  }, [filterStatus, filterClassification, search, page, pageSize, sortMode]);
 
   const refreshMeta = useCallback(() => {
     getSupplierStats().then(setStats).catch(() => {});
@@ -199,6 +200,16 @@ export default function SupplierRepositoryPage() {
         </select>
         <button onClick={() => { setSearch(''); setFilterStatus(''); setFilterClassification(''); setPage(1); }}
           className="rounded-xl border border-[#dce3eb] px-3 py-2 text-sm font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] transition">重置</button>
+        <button
+          onClick={() => { setSortMode(s => s === 'completeness' ? 'createdAt' : 'completeness'); setPage(1); }}
+          className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+            sortMode === 'completeness'
+              ? 'border-[#bfdbfe] bg-[#eff6ff] text-[#064ea2]'
+              : 'border-[#dce3eb] text-[#5a6d8a] hover:bg-[#f8fafc]'
+          }`}
+        >
+          {sortMode === 'completeness' ? '资料完整度 ↑' : '最新注册 ↑'}
+        </button>
       </DataToolbar>
 
       <SectionCard className="p-0">
