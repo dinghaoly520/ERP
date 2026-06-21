@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail, BidClarification } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
@@ -224,8 +224,8 @@ export default function BidClarificationsPage() {
                 const isReplying = replying === c.id;
                 const statusLabel = c.status || (isReplied ? '已回复' : '待回复');
                 const statusColor = statusLabel === '已回复' ? '#11a874' : statusLabel === '已关闭' ? '#6b7280' : '#f5a623';
-                return (<>
-                <tr key={c.id} className={`border-b border-[oklch(0.94_0.004_264)] align-top ${isReplied ? '' : 'bg-amber-50/30'}`}>
+                return (<Fragment key={c.id}>
+                <tr className={`border-b border-[oklch(0.94_0.004_264)] align-top ${isReplied ? '' : 'bg-amber-50/30'}`}>
                   <td className="px-5 py-3">
                     <span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{
                       color: c.type === 'question' ? '#7c3aed' : '#f5a623',
@@ -280,7 +280,7 @@ export default function BidClarificationsPage() {
                     </td>
                   </tr>
                 )}
-                </>
+                </Fragment>
               );})}
             </tbody>
           </table>

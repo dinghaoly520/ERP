@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { listExperts, listSpecialties, setExpertAvailability } from '@/lib/api/expert';
 import type { ExpertListItem } from '@/lib/api/expert';
 import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton } from '@/components/workbench';
-import { maskName } from '@water-erp/shared';
 import { UsersRound, PlusCircle, Search } from 'lucide-react';
 
 export default function ExpertRepositoryPage() {
