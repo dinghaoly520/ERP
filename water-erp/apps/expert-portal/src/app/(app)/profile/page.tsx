@@ -65,7 +65,7 @@ export default function ExpertProfilePage() {
         <div className="space-y-6">
           {/* 资料卡片 */}
           <SectionCard className="overflow-hidden p-0">
-            <div className="bg-gradient-to-r from-[#064ea2] to-[#0b63ce] p-6 text-white">
+            <div className="bg-[#064ea2]/80 backdrop-blur-md p-6 text-white">
               <div className="flex items-center gap-4">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-2xl font-black">
                   {profile.displayName?.[0] || '?'}
@@ -106,7 +106,7 @@ export default function ExpertProfilePage() {
                     </button>
                     <button
                       onClick={() => { setEditing(false); setForm({ displayName: profile.displayName, email: profile.email || '' }); }}
-                      className="rounded-xl border border-[#dce6f3] bg-white px-5 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
+                      className="rounded-xl border border-[#dce6f3] bg-white/60 px-5 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-white/80 transition"
                     >
                       取消
                     </button>
@@ -129,7 +129,7 @@ export default function ExpertProfilePage() {
                   </div>
                   <button
                     onClick={() => setEditing(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-[#bfdbfe] bg-[#eff6ff] px-4 py-2 text-sm font-bold text-[#064ea2] hover:bg-[#dbeafe] transition"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[#bfdbfe] bg-[#eff6ff]/50 px-4 py-2 text-sm font-bold text-[#064ea2] hover:bg-[#eff6ff]/70 transition"
                   >
                     <Pencil size={14} strokeWidth={1.5} />
                     编辑资料
@@ -192,7 +192,7 @@ export default function ExpertProfilePage() {
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold flex-shrink-0 ${
                         a.progress >= 100
                           ? 'border border-[#bbf7d0] bg-[#f0fdf4] text-[#11a874]'
-                          : 'border border-[#bfdbfe] bg-white text-[#064ea2]'
+                          : 'border border-[#bfdbfe] bg-white/60 text-[#064ea2]'
                       }`}>
                         {a.progress >= 100 ? '已完成' : stageLabel[a.project.stage] || a.project.stage}
                       </span>
@@ -201,12 +201,12 @@ export default function ExpertProfilePage() {
                       <span className="font-mono">{a.project.projectCode}</span>
                       <span>评分 {a.scoreRecords.length} 项</span>
                     </div>
-                    <div className="h-1.5 bg-[#e8f0fa] rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-white/25 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${
                           a.progress >= 100
-                            ? 'bg-gradient-to-r from-emerald-500 to-emerald-400'
-                            : 'bg-gradient-to-r from-[#064ea2] to-[#0b63ce]'
+                            ? 'bg-[#11a874]/60'
+                            : 'bg-[#064ea2]/60'
                         }`}
                         style={{ width: `${a.progress}%` }}
                       />
@@ -218,7 +218,7 @@ export default function ExpertProfilePage() {
           </SectionCard>
 
           {/* 评审须知 */}
-          <SectionCard title="评审须知" className="!border-[#bfdbfe] !bg-[#eff6ff]">
+          <SectionCard title="评审须知">
             <ul className="space-y-2 text-sm text-[#5a6d8a]">
               <li className="flex items-start gap-2">
                 <span className="text-[#064ea2] mt-0.5">•</span>

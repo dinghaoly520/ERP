@@ -63,7 +63,7 @@ export default function DisputeDialog({ open, recordId, supplierName, objectionR
               value={result}
               onChange={e => setResult(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors resize-none"
+              className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white/65 focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors resize-none"
             />
           </div>
           {error && (

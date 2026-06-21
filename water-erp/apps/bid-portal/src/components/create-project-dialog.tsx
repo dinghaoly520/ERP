@@ -70,7 +70,7 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="例：2026年度水利工程材料采购"
-              className="w-full rounded-xl px-3 py-2 text-[13px] border border-[#e5ecf4] bg-white
+              className="w-full rounded-xl px-3 py-2 text-[13px] border border-[#e5ecf4] bg-white/65
                 focus:outline-none focus:border-[#0b63ce] focus:shadow-[0_0_0_3px_rgba(11,99,206,0.12)] transition-colors
                 placeholder:text-[#94a3b8]"
             />
@@ -83,7 +83,7 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
             <select
               value={procurementMethod}
               onChange={e => setProcurementMethod(e.target.value)}
-              className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white
+              className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white/65
                 focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors"
             >
               {METHODS.map(m => <option key={m} value={m}>{m}</option>)}
@@ -99,7 +99,7 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
                 type="datetime-local"
                 value={openTime}
                 onChange={e => setOpenTime(e.target.value)}
-                className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white
+                className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white/65
                   focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors"
               />
             </div>
@@ -111,7 +111,7 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
                 type="datetime-local"
                 value={deadline}
                 onChange={e => setDeadline(e.target.value)}
-                className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white
+                className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white/65
                   focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors"
               />
             </div>
@@ -125,7 +125,7 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
               value={riskNote}
               onChange={e => setRiskNote(e.target.value)}
               placeholder="选填"
-              className="w-full rounded-xl px-3 py-2 text-[13px] border border-[#e5ecf4] bg-white
+              className="w-full rounded-xl px-3 py-2 text-[13px] border border-[#e5ecf4] bg-white/65
                 focus:outline-none focus:border-[#0b63ce] focus:shadow-[0_0_0_3px_rgba(11,99,206,0.12)] transition-colors
                 placeholder:text-[#94a3b8]"
             />
