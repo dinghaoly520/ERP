@@ -7,7 +7,7 @@ import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import { MessageSquare, Send, Plus, X, AlertTriangle } from 'lucide-react';
-import { PageHero } from '@water-erp/ui';
+import { PageHero, SectionCard } from '@water-erp/ui';
 
 export default function BidClarificationsPage() {
   const { projectId } = useBidProjectContext();
@@ -115,7 +115,7 @@ export default function BidClarificationsPage() {
         <button
           onClick={() => setShowForm(true)}
           disabled={project?.stage === 'ARCHIVED'}
-          className="flex items-center gap-1.5 px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50"
         >
           <Plus size={13} strokeWidth={2} /> 发起澄清
         </button>
@@ -123,8 +123,8 @@ export default function BidClarificationsPage() {
 
       {/* Create Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white w-full max-w-[520px] border border-[oklch(0.91_0.006_264)] shadow-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-[520px] rounded-2xl border border-[oklch(0.91_0.006_264)] shadow-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[oklch(0.91_0.006_264)]">
               <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight"
                 style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
@@ -140,7 +140,7 @@ export default function BidClarificationsPage() {
                   类型 <span className="text-[oklch(0.50_0.18_22)]">*</span>
                 </label>
                 <select value={clarType} onChange={e => setClarType(e.target.value)}
-                  className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors">
+                  className="workbench-input w-full text-[13px]">
                   <option value="clarification">澄清（招标人发起）</option>
                   <option value="question">答疑（回复供应商提问）</option>
                 </select>
@@ -151,7 +151,7 @@ export default function BidClarificationsPage() {
                 </label>
                 <input value={issuer} onChange={e => setIssuer(e.target.value)}
                   placeholder="例：评标委员会"
-                  className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors placeholder:text-[oklch(0.72_0.008_264)]" />
+                  className="workbench-input w-full text-[13px] placeholder:text-[oklch(0.72_0.008_264)]" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
@@ -162,7 +162,7 @@ export default function BidClarificationsPage() {
                     setSupplierName(e.target.value);
                     setSelectedSupplierId(sel?.supplierId || '');
                   }}
-                  className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors">
+                  className="workbench-input w-full text-[13px]">
                   <option value="">选择供应商</option>
                   {project.suppliers.map(s => (
                     <option key={s.id} value={s.supplierName}>{s.supplierName}</option>
@@ -175,16 +175,16 @@ export default function BidClarificationsPage() {
                 </label>
                 <textarea value={question} onChange={e => setQuestion(e.target.value)} rows={4}
                   placeholder="请输入需要供应商澄清的问题…"
-                  className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors resize-none placeholder:text-[oklch(0.72_0.008_264)]" />
+                  className="workbench-input w-full text-[13px] resize-none placeholder:text-[oklch(0.72_0.008_264)]" />
               </div>
             </div>
             <div className="px-6 py-4 border-t border-[oklch(0.91_0.006_264)] flex items-center justify-end gap-3">
               <button onClick={() => setShowForm(false)}
-                className="px-4 py-2 text-[12px] font-semibold text-[oklch(0.55_0.01_264)] tracking-tight hover:text-[oklch(0.18_0.012_265)] transition-colors">
+                className="px-4 py-2 rounded-xl text-[12px] font-semibold text-[oklch(0.55_0.01_264)] tracking-tight hover:text-[oklch(0.18_0.012_265)] transition-colors">
                 取消
               </button>
               <button onClick={handleCreate} disabled={submitting}
-                className="flex items-center gap-1.5 px-5 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50">
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50">
                 <Send size={13} strokeWidth={2} />
                 {submitting ? '发送中…' : '发起澄清'}
               </button>
@@ -194,7 +194,7 @@ export default function BidClarificationsPage() {
       )}
 
       {/* Clarifications Table */}
-      <div className="bg-white border border-[oklch(0.91_0.006_264)]">
+      <SectionCard className="overflow-hidden p-0">
         <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
           <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight"
             style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
@@ -268,7 +268,7 @@ export default function BidClarificationsPage() {
                       <div className="px-5 py-3 space-y-3">
                         <textarea value={replyText} onChange={e => setReplyText(e.target.value)}
                           placeholder="输入回复内容…" rows={3}
-                          className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors placeholder:text-[oklch(0.72_0.008_264)] resize-none" />
+                          className="workbench-input w-full text-[13px] resize-none placeholder:text-[oklch(0.72_0.008_264)]" />
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={() => setReplying(null)}
                             className="px-3 py-1.5 text-[11px] font-semibold text-[oklch(0.55_0.01_264)] border border-[oklch(0.91_0.006_264)] rounded hover:bg-[oklch(0.992_0.003_264)] transition">取消</button>
@@ -286,7 +286,7 @@ export default function BidClarificationsPage() {
             </tbody>
           </table>
         )}
-      </div>
+      </SectionCard>
     </div>
   );
 }
