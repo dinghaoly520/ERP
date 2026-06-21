@@ -57,7 +57,7 @@ body {
 
 /* ─── Input — glass-matching field ─── */
 .workbench-input {
-  border: 1px solid #dbe6f3;
+  border: 1px solid rgba(219, 230, 243, 0.7);
   border-radius: 0.75rem;
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(6px);
@@ -69,7 +69,7 @@ body {
 }
 
 .workbench-input:hover {
-  border-color: #bfd6f0;
+  border-color: rgba(11, 99, 206, 0.25);
   background: rgba(255, 255, 255, 0.72);
 }
 
@@ -77,15 +77,6 @@ body {
   border-color: #0b63ce;
   background: rgba(255, 255, 255, 0.88);
   box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.10);
-}
-
-/* <select> overrides — strip native OS styling */
-select.workbench-input {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5' fill='%2394a3b8'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  padding-right: 2rem;
 }
 
 /* ─── Table — industrial data display ─── */
