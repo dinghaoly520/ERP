@@ -24,6 +24,7 @@ interface ArchiveSummary {
   archivedItems: number;
   completionRate: number;
   lastArchivedAt: string | null;
+  createdAt: string;
 }
 
 export default function BidArchivePage() {
@@ -40,6 +41,7 @@ export default function BidArchivePage() {
   // ── 筛选 ──
   const [search, setSearch] = useState('');
   const [rateFilter, setRateFilter] = useState('');
+  const [yearFilter, setYearFilter] = useState('');
 
   // ── 详情操作 ──
   const [archiving, setArchiving] = useState(false);
@@ -80,11 +82,13 @@ export default function BidArchivePage() {
               archivedItems: archived.length,
               completionRate: items.length > 0 ? Math.round((archived.length / items.length) * 100) : 0,
               lastArchivedAt: lastAt,
+              createdAt: (r.value as any).createdAt || (r.value as any).updatedAt || '',
             });
           } else {
             summaries.push({
               id: p.id, projectCode: p.projectCode, name: p.name,
               totalItems: 0, archivedItems: 0, completionRate: 0, lastArchivedAt: null,
+              createdAt: '',
             });
           }
         });
@@ -140,6 +144,15 @@ export default function BidArchivePage() {
   // 筛选逻辑
   // ══════════════════════════════════════════════
 
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    summaryData.forEach(s => {
+      if (s.lastArchivedAt) years.add(new Date(s.lastArchivedAt).getFullYear().toString());
+      if (s.createdAt) years.add(new Date(s.createdAt).getFullYear().toString());
+    });
+    return Array.from(years).sort().reverse();
+  }, [summaryData]);
+
   const filteredSummaries = useMemo(() => {
     const q = search.trim().toLowerCase();
     return summaryData.filter(s => {
@@ -147,13 +160,28 @@ export default function BidArchivePage() {
       if (rateFilter === '100' && s.completionRate < 100) return false;
       if (rateFilter === '80' && s.completionRate < 80) return false;
       if (rateFilter === 'incomplete' && s.completionRate >= 100) return false;
+      if (yearFilter) {
+        const projectYear = s.lastArchivedAt ? new Date(s.lastArchivedAt).getFullYear().toString() : '';
+        if (projectYear !== yearFilter) return false;
+      }
       return true;
     });
-  }, [summaryData, search, rateFilter]);
+  }, [summaryData, search, rateFilter, yearFilter]);
 
   const fullComplete = summaryData.filter(s => s.completionRate === 100).length;
   const partialCount = summaryData.filter(s => s.completionRate > 0 && s.completionRate < 100).length;
-  const missingItems = summaryData.reduce((sum, s) => sum + (s.totalItems - s.archivedItems), 0);
+
+  // 平均归档耗时（天）
+  const avgDurationDays = useMemo(() => {
+    const withDates = summaryData.filter(s => s.createdAt && s.lastArchivedAt);
+    if (withDates.length === 0) return 0;
+    const totalDays = withDates.reduce((sum, s) => {
+      const start = new Date(s.createdAt).getTime();
+      const end = new Date(s.lastArchivedAt!).getTime();
+      return sum + (end - start) / (1000 * 60 * 60 * 24);
+    }, 0);
+    return Math.round(totalDays / withDates.length);
+  }, [summaryData]);
 
   // ══════════════════════════════════════════════
   // 导出
@@ -419,10 +447,10 @@ export default function BidArchivePage() {
           hint={partialCount > 0 ? '仍有资料待补' : '—'}
         />
         <MetricCard
-          label="待补资料项"
-          value={missingItems}
-          tone="red"
-          hint={missingItems > 0 ? '分布在部分项目中' : '—'}
+          label="平均耗时"
+          value={avgDurationDays > 0 ? `${avgDurationDays}天` : '—'}
+          tone={avgDurationDays > 30 ? 'red' : avgDurationDays > 14 ? 'orange' : 'green'}
+          hint={avgDurationDays > 0 ? '项目创建至归档完成' : '暂无数据'}
         />
       </div>
 
@@ -438,6 +466,14 @@ export default function BidArchivePage() {
             className="workbench-input w-full pl-9"
           />
         </div>
+        <select
+          value={yearFilter}
+          onChange={e => setYearFilter(e.target.value)}
+          className="workbench-input cursor-pointer"
+        >
+          <option value="">全部年份</option>
+          {availableYears.map(y => <option key={y} value={y}>{y}年</option>)}
+        </select>
         <select
           value={rateFilter}
           onChange={e => setRateFilter(e.target.value)}
