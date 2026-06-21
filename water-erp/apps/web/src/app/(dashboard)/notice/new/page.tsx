@@ -265,7 +265,7 @@ function BidDocUploader({ annId, bidDoc, onChanged }: { annId: string; bidDoc: B
   const removeDoc = async () => { if (!bidDoc || !confirm('删除招标文件？')) return; try { await removeBidDocument(annId); toast.success('已删除'); onChanged(); } catch (e: any) { toast.error(e?.message || '失败'); } };
 
   const configRow = (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+    <div className={`grid gap-3 mb-3 ${requirePayment ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
       <div><label className="block text-xs font-semibold text-[#5a6d8a] mb-1">访问范围</label><select value={scope} onChange={e => setScope(e.target.value as any)} className={inputCls}><option value="OPEN">公开下载</option><option value="DESIGNATED">指定供应商</option><option value="INVITED">邀请招标</option></select></div>
       <div><label className="block text-xs font-semibold text-[#5a6d8a] mb-1">付费下载</label><select value={requirePayment ? '1' : '0'} onChange={e => setRequirePayment(e.target.value === '1')} className={inputCls}><option value="0">免费</option><option value="1">付费</option></select></div>
       {requirePayment && <div><label className="block text-xs font-semibold text-[#5a6d8a] mb-1">价格（元）</label><input type="number" value={price} onChange={e => setPrice(e.target.value === '' ? '' : Number(e.target.value))} className={inputCls} /></div>}
@@ -316,7 +316,7 @@ function BidDocUploader({ annId, bidDoc, onChanged }: { annId: string; bidDoc: B
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div><label className="block text-xs font-semibold text-[#5a6d8a] mb-1">选择文件</label><input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-sm w-full" /></div>
+        <div><label className="block text-xs font-semibold text-[#5a6d8a] mb-1">选择文件</label><input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className={`${inputCls} file:mr-3 file:rounded-lg file:border-0 file:bg-[#064ea2] file:px-3 file:py-1 file:text-xs file:font-bold file:text-white hover:file:bg-[#054280]`} /></div>
         <div><label className="block text-xs font-semibold text-[#5a6d8a] mb-1">文件标题</label><input value={docTitle} onChange={e => setDocTitle(e.target.value)} className={inputCls} placeholder="留空用文件名" /></div>
       </div>
       {configRow}
