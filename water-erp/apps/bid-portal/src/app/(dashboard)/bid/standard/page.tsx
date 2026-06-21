@@ -8,6 +8,7 @@ import {
 } from '@/lib/api/bid';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { PageHero, SectionCard } from '@water-erp/ui';
+import { TableSkeleton } from '@/components/skeleton';
 import { ListChecks, Plus, Pencil, Trash2, Check, X, FileSpreadsheet, Lock } from 'lucide-react';
 import { CATEGORY_LABEL, CATEGORY_COLOR, STAGE_LABEL } from '@water-erp/shared';
 import { toast } from 'sonner';
@@ -159,8 +160,8 @@ export default function BidStandardPage() {
 
         <div className="overflow-x-auto">
           {loading ? (
-            <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-12 animate-pulse rounded bg-[#e8f0fa]" />)}</div>
-          ) : items.length === 0 && !showAdd ? (
+            <TableSkeleton rows={5} cols={4} />
+          ): items.length === 0 && !showAdd ? (
             <div className="py-14 text-center">
               <p className="text-sm text-[#8a96aa]">该项目尚未编制评分标准。</p>
               <p className="mt-1 text-xs text-[#aab4c5]">评分项是评标的前置条件——无评分项则专家无法打分。请「应用标准模板」或手动新增。</p>
