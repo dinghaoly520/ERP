@@ -120,7 +120,7 @@ export default function ExpertRepositoryPage() {
                             className="text-sm font-bold text-[#18243a] cursor-pointer hover:text-[#064ea2] transition"
                             onClick={() => router.push(`/expert/${e.id}`)}
                           >
-                            {maskName(e.displayName)}
+                            {e.displayName}
                           </div>
                           <div className="text-xs text-[#8a99ad]">{e.email || '—'}</div>
                         </div>
