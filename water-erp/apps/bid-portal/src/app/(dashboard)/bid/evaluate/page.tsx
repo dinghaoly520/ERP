@@ -7,7 +7,7 @@ import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 
 import { TableSkeleton } from '@/components/skeleton';
-import { MetricCard, PageHero } from '@water-erp/ui';
+import { MetricCard, PageHero, SectionCard } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ConnectionIndicator } from '@/components/connection-indicator';
 import { toast } from 'sonner';
@@ -365,13 +365,7 @@ export default function BidEvaluatePage() {
       )}
 
       {/* ═══ Section 1: Expert status cards ═══ */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-            专家组状态
-          </h2>
-          <span className="text-[11px] text-[oklch(0.62_0.008_264)]">{experts.length} 位专家</span>
-        </div>
+      <SectionCard title="专家状态" className="overflow-hidden">
         {experts.length === 0 ? (
           <div className="bg-[oklch(0.96_0.02_260)] border border-[oklch(0.88_0.04_258)] p-4 flex items-center gap-2">
             <AlertTriangle size={14} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)]" />
@@ -469,7 +463,7 @@ export default function BidEvaluatePage() {
             })}
           </div>
         )}
-      </div>
+      </SectionCard>
 
       {/* ═══ Section 2: Expert×Supplier matrix ═══ */}
       {suppliers.length === 0 ? (
@@ -478,12 +472,7 @@ export default function BidEvaluatePage() {
           <span className="text-[12px] text-[oklch(0.18_0.012_265)]">暂无供应商数据。</span>
         </div>
       ) : (
-        <div className="bg-white border border-[oklch(0.91_0.006_264)] mb-8">
-          <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
-            <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-              专家评分概览
-            </h2>
-          </div>
+        <SectionCard title="评分矩阵" className="overflow-hidden p-0">
           {experts.length === 0 ? (
             <div className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无专家数据</div>
           ) : (
@@ -598,18 +587,12 @@ export default function BidEvaluatePage() {
               })()}
             </div>
           )}
-        </div>
+        </SectionCard>
       )}
 
       {/* ═══ Section 3: Supplier score summary ═══ */}
       {suppliers.length > 0 && (
-        <div className="bg-white border border-[oklch(0.91_0.006_264)] mb-8">
-          <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
-            <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-              供应商评分汇总
-            </h2>
-            <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">按评审类别汇总平均分，作为排名依据。悬停分类得分查看专家明细。</p>
-          </div>
+        <SectionCard title="供应商评分汇总" description="按评审类别汇总平均分，作为排名依据。悬停分类得分查看专家明细。" className="overflow-hidden p-0">
           <div className="overflow-x-auto">
             <table className="workbench-table">
               <thead>
@@ -691,7 +674,7 @@ export default function BidEvaluatePage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </SectionCard>
       )}
 
       {/* ═══ Section 4: Results generation ═══ */}
