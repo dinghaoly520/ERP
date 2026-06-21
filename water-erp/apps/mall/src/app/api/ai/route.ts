@@ -10,6 +10,34 @@ type AiRequest = {
 const DEEPSEEK_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 
+/** 安全网：剥离所有 Markdown 格式字符 */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/[*]+/g, '')
+    .replace(/_+/g, '')
+    .replace(/~+/g, '')
+    .replace(/`+/g, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^>\s?/gm, '')
+    .replace(/^[\s]*[-+*]\s+/gm, '')
+    .replace(/^\d+\.\s+/gm, '')
+    .replace(/^[-=]{3,}\s*$/gm, '')
+    .replace(/```[\s\S]*?```/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** 安全网：剥离残留的英文字母和英文标点 */
+function stripEnglish(text: string): string {
+  return text
+    .replace(/[a-zA-Z]+/g, '')
+    .replace(/[`*_#~$%^&|\\@!=\[\]{};:'"<>?,.\/()]+/g, '')
+    .replace(/\s+[a-zA-Z]\s+/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export async function POST(request: NextRequest) {
   const apiKey = process.env.DEEPSEEK_API_KEY;
 
@@ -51,11 +79,18 @@ export async function POST(request: NextRequest) {
     '- 不替代审批，不决定最终采购价，不指定成交供应商。',
     '- 与电子商城无关的问题应简短说明超出当前模块范围，并引导用户回到目录价格、预算、询价或供应商比价场景。',
     '',
-    '建议输出结构：',
+    '输出结构（纯文本，不使用任何 markdown 格式）：',
     '结论：',
     '依据：',
     '建议动作：',
     '注意事项：',
+    '',
+    '【格式禁令 —— 最高优先级，违反即为错误】',
+    '你的回答必须是没有任何装饰的纯文本。',
+    '以下字符一笔都不许出现：**、*、__、_、##、#、>、反引号、~~、[、]、(、)',
+    '禁止使用任何形式的强调（加粗/斜体/标题/列表标记）。',
+    '禁止使用"1. ""2. ""- ""* "等列表标记。序号用"一、二、三"或自然段落分隔。',
+    '禁止输出任何英文字母、英文单词、英文缩写。',
   ].join('\n');
 
   try {
@@ -68,7 +103,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: DEEPSEEK_MODEL,
         temperature: 0.2,
-        max_tokens: 1200,
+        max_tokens: 4096,
         messages: [
           { role: 'system', content: systemPrompt },
           {
@@ -91,11 +126,14 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    const answer = data?.choices?.[0]?.message?.content;
+    const rawAnswer = data?.choices?.[0]?.message?.content;
 
-    if (!answer) {
+    if (!rawAnswer) {
       return NextResponse.json({ error: 'AI 未返回有效内容，请重试。' }, { status: 502 });
     }
+
+    // 安全网：剥离 Markdown 格式和英文字符（兜底，模型可能不遵守提示词）
+    const answer = stripMarkdown(stripEnglish(rawAnswer));
 
     return NextResponse.json({ answer });
   } catch (error) {

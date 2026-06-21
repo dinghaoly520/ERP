@@ -124,6 +124,90 @@ const AUDIT_LABELS: Record<string, string> = {
   CATALOG_EXPORTED: '导出价格清单',
 };
 
+/** 磨砂玻璃悬浮提示 — 替代浏览器原生 title，仅当内容截断或语义简写时出现 */
+const GlassTooltip: React.FC<{
+  content: string;
+  children: React.ReactNode;
+  forceShow?: boolean;
+  className?: string;
+}> = ({ content, children, forceShow, className }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [show, setShow] = useState(false);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const [above, setAbove] = useState(true);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const onEnter = () => {
+    clearTimeout(timeoutRef.current);
+    if (!containerRef.current) return;
+    // 截断发生在外层容器包裹的内层元素上（如 <div className="truncate">），
+    // 必须检测内层子元素的 scrollWidth，而非外层容器
+    const el = (containerRef.current.firstElementChild as HTMLElement) || containerRef.current;
+    const truncated = el.scrollWidth > el.clientWidth + 1;
+    if (!truncated && !forceShow) return;
+    const r = containerRef.current.getBoundingClientRect();
+    setRect(r);
+    setAbove(r.top > 80);
+    setShow(true);
+  };
+
+  const onLeave = () => {
+    timeoutRef.current = setTimeout(() => setShow(false), 120);
+  };
+
+  useEffect(() => () => clearTimeout(timeoutRef.current), []);
+
+  if (!content || content.trim().length === 0) return <>{children}</>;
+
+  return (
+    <>
+      <div
+        ref={containerRef}
+        className={`block w-full overflow-hidden ${className ?? ''}`}
+        onMouseEnter={onEnter}
+        onMouseLeave={onLeave}
+      >
+        {children}
+      </div>
+      {show && rect && createPortal(
+        <motion.div
+          initial={{ opacity: 0, y: above ? 6 : -6, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: above ? 4 : -4, scale: 0.97 }}
+          transition={{ duration: 0.18, ease: [0.22, 0.61, 0.36, 1] }}
+          className="fixed z-[9999] max-w-[320px] px-3.5 py-2.5 text-sm leading-relaxed text-[#334155] rounded-2xl border border-white/30 pointer-events-none select-none"
+          style={{
+            top: above ? rect.top - 10 : rect.bottom + 10,
+            left: Math.max(12, Math.min(rect.left, window.innerWidth - 332)),
+            background: 'linear-gradient(135deg, rgba(255,255,255,.90) 0%, rgba(248,251,255,.88) 40%, rgba(242,247,255,.88) 100%)',
+            backdropFilter: 'blur(28px) saturate(1.25)',
+            WebkitBackdropFilter: 'blur(28px) saturate(1.25)',
+            boxShadow: '0 1px 4px rgba(15,35,65,.05), 0 4px 20px rgba(91,155,213,.08), 0 0 0 1px rgba(255,255,255,.15) inset',
+            transform: above ? 'translateY(-100%)' : 'none',
+          }}
+          onMouseEnter={() => clearTimeout(timeoutRef.current)}
+          onMouseLeave={onLeave}
+        >
+          {/* 小三角指示器 */}
+          <div
+            className="absolute left-4 w-2.5 h-2.5 rotate-45 border border-white/30"
+            style={{
+              [above ? 'bottom' : 'top']: '-5px',
+              background: 'linear-gradient(135deg, rgba(255,255,255,.90) 0%, rgba(248,251,255,.88) 100%)',
+              ...(above
+                ? { borderTop: 'none', borderLeft: 'none', borderRight: '1px solid rgba(255,255,255,.30)', borderBottom: '1px solid rgba(255,255,255,.30)' }
+                : { borderBottom: 'none', borderRight: 'none', borderTop: '1px solid rgba(255,255,255,.30)', borderLeft: '1px solid rgba(255,255,255,.30)' }
+              ),
+            }}
+          />
+          {content}
+        </motion.div>,
+        document.body,
+      )}
+    </>
+  );
+};
+
 export default function MallPage() {
   const router = useRouter();
   const ReorderGroup = Reorder.Group as React.ComponentType<any>;
@@ -186,8 +270,8 @@ export default function MallPage() {
     setSort(prev => prev?.col === col ? (prev.dir === 'desc' ? { col, dir: 'asc' as const } : null) : { col, dir: 'desc' as const });
   };
   const [priceOpen, setPriceOpen] = useState(true);
-  const [supplierOpen, setSupplierOpen] = useState(false);
-  const [basisOpen, setBasisOpen] = useState(false);
+  const [supplierOpen, setSupplierOpen] = useState(true);
+  const [basisOpen, setBasisOpen] = useState(true);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -1031,7 +1115,7 @@ export default function MallPage() {
                           <div><span className="text-base font-black tabular-nums text-[#e74c3c]">¥{s.avgPrice.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}</span><span className="text-[10px] text-[#8a96aa]"> 均价</span></div>
                           <span className="text-[10px] tabular-nums text-[#8a96aa]">{formatPrice(s.minPrice).replace('¥','')} ~ {formatPrice(s.maxPrice).replace('¥','')}</span>
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-1">{s.categories.slice(0, 4).map(c => <span key={c} title={c} className="rounded-md bg-[#f3f7fc] px-1.5 py-0.5 text-[10px] font-semibold text-[#5a6d8a]">{shortCategory(c)}</span>)}{s.categories.length > 4 && <span className="text-[10px] text-[#8a96aa]">+{s.categories.length - 4}</span>}</div>
+                        <div className="mt-2 flex flex-wrap gap-1">{s.categories.slice(0, 4).map(c => <span key={c} className="rounded-md bg-[#f3f7fc] px-1.5 py-0.5 text-[10px] font-semibold text-[#5a6d8a]">{shortCategory(c)}</span>)}{s.categories.length > 4 && <span className="text-[10px] text-[#8a96aa]">+{s.categories.length - 4}</span>}</div>
                       </motion.button>
                     ))}
                   </motion.div>
@@ -1098,7 +1182,7 @@ export default function MallPage() {
                 <EmptyState icon={<IconSearchX />} title="未找到匹配条目" description="请调整关键词、分类、区域或价格状态后重试" action={{ label: '重置筛选', onClick: resetFilters }} />
               ) : (
                 <>
-              <div className={`hidden overflow-x-auto md:block ${density === 'compact' ? '[&_td]:py-1.5 [&_td]:px-2 [&_td]:text-xs [&_th]:py-1.5 [&_th]:px-2' : ''}`}><table className="w-full min-w-[1180px] border-collapse text-center text-sm"><thead className="bg-white/40 backdrop-blur-sm text-xs font-bold"><tr><th className="w-10 px-2 py-3"><input type="checkbox" checked={sorted.length > 0 && selectedIds.size === sorted.length} onChange={toggleSelectAll} className="h-3.5 w-3.5 cursor-pointer accent-[#5b9bd5]" aria-label="全选" /></th><th className="px-3 py-3 text-[#5a6d8a]">目录编码 / 物资</th><th className="px-3 py-3 text-[#5a6d8a]">规格型号</th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#5b9bd5]" onClick={() => toggleSort('category')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'category' ? 'text-[#5b9bd5]' : ''}`}>分类 {sort?.col === 'category' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#5b9bd5]" onClick={() => toggleSort('referencePrice')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'referencePrice' ? 'text-[#5b9bd5]' : ''}`}>参考价 {sort?.col === 'referencePrice' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="px-3 py-3 text-[#5a6d8a]">价格区间</th><th className="px-3 py-3 text-[#5a6d8a]">供应商</th><th className="px-3 py-3 text-[#5a6d8a]">来源</th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#5b9bd5]" onClick={() => toggleSort('changeRate')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'changeRate' ? 'text-[#5b9bd5]' : ''}`}>状态 {sort?.col === 'changeRate' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="px-3 py-3 text-center text-[#5a6d8a]">操作</th></tr></thead><tbody className="divide-y divide-[#eef3f8]">{sorted.map(item => <tr key={item.id} onClick={() => setDetail(item)} className={`cursor-pointer border-l-[3px] border-l-transparent bg-transparent transition-colors hover:border-l-[#5b9bd5] hover:bg-[#f8fbff]/70 active:bg-[#eef3fb]/70 ${density === 'compact' ? 'h-10' : ''}`}><td className="w-10 px-2 py-4" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelectOne(item.id)} className="h-3.5 w-3.5 cursor-pointer accent-[#5b9bd5]" aria-label={`选择 ${item.name}`} /></td><td className="px-3 py-4"><button onClick={() => setDetail(item)} className="text-center"><div className="font-mono text-xs font-bold text-[#5b9bd5]">{item.code}</div><div className="mt-1 font-black text-[#334155] hover:text-[#5b9bd5]">{item.name}</div></button></td><td className="max-w-[190px] px-4 py-4 text-[#344563]" title={item.specification}><div className="truncate">{item.specification}</div></td><td className="px-4 py-4"><span title={item.category} className="rounded-full bg-[#eef3fb] px-2 py-1 text-xs font-bold text-[#5b9bd5]">{shortCategory(item.category)}</span></td><td className="px-4 py-4"><span className="text-base font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#6a7890]">/{item.unit}</span></td><td className="px-4 py-4 text-[#5a6d8a]">{formatPrice(item.priceMin)} - {formatPrice(item.priceMax)}</td><td className="max-w-[180px] px-4 py-4"><div className="truncate font-semibold text-[#334155]" title={item.supplier}>{item.supplier}</div><div className="mt-1 text-xs text-[#6a7890]">{item.supplierType} · {item.region}</div></td><td className="px-4 py-4"><span title={item.priceSource} className={`rounded-full px-2 py-1 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{SOURCE_SHORT[item.priceSource]}</span></td><td className="px-4 py-4"><span title={item.status} className={`rounded-full border px-2 py-1 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span><div className={`mt-1 text-xs font-bold ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#6a7890]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</div></td><td className="px-4 py-4 text-center"><button onClick={(e) => { e.stopPropagation(); toggleFavorite(item); }} className={`mr-1 text-base align-middle transition hover:scale-110 ${favoriteIds.includes(item.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(item.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(item.id) ? '★' : '☆'}</button><button onClick={() => setDetail(item)} className="mr-2 text-xs font-bold text-[#5b9bd5] hover:underline">详情</button><button onClick={(e) => { e.stopPropagation(); addToBudget(item); }} className="rounded-lg bg-[#5b9bd5] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#4a89c4]">加入预算</button></td></tr>)}</tbody></table></div>
+              <div className={`hidden overflow-x-auto md:block ${density === 'compact' ? '[&_td]:py-1.5 [&_td]:px-2 [&_td]:text-xs [&_th]:py-1.5 [&_th]:px-2' : ''}`}><table className="w-full min-w-[1180px] border-collapse text-center text-sm"><thead className="bg-white/40 backdrop-blur-sm text-xs font-bold"><tr><th className="w-10 px-2 py-3"><input type="checkbox" checked={sorted.length > 0 && selectedIds.size === sorted.length} onChange={toggleSelectAll} className="h-3.5 w-3.5 cursor-pointer accent-[#5b9bd5]" aria-label="全选" /></th><th className="px-3 py-3 text-[#5a6d8a]">目录编码 / 物资</th><th className="px-3 py-3 text-[#5a6d8a]">规格型号</th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#5b9bd5]" onClick={() => toggleSort('category')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'category' ? 'text-[#5b9bd5]' : ''}`}>分类 {sort?.col === 'category' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#5b9bd5]" onClick={() => toggleSort('referencePrice')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'referencePrice' ? 'text-[#5b9bd5]' : ''}`}>参考价 {sort?.col === 'referencePrice' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="px-3 py-3 text-[#5a6d8a]">价格区间</th><th className="px-3 py-3 text-[#5a6d8a]">供应商</th><th className="px-3 py-3 text-[#5a6d8a]">来源</th><th className="cursor-pointer select-none px-3 py-3 transition hover:text-[#5b9bd5]" onClick={() => toggleSort('changeRate')}><span className={`inline-flex items-center gap-1 ${sort?.col === 'changeRate' ? 'text-[#5b9bd5]' : ''}`}>状态 {sort?.col === 'changeRate' ? (sort.dir === 'desc' ? '↓' : '↑') : <span className="text-[#bcc6d4]">↕</span>}</span></th><th className="px-3 py-3 text-center text-[#5a6d8a]">操作</th></tr></thead><tbody className="divide-y divide-[#eef3f8]">{sorted.map(item => <tr key={item.id} onClick={() => setDetail(item)} className={`cursor-pointer border-l-[3px] border-l-transparent bg-transparent transition-colors hover:border-l-[#5b9bd5] hover:bg-[#f8fbff]/70 active:bg-[#eef3fb]/70 ${density === 'compact' ? 'h-10' : ''}`}><td className="w-10 px-2 py-4" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelectOne(item.id)} className="h-3.5 w-3.5 cursor-pointer accent-[#5b9bd5]" aria-label={`选择 ${item.name}`} /></td><td className="px-3 py-4"><button onClick={() => setDetail(item)} className="text-center"><div className="font-mono text-xs font-bold text-[#5b9bd5]">{item.code}</div><div className="mt-1 font-black text-[#334155] hover:text-[#5b9bd5]">{item.name}</div></button></td><td className="max-w-[190px] px-4 py-4 text-[#344563]"><GlassTooltip content={item.specification}><div className="truncate">{item.specification}</div></GlassTooltip></td><td className="px-4 py-4"><span className="rounded-full bg-[#eef3fb] px-2 py-1 text-xs font-bold text-[#5b9bd5]">{shortCategory(item.category)}</span></td><td className="px-4 py-4"><span className="text-base font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#6a7890]">/{item.unit}</span></td><td className="px-4 py-4 text-[#5a6d8a]">{formatPrice(item.priceMin)} - {formatPrice(item.priceMax)}</td><td className="max-w-[180px] px-4 py-4"><GlassTooltip content={item.supplier}><div className="truncate font-semibold text-[#334155]">{item.supplier}</div></GlassTooltip><div className="mt-1 text-xs text-[#6a7890]">{item.supplierType} · {item.region}</div></td><td className="px-4 py-4"><span className={`rounded-full px-2 py-1 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{SOURCE_SHORT[item.priceSource]}</span></td><td className="px-4 py-4"><span className={`rounded-full border px-2 py-1 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span><div className={`mt-1 text-xs font-bold ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#6a7890]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</div></td><td className="px-4 py-4 text-center"><button onClick={(e) => { e.stopPropagation(); toggleFavorite(item); }} className={`mr-1 text-base align-middle transition hover:scale-110 ${favoriteIds.includes(item.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(item.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(item.id) ? '★' : '☆'}</button><button onClick={() => setDetail(item)} className="mr-2 text-xs font-bold text-[#5b9bd5] hover:underline">详情</button><button onClick={(e) => { e.stopPropagation(); addToBudget(item); }} className="rounded-lg bg-[#5b9bd5] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#4a89c4]">加入预算</button></td></tr>)}</tbody></table></div>
               <div className="divide-y divide-[#eef3f8] md:hidden">
               {sorted.map(item => (
                 <div key={item.id} className="p-4">
@@ -1112,9 +1196,9 @@ export default function MallPage() {
                     <button onClick={() => toggleFavorite(item)} className={`shrink-0 text-lg ${favoriteIds.includes(item.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(item.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(item.id) ? '★' : '☆'}</button>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span title={item.status} className={`rounded-full border px-2 py-0.5 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${statusStyles[item.status]}`}>{STATUS_SHORT[item.status]}</span>
                     <span className={`text-xs font-bold ${item.changeRate > 0 ? 'text-[#e74c3c]' : item.changeRate < 0 ? 'text-[#18a56c]' : 'text-[#6a7890]'}`}>{item.changeRate > 0 ? '+' : ''}{item.changeRate}%</span>
-                    <span title={item.priceSource} className={`rounded-full px-2 py-0.5 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{SOURCE_SHORT[item.priceSource]}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${sourceStyles[item.priceSource]}`}>{SOURCE_SHORT[item.priceSource]}</span>
                   </div>
                   <div className="mt-3 flex items-center justify-between">
                     <div><span className="text-lg font-black text-[#e74c3c]">{formatPrice(item.referencePrice)}</span><span className="text-xs text-[#6a7890]">/{item.unit}</span></div>
@@ -1298,7 +1382,14 @@ export default function MallPage() {
                 dragConstraints={{ left: 0 }}
                 dragElastic={0.1}
                 onDragEnd={(_, info) => { if (info.offset.x > 120) setDetail(null); }}
-              ><div className="border-b border-white/30 px-6 py-5 rounded-t-2xl" style={{background: "rgba(255,255,255,.18)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)"}}><div className="mb-3 flex items-center justify-between"><span className="font-mono text-xs font-black text-[#5b9bd5]">{detail.code}</span><button onClick={() => toggleFavorite(detail)} className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg transition hover:bg-white ${favoriteIds.includes(detail.id) ? 'text-amber-400' : 'text-[#c3ccd8]'}`} title={favoriteIds.includes(detail.id) ? '取消收藏' : '收藏'}>{favoriteIds.includes(detail.id) ? '★' : '☆'}</button><button onClick={() => setDetail(null)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#6a7890] transition hover:bg-white">✕</button></div><h2 id="detail-dialog-title" className="text-2xl font-black text-[#334155]">{detail.name}</h2><p className="mt-2 text-sm text-[#5a6d8a]">{detail.specification}</p></div><div className="space-y-5 px-6 py-5"><div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(12px) saturate(1.15)", WebkitBackdropFilter: "blur(12px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}><button onClick={() => setPriceOpen(o => !o)} className="mb-3 flex w-full items-center gap-2 text-left text-sm font-black text-[#334155] transition hover:text-[#5b9bd5]"><svg className={`h-3 w-3 shrink-0 text-[#5a6d8a] transition-transform duration-200 ${priceOpen ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>价格信息</button>{priceOpen && <div className="grid gap-4 sm:grid-cols-2"><Info label="当前参考价" value={`${formatPrice(detail.referencePrice)} / ${detail.unit}`} strong /><Info label="价格区间" value={`${formatPrice(detail.priceMin)} - ${formatPrice(detail.priceMax)}`} /><Info label="最近成交价" value={formatPrice(detail.lastDealPrice)} /><Info label="历史采购均价" value={formatPrice(detail.averagePrice)} /><Info label="价格变化" value={`${detail.changeRate > 0 ? '+' : ''}${detail.changeRate}%`} /><Info label="价格状态" value={detail.status} /></div>}</div><div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(12px) saturate(1.15)", WebkitBackdropFilter: "blur(12px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}><button onClick={() => setSupplierOpen(o => !o)} className="mb-3 flex w-full items-center gap-2 text-left text-sm font-black text-[#334155] transition hover:text-[#5b9bd5]"><svg className={`h-3 w-3 shrink-0 text-[#5a6d8a] transition-transform duration-200 ${supplierOpen ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>供应商与适用范围</button>{supplierOpen && <div className="grid gap-4 sm:grid-cols-2"><Info label="供应商" value={detail.supplier} /><Info label="供应商类型" value={detail.supplierType} /><Info label="适用区域" value={detail.region} /><Info label="最小参考采购量" value={detail.minOrder} /><Info label="含税" value={detail.taxIncluded ? '是' : '否'} /><Info label="含运费" value={detail.freightIncluded ? '是' : '否'} /></div>}</div><div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(12px) saturate(1.15)", WebkitBackdropFilter: "blur(12px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}><button onClick={() => setBasisOpen(o => !o)} className="mb-3 flex w-full items-center gap-2 text-left text-sm font-black text-[#334155] transition hover:text-[#5b9bd5]"><svg className={`h-3 w-3 shrink-0 text-[#5a6d8a] transition-transform duration-200 ${basisOpen ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>价格依据</button>{basisOpen && <div className="grid gap-4 sm:grid-cols-2"><Info label="价格来源" value={detail.priceSource} /><Info label="更新时间" value={formatDate(detail.updatedAt)} /><Info label="有效期至" value={formatDate(detail.validUntil)} /><Info label="分类目录" value={`${detail.group} / ${detail.category}`} /></div>}{basisOpen && <p className="mt-4 rounded-xl p-3 text-sm leading-6 text-[#5a6d8a]" style={{background: "rgba(247,250,255,.18)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)"}}>{detail.remark}</p>}</div><div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(12px) saturate(1.15)", WebkitBackdropFilter: "blur(12px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}>
+              ><div className="border-b border-white/30 px-6 py-5 rounded-t-2xl" style={{background: "rgba(255,255,255,.18)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)"}}><div className="mb-3 flex items-center justify-between"><span className="font-mono text-xs font-black text-[#5b9bd5]">{detail.code}</span><button onClick={() => setDetail(null)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#6a7890] transition hover:bg-white">✕</button></div><div className="flex items-center gap-3"><h2 id="detail-dialog-title" className="text-2xl font-black text-[#334155]">{detail.name}</h2><button onClick={() => toggleFavorite(detail)} className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-bold transition ${
+  favoriteIds.includes(detail.id)
+    ? 'bg-amber-50 border border-amber-200 text-amber-600'
+    : 'bg-[#f0f4fa]/80 border border-[#cdd9ea]/60 text-[#6a7890] hover:bg-[#eef3fb] hover:text-[#5b9bd5]'
+}`} title={favoriteIds.includes(detail.id) ? '取消收藏' : '收藏'}>
+  <span className="text-base">{favoriteIds.includes(detail.id) ? '★' : '☆'}</span>
+  {favoriteIds.includes(detail.id) ? '已收藏' : '收藏'}
+</button></div><p className="mt-2 text-sm text-[#5a6d8a]">{detail.specification}</p></div><div className="space-y-5 px-6 py-5"><div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(12px) saturate(1.15)", WebkitBackdropFilter: "blur(12px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}><button onClick={() => setPriceOpen(o => !o)} className="mb-3 flex w-full items-center gap-2 text-left text-sm font-black text-[#334155] transition hover:text-[#5b9bd5]"><svg className={`h-3 w-3 shrink-0 text-[#5a6d8a] transition-transform duration-200 ${priceOpen ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>价格信息</button>{priceOpen && <div className="grid gap-4 sm:grid-cols-2"><Info label="当前参考价" value={`${formatPrice(detail.referencePrice)} / ${detail.unit}`} strong /><Info label="价格区间" value={`${formatPrice(detail.priceMin)} - ${formatPrice(detail.priceMax)}`} /><Info label="最近成交价" value={formatPrice(detail.lastDealPrice)} /><Info label="历史采购均价" value={formatPrice(detail.averagePrice)} /><Info label="价格变化" value={`${detail.changeRate > 0 ? '+' : ''}${detail.changeRate}%`} /><Info label="价格状态" value={detail.status} /></div>}</div><div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(12px) saturate(1.15)", WebkitBackdropFilter: "blur(12px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}><button onClick={() => setSupplierOpen(o => !o)} className="mb-3 flex w-full items-center gap-2 text-left text-sm font-black text-[#334155] transition hover:text-[#5b9bd5]"><svg className={`h-3 w-3 shrink-0 text-[#5a6d8a] transition-transform duration-200 ${supplierOpen ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>供应商与适用范围</button>{supplierOpen && <div className="grid gap-4 sm:grid-cols-2"><Info label="供应商" value={detail.supplier} /><Info label="供应商类型" value={detail.supplierType} /><Info label="适用区域" value={detail.region} /><Info label="最小参考采购量" value={detail.minOrder} /><Info label="含税" value={detail.taxIncluded ? '是' : '否'} /><Info label="含运费" value={detail.freightIncluded ? '是' : '否'} /></div>}</div><div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(12px) saturate(1.15)", WebkitBackdropFilter: "blur(12px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}><button onClick={() => setBasisOpen(o => !o)} className="mb-3 flex w-full items-center gap-2 text-left text-sm font-black text-[#334155] transition hover:text-[#5b9bd5]"><svg className={`h-3 w-3 shrink-0 text-[#5a6d8a] transition-transform duration-200 ${basisOpen ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>价格依据</button>{basisOpen && <div className="grid gap-4 sm:grid-cols-2"><Info label="价格来源" value={detail.priceSource} /><Info label="更新时间" value={formatDate(detail.updatedAt)} /><Info label="有效期至" value={formatDate(detail.validUntil)} /><Info label="分类目录" value={`${detail.group} / ${detail.category}`} /></div>}{basisOpen && <p className="mt-4 rounded-xl p-3 text-sm leading-6 text-[#5a6d8a]" style={{background: "rgba(247,250,255,.18)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)"}}>{detail.remark}</p>}</div><div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(12px) saturate(1.15)", WebkitBackdropFilter: "blur(12px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}>
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-black text-[#334155]">价格趋势</div>
               {daysLeft !== null && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${daysLeft > 60 ? 'bg-emerald-50 text-emerald-700' : daysLeft > 30 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>{daysLeft > 30 ? '剩余有效期' : '即将过期'} {daysLeft} 天</span>}

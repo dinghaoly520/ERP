@@ -501,7 +501,7 @@ function ExpertExtractPage() {
                   <span className="h-2 w-2 rounded-full bg-[#064ea2] animate-pulse" />
                   AI 正在分析项目需求并抽取专家组...
                 </div>
-                <p className="mt-3 text-xs text-[#8a99ad] max-w-md mx-auto leading-relaxed">
+                <p className="mt-3 text-xs text-[#8a99ad] whitespace-nowrap">
                   分析维度：项目专业需求 → 合规过滤（供应商回避+可用性）→ 专家匹配评分 → 加权/随机抽取
                 </p>
               </div>

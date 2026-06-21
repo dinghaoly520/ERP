@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { BarChart3 } from 'lucide-react';
 import type { AssistantCard as AssistantCardType } from '@/lib/types';
 import { ChartRenderer } from './chart-renderer';
@@ -12,11 +13,18 @@ export function DataCanvas({
   cards: AssistantCardType[];
   topicLabel: string;
 }) {
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  // 进入数据页面时定位到顶部，避免停留在对话区的底部滚动位置
+  useEffect(() => {
+    canvasRef.current?.scrollTo(0, 0);
+  }, []);
+
   const displayCards = cards.filter((c) => c.type !== 'actionPlan' && c.type !== 'metric');
 
   if (displayCards.length === 0) {
     return (
-      <div className={styles.canvas}>
+      <div className={styles.canvas} ref={canvasRef}>
         <div className={styles.canvasHeader}>
           <span className={styles.topicDot} />
           <span className={styles.topicLabel}>当前话题：{topicLabel}</span>
@@ -32,7 +40,7 @@ export function DataCanvas({
   }
 
   return (
-    <div className={styles.canvas}>
+    <div className={styles.canvas} ref={canvasRef}>
       <div className={styles.canvasHeader}>
         <span className={styles.topicDot} />
         <span className={styles.topicLabel}>实时数据 · {topicLabel}</span>

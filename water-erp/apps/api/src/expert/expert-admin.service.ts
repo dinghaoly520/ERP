@@ -239,6 +239,16 @@ export class ExpertAdminService {
         ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '' }))
         : llm.requiredSpecialties;
       for (const s of llm.scoredExperts) scoreMap.set(s.id, { matchScore: s.matchScore, fitSpecialty: s.fitSpecialty, reason: s.reason });
+      // 降级：LLM 未覆盖的候选人由规则评分兜底（避免 UI 显示「0 较低」）
+      for (const c of candidates) {
+        if (!scoreMap.has(c.id)) {
+          scoreMap.set(c.id, {
+            matchScore: this.ruleScore(c),
+            fitSpecialty: c.specialty,
+            reason: `专业「${c.specialty}」${c.title ? '、' + c.title : ''}，历史项目 ${c.pastProjects} 个。`,
+          });
+        }
+      }
     } else {
       engine = 'rules';
       analysis = `基于专业匹配与历史履职的规则评分（共 ${eligible.length} 名合规专家）。`;

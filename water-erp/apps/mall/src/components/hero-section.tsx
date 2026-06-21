@@ -135,6 +135,8 @@ export function HeroSection({
   const [contextTooltipOpen, setContextTooltipOpen] = useState(false);
   const contextBtnRef = useRef<HTMLButtonElement>(null);
   const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  // 输入框草稿态：打字时写入 inputValue，同步到 search 做实时筛选；按下 Enter 或点击按钮后清空 inputValue，search 保留
+  const [inputValue, setInputValue] = useState('');
 
   const hasInput = search.trim().length > 0;
   const detectedMode = useMemo(() => detectInputMode(search), [search]);
@@ -170,6 +172,8 @@ export function HeroSection({
 
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => { if (assistantInitialQuestion) setDialogOpen(true); }, [assistantInitialQuestion]);
+  // 当外部重置搜索时（如点击"重置筛选"），同步清空输入框草稿
+  useEffect(() => { if (!search) setInputValue(''); }, [search]);
   // 更新下拉面板定位（Portal 到 body 时需要）
   useEffect(() => {
     if (tipsOpen && dropdownAnchorRef.current) {
@@ -208,14 +212,17 @@ export function HeroSection({
     if (detectInputMode(t) === 'assistant') {
       setDialogQuestion(t);
       setDialogOpen(true);
+      setInputValue('');
+      onSearchChange('');
     } else {
       onSearchChange(t);
+      setInputValue('');
     }
   }, [onAddSearchHistory, onSearchChange]);
 
   const openAssistant = useCallback(() => {
     const t = search.trim();
-    if (t) { setDialogQuestion(t); onSearchChange(''); }
+    if (t) { setDialogQuestion(t); onSearchChange(''); setInputValue(''); }
     setDialogOpen(true);
   }, [search, onSearchChange]);
 
@@ -225,9 +232,11 @@ export function HeroSection({
     else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIdx(p => Math.max(p - 1, -1)); setTipsOpen(true); }
     else if (e.key === 'Enter') {
       e.preventDefault();
-      if (selectedIdx >= 0 && tipsOpen && searchSuggestions[selectedIdx]) {
-        executeAction(searchSuggestions[selectedIdx].name); setSelectedIdx(-1);
-      } else { executeAction(search); }
+      const term = selectedIdx >= 0 && tipsOpen && searchSuggestions[selectedIdx]
+        ? searchSuggestions[selectedIdx].name
+        : inputValue;
+      executeAction(term);
+      setSelectedIdx(-1);
     }
     else if (e.key === 'Escape') { setTipsOpen(false); setSelectedIdx(-1); if (!hasInput) inputRef.current?.blur(); }
   };
@@ -330,37 +339,25 @@ export function HeroSection({
                 onClick={() => setDialogOpen(true)}
                 aria-label="打开水叮当对话框"
               >
-                {/* 外层七色柔和光晕 */}
+                {/* 外层旋转光环 — hover 加速 */}
                 <motion.div
                   className="absolute -inset-[10px] rounded-full pointer-events-none"
-                  animate={{
-                    opacity: [0.3, 0.5, 0.3],
-                    scale: [0.96, 1.06, 0.96],
-                    background: [
-                      'radial-gradient(circle, rgba(147,197,253,.22) 30%, rgba(168,139,250,.12) 55%, transparent 70%)', // 蓝
-                      'radial-gradient(circle, rgba(168,139,250,.22) 30%, rgba(244,114,182,.12) 55%, transparent 70%)', // 紫→粉
-                      'radial-gradient(circle, rgba(244,114,182,.22) 30%, rgba(251,191,36,.12) 55%, transparent 70%)', // 粉→金
-                      'radial-gradient(circle, rgba(251,191,36,.22) 30%, rgba(52,211,153,.12) 55%, transparent 70%)', // 金→绿
-                      'radial-gradient(circle, rgba(52,211,153,.22) 30%, rgba(45,212,191,.12) 55%, transparent 70%)', // 绿→青
-                      'radial-gradient(circle, rgba(45,212,191,.22) 30%, rgba(96,165,250,.12) 55%, transparent 70%)', // 青→天蓝
-                      'radial-gradient(circle, rgba(96,165,250,.22) 30%, rgba(147,197,253,.12) 55%, transparent 70%)', // 天蓝→回归
-                    ],
-                  }}
-                  transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+                  animate={{ opacity: [0.2, 0.45, 0.2], scale: [0.96, 1.06, 0.96], rotate: [0, 360] }}
+                  transition={{ rotate: { duration: 20, repeat: Infinity, ease: 'linear' }, opacity: { duration: 4, repeat: Infinity, ease: 'easeInOut' }, scale: { duration: 4, repeat: Infinity, ease: 'easeInOut' } }}
                   style={{
-                    filter: 'blur(8px)',
+                    background: 'conic-gradient(from 0deg, rgba(91,155,213,.18), rgba(99,102,241,.14), rgba(52,211,153,.10), rgba(251,191,36,.08), rgba(91,155,213,.18))',
+                    filter: 'blur(4px)',
+                    mask: 'radial-gradient(circle, transparent 58%, black 62%)',
+                    WebkitMask: 'radial-gradient(circle, transparent 58%, black 62%)',
                   }}
                 />
-                {/* 内层彩色光环 */}
+                {/* 内层反向旋转仪表环 */}
                 <motion.div
                   className="absolute -inset-[4px] rounded-full pointer-events-none"
-                  animate={{
-                    opacity: [0.3, 0.55, 0.3],
-                    scale: [0.98, 1.04, 0.98],
-                  }}
-                  transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}
+                  animate={{ opacity: [0.25, 0.5, 0.25], scale: [0.98, 1.04, 0.98], rotate: -360 }}
+                  transition={{ rotate: { duration: 12, repeat: Infinity, ease: 'linear' }, opacity: { duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }, scale: { duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: 0.3 } }}
                   style={{
-                    background: 'conic-gradient(from 0deg, rgba(147,197,253,.3), rgba(168,139,250,.25), rgba(52,211,153,.2), rgba(251,191,36,.15), rgba(147,197,253,.3))',
+                    background: 'conic-gradient(from 180deg, rgba(147,197,253,.25), rgba(168,139,250,.20), rgba(52,211,153,.15), rgba(251,191,36,.10), rgba(147,197,253,.25))',
                     filter: 'blur(1px)',
                   }}
                 />
@@ -527,8 +524,14 @@ export function HeroSection({
                 {/* 输入框 */}
                 <input
                   ref={inputRef}
-                  value={search}
-                  onChange={e => { onSearchChange(e.target.value); setTipsOpen(true); setSelectedIdx(-1); }}
+                  value={inputValue}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setInputValue(v);
+                    onSearchChange(v);
+                    setTipsOpen(true);
+                    setSelectedIdx(-1);
+                  }}
                   onFocus={() => setTipsOpen(true)}
                   onBlur={() => setTimeout(() => { if (!containerRef.current?.contains(document.activeElement)) setTipsOpen(false); }, 200)}
                   onKeyDown={handleKeyDown}
@@ -537,15 +540,15 @@ export function HeroSection({
                   aria-label="搜索物资或向水叮当提问（/ 键聚焦）"
                 />
 
-                {/* 清除按钮 */}
+                {/* 清除按钮 — 草稿有内容时显示 */}
                 <AnimatePresence>
-                  {hasInput && (
+                  {inputValue.trim().length > 0 && (
                     <motion.button
                       initial={{ opacity: 0, scale: 0.6 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.6 }}
                       type="button"
-                      onClick={() => { onSearchChange(''); inputRef.current?.focus(); }}
+                      onClick={() => { onSearchChange(''); setInputValue(''); inputRef.current?.focus(); }}
                       className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#bcc6d4] transition hover:bg-[#f0f3f8] hover:text-[#5a6d8a]"
                       aria-label="清空输入"
                     >
@@ -557,60 +560,99 @@ export function HeroSection({
                 {/* 执行按钮 */}
                 <motion.button
                   type="button"
-                  onClick={() => executeAction(search)}
-                  className="h-14 shrink-0 rounded-r-2xl px-6 text-sm font-black text-white transition active:scale-95"
+                  onClick={() => executeAction(inputValue || search)}
+                  className="relative h-14 shrink-0 rounded-r-2xl px-6 text-sm font-black text-white transition overflow-hidden"
                   animate={{
-                    background: effectiveMode === 'assistant' && hasInput
+                    background: (inputValue ? detectInputMode(inputValue) : effectiveMode) === 'assistant' && (inputValue || hasInput)
                       ? 'linear-gradient(135deg, #7c3aed, #6366f1, #4f46e5)'
-                      : hasInput
-                        ? 'linear-gradient(135deg, #5b9bd5, #4a89c4)'
+                      : (inputValue || hasInput)
+                        ? 'linear-gradient(135deg, #5b9bd5, #3b82f6)'
                         : 'linear-gradient(135deg, #94a3b8, #94a3b8)',
                   }}
-                  whileHover={{ filter: 'brightness(1.1)' }}
+                  whileHover={{ filter: 'brightness(1.08)', scale: 1.02 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  {effectiveMode === 'assistant' && hasInput ? (
-                    <span>提问水叮当</span>
-                  ) : hasInput ? (
-                    <span>搜索</span>
-                  ) : '搜索'}
+                  {/* 按钮内扫光 */}
+                  {(inputValue || hasInput) && (
+                    <motion.span
+                      className="absolute inset-0 pointer-events-none"
+                      animate={{ x: ['-120%', '120%'] }}
+                      transition={{ duration: 2.5, repeat: Infinity, ease: 'linear', delay: 1 }}
+                      style={{
+                        background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,.15) 50%, transparent 60%)',
+                      }}
+                    />
+                  )}
+                  <span className="relative z-10 inline-flex items-center gap-1.5">
+                    {inputValue && detectInputMode(inputValue) === 'assistant' ? (
+                      <>
+                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-white/80 shadow-[0_0_6px_rgba(255,255,255,.5)]" />
+                        提问水叮当
+                      </>
+                    ) : inputValue ? (
+                      '搜索'
+                    ) : hasInput ? (
+                      '更新搜索'
+                    ) : '搜索'}
+                  </span>
                 </motion.button>
               </motion.div>
               </div>
 
-              {/* 搜索结果反馈 */}
+              {/* 搜索反馈 + 当前搜索标签 */}
               <AnimatePresence mode="wait">
-                {hasInput && filteredCount > 0 && (
-                  <motion.p
-                    key="found"
+                {hasInput && (
+                  <motion.div
+                    key="active-search"
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
-                    className="mt-2.5 flex items-center gap-2 text-xs text-[#5a6d8a]"
+                    className="mt-2.5 flex flex-wrap items-center gap-2.5"
                   >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-                    </svg>
-                    找到 <span className="font-black text-[#5b9bd5]">{filteredCount}</span> 项匹配物资
-                  </motion.p>
-                )}
-                {hasInput && filteredCount === 0 && (
-                  <motion.p
-                    key="notfound"
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    className="mt-2.5 text-xs text-[#e74c3c] flex items-center gap-2"
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <circle cx="11" cy="11" r="8"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-                    </svg>
-                    未找到匹配项 —
-                    <button type="button" onClick={openAssistant}
-                      className="font-bold text-[#5b9bd5] underline decoration-dotted underline-offset-2 hover:text-[#7c3aed] hover:decoration-solid transition">
-                      让水叮当分析
-                    </button>
-                  </motion.p>
+                    {/* 当前搜索关键词 */}
+                    <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold"
+                      style={{
+                        background: effectiveMode === 'assistant'
+                          ? 'rgba(139,92,246,.08)'
+                          : 'rgba(91,155,213,.08)',
+                        border: effectiveMode === 'assistant'
+                          ? '1px solid rgba(139,92,246,.20)'
+                          : '1px solid rgba(91,155,213,.18)',
+                        color: effectiveMode === 'assistant' ? '#7c3aed' : '#5b9bd5',
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                      </svg>
+                      搜索：{search}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onSearchChange(''); setInputValue(''); inputRef.current?.focus(); }}
+                        className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full hover:bg-black/10 transition"
+                        aria-label="清除搜索"
+                      >
+                        <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l10 10M11 1L1 11"/></svg>
+                      </button>
+                    </span>
+                    {/* 匹配计数 */}
+                    {filteredCount > 0 && (
+                      <span className="text-xs font-bold text-[#5a6d8a]">
+                        找到 <span className="font-black text-[#5b9bd5]">{filteredCount}</span> 项匹配
+                      </span>
+                    )}
+                    {filteredCount === 0 && (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#e74c3c]">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <circle cx="11" cy="11" r="8"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                        </svg>
+                        未找到 —
+                        <button type="button" onClick={openAssistant}
+                          className="font-bold underline decoration-dotted underline-offset-2 hover:text-[#7c3aed] hover:decoration-solid transition">
+                          问水叮当
+                        </button>
+                      </span>
+                    )}
+                  </motion.div>
                 )}
               </AnimatePresence>
 

@@ -1,4 +1,4 @@
-const BASE = '/api';
+const BASE = 'http://localhost:4001/api';
 const PORTAL = 'web';
 
 export class ApiError extends Error {
