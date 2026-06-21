@@ -4,20 +4,37 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { exportArchivePackage } from '@/lib/api/bid';
 import type { BidProjectDetail } from '@/lib/types';
-import { useBidProjects } from '@/hooks/use-bid-projects';
-import ProjectSelector from '@/components/project-selector';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import { STATUS_COLOR } from '@water-erp/shared';
 import { Archive, CheckCircle, AlertTriangle, Package, Download } from 'lucide-react';
 import { PageHero, SectionCard } from '@water-erp/ui';
 
+interface ArchiveProject {
+  id: string;
+  projectCode: string;
+  name: string;
+}
+
 export default function BidArchivePage() {
-  const { projectId, setProjectId } = useBidProjects();
+  const [archiveProjects, setArchiveProjects] = useState<ArchiveProject[]>([]);
+  const [projectId, setProjectId] = useState('');
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [archiving, setArchiving] = useState(false);
+
+  // 仅加载已归档（ARCHIVED）阶段的项目
+  useEffect(() => {
+    api.get<ArchiveProject[]>('/bid/projects?stage[]=ARCHIVED')
+      .then(ps => {
+        setArchiveProjects(ps);
+        if (ps.length > 0 && !projectId) setProjectId(ps[0].id);
+      })
+      .catch((e: any) => {
+        if (e?.status !== 401) toast.error(e?.message || '加载归档项目失败');
+      });
+  }, []);
 
   const load = () => {
     if (!projectId) return;
@@ -28,6 +45,8 @@ export default function BidArchivePage() {
       .catch((e: any) => { setError(e?.message || '加载归档数据失败'); toast.error(e?.message || '加载归档数据失败'); })
       .finally(() => setLoading(false));
   };
+
+  useEffect(() => { load(); }, [projectId]);
 
   const handleExportArchive = async (format: 'json' | 'csv') => {
     if (!project) return;
@@ -51,7 +70,24 @@ export default function BidArchivePage() {
     } catch { toast.error('导出失败'); }
   };
 
-  useEffect(() => { load(); }, [projectId]);
+  // 无已归档项目
+  if (!loading && !error && archiveProjects.length === 0) {
+    return (
+      <div className="space-y-6">
+        <PageHero
+          tone="green"
+          icon={<Archive size={14} strokeWidth={1.5} />}
+          title="归档端"
+          description="资料归档 · 防篡改 · 统一管理"
+        />
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Archive size={32} strokeWidth={1.5} className="text-[#94a3b8] mb-4" />
+          <p className="text-sm font-semibold text-[#5a6d8a]">暂无已归档项目</p>
+          <p className="text-xs text-[#8a96aa] mt-1">项目评标完成并归档后将在此显示</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) return <TableSkeleton rows={6} cols={4} />;
   if (error) return (
@@ -74,7 +110,21 @@ export default function BidArchivePage() {
         icon={<Archive size={14} strokeWidth={1.5} />}
         title="归档端"
         description="资料归档 · 防篡改 · 统一管理"
-        actions={<ProjectSelector value={projectId} onChange={setProjectId} />}
+        actions={
+          archiveProjects.length > 1 ? (
+            <select
+              value={projectId}
+              onChange={e => setProjectId(e.target.value)}
+              className="px-3 py-2 border border-[#e8f0fa] rounded-lg text-sm focus:outline-none focus:border-[#064ea2] bg-white min-w-[280px]"
+            >
+              {archiveProjects.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.projectCode} — {p.name}
+                </option>
+              ))}
+            </select>
+          ) : null
+        }
       />
 
       {/* Status header */}
