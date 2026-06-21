@@ -7,7 +7,7 @@ import type { BidProjectDetail } from '@/lib/types';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import { STATUS_COLOR } from '@water-erp/shared';
-import { Archive, CheckCircle, AlertTriangle, Package, Download, Search, ArrowLeft, RefreshCw, ChevronRight } from 'lucide-react';
+import { Archive, CheckCircle, AlertTriangle, Package, Download, Search, ArrowLeft, RefreshCw, ChevronRight, Calendar } from 'lucide-react';
 import { SectionCard, MetricCard, DataToolbar } from '@water-erp/ui';
 
 interface SlimProject {
@@ -41,7 +41,9 @@ export default function BidArchivePage() {
   // ── 筛选 ──
   const [search, setSearch] = useState('');
   const [rateFilter, setRateFilter] = useState('');
-  const [yearFilter, setYearFilter] = useState('');
+  const [datePreset, setDatePreset] = useState<'all' | '1m' | '3m' | '6m' | '1y' | 'custom'>('all');
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
 
   // ── 详情操作 ──
   const [archiving, setArchiving] = useState(false);
@@ -144,14 +146,18 @@ export default function BidArchivePage() {
   // 筛选逻辑
   // ══════════════════════════════════════════════
 
-  const availableYears = useMemo(() => {
-    const years = new Set<string>();
-    summaryData.forEach(s => {
-      if (s.lastArchivedAt) years.add(new Date(s.lastArchivedAt).getFullYear().toString());
-      if (s.createdAt) years.add(new Date(s.createdAt).getFullYear().toString());
-    });
-    return Array.from(years).sort().reverse();
-  }, [summaryData]);
+  // 计算日期筛选的起止范围
+  const dateRange = useMemo(() => {
+    if (datePreset === 'all') return null;
+    if (datePreset === 'custom') {
+      if (!dateStart && !dateEnd) return null;
+      return { start: dateStart ? new Date(dateStart).getTime() : 0, end: dateEnd ? new Date(dateEnd).getTime() : Infinity };
+    }
+    const now = Date.now();
+    const msDay = 1000 * 60 * 60 * 24;
+    const days = datePreset === '1m' ? 30 : datePreset === '3m' ? 90 : datePreset === '6m' ? 180 : 365;
+    return { start: now - days * msDay, end: now };
+  }, [datePreset, dateStart, dateEnd]);
 
   const filteredSummaries = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -160,13 +166,13 @@ export default function BidArchivePage() {
       if (rateFilter === '100' && s.completionRate < 100) return false;
       if (rateFilter === '80' && s.completionRate < 80) return false;
       if (rateFilter === 'incomplete' && s.completionRate >= 100) return false;
-      if (yearFilter) {
-        const projectYear = s.lastArchivedAt ? new Date(s.lastArchivedAt).getFullYear().toString() : '';
-        if (projectYear !== yearFilter) return false;
+      if (dateRange) {
+        const at = s.lastArchivedAt ? new Date(s.lastArchivedAt).getTime() : null;
+        if (!at || at < dateRange.start || at > dateRange.end) return false;
       }
       return true;
     });
-  }, [summaryData, search, rateFilter, yearFilter]);
+  }, [summaryData, search, rateFilter, dateRange]);
 
   const fullComplete = summaryData.filter(s => s.completionRate === 100).length;
   const partialCount = summaryData.filter(s => s.completionRate > 0 && s.completionRate < 100).length;
@@ -466,14 +472,44 @@ export default function BidArchivePage() {
             className="workbench-input w-full pl-9"
           />
         </div>
-        <select
-          value={yearFilter}
-          onChange={e => setYearFilter(e.target.value)}
-          className="workbench-input cursor-pointer"
-        >
-          <option value="">全部年份</option>
-          {availableYears.map(y => <option key={y} value={y}>{y}年</option>)}
-        </select>
+        {/* 日期快捷筛选 */}
+        <div className="flex items-center gap-1">
+          <Calendar size={12} strokeWidth={1.5} className="text-[#94a3b8] mr-1" />
+          {(['all', '1m', '3m', '6m', '1y', 'custom'] as const).map(preset => (
+            <button
+              key={preset}
+              onClick={() => {
+                setDatePreset(preset);
+                if (preset !== 'custom') { setDateStart(''); setDateEnd(''); }
+              }}
+              className={`px-2 py-1 text-[11px] font-bold rounded-lg transition whitespace-nowrap ${
+                datePreset === preset
+                  ? 'bg-[#064ea2] text-white'
+                  : 'text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a]'
+              }`}
+            >
+              {preset === 'all' ? '全部' : preset === '1m' ? '近一月' : preset === '3m' ? '近一季' : preset === '6m' ? '近半年' : preset === '1y' ? '近一年' : '自定义'}
+            </button>
+          ))}
+        </div>
+        {/* 自定义日期范围 */}
+        {datePreset === 'custom' && (
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={dateStart}
+              onChange={e => setDateStart(e.target.value)}
+              className="workbench-input text-[11px] w-[128px]"
+            />
+            <span className="text-[11px] text-[#8a96aa]">至</span>
+            <input
+              type="date"
+              value={dateEnd}
+              onChange={e => setDateEnd(e.target.value)}
+              className="workbench-input text-[11px] w-[128px]"
+            />
+          </div>
+        )}
         <select
           value={rateFilter}
           onChange={e => setRateFilter(e.target.value)}
