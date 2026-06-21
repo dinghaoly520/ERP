@@ -85,6 +85,28 @@ export function startEvaluation(projectId: string) {
   return api.post<BidProjectDetail>(`/bid/projects/${projectId}/start-evaluation`, {});
 }
 
+/** 催促供应商投标（站内信+Email 多通道）。onlyUnpublished 默认 true：仅催未提交者。返回 { reached }。 */
+export function nudgeSuppliers(projectId: string, onlyUnsubmitted = true) {
+  return api.post<{ reached: number }>(`/bid/projects/${projectId}/nudge-suppliers`, { onlyUnsubmitted });
+}
+
+/** 催促专家签到/评分。reason: 'signin' | 'score'。返回 { reached }。 */
+export function nudgeExperts(projectId: string, reason: 'signin' | 'score') {
+  return api.post<{ reached: number }>(`/bid/projects/${projectId}/nudge-experts`, { reason });
+}
+
+/** 项目当前供应商名册（邀请弹窗用于标灰已邀请项）。 */
+export function listProjectSuppliers(projectId: string) {
+  return api.get<{ id: string; supplierId: string | null; supplierName: string; submitStatus: string }[]>(
+    `/bid/projects/${projectId}/suppliers`,
+  );
+}
+
+/** 邀请供应商加入名册（仅发标/投标期）。返回 { added, skipped }。 */
+export function inviteSuppliers(projectId: string, supplierIds: string[]) {
+  return api.post<{ added: number; skipped: number }>(`/bid/projects/${projectId}/suppliers`, { supplierIds });
+}
+
 export function decryptSupplier(projectId: string, supplierId: string, body?: {
   amount?: string; period?: string; qualityTarget?: string;
   bondStatus?: string; simulateDanger?: boolean;

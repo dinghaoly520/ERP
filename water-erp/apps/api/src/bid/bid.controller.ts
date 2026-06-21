@@ -60,6 +60,15 @@ export class BidController {
   @ApiOperation({ summary: '投标供应商列表' })
   listSuppliers(@Param('id') id: string) { return this.bidService.listSuppliers(id); }
 
+  @Post('projects/:id/suppliers')
+  @ApiOperation({ summary: '邀请供应商加入名册（仅发标/投标期，邀请招标用）' })
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  inviteSuppliers(
+    @Param('id') id: string,
+    @Body() dto: { supplierIds?: string[] },
+    @CurrentUser('sub') userId: string,
+  ) { return this.bidService.inviteSuppliers(id, dto?.supplierIds ?? [], userId); }
+
   @Post('projects/:id/open-submission')
   @ApiOperation({ summary: '开放投递 (DOWNLOAD→SUBMIT)' })
   openSubmission(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.openSubmission(id, userId); }
@@ -71,6 +80,24 @@ export class BidController {
   @Post('projects/:id/start-evaluation')
   @ApiOperation({ summary: '启动评标 (OPENING→EVALUATING)' })
   startEvaluation(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.startEvaluation(id, userId); }
+
+  @Post('projects/:id/nudge-suppliers')
+  @ApiOperation({ summary: '催促供应商投标（站内信+Email 多通道）' })
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  nudgeSuppliers(
+    @Param('id') id: string,
+    @Body() dto: { onlyUnsubmitted?: boolean },
+    @CurrentUser('sub') userId: string,
+  ) { return this.bidService.nudgeSuppliers(id, dto?.onlyUnsubmitted ?? true, userId); }
+
+  @Post('projects/:id/nudge-experts')
+  @ApiOperation({ summary: '催促专家签到/评分（站内信+Email 多通道）' })
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  nudgeExperts(
+    @Param('id') id: string,
+    @Body() dto: { reason?: 'signin' | 'score' },
+    @CurrentUser('sub') userId: string,
+  ) { return this.bidService.nudgeExperts(id, dto?.reason ?? 'signin', userId); }
 
   @Post('projects/:id/decrypt/:supplierId')
   @ApiOperation({ summary: '解密供应商投标' })

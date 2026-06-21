@@ -5,13 +5,25 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Pagination } from '@/components/pagination';
-import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
-import { Plus, Search, Pencil, ChevronDown, ChevronRight, AlertTriangle, Clock, Users, UserCheck } from 'lucide-react';
+import { getProjectsDashboard, openSubmission, generateEvaluationResults, nudgeSuppliers, nudgeExperts, type DashboardProject } from '@/lib/api/bid';
+import { Plus, Search, Pencil, ChevronDown, ChevronRight, AlertTriangle, Clock, Users, UserCheck, Megaphone, BellRing, UserPlus, FlaskConical, MessageSquareText, ShieldCheck, ExternalLink, type LucideIcon } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 import { SectionCard, MetricCard, DataToolbar } from '@water-erp/ui';
+import { portalURL } from '@water-erp/config';
 import { TableSkeleton } from '@/components/skeleton';
 import CreateProjectDialog from '@/components/create-project-dialog';
 import EditProjectDialog from '@/components/edit-project-dialog';
+import InviteSuppliersDialog from '@/components/invite-suppliers-dialog';
+/** 操作列次操作项（点击「更多」后在行下方横向展开的快捷动作）。 */
+interface ActionMenuItem {
+  key: string;
+  label: string;
+  icon?: LucideIcon;
+  onClick: () => void;
+  disabled?: boolean;
+  disabledReason?: string;
+  tone?: 'default' | 'danger' | 'highlight';
+}
 
 interface DashboardData {
   projects: DashboardProject[];
@@ -68,6 +80,7 @@ export default function BidDashboard() {
   const [stageFilter, setStageFilter] = useState('');
   const [readinessFilter, setReadinessFilter] = useState('');
   const [editProject, setEditProject] = useState<any>(null);
+  const [inviteProject, setInviteProject] = useState<DashboardProject | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [workspaceMap, setWorkspaceMap] = useState<Map<string, any>>(new Map());
   const [projectsPage, setProjectsPage] = useState(1);
@@ -86,6 +99,15 @@ export default function BidDashboard() {
             .catch(() => {});
         }
       }
+      return next;
+    });
+  };
+
+  const [actionExpandedIds, setActionExpandedIds] = useState<Set<string>>(new Set());
+  const toggleActionMenu = (id: string) => {
+    setActionExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
@@ -148,6 +170,101 @@ export default function BidDashboard() {
       if (p.expertCount === 0 && (p.stage === 'OPENING' || p.stage === 'EVALUATING')) risks.push('无专家');
     }
     return risks;
+  };
+
+  // ── 操作列：阶段门控的快捷管理动作 ──
+
+  const gotoTab = (p: DashboardProject, tab: string) => router.push(`/bid/project/${p.id}?tab=${tab}`);
+
+  const gotoExtract = (p: DashboardProject) => {
+    // 专家抽取保留在 web 门户（:3005），跨门户带 token_web session，透传 projectId 预填
+    window.open(portalURL('web', `/expert/extract?projectId=${p.id}`), '_blank');
+  };
+
+  const handleOpenSubmission = (p: DashboardProject) => {
+    openSubmission(p.id)
+      .then(() => { toast.success('已开放投递（进入投标期）'); fetchData(); })
+      .catch((e: any) => toast.error(e?.message || '开放投递失败'));
+  };
+
+  const handleNudgeSuppliers = (p: DashboardProject) => {
+    nudgeSuppliers(p.id, true)
+      .then(({ reached }) => toast.success(`已催促 ${reached} 位未提交供应商`))
+      .catch((e: any) => toast.error(e?.message || '催促供应商失败'));
+  };
+
+  const handleNudgeExperts = (p: DashboardProject, reason: 'signin' | 'score') => {
+    nudgeExperts(p.id, reason)
+      .then(({ reached }) => toast.success(
+        reason === 'signin' ? `已催促 ${reached} 位未签到专家` : `已催促 ${reached} 位未完成评分专家`,
+      ))
+      .catch((e: any) => toast.error(e?.message || '催促专家失败'));
+  };
+
+  const handleGenerateResults = (p: DashboardProject) => {
+    generateEvaluationResults(p.id)
+      .then(() => toast.success('评标结果已生成'))
+      .catch((e: any) => toast.error(e?.message || '生成评标结果失败'));
+  };
+
+  /** 按阶段 + readiness 构建次操作下拉项（催办 / 跳转抽取 / 流转 / 导航）。 */
+  const buildMenuItems = (p: DashboardProject): ActionMenuItem[] => {
+    const items: ActionMenuItem[] = [];
+    const suppliersPending = p.supplierCount > 0 && p.supplierSubmitted < p.supplierCount;
+    const expertsPendingSignin = p.expertCount > 0 && p.expertSignedIn < p.expertCount;
+    const noExperts = p.expertCount === 0;
+
+    if (p.stage === 'DOWNLOAD' || p.stage === 'SUBMIT') {
+      // 邀请招标且名册为空时高亮提示（必须先邀请才能投标/催办）
+      const inviteHighlight = p.procurementMethod === '邀请招标' && p.supplierCount === 0;
+      items.push({
+        key: 'invite-suppliers', label: '邀请供应商', icon: UserPlus,
+        onClick: () => setInviteProject(p),
+        tone: inviteHighlight ? 'highlight' : 'default',
+      });
+      items.push({
+        key: 'nudge-suppliers', label: '催促供应商投标', icon: Megaphone,
+        onClick: () => handleNudgeSuppliers(p),
+        disabled: !suppliersPending,
+        disabledReason: p.supplierCount === 0 ? '暂无投标供应商' : '全部供应商已提交',
+      });
+      if (noExperts) {
+        items.push({ key: 'extract', label: '尚未抽取专家 · 去抽取', icon: UserPlus, onClick: () => gotoExtract(p), tone: 'highlight' });
+      }
+      items.push({ key: 'detail', label: '进入项目详情', icon: ExternalLink, onClick: () => gotoTab(p, 'open') });
+    }
+
+    if (p.stage === 'OPENING') {
+      items.push({
+        key: 'nudge-expert-signin', label: '催促专家签到', icon: BellRing,
+        onClick: () => handleNudgeExperts(p, 'signin'),
+        disabled: !expertsPendingSignin,
+        disabledReason: noExperts ? '尚未抽取专家' : '全部专家已签到',
+      });
+      if (noExperts) {
+        items.push({ key: 'extract', label: '尚未抽取专家 · 去抽取', icon: UserPlus, onClick: () => gotoExtract(p), tone: 'highlight' });
+      }
+      items.push({ key: 'dispute', label: '处理开标异议', icon: AlertTriangle, onClick: () => gotoTab(p, 'open') });
+      items.push({ key: 'supervise', label: '监督视图', icon: ShieldCheck, onClick: () => gotoTab(p, 'supervise') });
+    }
+
+    if (p.stage === 'EVALUATING') {
+      items.push({ key: 'gen-results', label: '生成评标结果', icon: FlaskConical, onClick: () => handleGenerateResults(p) });
+      items.push({
+        key: 'nudge-expert-score', label: '催促专家评分', icon: BellRing,
+        onClick: () => handleNudgeExperts(p, 'score'),
+        disabled: noExperts,
+        disabledReason: '尚未抽取专家',
+      });
+      items.push({ key: 'clarify', label: '发起澄清', icon: MessageSquareText, onClick: () => gotoTab(p, 'clarify') });
+    }
+
+    if (p.stage === 'ARCHIVED') {
+      items.push({ key: 'supervise', label: '监督视图', icon: ShieldCheck, onClick: () => gotoTab(p, 'supervise') });
+      items.push({ key: 'clarify', label: '查看澄清记录', icon: MessageSquareText, onClick: () => gotoTab(p, 'clarify') });
+    }
+
+    return items;
   };
 
   return (
@@ -429,6 +546,22 @@ export default function BidDashboard() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           {/* Primary action: context-aware based on stage */}
+                          {p.stage === 'DOWNLOAD' && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleOpenSubmission(p); }}
+                              className="flex items-center gap-1 rounded-lg bg-[#11a874] px-2.5 py-1 text-[10px] font-bold text-white hover:bg-[#0f9f6e] transition"
+                            >
+                              开放投递
+                            </button>
+                          )}
+                          {p.stage === 'SUBMIT' && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); gotoTab(p, 'open'); }}
+                              className="flex items-center gap-1 rounded-lg border border-[#dce6f3] px-2.5 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a] transition"
+                            >
+                              进入项目
+                            </button>
+                          )}
                           {p.stage === 'OPENING' && p.readiness === 'ready' && (
                             <button
                               onClick={(e) => {
@@ -465,9 +598,16 @@ export default function BidDashboard() {
                               查看归档
                             </button>
                           )}
-                          {(p.stage === 'DOWNLOAD' || p.stage === 'SUBMIT') && (
-                            <span className="text-[10px] text-[#8a96aa]">准备中</span>
-                          )}
+
+                          {/* Secondary actions: toggle inline expansion row (在行下方横向展开) */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleActionMenu(p.id); }}
+                            className="flex items-center gap-1 rounded-lg border border-[#dce6f3] px-2 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a] transition"
+                            title="更多操作"
+                          >
+                            更多
+                            <ChevronDown size={11} strokeWidth={2} className={`transition-transform ${actionExpandedIds.has(p.id) ? 'rotate-180' : ''}`} />
+                          </button>
 
                           {/* Edit button */}
                           <button
@@ -493,6 +633,42 @@ export default function BidDashboard() {
                         </div>
                       </td>
                     </tr>
+                    {/* Inline action expansion：快捷操作横向展开（不挤压表格） */}
+                    {actionExpandedIds.has(p.id) && (() => {
+                      const items = buildMenuItems(p);
+                      if (items.length === 0) return null;
+                      return (
+                        <tr key={`${p.id}-actions`} className="bg-[#f8fafb] border-b border-[#edf2f7]">
+                          <td colSpan={8} className="px-5 py-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[10px] font-bold text-[#8a96aa] mr-1 select-none">快捷操作</span>
+                              {items.map(item => {
+                                const Icon = item.icon;
+                                const tone = item.tone ?? 'default';
+                                const toneText = tone === 'danger' ? 'text-[#e74c3c]' : tone === 'highlight' ? 'text-[#d97706]' : 'text-[#334155]';
+                                const toneBorder = tone === 'highlight' ? 'border-[#fcd34d]' : 'border-[#dce6f3]';
+                                return (
+                                  <button
+                                    key={item.key}
+                                    disabled={item.disabled}
+                                    title={item.disabled ? item.disabledReason : undefined}
+                                    onClick={(e) => { e.stopPropagation(); if (!item.disabled) item.onClick(); }}
+                                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition ${
+                                      item.disabled
+                                        ? 'border-[#e8edf3] text-[#cbd5e1] cursor-not-allowed'
+                                        : `${toneBorder} ${toneText} hover:bg-white`
+                                    }`}
+                                  >
+                                    {Icon && <Icon size={13} strokeWidth={1.5} />}
+                                    {item.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })()}
                     {/* Inline workspace expansion */}
                     {expandedIds.has(p.id) && (() => {
                       const wd = workspaceMap.get(p.id);
@@ -588,6 +764,17 @@ export default function BidDashboard() {
         onClose={() => setEditProject(null)}
         onUpdated={() => {
           setEditProject(null);
+          fetchData();
+        }}
+      />
+
+      <InviteSuppliersDialog
+        open={!!inviteProject}
+        projectId={inviteProject?.id ?? ''}
+        projectName={inviteProject?.name ?? ''}
+        onClose={() => setInviteProject(null)}
+        onInvited={() => {
+          setInviteProject(null);
           fetchData();
         }}
       />

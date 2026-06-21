@@ -861,3 +861,241 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
   });
 });
 
+/* ── 催办（nudge）：站内信 + Email 多通道，按门控过滤参与者 ── */
+
+describe('BidService — nudge (催办)', () => {
+  let service: BidService;
+  let prisma: any;
+  let notifyCreate: jest.Mock;
+
+  beforeEach(async () => {
+    notifyCreate = jest.fn().mockImplementation(({ userId }: any) =>
+      Promise.resolve({ id: `n-${userId}`, userId }),
+    );
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      bidSupplier: { findMany: jest.fn() },
+      supplierBidSubmission: { findMany: jest.fn() },
+      bidExpert: { findMany: jest.fn() },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: notifyCreate } },
+        BidService,
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  describe('nudgeSuppliers', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-001', name: '水库项目' });
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { supplierId: 's1', submitStatus: '已提交', supplier: { userId: 'u-sup-a' } },
+        { supplierId: 's2', submitStatus: '待提交', supplier: { userId: 'u-sup-b' } },
+        { supplierId: 's3', submitStatus: '待提交', supplier: { userId: 'u-sup-c' } },
+      ]);
+      // s1 已提交；s2/s3 未提交
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([
+        { supplierId: 's1', status: 'submitted' },
+      ]);
+    });
+
+    it('onlyUnsubmitted=true 时仅催未提交者（2/3），返回 reached=2', async () => {
+      const res = await service.nudgeSuppliers('p1', true, 'actor-1');
+      expect(res.reached).toBe(2);
+      expect(notifyCreate).toHaveBeenCalledTimes(2);
+      const notified = notifyCreate.mock.calls.map((c: any[]) => c[0].userId);
+      expect(notified.sort()).toEqual(['u-sup-b', 'u-sup-c']);
+    });
+
+    it('onlyUnsubmitted=false 时催全部（3/3）', async () => {
+      const res = await service.nudgeSuppliers('p1', false, 'actor-1');
+      expect(res.reached).toBe(3);
+      expect(notifyCreate).toHaveBeenCalledTimes(3);
+    });
+
+    it('跳过无关联供应商的 roster 项（supplierId=null）', async () => {
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { supplierId: null, submitStatus: '待提交', supplier: null },
+        { supplierId: 's2', submitStatus: '待提交', supplier: { userId: 'u-sup-b' } },
+      ]);
+      const res = await service.nudgeSuppliers('p1', true, 'actor-1');
+      expect(res.reached).toBe(1);
+    });
+
+    it('对去重后的 userId 各发一条（同一 userId 多 roster 不重复）', async () => {
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { supplierId: 'sX', submitStatus: '待提交', supplier: { userId: 'u-dup' } },
+        { supplierId: 'sY', submitStatus: '待提交', supplier: { userId: 'u-dup' } },
+      ]);
+      const res = await service.nudgeSuppliers('p1', true, 'actor-1');
+      expect(res.reached).toBe(1);
+      expect(notifyCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('写一条 BID_NUDGE_SUPPLIERS 审计日志（含 reached）', async () => {
+      await service.nudgeSuppliers('p1', true, 'actor-1');
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          userId: 'actor-1',
+          action: 'BID_NUDGE_SUPPLIERS',
+          target: 'BID-001',
+          detail: expect.objectContaining({ reached: 2 }),
+        }),
+      }));
+    });
+
+    it('项目不存在抛 BadRequestException', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(null);
+      await expect(service.nudgeSuppliers('p1', true, 'actor-1')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('nudgeExperts', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-001', name: '水库项目' });
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { userId: 'u-exp-a', signedIn: true, progress: 100 },
+        { userId: 'u-exp-b', signedIn: false, progress: 50 },
+        { userId: 'u-exp-c', signedIn: true, progress: 80 },
+      ]);
+    });
+
+    it("reason='signin' 仅催未签到者（u-exp-b），reached=1", async () => {
+      const res = await service.nudgeExperts('p1', 'signin', 'actor-1');
+      expect(res.reached).toBe(1);
+      const notified = notifyCreate.mock.calls.map((c: any[]) => c[0].userId);
+      expect(notified).toEqual(['u-exp-b']);
+    });
+
+    it("reason='score' 仅催 progress<100 者（u-exp-b, u-exp-c），reached=2", async () => {
+      const res = await service.nudgeExperts('p1', 'score', 'actor-1');
+      expect(res.reached).toBe(2);
+      const notified = notifyCreate.mock.calls.map((c: any[]) => c[0].userId).sort();
+      expect(notified).toEqual(['u-exp-b', 'u-exp-c']);
+    });
+
+    it('写一条 BID_NUDGE_EXPERTS 审计日志（含 reason 与 reached）', async () => {
+      await service.nudgeExperts('p1', 'signin', 'actor-1');
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          userId: 'actor-1',
+          action: 'BID_NUDGE_EXPERTS',
+          detail: expect.objectContaining({ reached: 1, reason: 'signin' }),
+        }),
+      }));
+    });
+
+    it('项目不存在抛 BadRequestException', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(null);
+      await expect(service.nudgeExperts('p1', 'signin', 'actor-1')).rejects.toThrow(BadRequestException);
+    });
+  });
+});
+
+/* ── 邀请供应商（inviteSuppliers）：填充 BidSupplier 名册 ── */
+
+describe('BidService — inviteSuppliers (邀请供应商)', () => {
+  let service: BidService;
+  let prisma: any;
+  let notifyCreate: jest.Mock;
+
+  beforeEach(async () => {
+    notifyCreate = jest.fn().mockImplementation(({ userId }: any) => Promise.resolve({ id: `n-${userId}`, userId }));
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      supplier: { findMany: jest.fn() },
+      bidSupplier: { findMany: jest.fn(), createMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    // 默认：项目在 DOWNLOAD，两个 APPROVED 供应商，名册为空
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-001', name: '水库项目', stage: 'DOWNLOAD' });
+    prisma.supplier.findMany.mockResolvedValue([
+      { id: 's1', name: '甲公司', userId: 'u-a' },
+      { id: 's2', name: '乙公司', userId: 'u-b' },
+    ]);
+    prisma.bidSupplier.findMany.mockResolvedValue([]);
+
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: notifyCreate } },
+        BidService,
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('为每个已入库且未在名册的供应商建 BidSupplier，返回 added=2', async () => {
+    const res = await service.inviteSuppliers('p1', ['s1', 's2'], 'actor-1');
+    expect(res.added).toBe(2);
+    expect(res.skipped).toBe(0);
+    expect(prisma.bidSupplier.createMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.arrayContaining([
+        expect.objectContaining({ projectId: 'p1', supplierId: 's1', supplierName: '甲公司' }),
+        expect.objectContaining({ projectId: 'p1', supplierId: 's2', supplierName: '乙公司' }),
+      ]),
+    }));
+  });
+
+  it('已在名册的供应商跳过（计入 skipped，幂等）', async () => {
+    prisma.bidSupplier.findMany.mockResolvedValue([{ supplierId: 's1' }]); // s1 已邀请
+    const res = await service.inviteSuppliers('p1', ['s1', 's2'], 'actor-1');
+    expect(res.added).toBe(1);
+    expect(res.skipped).toBe(1);
+    const created = prisma.bidSupplier.createMany.mock.calls[0][0].data as any[];
+    expect(created.find((r: any) => r.supplierId === 's1')).toBeUndefined();
+    expect(created.find((r: any) => r.supplierId === 's2')).toBeDefined();
+  });
+
+  it('非 APPROVED 的 supplierId 计入 skipped（不建名册）', async () => {
+    // supplier.findMany 只返回 s1（s3 未入库/未审批）
+    prisma.supplier.findMany.mockResolvedValue([{ id: 's1', name: '甲公司', userId: 'u-a' }]);
+    const res = await service.inviteSuppliers('p1', ['s1', 's3'], 'actor-1');
+    expect(res.added).toBe(1);
+    expect(res.skipped).toBe(1);
+  });
+
+  it('对入参去重（同 id 传两次不重复建）', async () => {
+    const res = await service.inviteSuppliers('p1', ['s1', 's1', 's2'], 'actor-1');
+    expect(res.added).toBe(2);
+  });
+
+  it('给每位被邀供应商发邀请通知（type=BID_INVITED）', async () => {
+    await service.inviteSuppliers('p1', ['s1', 's2'], 'actor-1');
+    expect(notifyCreate).toHaveBeenCalledTimes(2);
+    expect(notifyCreate.mock.calls.map((c: any[]) => c[0].userId).sort()).toEqual(['u-a', 'u-b']);
+    expect(notifyCreate.mock.calls[0][0].type).toBe('BID_INVITED');
+  });
+
+  it('写一条 BID_INVITE_SUPPLIERS 审计日志（含 added/skipped）', async () => {
+    await service.inviteSuppliers('p1', ['s1', 's2'], 'actor-1');
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        userId: 'actor-1', action: 'BID_INVITE_SUPPLIERS', target: 'BID-001',
+        detail: expect.objectContaining({ added: 2, skipped: 0 }),
+      }),
+    }));
+  });
+
+  it('空 supplierIds 直接返回 0/0，不查不写', async () => {
+    const res = await service.inviteSuppliers('p1', [], 'actor-1');
+    expect(res).toEqual({ added: 0, skipped: 0 });
+    expect(prisma.supplier.findMany).not.toHaveBeenCalled();
+    expect(prisma.bidSupplier.createMany).not.toHaveBeenCalled();
+  });
+
+  it('项目不存在抛 BadRequestException', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue(null);
+    await expect(service.inviteSuppliers('p1', ['s1'], 'actor-1')).rejects.toThrow(BadRequestException);
+  });
+
+  it('非 DOWNLOAD/SUBMIT 阶段抛 ConflictException（名册已锁）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-001', name: '水库项目', stage: 'OPENING' });
+    await expect(service.inviteSuppliers('p1', ['s1'], 'actor-1')).rejects.toThrow(ConflictException);
+  });
+});
+

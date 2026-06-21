@@ -1422,4 +1422,189 @@ export class BidService {
       where: { projectId },
     });
   }
+
+  // ── 催办（nudge）：向项目参与者发站内信 + Email 多通道 ──
+  // NotificationService.create 已内置多通道：写站内信 → 记 in_app 投递日志 → 异步分发 Email（SMS 待 User.phone 字段后生效）。
+
+  /** 批量创建站内信（逐条调用以触发多通道异步分发）；空列表直接返回。 */
+  private async notifyParticipants(
+    userIds: string[],
+    payload: { type: string; title: string; content: string; link: string },
+  ): Promise<void> {
+    if (userIds.length === 0) return;
+    await Promise.all(
+      userIds.map(userId => this.notificationService.create({ userId, ...payload })),
+    );
+  }
+
+  /**
+   * 催促供应商投标/提交。
+   * - onlyUnsubmitted=true：仅催未提交者（单一事实来源：SupplierBidSubmission.status，回退 BidSupplier.submitStatus）
+   * - 对去重后的 userId 各发一条；写一条 AuditLog 记录催办行为。
+   */
+  async nudgeSuppliers(id: string, onlyUnsubmitted: boolean, actorId: string): Promise<{ reached: number }> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { id: true, projectCode: true, name: true },
+    });
+    if (!project) {
+      throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    }
+
+    const [roster, submissions] = await Promise.all([
+      this.prisma.bidSupplier.findMany({
+        where: { projectId: id },
+        select: { supplierId: true, submitStatus: true, supplier: { select: { userId: true } } },
+      }),
+      this.prisma.supplierBidSubmission.findMany({
+        where: { projectId: id },
+        select: { supplierId: true, status: true },
+      }),
+    ]);
+
+    const subMap = new Map(submissions.map(s => [s.supplierId, s]));
+    const userIdSet = new Set<string>();
+    for (const entry of roster) {
+      const userId = entry.supplier?.userId;
+      if (!userId) continue; // 跳过无关联供应商的 roster 项
+      const submission = entry.supplierId ? subMap.get(entry.supplierId) : undefined;
+      const submitted = submission?.status === 'submitted' || (!submission && entry.submitStatus === '已提交');
+      if (onlyUnsubmitted && submitted) continue;
+      userIdSet.add(userId);
+    }
+    const userIds = [...userIdSet];
+
+    await this.notifyParticipants(userIds, {
+      type: 'BID_NUDGE_SUPPLIER',
+      title: `投标提醒：${project.name}`,
+      content: `项目 ${project.projectCode}（${project.name}）正在进行中，请尽快登录供应商门户完成投标提交。`,
+      link: `/dashboard`,
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorId,
+        action: 'BID_NUDGE_SUPPLIERS',
+        target: project.projectCode,
+        detail: { projectId: id, reached: userIds.length, onlyUnsubmitted },
+      },
+    });
+
+    return { reached: userIds.length };
+  }
+
+  /**
+   * 催促专家签到 / 评分。
+   * - reason='signin'：仅催未签到者（signedIn=false）
+   * - reason='score'：仅催评分未完成者（progress < 100）
+   */
+  async nudgeExperts(id: string, reason: 'signin' | 'score', actorId: string): Promise<{ reached: number }> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { id: true, projectCode: true, name: true },
+    });
+    if (!project) {
+      throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    }
+
+    const experts = await this.prisma.bidExpert.findMany({
+      where: { projectId: id },
+      select: { userId: true, signedIn: true, progress: true },
+    });
+
+    const userIds = experts
+      .filter(e => (reason === 'signin' ? !e.signedIn : (e.progress ?? 0) < 100))
+      .map(e => e.userId)
+      .filter((u): u is string => !!u);
+
+    const isSignin = reason === 'signin';
+    await this.notifyParticipants(userIds, {
+      type: 'BID_NUDGE_EXPERT',
+      title: `${isSignin ? '评审签到' : '评审进度'}提醒：${project.name}`,
+      content: isSignin
+        ? `项目 ${project.projectCode}（${project.name}）开评标在即，请尽快登录专家门户完成身份核验与签到。`
+        : `项目 ${project.projectCode}（${project.name}）评标进行中，您的评分尚未完成，请尽快登录专家门户完成评分。`,
+      link: `/?projectId=${id}`,
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorId,
+        action: 'BID_NUDGE_EXPERTS',
+        target: project.projectCode,
+        detail: { projectId: id, reached: userIds.length, reason },
+      },
+    });
+
+    return { reached: userIds.length };
+  }
+
+  /**
+   * 邀请供应商加入项目名册（BidSupplier）——补齐邀请招标缺失的管理端写入路径。
+   * - 仅 DOWNLOAD/SUBMIT 阶段可邀请（开标后名册锁定）
+   * - 仅 APPROVED 供应商；已在名册的跳过（幂等）
+   * - 给每位新邀供应商发邀请通知（站内信+Email 多通道）；写 AuditLog
+   * 名册也是 INVITED 文档访问范围的判定依据，故被邀供应商在 scope=INVITED 时自动获得下载资格。
+   */
+  async inviteSuppliers(id: string, supplierIds: string[], actorId: string): Promise<{ added: number; skipped: number }> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { id: true, projectCode: true, name: true, stage: true },
+    });
+    if (!project) {
+      throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    }
+    if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
+      throw new ConflictException({
+        error: `当前阶段（${project.stage}）不可邀请供应商，仅发标/投标期可邀请`,
+        code: 'STAGE_LOCKED',
+      });
+    }
+
+    const uniqIds = [...new Set(supplierIds)];
+    if (uniqIds.length === 0) return { added: 0, skipped: 0 };
+
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { id: { in: uniqIds }, status: 'APPROVED' },
+      select: { id: true, name: true, userId: true },
+    });
+    const validIds = new Set(suppliers.map(s => s.id));
+
+    const existing = await this.prisma.bidSupplier.findMany({
+      where: { projectId: id, supplierId: { in: [...validIds] } },
+      select: { supplierId: true },
+    });
+    const existingSet = new Set(existing.map(e => e.supplierId));
+
+    const toInvite = suppliers.filter(s => !existingSet.has(s.id));
+    const skipped = uniqIds.length - toInvite.length;
+
+    if (toInvite.length > 0) {
+      await this.prisma.bidSupplier.createMany({
+        data: toInvite.map(s => ({ projectId: id, supplierId: s.id, supplierName: s.name })),
+        skipDuplicates: true,
+      });
+    }
+
+    await this.notifyParticipants(
+      toInvite.map(s => s.userId).filter((u): u is string => !!u),
+      {
+        type: 'BID_INVITED',
+        title: `招标邀请：${project.name}`,
+        content: `您已被邀请参与招标项目 ${project.projectCode}（${project.name}），请尽快登录供应商门户查看招标文件并投标。`,
+        link: '/dashboard',
+      },
+    );
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorId,
+        action: 'BID_INVITE_SUPPLIERS',
+        target: project.projectCode,
+        detail: { projectId: id, added: toInvite.length, skipped },
+      },
+    });
+
+    return { added: toInvite.length, skipped };
+  }
 }
