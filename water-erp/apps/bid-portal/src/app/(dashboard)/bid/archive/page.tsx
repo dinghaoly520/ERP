@@ -464,14 +464,14 @@ export default function BidArchivePage() {
             placeholder="搜索项目编号或名称…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 py-2.5 text-[13px] border border-[#dbe6f3] rounded-xl bg-white/55 backdrop-blur-sm text-[#18243a] outline-none focus:border-[#0b63ce] focus:bg-white/88 focus:ring-[3px] focus:ring-[#0b63ce]/10 transition"
+            className="workbench-input w-full pl-9"
           />
         </div>
         <DateRangeFilter value={dateRange} onChange={setDateRange} />
         <select
           value={rateFilter}
           onChange={e => setRateFilter(e.target.value)}
-          className="py-2.5 text-[13px] border border-[#dbe6f3] rounded-xl bg-white/55 backdrop-blur-sm text-[#18243a] outline-none focus:border-[#0b63ce] focus:bg-white/88 cursor-pointer appearance-none pr-8 bg-no-repeat transition" style={{backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundPosition: 'right 0.75rem center'}}
+          className="workbench-input cursor-pointer"
         >
           <option value="">全部完整率</option>
           <option value="100">100% 完整</option>
