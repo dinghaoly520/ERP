@@ -880,23 +880,36 @@ export class BidService {
       }
     }
 
+    // G2: 按供应商聚合 → 每专家对该供应商的总评分 → 专家组≥5 去 1 高 1 低 → 求平均
+    const DEFAULT_WINNER_COUNT = 3;
+    const panelSize = project.experts.length;
+
     const ranked: { supplierId: string; supplierName: string; totalScore: number; averageScore: number }[] = [];
     for (const supplier of activeSuppliers) {
       const records = recordsBySupplier.get(supplier.id) ?? [];
-      const totalScore = records.reduce((sum, r) => sum + Number(r.score), 0);
-      const scoringExpertCount = new Set(records.map(r => r.expertId)).size;
-      const averageScore = scoringExpertCount > 0 ? totalScore / scoringExpertCount : 0;
-      ranked.push({
-        supplierId: supplier.id,
-        supplierName: supplier.supplierName,
-        totalScore,
-        averageScore,
-      });
+      // 每位专家对该供应商的总评分
+      const perExpert = new Map<string, number>();
+      for (const r of records) {
+        perExpert.set(r.expertId, (perExpert.get(r.expertId) ?? 0) + Number(r.score));
+      }
+      const expertTotals = [...perExpert.values()].sort((a, b) => a - b);
+      const totalScore = expertTotals.reduce((s, v) => s + v, 0);
+
+      // 专家组≥5 时去 1 高 1 低（标准评标实务）
+      let trimmed = expertTotals;
+      if (expertTotals.length >= 5) {
+        trimmed = expertTotals.slice(1, -1);
+      }
+      const averageScore = trimmed.length > 0
+        ? Math.round((trimmed.reduce((s, v) => s + v, 0) / trimmed.length) * 100) / 100
+        : 0;
+
+      ranked.push({ supplierId: supplier.id, supplierName: supplier.supplierName, totalScore, averageScore });
     }
     ranked.sort((a, b) => b.averageScore - a.averageScore);
 
-    // Wrap deleteMany + createMany + supervision log in a transaction
-    // to prevent data loss if createMany fails after deleteMany succeeds.
+    const winnerCount = Math.min(DEFAULT_WINNER_COUNT, ranked.length);
+
     await this.prisma.$transaction(async (tx) => {
       await tx.bidEvaluationResult.deleteMany({ where: { projectId } });
       if (ranked.length > 0) {
@@ -908,14 +921,14 @@ export class BidService {
             totalScore: r.totalScore,
             averageScore: r.averageScore,
             rank: index + 1,
-            recommended: index === 0,
+            recommended: index < winnerCount,
           })),
         });
       }
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '系统', target: project.name,
-          action: '生成评标结果', result: `生成${ranked.length}家供应商排名`, riskFlag: '无',
+          action: '生成评标结果', result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}）`, riskFlag: '无',
         },
       });
     });

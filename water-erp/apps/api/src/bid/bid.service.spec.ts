@@ -447,7 +447,8 @@ describe('BidService — stage transitions', () => {
         expect.objectContaining({
           data: expect.arrayContaining([
             expect.objectContaining({ supplierId: 's1', rank: 1, recommended: true }),
-            expect.objectContaining({ supplierId: 's2', rank: 2, recommended: false }),
+            // G2: 去极值后 active 供应商≤3 时全部进入候选人名单，s2 (rank 2) 亦被推荐
+            expect.objectContaining({ supplierId: 's2', rank: 2, recommended: true }),
           ]),
         }),
       );
@@ -455,6 +456,107 @@ describe('BidService — stage transitions', () => {
       const created = prisma.bidEvaluationResult.createMany.mock.calls[0][0].data as any[];
       expect(created.find((r: any) => r.supplierId === 's3')).toBeUndefined();
       expect(results[0].supplierName).toBe('甲');
+    });
+  });
+
+  describe('BidService.generateEvaluationResults — 去极值与候选人 (G2)', () => {
+    const buildProject = (overrides = {}) => ({
+      id: 'p1', stage: 'EVALUATING', name: '项目',
+      experts: [
+        { id: 'e1', reportConfirmed: true },
+        { id: 'e2', reportConfirmed: true },
+        { id: 'e3', reportConfirmed: true },
+        { id: 'e4', reportConfirmed: true },
+        { id: 'e5', reportConfirmed: true },
+      ],
+      suppliers: [
+        { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+      ],
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue(buildProject());
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({ count: 1 });
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([]);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog = prisma.auditLog || { create: jest.fn() };
+      prisma.auditLog.create.mockResolvedValue({});
+    });
+
+    it('专家组=5 时去掉一个最高一个最低后求平均', async () => {
+      // 5 位专家对 s1 的总评分：10,20,30,40,100 → 去掉 100 与 10 → 20+30+40=90 / 3 = 30
+      const scores = [
+        { expertId: 'e1', supplierId: 's1', score: 10 },
+        { expertId: 'e2', supplierId: 's1', score: 20 },
+        { expertId: 'e3', supplierId: 's1', score: 30 },
+        { expertId: 'e4', supplierId: 's1', score: 40 },
+        { expertId: 'e5', supplierId: 's1', score: 100 },
+      ];
+      prisma.bidScoreRecord.findMany.mockResolvedValue(scores);
+
+      const result = await service.generateEvaluationResults('p1', 'u1');
+
+      expect(prisma.bidEvaluationResult.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({ averageScore: 30 }),
+          ]),
+        }),
+      );
+      expect(result).toBeDefined();
+    });
+
+    it('专家组<5 时不去极值，直接求平均', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(buildProject({
+        experts: [
+          { id: 'e1', reportConfirmed: true },
+          { id: 'e2', reportConfirmed: true },
+          { id: 'e3', reportConfirmed: true },
+        ],
+      }));
+      const scores = [
+        { expertId: 'e1', supplierId: 's1', score: 10 },
+        { expertId: 'e2', supplierId: 's1', score: 20 },
+        { expertId: 'e3', supplierId: 's1', score: 30 },
+      ];
+      prisma.bidScoreRecord.findMany.mockResolvedValue(scores);
+
+      await service.generateEvaluationResults('p1', 'u1');
+
+      // (10+20+30)/3 = 20
+      expect(prisma.bidEvaluationResult.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({ averageScore: 20 }),
+          ]),
+        }),
+      );
+    });
+
+    it('前 3 名均标记 recommended（候选人）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(buildProject({
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's3', supplierName: '丙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's4', supplierName: '丁', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+        ],
+      }));
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        { expertId: 'e1', supplierId: 's1', score: 90 },
+        { expertId: 'e2', supplierId: 's2', score: 80 },
+        { expertId: 'e3', supplierId: 's3', score: 70 },
+        { expertId: 'e4', supplierId: 's4', score: 60 },
+      ]);
+
+      await service.generateEvaluationResults('p1', 'u1');
+
+      const call = prisma.bidEvaluationResult.createMany.mock.calls[0][0];
+      const data = call.data as any[];
+      const recommendedRanks = data.filter((d: any) => d.recommended).map((d: any) => d.rank).sort();
+      expect(recommendedRanks).toEqual([1, 2, 3]);
     });
   });
 
