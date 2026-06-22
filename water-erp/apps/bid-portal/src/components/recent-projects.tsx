@@ -39,32 +39,33 @@ export default function RecentProjects() {
         <span className="text-[10px] font-semibold text-[#94a3b8] uppercase tracking-wider">最近访问</span>
       </div>
       {items.map(p => (
-        <button
-          key={p.id}
-          onClick={() => handleClick(p)}
-          className={`group relative flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors mb-0.5 ${
-            p.id === currentId
-              ? 'bg-[#eff6ff] text-[#064ea2]'
-              : 'text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a]'
-          }`}
-          title={`${p.projectCode} — ${p.name}`}
-        >
-          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-            style={{ backgroundColor: p.id === currentId ? '#064ea2' : '#cbd5e1' }}
-          />
-          <span className="text-xs font-medium truncate flex-1">
-            <span className="font-mono font-semibold text-[#064ea2]">{p.projectCode}</span>
-            <span className="text-[#8a96aa] mx-1">—</span>
-            {p.name}
-          </span>
+        <div key={p.id} className="group relative mb-0.5">
+          <button
+            onClick={() => handleClick(p)}
+            className={`flex w-full items-center gap-2 rounded-xl px-2 py-1.5 pr-7 text-left transition-colors ${
+              p.id === currentId
+                ? 'bg-[#eff6ff] text-[#064ea2]'
+                : 'text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a]'
+            }`}
+            title={`${p.projectCode} — ${p.name}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: p.id === currentId ? '#064ea2' : '#cbd5e1' }}
+            />
+            <span className="text-xs font-medium truncate flex-1">
+              <span className="font-mono font-semibold text-[#064ea2]">{p.projectCode}</span>
+              <span className="text-[#8a96aa] mx-1">—</span>
+              {p.name}
+            </span>
+          </button>
           <button
             onClick={e => handleRemove(e, p.id)}
-            className="flex-shrink-0 p-0.5 rounded text-[#94a3b8] opacity-0 group-hover:opacity-100 hover:text-[#e74c3c] hover:bg-[#fef2f2] transition-all"
+            className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-[#94a3b8] opacity-0 group-hover:opacity-100 hover:text-[#e74c3c] hover:bg-[#fef2f2] transition-all"
             title="移除此记录"
           >
             <X size={11} strokeWidth={1.5} />
           </button>
-        </button>
+        </div>
       ))}
       <div className="mx-2 mt-1.5 border-t border-[#edf2f7]" />
     </div>
