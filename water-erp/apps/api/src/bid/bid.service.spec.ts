@@ -640,7 +640,11 @@ describe('BidService — stage transitions', () => {
 
     it('blocks archive when confirmable suppliers exist but no evaluation results (防跳过评标)', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', name: '测试项目' });
-      prisma.bidSupplier.count.mockResolvedValue(2);    // 存在已确认的可评供应商
+      // R1: confirmableCount 现在由 findMany.length 推导，故 mock 两元素数组替代 count(2)
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'bs1', supplierName: '甲' },
+        { id: 'bs2', supplierName: '乙' },
+      ]);
       prisma.bidEvaluationResult.count.mockResolvedValue(0); // 但未生成评标结果
 
       await expect(service.archiveAll('p1')).rejects.toThrow(ConflictException);

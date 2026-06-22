@@ -1179,12 +1179,16 @@ export class BidService {
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
       // 防止”跳过评标”归档：存在已确认的可评供应商但未生成评标结果时阻断
-      const [confirmableCount, resultCount] = await Promise.all([
-        tx.bidSupplier.count({
+      // G5: 已确认可评供应商必须有对应开标记录（主持人已补录唱标信息），保证归档材料完整
+      // 合并 confirmableCount 与 confirmableSuppliers 为一次 findMany 查询（R1 去冗余）
+      const [confirmableSuppliers, resultCount] = await Promise.all([
+        tx.bidSupplier.findMany({
           where: { projectId: id, decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: { not: '已撤回' } },
+          select: { id: true, supplierName: true },
         }),
         tx.bidEvaluationResult.count({ where: { projectId: id } }),
       ]);
+      const confirmableCount = confirmableSuppliers.length;
       if (confirmableCount > 0 && resultCount === 0) {
         throw new ConflictException({
           error: '存在已确认的可评供应商，请先生成评标结果再归档',
@@ -1192,11 +1196,6 @@ export class BidService {
         });
       }
 
-      // G5: 已确认可评供应商必须有对应开标记录（主持人已补录唱标信息），保证归档材料完整
-      const confirmableSuppliers = await tx.bidSupplier.findMany({
-        where: { projectId: id, decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: { not: '已撤回' } },
-        select: { id: true, supplierName: true },
-      });
       if (confirmableSuppliers.length > 0) {
         const confirmedSupplierIds = confirmableSuppliers.map(s => s.id);
         const records = await tx.bidOpeningRecord.findMany({
