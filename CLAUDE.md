@@ -204,7 +204,8 @@ Passwords follow `<username>@2026` convention:
 |---------|----------|------|--------|
 | `mall` | `mall@2026` | mall | 采购商城 (:3003) |
 | `supplier1` | `supplier1@2026` | supplier (approved) | 供应商门户 (:3004) |
-| `supplier2` | `supplier2@2026` | supplier (pending) | 供应商门户 (:3004) |
+| `supplier2` | `supplier2@2026` | supplier (approved) · 中科院成都信息技术 · 参与英雄项目 `BID-2026-HERO1` | 供应商门户 (:3004) |
+| `huaxi` | `huaxi@2026` | supplier (approved) · 成都华西物资供应 · 参与旧种子项目 | 供应商门户 (:3004) |
 | `caigou` | `caigou@2026` | procurement_staff | 采购管理工作台 (:3005) |
 | 专家姓名（如 `刘苡池`） | `expert@2026` | bid_expert | 专家门户 (:3006) |
 | `lizhuren` | `lizhuren@2026` | bid_host | 开评标管理端 (:3007) |
