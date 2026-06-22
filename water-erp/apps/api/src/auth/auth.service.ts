@@ -5,6 +5,19 @@ import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
+/**
+ * 登录时按来源门户（X-Portal）优先匹配的 role 顺序。
+ * username 不再全局唯一（改为 [username, role] 复合唯一），允许跨 role 同名，
+ * 例如「陈主任」可同时是商城/采购/开标三个账号 —— 登录时靠来源门户区分。
+ */
+const PORTAL_ROLE_PRIORITY: Record<string, string[]> = {
+  mall: ['mall'],
+  supplier: ['supplier'],
+  web: ['procurement_staff', 'bid_host', 'admin'],
+  expert: ['bid_expert', 'bid_host', 'admin'],
+  public: ['procurement_staff', 'supplier', 'bid_expert', 'bid_host', 'admin', 'mall'],
+};
+
 @Injectable()
 export class AuthService {
   constructor(private prisma: PrismaService, private jwt: JwtService) {}
@@ -21,9 +34,15 @@ export class AuthService {
     return this.issueToken(user.id, user.username, user.role);
   }
 
-  async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { username: dto.username } });
-    if (!user || !user.isActive || !user.passwordHash || !compareSync(dto.password, user.passwordHash)) {
+  async login(dto: LoginDto, portal?: string) {
+    const priority = (portal && PORTAL_ROLE_PRIORITY[portal]) || PORTAL_ROLE_PRIORITY.public;
+    const candidates = await this.prisma.user.findMany({
+      where: { username: dto.username, isActive: true },
+    });
+    const user =
+      priority.map((role) => candidates.find((u) => u.role === role)).find(Boolean) ??
+      candidates[0];
+    if (!user || !user.passwordHash || !compareSync(dto.password, user.passwordHash)) {
       return null;
     }
     return this.issueToken(user.id, user.username, user.role);

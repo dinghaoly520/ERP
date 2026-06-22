@@ -21,7 +21,7 @@ model Department {
 
 model User {
   id           String      @id @default(cuid())
-  username     String      @unique
+  username     String
   displayName  String
   email        String?
   passwordHash String?
@@ -44,6 +44,8 @@ model User {
   expertProfile       ExpertProfile?
   expertEvaluations   ExpertEvaluation[] @relation("ExpertEvaluationsReceived")
   expertEvalsGiven    ExpertEvaluation[] @relation("ExpertEvaluationsGiven")
+
+  @@unique([username, role])
 }
 
 // ── 开评标 ──

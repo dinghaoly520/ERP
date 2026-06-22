@@ -84,7 +84,7 @@ const IconLock = (
 
 export default function ProcurementLoginPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ username: '陈主任（采购）', password: 'czr@2026' });
+  const [form, setForm] = useState({ username: '陈主任', password: 'czr@2026' });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {

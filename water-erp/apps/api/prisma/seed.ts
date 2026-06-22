@@ -127,7 +127,7 @@ async function main() {
       passwordOnly++;
       continue;
     }
-    const occupied = await prisma.user.findUnique({ where: { username: targetUsername } });
+    const occupied = await prisma.user.findFirst({ where: { username: targetUsername } });
     if (occupied && occupied.id !== u.id) {
       console.warn(`  ⚠ 「${targetUsername}」已被占用，专家 ${u.username} 保留原用户名，仅重置口令`);
       await prisma.user.update({ where: { id: u.id }, data: { passwordHash: expertHash } });

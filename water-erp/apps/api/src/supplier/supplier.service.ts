@@ -38,8 +38,8 @@ export class SupplierService {
     }
 
     // 检查用户名是否重复
-    const existingUser = await this.prisma.user.findUnique({
-      where: { username: dto.username },
+    const existingUser = await this.prisma.user.findFirst({
+      where: { username: dto.username, role: 'supplier' },
     });
     if (existingUser) {
       throw new BadRequestException({ error: '用户名已存在', code: 'DUPLICATE_USERNAME' });

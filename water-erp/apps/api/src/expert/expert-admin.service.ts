@@ -100,7 +100,7 @@ export class ExpertAdminService {
 
   async createExpert(dto: CreateExpertDto) {
     const normalizedName = dto.displayName.trim();
-    if (await this.prisma.user.findUnique({ where: { username: dto.username } })) {
+    if (await this.prisma.user.findFirst({ where: { username: dto.username, role: 'bid_expert' } })) {
       throw new BadRequestException({ error: '账号已存在', code: 'DUPLICATE_USERNAME' });
     }
     return this.prisma.$transaction(async (tx) => {

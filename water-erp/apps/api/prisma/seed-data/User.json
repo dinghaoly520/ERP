@@ -493,7 +493,7 @@
   },
   {
     "id": "cmqbysdbl0002koh10l78cjr3",
-    "username": "陈主任（采购）",
+    "username": "陈主任",
     "displayName": "陈主任",
     "email": "caigou@scsdjt.com",
     "passwordHash": "$2b$10$RLehWSWw5UBfN00oqSD1wuqtUL2W0PzZsoeLqt19wm2OsCNsNsNHi",
@@ -501,11 +501,11 @@
     "isActive": true,
     "departmentId": "cmqbysd9v0000koh13qyqfv3u",
     "createdAt": "2026-06-13T06:18:29.362Z",
-    "updatedAt": "2026-06-22T07:02:40.663Z"
+    "updatedAt": "2026-06-22T07:20:49.693Z"
   },
   {
     "id": "cmqbysdd50004koh1xdcjj2cz",
-    "username": "陈主任（开标）",
+    "username": "陈主任",
     "displayName": "陈主任",
     "email": null,
     "passwordHash": "$2b$10$RLehWSWw5UBfN00oqSD1wuqtUL2W0PzZsoeLqt19wm2OsCNsNsNHi",
@@ -513,7 +513,7 @@
     "isActive": true,
     "departmentId": "cmqbysd9v0000koh13qyqfv3u",
     "createdAt": "2026-06-13T06:18:29.417Z",
-    "updatedAt": "2026-06-22T07:02:40.665Z"
+    "updatedAt": "2026-06-22T07:20:49.694Z"
   },
   {
     "id": "cmqc8r5xs008pkoekp13h0tua",
@@ -8221,7 +8221,7 @@
   },
   {
     "id": "cmqbysdnn002ckoh1zfdgsksx",
-    "username": "陈主任（商城）",
+    "username": "陈主任",
     "displayName": "陈主任",
     "email": "mall@scsdjt.com",
     "passwordHash": "$2b$10$RLehWSWw5UBfN00oqSD1wuqtUL2W0PzZsoeLqt19wm2OsCNsNsNHi",
@@ -8229,6 +8229,6 @@
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-13T06:18:29.796Z",
-    "updatedAt": "2026-06-22T07:02:40.660Z"
+    "updatedAt": "2026-06-22T07:20:49.690Z"
   }
 ]
