@@ -1,4 +1,4 @@
-import { IsISO8601, IsOptional, IsString } from 'class-validator';
+import { IsISO8601, IsOptional } from 'class-validator';
 
 export class CreateBidDto {
   @IsISO8601()

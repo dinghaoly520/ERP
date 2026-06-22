@@ -6,6 +6,6 @@
   "transform": { "^.+\\.(t|j)s$": "ts-jest" },
   "moduleNameMapper": {
     "^src/(.*)$": "<rootDir>/../src/$1",
-    "^@water-erp/config$": "<rootDir>/../../packages/config/src/index.ts"
+    "^@water-erp/config$": "<rootDir>/../../../packages/config/src/index.ts"
   }
 }

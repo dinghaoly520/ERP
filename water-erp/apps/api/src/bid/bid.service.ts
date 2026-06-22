@@ -31,6 +31,9 @@ export class BidService {
 
   private readonly logger = new Logger(BidService.name);
 
+  /** 生成评标结果时默认标记为候选人（recommended）的名次数 */
+  private readonly DEFAULT_WINNER_COUNT = 3;
+
   async getDashboardStats() {
     const [
       totalProjects,
@@ -893,7 +896,6 @@ export class BidService {
     }
 
     // G2: 按供应商聚合 → 每专家对该供应商的总评分 → 专家组≥5 去 1 高 1 低 → 求平均
-    const DEFAULT_WINNER_COUNT = 3;
     const panelSize = project.experts.length;
 
     const ranked: { supplierId: string; supplierName: string; totalScore: number; averageScore: number }[] = [];
@@ -920,7 +922,7 @@ export class BidService {
     }
     ranked.sort((a, b) => b.averageScore - a.averageScore);
 
-    const winnerCount = Math.min(DEFAULT_WINNER_COUNT, ranked.length);
+    const winnerCount = Math.min(this.DEFAULT_WINNER_COUNT, ranked.length);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.bidEvaluationResult.deleteMany({ where: { projectId } });
@@ -944,7 +946,7 @@ export class BidService {
         },
       });
     });
-    this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名`, riskFlag: '无' });
+    this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}）`, riskFlag: '无' });
     if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_RESULTS_GENERATED', target: `BidProject:${projectId}`, detail: { rankedCount: ranked.length } } });
 
     return this.listEvaluationResults(projectId);
@@ -1312,15 +1314,14 @@ export class BidService {
   }
 
   /** 查询项目关联的中标公示（G1，草稿或已发布）；无则返回 null */
-  getWinnerNotice(projectId: string) {
-    return this.prisma.bidProject.findUnique({
+  async getWinnerNotice(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
       select: { projectCode: true },
-    }).then(project => {
-      if (!project) return null;
-      return this.prisma.announcement.findFirst({
-        where: { relatedProjectCode: project.projectCode, type: 'WIN_NOTICE' },
-      });
+    });
+    if (!project) return null;
+    return this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: project.projectCode, type: 'WIN_NOTICE' },
     });
   }
 
