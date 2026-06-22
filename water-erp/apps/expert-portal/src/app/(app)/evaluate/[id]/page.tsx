@@ -1243,7 +1243,7 @@ export default function ExpertEvaluatePage() {
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0b63ce] flex items-center justify-center text-white font-bold text-sm">{i + 1}</div>
                           <h3 className="font-bold text-[oklch(0.18_0.012_265)]">{ss.supplierName}</h3>
-                          {ss.completed && <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-semibold">评分完整</span>}
+                          {ss.perSupplierComplete && <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-semibold">评分完整</span>}
                         </div>
                         <div className="text-2xl font-bold text-[#064ea2]">{ss.totalScore} <span className="text-sm text-[oklch(0.55_0.01_264)] font-normal">分</span></div>
                       </div>
@@ -1260,7 +1260,7 @@ export default function ExpertEvaluatePage() {
                     </div>
                   ))}
 
-                  {!report.canConfirm && (
+                  {!report.overallComplete && (
                     <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 flex items-center gap-3">
                       <span className="text-xl"><AlertTriangle size={14} strokeWidth={1.5} /></span>
                       <p className="text-sm text-amber-600">请先完成所有供应商的评分后再确认报告</p>

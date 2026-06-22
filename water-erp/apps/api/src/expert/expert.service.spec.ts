@@ -324,4 +324,29 @@ describe('ExpertService', () => {
       );
     });
   });
+
+  describe('getReport — 进度口径 (G7)', () => {
+    beforeEach(() => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp-1', expertName: '王建国', progress: 100, signedIn: true, avoidanceConfirmed: true,
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '项目', projectCode: 'BID-1',
+        suppliers: [{ id: 's1', supplierName: '甲' }],
+        scoreItems: [{ id: 'si1', category: 'TECHNICAL', name: '技术', maxScore: 10 }],
+      });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        { supplierId: 's1', score: 8, scoreItem: { id: 'si1', category: 'TECHNICAL', name: '技术', maxScore: 10 } },
+      ]);
+    });
+
+    it('返回 perSupplierComplete（单供应商维度）与 overallComplete（整体）', async () => {
+      const report = await service.getReport('u1', 'p1');
+      expect(report.overallComplete).toBe(true); // progress=100
+      expect(report.supplierScores[0].perSupplierComplete).toBe(true); // 该供应商 1 项已评 1 项
+      // 旧字段 completed 不应再出现
+      expect((report.supplierScores[0] as any).completed).toBeUndefined();
+    });
+  });
 });

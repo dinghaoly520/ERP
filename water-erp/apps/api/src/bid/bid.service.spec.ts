@@ -85,12 +85,12 @@ describe('BidService — stage transitions', () => {
       },
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
       bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
-      bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn() },
+      bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn() },
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
       supplier: { count: jest.fn() },
-      announcement: { count: jest.fn() },
+      announcement: { count: jest.fn(), findFirst: jest.fn() },
       bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
-      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
+      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
       supplierBidSubmission: { findUnique: jest.fn() },
@@ -160,7 +160,8 @@ describe('BidService — stage transitions', () => {
 
   describe('openSubmission', () => {
     it('transitions DOWNLOAD → SUBMIT and writes supervision log', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD', name: '测试项目' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD', name: '测试项目', projectCode: 'BID-1' });
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'a1' });
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'SUBMIT' });
       prisma.bidSupervisionLog.create.mockResolvedValue({});
 
@@ -171,6 +172,28 @@ describe('BidService — stage transitions', () => {
           data: expect.objectContaining({ action: '开放投递 (DOWNLOAD→SUBMIT)' }),
         }),
       );
+    });
+  });
+
+  describe('BidService.openSubmission — 公告前置 (G3)', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'DOWNLOAD', name: '项目', projectCode: 'BID-1' });
+    });
+
+    it('无关联已发布招标公示时拒绝', async () => {
+      prisma.announcement.findFirst.mockResolvedValue(null);
+      await expect(service.openSubmission('p1', 'u1')).rejects.toMatchObject({
+        response: { code: 'BID_NOTICE_REQUIRED' },
+      });
+    });
+
+    it('存在已发布招标公示时放行', async () => {
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'a1' });
+      prisma.bidProject.update.mockResolvedValue({ stage: 'SUBMIT' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog = prisma.auditLog || { create: jest.fn() };
+      prisma.auditLog.create.mockResolvedValue({});
+      await expect(service.openSubmission('p1', 'u1')).resolves.toBeDefined();
     });
   });
 
@@ -447,7 +470,8 @@ describe('BidService — stage transitions', () => {
         expect.objectContaining({
           data: expect.arrayContaining([
             expect.objectContaining({ supplierId: 's1', rank: 1, recommended: true }),
-            expect.objectContaining({ supplierId: 's2', rank: 2, recommended: false }),
+            // G2: 去极值后 active 供应商≤3 时全部进入候选人名单，s2 (rank 2) 亦被推荐
+            expect.objectContaining({ supplierId: 's2', rank: 2, recommended: true }),
           ]),
         }),
       );
@@ -455,6 +479,107 @@ describe('BidService — stage transitions', () => {
       const created = prisma.bidEvaluationResult.createMany.mock.calls[0][0].data as any[];
       expect(created.find((r: any) => r.supplierId === 's3')).toBeUndefined();
       expect(results[0].supplierName).toBe('甲');
+    });
+  });
+
+  describe('BidService.generateEvaluationResults — 去极值与候选人 (G2)', () => {
+    const buildProject = (overrides = {}) => ({
+      id: 'p1', stage: 'EVALUATING', name: '项目',
+      experts: [
+        { id: 'e1', reportConfirmed: true },
+        { id: 'e2', reportConfirmed: true },
+        { id: 'e3', reportConfirmed: true },
+        { id: 'e4', reportConfirmed: true },
+        { id: 'e5', reportConfirmed: true },
+      ],
+      suppliers: [
+        { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+      ],
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue(buildProject());
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({ count: 1 });
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([]);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog = prisma.auditLog || { create: jest.fn() };
+      prisma.auditLog.create.mockResolvedValue({});
+    });
+
+    it('专家组=5 时去掉一个最高一个最低后求平均', async () => {
+      // 5 位专家对 s1 的总评分：10,20,30,40,100 → 去掉 100 与 10 → 20+30+40=90 / 3 = 30
+      const scores = [
+        { expertId: 'e1', supplierId: 's1', score: 10 },
+        { expertId: 'e2', supplierId: 's1', score: 20 },
+        { expertId: 'e3', supplierId: 's1', score: 30 },
+        { expertId: 'e4', supplierId: 's1', score: 40 },
+        { expertId: 'e5', supplierId: 's1', score: 100 },
+      ];
+      prisma.bidScoreRecord.findMany.mockResolvedValue(scores);
+
+      const result = await service.generateEvaluationResults('p1', 'u1');
+
+      expect(prisma.bidEvaluationResult.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({ averageScore: 30 }),
+          ]),
+        }),
+      );
+      expect(result).toBeDefined();
+    });
+
+    it('专家组<5 时不去极值，直接求平均', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(buildProject({
+        experts: [
+          { id: 'e1', reportConfirmed: true },
+          { id: 'e2', reportConfirmed: true },
+          { id: 'e3', reportConfirmed: true },
+        ],
+      }));
+      const scores = [
+        { expertId: 'e1', supplierId: 's1', score: 10 },
+        { expertId: 'e2', supplierId: 's1', score: 20 },
+        { expertId: 'e3', supplierId: 's1', score: 30 },
+      ];
+      prisma.bidScoreRecord.findMany.mockResolvedValue(scores);
+
+      await service.generateEvaluationResults('p1', 'u1');
+
+      // (10+20+30)/3 = 20
+      expect(prisma.bidEvaluationResult.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({ averageScore: 20 }),
+          ]),
+        }),
+      );
+    });
+
+    it('前 3 名均标记 recommended（候选人）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(buildProject({
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's3', supplierName: '丙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's4', supplierName: '丁', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+        ],
+      }));
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        { expertId: 'e1', supplierId: 's1', score: 90 },
+        { expertId: 'e2', supplierId: 's2', score: 80 },
+        { expertId: 'e3', supplierId: 's3', score: 70 },
+        { expertId: 'e4', supplierId: 's4', score: 60 },
+      ]);
+
+      await service.generateEvaluationResults('p1', 'u1');
+
+      const call = prisma.bidEvaluationResult.createMany.mock.calls[0][0];
+      const data = call.data as any[];
+      const recommendedRanks = data.filter((d: any) => d.recommended).map((d: any) => d.rank).sort();
+      expect(recommendedRanks).toEqual([1, 2, 3]);
     });
   });
 
@@ -470,6 +595,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
       prisma.bidSupervisionLog.create.mockResolvedValue({});
       prisma.bidSupplier.count.mockResolvedValue(0);
+      prisma.bidSupplier.findMany.mockResolvedValue([]); // G5: 无可评供应商
       prisma.bidEvaluationResult.count.mockResolvedValue(0);
       // $transaction callback-based mock already in beforeEach
 
@@ -490,6 +616,7 @@ describe('BidService — stage transitions', () => {
         .mockResolvedValueOnce([{ id: 'a1', status: 'PENDING_CONFIRM' }]); // non-archived items query
       prisma.bidArchiveItem.findFirst.mockResolvedValue({ id: 'a1', projectId: 'p1' });
       prisma.bidSupplier.count.mockResolvedValue(0);
+      prisma.bidSupplier.findMany.mockResolvedValue([]); // G5: 无可评供应商
       prisma.bidEvaluationResult.count.mockResolvedValue(0);
       prisma.bidArchiveItem.update.mockResolvedValue({ hashDigest: 'sha256:abc' });
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
@@ -513,7 +640,11 @@ describe('BidService — stage transitions', () => {
 
     it('blocks archive when confirmable suppliers exist but no evaluation results (防跳过评标)', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', name: '测试项目' });
-      prisma.bidSupplier.count.mockResolvedValue(2);    // 存在已确认的可评供应商
+      // R1: confirmableCount 现在由 findMany.length 推导，故 mock 两元素数组替代 count(2)
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'bs1', supplierName: '甲' },
+        { id: 'bs2', supplierName: '乙' },
+      ]);
       prisma.bidEvaluationResult.count.mockResolvedValue(0); // 但未生成评标结果
 
       await expect(service.archiveAll('p1')).rejects.toThrow(ConflictException);
@@ -527,6 +658,15 @@ describe('BidService — stage transitions', () => {
         .mockResolvedValueOnce({ id: 'p1', stage: 'ARCHIVED', archiveItems: [] });
       prisma.bidSupplier.count.mockResolvedValue(2);
       prisma.bidEvaluationResult.count.mockResolvedValue(2); // 已生成结果
+      // G5: 可评供应商均有对应开标记录
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'bs1', supplierName: '甲' },
+        { id: 'bs2', supplierName: '乙' },
+      ]);
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([
+        { bidSupplierId: 'bs1' },
+        { bidSupplierId: 'bs2' },
+      ]);
       prisma.bidArchiveItem.findMany
         .mockResolvedValueOnce([]) // ensureArchiveItems
         .mockResolvedValueOnce([{ id: 'a1', status: 'PENDING_CONFIRM' }]); // non-archived
@@ -535,6 +675,24 @@ describe('BidService — stage transitions', () => {
       prisma.bidSupervisionLog.create.mockResolvedValue({});
 
       await expect(service.archiveAll('p1')).resolves.toBeDefined();
+    });
+  });
+
+  describe('BidService.archiveAll — 开标记录补录校验 (G5)', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-1', stage: 'EVALUATING', name: '项目' });
+      prisma.bidEvaluationResult.count.mockResolvedValue(1); // 已有结果，绕过既有 EVALUATION_RESULTS_REQUIRED
+      prisma.bidSupplier.count.mockResolvedValue(1); // confirmableCount=1
+    });
+
+    it('SUCCESS+CONFIRMED 供应商缺开标记录时拒绝', async () => {
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'bs1', supplierName: '甲', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: '已提交' },
+      ]);
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([]); // 无开标记录
+      await expect(service.archiveAll('p1', 'u1')).rejects.toMatchObject({
+        response: { code: 'OPENING_RECORDS_MISSING' },
+      });
     });
   });
 
@@ -630,6 +788,39 @@ describe('BidService — stage transitions', () => {
           data: expect.objectContaining({ action: '启动评标 (OPENING→EVALUATING)' }),
         }),
       );
+    });
+  });
+
+  describe('BidService.startEvaluation — 前置校验 (G4/G9)', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      prisma.bidExpert.count.mockResolvedValue(3);
+    });
+
+    it('G4: 无解密成功的有效供应商时拒绝', async () => {
+      prisma.bidSupplier.count.mockResolvedValue(0);
+      prisma.bidScoreItem.count.mockResolvedValue(5);
+      await expect(service.startEvaluation('p1', 'u1')).rejects.toMatchObject({
+        response: { code: 'NO_EVALUABLE_SUPPLIERS' },
+      });
+    });
+
+    it('G9: 未编制评分标准时拒绝', async () => {
+      prisma.bidSupplier.count.mockResolvedValue(2);
+      prisma.bidScoreItem.count.mockResolvedValue(0);
+      await expect(service.startEvaluation('p1', 'u1')).rejects.toMatchObject({
+        response: { code: 'NO_SCORE_ITEMS' },
+      });
+    });
+
+    it('专家/供应商/评分项齐备时不抛前置异常', async () => {
+      prisma.bidSupplier.count.mockResolvedValue(2);
+      prisma.bidScoreItem.count.mockResolvedValue(5);
+      prisma.bidProject.update.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog = prisma.auditLog || { create: jest.fn() };
+      prisma.auditLog.create.mockResolvedValue({});
+      await expect(service.startEvaluation('p1', 'u1')).resolves.toBeDefined();
     });
   });
 
@@ -1135,6 +1326,104 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
   it('非 DOWNLOAD/SUBMIT 阶段抛 ConflictException（名册已锁）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-001', name: '水库项目', stage: 'OPENING' });
     await expect(service.inviteSuppliers('p1', ['s1'], 'actor-1')).rejects.toThrow(ConflictException);
+  });
+});
+
+/* ── G1：归档后自动生成中标公示草稿 ── */
+describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        create: jest.fn(),
+        findMany: jest.fn(),
+        count: jest.fn(),
+        groupBy: jest.fn(),
+      },
+      bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
+      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn() },
+      bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
+      supplier: { count: jest.fn() },
+      announcement: { count: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+      bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
+      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
+      supplierBidSubmission: { findUnique: jest.fn() },
+      bidOpeningSession: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+      fileAsset: { findUnique: jest.fn() },
+      notification: { create: jest.fn(), createMany: jest.fn() },
+      user: { findMany: jest.fn() },
+      auditLog: { create: jest.fn() },
+      $transaction: jest.fn(async (callbackOrOps: any) => {
+        if (typeof callbackOrOps === 'function') return callbackOrOps(prisma);
+        return Promise.all(callbackOrOps);
+      }),
+    };
+
+    // archiveAll 入口查询 / ensureWinnerNotice 内部查询共用 findUnique
+    prisma.bidProject.findUnique.mockImplementation(({ where }: any) => {
+      if (where?.id === 'p1') {
+        return Promise.resolve({
+          id: 'p1',
+          projectCode: 'BID-1',
+          stage: 'EVALUATING',
+          name: '项目',
+          evaluationResults: [
+            { rank: 1, supplierName: '甲', totalScore: 90, averageScore: 30, recommended: true },
+          ],
+        });
+      }
+      return Promise.resolve(null);
+    });
+    prisma.bidEvaluationResult.count.mockResolvedValue(1);
+    prisma.bidSupplier.count.mockResolvedValue(0); // 无 confirmable，绕过 EVALUATION_RESULTS_REQUIRED
+    prisma.bidSupplier.findMany.mockResolvedValue([]); // 绕过 G5 OPENING_RECORDS_MISSING
+    prisma.bidArchiveItem.findMany.mockResolvedValue([{ id: 'ai1', name: 'x', status: 'PENDING_CONFIRM' }]);
+    prisma.bidArchiveItem.update.mockResolvedValue({});
+    prisma.bidProject.update.mockResolvedValue({ stage: 'ARCHIVED' });
+    prisma.bidSupervisionLog.create.mockResolvedValue({});
+    prisma.auditLog.create.mockResolvedValue({});
+    prisma.announcement.findFirst.mockResolvedValue(null); // 不存在
+    prisma.announcement.create.mockResolvedValue({ id: 'wn1' });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get<BidService>(BidService);
+  });
+
+  it('归档后自动创建 WIN_NOTICE 草稿', async () => {
+    await service.archiveAll('p1', 'u1');
+    expect(prisma.announcement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: 'WIN_NOTICE',
+          status: 'DRAFT',
+          relatedProjectCode: 'BID-1',
+        }),
+      }),
+    );
+  });
+
+  it('已存在 WIN_NOTICE 时不重复创建（幂等）', async () => {
+    prisma.announcement.findFirst.mockResolvedValue({ id: 'wn1' });
+    await service.archiveAll('p1', 'u1');
+    expect(prisma.announcement.create).not.toHaveBeenCalled();
+  });
+
+  it('中标公示创建失败时不阻塞归档', async () => {
+    prisma.announcement.create.mockRejectedValue(new Error('DB down'));
+    await expect(service.archiveAll('p1', 'u1')).resolves.toBeDefined();
   });
 });
 

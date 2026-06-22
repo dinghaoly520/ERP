@@ -411,10 +411,22 @@ export class BidService {
   async openSubmission(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true },
+      select: { stage: true, name: true, projectCode: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'SUBMIT');
+
+    // G3: 开放投递前必须已发布招标公示（供应商经 relatedProjectCode 获取招标文件）
+    const notice = await this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: project.projectCode, type: 'BID_NOTICE', status: 'PUBLISHED' },
+      select: { id: true },
+    });
+    if (!notice) {
+      throw new ConflictException({
+        error: '尚未发布招标公示，供应商无法获取招标文件，请先在信息发布中心发布招标公告',
+        code: 'BID_NOTICE_REQUIRED',
+      });
+    }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.bidProject.update({
@@ -524,6 +536,26 @@ export class BidService {
     const expertCount = await this.prisma.bidExpert.count({ where: { projectId: id } });
     if (expertCount === 0) {
       throw new BadRequestException({ error: '项目未分配评审专家，无法启动评标', code: 'NO_EXPERTS_ASSIGNED' });
+    }
+
+    // G4: 至少一个解密成功且未撤回的供应商，否则评标阶段无供应商可评（死局）
+    const evaluableSupplierCount = await this.prisma.bidSupplier.count({
+      where: { projectId: id, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+    });
+    if (evaluableSupplierCount === 0) {
+      throw new BadRequestException({
+        error: '没有解密成功的有效供应商，无法启动评标',
+        code: 'NO_EVALUABLE_SUPPLIERS',
+      });
+    }
+
+    // G9: 至少一个评分项，否则专家无法打分、progress 恒 0、无法确认报告/生成结果
+    const scoreItemCount = await this.prisma.bidScoreItem.count({ where: { projectId: id } });
+    if (scoreItemCount === 0) {
+      throw new BadRequestException({
+        error: '项目尚未编制评分标准，请先在评标办法页添加评分项或应用标准模板',
+        code: 'NO_SCORE_ITEMS',
+      });
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -860,23 +892,36 @@ export class BidService {
       }
     }
 
+    // G2: 按供应商聚合 → 每专家对该供应商的总评分 → 专家组≥5 去 1 高 1 低 → 求平均
+    const DEFAULT_WINNER_COUNT = 3;
+    const panelSize = project.experts.length;
+
     const ranked: { supplierId: string; supplierName: string; totalScore: number; averageScore: number }[] = [];
     for (const supplier of activeSuppliers) {
       const records = recordsBySupplier.get(supplier.id) ?? [];
-      const totalScore = records.reduce((sum, r) => sum + Number(r.score), 0);
-      const scoringExpertCount = new Set(records.map(r => r.expertId)).size;
-      const averageScore = scoringExpertCount > 0 ? totalScore / scoringExpertCount : 0;
-      ranked.push({
-        supplierId: supplier.id,
-        supplierName: supplier.supplierName,
-        totalScore,
-        averageScore,
-      });
+      // 每位专家对该供应商的总评分
+      const perExpert = new Map<string, number>();
+      for (const r of records) {
+        perExpert.set(r.expertId, (perExpert.get(r.expertId) ?? 0) + Number(r.score));
+      }
+      const expertTotals = [...perExpert.values()].sort((a, b) => a - b);
+      const totalScore = expertTotals.reduce((s, v) => s + v, 0);
+
+      // 专家组≥5 时去 1 高 1 低（标准评标实务）
+      let trimmed = expertTotals;
+      if (expertTotals.length >= 5) {
+        trimmed = expertTotals.slice(1, -1);
+      }
+      const averageScore = trimmed.length > 0
+        ? Math.round((trimmed.reduce((s, v) => s + v, 0) / trimmed.length) * 100) / 100
+        : 0;
+
+      ranked.push({ supplierId: supplier.id, supplierName: supplier.supplierName, totalScore, averageScore });
     }
     ranked.sort((a, b) => b.averageScore - a.averageScore);
 
-    // Wrap deleteMany + createMany + supervision log in a transaction
-    // to prevent data loss if createMany fails after deleteMany succeeds.
+    const winnerCount = Math.min(DEFAULT_WINNER_COUNT, ranked.length);
+
     await this.prisma.$transaction(async (tx) => {
       await tx.bidEvaluationResult.deleteMany({ where: { projectId } });
       if (ranked.length > 0) {
@@ -888,14 +933,14 @@ export class BidService {
             totalScore: r.totalScore,
             averageScore: r.averageScore,
             rank: index + 1,
-            recommended: index === 0,
+            recommended: index < winnerCount,
           })),
         });
       }
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '系统', target: project.name,
-          action: '生成评标结果', result: `生成${ranked.length}家供应商排名`, riskFlag: '无',
+          action: '生成评标结果', result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}）`, riskFlag: '无',
         },
       });
     });
@@ -1134,17 +1179,37 @@ export class BidService {
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
       // 防止”跳过评标”归档：存在已确认的可评供应商但未生成评标结果时阻断
-      const [confirmableCount, resultCount] = await Promise.all([
-        tx.bidSupplier.count({
+      // G5: 已确认可评供应商必须有对应开标记录（主持人已补录唱标信息），保证归档材料完整
+      // 合并 confirmableCount 与 confirmableSuppliers 为一次 findMany 查询（R1 去冗余）
+      const [confirmableSuppliers, resultCount] = await Promise.all([
+        tx.bidSupplier.findMany({
           where: { projectId: id, decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: { not: '已撤回' } },
+          select: { id: true, supplierName: true },
         }),
         tx.bidEvaluationResult.count({ where: { projectId: id } }),
       ]);
+      const confirmableCount = confirmableSuppliers.length;
       if (confirmableCount > 0 && resultCount === 0) {
         throw new ConflictException({
           error: '存在已确认的可评供应商，请先生成评标结果再归档',
           code: 'EVALUATION_RESULTS_REQUIRED',
         });
+      }
+
+      if (confirmableSuppliers.length > 0) {
+        const confirmedSupplierIds = confirmableSuppliers.map(s => s.id);
+        const records = await tx.bidOpeningRecord.findMany({
+          where: { projectId: id, bidSupplierId: { in: confirmedSupplierIds } },
+          select: { bidSupplierId: true },
+        });
+        const recordedIds = new Set(records.map(r => r.bidSupplierId));
+        const missingNames = confirmableSuppliers.filter(s => !recordedIds.has(s.id)).map(s => s.supplierName);
+        if (missingNames.length > 0) {
+          throw new ConflictException({
+            error: `以下供应商缺少开标记录（请补录唱标信息）：${missingNames.join('、')}`,
+            code: 'OPENING_RECORDS_MISSING',
+          });
+        }
       }
 
       // 自动补齐标准归档材料，避免”无可归档项”阻塞
@@ -1193,7 +1258,70 @@ export class BidService {
     this.gateway?.notifyStageChange(id, 'EVALUATING', 'ARCHIVED', 'host');
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${result?.archiveItems?.length ?? 0} 项`, riskFlag: '无' });
 
+    // G1: 归档成功后自动生成中标公示草稿（事务外；幂等；不阻塞归档主流程）
+    try {
+      await this.ensureWinnerNotice(id);
+    } catch (e) {
+      this.logger.error(`中标公示自动生成失败（不阻塞归档）: ${(e as Error).message}`);
+    }
+
     return result;
+  }
+
+  /**
+   * 归档后自动生成中标公示草稿（G1）。幂等。
+   * 直接写 announcement 表（避免与 AnnouncementService 循环依赖）。
+   */
+  private async ensureWinnerNotice(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      include: {
+        evaluationResults: { orderBy: { rank: 'asc' }, select: { rank: true, supplierName: true, totalScore: true, averageScore: true, recommended: true } },
+      },
+    });
+    if (!project) return;
+    if (!project.evaluationResults || project.evaluationResults.length === 0) {
+      this.logger.warn(`项目 ${project.projectCode} 无评标结果，跳过中标公示生成`);
+      return;
+    }
+
+    const existing = await this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: project.projectCode, type: 'WIN_NOTICE' },
+      select: { id: true },
+    });
+    if (existing) return;
+
+    const winner = project.evaluationResults.find(r => r.rank === 1);
+    const candidates = project.evaluationResults.filter(r => r.recommended);
+
+    await this.prisma.announcement.create({
+      data: {
+        title: `中标公示：${project.name}`,
+        content: `项目编号 ${project.projectCode}（${project.name}）已完成评标并归档。中标人：${winner?.supplierName ?? '—'}。`,
+        type: 'WIN_NOTICE',
+        status: 'DRAFT',
+        relatedProjectCode: project.projectCode,
+        metadata: {
+          projectCode: project.projectCode,
+          winner: winner ? { supplierName: winner.supplierName, totalScore: Number(winner.totalScore), averageScore: Number(winner.averageScore) } : null,
+          candidates: candidates.map(c => ({ rank: c.rank, supplierName: c.supplierName, totalScore: Number(c.totalScore), averageScore: Number(c.averageScore) })),
+        },
+      },
+    });
+    this.logger.log(`已自动生成中标公示草稿：${project.projectCode}`);
+  }
+
+  /** 查询项目关联的中标公示（G1，草稿或已发布）；无则返回 null */
+  getWinnerNotice(projectId: string) {
+    return this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { projectCode: true },
+    }).then(project => {
+      if (!project) return null;
+      return this.prisma.announcement.findFirst({
+        where: { relatedProjectCode: project.projectCode, type: 'WIN_NOTICE' },
+      });
+    });
   }
 
   async exportArchivePackage(projectId: string, format: 'json' | 'csv' = 'json') {

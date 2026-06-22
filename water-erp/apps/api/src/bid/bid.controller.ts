@@ -195,6 +195,10 @@ export class BidController {
   @ApiOperation({ summary: '一键归档' })
   archiveAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.archiveAll(id, userId); }
 
+  @Get('projects/:id/winner-notice')
+  @ApiOperation({ summary: '查询项目关联的中标公示（G1，草稿或已发布）' })
+  getWinnerNotice(@Param('id') id: string) { return this.bidService.getWinnerNotice(id); }
+
   @Post('projects/:id/supervision-annotations')
   @ApiOperation({ summary: '创建或更新监督标注' })
   upsertSupervisionAnnotation(@Param('id') id: string, @Body() dto: UpsertSupervisionAnnotationDto) {
