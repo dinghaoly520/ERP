@@ -207,11 +207,12 @@ export interface EvaluationReport {
   supplierScores: {
     supplierName: string;
     totalScore: number;
-    completed: boolean;
+    perSupplierComplete: boolean;
     categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; reason?: string }[] }>;
   }[];
   scoreItems: BidScoreItem[];
   canConfirm: boolean;
+  overallComplete: boolean;
 }
 
 /* ── 供应商端 ── */

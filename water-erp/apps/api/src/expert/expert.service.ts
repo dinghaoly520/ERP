@@ -600,7 +600,7 @@ export class ExpertService {
         supplierName: supplier.supplierName,
         totalScore,
         categoryScores,
-        completed: project.scoreItems.length > 0 && records.length === project.scoreItems.length,
+        perSupplierComplete: project.scoreItems.length > 0 && records.length === project.scoreItems.length,
       };
     });
 
@@ -614,6 +614,7 @@ export class ExpertService {
       supplierScores,
       scoreItems: project.scoreItems,
       canConfirm: expert.progress >= 100,
+      overallComplete: expert.progress >= 100,
     };
   }
 
