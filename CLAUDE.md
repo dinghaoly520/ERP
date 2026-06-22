@@ -287,7 +287,7 @@ The NestJS API (`apps/api`, :4001):
 ```
 DATABASE_URL=postgresql://water_erp:water_erp_dev@localhost:5432/water_erp
 JWT_SECRET=water-erp-jwt-secret
-SMS_DEBUG_BYPASS=true              # Skip real SMS; auto-verify with code "000000"
+SMS_DEBUG_BYPASS=true              # Skip real SMS; auto-verify with code "123456"
 ```
 
 ### WebSocket / Real-Time
