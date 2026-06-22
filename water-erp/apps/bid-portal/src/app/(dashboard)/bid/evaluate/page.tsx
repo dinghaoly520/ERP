@@ -10,6 +10,7 @@ import { TableSkeleton } from '@/components/skeleton';
 import { MetricCard, PageHero, SectionCard } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ConnectionIndicator } from '@/components/connection-indicator';
+import NoProjectGuide from '@/components/no-project-guide';
 import { toast } from 'sonner';
 import {
   UserCircle, CheckCircle, Clock, ShieldCheck, FileCheck,
@@ -163,6 +164,7 @@ export default function BidEvaluatePage() {
   const [results, setResults] = useState<EvalResult[]>([]);
   const [generating, setGenerating] = useState(false);
   const [startingEvaluation, setStartingEvaluation] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [expandedExpert, setExpandedExpert] = useState<string | null>(null);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
@@ -227,6 +229,22 @@ export default function BidEvaluatePage() {
       toast.success('评标已启动，项目进入评标阶段');
     } catch (e: any) { toast.error(e.message || '启动评标失败'); }
     setStartingEvaluation(false);
+  };
+
+  // 归档：EVALUATING → ARCHIVED。后端会校验"存在可评供应商但无结果"并返回 409。
+  const handleArchive = async () => {
+    if (!projectId) return;
+    setArchiving(true);
+    try {
+      await api.post(`/bid/projects/${projectId}/archive-all`, {});
+      toast.success('项目已归档');
+      const updated = await api.get<BidProjectEvalDetail>(`/bid/projects/${projectId}`);
+      setProject(updated);
+    } catch (e: any) {
+      toast.error(e?.message || '归档失败');
+    } finally {
+      setArchiving(false);
+    }
   };
 
   /* ── Derived data ── */
@@ -321,6 +339,7 @@ export default function BidEvaluatePage() {
   }, [project, expertMatrix]);
 
   /* ── Loading / empty ── */
+  if (!projectId) return <NoProjectGuide />;
   if (loading) return <TableSkeleton rows={8} cols={6} />;
   if (error && !project) {
     return (
@@ -631,13 +650,13 @@ export default function BidEvaluatePage() {
             <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
               供应商评分汇总
             </h2>
-            <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">按评审类别汇总平均分，作为排名依据。悬停分类得分查看专家明细。</p>
+            <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">按各评审类别平均分加权计算总分并排名，同分同名次（竞赛式排名）。悬停分类得分查看专家明细。</p>
           </div>
           <div className="overflow-x-auto">
             <table className="workbench-table">
               <thead>
                 <tr className="text-[oklch(0.55_0.01_264)]">
-                  <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">排名</th>
+                  <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap" title="按各评审类别平均分加权排名，同分同名次（竞赛式）">排名</th>
                   <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">投标单位</th>
                   {CATEGORY_ORDER.map(cat => (
                     <th key={cat} className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">{CATEGORY_LABEL[cat] || cat}</th>
@@ -748,6 +767,13 @@ export default function BidEvaluatePage() {
                 className="px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50 rounded-xl">
                 {generating ? '生成中…' : '生成评标结果'}
               </button>
+              {project.stage === 'EVALUATING' && results.length > 0 && (
+                <button onClick={handleArchive} disabled={archiving}
+                  title="生成评标结果后归档项目，进入归档阶段"
+                  className="px-4 py-2 bg-[#11a874] text-white text-[12px] font-semibold tracking-tight hover:bg-[#0e8c5f] transition-colors disabled:opacity-50 rounded-xl">
+                  {archiving ? '归档中…' : '归档项目'}
+                </button>
+              )}
             </div>
           </div>
           {!allReportsConfirmed && experts.length > 0 && (
