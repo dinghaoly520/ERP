@@ -7,9 +7,8 @@ import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import { MessageSquare, Plus, AlertTriangle, X, Send } from 'lucide-react';
-import { PageHero } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
-import { ConnectionIndicator } from '@/components/connection-indicator';
+import { useReportRealtime } from '@/contexts/bid-realtime-context';
 import NoProjectGuide from '@/components/no-project-guide';
 
 export default function BidClarificationsPage() {
@@ -56,6 +55,8 @@ export default function BidClarificationsPage() {
       api.get<BidClarification[]>(`/bid/projects/${projectId}/clarifications`).then(setClarifications).catch(() => {});
     },
   });
+
+  useReportRealtime(connection, lastEventAt, reconnectNow);
 
   const handleReply = async (cid: string) => {
     if (!projectId) return;
@@ -117,14 +118,6 @@ export default function BidClarificationsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHero
-        tone="cyan"
-        icon={<MessageSquare size={14} strokeWidth={1.5} />}
-        title="澄清与答疑"
-        description="发起澄清 · 供应商回复 · 全程留痕"
-        actions={<ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} />}
-      />
-
       {/* Action bar */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2 text-[12px] text-[oklch(0.55_0.01_264)]">

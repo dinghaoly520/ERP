@@ -9,11 +9,11 @@ import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
 import {
   Unlock, Clock, Shield, Play, CheckCircle, AlertTriangle, ChevronRight,
-  Volume2, VolumeX, Maximize, Minimize, Zap, Loader,
+  Volume2, Zap, Loader,
 } from 'lucide-react';
-import { PageHero, SectionCard } from '@water-erp/ui';
+import { SectionCard } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
-import { ConnectionIndicator } from '@/components/connection-indicator';
+import { useReportRealtime } from '@/contexts/bid-realtime-context';
 import NoProjectGuide from '@/components/no-project-guide';
 import { DECRYPT_LABEL, SEMANTIC } from '@water-erp/shared';
 import { toast } from 'sonner';
@@ -134,8 +134,8 @@ export default function BidOpenPage() {
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
   const [bulkDecrypting, setBulkDecrypting] = useState(false);
   const [decryptTarget, setDecryptTarget] = useState<{ id: string; name: string }[] | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [bigScreen, setBigScreen] = useState(false);
+  const [soundEnabled] = useState(true);
+  const [bigScreen] = useState(false);
   const [inlineDispute, setInlineDispute] = useState<string | null>(null);
   const [disputeHandleResult, setDisputeHandleResult] = useState('');
   const [disputeHandleConfirm, setDisputeHandleConfirm] = useState<'confirmed' | 'rejected' | null>(null);
@@ -338,7 +338,7 @@ export default function BidOpenPage() {
     },
   });
 
-  // Connection indicator: report WS state for UI
+  useReportRealtime(connection, lastEventAt, reconnectNow);
 
   // ═══ Countdown + time warnings ═══
   useEffect(() => {
@@ -373,29 +373,6 @@ export default function BidOpenPage() {
 
   return (
     <div className={`space-y-5 ${bigScreen ? 'text-[115%]' : ''}`}>
-      {/* ═══ PageHero with controls ═══ */}
-      <PageHero
-        tone="blue"
-        icon={<Unlock size={14} strokeWidth={1.5} />}
-        title="在线开标大厅"
-        description="到时自动提取投标文件 · 提示在线解密 · 生成开标记录"
-        actions={
-          <div className="flex items-center gap-2">
-            <button onClick={() => setSoundEnabled(!soundEnabled)}
-              title={`音效${soundEnabled ? '开' : '关'} (S)`}
-              className="rounded-xl border border-[#e5ecf4] bg-white p-2 text-[#5a6d8a] hover:border-[#064ea2] hover:text-[#064ea2] transition">
-              {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-            </button>
-            <button onClick={() => setBigScreen(!bigScreen)}
-              title={`${bigScreen ? '退出' : '开启'}大屏模式 (M)`}
-              className="rounded-xl border border-[#e5ecf4] bg-white p-2 text-[#5a6d8a] hover:border-[#064ea2] hover:text-[#064ea2] transition">
-              {bigScreen ? <Minimize size={14} /> : <Maximize size={14} />}
-            </button>
-            <ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} />
-          </div>
-        }
-      />
-
       {/* ═══ Time warning banners ═══ */}
       {timeWarning === '5min' && (
         <div className="rounded-xl border border-[#fcd34d] bg-[#fffbeb] px-4 py-2.5 text-sm font-bold text-[#92400e] flex items-center gap-2 animate-pulse">

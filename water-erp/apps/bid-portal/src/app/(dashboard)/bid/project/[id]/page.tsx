@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import ProjectHeader from './components/project-header';
 import ProjectTabs, { TABS, getDefaultTab } from './components/project-tabs';
+import { BidRealtimeProvider } from '@/contexts/bid-realtime-context';
 import { Loader2 } from 'lucide-react';
 
 // 动态导入子页面内容 — 复用现有组件
@@ -40,25 +41,27 @@ export default function ProjectWorkspacePage() {
   const { isLoading } = useBidProjectContext();
 
   return (
-    <div className="space-y-4">
-      <ProjectHeader />
+    <BidRealtimeProvider>
+      <div className="space-y-4">
+        <ProjectHeader />
 
-      <Suspense fallback={
-        <div className="flex items-center justify-center py-12">
-          <Loader2 size={20} strokeWidth={1.5} className="animate-spin text-[#8a96aa]" />
-        </div>
-      }>
-        <ProjectTabs />
-      </Suspense>
+        <Suspense fallback={
+          <div className="flex items-center justify-center py-12">
+            <Loader2 size={20} strokeWidth={1.5} className="animate-spin text-[#8a96aa]" />
+          </div>
+        }>
+          <ProjectTabs />
+        </Suspense>
 
-      {/* Tab 内容区 */}
-      <Suspense fallback={
-        <div className="flex items-center justify-center py-12">
-          <Loader2 size={20} strokeWidth={1.5} className="animate-spin text-[#8a96aa]" />
-        </div>
-      }>
-        <TabContent />
-      </Suspense>
-    </div>
+        {/* Tab 内容区 */}
+        <Suspense fallback={
+          <div className="flex items-center justify-center py-12">
+            <Loader2 size={20} strokeWidth={1.5} className="animate-spin text-[#8a96aa]" />
+          </div>
+        }>
+          <TabContent />
+        </Suspense>
+      </div>
+    </BidRealtimeProvider>
   );
 }

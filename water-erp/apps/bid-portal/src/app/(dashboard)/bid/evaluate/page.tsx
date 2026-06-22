@@ -7,15 +7,15 @@ import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 
 import { TableSkeleton } from '@/components/skeleton';
-import { MetricCard, PageHero, SectionCard } from '@water-erp/ui';
+import { MetricCard, SectionCard } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
-import { ConnectionIndicator } from '@/components/connection-indicator';
+import { useReportRealtime } from '@/contexts/bid-realtime-context';
 import NoProjectGuide from '@/components/no-project-guide';
 import { toast } from 'sonner';
 import {
   UserCircle, CheckCircle, Clock, ShieldCheck, FileCheck,
   ChevronDown, ChevronRight, AlertTriangle, Play, Gauge,
-  TrendingUp, ClipboardCheck, Star, Trophy, X, Sparkles, Users,
+  TrendingUp, Star, Trophy, X, Sparkles, Users,
 } from 'lucide-react';
 
 /* ── Local types ── */
@@ -203,6 +203,7 @@ export default function BidEvaluatePage() {
     },
   });
 
+  useReportRealtime(connection, lastEventAt, reconnectNow);
 
   /* ── Operations ── */
   const handleGenerate = async () => {
@@ -362,14 +363,6 @@ export default function BidEvaluatePage() {
 
   return (
     <div className="space-y-6">
-      <PageHero
-        tone="purple"
-        icon={<ClipboardCheck size={14} strokeWidth={1.5} />}
-        title="专家评标管理端"
-        description="专家组状态 · 评分概览 · 结果汇总"
-        actions={<ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} />}
-      />
-
       {/* ═══ Progress dashboard ═══ */}
       {dashMetrics && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

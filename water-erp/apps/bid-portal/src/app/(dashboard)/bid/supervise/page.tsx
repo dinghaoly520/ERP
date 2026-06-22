@@ -8,10 +8,10 @@ import { getSupervisionAnnotations, upsertSupervisionAnnotation, deleteSupervisi
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { TableSkeleton } from '@/components/skeleton';
 import { Shield, AlertTriangle, Eye, Download, RefreshCw, Zap } from 'lucide-react';
-import { PageHero, SectionCard } from '@water-erp/ui';
+import { SectionCard } from '@water-erp/ui';
 import { toast } from 'sonner';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
-import { ConnectionIndicator } from '@/components/connection-indicator';
+import { useReportRealtime } from '@/contexts/bid-realtime-context';
 import NoProjectGuide from '@/components/no-project-guide';
 
 function exportSupervisionCSV(logs: Array<{ time: string; role: string; target: string; action: string; result: string; riskFlag: string }>) {
@@ -107,6 +107,7 @@ export default function BidSupervisePage() {
     },
   });
 
+  useReportRealtime(connection, lastEventAt, reconnectNow);
 
   if (!projectId) return <NoProjectGuide />;
   if (loading) return <TableSkeleton rows={6} cols={6} />;
@@ -128,14 +129,6 @@ export default function BidSupervisePage() {
 
   return (
     <div className="space-y-6">
-      <PageHero
-        tone="orange"
-        icon={<Shield size={14} strokeWidth={1.5} />}
-        title="监督端"
-        description="全程监督 · 不可干预"
-        actions={<ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} />}
-      />
-
       {/* Permission notice */}
       <div className="rounded-2xl border border-[#fecaca] bg-[#fef2f2] p-5 flex items-center gap-4">
         <Shield size={20} strokeWidth={1.5} className="text-[#e74c3c] flex-shrink-0" />

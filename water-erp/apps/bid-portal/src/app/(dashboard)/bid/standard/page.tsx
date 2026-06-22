@@ -7,11 +7,11 @@ import {
   type ScoreItem,
 } from '@/lib/api/bid';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
-import { PageHero, SectionCard } from '@water-erp/ui';
+import { SectionCard } from '@water-erp/ui';
 import { TableSkeleton } from '@/components/skeleton';
 import Dialog from '@/components/dialog';
 import NoProjectGuide from '@/components/no-project-guide';
-import { ListChecks, Plus, Pencil, Trash2, Check, X, FileSpreadsheet, Lock } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, FileSpreadsheet, Lock } from 'lucide-react';
 import { CATEGORY_LABEL, CATEGORY_COLOR, STAGE_LABEL } from '@water-erp/shared';
 import { toast } from 'sonner';
 
@@ -113,13 +113,6 @@ export default function BidStandardPage() {
   if (!projectId) return <NoProjectGuide />;
   return (
     <div className="space-y-6">
-      <PageHero
-        tone="blue"
-        icon={<ListChecks size={14} strokeWidth={1.5} />}
-        title="评分标准编制"
-        description="评标前置环节 · 编制评分项与满分 · 专家据此打分"
-      />
-
       {locked && (
         <div className="flex items-center gap-2 rounded-xl border border-[#fde68a] bg-[#fffbeb] px-4 py-3 text-sm text-[#92400e]">
           <Lock size={14} strokeWidth={1.8} />

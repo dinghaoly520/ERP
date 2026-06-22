@@ -4,10 +4,13 @@ import { useRouter } from 'next/navigation';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 import { ArrowLeft, Loader2, AlertTriangle } from 'lucide-react';
+import { ConnectionIndicator } from '@/components/connection-indicator';
+import { useBidRealtime } from '@/contexts/bid-realtime-context';
 
 export default function ProjectHeader() {
   const router = useRouter();
   const { project, isLoading, error, refetch } = useBidProjectContext();
+  const { realtime } = useBidRealtime();
 
   if (error) {
     return (
@@ -54,7 +57,7 @@ export default function ProjectHeader() {
   return (
     <div className="rounded-2xl border border-[#edf2f7] bg-white px-5 py-4 shadow-sm">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4 min-w-0">
+        <div className="flex flex-1 items-center gap-4 min-w-0">
           <button
             onClick={() => router.push('/bid')}
             className="flex items-center gap-1 rounded-xl border border-[#e5ecf4] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a] transition flex-shrink-0"
@@ -85,6 +88,9 @@ export default function ProjectHeader() {
             </div>
           </div>
         </div>
+        {realtime && (
+          <ConnectionIndicator connection={realtime.connection} lastEventAt={realtime.lastEventAt} onReconnect={realtime.onReconnect} />
+        )}
       </div>
     </div>
   );
