@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
+import RecentProjects from './recent-projects';
 import {
   LayoutDashboard, Archive,
   LogOut, PanelLeftClose, PanelLeft,
@@ -109,6 +110,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 )}
               </button>
             ))}
+            {!collapsed && <RecentProjects />}
           </nav>
 
           <button
