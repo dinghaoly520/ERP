@@ -8,6 +8,9 @@ import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
 import { MessageSquare, Plus, AlertTriangle, X, Send } from 'lucide-react';
 import { PageHero } from '@water-erp/ui';
+import { useBidWebSocket } from '@/hooks/use-bid-websocket';
+import { ConnectionIndicator } from '@/components/connection-indicator';
+import NoProjectGuide from '@/components/no-project-guide';
 
 export default function BidClarificationsPage() {
   const { projectId } = useBidProjectContext();
@@ -39,6 +42,20 @@ export default function BidClarificationsPage() {
   };
 
   useEffect(() => { load(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 实时推送：新澄清 / 供应商回复（事件为轻量预览，直接刷新列表保证一致）
+  const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId || undefined, {
+    onClarificationCreated: (data) => {
+      toast.success(`新澄清 · ${data.supplierName}`);
+      if (!projectId) return;
+      api.get<BidClarification[]>(`/bid/projects/${projectId}/clarifications`).then(setClarifications).catch(() => {});
+    },
+    onClarificationReplied: (data) => {
+      toast.success(`${data.replier} 回复了澄清`);
+      if (!projectId) return;
+      api.get<BidClarification[]>(`/bid/projects/${projectId}/clarifications`).then(setClarifications).catch(() => {});
+    },
+  });
 
   const handleReply = async (cid: string) => {
     if (!projectId) return;
@@ -82,6 +99,7 @@ export default function BidClarificationsPage() {
     }
   };
 
+  if (!projectId) return <NoProjectGuide />;
   if (loading) return <TableSkeleton rows={6} cols={4} />;
   if (error) return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -104,6 +122,7 @@ export default function BidClarificationsPage() {
         icon={<MessageSquare size={14} strokeWidth={1.5} />}
         title="澄清与答疑"
         description="发起澄清 · 供应商回复 · 全程留痕"
+        actions={<ConnectionIndicator connection={connection} lastEventAt={lastEventAt} onReconnect={reconnectNow} />}
       />
 
       {/* Action bar */}
@@ -263,7 +282,7 @@ export default function BidClarificationsPage() {
                 </tr>
                 {isReplying && (
                   <tr key={`${c.id}-reply`}>
-                    <td colSpan={7} className="bg-[oklch(0.98_0.005_264)] border-b border-[oklch(0.91_0.006_264)]">
+                    <td colSpan={8} className="bg-[oklch(0.98_0.005_264)] border-b border-[oklch(0.91_0.006_264)]">
                       <div className="px-5 py-3 space-y-3">
                         <textarea value={replyText} onChange={e => setReplyText(e.target.value)}
                           placeholder="输入回复内容…" rows={3}
