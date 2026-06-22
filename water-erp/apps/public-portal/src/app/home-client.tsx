@@ -25,7 +25,36 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   const [regForm, setRegForm] = useState({ name: '', creditCode: '', phone: '', pwd: '', contact: '' });
   const [regLoading, setRegLoading] = useState(false);
   const [announceTab, setAnnounceTab] = useState(0);
-  const heroImages = ['bg-hydro-hero-1.jpg','bg-hydro-hero-2.jpg','bg-hydro-hero-3.jpg','bg-hydro-hero-4.jpg','bg-hydro-hero-5.jpg'];
+  // BG 图库（16张），按12小时窗口内随机轮播5张，全天自动刷新
+  const heroImages = useMemo(() => {
+    const BG_POOL = [
+      'swdg-mascot-bg-03-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-04-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-05-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-06-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-07-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-08-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-10-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-11-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-13-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-14-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-15-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-16-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-17-1920x580-real.png',
+      'swdg-mascot-bg-18-helmet-tip-v3-1920x580-real.png',
+      'swdg-mascot-bg-19-helmet-tip-v3-1920x580-real.png',
+    ];
+    const HOURS = 12;
+    const period = Math.floor(Date.now() / (HOURS * 60 * 60 * 1000));
+    let seed = period;
+    const next = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+    const pool = [...BG_POOL];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(next() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool.slice(0, 5).map(f => `BG/${f}`);
+  }, []);
 
   const handleLogin = async () => {
     if (!username || !password) { toast.error('请输入用户名和密码'); return; }
