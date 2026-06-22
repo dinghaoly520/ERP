@@ -10,6 +10,7 @@ import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { PageHero, SectionCard } from '@water-erp/ui';
 import { TableSkeleton } from '@/components/skeleton';
 import Dialog from '@/components/dialog';
+import NoProjectGuide from '@/components/no-project-guide';
 import { ListChecks, Plus, Pencil, Trash2, Check, X, FileSpreadsheet, Lock } from 'lucide-react';
 import { CATEGORY_LABEL, CATEGORY_COLOR, STAGE_LABEL } from '@water-erp/shared';
 import { toast } from 'sonner';
@@ -109,6 +110,7 @@ export default function BidStandardPage() {
     );
   };
 
+  if (!projectId) return <NoProjectGuide />;
   return (
     <div className="space-y-6">
       <PageHero
