@@ -348,5 +348,18 @@ describe('ExpertService', () => {
       // 旧字段 completed 不应再出现
       expect((report.supplierScores[0] as any).completed).toBeUndefined();
     });
+
+    it('progress<100 时 overallComplete=false（即便单供应商评分已齐）', async () => {
+      // G7: overallComplete 仅由 expert.progress>=100 决定，与 perSupplierComplete 无强耦合
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp-1', expertName: '王建国', progress: 80, signedIn: true, avoidanceConfirmed: true,
+      });
+
+      const report = await service.getReport('u1', 'p1');
+
+      expect(report.overallComplete).toBe(false); // progress=80
+      // perSupplierComplete 仍可 true（mock 数据中该供应商 1 项已评 1 项）
+      expect(report.supplierScores[0].perSupplierComplete).toBe(true);
+    });
   });
 });

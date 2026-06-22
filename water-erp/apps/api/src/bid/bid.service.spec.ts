@@ -191,7 +191,6 @@ describe('BidService — stage transitions', () => {
       prisma.announcement.findFirst.mockResolvedValue({ id: 'a1' });
       prisma.bidProject.update.mockResolvedValue({ stage: 'SUBMIT' });
       prisma.bidSupervisionLog.create.mockResolvedValue({});
-      prisma.auditLog = prisma.auditLog || { create: jest.fn() };
       prisma.auditLog.create.mockResolvedValue({});
       await expect(service.openSubmission('p1', 'u1')).resolves.toBeDefined();
     });
@@ -504,7 +503,6 @@ describe('BidService — stage transitions', () => {
       prisma.bidEvaluationResult.createMany.mockResolvedValue({ count: 1 });
       prisma.bidEvaluationResult.findMany.mockResolvedValue([]);
       prisma.bidSupervisionLog.create.mockResolvedValue({});
-      prisma.auditLog = prisma.auditLog || { create: jest.fn() };
       prisma.auditLog.create.mockResolvedValue({});
     });
 
@@ -594,7 +592,6 @@ describe('BidService — stage transitions', () => {
       prisma.bidArchiveItem.update.mockResolvedValue({ hashDigest: 'sha256:abc' });
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
       prisma.bidSupervisionLog.create.mockResolvedValue({});
-      prisma.bidSupplier.count.mockResolvedValue(0);
       prisma.bidSupplier.findMany.mockResolvedValue([]); // G5: 无可评供应商
       prisma.bidEvaluationResult.count.mockResolvedValue(0);
       // $transaction callback-based mock already in beforeEach
@@ -615,7 +612,6 @@ describe('BidService — stage transitions', () => {
         .mockResolvedValueOnce([]) // ensureArchiveItems findMany
         .mockResolvedValueOnce([{ id: 'a1', status: 'PENDING_CONFIRM' }]); // non-archived items query
       prisma.bidArchiveItem.findFirst.mockResolvedValue({ id: 'a1', projectId: 'p1' });
-      prisma.bidSupplier.count.mockResolvedValue(0);
       prisma.bidSupplier.findMany.mockResolvedValue([]); // G5: 无可评供应商
       prisma.bidEvaluationResult.count.mockResolvedValue(0);
       prisma.bidArchiveItem.update.mockResolvedValue({ hashDigest: 'sha256:abc' });
@@ -656,7 +652,6 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique
         .mockResolvedValueOnce({ id: 'p1', projectCode: 'BID-TEST', stage: 'EVALUATING', name: '测试项目' })
         .mockResolvedValueOnce({ id: 'p1', stage: 'ARCHIVED', archiveItems: [] });
-      prisma.bidSupplier.count.mockResolvedValue(2);
       prisma.bidEvaluationResult.count.mockResolvedValue(2); // 已生成结果
       // G5: 可评供应商均有对应开标记录
       prisma.bidSupplier.findMany.mockResolvedValue([
@@ -682,7 +677,6 @@ describe('BidService — stage transitions', () => {
     beforeEach(() => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-1', stage: 'EVALUATING', name: '项目' });
       prisma.bidEvaluationResult.count.mockResolvedValue(1); // 已有结果，绕过既有 EVALUATION_RESULTS_REQUIRED
-      prisma.bidSupplier.count.mockResolvedValue(1); // confirmableCount=1
     });
 
     it('SUCCESS+CONFIRMED 供应商缺开标记录时拒绝', async () => {
@@ -818,9 +812,8 @@ describe('BidService — stage transitions', () => {
       prisma.bidScoreItem.count.mockResolvedValue(5);
       prisma.bidProject.update.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidSupervisionLog.create.mockResolvedValue({});
-      prisma.auditLog = prisma.auditLog || { create: jest.fn() };
       prisma.auditLog.create.mockResolvedValue({});
-      await expect(service.startEvaluation('p1', 'u1')).resolves.toBeDefined();
+      await expect(service.startEvaluation('p1', 'u1')).resolves.toMatchObject({ stage: 'EVALUATING' });
     });
   });
 
@@ -1382,7 +1375,6 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
       return Promise.resolve(null);
     });
     prisma.bidEvaluationResult.count.mockResolvedValue(1);
-    prisma.bidSupplier.count.mockResolvedValue(0); // 无 confirmable，绕过 EVALUATION_RESULTS_REQUIRED
     prisma.bidSupplier.findMany.mockResolvedValue([]); // 绕过 G5 OPENING_RECORDS_MISSING
     prisma.bidArchiveItem.findMany.mockResolvedValue([{ id: 'ai1', name: 'x', status: 'PENDING_CONFIRM' }]);
     prisma.bidArchiveItem.update.mockResolvedValue({});
