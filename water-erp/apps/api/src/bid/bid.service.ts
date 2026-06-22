@@ -1068,6 +1068,51 @@ export class BidService {
     }
   }
 
+  /** 归档项目汇总（单次聚合，避免前端逐项目拉详情的 N+1） */
+  async getArchiveSummary() {
+    const projects = await this.prisma.bidProject.findMany({
+      where: { stage: 'ARCHIVED' },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        projectCode: true,
+        name: true,
+        createdAt: true,
+        _count: { select: { archiveItems: true } },
+      },
+    });
+
+    const ids = projects.map(p => p.id);
+    // 批量聚合各项目的已归档项数 + 最后归档时间（单次 groupBy，避免 N+1）
+    const archivedAgg = ids.length > 0
+      ? await this.prisma.bidArchiveItem.groupBy({
+          by: ['projectId'],
+          where: { projectId: { in: ids }, status: 'ARCHIVED' },
+          _count: { projectId: true },
+          _max: { archivedAt: true },
+        })
+      : [];
+    const aggMap = new Map(
+      archivedAgg.map(a => [a.projectId, { archived: a._count.projectId, lastAt: a._max.archivedAt }]),
+    );
+
+    return projects.map(p => {
+      const agg = aggMap.get(p.id);
+      const totalItems = p._count.archiveItems;
+      const archivedItems = agg?.archived ?? 0;
+      return {
+        id: p.id,
+        projectCode: p.projectCode,
+        name: p.name,
+        totalItems,
+        archivedItems,
+        completionRate: totalItems > 0 ? Math.round((archivedItems / totalItems) * 100) : 0,
+        lastArchivedAt: agg?.lastAt ?? null,
+        createdAt: p.createdAt,
+      };
+    });
+  }
+
   async archiveAll(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },

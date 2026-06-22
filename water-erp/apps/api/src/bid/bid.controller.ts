@@ -40,6 +40,10 @@ export class BidController {
   @ApiOperation({ summary: 'Dashboard 聚合：项目列表 + 就绪状态 + 阶段分布' })
   getProjectsDashboard() { return this.bidService.getProjectsDashboard(); }
 
+  @Get('projects/archive-summary')
+  @ApiOperation({ summary: '归档项目汇总（单次聚合，避免 N+1）' })
+  getArchiveSummary() { return this.bidService.getArchiveSummary(); }
+
   @Post('projects')
   @ApiOperation({ summary: '创建项目' })
   createProject(@Body() dto: CreateBidProjectDto) { return this.bidService.createProject(dto); }
