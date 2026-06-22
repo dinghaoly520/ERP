@@ -2358,5 +2358,65 @@
     "isPrimary": false,
     "createdAt": "2024-11-08T09:00:00.000Z",
     "updatedAt": "2024-11-08T09:00:00.000Z"
+  },
+  {
+    "id": "cmqrich-ct-sfjs01",
+    "supplierId": "cmqc8r69z0118koeklajoa05a",
+    "name": "王建国",
+    "phone": "13902810001",
+    "email": "wangjg@sfjs.com",
+    "isPrimary": false,
+    "createdAt": "2026-06-13T06:18:29.742Z",
+    "updatedAt": "2026-06-13T06:18:29.742Z"
+  },
+  {
+    "id": "cmqrich-ct-sfjs02",
+    "supplierId": "cmqc8r69z0118koeklajoa05a",
+    "name": "李慧敏",
+    "phone": "13902810002",
+    "email": "lihm@sfjs.com",
+    "isPrimary": false,
+    "createdAt": "2026-06-13T06:18:29.742Z",
+    "updatedAt": "2026-06-13T06:18:29.742Z"
+  },
+  {
+    "id": "cmqrich-ct-zk03",
+    "supplierId": "cmqc8r60300dpkoek0vhts0uy",
+    "name": "罗良元",
+    "phone": "13902820001",
+    "email": "luoly@zkcdit.com",
+    "isPrimary": false,
+    "createdAt": "2026-06-13T06:18:29.742Z",
+    "updatedAt": "2026-06-13T06:18:29.742Z"
+  },
+  {
+    "id": "cmqrich-ct-zk04",
+    "supplierId": "cmqc8r60300dpkoek0vhts0uy",
+    "name": "张文博",
+    "phone": "13902820002",
+    "email": "zhangwb@zkcdit.com",
+    "isPrimary": false,
+    "createdAt": "2026-06-13T06:18:29.742Z",
+    "updatedAt": "2026-06-13T06:18:29.742Z"
+  },
+  {
+    "id": "cmqrich-ct-tx05",
+    "supplierId": "cmqc8r60600dwkoekmgndcoiv",
+    "name": "张坤森",
+    "phone": "13902830001",
+    "email": "zhangks@scct.com",
+    "isPrimary": false,
+    "createdAt": "2026-06-13T06:18:29.742Z",
+    "updatedAt": "2026-06-13T06:18:29.742Z"
+  },
+  {
+    "id": "cmqrich-ct-tx06",
+    "supplierId": "cmqc8r60600dwkoekmgndcoiv",
+    "name": "陈思远",
+    "phone": "13902830002",
+    "email": "chensy@scct.com",
+    "isPrimary": false,
+    "createdAt": "2026-06-13T06:18:29.742Z",
+    "updatedAt": "2026-06-13T06:18:29.742Z"
   }
 ]

@@ -240,5 +240,104 @@
     "resolvedAt": null,
     "link": "/bids",
     "createdAt": "2026-06-12T16:00:00.000Z"
+  },
+  {
+    "id": "cmqrich-notif-sfjs-1",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "type": "BID_PUBLISHED",
+    "title": "新招标项目邀请",
+    "content": "您已被邀请参与「渠道清淤及生态修复工程施工」（BID-2026-0706）的投标，请登录查看招标文件并按时提交标书。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bidding/cm19ed36b6605zqe2cv2en1ty",
+    "createdAt": "2026-06-15T08:00:00.000Z"
+  },
+  {
+    "id": "cmqrich-notif-sfjs-2",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "type": "BID_PUBLISHED",
+    "title": "新招标项目邀请",
+    "content": "您已被邀请参与「水库大坝安全监测自动化改造项目」（BID-2026-0620）的投标，请登录查看招标文件并按时提交标书。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bidding/cm19ed36b660c2yk1fkg51y9t",
+    "createdAt": "2026-06-15T08:00:00.000Z"
+  },
+  {
+    "id": "cmqrich-notif-sfjs-3",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "type": "BID_PUBLISHED",
+    "title": "新招标项目邀请",
+    "content": "您已被邀请参与「都江堰灌区现代化改造工程设备采购」（BID-2026-0605）的投标，请登录查看招标文件并按时提交标书。",
+    "isRead": true,
+    "resolvedAt": null,
+    "link": "/bidding/cm19ed36b660404nfsdqsohyg",
+    "createdAt": "2026-06-15T08:00:00.000Z"
+  },
+  {
+    "id": "cmqrich-notif-zk-1",
+    "userId": "cmqc8r60200dnkoeksr6tg079",
+    "type": "BID_PUBLISHED",
+    "title": "新招标项目邀请",
+    "content": "您已被邀请参与「水利工程档案数字化加工服务」（BID-2026-0712）的投标，请登录查看招标文件并按时提交标书。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bidding/cm19ed36b660dp2cj9l2pih3g",
+    "createdAt": "2026-06-15T08:00:00.000Z"
+  },
+  {
+    "id": "cmqrich-notif-zk-2",
+    "userId": "cmqc8r60200dnkoeksr6tg079",
+    "type": "BID_PUBLISHED",
+    "title": "新招标项目邀请",
+    "content": "您已被邀请参与「岷江流域水质在线监测站建设项目」（BID-2026-0610）的投标，请登录查看招标文件并按时提交标书。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bidding/cm19ed36b66080mcpcdgjop7a",
+    "createdAt": "2026-06-15T08:00:00.000Z"
+  },
+  {
+    "id": "cmqrich-notif-zk-3",
+    "userId": "cmqc8r60200dnkoeksr6tg079",
+    "type": "BID_PUBLISHED",
+    "title": "新招标项目邀请",
+    "content": "您已被邀请参与「智慧水务信息化系统建设项目」（BID-2026-0522）的投标，请登录查看招标文件并按时提交标书。",
+    "isRead": true,
+    "resolvedAt": null,
+    "link": "/bidding/cm19ed36b6601vl16837waroy",
+    "createdAt": "2026-06-15T08:00:00.000Z"
+  },
+  {
+    "id": "cmqrich-notif-tx-1",
+    "userId": "cmqc8r60500dukoekcso0n2e9",
+    "type": "BID_PUBLISHED",
+    "title": "新招标项目邀请",
+    "content": "您已被邀请参与「泵站节能改造及电气设备采购」（BID-2026-0625）的投标，请登录查看招标文件并按时提交标书。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bidding/cm19ed36b66035ulrxdim5v4j",
+    "createdAt": "2026-06-15T08:00:00.000Z"
+  },
+  {
+    "id": "cmqrich-notif-tx-2",
+    "userId": "cmqc8r60500dukoekcso0n2e9",
+    "type": "BID_PUBLISHED",
+    "title": "新招标项目邀请",
+    "content": "您已被邀请参与「重点水源工程生态流量监测设备采购」（BID-2026-0718）的投标，请登录查看招标文件并按时提交标书。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bidding/cm19ed36b660bzl0nzdxxq80r",
+    "createdAt": "2026-06-15T08:00:00.000Z"
+  },
+  {
+    "id": "cmqrich-notif-tx-3",
+    "userId": "cmqc8r60500dukoekcso0n2e9",
+    "type": "BID_PUBLISHED",
+    "title": "新招标项目邀请",
+    "content": "您已被邀请参与「2026年度防汛抗旱物资储备采购」（BID-2026-0601）的投标，请登录查看招标文件并按时提交标书。",
+    "isRead": true,
+    "resolvedAt": null,
+    "link": "/bidding/cm19ed36b66096dv9uvd0jp54",
+    "createdAt": "2026-06-15T08:00:00.000Z"
   }
 ]
