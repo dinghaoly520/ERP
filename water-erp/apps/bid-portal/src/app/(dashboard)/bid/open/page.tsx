@@ -14,6 +14,7 @@ import {
 import { PageHero, SectionCard } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ConnectionIndicator } from '@/components/connection-indicator';
+import NoProjectGuide from '@/components/no-project-guide';
 import { DECRYPT_LABEL, SEMANTIC } from '@water-erp/shared';
 import { toast } from 'sonner';
 
@@ -118,6 +119,16 @@ export default function BidOpenPage() {
     audioCtxRef.current = new AudioContext();
     return () => { audioCtxRef.current?.close(); audioCtxRef.current = null; };
   }, []);
+  // 浏览器在用户首次交互前可能将 AudioContext 置于 suspended —— 首次点击/按键时 resume
+  useEffect(() => {
+    const resume = () => { audioCtxRef.current?.resume?.(); };
+    window.addEventListener('click', resume, { once: true });
+    window.addEventListener('keydown', resume, { once: true });
+    return () => {
+      window.removeEventListener('click', resume);
+      window.removeEventListener('keydown', resume);
+    };
+  }, []);
 
   // ═══ New UX state ═══
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
@@ -131,6 +142,8 @@ export default function BidOpenPage() {
   const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string } | null>(null);
   const [recordDraft, setRecordDraft] = useState({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
+  // 每秒驱动重渲染，让倒计时圆环/MM:SS 实时跳动（remaining 依赖 now 重新计算）
+  const [now, setNow] = useState(() => Date.now());
   const seenDecrypt = useRef<Set<string>>(new Set());
   const prevDecryptStatuses = useRef<Map<string, string>>(new Map());
 
@@ -187,7 +200,7 @@ export default function BidOpenPage() {
   }, [project]);
 
   const session = project?.openingSession;
-  const remaining = session ? Math.max(0, Math.floor((new Date(session.decryptWindowEnd).getTime() - Date.now() - serverTimeOffset) / 1000)) : 0;
+  const remaining = session ? Math.max(0, Math.floor((new Date(session.decryptWindowEnd).getTime() - now - serverTimeOffset) / 1000)) : 0;
   const timeWarning = remaining <= 0 ? 'none' : remaining <= 60 ? '1min' : remaining <= 300 ? '5min' : 'none';
 
   // ═══ API ═══
@@ -329,15 +342,17 @@ export default function BidOpenPage() {
 
   // ═══ Countdown + time warnings ═══
   useEffect(() => {
-    if (remaining <= 0) return;
+    if (!session) return;
     const timer = setInterval(() => {
-      const r = Math.max(0, Math.floor((new Date(session!.decryptWindowEnd).getTime() - Date.now() - serverTimeOffset) / 1000));
-      if (r <= 60 && soundEnabled) sfx.tick();
+      setNow(Date.now());
+      const r = Math.max(0, Math.floor((new Date(session.decryptWindowEnd).getTime() - Date.now() - serverTimeOffset) / 1000));
+      if (r > 0 && r <= 60 && soundEnabled) sfx.tick();
       if (r === 300 && soundEnabled) sfx.warning();
     }, 1000);
     return () => clearInterval(timer);
-  }, [remaining, soundEnabled, session]);
+  }, [session, soundEnabled, serverTimeOffset]);
 
+  if (!projectId) return <NoProjectGuide />;
   if (loading) return <TableSkeleton rows={8} cols={6} />;
   if (error && !project) {
     return (

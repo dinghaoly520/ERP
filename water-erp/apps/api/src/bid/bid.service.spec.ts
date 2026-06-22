@@ -92,7 +92,7 @@ describe('BidService — stage transitions', () => {
       bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
-      bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+      bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
       supplierBidSubmission: { findUnique: jest.fn() },
       bidOpeningSession: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
       fileAsset: { findUnique: jest.fn() },
@@ -535,6 +535,45 @@ describe('BidService — stage transitions', () => {
       prisma.bidSupervisionLog.create.mockResolvedValue({});
 
       await expect(service.archiveAll('p1')).resolves.toBeDefined();
+    });
+  });
+
+  describe('getArchiveSummary', () => {
+    it('单次聚合返回归档率（项目查询 + 归档 groupBy 各 1 次，无 N+1）', async () => {
+      prisma.bidProject.findMany.mockResolvedValue([
+        { id: 'p1', projectCode: 'BID-001', name: '项目一', createdAt: new Date('2026-01-01'), _count: { archiveItems: 5 } },
+        { id: 'p2', projectCode: 'BID-002', name: '项目二', createdAt: new Date('2026-02-01'), _count: { archiveItems: 4 } },
+      ]);
+      prisma.bidArchiveItem.groupBy.mockResolvedValue([
+        { projectId: 'p1', _count: { projectId: 5 }, _max: { archivedAt: new Date('2026-03-01') } },
+        { projectId: 'p2', _count: { projectId: 3 }, _max: { archivedAt: new Date('2026-03-02') } },
+      ]);
+
+      const result = await service.getArchiveSummary();
+
+      expect(result).toEqual([
+        { id: 'p1', projectCode: 'BID-001', name: '项目一', totalItems: 5, archivedItems: 5, completionRate: 100, lastArchivedAt: new Date('2026-03-01'), createdAt: new Date('2026-01-01') },
+        { id: 'p2', projectCode: 'BID-002', name: '项目二', totalItems: 4, archivedItems: 3, completionRate: 75, lastArchivedAt: new Date('2026-03-02'), createdAt: new Date('2026-02-01') },
+      ]);
+      expect(prisma.bidProject.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.bidArchiveItem.groupBy).toHaveBeenCalledTimes(1);
+    });
+
+    it('无归档项目时返回空数组且不查询归档项', async () => {
+      prisma.bidProject.findMany.mockResolvedValue([]);
+      const result = await service.getArchiveSummary();
+      expect(result).toEqual([]);
+      expect(prisma.bidArchiveItem.groupBy).not.toHaveBeenCalled();
+    });
+
+    it('归档项缺失时归档率记 0', async () => {
+      prisma.bidProject.findMany.mockResolvedValue([
+        { id: 'p1', projectCode: 'BID-001', name: '项目一', createdAt: new Date('2026-01-01'), _count: { archiveItems: 3 } },
+      ]);
+      prisma.bidArchiveItem.groupBy.mockResolvedValue([]); // 该项目无 ARCHIVED 项
+
+      const result = await service.getArchiveSummary();
+      expect(result[0]).toMatchObject({ totalItems: 3, archivedItems: 0, completionRate: 0, lastArchivedAt: null });
     });
   });
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { portalURL } from '@water-erp/config';
 import {
   BID_EVENT,
   type ConnectionState,
@@ -18,7 +19,7 @@ import {
 
 function wsUrl(): string {
   if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
-  return 'http://localhost:4001/bid';
+  return portalURL('api', '/bid');
 }
 
 export interface BidWsHandlers {

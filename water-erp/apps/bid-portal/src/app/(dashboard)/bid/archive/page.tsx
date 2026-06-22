@@ -11,12 +11,6 @@ import { Archive, CheckCircle, AlertTriangle, Package, Download, Search, ArrowLe
 import { SectionCard, MetricCard, DataToolbar } from '@water-erp/ui';
 import DateRangeFilter from '@/components/date-range-filter';
 
-interface SlimProject {
-  id: string;
-  projectCode: string;
-  name: string;
-}
-
 interface ArchiveSummary {
   id: string;
   projectCode: string;
@@ -45,7 +39,6 @@ export default function BidArchivePage() {
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
 
   // ── 详情操作 ──
-  const [archiving, setArchiving] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
 
   // ══════════════════════════════════════════════
@@ -55,46 +48,11 @@ export default function BidArchivePage() {
   const fetchSummary = () => {
     setSummaryLoading(true);
     setSummaryError(null);
-    api.get<SlimProject[]>('/bid/projects?stage=ARCHIVED')
-      .then(async (ps) => {
-        if (ps.length === 0) {
-          setSummaryData([]);
-          setSummaryLoading(false);
-          return;
-        }
-        // 并行获取所有项目详情
-        const results = await Promise.allSettled(
-          ps.map(p => api.get<BidProjectDetail>(`/bid/projects/${p.id}`))
-        );
-        const cache = new Map<string, BidProjectDetail>();
-        const summaries: ArchiveSummary[] = [];
-        ps.forEach((p, i) => {
-          const r = results[i];
-          if (r.status === 'fulfilled') {
-            cache.set(p.id, r.value);
-            const items = r.value.archiveItems || [];
-            const archived = items.filter(a => a.status === 'ARCHIVED');
-            const lastAt = archived.length > 0
-              ? archived.reduce((max, a) => (a.archivedAt && a.archivedAt > max ? a.archivedAt : max), '')
-              : null;
-            summaries.push({
-              id: p.id, projectCode: p.projectCode, name: p.name,
-              totalItems: items.length,
-              archivedItems: archived.length,
-              completionRate: items.length > 0 ? Math.round((archived.length / items.length) * 100) : 0,
-              lastArchivedAt: lastAt,
-              createdAt: (r.value as any).createdAt || (r.value as any).updatedAt || '',
-            });
-          } else {
-            summaries.push({
-              id: p.id, projectCode: p.projectCode, name: p.name,
-              totalItems: 0, archivedItems: 0, completionRate: 0, lastArchivedAt: null,
-              createdAt: '',
-            });
-          }
-        });
-        setDetailCache(cache);
+    api.get<ArchiveSummary[]>('/bid/projects/archive-summary')
+      .then(summaries => {
         setSummaryData(summaries);
+        // 详情按需在 enterDetail 时单独拉取，不在汇总时批量预取（消除 N+1）
+        setDetailCache(new Map());
       })
       .catch((e: any) => {
         if (e?.status !== 401) setSummaryError(e?.message || '加载归档数据失败');
@@ -320,24 +278,9 @@ export default function BidArchivePage() {
             <div className="text-[11px] text-[#8a96aa] uppercase tracking-wider">归档率</div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              disabled={project.stage !== 'EVALUATING' || archiving}
-              onClick={async () => {
-                setArchiving(true);
-                try {
-                  await api.post(`/bid/projects/${selectedProjectId}/archive-all`, {});
-                  toast.success('归档完成');
-                  refreshDetail();
-                } catch {
-                  toast.error('归档失败，请重试');
-                } finally {
-                  setArchiving(false);
-                }
-              }}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#064ea2] text-white text-xs font-bold hover:bg-[#0b63ce] transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Package size={14} strokeWidth={1.5} /> {archiving ? '归档中…' : project.stage === 'ARCHIVED' ? '已归档' : '一键归档'}
-            </button>
+            <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#f0faf6] border border-[#a7f0d0] text-[#11a874] text-xs font-bold">
+              <Package size={14} strokeWidth={1.5} /> 已归档
+            </span>
             <button
               onClick={() => handleExportArchive(project.projectCode, 'json')}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#064ea2] text-[#064ea2] hover:bg-[#064ea2] hover:text-white transition"

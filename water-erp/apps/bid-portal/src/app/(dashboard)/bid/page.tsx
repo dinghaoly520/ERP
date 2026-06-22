@@ -48,8 +48,8 @@ const READINESS_COLOR: Record<string, string> = {
 
 /** Stage → sub-route mapping for context-aware row navigation */
 const STAGE_ROUTE: Record<string, string> = {
-  DOWNLOAD: '',
-  SUBMIT: '',
+  DOWNLOAD: '/bid/project',
+  SUBMIT: '/bid/project',
   OPENING: '/bid/project',
   EVALUATING: '/bid/project',
   ARCHIVED: '/bid/project',
@@ -156,7 +156,10 @@ export default function BidDashboard() {
   const handleRowClick = (p: DashboardProject) => {
     const route = STAGE_ROUTE[p.stage];
     if (route) {
-      const defaultTab = p.stage === 'EVALUATING' ? 'evaluate' : 'open';
+      const defaultTab =
+        p.stage === 'EVALUATING' ? 'evaluate'
+        : (p.stage === 'DOWNLOAD' || p.stage === 'SUBMIT') ? 'standard'
+        : 'open';
       router.push(`${route}/${p.id}?tab=${defaultTab}`);
     }
   };
@@ -231,7 +234,7 @@ export default function BidDashboard() {
       if (noExperts) {
         items.push({ key: 'extract', label: '尚未抽取专家 · 去抽取', icon: UserPlus, onClick: () => gotoExtract(p), tone: 'highlight' });
       }
-      items.push({ key: 'detail', label: '进入项目详情', icon: ExternalLink, onClick: () => gotoTab(p, 'open') });
+      items.push({ key: 'detail', label: '编制评分标准', icon: ExternalLink, onClick: () => gotoTab(p, 'standard') });
     }
 
     if (p.stage === 'OPENING') {
@@ -556,7 +559,7 @@ export default function BidDashboard() {
                           )}
                           {p.stage === 'SUBMIT' && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); gotoTab(p, 'open'); }}
+                              onClick={(e) => { e.stopPropagation(); gotoTab(p, 'standard'); }}
                               className="flex items-center gap-1 rounded-lg border border-[#dce6f3] px-2.5 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a] transition"
                             >
                               进入项目
