@@ -79,7 +79,7 @@ const kpiCells = computed<KpiCell[]>(() => {
 })
 
 // ── Profile completeness categories ──
-interface CatDim { key: string; label: string; score: number; max: number; filled: number; total: number; icon: string; color: string; missing: string[] }
+interface CatDim { key: string; label: string; score: number; max: number; filled: number; total: number; icon: string; color: string; missing: string[]; count?: number; hasPrimary?: boolean; hasLicense?: boolean }
 const completenessCats = computed<CatDim[]>(() => {
   const cats = stats.value?.profileCompleteness?.categories
   if (!cats) return []
@@ -89,6 +89,12 @@ const completenessCats = computed<CatDim[]>(() => {
     { key:'qualifications', label:'资质材料', ...cats.qualifications, icon:'Medal', color:'#059669' },
   ]
 })
+function catStatLabel(cat: CatDim): string {
+  if (cat.key === 'basic') return `${cat.filled}/${cat.total} 项`
+  if (cat.key === 'contacts') return `${cat.count ?? cat.filled} 人`
+  if (cat.key === 'qualifications') return `${cat.count ?? cat.filled} 项`
+  return `${cat.filled}/${cat.total}`
+}
 const profileScore = computed(() => stats.value?.profileCompleteness?.score ?? 0)
 
 // ── Projects ──
@@ -107,14 +113,22 @@ const projectRows = computed<ProjectRow[]>(() => {
 })
 
 // ── Notifications ──
+const NOTIF_COLORS: Record<string, { dot: string; glow: string }> = {
+  SUPPLIER_APPROVED:      { dot: '#059669', glow: 'rgba(5,150,105,0.18)' },
+  SUPPLIER_REJECTED:      { dot: '#dc2626', glow: 'rgba(220,38,38,0.18)' },
+  SUPPLIER_RETURNED:      { dot: '#d97706', glow: 'rgba(217,119,6,0.18)' },
+  BID_PUBLISHED:          { dot: '#2563eb', glow: 'rgba(37,99,235,0.18)' },
+  BID_REMINDER:           { dot: '#ea580c', glow: 'rgba(234,88,12,0.18)' },
+  BID_OPENING:            { dot: '#0891b2', glow: 'rgba(8,145,178,0.18)' },
+  BID_EVALUATION_RESULT:  { dot: '#7c3aed', glow: 'rgba(124,58,237,0.18)' },
+  CLARIFICATION_REPLIED:  { dot: '#0d9488', glow: 'rgba(13,148,136,0.18)' },
+  SYSTEM:                 { dot: '#475569', glow: 'rgba(71,85,105,0.18)' },
+}
 const notifFeed = computed(() =>
-  notifStore.notifications.slice(0, 6).map((n: any) => {
-    let tone = 'gray'
-    if (n.type === 'BID') tone = 'blue'
-    else if (n.type === 'QUALIFICATION') tone = 'orange'
-    else if (n.type === 'SYSTEM') tone = 'purple'
-    return { ...n, tone }
-  })
+  notifStore.notifications.slice(0, 4).map((n: any) => ({
+    ...n,
+    color: NOTIF_COLORS[n.type] || NOTIF_COLORS.SYSTEM,
+  }))
 )
 
 // ── Days since registration ──
@@ -272,7 +286,7 @@ const daysSinceReg = computed(() => {
                   <div class="db-comp-bar-head">
                     <span class="db-comp-bar-icon" :style="{ background: cat.color+'18', color: cat.color }"><el-icon :size="13"><component :is="cat.icon" /></el-icon></span>
                     <span class="db-comp-bar-label">{{ cat.label }}</span>
-                    <span class="db-comp-bar-stat">{{ cat.filled }}/{{ cat.total }}</span>
+                    <span class="db-comp-bar-stat">{{ catStatLabel(cat) }}</span>
                   </div>
                   <div class="db-comp-bar-track">
                     <div
@@ -315,7 +329,7 @@ const daysSinceReg = computed(() => {
                 :class="{ unread: !n.isRead, 'is-last': idx === notifFeed.length - 1 }"
                 @click="router.push('/notifications')"
               >
-                <span class="db-msg-dot" :class="n.tone" />
+                <span class="db-msg-dot" :style="{ background: n.color.dot, boxShadow: !n.isRead ? `0 0 0 3px ${n.color.glow}` : 'none' }" />
                 <div class="db-msg-body">
                   <span class="db-msg-title" :class="{ unread: !n.isRead }">{{ n.title }}</span>
                   <span v-if="n.content" class="db-msg-ct">{{ n.content }}</span>
@@ -378,7 +392,7 @@ const daysSinceReg = computed(() => {
 /* ═══════════════ Two-column body ═══════════════ */
 .db-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
@@ -439,11 +453,8 @@ const daysSinceReg = computed(() => {
 .db-msg-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 0; border-bottom: 1px solid rgba(0,0,0,0.05); cursor: pointer; transition: background var(--sp-duration-fast) var(--sp-ease); }
 .db-msg-row.is-last { border-bottom: none; }
 .db-msg-row:hover { background: rgba(248, 251, 255, 0.45); margin: 0 -16px; padding: 9px 16px; }
-.db-msg-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; background: var(--sp-gray-300); }
-.db-msg-dot.blue { background: var(--sp-primary); }
-.db-msg-dot.orange { background: var(--sp-orange); }
-.db-msg-dot.purple { background: var(--sp-purple); }
-.db-msg-row.unread .db-msg-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-primary) 18%, transparent); }
+.db-msg-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; transition: box-shadow 0.2s ease; }
+/* unread dot glow is now inline via n.color.glow */
 .db-msg-body { flex: 1; min-width: 0; }
 .db-msg-title { display: block; font-size: 12px; font-weight: 600; color: var(--sp-gray-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-msg-title.unread { font-weight: 700; color: var(--sp-gray-900); }

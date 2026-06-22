@@ -1,49 +1,5 @@
 [
   {
-    "id": "cmqbysdki001vkoh11wb61rxh",
-    "userId": "cmqbysdk0001gkoh1gx2342d6",
-    "type": "SUPPLIER_APPROVED",
-    "title": "供应商审核通过",
-    "content": "您的供应商注册申请已审核通过，企业名称：四川川水建设工程有限公司。欢迎加入供应商库！",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/profile",
-    "createdAt": "2026-06-13T06:18:29.683Z"
-  },
-  {
-    "id": "cmqbysdki001wkoh1xrt37dnu",
-    "userId": "cmqbysdk0001gkoh1gx2342d6",
-    "type": "BID_PUBLISHED",
-    "title": "新招标公告发布",
-    "content": "2026年度水利工程物资集中采购项目已发布招标公告，截止时间：2026年6月8日。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bids",
-    "createdAt": "2026-06-13T06:18:29.683Z"
-  },
-  {
-    "id": "cmqbysdki001xkoh11cjspmc6",
-    "userId": "cmqbysdk0001gkoh1gx2342d6",
-    "type": "BID_REMINDER",
-    "title": "投标截止提醒",
-    "content": "项目\"智慧水务信息化系统建设项目\"投标截止时间为明天14:00，请尽快完成提交。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/my-bids",
-    "createdAt": "2026-06-13T06:18:29.683Z"
-  },
-  {
-    "id": "cmqbysdki001ykoh1lberpiqj",
-    "userId": "cmqbysdk0001gkoh1gx2342d6",
-    "type": "SYSTEM",
-    "title": "资质即将到期提醒",
-    "content": "您有一项资质证书\"安全生产许可证\"将于90天后到期，请及时更新。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/qualifications",
-    "createdAt": "2026-06-13T06:18:29.683Z"
-  },
-  {
     "id": "cmqbysdkn0023koh10nbevzz2",
     "userId": "cmqbysdbl0002koh10l78cjr3",
     "type": "SYSTEM",
@@ -207,5 +163,82 @@
     "resolvedAt": null,
     "link": null,
     "createdAt": "2026-07-02T01:00:00.000Z"
+  },
+  {
+    "id": "notif-shutong-01",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "type": "SUPPLIER_APPROVED",
+    "title": "供应商审核通过",
+    "content": "您的供应商注册申请已审核通过，企业名称：重庆蜀通岩土工程有限公司。欢迎加入蜀水云采供应商库，您现在可以参与平台所有勘测设计与测绘类招标项目。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/profile",
+    "createdAt": "2024-11-10T16:00:00.000Z"
+  },
+  {
+    "id": "notif-shutong-02",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "type": "BID_PUBLISHED",
+    "title": "新招标公告发布",
+    "content": "您关注的「勘测设计与测绘」品类有新项目发布：水库大坝安全监测自动化改造项目，投标截止时间为 2026 年 7 月 20 日 09:00。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bids",
+    "createdAt": "2026-06-10T10:30:00.000Z"
+  },
+  {
+    "id": "notif-shutong-03",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "type": "BID_REMINDER",
+    "title": "投标截止提醒",
+    "content": "项目「都江堰灌区现代化改造工程设备采购」投标截止时间为 2026 年 7 月 5 日 09:00，距截止还有 17 天，请合理安排时间完成标书提交。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/my-bids",
+    "createdAt": "2026-06-18T08:00:00.000Z"
+  },
+  {
+    "id": "notif-shutong-04",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "type": "SYSTEM",
+    "title": "资质即将到期提醒",
+    "content": "您的资质证书「工程勘察专业类（水文地质勘察）乙级」将于 2026 年 8 月 31 日到期，请在 90 天内完成续期或更新。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/profile/qualifications",
+    "createdAt": "2026-06-01T09:00:00.000Z"
+  },
+  {
+    "id": "notif-shutong-05",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "type": "CLARIFICATION_REPLIED",
+    "title": "澄清答疑已回复",
+    "content": "您对项目「水库大坝安全监测自动化改造项目」提出的澄清问题已收到招标人回复，请前往项目详情页查看。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bids",
+    "createdAt": "2026-06-15T14:20:00.000Z"
+  },
+  {
+    "id": "notif-shutong-06",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "type": "BID_OPENING",
+    "title": "开标通知",
+    "content": "您参与的项目「智慧水务信息化系统建设项目」将于 2026 年 6 月 21 日 10:00 在线开标，请准时登录开标大厅参与解密确认。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/my-bids",
+    "createdAt": "2026-06-19T09:00:00.000Z"
+  },
+  {
+    "id": "notif-shutong-07",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "type": "BID_EVALUATION_RESULT",
+    "title": "评标结果公示",
+    "content": "项目「2026年度智慧水利大数据平台建设项目」评标已结束，评审结果已公示。您的综合得分 87.6 分，排名第 2 位。",
+    "isRead": true,
+    "resolvedAt": null,
+    "link": "/bids",
+    "createdAt": "2026-06-12T16:00:00.000Z"
   }
 ]

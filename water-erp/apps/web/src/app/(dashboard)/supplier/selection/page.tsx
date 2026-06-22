@@ -7,8 +7,9 @@ import { recommendSuppliers, getClassifications } from '@/lib/api/supplier';
 import type { SupplierRecommendation, SupplierSelectionResult } from '@/lib/api/supplier';
 import type { SupplierClassification } from '@/lib/types';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidProjectDetail } from '@/lib/api/expert';
-import { Sparkles, Wand2, Copy, Download, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2 } from 'lucide-react';
+import { Wand2, Copy, Download, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2 } from 'lucide-react';
 import { PageHero, SectionCard, StatusBadge } from '@/components/workbench';
+import { RulesPopover } from '@/components/rules-popover';
 
 const scoreColor = (s: number) => (s >= 85 ? '#059669' : s >= 70 ? '#064ea2' : s >= 55 ? '#d97706' : '#dc2626');
 const scoreLabel = (s: number) => (s >= 85 ? '强匹配' : s >= 70 ? '较匹配' : s >= 55 ? '可考虑' : '弱匹配');
@@ -41,8 +42,6 @@ export default function SupplierSelectionPage() {
   const [minScore, setMinScore] = useState(0);
   const [maxCount, setMaxCount] = useState(10);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showRules, setShowRules] = useState(false);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<SupplierSelectionResult | null>(null);
@@ -137,12 +136,17 @@ export default function SupplierSelectionPage() {
     URL.revokeObjectURL(url);
   };
 
-  // ── Rules trigger (PageHero action) ──
   const rulesTrigger = (
-    <button onClick={() => setShowRules(!showRules)}
-      className="inline-flex items-center gap-1.5 rounded-xl border border-[#e5ecf4] bg-white px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:border-[#11a874] hover:text-[#11a874] transition">
-      <Sparkles size={12} />规则
-    </button>
+    <RulesPopover accentColor="#11a874">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-[#5a6d8a] mb-3">供应商 AI 匹配规则</h3>
+      <ol className="space-y-2 text-xs text-[#5a6d8a] leading-relaxed">
+        <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#11a874]">1.</span>需求关键词提取：从采购需求描述中提取项目类型、资质要求、技术参数等关键维度</li>
+        <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#11a874]">2.</span>候选池粗筛：按供应商分类、企业类型、历史评价分数进行合规过滤</li>
+        <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#11a874]">3.</span>资质与能力评分：综合资质匹配度、历史履约评价、经营范围与项目契合度，形成 0-100 匹配分</li>
+        <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#11a874]">4.</span>综合排序：按匹配度降序输出推荐列表，≥85 强匹配 / ≥70 较匹配 / ≥55 可考虑 / 弱匹配</li>
+        <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#11a874]">5.</span>候选管理：支持加入/移除候选名单，拖拽排序，添加备注，导出为 TXT 名单</li>
+      </ol>
+    </RulesPopover>
   );
 
   // ── Shared input card (reused in both layout states) ──
@@ -325,28 +329,11 @@ export default function SupplierSelectionPage() {
   return (
     <div className="space-y-5">
       <PageHero
-        title="供应商智能选取"
-        description="基于采购需求多维度分析，AI 从供应商库中智能匹配并推荐最优候选。支持项目关联、资质过滤、候选对比与结构化导出。"
-        tone="green" icon={<Building2 size={14} />}
-        actions={rulesTrigger}
-      />
-
-      {/* Rules popover — rendered outside PageHero to avoid GPU compositor height expansion */}
-      {showRules && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setShowRules(false)} />
-          <div className="absolute right-6 top-[148px] z-50 w-[380px] glass-card rounded-2xl p-5 shadow-xl">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#5a6d8a] mb-3">供应商 AI 匹配规则</h3>
-            <ol className="space-y-2 text-xs text-[#5a6d8a] leading-relaxed">
-              <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#11a874]">1.</span>需求关键词提取：从采购需求描述中提取项目类型、资质要求、技术参数等关键维度</li>
-              <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#11a874]">2.</span>候选池粗筛：按供应商分类、企业类型、历史评价分数进行合规过滤</li>
-              <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#11a874]">3.</span>资质与能力评分：综合资质匹配度、历史履约评价、经营范围与项目契合度，形成 0-100 匹配分</li>
-              <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#11a874]">4.</span>综合排序：按匹配度降序输出推荐列表，≥85 强匹配 / ≥70 较匹配 / ≥55 可考虑 / 弱匹配</li>
-              <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#11a874]">5.</span>候选管理：支持加入/移除候选名单，拖拽排序，添加备注，导出为 TXT 名单</li>
-            </ol>
-          </div>
-        </>
-      )}
+          title="供应商智能选取"
+          description="基于采购需求多维度分析，AI 从供应商库中智能匹配并推荐最优候选。支持项目关联、资质过滤、候选对比与结构化导出。"
+          tone="green" icon={<Building2 size={14} />}
+          actions={rulesTrigger}
+        />
 
       {result !== null && !loading ? (
         /* ── 有结果：候选名单非空时双栏，否则全宽 ── */

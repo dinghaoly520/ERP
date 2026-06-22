@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { listBidProjects, previewExtraction, confirmExtraction, listSpecialties, listExperts, getBidProjectDetail, type BidProjectOption, type BidProjectDetail, type ExpertListItem } from '@/lib/api/expert';
 import type { ExtractionPreview } from '@/lib/api/expert';
 import { PageHero, SectionCard, StatusBadge } from '@/components/workbench';
+import { RulesPopover } from '@/components/rules-popover';
 import { Sparkles, ShieldCheck, AlertTriangle, Check, Plus, X, UsersRound, Search, Upload } from 'lucide-react';
 
 const scoreColor = (s: number) => (s >= 85 ? '#059669' : s >= 70 ? '#064ea2' : s >= 55 ? '#d97706' : '#dc2626');
@@ -20,7 +21,7 @@ function ExpertExtractPage() {
   const [specs, setSpecs] = useState<string[]>([]);
   const [pid, setPid] = useState(q.get('projectId') || '');
   const [pd, setPd] = useState<BidProjectDetail | null>(null);
-  const [showRules, setShowRules] = useState(false);
+
   const [pool, setPool] = useState<Map<string, number>>(new Map());
   const [tn, setTn] = useState(5);
   const [alt, setAlt] = useState(2);
@@ -430,12 +431,17 @@ function ExpertExtractPage() {
     </SectionCard>
   );
 
-  // ── Rules trigger (PageHero action) ──
   const rulesTrigger = (
-    <button onClick={() => setShowRules(!showRules)}
-      className="inline-flex items-center gap-1.5 rounded-xl border border-[#e5ecf4] bg-white px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:border-[#064ea2] hover:text-[#064ea2] transition">
-      <Sparkles size={12} />规则
-    </button>
+    <RulesPopover>
+      <h3 className="text-xs font-bold uppercase tracking-wider text-[#5a6d8a] mb-3">专家抽取规则</h3>
+      <ol className="space-y-2 text-xs text-[#5a6d8a] leading-relaxed">
+        <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#064ea2]">1.</span>合规过滤：仅「可用」状态专家，工作单位与供应商无关联，未被重复分配至同一项目</li>
+        <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#064ea2]">2.</span>专业匹配：AI 分析项目需求，推荐所需专业构成及人数配比；支持手动调整各专业配额</li>
+        <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#064ea2]">3.</span>能力评估：综合专家历史评价等级、参与项目经验与专业匹配度，形成 0-100 匹配分</li>
+        <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#064ea2]">4.</span>随机抽取：智能加权下 AI 匹配度影响权重；公平随机为 Fisher-Yates 完全随机</li>
+        <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#064ea2]">5.</span>推荐上传：管理员手动搜索并选择专家，确认后直接分配，不经过 AI 匹配与随机抽取</li>
+      </ol>
+    </RulesPopover>
   );
 
   // ── Shared: pool card ──
@@ -461,28 +467,11 @@ function ExpertExtractPage() {
   return (
     <div className="space-y-5">
       <PageHero
-        title="专家智能抽取"
+          title="专家智能抽取"
         description="基于项目评审需求，AI 分析专业构成并智能抽取专家组。支持多专业配额配置、供应商回避与专家负荷均衡。"
         tone="blue" icon={<UsersRound size={14} />}
         actions={rulesTrigger}
       />
-
-      {/* Rules popover — rendered outside PageHero to avoid GPU compositor height expansion */}
-      {showRules && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setShowRules(false)} />
-          <div className="absolute right-6 top-[148px] z-50 w-[380px] glass-card rounded-2xl p-5 shadow-xl">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#5a6d8a] mb-3">专家抽取规则</h3>
-            <ol className="space-y-2 text-xs text-[#5a6d8a] leading-relaxed">
-              <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#064ea2]">1.</span>合规过滤：仅「可用」状态专家，工作单位与供应商无关联，未被重复分配至同一项目</li>
-              <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#064ea2]">2.</span>专业匹配：AI 分析项目需求，推荐所需专业构成及人数配比；支持手动调整各专业配额</li>
-              <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#064ea2]">3.</span>能力评估：综合专家历史评价等级、参与项目经验与专业匹配度，形成 0-100 匹配分</li>
-              <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#064ea2]">4.</span>随机抽取：智能加权下 AI 匹配度影响权重；公平随机为 Fisher-Yates 完全随机</li>
-              <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[#064ea2]">5.</span>推荐上传：管理员手动搜索并选择专家，确认后直接分配，不经过 AI 匹配与随机抽取</li>
-            </ol>
-          </div>
-        </>
-      )}
 
       {hasResults ? (
         /* ── 有抽取结果/进行中：双栏布局 ── */

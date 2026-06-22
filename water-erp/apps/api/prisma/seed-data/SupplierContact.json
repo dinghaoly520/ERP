@@ -1,25 +1,5 @@
 [
   {
-    "id": "cmqbysdkb001mkoh1fiaeh03q",
-    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
-    "name": "张经理",
-    "phone": "13800138001",
-    "email": "zhang@chuanshui.com",
-    "isPrimary": true,
-    "createdAt": "2026-06-13T06:18:29.676Z",
-    "updatedAt": "2026-06-13T06:18:29.676Z"
-  },
-  {
-    "id": "cmqbysdkb001nkoh1y6khv0kg",
-    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
-    "name": "王芳",
-    "phone": "13800138002",
-    "email": "wangfang@chuanshui.com",
-    "isPrimary": false,
-    "createdAt": "2026-06-13T06:18:29.676Z",
-    "updatedAt": "2026-06-13T06:18:29.676Z"
-  },
-  {
     "id": "cmqbysdm5002akoh1lckbkuzh",
     "supplierId": "cmqbysdm50029koh18g2n7p54",
     "name": "赵总",
@@ -158,16 +138,6 @@
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.674Z",
     "updatedAt": "2026-06-13T11:02:25.674Z"
-  },
-  {
-    "id": "cmqc8ximk002sko8f33twmbjx",
-    "supplierId": "cmqc8r5uw002qkoekf87wjeo2",
-    "name": "王仁平",
-    "phone": "028-62991888",
-    "email": null,
-    "isPrimary": true,
-    "createdAt": "2026-06-13T11:02:25.677Z",
-    "updatedAt": "2026-06-13T11:02:25.677Z"
   },
   {
     "id": "cmqc8ximn002zko8f0jxh0u8x",
@@ -2130,16 +2100,6 @@
     "updatedAt": "2026-06-13T11:02:26.298Z"
   },
   {
-    "id": "cmqc8xj3x015dko8f66904inj",
-    "supplierId": "cmqc8r6bt015bkoekpw7rljbs",
-    "name": "钱小峰",
-    "phone": "15826027212",
-    "email": null,
-    "isPrimary": true,
-    "createdAt": "2026-06-13T11:02:26.301Z",
-    "updatedAt": "2026-06-13T11:02:26.301Z"
-  },
-  {
     "id": "cmqc8xj40015kko8fn0bgrzrr",
     "supplierId": "cmqc8r6bx015ikoek5hwz0d1d",
     "name": "李凤",
@@ -2378,5 +2338,25 @@
     "isPrimary": false,
     "createdAt": "2026-06-17T02:48:19.361Z",
     "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "demo-c1-cmqbysdk",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "name": "王仁平",
+    "phone": "15826027212",
+    "email": "wangrenping@cqshutong.com",
+    "isPrimary": true,
+    "createdAt": "2024-11-08T09:00:00.000Z",
+    "updatedAt": "2024-11-08T09:00:00.000Z"
+  },
+  {
+    "id": "demo-c2-cmqbysdk",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "name": "刘岩",
+    "phone": "15826027213",
+    "email": "liuyan@cqshutong.com",
+    "isPrimary": false,
+    "createdAt": "2024-11-08T09:00:00.000Z",
+    "updatedAt": "2024-11-08T09:00:00.000Z"
   }
 ]

@@ -1,53 +1,5 @@
 [
   {
-    "id": "cmqbysdkb001okoh1dz6wsx4o",
-    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
-    "type": "营业执照",
-    "name": "企业法人营业执照",
-    "fileUrl": "/uploads/license.pdf",
-    "validFrom": "2020-01-01T00:00:00.000Z",
-    "validTo": "2030-12-31T00:00:00.000Z",
-    "status": "有效",
-    "createdAt": "2026-06-13T06:18:29.676Z",
-    "updatedAt": "2026-06-13T06:18:29.676Z"
-  },
-  {
-    "id": "cmqbysdkb001pkoh16gkncy2j",
-    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
-    "type": "资质证书",
-    "name": "水利水电工程施工总承包一级",
-    "fileUrl": "/uploads/qual1.pdf",
-    "validFrom": "2023-06-01T00:00:00.000Z",
-    "validTo": "2028-06-30T00:00:00.000Z",
-    "status": "有效",
-    "createdAt": "2026-06-13T06:18:29.676Z",
-    "updatedAt": "2026-06-13T06:18:29.676Z"
-  },
-  {
-    "id": "cmqbysdkb001qkoh10elwd777",
-    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
-    "type": "安全生产许可证",
-    "name": "安全生产许可证",
-    "fileUrl": "/uploads/safety.pdf",
-    "validFrom": "2022-03-15T00:00:00.000Z",
-    "validTo": "2027-03-14T00:00:00.000Z",
-    "status": "有效",
-    "createdAt": "2026-06-13T06:18:29.676Z",
-    "updatedAt": "2026-06-13T06:18:29.676Z"
-  },
-  {
-    "id": "cmqbysdkb001rkoh14yh2tkel",
-    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
-    "type": "质量管理体系认证",
-    "name": "ISO 9001质量管理体系认证",
-    "fileUrl": "/uploads/iso9001.pdf",
-    "validFrom": "2024-01-10T00:00:00.000Z",
-    "validTo": "2027-01-09T00:00:00.000Z",
-    "status": "有效",
-    "createdAt": "2026-06-13T06:18:29.676Z",
-    "updatedAt": "2026-06-13T06:18:29.676Z"
-  },
-  {
     "id": "cmqbysdm5002bkoh1xtefsqxx",
     "supplierId": "cmqbysdm50029koh18g2n7p54",
     "type": "营业执照",
@@ -202,18 +154,6 @@
     "status": "有效",
     "createdAt": "2026-06-13T11:02:25.675Z",
     "updatedAt": "2026-06-13T11:02:25.675Z"
-  },
-  {
-    "id": "cmqc8ximl002uko8fv9fkecer",
-    "supplierId": "cmqc8r5uw002qkoekf87wjeo2",
-    "type": "资质证书",
-    "name": "资质/许可/认证: 会计师事务所执业证书、证券、期货相关业务许可证、从事H股企业审计资格",
-    "fileUrl": "",
-    "validFrom": null,
-    "validTo": null,
-    "status": "有效",
-    "createdAt": "2026-06-13T11:02:25.678Z",
-    "updatedAt": "2026-06-13T11:02:25.678Z"
   },
   {
     "id": "cmqc8ximo0031ko8fwwn3i14w",
@@ -2592,18 +2532,6 @@
     "updatedAt": "2026-06-13T11:02:26.299Z"
   },
   {
-    "id": "cmqc8xj3y015fko8f6ex7ji0s",
-    "supplierId": "cmqc8r6bt015bkoekpw7rljbs",
-    "type": "资质证书",
-    "name": "资质/许可/认证: 资料齐全",
-    "fileUrl": "",
-    "validFrom": null,
-    "validTo": null,
-    "status": "有效",
-    "createdAt": "2026-06-13T11:02:26.302Z",
-    "updatedAt": "2026-06-13T11:02:26.302Z"
-  },
-  {
     "id": "cmqc8xj41015mko8fo8ojrxsb",
     "supplierId": "cmqc8r6bx015ikoek5hwz0d1d",
     "type": "资质证书",
@@ -4318,5 +4246,65 @@
     "status": "有效",
     "createdAt": "2026-06-17T02:48:19.361Z",
     "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
+    "id": "demo-q1-cmqbysdk",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "type": "营业执照",
+    "name": "营业执照",
+    "fileUrl": "",
+    "validFrom": "2004-03-15T00:00:00.000Z",
+    "validTo": null,
+    "status": "有效",
+    "createdAt": "2024-11-08T09:00:00.000Z",
+    "updatedAt": "2024-11-08T09:00:00.000Z"
+  },
+  {
+    "id": "demo-q2-cmqbysdk",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "type": "资质证书",
+    "name": "工程勘察专业类（岩土工程）甲级",
+    "fileUrl": "",
+    "validFrom": "2022-06-01T00:00:00.000Z",
+    "validTo": "2027-05-31T00:00:00.000Z",
+    "status": "有效",
+    "createdAt": "2024-11-08T09:00:00.000Z",
+    "updatedAt": "2024-11-08T09:00:00.000Z"
+  },
+  {
+    "id": "demo-q3-cmqbysdk",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "type": "资质证书",
+    "name": "地质灾害防治单位资质（勘察）甲级",
+    "fileUrl": "",
+    "validFrom": "2023-01-10T00:00:00.000Z",
+    "validTo": "2028-01-09T00:00:00.000Z",
+    "status": "有效",
+    "createdAt": "2024-11-08T09:00:00.000Z",
+    "updatedAt": "2024-11-08T09:00:00.000Z"
+  },
+  {
+    "id": "demo-q4-cmqbysdk",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "type": "资质证书",
+    "name": "工程勘察专业类（水文地质勘察）乙级",
+    "fileUrl": "",
+    "validFrom": "2021-09-01T00:00:00.000Z",
+    "validTo": "2026-08-31T00:00:00.000Z",
+    "status": "有效",
+    "createdAt": "2024-11-08T09:00:00.000Z",
+    "updatedAt": "2024-11-08T09:00:00.000Z"
+  },
+  {
+    "id": "demo-q5-cmqbysdk",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "type": "体系认证",
+    "name": "ISO 9001 质量管理体系认证",
+    "fileUrl": "",
+    "validFrom": "2024-03-01T00:00:00.000Z",
+    "validTo": "2027-02-28T00:00:00.000Z",
+    "status": "有效",
+    "createdAt": "2024-11-08T09:00:00.000Z",
+    "updatedAt": "2024-11-08T09:00:00.000Z"
   }
 ]

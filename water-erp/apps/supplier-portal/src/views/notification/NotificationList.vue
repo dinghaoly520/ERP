@@ -6,8 +6,8 @@ import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 
 const router = useRouter(); const store = useNotificationStore(); const loading = ref(true); const error = ref(false); const currentPage = ref(1); const typeFilter = ref('')
-const typeIconMap: Record<string,string> = {SUPPLIER_APPROVED:'✅',SUPPLIER_REJECTED:'❌',SUPPLIER_RETURNED:'⚠️',BID_PUBLISHED:'📋',BID_REMINDER:'⏰',SYSTEM:'🔔'}
-const typeLabels: Record<string,string> = {SUPPLIER_APPROVED:'入库审批',SUPPLIER_REJECTED:'驳回通知',SUPPLIER_RETURNED:'退回补正',BID_PUBLISHED:'招标公告',BID_REMINDER:'开标提醒',SYSTEM:'系统通知'}
+const typeIconMap: Record<string,string> = {SUPPLIER_APPROVED:'✅',SUPPLIER_REJECTED:'❌',SUPPLIER_RETURNED:'⚠️',BID_PUBLISHED:'📋',BID_REMINDER:'⏰',SYSTEM:'🔔',CLARIFICATION_REPLIED:'💬',BID_OPENING:'🔓',BID_EVALUATION_RESULT:'📊'}
+const typeLabels: Record<string,string> = {SUPPLIER_APPROVED:'入库审批',SUPPLIER_REJECTED:'驳回通知',SUPPLIER_RETURNED:'退回补正',BID_PUBLISHED:'招标公告',BID_REMINDER:'开标提醒',SYSTEM:'系统通知',CLARIFICATION_REPLIED:'澄清答疑',BID_OPENING:'开标通知',BID_EVALUATION_RESULT:'评标结果'}
 const filteredNotifications = computed(() => {
   if (!typeFilter.value) return store.notifications
   return store.notifications.filter((n:any) => n.type === typeFilter.value)

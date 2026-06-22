@@ -1060,8 +1060,8 @@ export class SupplierPortalService {
     missing: string[];
     categories: {
       basic: { score: number; max: number; filled: number; total: number; missing: string[] };
-      contacts: { score: number; max: number; filled: number; total: number; missing: string[] };
-      qualifications: { score: number; max: number; filled: number; total: number; missing: string[] };
+      contacts: { score: number; max: number; filled: number; total: number; missing: string[]; count: number; hasPrimary: boolean };
+      qualifications: { score: number; max: number; filled: number; total: number; missing: string[]; count: number; hasLicense: boolean };
       classification: { score: number; max: number };
     };
   } {
@@ -1084,13 +1084,15 @@ export class SupplierPortalService {
     // Contacts (20 points)
     let contactScore = 0;
     const contactMax = 20;
-    let contactFilled = 0;
-    const contactTotal = 1;
+    const contactCount: number = supplier.contacts?.length || 0;
+    const contactFilled = contactCount;
+    const contactTotal = Math.max(contactCount, 1);
+    let contactHasPrimary = false;
     const contactMissing: string[] = [];
-    if (supplier.contacts?.length > 0) {
-      contactScore += 12; contactFilled = 1;
-      const hasPrimary = supplier.contacts.some((c: any) => c.isPrimary);
-      if (hasPrimary) contactScore += 8; else contactMissing.push('主要联系人');
+    if (contactCount > 0) {
+      contactScore += 12;
+      contactHasPrimary = supplier.contacts.some((c: any) => c.isPrimary);
+      if (contactHasPrimary) contactScore += 8; else contactMissing.push('主要联系人');
     } else {
       contactMissing.push('联系人');
     }
@@ -1099,13 +1101,15 @@ export class SupplierPortalService {
     // Qualifications (30 points)
     let qualScore = 0;
     const qualMax = 30;
-    let qualFilled = 0;
-    const qualTotal = 1;
+    const qualCount: number = supplier.qualifications?.length || 0;
+    const qualFilled = qualCount;
+    const qualTotal = Math.max(qualCount, 1);
+    let qualHasLicense = false;
     const qualMissing: string[] = [];
-    if (supplier.qualifications?.length > 0) {
-      qualScore += 15; qualFilled = 1;
-      const hasLicense = supplier.qualifications.some((q: any) => q.type === '营业执照');
-      if (hasLicense) qualScore += 15; else qualMissing.push('营业执照');
+    if (qualCount > 0) {
+      qualScore += 15;
+      qualHasLicense = supplier.qualifications.some((q: any) => q.type === '营业执照');
+      if (qualHasLicense) qualScore += 15; else qualMissing.push('营业执照');
     } else {
       qualMissing.push('资质材料');
     }
@@ -1122,8 +1126,8 @@ export class SupplierPortalService {
       missing,
       categories: {
         basic: { score: basicScore, max: basicMax, filled: basicFilled, total: basicTotal, missing: basicMissing },
-        contacts: { score: contactScore, max: contactMax, filled: contactFilled, total: contactTotal, missing: contactMissing },
-        qualifications: { score: qualScore, max: qualMax, filled: qualFilled, total: qualTotal, missing: qualMissing },
+        contacts: { score: contactScore, max: contactMax, filled: contactFilled, total: contactTotal, missing: contactMissing, count: contactCount, hasPrimary: contactHasPrimary },
+        qualifications: { score: qualScore, max: qualMax, filled: qualFilled, total: qualTotal, missing: qualMissing, count: qualCount, hasLicense: qualHasLicense },
         classification: { score: classScore, max: 10 },
       },
     };
