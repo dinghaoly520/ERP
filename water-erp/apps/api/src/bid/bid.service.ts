@@ -1167,6 +1167,27 @@ export class BidService {
         });
       }
 
+      // G5: 已确认可评供应商必须有对应开标记录（主持人已补录唱标信息），保证归档材料完整
+      const confirmableSuppliers = await tx.bidSupplier.findMany({
+        where: { projectId: id, decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: { not: '已撤回' } },
+        select: { id: true, supplierName: true },
+      });
+      if (confirmableSuppliers.length > 0) {
+        const confirmedSupplierIds = confirmableSuppliers.map(s => s.id);
+        const records = await tx.bidOpeningRecord.findMany({
+          where: { projectId: id, bidSupplierId: { in: confirmedSupplierIds } },
+          select: { bidSupplierId: true },
+        });
+        const recordedIds = new Set(records.map(r => r.bidSupplierId));
+        const missingNames = confirmableSuppliers.filter(s => !recordedIds.has(s.id)).map(s => s.supplierName);
+        if (missingNames.length > 0) {
+          throw new ConflictException({
+            error: `以下供应商缺少开标记录（请补录唱标信息）：${missingNames.join('、')}`,
+            code: 'OPENING_RECORDS_MISSING',
+          });
+        }
+      }
+
       // 自动补齐标准归档材料，避免”无可归档项”阻塞
       await this.ensureArchiveItems(id, tx);
 
