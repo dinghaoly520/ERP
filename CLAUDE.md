@@ -202,15 +202,15 @@ Passwords follow `<username>@2026` convention:
 
 | Account | Password | Role | Portal |
 |---------|----------|------|--------|
-| `mall` | `mall@2026` | mall | 采购商城 (:3003) |
+| `陈主任（商城）` | `czr@2026` | mall | 采购商城 (:3003) |
 | `supplier1` | `supplier1@2026` | supplier (approved) | 供应商门户 (:3004) |
 | `四川水发建设有限公司` | `supplier@2026` | supplier (approved) · 英雄项目 3 家之一 | 供应商门户 (:3004) |
 | `中科院成都信息技术股份有限公司` | `supplier@2026` | supplier (approved) · 英雄项目评标第 1 名 | 供应商门户 (:3004) |
 | `四川省通信产业服务有限公司` | `supplier@2026` | supplier (approved) · 英雄项目解密异常 | 供应商门户 (:3004) |
 | `huaxi` | `huaxi@2026` | supplier (approved) · 成都华西物资供应 · 参与旧种子项目 | 供应商门户 (:3004) |
-| `caigou` | `caigou@2026` | procurement_staff | 采购管理工作台 (:3005) |
+| `陈主任（采购）` | `czr@2026` | procurement_staff | 采购管理工作台 (:3005) |
 | 专家姓名（如 `刘苡池`） | `expert@2026` | bid_expert | 专家门户 (:3006) |
-| `lizhuren` | `lizhuren@2026` | bid_host | 开评标管理端 (:3007) |
+| `陈主任（开标）` | `czr@2026` | bid_host | 开评标管理端 (:3007) |
 
 > `admin` role exists in schema/RBAC but has no seeded user. Use `lizhuren` (bid_host) for bid portal access.
 

@@ -1,29 +1,5 @@
 [
   {
-    "id": "cmqbysdbl0002koh10l78cjr3",
-    "username": "caigou",
-    "displayName": "采购管理员",
-    "email": "caigou@scsdjt.com",
-    "passwordHash": "$2b$10$6YnU4LUlfw1WQq2mqjenc.QbSMZI7T.ZQhNuyvcGPuH1ekGC3Yiwu",
-    "role": "procurement_staff",
-    "isActive": true,
-    "departmentId": "cmqbysd9v0000koh13qyqfv3u",
-    "createdAt": "2026-06-13T06:18:29.362Z",
-    "updatedAt": "2026-06-13T06:18:29.362Z"
-  },
-  {
-    "id": "cmqbysdd50004koh1xdcjj2cz",
-    "username": "lizhuren",
-    "displayName": "李主任",
-    "email": null,
-    "passwordHash": "$2b$10$E7WEKIRDQoqfCmHoDSWAjuP/EQfKDRSo4cIUc7sOWlNlmTsT/VNza",
-    "role": "bid_host",
-    "isActive": true,
-    "departmentId": "cmqbysd9v0000koh13qyqfv3u",
-    "createdAt": "2026-06-13T06:18:29.417Z",
-    "updatedAt": "2026-06-13T06:18:29.417Z"
-  },
-  {
     "id": "cmqbysdk0001gkoh1gx2342d6",
     "username": "supplier1",
     "displayName": "王仁平",
@@ -34,18 +10,6 @@
     "departmentId": null,
     "createdAt": "2024-11-08T09:00:00.000Z",
     "updatedAt": "2024-11-10T16:00:00.000Z"
-  },
-  {
-    "id": "cmqbysdnn002ckoh1zfdgsksx",
-    "username": "mall",
-    "displayName": "商城采购员",
-    "email": "mall@scsdjt.com",
-    "passwordHash": "$2b$10$0xAiLqeD5r01/qP4CjDq7.w8QsohoVDflZY2dLn5vsvO9QEHx/OWu",
-    "role": "mall",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-13T06:18:29.796Z",
-    "updatedAt": "2026-06-13T06:18:29.796Z"
   },
   {
     "id": "cmqc8r5tr000hkoeklng4dev0",
@@ -526,6 +490,30 @@
     "departmentId": null,
     "createdAt": "2026-06-13T10:57:29.293Z",
     "updatedAt": "2026-06-13T11:02:25.761Z"
+  },
+  {
+    "id": "cmqbysdbl0002koh10l78cjr3",
+    "username": "陈主任（采购）",
+    "displayName": "陈主任",
+    "email": "caigou@scsdjt.com",
+    "passwordHash": "$2b$10$RLehWSWw5UBfN00oqSD1wuqtUL2W0PzZsoeLqt19wm2OsCNsNsNHi",
+    "role": "procurement_staff",
+    "isActive": true,
+    "departmentId": "cmqbysd9v0000koh13qyqfv3u",
+    "createdAt": "2026-06-13T06:18:29.362Z",
+    "updatedAt": "2026-06-22T07:02:40.663Z"
+  },
+  {
+    "id": "cmqbysdd50004koh1xdcjj2cz",
+    "username": "陈主任（开标）",
+    "displayName": "陈主任",
+    "email": null,
+    "passwordHash": "$2b$10$RLehWSWw5UBfN00oqSD1wuqtUL2W0PzZsoeLqt19wm2OsCNsNsNHi",
+    "role": "bid_host",
+    "isActive": true,
+    "departmentId": "cmqbysd9v0000koh13qyqfv3u",
+    "createdAt": "2026-06-13T06:18:29.417Z",
+    "updatedAt": "2026-06-22T07:02:40.665Z"
   },
   {
     "id": "cmqc8r5xs008pkoekp13h0tua",
@@ -8230,5 +8218,17 @@
     "departmentId": null,
     "createdAt": "2026-06-13T10:57:29.382Z",
     "updatedAt": "2026-06-22T06:17:24.330Z"
+  },
+  {
+    "id": "cmqbysdnn002ckoh1zfdgsksx",
+    "username": "陈主任（商城）",
+    "displayName": "陈主任",
+    "email": "mall@scsdjt.com",
+    "passwordHash": "$2b$10$RLehWSWw5UBfN00oqSD1wuqtUL2W0PzZsoeLqt19wm2OsCNsNsNHi",
+    "role": "mall",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-13T06:18:29.796Z",
+    "updatedAt": "2026-06-22T07:02:40.660Z"
   }
 ]
