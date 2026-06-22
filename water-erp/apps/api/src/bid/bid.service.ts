@@ -411,10 +411,22 @@ export class BidService {
   async openSubmission(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true },
+      select: { stage: true, name: true, projectCode: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'SUBMIT');
+
+    // G3: 开放投递前必须已发布招标公示（供应商经 relatedProjectCode 获取招标文件）
+    const notice = await this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: project.projectCode, type: 'BID_NOTICE', status: 'PUBLISHED' },
+      select: { id: true },
+    });
+    if (!notice) {
+      throw new ConflictException({
+        error: '尚未发布招标公示，供应商无法获取招标文件，请先在信息发布中心发布招标公告',
+        code: 'BID_NOTICE_REQUIRED',
+      });
+    }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.bidProject.update({

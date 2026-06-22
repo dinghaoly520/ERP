@@ -88,7 +88,7 @@ describe('BidService — stage transitions', () => {
       bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn() },
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
       supplier: { count: jest.fn() },
-      announcement: { count: jest.fn() },
+      announcement: { count: jest.fn(), findFirst: jest.fn() },
       bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
@@ -160,7 +160,8 @@ describe('BidService — stage transitions', () => {
 
   describe('openSubmission', () => {
     it('transitions DOWNLOAD → SUBMIT and writes supervision log', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD', name: '测试项目' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD', name: '测试项目', projectCode: 'BID-1' });
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'a1' });
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'SUBMIT' });
       prisma.bidSupervisionLog.create.mockResolvedValue({});
 
@@ -171,6 +172,28 @@ describe('BidService — stage transitions', () => {
           data: expect.objectContaining({ action: '开放投递 (DOWNLOAD→SUBMIT)' }),
         }),
       );
+    });
+  });
+
+  describe('BidService.openSubmission — 公告前置 (G3)', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'DOWNLOAD', name: '项目', projectCode: 'BID-1' });
+    });
+
+    it('无关联已发布招标公示时拒绝', async () => {
+      prisma.announcement.findFirst.mockResolvedValue(null);
+      await expect(service.openSubmission('p1', 'u1')).rejects.toMatchObject({
+        response: { code: 'BID_NOTICE_REQUIRED' },
+      });
+    });
+
+    it('存在已发布招标公示时放行', async () => {
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'a1' });
+      prisma.bidProject.update.mockResolvedValue({ stage: 'SUBMIT' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog = prisma.auditLog || { create: jest.fn() };
+      prisma.auditLog.create.mockResolvedValue({});
+      await expect(service.openSubmission('p1', 'u1')).resolves.toBeDefined();
     });
   });
 
