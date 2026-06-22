@@ -1259,7 +1259,70 @@ export class BidService {
     this.gateway?.notifyStageChange(id, 'EVALUATING', 'ARCHIVED', 'host');
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${result?.archiveItems?.length ?? 0} 项`, riskFlag: '无' });
 
+    // G1: 归档成功后自动生成中标公示草稿（事务外；幂等；不阻塞归档主流程）
+    try {
+      await this.ensureWinnerNotice(id);
+    } catch (e) {
+      this.logger.error(`中标公示自动生成失败（不阻塞归档）: ${(e as Error).message}`);
+    }
+
     return result;
+  }
+
+  /**
+   * 归档后自动生成中标公示草稿（G1）。幂等。
+   * 直接写 announcement 表（避免与 AnnouncementService 循环依赖）。
+   */
+  private async ensureWinnerNotice(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      include: {
+        evaluationResults: { orderBy: { rank: 'asc' }, select: { rank: true, supplierName: true, totalScore: true, averageScore: true, recommended: true } },
+      },
+    });
+    if (!project) return;
+    if (!project.evaluationResults || project.evaluationResults.length === 0) {
+      this.logger.warn(`项目 ${project.projectCode} 无评标结果，跳过中标公示生成`);
+      return;
+    }
+
+    const existing = await this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: project.projectCode, type: 'WIN_NOTICE' },
+      select: { id: true },
+    });
+    if (existing) return;
+
+    const winner = project.evaluationResults.find(r => r.rank === 1);
+    const candidates = project.evaluationResults.filter(r => r.recommended);
+
+    await this.prisma.announcement.create({
+      data: {
+        title: `中标公示：${project.name}`,
+        content: `项目编号 ${project.projectCode}（${project.name}）已完成评标并归档。中标人：${winner?.supplierName ?? '—'}。`,
+        type: 'WIN_NOTICE',
+        status: 'DRAFT',
+        relatedProjectCode: project.projectCode,
+        metadata: {
+          projectCode: project.projectCode,
+          winner: winner ? { supplierName: winner.supplierName, totalScore: Number(winner.totalScore), averageScore: Number(winner.averageScore) } : null,
+          candidates: candidates.map(c => ({ rank: c.rank, supplierName: c.supplierName, totalScore: Number(c.totalScore), averageScore: Number(c.averageScore) })),
+        },
+      },
+    });
+    this.logger.log(`已自动生成中标公示草稿：${project.projectCode}`);
+  }
+
+  /** 查询项目关联的中标公示（G1，草稿或已发布）；无则返回 null */
+  getWinnerNotice(projectId: string) {
+    return this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { projectCode: true },
+    }).then(project => {
+      if (!project) return null;
+      return this.prisma.announcement.findFirst({
+        where: { relatedProjectCode: project.projectCode, type: 'WIN_NOTICE' },
+      });
+    });
   }
 
   async exportArchivePackage(projectId: string, format: 'json' | 'csv' = 'json') {

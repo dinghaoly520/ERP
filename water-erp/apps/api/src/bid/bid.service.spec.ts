@@ -1325,3 +1325,101 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
   });
 });
 
+/* ── G1：归档后自动生成中标公示草稿 ── */
+describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        create: jest.fn(),
+        findMany: jest.fn(),
+        count: jest.fn(),
+        groupBy: jest.fn(),
+      },
+      bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
+      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn() },
+      bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
+      supplier: { count: jest.fn() },
+      announcement: { count: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+      bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
+      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
+      supplierBidSubmission: { findUnique: jest.fn() },
+      bidOpeningSession: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+      fileAsset: { findUnique: jest.fn() },
+      notification: { create: jest.fn(), createMany: jest.fn() },
+      user: { findMany: jest.fn() },
+      auditLog: { create: jest.fn() },
+      $transaction: jest.fn(async (callbackOrOps: any) => {
+        if (typeof callbackOrOps === 'function') return callbackOrOps(prisma);
+        return Promise.all(callbackOrOps);
+      }),
+    };
+
+    // archiveAll 入口查询 / ensureWinnerNotice 内部查询共用 findUnique
+    prisma.bidProject.findUnique.mockImplementation(({ where }: any) => {
+      if (where?.id === 'p1') {
+        return Promise.resolve({
+          id: 'p1',
+          projectCode: 'BID-1',
+          stage: 'EVALUATING',
+          name: '项目',
+          evaluationResults: [
+            { rank: 1, supplierName: '甲', totalScore: 90, averageScore: 30, recommended: true },
+          ],
+        });
+      }
+      return Promise.resolve(null);
+    });
+    prisma.bidEvaluationResult.count.mockResolvedValue(1);
+    prisma.bidSupplier.count.mockResolvedValue(0); // 无 confirmable，绕过 EVALUATION_RESULTS_REQUIRED
+    prisma.bidSupplier.findMany.mockResolvedValue([]); // 绕过 G5 OPENING_RECORDS_MISSING
+    prisma.bidArchiveItem.findMany.mockResolvedValue([{ id: 'ai1', name: 'x', status: 'PENDING_CONFIRM' }]);
+    prisma.bidArchiveItem.update.mockResolvedValue({});
+    prisma.bidProject.update.mockResolvedValue({ stage: 'ARCHIVED' });
+    prisma.bidSupervisionLog.create.mockResolvedValue({});
+    prisma.auditLog.create.mockResolvedValue({});
+    prisma.announcement.findFirst.mockResolvedValue(null); // 不存在
+    prisma.announcement.create.mockResolvedValue({ id: 'wn1' });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get<BidService>(BidService);
+  });
+
+  it('归档后自动创建 WIN_NOTICE 草稿', async () => {
+    await service.archiveAll('p1', 'u1');
+    expect(prisma.announcement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: 'WIN_NOTICE',
+          status: 'DRAFT',
+          relatedProjectCode: 'BID-1',
+        }),
+      }),
+    );
+  });
+
+  it('已存在 WIN_NOTICE 时不重复创建（幂等）', async () => {
+    prisma.announcement.findFirst.mockResolvedValue({ id: 'wn1' });
+    await service.archiveAll('p1', 'u1');
+    expect(prisma.announcement.create).not.toHaveBeenCalled();
+  });
+
+  it('中标公示创建失败时不阻塞归档', async () => {
+    prisma.announcement.create.mockRejectedValue(new Error('DB down'));
+    await expect(service.archiveAll('p1', 'u1')).resolves.toBeDefined();
+  });
+});
+
