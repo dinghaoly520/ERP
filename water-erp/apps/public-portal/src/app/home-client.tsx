@@ -106,17 +106,28 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   }, []);
 
   useEffect(() => {
-    // 已有服务端预取数据时，仅做后台静默刷新，不触发 loading/error 状态切换
+    // 已有服务端预取数据时：force-dynamic 已通过 RSC 提供最新数据，
+    // 不立即静默刷新——否则客户端导航(router.push)到首页时，二轮 fetch 会与
+    // React reconciliation / 事件绑定产生竞态，导致公告区 tab 点击失效。
+    // 仅在页面重新可见（切回标签页 / bfcache 恢复）时刷新，保证数据不过时。
     if (hasInitialData.current) {
-      // 静默刷新：成功则更新，失败保留已有数据
-      Promise.allSettled(typeGroups.map(type => fetchPublicAnnouncements({ type, pageSize: 5 })))
-        .then(results => {
-          const items = results.map(r => (r.status === 'fulfilled' ? r.value.items : [])).flat();
-          if (items.length > 0) setFetchedAnnouncements(items);
-        })
-        .catch(() => { /* 静默失败，保留已有数据 */ });
-      return;
+      const refresh = () => {
+        if (document.visibilityState !== 'visible') return;
+        Promise.allSettled(typeGroups.map(type => fetchPublicAnnouncements({ type, pageSize: 5 })))
+          .then(results => {
+            const items = results.map(r => (r.status === 'fulfilled' ? r.value.items : [])).flat();
+            if (items.length > 0) setFetchedAnnouncements(items);
+          })
+          .catch(() => { /* 静默失败，保留已有数据 */ });
+      };
+      document.addEventListener('visibilitychange', refresh);
+      window.addEventListener('pageshow', refresh);
+      return () => {
+        document.removeEventListener('visibilitychange', refresh);
+        window.removeEventListener('pageshow', refresh);
+      };
     }
+    // 无服务端预取数据时：立即加载 + 注册可见性监听
     loadAnnouncements();
     // 浏览器后退(bfcache 恢复)与切回标签页时都重新拉取
     const onShow = () => loadAnnouncements();
