@@ -34,8 +34,6 @@ const PLACEHOLDER_INTERVAL = 4000;
 
 export function UnifiedHeader({
   announcements,
-  onLoginClick,
-  onRegisterClick,
 }: UnifiedHeaderProps) {
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -332,21 +330,8 @@ export function UnifiedHeader({
           )}
         </div>
 
-        {/* ── 右侧：登录/注册 ── */}
-        <div className="flex flex-1 items-center justify-end gap-3">
-          <button
-            onClick={onLoginClick}
-            className="group relative h-9 rounded-full border border-[#c5d3e8] bg-white px-6 text-sm font-semibold text-[#064ea2] transition-all duration-300 hover:-translate-y-px hover:border-[#064ea2] hover:bg-gradient-to-b hover:from-white hover:to-[#f5f9ff] hover:text-[#064ea2] hover:shadow-[0_4px_14px_rgba(6,78,162,.18)] active:translate-y-0 active:scale-[0.98]"
-          >
-            登录
-          </button>
-          <button
-            onClick={onRegisterClick}
-            className="group relative h-9 overflow-hidden rounded-full bg-gradient-to-r from-[#064ea2] to-[#0b63ce] px-6 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-px hover:shadow-[0_6px_18px_rgba(6,78,162,.30)] hover:from-[#05428a] hover:to-[#0957b8] active:translate-y-0 active:scale-[0.98]"
-          >
-            <span className="relative z-[1]">注册</span>
-          </button>
-        </div>
+        {/* 右侧占位：维持搜索栏居中布局（登录/注册入口已移除，各门户使用独立登录页） */}
+        <div className="flex flex-1" aria-hidden />
       </div>
       </div>
     </header>

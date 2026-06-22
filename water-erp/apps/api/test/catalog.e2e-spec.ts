@@ -48,7 +48,7 @@ describe('Catalog supply application (e2e)', () => {
 
     prisma = app.get(PrismaService);
 
-    const supplierUser = await prisma.user.findUnique({ where: { username: 'supplier1' } });
+    const supplierUser = await prisma.user.findUnique({ where: { username_role: { username: 'supplier1', role: 'supplier' } } });
     const supplier = supplierUser ? await prisma.supplier.findUnique({ where: { userId: supplierUser.id } }) : null;
     supplierId = supplier!.id;
 

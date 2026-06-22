@@ -35,8 +35,8 @@ export class AuthController {
     const portal = portalFromRequest(req);
     const result = await this.authService.login(dto, portal);
     if (!result) throw new UnauthorizedException('用户名或密码错误');
-    const portal = portalForRole(result.role) || portalFromRequest(req);
-    res.cookie(portal ? cookieNameForPortal(portal) : LEGACY_COOKIE, result.access_token, COOKIE_OPTS);
+    const cookiePortal = portalForRole(result.role) || portalFromRequest(req);
+    res.cookie(cookiePortal ? cookieNameForPortal(cookiePortal) : LEGACY_COOKIE, result.access_token, COOKIE_OPTS);
     return result;
   }
 

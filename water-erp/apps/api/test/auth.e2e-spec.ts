@@ -44,7 +44,7 @@ describe('Auth (e2e)', () => {
 
     // 创建禁用用户用于测试
     await prisma.user.upsert({
-      where: { username: 'e2e-disabled-user' },
+      where: { username_role: { username: 'e2e-disabled-user', role: 'admin' } },
       update: { isActive: false, passwordHash: hashSync('123456', 10) },
       create: {
         username: 'e2e-disabled-user',

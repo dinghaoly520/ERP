@@ -41,7 +41,7 @@ describe('Supplier (e2e)', () => {
     prisma = app.get(PrismaService);
 
     // 取 supplier1 的信用代码，用于注册重复测试
-    const u = await prisma.user.findUnique({ where: { username: 'supplier1' } });
+    const u = await prisma.user.findUnique({ where: { username_role: { username: 'supplier1', role: 'supplier' } } });
     const s = u ? await prisma.supplier.findUnique({ where: { userId: u.id } }) : null;
     dupCreditCode = s?.creditCode || 'DUPLICATE00000000';
 
@@ -102,7 +102,7 @@ describe('Supplier (e2e)', () => {
     expect(res.body.code).toBe('DUPLICATE_CREDIT_CODE');
 
     // 关键：失败后 user 表不应留下孤立记录
-    const orphan = await prisma.user.findUnique({ where: { username: orphanUsername } });
+    const orphan = await prisma.user.findUnique({ where: { username_role: { username: orphanUsername, role: 'supplier' } } });
     expect(orphan).toBeNull();
   });
 });
