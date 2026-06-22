@@ -130,19 +130,28 @@ export class ProcurementService {
     });
   }
 
-  async createBid(id: string) {
+  async createBid(id: string, dto?: { openTime?: string; deadline?: string }) {
     const project = await this.prisma.procurementProject.findUnique({ where: { id } });
     if (!project) throw new NotFoundException('采购项目不存在');
     this.assertStatusTransition(project.status as ProcurementStatus, 'BIDDING');
 
-    // 创建关联的招标项目
+    // G8: 参数化时间；默认 截标 5 天后 / 开标 7 天后（截标必须早于开标）
+    const openTime = dto?.openTime ? new Date(dto.openTime) : new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    const deadline = dto?.deadline ? new Date(dto.deadline) : new Date(Date.now() + 5 * 24 * 3600 * 1000);
+    if (!(deadline.getTime() < openTime.getTime())) {
+      throw new BadRequestException({
+        error: '投标截止时间必须早于开标时间',
+        code: 'INVALID_BID_TIME',
+      });
+    }
+
     const bidProject = await this.prisma.bidProject.create({
       data: {
         name: project.title,
         projectCode: `BID-${Date.now()}`,
         procurementMethod: project.procurementMethod,
-        openTime: new Date(Date.now() + 7 * 24 * 3600 * 1000), // 默认7天后开标
-        deadline: new Date(Date.now() + 5 * 24 * 3600 * 1000), // 默认5天后截止
+        openTime,
+        deadline,
       },
     });
 

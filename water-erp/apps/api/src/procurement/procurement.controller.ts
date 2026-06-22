@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ProcurementService } from './procurement.service';
 import { CreateProcurementDto, UpdateProcurementDto, RejectProcurementDto } from './dto/create-procurement.dto';
+import { CreateBidDto } from './dto/create-bid.dto';
 
 @ApiTags('采购管理')
 @ApiCookieAuth('token')
@@ -51,6 +52,8 @@ export class ProcurementController {
   }
 
   @Post(':id/create-bid')
-  @ApiOperation({ summary: '发起招标' })
-  createBid(@Param('id') id: string) { return this.procurementService.createBid(id); }
+  @ApiOperation({ summary: '采购项目转招标（可指定开标/截标时间）' })
+  createBid(@Param('id') id: string, @Body() dto: CreateBidDto) {
+    return this.procurementService.createBid(id, dto);
+  }
 }
