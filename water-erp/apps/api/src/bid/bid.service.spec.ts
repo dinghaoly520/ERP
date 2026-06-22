@@ -85,7 +85,7 @@ describe('BidService — stage transitions', () => {
       },
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
       bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
-      bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn() },
+      bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn() },
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn() },
@@ -630,6 +630,39 @@ describe('BidService — stage transitions', () => {
           data: expect.objectContaining({ action: '启动评标 (OPENING→EVALUATING)' }),
         }),
       );
+    });
+  });
+
+  describe('BidService.startEvaluation — 前置校验 (G4/G9)', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      prisma.bidExpert.count.mockResolvedValue(3);
+    });
+
+    it('G4: 无解密成功的有效供应商时拒绝', async () => {
+      prisma.bidSupplier.count.mockResolvedValue(0);
+      prisma.bidScoreItem.count.mockResolvedValue(5);
+      await expect(service.startEvaluation('p1', 'u1')).rejects.toMatchObject({
+        response: { code: 'NO_EVALUABLE_SUPPLIERS' },
+      });
+    });
+
+    it('G9: 未编制评分标准时拒绝', async () => {
+      prisma.bidSupplier.count.mockResolvedValue(2);
+      prisma.bidScoreItem.count.mockResolvedValue(0);
+      await expect(service.startEvaluation('p1', 'u1')).rejects.toMatchObject({
+        response: { code: 'NO_SCORE_ITEMS' },
+      });
+    });
+
+    it('专家/供应商/评分项齐备时不抛前置异常', async () => {
+      prisma.bidSupplier.count.mockResolvedValue(2);
+      prisma.bidScoreItem.count.mockResolvedValue(5);
+      prisma.bidProject.update.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog = prisma.auditLog || { create: jest.fn() };
+      prisma.auditLog.create.mockResolvedValue({});
+      await expect(service.startEvaluation('p1', 'u1')).resolves.toBeDefined();
     });
   });
 

@@ -526,6 +526,26 @@ export class BidService {
       throw new BadRequestException({ error: '项目未分配评审专家，无法启动评标', code: 'NO_EXPERTS_ASSIGNED' });
     }
 
+    // G4: 至少一个解密成功且未撤回的供应商，否则评标阶段无供应商可评（死局）
+    const evaluableSupplierCount = await this.prisma.bidSupplier.count({
+      where: { projectId: id, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+    });
+    if (evaluableSupplierCount === 0) {
+      throw new BadRequestException({
+        error: '没有解密成功的有效供应商，无法启动评标',
+        code: 'NO_EVALUABLE_SUPPLIERS',
+      });
+    }
+
+    // G9: 至少一个评分项，否则专家无法打分、progress 恒 0、无法确认报告/生成结果
+    const scoreItemCount = await this.prisma.bidScoreItem.count({ where: { projectId: id } });
+    if (scoreItemCount === 0) {
+      throw new BadRequestException({
+        error: '项目尚未编制评分标准，请先在评标办法页添加评分项或应用标准模板',
+        code: 'NO_SCORE_ITEMS',
+      });
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.bidProject.update({
         where: { id },
