@@ -270,5 +270,22 @@
     "encryptionKeyId": null,
     "createdAt": "2026-07-12T00:00:00.000Z",
     "updatedAt": "2026-06-13T10:55:28.050Z"
+  },
+  {
+    "id": "cmqhero-bid-proj01",
+    "projectCode": "BID-2026-HERO1",
+    "name": "2026年度智慧水利大数据平台建设项目",
+    "procurementMethod": "公开招标",
+    "openTime": "2026-07-01T02:00:00.000Z",
+    "deadline": "2026-06-30T01:00:00.000Z",
+    "stage": "EVALUATING",
+    "riskNote": "种子数据-英雄项目（全流程演示）",
+    "budget": "12000000",
+    "scope": "智慧水利大数据平台建设，含数据中台（500TB）、AI调度引擎、数字孪生可视化大屏、统一身份认证平台、移动端APP及12套业务系统对接集成",
+    "qualification": "1.独立法人资格\n2.电子与智能化工程专业承包一级\n3.近三年水利信息化项目业绩不少于3个（合同额≥500万元）\n4.项目经理须具备信息系统项目管理师（高级）证书\n5.具备CMMI3级及以上认证",
+    "contact": "联系人：信息技术部 陈工\n电话：028-88888101\n邮箱：chengong@scsdjt.com",
+    "encryptionKeyId": null,
+    "createdAt": "2026-06-10T00:00:00.000Z",
+    "updatedAt": "2026-06-20T08:00:00.000Z"
   }
 ]

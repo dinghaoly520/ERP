@@ -158,5 +158,45 @@
     "name": "价格评分",
     "maxScore": "30",
     "createdAt": "2026-06-17T02:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-si01",
+    "projectId": "cmqhero-bid-proj01",
+    "category": "QUALIFICATION",
+    "name": "资格性审查",
+    "maxScore": "0",
+    "createdAt": "2026-06-10T08:30:00.000Z"
+  },
+  {
+    "id": "cmqhero-si02",
+    "projectId": "cmqhero-bid-proj01",
+    "category": "RESPONSIVE",
+    "name": "符合性审查",
+    "maxScore": "0",
+    "createdAt": "2026-06-10T08:30:00.000Z"
+  },
+  {
+    "id": "cmqhero-si03",
+    "projectId": "cmqhero-bid-proj01",
+    "category": "BUSINESS",
+    "name": "商务评分",
+    "maxScore": "20",
+    "createdAt": "2026-06-10T08:30:00.000Z"
+  },
+  {
+    "id": "cmqhero-si04",
+    "projectId": "cmqhero-bid-proj01",
+    "category": "TECHNICAL",
+    "name": "技术评分",
+    "maxScore": "50",
+    "createdAt": "2026-06-10T08:30:00.000Z"
+  },
+  {
+    "id": "cmqhero-si05",
+    "projectId": "cmqhero-bid-proj01",
+    "category": "PRICE",
+    "name": "价格评分",
+    "maxScore": "30",
+    "createdAt": "2026-06-10T08:30:00.000Z"
   }
 ]

@@ -40,5 +40,19 @@
     "downloadCount": 1,
     "createdAt": "2026-06-17T01:51:36.730Z",
     "updatedAt": "2026-06-17T01:52:10.924Z"
+  },
+  {
+    "id": "cmqhero-bd01",
+    "announcementId": "cmqhero-announce01",
+    "fileAssetId": "cmqhero-file-bd01",
+    "title": "2026年度智慧水利大数据平台建设项目招标文件",
+    "accessScope": "OPEN",
+    "requirePayment": false,
+    "price": null,
+    "decryptKey": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2:c3d4e5f6a7b8c9d0e1f2a3b4:a5b6c7d8e9f0a1b2c3d4e5f6a7b8",
+    "bidProjectId": "cmqhero-bid-proj01",
+    "downloadCount": 3,
+    "createdAt": "2026-06-10T00:00:00.000Z",
+    "updatedAt": "2026-06-28T08:00:00.000Z"
   }
 ]

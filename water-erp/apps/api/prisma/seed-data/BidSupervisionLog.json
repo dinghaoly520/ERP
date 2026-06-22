@@ -350,5 +350,137 @@
     "result": "解密异常：文件完整性校验不通过",
     "riskFlag": "高风险",
     "createdAt": "2026-06-17T02:36:00.000Z"
+  },
+  {
+    "id": "cmqhero-sl01",
+    "projectId": "cmqhero-bid-proj01",
+    "time": "2026-06-10T00:00:00.000Z",
+    "role": "系统",
+    "target": "2026年度智慧水利大数据平台建设项目",
+    "action": "公告发布，自动创建招标项目",
+    "result": "阶段初始化为DOWNLOAD",
+    "riskFlag": "无",
+    "createdAt": "2026-06-10T00:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sl02",
+    "projectId": "cmqhero-bid-proj01",
+    "time": "2026-06-10T08:00:00.000Z",
+    "role": "系统",
+    "target": "2026年度智慧水利大数据平台建设项目",
+    "action": "开放投递 (DOWNLOAD→SUBMIT)",
+    "result": "阶段变更成功",
+    "riskFlag": "无",
+    "createdAt": "2026-06-10T08:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sl03",
+    "projectId": "cmqhero-bid-proj01",
+    "time": "2026-06-10T08:00:00.000Z",
+    "role": "系统",
+    "target": "2026年度智慧水利大数据平台建设项目",
+    "action": "邀请3家供应商参与投标",
+    "result": "已邀请：四川水发建设有限公司、中科院成都信息技术股份有限公司、四川省通信产业服务有限公司",
+    "riskFlag": "无",
+    "createdAt": "2026-06-10T08:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sl04",
+    "projectId": "cmqhero-bid-proj01",
+    "time": "2026-06-28T06:00:00.000Z",
+    "role": "供应商",
+    "target": "四川水发建设有限公司",
+    "action": "提交标书",
+    "result": "报价1080万元 / 工期365天",
+    "riskFlag": "无",
+    "createdAt": "2026-06-28T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sl05",
+    "projectId": "cmqhero-bid-proj01",
+    "time": "2026-06-29T02:00:00.000Z",
+    "role": "供应商",
+    "target": "中科院成都信息技术股份有限公司",
+    "action": "提交标书",
+    "result": "报价1150万元 / 工期330天",
+    "riskFlag": "无",
+    "createdAt": "2026-06-29T02:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sl06",
+    "projectId": "cmqhero-bid-proj01",
+    "time": "2026-06-30T01:00:00.000Z",
+    "role": "供应商",
+    "target": "四川省通信产业服务有限公司",
+    "action": "提交标书",
+    "result": "报价1198万元 / 工期300天",
+    "riskFlag": "无",
+    "createdAt": "2026-06-30T01:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sl07",
+    "projectId": "cmqhero-bid-proj01",
+    "time": "2026-07-01T01:00:00.000Z",
+    "role": "李主任",
+    "target": "2026年度智慧水利大数据平台建设项目",
+    "action": "启动开标 (SUBMIT→OPENING)",
+    "result": "阶段变更成功，解密窗口：7月1日10:00-11:30",
+    "riskFlag": "无",
+    "createdAt": "2026-07-01T01:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sl08",
+    "projectId": "cmqhero-bid-proj01",
+    "time": "2026-07-01T02:30:00.000Z",
+    "role": "系统",
+    "target": "四川水发建设有限公司",
+    "action": "标书解密",
+    "result": "解密成功，等待供应商确认唱标信息",
+    "riskFlag": "无",
+    "createdAt": "2026-07-01T02:30:00.000Z"
+  },
+  {
+    "id": "cmqhero-sl09",
+    "projectId": "cmqhero-bid-proj01",
+    "time": "2026-07-01T02:35:00.000Z",
+    "role": "系统",
+    "target": "中科院成都信息技术股份有限公司",
+    "action": "标书解密",
+    "result": "解密成功，等待供应商确认唱标信息",
+    "riskFlag": "无",
+    "createdAt": "2026-07-01T02:35:00.000Z"
+  },
+  {
+    "id": "cmqhero-sl10",
+    "projectId": "cmqhero-bid-proj01",
+    "time": "2026-07-01T02:40:00.000Z",
+    "role": "系统",
+    "target": "四川省通信产业服务有限公司",
+    "action": "标书解密",
+    "result": "解密异常：文件完整性校验不通过，可能存在篡改风险",
+    "riskFlag": "高风险",
+    "createdAt": "2026-07-01T02:40:00.000Z"
+  },
+  {
+    "id": "cmqhero-sl11",
+    "projectId": "cmqhero-bid-proj01",
+    "time": "2026-07-01T03:20:00.000Z",
+    "role": "系统",
+    "target": "2026年度智慧水利大数据平台建设项目",
+    "action": "启动评标 (OPENING→EVALUATING)",
+    "result": "阶段变更成功，进入专家评审阶段",
+    "riskFlag": "无",
+    "createdAt": "2026-07-01T03:20:00.000Z"
+  },
+  {
+    "id": "cmqhero-sl12",
+    "projectId": "cmqhero-bid-proj01",
+    "time": "2026-07-02T01:00:00.000Z",
+    "role": "系统",
+    "target": "2026年度智慧水利大数据平台建设项目",
+    "action": "专家抽取完成",
+    "result": "成功抽取5位专家：周祥志, 黃凯, 陈英, 范鸿烨, 覃克非，均确认参与评标",
+    "riskFlag": "无",
+    "createdAt": "2026-07-02T01:00:00.000Z"
   }
 ]
