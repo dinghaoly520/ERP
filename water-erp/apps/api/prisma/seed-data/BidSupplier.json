@@ -175,9 +175,9 @@
     "receiptNo": null,
     "decryptStatus": "PENDING",
     "confirmStatus": "PENDING",
-    "decryptError": null,
     "createdAt": "2026-06-15T08:00:00.000Z",
-    "updatedAt": "2026-06-21T06:00:00.000Z"
+    "updatedAt": "2026-06-21T06:00:00.000Z",
+    "decryptError": null
   },
   {
     "id": "cmqrich-bs-sfjs2",
@@ -190,9 +190,9 @@
     "receiptNo": null,
     "decryptStatus": "PENDING",
     "confirmStatus": "PENDING",
-    "decryptError": null,
     "createdAt": "2026-06-15T08:00:00.000Z",
-    "updatedAt": "2026-06-22T06:00:00.000Z"
+    "updatedAt": "2026-06-22T06:00:00.000Z",
+    "decryptError": null
   },
   {
     "id": "cmqrich-bs-sfjs3",
@@ -205,9 +205,9 @@
     "receiptNo": "TB-20260623-03",
     "decryptStatus": "PENDING",
     "confirmStatus": "PENDING",
-    "decryptError": null,
     "createdAt": "2026-06-15T08:00:00.000Z",
-    "updatedAt": "2026-06-23T06:00:00.000Z"
+    "updatedAt": "2026-06-23T06:00:00.000Z",
+    "decryptError": null
   },
   {
     "id": "cmqrich-bs-zk1",
@@ -220,9 +220,9 @@
     "receiptNo": null,
     "decryptStatus": "PENDING",
     "confirmStatus": "PENDING",
-    "decryptError": null,
     "createdAt": "2026-06-15T08:00:00.000Z",
-    "updatedAt": "2026-06-24T06:00:00.000Z"
+    "updatedAt": "2026-06-24T06:00:00.000Z",
+    "decryptError": null
   },
   {
     "id": "cmqrich-bs-zk2",
@@ -235,9 +235,9 @@
     "receiptNo": null,
     "decryptStatus": "PENDING",
     "confirmStatus": "PENDING",
-    "decryptError": null,
     "createdAt": "2026-06-15T08:00:00.000Z",
-    "updatedAt": "2026-06-25T06:00:00.000Z"
+    "updatedAt": "2026-06-25T06:00:00.000Z",
+    "decryptError": null
   },
   {
     "id": "cmqrich-bs-zk3",
@@ -250,9 +250,9 @@
     "receiptNo": "TB-20260626-06",
     "decryptStatus": "PENDING",
     "confirmStatus": "PENDING",
-    "decryptError": null,
     "createdAt": "2026-06-15T08:00:00.000Z",
-    "updatedAt": "2026-06-26T06:00:00.000Z"
+    "updatedAt": "2026-06-26T06:00:00.000Z",
+    "decryptError": null
   },
   {
     "id": "cmqrich-bs-tx1",
@@ -265,9 +265,9 @@
     "receiptNo": null,
     "decryptStatus": "PENDING",
     "confirmStatus": "PENDING",
-    "decryptError": null,
     "createdAt": "2026-06-15T08:00:00.000Z",
-    "updatedAt": "2026-06-27T06:00:00.000Z"
+    "updatedAt": "2026-06-27T06:00:00.000Z",
+    "decryptError": null
   },
   {
     "id": "cmqrich-bs-tx2",
@@ -280,9 +280,9 @@
     "receiptNo": null,
     "decryptStatus": "PENDING",
     "confirmStatus": "PENDING",
-    "decryptError": null,
     "createdAt": "2026-06-15T08:00:00.000Z",
-    "updatedAt": "2026-06-28T06:00:00.000Z"
+    "updatedAt": "2026-06-28T06:00:00.000Z",
+    "decryptError": null
   },
   {
     "id": "cmqrich-bs-tx3",
@@ -295,8 +295,8 @@
     "receiptNo": "TB-20260629-09",
     "decryptStatus": "PENDING",
     "confirmStatus": "PENDING",
-    "decryptError": null,
     "createdAt": "2026-06-15T08:00:00.000Z",
-    "updatedAt": "2026-06-20T06:00:00.000Z"
+    "updatedAt": "2026-06-20T06:00:00.000Z",
+    "decryptError": null
   }
 ]

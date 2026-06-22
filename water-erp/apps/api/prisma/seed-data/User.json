@@ -804,18 +804,6 @@
     "updatedAt": "2026-06-13T11:02:25.832Z"
   },
   {
-    "id": "cmqc8r60500dukoekcso0n2e9",
-    "username": "s91510100663000562A",
-    "displayName": "张坤森",
-    "email": null,
-    "passwordHash": "$2b$10$8d2uvUOlO8Xf0buEUpYJJuZoOXL6oq6UUEF//FKtsBj8Uo2SD3GD.",
-    "role": "supplier",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-13T10:57:29.382Z",
-    "updatedAt": "2026-06-13T11:02:25.838Z"
-  },
-  {
     "id": "cmqc8r60800e1koeks2yo73tj",
     "username": "s91310000607220747H",
     "displayName": "金灿波",
@@ -4536,6 +4524,18 @@
     "updatedAt": "2026-06-17T02:48:19.361Z"
   },
   {
+    "id": "c0b734182fd6ff54d7e8816",
+    "username": "supplier7",
+    "displayName": "钱学明",
+    "email": "qianxueming@huayu-water.com",
+    "passwordHash": "$2b$10$/4VsO.c1OatfklHQEiyGwe3asa8fvus5rYvcL4.b0tqCLC1yIVp4K",
+    "role": "supplier",
+    "isActive": false,
+    "departmentId": null,
+    "createdAt": "2026-06-17T02:48:19.361Z",
+    "updatedAt": "2026-06-17T02:48:19.361Z"
+  },
+  {
     "id": "cmqc8r6nz01qwkoekq92ggrox",
     "username": "s865017116ec4",
     "displayName": "日海恒联通信技术有限公司",
@@ -5748,18 +5748,6 @@
     "updatedAt": "2026-06-13T11:02:26.169Z"
   },
   {
-    "id": "cmqc8r69y0116koekhly4zbd4",
-    "username": "s915100002068004920",
-    "displayName": "杨承",
-    "email": null,
-    "passwordHash": "$2b$10$8d2uvUOlO8Xf0buEUpYJJuZoOXL6oq6UUEF//FKtsBj8Uo2SD3GD.",
-    "role": "supplier",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-13T10:57:29.735Z",
-    "updatedAt": "2026-06-13T11:02:26.230Z"
-  },
-  {
     "id": "cmqc8r6ci016fkoek7xys1xke",
     "username": "s91340100343896638X",
     "displayName": "邓蓉芳",
@@ -5964,18 +5952,6 @@
     "updatedAt": "2026-06-17T02:48:19.361Z"
   },
   {
-    "id": "c0b734182fd6ff54d7e8816",
-    "username": "supplier7",
-    "displayName": "钱学明",
-    "email": "qianxueming@huayu-water.com",
-    "passwordHash": "$2b$10$/4VsO.c1OatfklHQEiyGwe3asa8fvus5rYvcL4.b0tqCLC1yIVp4K",
-    "role": "supplier",
-    "isActive": false,
-    "departmentId": null,
-    "createdAt": "2026-06-17T02:48:19.361Z",
-    "updatedAt": "2026-06-17T02:48:19.361Z"
-  },
-  {
     "id": "cmqbysdm30027koh1sndhzsbb",
     "username": "huaxi",
     "displayName": "赵总",
@@ -5988,2247 +5964,2271 @@
     "updatedAt": "2026-06-22T05:46:29.081Z"
   },
   {
-    "id": "c848803aa59b56fcb88b078",
-    "username": "邹琛",
-    "displayName": "邹琛",
-    "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
-    "role": "bid_expert",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.699Z"
-  },
-  {
     "id": "c3a99c8559cbd9d76d8875e",
     "username": "陈柏屹",
     "displayName": "陈柏屹",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.700Z"
+    "updatedAt": "2026-06-22T06:11:46.480Z"
   },
   {
     "id": "ccc2d3101c0ce93f203a255",
     "username": "付书琪",
     "displayName": "付书琪",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.701Z"
+    "updatedAt": "2026-06-22T06:11:46.480Z"
   },
   {
     "id": "c921e8c457edc94c3e3baf2",
     "username": "王青青",
     "displayName": "王青青",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.702Z"
+    "updatedAt": "2026-06-22T06:11:46.481Z"
   },
   {
     "id": "c6cf118fc5785c4deb91a76",
     "username": "徐文静",
     "displayName": "徐文静",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.703Z"
+    "updatedAt": "2026-06-22T06:11:46.481Z"
   },
   {
     "id": "c020dca6396cbe866561028",
     "username": "魏熙",
     "displayName": "魏熙",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.704Z"
+    "updatedAt": "2026-06-22T06:11:46.482Z"
   },
   {
     "id": "c2041fcb98e7cfefd2cf3a9",
     "username": "李玲",
     "displayName": "李玲",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.705Z"
+    "updatedAt": "2026-06-22T06:11:46.483Z"
   },
   {
     "id": "ca0c8507b99a63b5779cb0b",
     "username": "张译文",
     "displayName": "张译文",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.706Z"
+    "updatedAt": "2026-06-22T06:11:46.483Z"
   },
   {
     "id": "cbe859af32ab28f3fa64caa",
     "username": "沈佶",
     "displayName": "沈佶",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.707Z"
+    "updatedAt": "2026-06-22T06:11:46.483Z"
   },
   {
     "id": "c60c2ae52a1f898f1341b2d",
     "username": "黃凯",
     "displayName": "黃凯",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.708Z"
-  },
-  {
-    "id": "c688f99a7c53dafa3ab64b2",
-    "username": "胡红燕",
-    "displayName": "胡红燕",
-    "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
-    "role": "bid_expert",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.709Z"
+    "updatedAt": "2026-06-22T06:11:46.484Z"
   },
   {
     "id": "c9957cc6a7c5dc111dbd884",
     "username": "郑斌",
     "displayName": "郑斌",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.710Z"
+    "updatedAt": "2026-06-22T06:11:46.485Z"
   },
   {
     "id": "c655d829d6d705a8e01df2d",
     "username": "邓晓思",
     "displayName": "邓晓思",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.711Z"
+    "updatedAt": "2026-06-22T06:11:46.485Z"
   },
   {
     "id": "cee7b1404e01a95dede0bf8",
     "username": "张涛",
     "displayName": "张涛",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.712Z"
+    "updatedAt": "2026-06-22T06:11:46.486Z"
   },
   {
     "id": "cf872d2a06a7cadf565ceee",
     "username": "李琳玉",
     "displayName": "李琳玉",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.712Z"
+    "updatedAt": "2026-06-22T06:11:46.486Z"
   },
   {
     "id": "cf3c3f729cab20fd02db3f2",
     "username": "代思敏",
     "displayName": "代思敏",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.713Z"
+    "updatedAt": "2026-06-22T06:11:46.487Z"
   },
   {
     "id": "c3c64307e9aa90f5895eb32",
     "username": "樊宸希",
     "displayName": "樊宸希",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.714Z"
+    "updatedAt": "2026-06-22T06:11:46.487Z"
   },
   {
     "id": "c087e321f23a6b2ae6595c6",
     "username": "兰小艳",
     "displayName": "兰小艳",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.715Z"
+    "updatedAt": "2026-06-22T06:11:46.488Z"
   },
   {
     "id": "c4143419ebdde29da2c2aeb",
     "username": "罗雪",
     "displayName": "罗雪",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.716Z"
+    "updatedAt": "2026-06-22T06:11:46.488Z"
   },
   {
     "id": "c816ac2b58292a756c23611",
     "username": "杜瑞芳",
     "displayName": "杜瑞芳",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.716Z"
+    "updatedAt": "2026-06-22T06:11:46.489Z"
   },
   {
     "id": "ccdb048d1cc3e0d0ae15b86",
     "username": "黃素韵",
     "displayName": "黃素韵",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.717Z"
+    "updatedAt": "2026-06-22T06:11:46.489Z"
   },
   {
     "id": "c2ca90b329d3e4e124f7211",
     "username": "李泠欧",
     "displayName": "李泠欧",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.718Z"
+    "updatedAt": "2026-06-22T06:11:46.490Z"
   },
   {
     "id": "c52965687bf70bde8f39f66",
     "username": "彭茜",
     "displayName": "彭茜",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.719Z"
+    "updatedAt": "2026-06-22T06:11:46.491Z"
   },
   {
     "id": "cd45ccd49d1e6b82e07b6d0",
     "username": "王迪颖",
     "displayName": "王迪颖",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.720Z"
+    "updatedAt": "2026-06-22T06:11:46.491Z"
   },
   {
     "id": "c736bf6047b1cf3caff41d3",
     "username": "王静雅",
     "displayName": "王静雅",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.720Z"
+    "updatedAt": "2026-06-22T06:11:46.492Z"
   },
   {
     "id": "cf2dff9d27e7f8a660c8cd7",
     "username": "郑今子",
     "displayName": "郑今子",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.721Z"
+    "updatedAt": "2026-06-22T06:11:46.492Z"
   },
   {
     "id": "c1920afa21e60b530ad692b",
     "username": "刘欣意",
     "displayName": "刘欣意",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.722Z"
+    "updatedAt": "2026-06-22T06:11:46.493Z"
   },
   {
     "id": "c7da8a7cff1136497178cef",
     "username": "周雄",
     "displayName": "周雄",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.723Z"
+    "updatedAt": "2026-06-22T06:11:46.493Z"
   },
   {
     "id": "c2bf9d5c0c8adb9048dc275",
     "username": "李自繁",
     "displayName": "李自繁",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.724Z"
+    "updatedAt": "2026-06-22T06:11:46.494Z"
   },
   {
     "id": "c33b380f7fa268d8d2da4bd",
     "username": "李叶",
     "displayName": "李叶",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.725Z"
+    "updatedAt": "2026-06-22T06:11:46.494Z"
   },
   {
     "id": "cb8f6677487b1eac17f047d",
     "username": "覃克非",
     "displayName": "覃克非",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.725Z"
+    "updatedAt": "2026-06-22T06:11:46.495Z"
   },
   {
     "id": "c5bade6b59d7a3a50315438",
     "username": "赵元弘",
     "displayName": "赵元弘",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.726Z"
+    "updatedAt": "2026-06-22T06:11:46.495Z"
   },
   {
     "id": "c1bb7c86453b6243a2018f3",
     "username": "廖大勇",
     "displayName": "廖大勇",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.727Z"
+    "updatedAt": "2026-06-22T06:11:46.495Z"
   },
   {
     "id": "c1bf8a97b47aed2477b465b",
     "username": "周祥志",
     "displayName": "周祥志",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.728Z"
+    "updatedAt": "2026-06-22T06:11:46.496Z"
   },
   {
     "id": "c32fde17b9d4f85cc28829d",
     "username": "吴逢祥",
     "displayName": "吴逢祥",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.728Z"
+    "updatedAt": "2026-06-22T06:11:46.496Z"
   },
   {
     "id": "c3075a50c5ff35b41f89814",
     "username": "王静",
     "displayName": "王静",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.730Z"
+    "updatedAt": "2026-06-22T06:11:46.497Z"
   },
   {
     "id": "caa1758130821f8ad80f900",
     "username": "徐望斌",
     "displayName": "徐望斌",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.731Z"
+    "updatedAt": "2026-06-22T06:11:46.497Z"
   },
   {
     "id": "cf8b4b997d24da4a7173ed5",
     "username": "王曦",
     "displayName": "王曦",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.731Z"
+    "updatedAt": "2026-06-22T06:11:46.498Z"
   },
   {
     "id": "c9a18c3309f3994b8b3e874",
     "username": "孙钢",
     "displayName": "孙钢",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.732Z"
+    "updatedAt": "2026-06-22T06:11:46.498Z"
   },
   {
     "id": "c3a4907d3c1167e23dd2605",
     "username": "唐全民",
     "displayName": "唐全民",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.733Z"
+    "updatedAt": "2026-06-22T06:11:46.499Z"
   },
   {
     "id": "c73e8485948e4b777da5dae",
     "username": "谢肖翔",
     "displayName": "谢肖翔",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.734Z"
+    "updatedAt": "2026-06-22T06:11:46.499Z"
   },
   {
     "id": "cfd0d42cdcb8cfb5ffe33b3",
     "username": "王曙华",
     "displayName": "王曙华",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.735Z"
+    "updatedAt": "2026-06-22T06:11:46.500Z"
   },
   {
     "id": "ce2c2bb128695fcea2f9dfa",
     "username": "陶万阔",
     "displayName": "陶万阔",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.735Z"
-  },
-  {
-    "id": "cmqc8r60200dnkoeksr6tg079",
-    "username": "supplier2",
-    "displayName": "罗良元",
-    "email": null,
-    "passwordHash": "$2b$10$W6jvt9whwNKdjW0IbA7HFeVYXfGPnFQXTFS2KGlppQJFUCigEc.b.",
-    "role": "supplier",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-13T10:57:29.379Z",
-    "updatedAt": "2026-06-22T05:46:29.085Z"
+    "updatedAt": "2026-06-22T06:11:46.500Z"
   },
   {
     "id": "c1243aa9878936a05072a2d",
     "username": "帅佳",
     "displayName": "帅佳",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.737Z"
+    "updatedAt": "2026-06-22T06:11:46.501Z"
   },
   {
     "id": "cc3a5d3472487a36a145a66",
     "username": "李军",
     "displayName": "李军",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.738Z"
+    "updatedAt": "2026-06-22T06:11:46.501Z"
   },
   {
     "id": "c68ade75fab8c25429660d3",
     "username": "代建",
     "displayName": "代建",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.738Z"
-  },
-  {
-    "id": "c1742a9e710a37e89c2c33c",
-    "username": "黄强",
-    "displayName": "黄强",
-    "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
-    "role": "bid_expert",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.739Z"
-  },
-  {
-    "id": "cb2e7971f44d12880ac622e",
-    "username": "张安平",
-    "displayName": "张安平",
-    "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
-    "role": "bid_expert",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.740Z"
+    "updatedAt": "2026-06-22T06:11:46.501Z"
   },
   {
     "id": "c2f96a960ff70965b926ef8",
     "username": "韩沛东",
     "displayName": "韩沛东",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.741Z"
+    "updatedAt": "2026-06-22T06:11:46.502Z"
   },
   {
     "id": "c87300be5c1d3511d1b0d67",
     "username": "李金龙",
     "displayName": "李金龙",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.741Z"
+    "updatedAt": "2026-06-22T06:11:46.503Z"
   },
   {
     "id": "c1dfec79a7bbc8ab6c02319",
     "username": "王晗",
     "displayName": "王晗",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.742Z"
+    "updatedAt": "2026-06-22T06:11:46.503Z"
   },
   {
     "id": "c0b6aa0359cb61f1a17a8f4",
     "username": "尹峥",
     "displayName": "尹峥",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.743Z"
+    "updatedAt": "2026-06-22T06:11:46.504Z"
   },
   {
     "id": "c78a47e91ea7ce4a1184f4a",
     "username": "王利容",
     "displayName": "王利容",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.744Z"
+    "updatedAt": "2026-06-22T06:11:46.504Z"
   },
   {
     "id": "ccbbaa772746031c0beb3c5",
     "username": "朱青",
     "displayName": "朱青",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.745Z"
+    "updatedAt": "2026-06-22T06:11:46.505Z"
   },
   {
     "id": "cf7f844118924ebc3d83232",
     "username": "黄凯",
     "displayName": "黄凯",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.745Z"
+    "updatedAt": "2026-06-22T06:11:46.505Z"
   },
   {
     "id": "c0341835a5c67511c5a3699",
     "username": "胡鹏程",
     "displayName": "胡鹏程",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.746Z"
+    "updatedAt": "2026-06-22T06:11:46.506Z"
   },
   {
     "id": "ccd2593ec90958353c11cd0",
     "username": "周青",
     "displayName": "周青",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.747Z"
+    "updatedAt": "2026-06-22T06:11:46.506Z"
   },
   {
     "id": "cecb7a0e088cc07264af001",
     "username": "樊雪钰",
     "displayName": "樊雪钰",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.748Z"
+    "updatedAt": "2026-06-22T06:11:46.506Z"
   },
   {
     "id": "c13853f2da2d73b34d73687",
     "username": "王超",
     "displayName": "王超",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.749Z"
-  },
-  {
-    "id": "cd874dc66a137662ed2c151",
-    "username": "杨传玉",
-    "displayName": "杨传玉",
-    "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
-    "role": "bid_expert",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.750Z"
+    "updatedAt": "2026-06-22T06:11:46.507Z"
   },
   {
     "id": "ce975471362142480497343",
     "username": "杨勇",
     "displayName": "杨勇",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.751Z"
+    "updatedAt": "2026-06-22T06:11:46.508Z"
   },
   {
     "id": "ca6caddc306a1a30c492ed8",
     "username": "尹皓",
     "displayName": "尹皓",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.752Z"
+    "updatedAt": "2026-06-22T06:11:46.508Z"
   },
   {
     "id": "c81a11b9e4f835009a8e3b6",
     "username": "钟鸿",
     "displayName": "钟鸿",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.753Z"
+    "updatedAt": "2026-06-22T06:11:46.509Z"
   },
   {
     "id": "c1ad09e27b5de273e042386",
     "username": "单智杰",
     "displayName": "单智杰",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.753Z"
+    "updatedAt": "2026-06-22T06:11:46.509Z"
   },
   {
     "id": "cd30538a940548fd4e87ae5",
     "username": "张延明",
     "displayName": "张延明",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.754Z"
+    "updatedAt": "2026-06-22T06:11:46.509Z"
   },
   {
     "id": "c216edc8542d89c1d15df8c",
     "username": "钱荣兵",
     "displayName": "钱荣兵",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.755Z"
+    "updatedAt": "2026-06-22T06:11:46.510Z"
   },
   {
     "id": "c2c2040e4ca6d71de653e07",
     "username": "杨培思",
     "displayName": "杨培思",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.756Z"
+    "updatedAt": "2026-06-22T06:11:46.510Z"
   },
   {
     "id": "cfe25e8e69407a7da24b49d",
     "username": "杨其国",
     "displayName": "杨其国",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.756Z"
+    "updatedAt": "2026-06-22T06:11:46.511Z"
   },
   {
     "id": "c7094ea594998556f4b0edb",
     "username": "邬建华",
     "displayName": "邬建华",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.757Z"
+    "updatedAt": "2026-06-22T06:11:46.511Z"
   },
   {
     "id": "c446548f5d4a7ba4714f33d",
     "username": "李成刚",
     "displayName": "李成刚",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.758Z"
+    "updatedAt": "2026-06-22T06:11:46.512Z"
   },
   {
     "id": "cef5bdb64f219bdcd62b223",
     "username": "马永喜",
     "displayName": "马永喜",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.759Z"
+    "updatedAt": "2026-06-22T06:11:46.512Z"
   },
   {
     "id": "ca9d32af5c746ec3fec387d",
     "username": "王玉泰",
     "displayName": "王玉泰",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.759Z"
+    "updatedAt": "2026-06-22T06:11:46.513Z"
   },
   {
     "id": "cb72350efe8b7e50c6f2465",
     "username": "柳序先",
     "displayName": "柳序先",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.760Z"
+    "updatedAt": "2026-06-22T06:11:46.513Z"
   },
   {
     "id": "c969cde04fedb19817e7371",
     "username": "宇天奇",
     "displayName": "宇天奇",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.761Z"
+    "updatedAt": "2026-06-22T06:11:46.514Z"
   },
   {
     "id": "c3c2dbdaed56d4d542fe00d",
     "username": "毛增产",
     "displayName": "毛增产",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.762Z"
+    "updatedAt": "2026-06-22T06:11:46.514Z"
   },
   {
     "id": "c6401d5d1c4480790d0b0a7",
     "username": "仇海亮",
     "displayName": "仇海亮",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.763Z"
+    "updatedAt": "2026-06-22T06:11:46.514Z"
   },
   {
     "id": "cfb029fd589935f367620f3",
     "username": "包素虎",
     "displayName": "包素虎",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.764Z"
+    "updatedAt": "2026-06-22T06:11:46.515Z"
   },
   {
     "id": "c566649c3af65e723c467a2",
     "username": "麦高飞",
     "displayName": "麦高飞",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.764Z"
+    "updatedAt": "2026-06-22T06:11:46.516Z"
   },
   {
     "id": "c60ad26346485bf4136f4bb",
     "username": "曾威",
     "displayName": "曾威",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.765Z"
+    "updatedAt": "2026-06-22T06:11:46.516Z"
   },
   {
     "id": "c3aadaff3e538c379a9ffd4",
     "username": "饶杰",
     "displayName": "饶杰",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.766Z"
+    "updatedAt": "2026-06-22T06:11:46.516Z"
   },
   {
     "id": "cb1b5c7c0013c6bfb90cab9",
     "username": "王博",
     "displayName": "王博",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.767Z"
+    "updatedAt": "2026-06-22T06:11:46.517Z"
   },
   {
     "id": "cdb063222e68912e915f2ec",
     "username": "王毅",
     "displayName": "王毅",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.768Z"
+    "updatedAt": "2026-06-22T06:11:46.517Z"
   },
   {
     "id": "c6c9046f6381761ba3a091a",
     "username": "曾攀",
     "displayName": "曾攀",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.769Z"
+    "updatedAt": "2026-06-22T06:11:46.518Z"
   },
   {
     "id": "ce7e54444763ebbead6d954",
     "username": "杨会杰",
     "displayName": "杨会杰",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.769Z"
+    "updatedAt": "2026-06-22T06:11:46.518Z"
   },
   {
     "id": "c1de58bdaf56f127cfa6a22",
     "username": "吴晓鹏",
     "displayName": "吴晓鹏",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.770Z"
+    "updatedAt": "2026-06-22T06:11:46.519Z"
   },
   {
     "id": "c53e7464beb3a9fb0cf8f95",
     "username": "李春林",
     "displayName": "李春林",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.771Z"
+    "updatedAt": "2026-06-22T06:11:46.519Z"
   },
   {
     "id": "c06fc9cf144ff40a755486a",
     "username": "邓先均",
     "displayName": "邓先均",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.772Z"
+    "updatedAt": "2026-06-22T06:11:46.520Z"
   },
   {
     "id": "c6267d0953f4706c1ffa9e2",
     "username": "朱少帅",
     "displayName": "朱少帅",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.773Z"
+    "updatedAt": "2026-06-22T06:11:46.520Z"
   },
   {
     "id": "c64c6a951b5f5da2d8b1719",
     "username": "林涛",
     "displayName": "林涛",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.773Z"
+    "updatedAt": "2026-06-22T06:11:46.520Z"
   },
   {
     "id": "c325407d7f3108de5ce464e",
     "username": "刘天毅",
     "displayName": "刘天毅",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.775Z"
+    "updatedAt": "2026-06-22T06:11:46.521Z"
   },
   {
     "id": "c8216fc199d18e3443c5ccf",
     "username": "陈玉龙",
     "displayName": "陈玉龙",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.776Z"
+    "updatedAt": "2026-06-22T06:11:46.521Z"
   },
   {
     "id": "ce853d142e88f938d3076d7",
     "username": "姚颖",
     "displayName": "姚颖",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.777Z"
+    "updatedAt": "2026-06-22T06:11:46.522Z"
   },
   {
     "id": "c5faa29f94a10863f2d062f",
     "username": "黄丽平",
     "displayName": "黄丽平",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.778Z"
+    "updatedAt": "2026-06-22T06:11:46.522Z"
   },
   {
     "id": "c5d571efe00149dc17d472b",
     "username": "王凌书",
     "displayName": "王凌书",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.779Z"
+    "updatedAt": "2026-06-22T06:11:46.522Z"
   },
   {
     "id": "ccd4b59472349812867a1af",
     "username": "胡秋越",
     "displayName": "胡秋越",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.780Z"
-  },
-  {
-    "id": "c07c50b18b5917b7f926ff0",
-    "username": "刘义坤",
-    "displayName": "刘义坤",
-    "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
-    "role": "bid_expert",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.780Z"
+    "updatedAt": "2026-06-22T06:11:46.523Z"
   },
   {
     "id": "cca119a2d240fe6bc879622",
     "username": "任国峰",
     "displayName": "任国峰",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.781Z"
+    "updatedAt": "2026-06-22T06:11:46.524Z"
   },
   {
     "id": "c1ea9c3ebc084fa946a04db",
     "username": "王一帆",
     "displayName": "王一帆",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.782Z"
+    "updatedAt": "2026-06-22T06:11:46.524Z"
   },
   {
     "id": "c2afaa1181d6ef09b7ddd1f",
     "username": "孙策",
     "displayName": "孙策",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.783Z"
+    "updatedAt": "2026-06-22T06:11:46.525Z"
   },
   {
     "id": "c826709c602085d0d94cc2a",
     "username": "阴红宇",
     "displayName": "阴红宇",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.783Z"
+    "updatedAt": "2026-06-22T06:11:46.525Z"
   },
   {
     "id": "c9b660b672c06d983f5d986",
     "username": "尚俊杰",
     "displayName": "尚俊杰",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.784Z"
+    "updatedAt": "2026-06-22T06:11:46.525Z"
   },
   {
     "id": "c7d0cb8c25e0b9e32858f60",
     "username": "李旭",
     "displayName": "李旭",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.785Z"
+    "updatedAt": "2026-06-22T06:11:46.526Z"
   },
   {
     "id": "c38a410c5554cbd61927ec9",
     "username": "魏忠元",
     "displayName": "魏忠元",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.786Z"
+    "updatedAt": "2026-06-22T06:11:46.526Z"
   },
   {
     "id": "c8e7417a05c718933cabb6c",
     "username": "胡松",
     "displayName": "胡松",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.787Z"
+    "updatedAt": "2026-06-22T06:11:46.527Z"
   },
   {
     "id": "c364afad4ac63c000585e5b",
     "username": "魏巍",
     "displayName": "魏巍",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.788Z"
+    "updatedAt": "2026-06-22T06:11:46.527Z"
   },
   {
     "id": "c3daaf505b66014f99a948d",
     "username": "邹航",
     "displayName": "邹航",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.789Z"
+    "updatedAt": "2026-06-22T06:11:46.527Z"
   },
   {
     "id": "cf3c0859b95bc28049a225a",
     "username": "杨灿",
     "displayName": "杨灿",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.790Z"
+    "updatedAt": "2026-06-22T06:11:46.528Z"
   },
   {
     "id": "c7c807f7984b3fbcf6a2c31",
     "username": "王小金",
     "displayName": "王小金",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.790Z"
+    "updatedAt": "2026-06-22T06:11:46.528Z"
   },
   {
     "id": "ca99ca679a5055e24596c02",
     "username": "吴全兴",
     "displayName": "吴全兴",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.791Z"
+    "updatedAt": "2026-06-22T06:11:46.529Z"
   },
   {
     "id": "c8fb3f42949eb9bd63c6315",
     "username": "杨永恒",
     "displayName": "杨永恒",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.792Z"
+    "updatedAt": "2026-06-22T06:11:46.529Z"
   },
   {
     "id": "ced2ed87ae0d90297edec27",
     "username": "谌春",
     "displayName": "谌春",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.793Z"
-  },
-  {
-    "id": "c3fe5197565546f990c0ae1",
-    "username": "房建佳",
-    "displayName": "房建佳",
-    "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
-    "role": "bid_expert",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.793Z"
+    "updatedAt": "2026-06-22T06:11:46.529Z"
   },
   {
     "id": "c06d727025ec412987a9ba2",
     "username": "徐雄才",
     "displayName": "徐雄才",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.794Z"
+    "updatedAt": "2026-06-22T06:11:46.530Z"
   },
   {
     "id": "cb0acf46b2375dfb1c08ffb",
     "username": "王子凌",
     "displayName": "王子凌",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.795Z"
+    "updatedAt": "2026-06-22T06:11:46.531Z"
   },
   {
     "id": "c51206fea0b5a7485d5d68c",
     "username": "陈豪",
     "displayName": "陈豪",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.795Z"
+    "updatedAt": "2026-06-22T06:11:46.531Z"
   },
   {
     "id": "c01930f0eb4b5e9a0e39dc3",
     "username": "刘苡池",
     "displayName": "刘苡池",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.796Z"
+    "updatedAt": "2026-06-22T06:11:46.532Z"
   },
   {
     "id": "c718ff9618bce5df8ec66e0",
     "username": "马田田",
     "displayName": "马田田",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.797Z"
+    "updatedAt": "2026-06-22T06:11:46.532Z"
   },
   {
     "id": "c62129e1b17abace5191d75",
     "username": "彭明亮",
     "displayName": "彭明亮",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.798Z"
+    "updatedAt": "2026-06-22T06:11:46.533Z"
   },
   {
     "id": "c0f9dbe0706a39401616712",
     "username": "杨頲",
     "displayName": "杨頲",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.799Z"
+    "updatedAt": "2026-06-22T06:11:46.533Z"
   },
   {
     "id": "c48304cb3db950081a9cf57",
     "username": "杨小奇",
     "displayName": "杨小奇",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.800Z"
+    "updatedAt": "2026-06-22T06:11:46.533Z"
   },
   {
     "id": "c92765622a8e782ba3c9989",
     "username": "朱建雄",
     "displayName": "朱建雄",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.801Z"
+    "updatedAt": "2026-06-22T06:11:46.534Z"
   },
   {
     "id": "c01e4dffe4d6b5d91b2eb73",
     "username": "宋为广",
     "displayName": "宋为广",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.802Z"
+    "updatedAt": "2026-06-22T06:11:46.534Z"
   },
   {
     "id": "c92b2d5c8cb1b16813e0fe2",
     "username": "来晓芸",
     "displayName": "来晓芸",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.802Z"
+    "updatedAt": "2026-06-22T06:11:46.535Z"
   },
   {
     "id": "c59d83b50b2d9202b076bf6",
     "username": "程薇玮",
     "displayName": "程薇玮",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.803Z"
+    "updatedAt": "2026-06-22T06:11:46.535Z"
   },
   {
     "id": "c8e49f27221c0179852f05e",
     "username": "蔡网锁",
     "displayName": "蔡网锁",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.804Z"
+    "updatedAt": "2026-06-22T06:11:46.535Z"
   },
   {
     "id": "cc2c026274336ff9dff8eeb",
     "username": "赵东昌",
     "displayName": "赵东昌",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.805Z"
+    "updatedAt": "2026-06-22T06:11:46.536Z"
   },
   {
     "id": "cd7db4034003bd912b4ecdc",
     "username": "罗俊",
     "displayName": "罗俊",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.805Z"
+    "updatedAt": "2026-06-22T06:11:46.536Z"
   },
   {
     "id": "cd4fcaa2ac61166ed37176a",
     "username": "雍芹",
     "displayName": "雍芹",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.806Z"
+    "updatedAt": "2026-06-22T06:11:46.537Z"
   },
   {
     "id": "c9d82b114b7a2d6712e8923",
     "username": "陈英",
     "displayName": "陈英",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.807Z"
+    "updatedAt": "2026-06-22T06:11:46.537Z"
   },
   {
     "id": "cc0e2743afa83cdc1e69932",
     "username": "寇立川",
     "displayName": "寇立川",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.808Z"
+    "updatedAt": "2026-06-22T06:11:46.537Z"
   },
   {
     "id": "cf2009952dac4a873e4a237",
     "username": "徐浩",
     "displayName": "徐浩",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.809Z"
+    "updatedAt": "2026-06-22T06:11:46.538Z"
   },
   {
     "id": "c112e28424ea2a3c30597bd",
     "username": "李由",
     "displayName": "李由",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.809Z"
+    "updatedAt": "2026-06-22T06:11:46.538Z"
   },
   {
     "id": "c02d43bbb3338113c40db78",
     "username": "李超峰",
     "displayName": "李超峰",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.810Z"
+    "updatedAt": "2026-06-22T06:11:46.539Z"
   },
   {
     "id": "c31f90ca433e8aace071992",
     "username": "张梅",
     "displayName": "张梅",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.811Z"
+    "updatedAt": "2026-06-22T06:11:46.539Z"
   },
   {
     "id": "c336005f78b5c7f0c1e787d",
     "username": "黎俊",
     "displayName": "黎俊",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.812Z"
+    "updatedAt": "2026-06-22T06:11:46.540Z"
   },
   {
     "id": "c79576e7d8c5c8f42584bc7",
     "username": "阎慧",
     "displayName": "阎慧",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.696Z"
+    "updatedAt": "2026-06-22T06:11:46.540Z"
   },
   {
     "id": "c690d74d6d535b32d80f736",
     "username": "范鸿烨",
     "displayName": "范鸿烨",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.698Z"
+    "updatedAt": "2026-06-22T06:11:46.541Z"
   },
   {
     "id": "cd2247302f618f85a47ae9f",
     "username": "赵培远",
     "displayName": "赵培远",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.729Z"
+    "updatedAt": "2026-06-22T06:11:46.541Z"
   },
   {
     "id": "c413b19c5a83607f0f4c180",
     "username": "高睿",
     "displayName": "高睿",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.736Z"
+    "updatedAt": "2026-06-22T06:11:46.542Z"
   },
   {
     "id": "c8ef949b637355dec8f2a25",
     "username": "周成瑜",
     "displayName": "周成瑜",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.813Z"
+    "updatedAt": "2026-06-22T06:11:46.542Z"
   },
   {
     "id": "c824dc53e9093ada8f900e6",
     "username": "黄铄芸",
     "displayName": "黄铄芸",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.814Z"
+    "updatedAt": "2026-06-22T06:11:46.542Z"
   },
   {
     "id": "ca1019abd39bc56191b61bd",
     "username": "龙润川",
     "displayName": "龙润川",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.815Z"
+    "updatedAt": "2026-06-22T06:11:46.543Z"
   },
   {
     "id": "c37ddd4acb95f51d26dee8e",
     "username": "陈桢楠",
     "displayName": "陈桢楠",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.816Z"
+    "updatedAt": "2026-06-22T06:11:46.543Z"
   },
   {
-    "id": "c4ef91eec41a0e7b311f055",
-    "username": "王枫",
-    "displayName": "王枫",
+    "id": "c1742a9e710a37e89c2c33c",
+    "username": "黄强",
+    "displayName": "黄强",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.816Z"
+    "updatedAt": "2026-06-22T06:11:46.477Z"
+  },
+  {
+    "id": "c848803aa59b56fcb88b078",
+    "username": "邹琛",
+    "displayName": "邹琛",
+    "email": null,
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
+    "role": "bid_expert",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-18T06:51:51.890Z",
+    "updatedAt": "2026-06-22T06:11:46.479Z"
+  },
+  {
+    "id": "c688f99a7c53dafa3ab64b2",
+    "username": "胡红燕",
+    "displayName": "胡红燕",
+    "email": null,
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
+    "role": "bid_expert",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-18T06:51:51.890Z",
+    "updatedAt": "2026-06-22T06:11:46.484Z"
+  },
+  {
+    "id": "cb2e7971f44d12880ac622e",
+    "username": "张安平",
+    "displayName": "张安平",
+    "email": null,
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
+    "role": "bid_expert",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-18T06:51:51.890Z",
+    "updatedAt": "2026-06-22T06:11:46.502Z"
+  },
+  {
+    "id": "cd874dc66a137662ed2c151",
+    "username": "杨传玉",
+    "displayName": "杨传玉",
+    "email": null,
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
+    "role": "bid_expert",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-18T06:51:51.890Z",
+    "updatedAt": "2026-06-22T06:11:46.507Z"
   },
   {
     "id": "c59eee7556ce3989098b171",
     "username": "徐建忠",
     "displayName": "徐建忠",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.817Z"
+    "updatedAt": "2026-06-22T06:11:46.544Z"
   },
   {
     "id": "c7a4c730587e47013259c2e",
     "username": "李瑞",
     "displayName": "李瑞",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.818Z"
+    "updatedAt": "2026-06-22T06:11:46.544Z"
   },
   {
     "id": "cb6743aff73a95aed5e6bc0",
     "username": "吴航宇",
     "displayName": "吴航宇",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.819Z"
+    "updatedAt": "2026-06-22T06:11:46.545Z"
   },
   {
     "id": "c6e5d950fb98da5c38d0157",
     "username": "康文海",
     "displayName": "康文海",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.820Z"
+    "updatedAt": "2026-06-22T06:11:46.545Z"
   },
   {
     "id": "c11e632255cb22470b23a1f",
     "username": "秦涛",
     "displayName": "秦涛",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.820Z"
+    "updatedAt": "2026-06-22T06:11:46.546Z"
   },
   {
     "id": "c49e951fb524ba5eb5e6208",
     "username": "黄伟",
     "displayName": "黄伟",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.821Z"
+    "updatedAt": "2026-06-22T06:11:46.546Z"
   },
   {
     "id": "c6cb1262ad6130f9b2d77a6",
     "username": "张明",
     "displayName": "张明",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.822Z"
+    "updatedAt": "2026-06-22T06:11:46.547Z"
   },
   {
     "id": "c6bb93fe16e38e5e48b91cd",
     "username": "王显富",
     "displayName": "王显富",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.823Z"
+    "updatedAt": "2026-06-22T06:11:46.547Z"
   },
   {
     "id": "c65a9273c190f11cca32e4f",
     "username": "王永生",
     "displayName": "王永生",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.824Z"
+    "updatedAt": "2026-06-22T06:11:46.548Z"
   },
   {
     "id": "ccdc0945bf2eaeb9b62c6ff",
     "username": "张勇",
     "displayName": "张勇",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.824Z"
+    "updatedAt": "2026-06-22T06:11:46.548Z"
   },
   {
     "id": "c8123e468af76748b83b07a",
     "username": "张树清",
     "displayName": "张树清",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.825Z"
+    "updatedAt": "2026-06-22T06:11:46.548Z"
   },
   {
     "id": "cd43e0d72f5fc062a98158b",
     "username": "许辉",
     "displayName": "许辉",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.827Z"
+    "updatedAt": "2026-06-22T06:11:46.549Z"
   },
   {
     "id": "c8381f05d61d0b6643f5558",
     "username": "陶超",
     "displayName": "陶超",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.828Z"
+    "updatedAt": "2026-06-22T06:11:46.549Z"
   },
   {
     "id": "cc347eb836cb7dd58f509c0",
     "username": "何均",
     "displayName": "何均",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.828Z"
+    "updatedAt": "2026-06-22T06:11:46.550Z"
   },
   {
     "id": "ca09205cac804ce603ffaf1",
     "username": "王强",
     "displayName": "王强",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.829Z"
+    "updatedAt": "2026-06-22T06:11:46.550Z"
   },
   {
     "id": "cec1fac6e334010cb2c8b0a",
     "username": "刘承东",
     "displayName": "刘承东",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.830Z"
-  },
-  {
-    "id": "c149d40956161a07fbfd322",
-    "username": "杨洪强",
-    "displayName": "杨洪强",
-    "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
-    "role": "bid_expert",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.831Z"
+    "updatedAt": "2026-06-22T06:11:46.551Z"
   },
   {
     "id": "ceb7f6956a9f535c1aa7ee8",
     "username": "李海龙",
     "displayName": "李海龙",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.832Z"
+    "updatedAt": "2026-06-22T06:11:46.552Z"
   },
   {
     "id": "cc0154af02c84ddba9448c7",
     "username": "李唐",
     "displayName": "李唐",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.832Z"
+    "updatedAt": "2026-06-22T06:11:46.552Z"
   },
   {
     "id": "c2580bfe3e98a2b63ae8f3e",
     "username": "余超俊",
     "displayName": "余超俊",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.833Z"
+    "updatedAt": "2026-06-22T06:11:46.552Z"
   },
   {
     "id": "c573bc975408d26d755484a",
     "username": "祝贺",
     "displayName": "祝贺",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.834Z"
+    "updatedAt": "2026-06-22T06:11:46.553Z"
   },
   {
     "id": "cb779145829c7b673b82409",
     "username": "李卫起",
     "displayName": "李卫起",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.835Z"
+    "updatedAt": "2026-06-22T06:11:46.553Z"
   },
   {
     "id": "c1df8cb0dfc332079a48b8c",
     "username": "李建乐",
     "displayName": "李建乐",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.836Z"
+    "updatedAt": "2026-06-22T06:11:46.554Z"
   },
   {
     "id": "cd490dc8f1c36ab54f16053",
     "username": "李萍",
     "displayName": "李萍",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.837Z"
+    "updatedAt": "2026-06-22T06:11:46.554Z"
   },
   {
     "id": "c3ad6b90ea7ebaecfdaa25c",
     "username": "欧源",
     "displayName": "欧源",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.837Z"
+    "updatedAt": "2026-06-22T06:11:46.555Z"
   },
   {
     "id": "c79337e5875905b5f82f1c9",
     "username": "陈凯",
     "displayName": "陈凯",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.838Z"
+    "updatedAt": "2026-06-22T06:11:46.555Z"
   },
   {
     "id": "caa68436d928e8d3a7a1217",
     "username": "刘俸",
     "displayName": "刘俸",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.839Z"
+    "updatedAt": "2026-06-22T06:11:46.556Z"
   },
   {
     "id": "c448737bac4f614a4c83f54",
     "username": "杨东",
     "displayName": "杨东",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.840Z"
+    "updatedAt": "2026-06-22T06:11:46.556Z"
   },
   {
     "id": "c850291f8d0cbc89944e4b6",
     "username": "李深奇",
     "displayName": "李深奇",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.840Z"
+    "updatedAt": "2026-06-22T06:11:46.557Z"
   },
   {
     "id": "cd92647efd26edcbec70918",
     "username": "臧荣强",
     "displayName": "臧荣强",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.841Z"
+    "updatedAt": "2026-06-22T06:11:46.557Z"
   },
   {
     "id": "c0370b9f556684852e7976d",
     "username": "高瑞良",
     "displayName": "高瑞良",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.842Z"
+    "updatedAt": "2026-06-22T06:11:46.558Z"
   },
   {
     "id": "c4d3aaf5f7fd446e6e4ebd2",
     "username": "高志辉",
     "displayName": "高志辉",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.843Z"
+    "updatedAt": "2026-06-22T06:11:46.558Z"
   },
   {
     "id": "c973742dfbb560431b1fca5",
     "username": "雷丛菜",
     "displayName": "雷丛菜",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.844Z"
+    "updatedAt": "2026-06-22T06:11:46.558Z"
   },
   {
     "id": "cb75a8d6afbff9233f4eaa4",
     "username": "刘黎波",
     "displayName": "刘黎波",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.844Z"
+    "updatedAt": "2026-06-22T06:11:46.559Z"
   },
   {
     "id": "cb848fdfe24c932ba55bf1d",
     "username": "罗及谦",
     "displayName": "罗及谦",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.845Z"
+    "updatedAt": "2026-06-22T06:11:46.559Z"
   },
   {
     "id": "c5df8f1009a5764412698cd",
     "username": "马苏轶",
     "displayName": "马苏轶",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.846Z"
+    "updatedAt": "2026-06-22T06:11:46.560Z"
   },
   {
     "id": "cfd53916277d8d780f94589",
     "username": "肖柳平",
     "displayName": "肖柳平",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.847Z"
+    "updatedAt": "2026-06-22T06:11:46.560Z"
   },
   {
     "id": "c878006ceda961361c253ad",
     "username": "杨汉骞",
     "displayName": "杨汉骞",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.749Z"
+    "updatedAt": "2026-06-22T06:11:46.561Z"
   },
   {
     "id": "c6750649bcbe54560373957",
     "username": "多士锋",
     "displayName": "多士锋",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.774Z"
+    "updatedAt": "2026-06-22T06:11:46.561Z"
   },
   {
     "id": "cdb8a9f4ea3d13cb9c07ff3",
     "username": "乔俊强",
     "displayName": "乔俊强",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.786Z"
+    "updatedAt": "2026-06-22T06:11:46.562Z"
   },
   {
     "id": "c3abc58edf2e03f118c7eba",
     "username": "冯毅",
     "displayName": "冯毅",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.812Z"
+    "updatedAt": "2026-06-22T06:11:46.562Z"
   },
   {
     "id": "ccdbcd013285a2458995c51",
     "username": "王革林",
     "displayName": "王革林",
     "email": null,
-    "passwordHash": "$2b$10$8AtFJS9Y.szpkryTfFGobOZkidbNSqB6FgjswbRKmAeOd6v/QJIHe",
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
     "role": "bid_expert",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-22T03:28:20.826Z"
+    "updatedAt": "2026-06-22T06:11:46.562Z"
+  },
+  {
+    "id": "c07c50b18b5917b7f926ff0",
+    "username": "刘义坤",
+    "displayName": "刘义坤",
+    "email": null,
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
+    "role": "bid_expert",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-18T06:51:51.890Z",
+    "updatedAt": "2026-06-22T06:11:46.523Z"
+  },
+  {
+    "id": "c3fe5197565546f990c0ae1",
+    "username": "房建佳",
+    "displayName": "房建佳",
+    "email": null,
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
+    "role": "bid_expert",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-18T06:51:51.890Z",
+    "updatedAt": "2026-06-22T06:11:46.530Z"
+  },
+  {
+    "id": "c4ef91eec41a0e7b311f055",
+    "username": "王枫",
+    "displayName": "王枫",
+    "email": null,
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
+    "role": "bid_expert",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-18T06:51:51.890Z",
+    "updatedAt": "2026-06-22T06:11:46.544Z"
+  },
+  {
+    "id": "c149d40956161a07fbfd322",
+    "username": "杨洪强",
+    "displayName": "杨洪强",
+    "email": null,
+    "passwordHash": "$2b$10$NEP8dPf/2ivIxDB/a4dByO6f58s8sPrWVpWWz6btwOUw8nJBWKB76",
+    "role": "bid_expert",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-18T06:51:51.890Z",
+    "updatedAt": "2026-06-22T06:11:46.551Z"
+  },
+  {
+    "id": "cmqc8r69y0116koekhly4zbd4",
+    "username": "四川水发建设有限公司",
+    "displayName": "杨承",
+    "email": null,
+    "passwordHash": "$2b$10$jyi0omoUikrXOifFaY4tAOfp2yNQo6rxGJ2yWY48faCDlc6Jax2wG",
+    "role": "supplier",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-13T10:57:29.735Z",
+    "updatedAt": "2026-06-22T06:17:24.324Z"
+  },
+  {
+    "id": "cmqc8r60200dnkoeksr6tg079",
+    "username": "中科院成都信息技术股份有限公司",
+    "displayName": "罗良元",
+    "email": null,
+    "passwordHash": "$2b$10$jyi0omoUikrXOifFaY4tAOfp2yNQo6rxGJ2yWY48faCDlc6Jax2wG",
+    "role": "supplier",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-13T10:57:29.379Z",
+    "updatedAt": "2026-06-22T06:17:24.328Z"
+  },
+  {
+    "id": "cmqc8r60500dukoekcso0n2e9",
+    "username": "四川省通信产业服务有限公司",
+    "displayName": "张坤森",
+    "email": null,
+    "passwordHash": "$2b$10$jyi0omoUikrXOifFaY4tAOfp2yNQo6rxGJ2yWY48faCDlc6Jax2wG",
+    "role": "supplier",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-06-13T10:57:29.382Z",
+    "updatedAt": "2026-06-22T06:17:24.330Z"
   }
 ]
