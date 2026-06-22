@@ -1,16 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
+import type { AnomalyDetectedPayload } from '@water-erp/shared';
 import { getSupervisionAnnotations, upsertSupervisionAnnotation, deleteSupervisionAnnotation } from '@/lib/api/bid';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { TableSkeleton } from '@/components/skeleton';
-import { Shield, AlertTriangle, Eye, Download } from 'lucide-react';
+import { Shield, AlertTriangle, Eye, Download, RefreshCw, Zap } from 'lucide-react';
 import { PageHero, SectionCard } from '@water-erp/ui';
 import { toast } from 'sonner';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ConnectionIndicator } from '@/components/connection-indicator';
+import NoProjectGuide from '@/components/no-project-guide';
 
 function exportSupervisionCSV(logs: Array<{ time: string; role: string; target: string; action: string; result: string; riskFlag: string }>) {
   const BOM = '﻿';
@@ -41,17 +43,30 @@ export default function BidSupervisePage() {
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [supervisionLogs, setSupervisionLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  // AI/实时检测到的异常事件（与解密 DANGER 供应商一同在异常面板展示）
+  const [anomalyEvents, setAnomalyEvents] = useState<AnomalyDetectedPayload[]>([]);
   // P3: actionable anomaly annotations (session-local flags/escalations/notes)
   const [anomalyFlags, setAnomalyFlags] = useState<Map<string, 'flagged' | 'escalated' | null>>(new Map());
   const [anomalyNotes, setAnomalyNotes] = useState<Map<string, string>>(new Map());
   const [annotatingId, setAnnotatingId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
 
-  useEffect(() => {
+  const loadProject = useCallback(async () => {
     if (!projectId) return;
+    setError(null);
     setLoading(true);
-    api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(p => { setProject(p); setLoading(false); });
+    try {
+      const p = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
+      setProject(p);
+    } catch (e: any) {
+      setError(e?.message || '加载项目数据失败');
+    } finally {
+      setLoading(false);
+    }
   }, [projectId]);
+
+  useEffect(() => { loadProject(); }, [loadProject]);
 
   // Load persisted annotations from API
   useEffect(() => {
@@ -86,13 +101,26 @@ export default function BidSupervisePage() {
       }
     },
     onAnomalyDetected: (data) => {
-      const variant = data.severity === 'danger' ? 'error' : 'warning';
-      (toast as any)[variant]?.(data.detail ?? '检测到异常') || toast.warning(data.detail ?? '检测到异常');
+      if (data.severity === 'danger') toast.error(data.detail ?? '检测到异常');
+      else toast.warning(data.detail ?? '检测到异常');
+      setAnomalyEvents(prev => [data, ...prev].slice(0, 50));
     },
   });
 
 
+  if (!projectId) return <NoProjectGuide />;
   if (loading) return <TableSkeleton rows={6} cols={6} />;
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <AlertTriangle size={28} strokeWidth={1.5} className="text-[#e74c3c] mb-3" />
+        <p className="text-sm font-semibold text-[#5a6d8a] mb-4">{error}</p>
+        <button onClick={loadProject} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#064ea2] text-white text-xs font-bold hover:bg-[#0b63ce] transition">
+          <RefreshCw size={13} strokeWidth={1.5} /> 重试
+        </button>
+      </div>
+    );
+  }
   if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20">暂无项目数据</div>;
   if (!projectId) return null;
 
@@ -122,7 +150,11 @@ export default function BidSupervisePage() {
         {/* Timeline */}
         <SectionCard title="过程时间线">
           <div className="space-y-3">
-            {supervisionLogs.map((log, i) => (
+            {supervisionLogs.length === 0 ? (
+              <div className="py-8 text-center text-[12px] text-[oklch(0.62_0.008_264)] flex items-center justify-center gap-2">
+                <Eye size={14} strokeWidth={1.5} /> 暂无监督日志
+              </div>
+            ) : supervisionLogs.map((log, i) => (
               <div key={log.id} className={`flex items-start gap-3 ${i === 0 ? '' : 'pt-3 border-t border-[oklch(0.94_0.004_264)]'}`}>
                 <div className={`w-1.5 h-1.5 mt-2 flex-shrink-0 ${log.riskFlag && log.riskFlag !== '无' ? 'bg-[oklch(0.50_0.18_22)]' : 'bg-[oklch(0.42_0.14_260)]'}`} />
                 <div className="flex-1 min-w-0">
@@ -137,7 +169,7 @@ export default function BidSupervisePage() {
 
         {/* Anomalies */}
         <SectionCard title="异常事件">
-          {anomalies.length === 0 ? (
+          {anomalies.length === 0 && anomalyEvents.length === 0 ? (
             <div className="bg-[oklch(0.96_0.02_260)] border border-[oklch(0.88_0.04_258)] p-4 text-[12px] text-[oklch(0.42_0.14_260)] flex items-center gap-2">
               <Eye size={14} strokeWidth={1.5} /> 当前无异常事件
             </div>
@@ -231,6 +263,21 @@ export default function BidSupervisePage() {
               </div>
             </div>
           )})}
+          {anomalyEvents.map((ev, idx) => (
+            <div key={`aiev-${idx}`} className={`p-4 mb-2 border rounded-xl ${ev.severity === 'danger' ? 'bg-red-50 border-red-300' : 'bg-amber-50 border-amber-300'}`}>
+              <div className="flex items-start gap-2">
+                <Zap size={14} strokeWidth={1.5} className={`mt-0.5 flex-shrink-0 ${ev.severity === 'danger' ? 'text-[#e74c3c]' : 'text-[#f5a623]'}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-[13px] font-semibold text-[#18243a]">{ev.supplierName || ev.type || '异常事件'}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${ev.severity === 'danger' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>{ev.severity === 'danger' ? '危险' : '警告'}</span>
+                    <span className="text-[10px] text-[#8a96aa] font-mono">{new Date(ev.timestamp).toLocaleTimeString('zh-CN')}</span>
+                  </div>
+                  <p className="text-[12px] text-[#5a6d8a]">{ev.detail}</p>
+                </div>
+              </div>
+            </div>
+          ))}
         </SectionCard>
       </div>
 
@@ -260,7 +307,9 @@ export default function BidSupervisePage() {
             </tr>
           </thead>
           <tbody>
-            {supervisionLogs.map(log => (
+            {supervisionLogs.length === 0 ? (
+              <tr><td colSpan={6} className="px-5 py-10 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无监督日志</td></tr>
+            ) : supervisionLogs.map(log => (
               <tr key={log.id}>
                 <td className="px-5 py-3 text-[12px] text-[oklch(0.55_0.01_264)] font-mono">{new Date(log.time).toLocaleString('zh-CN')}</td>
                 <td className="px-5 py-3 text-[12px]">{log.role}</td>
