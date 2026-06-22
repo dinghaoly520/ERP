@@ -25,8 +25,8 @@ export const TABS: TabDef[] = [
     key: 'standard',
     label: '评分标准',
     icon: ListChecks,
-    minStage: ['OPENING', 'EVALUATING', 'ARCHIVED'],
-    stageHint: '评分标准尚未开放。请等待项目进入开标阶段。',
+    minStage: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING', 'ARCHIVED'],
+    stageHint: '评分标准尚未开放。',
   },
   {
     key: 'supervise',
@@ -54,6 +54,9 @@ export const TABS: TabDef[] = [
 /** 根据项目阶段返回默认 tab key */
 export function getDefaultTab(stage: string): string {
   switch (stage) {
+    case 'DOWNLOAD':
+    case 'SUBMIT':
+      return 'standard'; // 发标/投标期：评分标准可编制，其余工作台尚未开放
     case 'EVALUATING': return 'evaluate';
     case 'ARCHIVED': return 'open'; // 归档后默认看开标记录
     default: return 'open';
@@ -121,8 +124,8 @@ export default function ProjectTabs() {
             </p>
           </div>
         ) : (
-          /* 正常渲染 Tab 内容 — 由 page.tsx 根据 currentTab 条件渲染 */
-          <div id="tab-content" />
+          /* Tab 内容由 page.tsx 的 <TabContent /> 与本组件同级渲染 */
+          null
         )}
       </div>
     </div>
