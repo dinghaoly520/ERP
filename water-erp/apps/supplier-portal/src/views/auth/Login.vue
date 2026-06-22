@@ -7,7 +7,7 @@ import { ElMessage } from 'element-plus'
 const router = useRouter()
 const authStore = useAuthStore()
 
-const form = reactive({ username: 'supplier1', password: 'supplier1@2026' })
+const form = reactive({ username: '中科院成都信息技术股份有限公司', password: 'supplier@2026' })
 const loading = ref(false)
 const formRef = ref()
 
