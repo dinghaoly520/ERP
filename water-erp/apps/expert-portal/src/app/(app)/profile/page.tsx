@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { UserCircle, Pencil, ClipboardList, CheckCircle, FileText } from 'lucide-react';
+import { Pencil, ClipboardList, CheckCircle, FileText } from 'lucide-react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { PageHero, SectionCard, MetricCard } from '@water-erp/ui';
+import { SectionCard, MetricCard } from '@water-erp/ui';
 
 interface ExpertProfile {
   id: string; username: string; displayName: string; email: string; role: string; isActive: boolean;
@@ -54,13 +54,6 @@ export default function ExpertProfilePage() {
 
   return (
     <div className="space-y-6">
-      <PageHero
-        tone="purple"
-        icon={<UserCircle size={14} strokeWidth={1.5} />}
-        title="个人信息"
-        description="管理您的专家资料、查看评审统计数据"
-      />
-
       <div className="grid grid-cols-[1fr_380px] gap-6">
         <div className="space-y-6">
           {/* 资料卡片 */}

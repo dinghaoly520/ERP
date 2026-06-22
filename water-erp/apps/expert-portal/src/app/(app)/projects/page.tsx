@@ -3,10 +3,9 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ClipboardList, ArrowLeft, Building2, FileText, MessageSquare, Calendar, Clock, Lock, X } from 'lucide-react';
+import { ClipboardList, Building2, FileText, MessageSquare, Calendar, Clock, Lock, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ExpertProject } from '@/lib/types';
-import { PageHero } from '@water-erp/ui';
 
 const stageLabel: Record<string, string> = {
   DOWNLOAD: '文件下载',
@@ -96,24 +95,6 @@ export default function ExpertProjectsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHero
-        tone="purple"
-        icon={<ClipboardList size={14} strokeWidth={1.5} />}
-        title="评审项目"
-        description="查看所有分配给您的评审任务，管理评标进度"
-        actions={
-          <button
-            onClick={() => router.push('/')}
-            className="rounded-xl border border-[#dce6f3] bg-white/70 px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-white transition"
-          >
-            <span className="flex items-center gap-1.5">
-              <ArrowLeft size={14} strokeWidth={1.5} />
-              返回工作台
-            </span>
-          </button>
-        }
-      />
-
       {/* 筛选标签 — stage-driven */}
       <div className="flex flex-wrap gap-2">
         {filterTabs.map(f => (
