@@ -28,13 +28,16 @@
 
 ## 专家门户 — http://localhost:3006
 
+> 评审专家共 186 名，来自真实专家库（`ExpertProfile.json`）。**用户名 = 专家姓名，口令统一 `expert@2026`**。完整名单见 `apps/api/prisma/seed-data/ExpertProfile.json`。
+
 | 用户名 | 密码 | 角色(role) | 姓名 |
 |--------|------|------------|------|
-| `wangjg` | `wangjg@2026` | `bid_expert` · 评标专家（水利工程） | 王某国 |
-| `liuxm` | `liuxm@2026` | `bid_expert` · 评标专家（机电设备） | 刘某梅 |
-| `chenzq` | `chenzq@2026` | `bid_expert` · 评标专家（造价咨询） | 陈某强 |
+| `刘苡池` | `expert@2026` | `bid_expert` · 评标专家 | 刘苡池 |
+| `宋为广` | `expert@2026` | `bid_expert` · 评标专家 | 宋为广 |
+| `魏熙` | `expert@2026` | `bid_expert` · 评标专家 | 魏熙 |
+| …（共 186 名） | `expert@2026` | `bid_expert` · 评标专家 | 见专家库 |
 
-> 另有 65 名生成专家（用户名 `exp0101`~`exp1305`，密码 `<用户名>@2026`），覆盖 13 个专业方向（职工代表/设备/造价/财资/测绘/工程设计院/施工-EPC/地质/人力资源/审计法务/安全环保/市场营销/机电），姓名均为某化、单位统一为 `XXX水利技术服务中心`。由 `apps/api/prisma/scripts/gen-experts.cjs` 生成。
+> `seed.ts` 末尾会把真实库导出的编号用户名（如 `a000912`）自动重置为专家姓名、口令统一为 `expert@2026`，故即使从真实库重新 `dump-seed.ts` 导出，再 seed 一次凭据即自动修复。
 
 ## 开评标管理端 — http://localhost:3007
 

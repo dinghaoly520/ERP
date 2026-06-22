@@ -11,8 +11,8 @@
  *   需要更新快照时：先改库，再重跑 dump-seed.ts，最后提交新的 JSON 文件即可。
  *
  * 账号说明
- *   seed 直接写回库中真实的 bcrypt 口令哈希，因此登录口令与导出时一致；
- *   常用演示账号沿用 `<用户名>@2026` 约定（见下方输出）。
+ *   seed 直接写回库中真实的 bcrypt 口令哈希；常用演示账号口令沿用 `<用户名>@2026`（见下方输出）。
+ *   评审专家例外：seed 末尾会把用户名重置为专家姓名、口令统一为 `expert@2026`，便于演示登录。
  *
  * 注意
  *   `ProcurementProject.json` 为空——导出快照前该表数据已被一次失败的 seed 清空且未能恢复，
@@ -21,6 +21,7 @@
 import { PrismaClient } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { hashSync } from 'bcryptjs';
 
 const prisma = new PrismaClient();
 const dataDir = join(__dirname, 'seed-data');
@@ -109,6 +110,38 @@ async function main() {
     console.log(`    ${tableName}: ${rows.length}`);
   }
 
+  // ═══ 评审专家凭据规整 ═══
+  // 真实库导出的专家用户名是编号（如 a000912）、口令为真实库哈希（本地不知明文）。
+  // 统一重置为：用户名 = 专家姓名（displayName），口令 = expert@2026，便于演示登录。
+  // 幂等：每次 seed 后专家凭据恒为此状态，即便从真实库重新 dump 也能自动修复。
+  console.log('▶ 规整评审专家凭据（用户名=姓名，口令 expert@2026）');
+  const expertHash = hashSync('expert@2026', 10);
+  const experts = await prisma.user.findMany({ where: { role: 'bid_expert' } });
+  let renamed = 0;
+  let passwordOnly = 0;
+  let conflictSkipped = 0;
+  for (const u of experts) {
+    const targetUsername = (u.displayName ?? '').trim() || u.username;
+    if (targetUsername === u.username) {
+      await prisma.user.update({ where: { id: u.id }, data: { passwordHash: expertHash } });
+      passwordOnly++;
+      continue;
+    }
+    const occupied = await prisma.user.findUnique({ where: { username: targetUsername } });
+    if (occupied && occupied.id !== u.id) {
+      console.warn(`  ⚠ 「${targetUsername}」已被占用，专家 ${u.username} 保留原用户名，仅重置口令`);
+      await prisma.user.update({ where: { id: u.id }, data: { passwordHash: expertHash } });
+      conflictSkipped++;
+      continue;
+    }
+    await prisma.user.update({
+      where: { id: u.id },
+      data: { username: targetUsername, passwordHash: expertHash },
+    });
+    renamed++;
+  }
+  console.log(`    专家 ${experts.length} 名：重命名 ${renamed}、仅改口令 ${passwordOnly}、冲突跳过 ${conflictSkipped}`);
+
   const counts = {
     用户: await prisma.user.count(),
     供应商: await prisma.supplier.count(),
@@ -130,7 +163,7 @@ async function main() {
   console.log('    [电子商城   :3003]  mall / mall@2026');
   console.log('    [供应商端   :3004]  supplier1 / supplier1@2026');
   console.log('    [采购管理端 :3005]  caigou / caigou@2026');
-  console.log('    [专家评标   :3006]  wangjg / wangjg@2026 · liuxm / liuxm@2026 · chenzq / chenzq@2026');
+  console.log('    [专家评标   :3006]  专家库任意专家（用户名=专家姓名）/ 口令 expert@2026');
   console.log('    [开评标管理端 :3007]  lizhuren / lizhuren@2026');
 }
 
