@@ -165,8 +165,8 @@ export default function BidEvaluatePage() {
   const [generating, setGenerating] = useState(false);
   const [startingEvaluation, setStartingEvaluation] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [expandedExpert, setExpandedExpert] = useState<string | null>(null);
-  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [expandedExperts, setExpandedExperts] = useState<Set<string>>(new Set());
+  const [expandedCard, setExpandedCard] = useState<Set<string>>(new Set());
 
   // ═══ New UX state ═══
   const [tooltip, setTooltip] = useState<{ cell: ExpertSupplierCell; expertName: string; supplierName: string } | null>(null);
@@ -415,7 +415,7 @@ export default function BidEvaluatePage() {
         ) : (
           <div className="flex flex-wrap gap-4">
             {experts.map(expert => {
-              const isExpanded = expandedCard === expert.id;
+              const isExpanded = expandedCard.has(expert.id);
               const row = expertMatrix.get(expert.id);
               const supplierCount = suppliers.length;
               const scoredCount = row ? Array.from(row.values()).filter(c => c.scoredCount > 0).length : 0;
@@ -426,7 +426,7 @@ export default function BidEvaluatePage() {
                       ? 'border-[#11a874]/30 hover:border-[#11a874]'
                       : 'border-[oklch(0.91_0.006_264)] hover:border-[oklch(0.82_0.04_258)]'
                   }`}
-                  onClick={() => setExpandedCard(isExpanded ? null : expert.id)}
+                  onClick={() => setExpandedCard(prev => { const next = new Set(prev); if (isExpanded) next.delete(expert.id); else next.add(expert.id); return next; })}
                 >
                   {/* Name + specialty */}
                   <div className="flex items-center gap-2 mb-3">
@@ -547,13 +547,13 @@ export default function BidEvaluatePage() {
                 </thead>
                 <tbody>
                   {experts.map(expert => {
-                    const isExpanded = expandedExpert === expert.id;
+                    const isExpanded = expandedExperts.has(expert.id);
                     const row = expertMatrix.get(expert.id);
                     const hasAnyScore = Array.from(row?.values() ?? []).some(c => c.scoredCount > 0);
                     return (
                       <tr key={expert.id}>
                         <td className="px-5 py-3">
-                          <button onClick={() => setExpandedExpert(isExpanded ? null : expert.id)} disabled={!hasAnyScore}
+                          <button onClick={() => setExpandedExperts(prev => { const next = new Set(prev); if (isExpanded) next.delete(expert.id); else next.add(expert.id); return next; })} disabled={!hasAnyScore}
                             className={`flex items-center gap-1.5 text-left ${hasAnyScore ? 'cursor-pointer hover:text-[oklch(0.42_0.14_260)]' : 'cursor-default'} transition-colors`}>
                             {hasAnyScore && (isExpanded ? <ChevronDown size={12} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)] shrink-0" /> : <ChevronRight size={12} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)] shrink-0" />)}
                             <span className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">{expert.expertName}</span>
@@ -594,14 +594,14 @@ export default function BidEvaluatePage() {
                   })}
                 </tbody>
               </table>
-              {/* Expanded detail panel */}
-              {expandedExpert && (() => {
-                const expert = experts.find(e => e.id === expandedExpert);
+              {/* Expanded detail panels — one per expanded expert */}
+              {[...expandedExperts].map(expId => {
+                const expert = experts.find(e => e.id === expId);
                 if (!expert) return null;
-                const row = expertMatrix.get(expandedExpert);
+                const row = expertMatrix.get(expId);
                 if (!row) return null;
                 return (
-                  <div className="border-t border-[oklch(0.91_0.006_264)]">
+                  <div key={expId} className="border-t border-[oklch(0.91_0.006_264)]">
                     <div className="p-5 bg-[oklch(0.98_0.005_264)]">
                       <div className="text-[12px] font-semibold text-[oklch(0.42_0.14_260)] mb-3 tracking-tight">
                         {expert.expertName} 详细评分
@@ -630,7 +630,7 @@ export default function BidEvaluatePage() {
                     </div>
                   </div>
                 );
-              })()}
+              })}
             </div>
           )}
         </div>
