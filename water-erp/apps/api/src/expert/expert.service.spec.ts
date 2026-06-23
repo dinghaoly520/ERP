@@ -66,9 +66,9 @@ describe('ExpertService', () => {
   describe('getStatistics', () => {
     it('应返回专家统计数据', async () => {
       prisma.bidExpert.findMany.mockResolvedValue([
-        { progress: 100, signedIn: true, totalScore: 90, expertName: '王建国', project: {} },
-        { progress: 50, signedIn: true, totalScore: 80, expertName: '王建国', project: {} },
-        { progress: 0, signedIn: false, totalScore: 0, expertName: '王建国', project: {} },
+        { progress: 100, signedIn: true, totalScore: 255, expertName: '王建国', project: {}, scoreRecords: [{ score: 85, supplierId: 's1' }, { score: 90, supplierId: 's2' }, { score: 80, supplierId: 's3' }] },
+        { progress: 50, signedIn: true, totalScore: 165, expertName: '王建国', project: {}, scoreRecords: [{ score: 85, supplierId: 's4' }, { score: 80, supplierId: 's5' }] },
+        { progress: 0, signedIn: false, totalScore: 0, expertName: '王建国', project: {}, scoreRecords: [] },
       ]);
       prisma.bidSupervisionLog.findMany.mockResolvedValue([]);
 
@@ -78,7 +78,8 @@ describe('ExpertService', () => {
       expect(stats.completedProjects).toBe(1);
       expect(stats.signedInProjects).toBe(2);
       expect(stats.pendingProjects).toBe(1);
-      expect(stats.averageScore).toBeGreaterThan(0);
+      // 平均分 = (255 + 165 + 0) / 5家供应商 = 84.0
+      expect(stats.averageScore).toBe(84);
       expect(stats.recentActivity).toBeDefined();
       // 统计应仅计算 OPENING+ 阶段的项目
       expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
