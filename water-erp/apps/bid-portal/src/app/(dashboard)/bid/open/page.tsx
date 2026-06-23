@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { api, enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid } from '@/lib/api';
+import { api, enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { TableSkeleton } from '@/components/skeleton';
@@ -9,7 +9,7 @@ import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
 import {
   Unlock, Clock, Shield, Play, CheckCircle, AlertTriangle, ChevronRight,
-  Volume2, Zap, Loader,
+  Volume2, Zap, Loader, FileText,
 } from 'lucide-react';
 import { SectionCard } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
@@ -26,6 +26,9 @@ const decryptColors: Record<string, { color: string; bg: string }> = {
 };
 
 const STAGES = ['投递中', '解密中', '确认中', '已完成'] as const;
+
+/** 保证金状态选项（前端镜像 — 与后端 BOND_STATUS_OPTIONS 对齐，Task 2） */
+const BOND_STATUS_OPTIONS = ['已缴纳', '保函有效', '未缴纳', '异常'] as const;
 
 /* ── Sound Engine helpers (ref-based, no module-level state) ── */
 function playTone(ctx: AudioContext, freq: number, duration: number, type: OscillatorType = 'sine') {
@@ -141,6 +144,7 @@ export default function BidOpenPage() {
   const [disputeHandleConfirm, setDisputeHandleConfirm] = useState<'confirmed' | 'rejected' | null>(null);
   const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string } | null>(null);
   const [recordDraft, setRecordDraft] = useState({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
+  const [bidBondAssetId, setBidBondAssetId] = useState<string | null>(null);
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
   // 每秒驱动重渲染，让倒计时圆环/MM:SS 实时跳动（remaining 依赖 now 重新计算）
   const [now, setNow] = useState(() => Date.now());
@@ -260,9 +264,26 @@ export default function BidOpenPage() {
     }
   };
 
-  const openRecordEntry = (s: { id: string; supplierName: string }) => {
+  const openRecordEntry = async (s: { id: string; supplierName: string }) => {
+    if (!projectId) return;
     setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName });
     setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
+    setBidBondAssetId(null);
+    try {
+      const draft = await getOpeningDraft(projectId, s.id) as {
+        canView: boolean; amount?: string | null; period?: string | null;
+        qualityTarget?: string | null; bondStatus?: string | null; bidBondAssetId?: string | null;
+      };
+      if (draft.canView) {
+        setRecordDraft({
+          amount: draft.amount ?? '',
+          period: draft.period ?? '',
+          qualityTarget: draft.qualityTarget ?? '',
+          bondStatus: draft.bondStatus ?? '',
+        });
+        setBidBondAssetId(draft.bidBondAssetId ?? null);
+      }
+    } catch { /* 预填失败不阻断手填 */ }
   };
 
   const handleEnterRecord = async () => {
@@ -580,7 +601,9 @@ export default function BidOpenPage() {
                     <td className="px-5 py-3 font-mono font-bold text-[oklch(0.18_0.012_265)] tracking-tight">{r.amount}</td>
                     <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{r.period}</td>
                     <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{r.qualityTarget}</td>
-                    <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{r.bondStatus}</td>
+                    <td className={`px-5 py-3 text-[13px] font-bold ${r.bondStatus === '已缴纳' || r.bondStatus === '保函有效' ? 'text-emerald-600' : r.bondStatus === '未缴纳' || r.bondStatus === '异常' ? 'text-red-600' : 'text-[oklch(0.55_0.01_264)]'}`}>
+                      {r.bondStatus || '—'}
+                    </td>
                     <td className="px-5 py-3">
                       <span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{ color: sm.color, backgroundColor: sm.bg }}>{sm.label}</span>
                     </td>
@@ -683,8 +706,18 @@ export default function BidOpenPage() {
               </label>
               <label className="text-xs font-semibold text-[#5a6d8a]">
                 保证金
-                <input value={recordDraft.bondStatus} onChange={e => setRecordDraft(d => ({ ...d, bondStatus: e.target.value }))}
-                  className="workbench-input mt-1 w-full" placeholder="如 已缴纳" />
+                <select value={recordDraft.bondStatus}
+                  onChange={e => setRecordDraft(d => ({ ...d, bondStatus: e.target.value }))}
+                  className="workbench-input mt-1 w-full">
+                  <option value="">— 请核对凭证后选择 —</option>
+                  {BOND_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                {bidBondAssetId && (
+                  <a href={`/api/upload/files/${bidBondAssetId}`} target="_blank" rel="noreferrer"
+                     className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-[#064ea2] hover:underline">
+                    <FileText size={12} strokeWidth={1.5} /> 查看保证金凭证
+                  </a>
+                )}
               </label>
             </div>
             <div className="mt-5 flex justify-end gap-2">
