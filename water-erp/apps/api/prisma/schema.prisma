@@ -656,7 +656,7 @@ model SupplierBidSubmission {
   technicalFileAssetId  String?
   businessFileAssetId   String?
   coverLetterAssetId    String?
-  bidBondAssetId       String?   // 投标保证金缴纳凭证 → FileAsset.id（程序性文件，不加密）
+  bidBondAssetId        String?   // 投标保证金缴纳凭证 → FileAsset.id（程序性文件，不加密）
   // Layer B：新提交的投标文件 AES-256-GCM 加密封存密钥（key:iv:authTag hex）。legacy 存量数据为 null。
   technicalSealedKey    String?
   businessSealedKey     String?

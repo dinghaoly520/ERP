@@ -772,14 +772,14 @@ export class BidService {
   async getOpeningRecordDraft(projectId: string, bidSupplierId: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, qualityRequirement: true, bondRequired: true },
+      select: { stage: true, qualityRequirement: true },
     });
     const empty = { canView: false, amount: null, period: null, qualityTarget: null, bondStatus: null, bidBondAssetId: null };
     if (!project || project.stage !== 'OPENING') return { ...empty, qualityTarget: project?.qualityRequirement ?? null };
 
     const bidSupplier = await this.prisma.bidSupplier.findFirst({
       where: { id: bidSupplierId, projectId },
-      select: { id: true, decryptStatus: true, supplierId: true, supplierName: true },
+      select: { id: true, decryptStatus: true, supplierId: true },
     });
     if (!bidSupplier || bidSupplier.decryptStatus !== 'SUCCESS') return empty;
 

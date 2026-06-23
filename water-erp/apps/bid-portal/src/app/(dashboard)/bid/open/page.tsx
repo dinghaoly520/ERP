@@ -145,6 +145,7 @@ export default function BidOpenPage() {
   const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string } | null>(null);
   const [recordDraft, setRecordDraft] = useState({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
   const [bidBondAssetId, setBidBondAssetId] = useState<string | null>(null);
+  const [recordEntryLoading, setRecordEntryLoading] = useState(false);
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
   // 每秒驱动重渲染，让倒计时圆环/MM:SS 实时跳动（remaining 依赖 now 重新计算）
   const [now, setNow] = useState(() => Date.now());
@@ -269,11 +270,9 @@ export default function BidOpenPage() {
     setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName });
     setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
     setBidBondAssetId(null);
+    setRecordEntryLoading(true);
     try {
-      const draft = await getOpeningDraft(projectId, s.id) as {
-        canView: boolean; amount?: string | null; period?: string | null;
-        qualityTarget?: string | null; bondStatus?: string | null; bidBondAssetId?: string | null;
-      };
+      const draft = await getOpeningDraft(projectId, s.id);
       if (draft.canView) {
         setRecordDraft({
           amount: draft.amount ?? '',
@@ -284,6 +283,7 @@ export default function BidOpenPage() {
         setBidBondAssetId(draft.bidBondAssetId ?? null);
       }
     } catch { /* 预填失败不阻断手填 */ }
+    finally { setRecordEntryLoading(false); }
   };
 
   const handleEnterRecord = async () => {
@@ -545,7 +545,7 @@ export default function BidOpenPage() {
                         </button>
                       )}
                       {isSuccess && project.stage === 'OPENING' && (
-                        <button onClick={() => openRecordEntry(s)}
+                        <button onClick={() => openRecordEntry(s)} disabled={recordEntryLoading}
                           className="flex items-center gap-1 text-[11px] font-semibold text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] tracking-tight transition-colors">
                           <Volume2 size={12} strokeWidth={1.5} /> 唱标
                         </button>
