@@ -59,6 +59,9 @@ importers:
       '@water-erp/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@water-erp/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
