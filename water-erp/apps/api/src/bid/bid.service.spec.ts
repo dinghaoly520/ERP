@@ -1456,3 +1456,57 @@ describe('BidService — createProject 字段写入', () => {
     expect(Number(arg.bondAmount)).toBe(200000);
   });
 });
+
+describe('BidService — getOpeningRecordDraft', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      bidSupplier: { findFirst: jest.fn() },
+      supplierBidSubmission: { findUnique: jest.fn() },
+      bidOpeningRecord: { findFirst: jest.fn() },
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: BidGateway, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('OPENING 阶段且解密成功 → 返回预填数据', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: true });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: '980000', deliveryPeriod: '180天', bidBondAssetId: 'fa-1' });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue({ bondStatus: '已缴纳' });
+
+    const draft = await service.getOpeningRecordDraft('p1', 's1');
+    expect(draft).toEqual({
+      canView: true,
+      amount: '980000',
+      period: '180天',
+      qualityTarget: '合格',
+      bondStatus: '已缴纳',
+      bidBondAssetId: 'fa-1',
+    });
+  });
+
+  it('非 OPENING 阶段 → canView=false 且不抛异常', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'SUBMIT', qualityRequirement: null, bondRequired: false });
+    const draft = await service.getOpeningRecordDraft('p1', 's1');
+    expect(draft.canView).toBe(false);
+    expect(draft.amount).toBeNull();
+  });
+
+  it('未解密成功 → canView=false', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: null, bondRequired: false });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', decryptStatus: 'PENDING', supplierName: '甲' });
+    const draft = await service.getOpeningRecordDraft('p1', 's1');
+    expect(draft.canView).toBe(false);
+  });
+});
