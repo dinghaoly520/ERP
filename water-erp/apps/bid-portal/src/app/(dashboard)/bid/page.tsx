@@ -253,6 +253,9 @@ export default function BidDashboard() {
 
     if (p.stage === 'EVALUATING') {
       items.push({ key: 'gen-results', label: '生成评标结果', icon: FlaskConical, onClick: () => handleGenerateResults(p) });
+      if (noExperts) {
+        items.push({ key: 'extract', label: '尚未抽取专家 · 去抽取', icon: UserPlus, onClick: () => gotoExtract(p), tone: 'highlight' });
+      }
       items.push({
         key: 'nudge-expert-score', label: '催促专家评分', icon: BellRing,
         onClick: () => handleNudgeExperts(p, 'score'),
