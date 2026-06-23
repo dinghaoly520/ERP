@@ -288,6 +288,9 @@ export class BidService {
         openTime: new Date(dto.openTime),
         deadline: new Date(dto.deadline),
         riskNote: dto.riskNote,
+        qualityRequirement: dto.qualityRequirement,
+        bondRequired: dto.bondRequired ?? false,
+        bondAmount: dto.bondAmount,
       },
     });
 
@@ -399,6 +402,9 @@ export class BidService {
         ...(dto.scope !== undefined && { scope: dto.scope }),
         ...(dto.qualification !== undefined && { qualification: dto.qualification }),
         ...(dto.contact !== undefined && { contact: dto.contact }),
+        ...(dto.qualityRequirement !== undefined && { qualityRequirement: dto.qualityRequirement }),
+        ...(dto.bondRequired !== undefined && { bondRequired: dto.bondRequired }),
+        ...(dto.bondAmount !== undefined && { bondAmount: dto.bondAmount }),
       },
     });
   }

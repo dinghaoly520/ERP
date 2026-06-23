@@ -1419,3 +1419,40 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
   });
 });
 
+
+describe('BidService — createProject 字段写入', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: {
+        create: jest.fn().mockResolvedValue({ id: 'p1', name: 'X', projectCode: 'BID-1' }),
+      },
+      notificationService: { sendToRole: jest.fn().mockResolvedValue(undefined) },
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: BidGateway, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('createProject 写入 qualityRequirement / bondRequired / bondAmount', async () => {
+    await service.createProject({
+      name: '测试项目', procurementMethod: '公开招标',
+      openTime: '2026-07-01T00:00:00.000Z', deadline: '2026-07-10T00:00:00.000Z',
+      qualityRequirement: '合格', bondRequired: true, bondAmount: 200000,
+    } as any);
+
+    expect(prisma.bidProject.create).toHaveBeenCalledTimes(1);
+    const arg = prisma.bidProject.create.mock.calls[0][0].data;
+    expect(arg.qualityRequirement).toBe('合格');
+    expect(arg.bondRequired).toBe(true);
+    expect(Number(arg.bondAmount)).toBe(200000);
+  });
+});
