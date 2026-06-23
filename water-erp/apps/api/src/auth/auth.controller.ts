@@ -32,8 +32,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '用户登录' })
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const portal = portalFromRequest(req);
-    const result = await this.authService.login(dto, portal);
+    const requestPortal = portalFromRequest(req);
+    const result = await this.authService.login(dto, requestPortal);
     if (!result) throw new UnauthorizedException('用户名或密码错误');
     const cookiePortal = portalForRole(result.role) || portalFromRequest(req);
     res.cookie(cookiePortal ? cookieNameForPortal(cookiePortal) : LEGACY_COOKIE, result.access_token, COOKIE_OPTS);
