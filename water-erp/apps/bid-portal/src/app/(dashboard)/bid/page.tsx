@@ -353,7 +353,7 @@ export default function BidDashboard() {
         <select
           value={stageFilter}
           onChange={e => { setStageFilter(e.target.value); setReadinessFilter(''); }}
-          className="workbench-input cursor-pointer text-sm font-semibold text-[#5a6d8a] py-2"
+          className="workbench-input cursor-pointer text-sm font-semibold !text-[#5a6d8a] py-2"
         >
           <option value="">全部阶段</option>
           {Object.entries(STAGE_LABEL).map(([k, v]) => (
@@ -363,7 +363,7 @@ export default function BidDashboard() {
         <select
           value={readinessFilter}
           onChange={e => setReadinessFilter(e.target.value)}
-          className="workbench-input cursor-pointer text-sm font-semibold text-[#5a6d8a] py-2"
+          className="workbench-input cursor-pointer text-sm font-semibold !text-[#5a6d8a] py-2"
         >
           <option value="">全部状态</option>
           <option value="ready">● 就绪</option>
