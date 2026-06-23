@@ -1026,10 +1026,29 @@ export class BidService {
       });
     }
 
+    // 同步更新专家进度和总分（与 ExpertService.submitScores 保持一致）
+    const allScoreItems = await this.prisma.bidScoreItem.findMany({ where: { projectId } });
+    const activeSupplierCount = await this.prisma.bidSupplier.count({
+      where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+    });
+    const totalItems = allScoreItems.length * activeSupplierCount;
+    const scoredItems = await this.prisma.bidScoreRecord.count({
+      where: { expertId: expert.id, scoreItem: { projectId } },
+    });
+    const progress = totalItems > 0 ? Math.round((scoredItems / totalItems) * 100) : 0;
+    const allRecords = await this.prisma.bidScoreRecord.findMany({
+      where: { expertId: expert.id, scoreItem: { projectId } },
+    });
+    const totalScore = allRecords.reduce((sum, r) => sum + Number(r.score), 0);
+    await this.prisma.bidExpert.update({
+      where: { id: expert.id },
+      data: { progress, totalScore },
+    });
+
     // P2: 不再广播分数值（专家独立评审）。仅通知"评分活动"里程碑 + 刷新聚合在场（无分数）。
     this.gateway?.notifyExpertPresence(projectId, {
       expertId: dto.expertId, expertName: expert.expertName, milestone: 'scoring_activity',
-      progressPercent: 0,
+      progressPercent: progress,
     });
     return record;
   }

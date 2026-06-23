@@ -83,7 +83,7 @@ function buildSupplierCategoryMatrix(
       if (!item) continue;
       const catCell = matrix.get(record.supplierId)?.get(item.category);
       if (!catCell) continue;
-      catCell.sum += Number(record.score); catCell.max += Number(item.maxScore); catCell.count += 1;
+      catCell.sum += Number(record.score); catCell.max = Number(item.maxScore); catCell.count += 1;
     }
   }
   return matrix;
@@ -306,12 +306,12 @@ export default function BidEvaluatePage() {
     for (const supplier of project.suppliers) {
       const catMap = categoryMatrix.get(supplier.id);
       if (!catMap) continue;
-      let totalSum = 0; let totalCount = 0;
+      let total = 0;
       for (const cat of CATEGORY_ORDER) {
         const cell = catMap.get(cat);
-        if (cell && cell.count > 0) { totalSum += (cell.sum / cell.count) * cell.max; totalCount += cell.max; }
+        if (cell && cell.count > 0) total += cell.sum / cell.count;
       }
-      entries.push({ supplierId: supplier.id, avg: totalCount > 0 ? totalSum / totalCount : 0 });
+      entries.push({ supplierId: supplier.id, avg: total });
     }
     entries.sort((a, b) => b.avg - a.avg);
     const rankMap = new Map<string, number>();
@@ -640,35 +640,69 @@ export default function BidEvaluatePage() {
       {suppliers.length > 0 && (
         <div className="glass-card glass-card-blue mb-8">
           <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
-            <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-              供应商评分汇总
-            </h2>
-            <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">按各评审类别平均分加权计算总分并排名，同分同名次（竞赛式排名）。悬停分类得分查看专家明细。</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+                  供应商评分汇总
+                </h2>
+                <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">各分类展示专家均分，总分为分类均分之和。同分同名次（竞赛式排名）。悬停分类得分查看专家明细。</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {!allReportsConfirmed && experts.length > 0 && (
+                  <span className="relative inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#92400e] group cursor-default" title={unconfirmedNames.join('、')}>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#e74c3c] opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-[#e74c3c]" />
+                    </span>
+                    {unconfirmedCount} 位未确认
+                    <span className="absolute top-full mt-1 right-0 w-48 rounded-xl border border-[#dce6f3] bg-white p-2.5 text-[11px] text-[#5a6d8a] shadow-[0_8px_30px_rgba(15,47,87,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition z-50 text-left font-normal">
+                      {unconfirmedNames.map((n, i) => <div key={n} className="py-0.5">{i + 1}. {n}</div>)}
+                    </span>
+                  </span>
+                )}
+                <button onClick={() => { setWizardStep(0); setShowWizard(true); }}
+                  disabled={generating || !allReportsConfirmed || project?.stage !== 'EVALUATING'}
+                  className="px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50 rounded-xl">
+                  {generating ? '生成中…' : '生成评标结果'}
+                </button>
+                {project?.stage === 'EVALUATING' && results.length > 0 && (
+                  <button onClick={handleArchive} disabled={archiving}
+                    title="生成评标结果后归档项目，进入归档阶段"
+                    className="px-4 py-2 bg-[#11a874] text-white text-[12px] font-semibold tracking-tight hover:bg-[#0e8c5f] transition-colors disabled:opacity-50 rounded-xl">
+                    {archiving ? '归档中…' : '归档项目'}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-visible">
             <table className="workbench-table">
               <thead>
-                <tr className="text-[oklch(0.55_0.01_264)]">
-                  <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap" title="按各评审类别平均分加权排名，同分同名次（竞赛式）">排名</th>
+                <tr className="text-[oklch(0.55_0.01_264)] relative z-0">
+                  <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap" title="按专家总分均分排名，同分同名次（竞赛式）">排名</th>
                   <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">投标单位</th>
                   {CATEGORY_ORDER.map(cat => (
                     <th key={cat} className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">{CATEGORY_LABEL[cat] || cat}</th>
                   ))}
-                  <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">总分(平均)</th>
+                  <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap" title="商务+技术+价格分类均分之和，满分 100">总分(平均)</th>
+                  {results.length > 0 && (
+                    <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">推荐</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {suppliers.map(supplier => {
                   const catMap = categoryMatrix.get(supplier.id);
                   const rank = supplierRanks.get(supplier.id);
-                  let overallSum = 0; let overallMax = 0;
+                  // 总分(平均)：各分类均分之和（与 per-category 显示值同源，确保自洽）
+                  let total = 0;
                   if (catMap) {
                     for (const cat of CATEGORY_ORDER) {
                       const cell = catMap.get(cat);
-                      if (cell && cell.count > 0) { overallSum += (cell.sum / cell.count) * cell.max; overallMax += cell.max; }
+                      if (cell && cell.count > 0) total += cell.sum / cell.count;
                     }
                   }
-                  const overallAvg = overallMax > 0 ? ((overallSum / overallMax) * 100).toFixed(1) : null;
+                  const overallAvg = total > 0 ? total.toFixed(1) : null;
                   return (
                     <tr key={supplier.id} className="transition-colors">
                       <td className="px-5 py-3">
@@ -680,7 +714,7 @@ export default function BidEvaluatePage() {
                       {CATEGORY_ORDER.map(cat => {
                         const cell = catMap?.get(cat);
                         const hasData = cell && cell.count > 0;
-                        const avg = hasData ? ((cell!.sum / cell!.count / cell!.max) * 100).toFixed(1) : null;
+                        const avg = hasData ? (cell!.sum / cell!.count).toFixed(1) : null;
                         // Get per-expert scores for this category
                         const expertScores: { name: string; score: number }[] = [];
                         if (catMap) {
@@ -700,7 +734,7 @@ export default function BidEvaluatePage() {
                                 <span className="w-0.5 h-3 shrink-0" style={{ backgroundColor: CATEGORY_COLOR[cat] }} />
                                 <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{avg}</span>
                                 {expertScores.length > 0 && (
-                                  <div className="absolute left-0 bottom-full mb-1 w-48 rounded-xl border border-[#dce6f3] bg-white p-3 shadow-[0_12px_40px_rgba(15,47,87,0.12)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition duration-150 z-50">
+                                  <div className="absolute left-0 top-full mt-1 w-48 rounded-xl border border-[#dce6f3] bg-white p-3 shadow-[0_12px_40px_rgba(15,47,87,0.12)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition duration-150 z-[100]">
                                     <div className="text-[11px] font-semibold text-[#5a6d8a] mb-1.5">专家明细</div>
                                     {expertScores.map(es => (
                                       <div key={es.name} className="flex items-center justify-between text-[11px] py-0.5">
@@ -720,6 +754,18 @@ export default function BidEvaluatePage() {
                           <span className="font-mono font-bold text-[oklch(0.42_0.14_260)]">{overallAvg}</span>
                         ) : <span className="text-[12px] text-[oklch(0.62_0.008_264)]">—</span>}
                       </td>
+                      {results.length > 0 && (() => {
+                        const evalResult = results.find(r => r.supplierId === supplier.id);
+                        return (
+                          <td className="px-5 py-3">
+                            {evalResult?.recommended ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 tracking-wide rounded-full text-[#11a874] border border-[#11a874]/40 bg-gradient-to-r from-[#f0fdf4] to-[#ecfdf5]">
+                                <Trophy size={11} /> 第一中标候选人
+                              </span>
+                            ) : <span className="text-[11px] text-[oklch(0.62_0.008_264)]">—</span>}
+                          </td>
+                        );
+                      })()}
                     </tr>
                   );
                 })}
@@ -729,89 +775,7 @@ export default function BidEvaluatePage() {
         </div>
       )}
 
-      {/* ═══ Section 4: Results generation ═══ */}
-      <div className="glass-card glass-card-blue">
-        <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">
-                评标结果汇总
-              </h2>
-              <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">
-                需所有专家确认评审报告后方可生成；按平均分排名，第一名推荐为中标候选人。
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              {/* Pulsing dot reminder */}
-              {!allReportsConfirmed && experts.length > 0 && (
-                <span className="relative inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#92400e] group cursor-default" title={unconfirmedNames.join('、')}>
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#e74c3c] opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#e74c3c]" />
-                  </span>
-                  {unconfirmedCount} 位未确认
-                  <span className="absolute top-full mt-1 right-0 w-48 rounded-xl border border-[#dce6f3] bg-white p-2.5 text-[11px] text-[#5a6d8a] shadow-[0_8px_30px_rgba(15,47,87,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition z-50 text-left font-normal">
-                    {unconfirmedNames.map((n, i) => <div key={n} className="py-0.5">{i + 1}. {n}</div>)}
-                  </span>
-                </span>
-              )}
-              <button onClick={() => { setWizardStep(0); setShowWizard(true); }}
-                disabled={generating || !allReportsConfirmed || project.stage !== 'EVALUATING'}
-                className="px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50 rounded-xl">
-                {generating ? '生成中…' : '生成评标结果'}
-              </button>
-              {project.stage === 'EVALUATING' && results.length > 0 && (
-                <button onClick={handleArchive} disabled={archiving}
-                  title="生成评标结果后归档项目，进入归档阶段"
-                  className="px-4 py-2 bg-[#11a874] text-white text-[12px] font-semibold tracking-tight hover:bg-[#0e8c5f] transition-colors disabled:opacity-50 rounded-xl">
-                  {archiving ? '归档中…' : '归档项目'}
-                </button>
-              )}
-            </div>
-          </div>
-          {!allReportsConfirmed && experts.length > 0 && (
-            <div className="mt-3 bg-[oklch(0.96_0.04_85)] border border-[oklch(0.88_0.06_82)] p-3 flex items-center gap-2 rounded-xl">
-              <AlertTriangle size={14} strokeWidth={1.5} className="text-[oklch(0.64_0.16_82)] shrink-0" />
-              <span className="text-[12px] text-[oklch(0.18_0.012_265)]">
-                仍有 {unconfirmedCount} 位专家未确认评审报告（{unconfirmedNames.join('、')}），需全部确认后方可生成评标结果。
-              </span>
-            </div>
-          )}
-        </div>
-        <table className="workbench-table">
-          <thead>
-            <tr className="text-[oklch(0.55_0.01_264)]">
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">排名</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">投标单位</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">总分</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">平均分</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">推荐</th>
-            </tr>
-          </thead>
-          <tbody>
-            {results.length === 0 ? (
-              <tr><td colSpan={5} className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂未生成评标结果</td></tr>
-            ) : (
-              results.map((r, idx) => (
-                <tr key={r.id} className={revealResults ? 'animate-[count-up_400ms_ease-out]' : ''}
-                  style={revealResults ? { animationDelay: `${idx * 120}ms`, animationFillMode: 'backwards' } : undefined}>
-                  <td className="px-5 py-3 font-mono font-bold text-[oklch(0.18_0.012_265)]">{r.rank}</td>
-                  <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">{r.supplierName}</td>
-                  <td className="px-5 py-3 font-mono text-[oklch(0.18_0.012_265)]">{r.totalScore}</td>
-                  <td className="px-5 py-3 font-mono font-bold text-[oklch(0.42_0.14_260)]">{r.averageScore}</td>
-                  <td className="px-5 py-3">
-                    {r.recommended ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 tracking-wide rounded-full text-[#11a874] border border-[#11a874]/40 bg-gradient-to-r from-[#f0fdf4] to-[#ecfdf5] animate-[glow-pulse_2s_ease-in-out_infinite]">
-                        <Trophy size={11} /> 第一中标候选人
-                      </span>
-                    ) : <span className="text-[11px] text-[oklch(0.62_0.008_264)]">—</span>}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+
 
       {/* ═══ 3-step confirmation wizard modal ═══ */}
       {showWizard && (
