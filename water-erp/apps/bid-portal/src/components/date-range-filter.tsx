@@ -148,13 +148,13 @@ export default function DateRangeFilter({ value, onChange }: DateRangeFilterProp
     <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold transition whitespace-nowrap ${
+        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition whitespace-nowrap ${
           (value.start || value.end)
             ? 'border-[#064ea2] bg-[#eff6ff] text-[#064ea2]'
-            : 'border-[#e8f0fa] bg-white text-[#5a6d8a] hover:border-[#064ea2] hover:text-[#18243a]'
+            : 'border-[#dce3eb] text-[#5a6d8a] hover:bg-[#f8fafc]'
         }`}
       >
-        <Calendar size={12} strokeWidth={1.5} />
+        <Calendar size={14} strokeWidth={1.5} />
         <span>{formatDisplayRange(value.start, value.end)}</span>
         {(value.start || value.end) && (
           <X size={12} strokeWidth={1.5} className="text-[#94a3b8] hover:text-[#e74c3c]"

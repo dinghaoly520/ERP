@@ -414,7 +414,7 @@ export default function BidArchivePage() {
         <select
           value={rateFilter}
           onChange={e => setRateFilter(e.target.value)}
-          className="workbench-input cursor-pointer"
+          className="workbench-input cursor-pointer text-sm"
         >
           <option value="">全部完整率</option>
           <option value="100">100% 完整</option>
@@ -423,9 +423,9 @@ export default function BidArchivePage() {
         </select>
         <button
           onClick={fetchSummary}
-          className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a] transition"
+          className="flex items-center gap-1.5 rounded-xl border border-[#dce3eb] px-3 py-2 text-sm font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
         >
-          <RefreshCw size={12} strokeWidth={1.5} />
+          <RefreshCw size={14} strokeWidth={1.5} />
           刷新
         </button>
       </DataToolbar>
