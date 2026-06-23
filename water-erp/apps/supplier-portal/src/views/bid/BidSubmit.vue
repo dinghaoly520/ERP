@@ -12,31 +12,31 @@ import dayjs from 'dayjs'
 const route = useRoute(); const router = useRouter(); const bidStore = useBidStore(); const supplierStore = useSupplierStore()
 const loading = ref(true); const error = ref(false); const submitting = ref(false); const saving = ref(false)
 const projectId = computed(() => route.params.id as string)
-const form = ref({ bidPrice: '', deliveryPeriod: '', technicalFileAssetId: '', businessFileAssetId: '', coverLetter: '' })
+const form = ref({ bidPrice: '', deliveryPeriod: '', technicalFileAssetId: '', businessFileAssetId: '', coverLetter: '', bidBondAssetId: '' })
 const project = computed(() => bidStore.currentProject)
 const existingSubmission = ref<any>(null)
-const techFileMeta = ref<FileAssetResponse | null>(null); const bizFileMeta = ref<FileAssetResponse | null>(null)
-const techUploadProgress = ref<number | null>(null); const bizUploadProgress = ref<number | null>(null)
+const techFileMeta = ref<FileAssetResponse | null>(null); const bizFileMeta = ref<FileAssetResponse | null>(null); const bondFileMeta = ref<FileAssetResponse | null>(null)
+const techUploadProgress = ref<number | null>(null); const bizUploadProgress = ref<number | null>(null); const bondUploadProgress = ref<number | null>(null)
 const autoSaveReady = ref(false); const showRecovery = ref(false); const submitDialogVisible = ref(false)
 const draft = useAutoSave(() => 'bidsubmit:'+projectId.value, form, { enabled: autoSaveReady })
 useRouteLeaveGuard(draft.dirty)
 function acceptRecovery() { const d = draft.restoreDraft(); if (d) Object.assign(form.value, d); showRecovery.value = false }
 function discardRecovery() { draft.clearDraft(); showRecovery.value = false }
 
-async function handleFileUpload(options: any, field: 'technicalFileAssetId' | 'businessFileAssetId') {
+async function handleFileUpload(options: any, field: 'technicalFileAssetId' | 'businessFileAssetId' | 'bidBondAssetId') {
   const file = options.file as File
   if (file.size > 50*1024*1024) { ElMessage.error('文件不能超过50MB'); options.onError(new Error('FILE_TOO_LARGE')); return }
-  const pRef = field==='technicalFileAssetId' ? techUploadProgress : bizUploadProgress
+  const pRef = field==='technicalFileAssetId' ? techUploadProgress : (field==='businessFileAssetId' ? bizUploadProgress : bondUploadProgress)
   pRef.value = 0
-  try { const res = await uploadFile(file, 'bid_document', (pct)=> { pRef.value = pct }); form.value[field] = res.id; if (field==='technicalFileAssetId') techFileMeta.value = res; else bizFileMeta.value = res; options.onSuccess(res); ElMessage.success('文件上传成功') } catch (e: any) { options.onError(e) } finally { pRef.value = null }
+  try { const res = await uploadFile(file, 'bid_document', (pct)=> { pRef.value = pct }); form.value[field] = res.id; if (field === 'technicalFileAssetId') techFileMeta.value = res; else if (field === 'businessFileAssetId') bizFileMeta.value = res; else bondFileMeta.value = res; options.onSuccess(res); ElMessage.success('文件上传成功') } catch (e: any) { options.onError(e) } finally { pRef.value = null }
 }
-const uploadTech = (o: any) => handleFileUpload(o, 'technicalFileAssetId'); const uploadBiz = (o: any) => handleFileUpload(o, 'businessFileAssetId')
+const uploadTech = (o: any) => handleFileUpload(o, 'technicalFileAssetId'); const uploadBiz = (o: any) => handleFileUpload(o, 'businessFileAssetId'); const uploadBond = (o: any) => handleFileUpload(o, 'bidBondAssetId')
 function formatSize(bytes: number): string { if (bytes<1024) return `${bytes} B`; if (bytes<1024*1024) return `${(bytes/1024).toFixed(1)} KB`; return `${(bytes/1024/1024).toFixed(1)} MB` }
 
 onMounted(async () => {
-  try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); try { const sub = await supplierApi.getBidSubmission(projectId.value) as any; if (sub) { existingSubmission.value = sub; form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', technicalFileAssetId: sub.technicalFileAssetId||'', businessFileAssetId: sub.businessFileAssetId||'', coverLetter: sub.coverLetter||'' } } } catch {}; if (draft.restoreDraft() && draft.storedAt.value && (!existingSubmission.value || draft.storedAt.value > new Date(existingSubmission.value.updatedAt).getTime())) { showRecovery.value = true } } catch { error.value = true } finally { loading.value = false; autoSaveReady.value = true; draft.markClean() }
+  try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); try { const sub = await supplierApi.getBidSubmission(projectId.value) as any; if (sub) { existingSubmission.value = sub; form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', technicalFileAssetId: sub.technicalFileAssetId||'', businessFileAssetId: sub.businessFileAssetId||'', coverLetter: sub.coverLetter||'', bidBondAssetId: sub.bidBondAssetId || '' } } } catch {}; if (draft.restoreDraft() && draft.storedAt.value && (!existingSubmission.value || draft.storedAt.value > new Date(existingSubmission.value.updatedAt).getTime())) { showRecovery.value = true } } catch { error.value = true } finally { loading.value = false; autoSaveReady.value = true; draft.markClean() }
 })
-async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); try { const sub = await supplierApi.getBidSubmission(projectId.value) as any; if (sub) { existingSubmission.value = sub; form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', technicalFileAssetId: sub.technicalFileAssetId||'', businessFileAssetId: sub.businessFileAssetId||'', coverLetter: sub.coverLetter||'' } } } catch {} } catch { error.value = true } finally { loading.value = false } }
+async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); try { const sub = await supplierApi.getBidSubmission(projectId.value) as any; if (sub) { existingSubmission.value = sub; form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', technicalFileAssetId: sub.technicalFileAssetId||'', businessFileAssetId: sub.businessFileAssetId||'', coverLetter: sub.coverLetter||'', bidBondAssetId: sub.bidBondAssetId || '' } } } catch {} } catch { error.value = true } finally { loading.value = false } }
 const isApproved = computed(() => supplierStore.profile?.status === 'APPROVED')
 const canSubmit = computed(() => { if (!project.value||!isApproved.value) return false; return project.value.stage==='SUBMIT' && new Date(project.value.deadline) > new Date() })
 async function saveDraft() { saving.value = true; try { await supplierApi.saveBidDraft(projectId.value, form.value); ElMessage.success('草稿已保存') } catch { ElMessage.error('保存失败') } finally { saving.value = false } }
@@ -49,6 +49,7 @@ const preflightItems = computed(() => {
     { label:'交货工期', detail:form.value.deliveryPeriod||'未填写', ok:!!form.value.deliveryPeriod, required:true },
     { label:'技术方案', detail:form.value.technicalFileAssetId?'已上传':'未上传（选填）', ok:!!form.value.technicalFileAssetId, required:false },
     { label:'商务文件', detail:form.value.businessFileAssetId?'已上传':'未上传（选填）', ok:!!form.value.businessFileAssetId, required:false },
+    { label:'投标保证金凭证', detail:form.value.bidBondAssetId?'已上传':'未上传', ok:!!form.value.bidBondAssetId, required:!!bidStore.project?.bondRequired },
     { label:'投标截止', detail:d?dayjs(d).format('YYYY-MM-DD HH:mm'):'未知', ok:deadlineOk, required:true },
   ]
 })
@@ -87,6 +88,7 @@ async function confirmSubmit() { submitDialogVisible.value = false; submitting.v
           <el-form-item label="交货/工期" required><el-input v-model="form.deliveryPeriod" placeholder="例如：120日历天" /></el-form-item>
           <el-form-item label="技术方案"><div class="file-area"><el-upload :http-request="uploadTech" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传技术方案</el-button></el-upload><span class="file-hint">PDF，≤50MB</span><span v-if="techFileMeta" class="file-name">{{ techFileMeta.originalName }}（{{ formatSize(techFileMeta.size) }}）</span><span v-else-if="form.technicalFileAssetId" class="file-name">已上传</span><el-progress v-if="techUploadProgress!==null" :percentage="techUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
           <el-form-item label="商务文件"><div class="file-area"><el-upload :http-request="uploadBiz" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传商务文件</el-button></el-upload><span class="file-hint">PDF，≤50MB</span><span v-if="bizFileMeta" class="file-name">{{ bizFileMeta.originalName }}（{{ formatSize(bizFileMeta.size) }}）</span><span v-else-if="form.businessFileAssetId" class="file-name">已上传</span><el-progress v-if="bizUploadProgress!==null" :percentage="bizUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
+          <el-form-item v-if="bidStore.project?.bondRequired" label="保证金凭证" required><div class="file-area"><el-upload :http-request="uploadBond" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传保证金缴纳凭证</el-button></el-upload><span class="file-hint">银行回单/保函，PDF≤50MB</span><span v-if="bondFileMeta" class="file-name">{{ bondFileMeta.originalName }}（{{ formatSize(bondFileMeta.size) }}）</span><span v-else-if="form.bidBondAssetId" class="file-name">已上传</span><el-progress v-if="bondUploadProgress!==null" :percentage="bondUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
           <el-form-item label="投标函"><el-input v-model="form.coverLetter" type="textarea" :rows="4" placeholder="请输入投标函内容（选填）" /></el-form-item>
         </el-form>
         <div v-if="canSubmit && existingSubmission?.status!=='submitted'" class="submit-actions">
