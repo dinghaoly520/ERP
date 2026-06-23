@@ -101,6 +101,13 @@ body {
   background: #f8fbff;
 }
 
+/* ─── Brand text gradient animation ─── */
+@keyframes brandShift {
+  0% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+  100% { background-position: 0% center; }
+}
+
 /* ─── Animations for bid opening hall ─── */
 @keyframes flash {
   0% { background-color: rgba(17, 168, 116, 0.15); }
