@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 import type { BidProjectDetail, BidExpert, BidSupplier, BidScoreItem } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
@@ -129,12 +130,29 @@ function DistributionChart({ scores, avg }: { scores: number[]; avg: number }) {
 }
 
 /* ── Tooltip ── */
-function CellTooltip({ cell, supplierName, expertName, onClose }: {
+function CellTooltip({ cell, supplierName, expertName, onClose, anchorRect }: {
   cell: ExpertSupplierCell; supplierName: string; expertName: string; onClose: () => void;
+  anchorRect: DOMRect;
 }) {
-  return (
-    <div className="absolute z-50 left-full top-0 ml-2 w-[320px] rounded-2xl border border-[#dce6f3] bg-white p-4 shadow-[0_18px_60px_rgba(15,47,87,0.15)]"
-      onMouseLeave={onClose}>
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; flip: boolean }>({ left: 0, top: 0, flip: false });
+
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const h = ref.current.offsetHeight;
+    const spaceAbove = anchorRect.top;
+    const spaceBelow = window.innerHeight - anchorRect.bottom;
+    const left = Math.min(anchorRect.left, window.innerWidth - 340);
+    // Prefer above; flip below if not enough space above
+    const flip = spaceAbove < h + 12 && spaceBelow > spaceAbove;
+    const top = flip ? anchorRect.bottom + 8 : anchorRect.top - h - 8;
+    setPos({ left, top, flip });
+  }, [anchorRect]);
+
+  return createPortal(
+    <div ref={ref}
+      className="fixed z-[9999] w-[320px] rounded-2xl border border-[#dce6f3] bg-white p-4 shadow-[0_18px_60px_rgba(15,47,87,0.15)]"
+      style={{ left: pos.left, top: pos.top }}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold text-[#18243a]">{expertName} → {supplierName}</span>
         <button onClick={onClose} className="text-[#8a99ad] hover:text-[#18243a]"><X size={12} /></button>
@@ -151,7 +169,44 @@ function CellTooltip({ cell, supplierName, expertName, onClose }: {
           </div>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body,
+  );
+}
+
+function CategoryDetailTooltip({ expertScores, onClose, anchorRect }: {
+  expertScores: { name: string; score: number }[];
+  onClose: () => void;
+  anchorRect: DOMRect;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; flip: boolean }>({ left: 0, top: 0, flip: false });
+
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const h = ref.current.offsetHeight;
+    const spaceBelow = window.innerHeight - anchorRect.bottom;
+    const spaceAbove = anchorRect.top;
+    const left = Math.min(anchorRect.left, window.innerWidth - 220);
+    // Prefer below; flip above if not enough space below
+    const flip = spaceBelow < h + 8 && spaceAbove > h + 8;
+    const top = flip ? anchorRect.top - h - 4 : anchorRect.bottom + 4;
+    setPos({ left, top, flip });
+  }, [anchorRect]);
+
+  return createPortal(
+    <div ref={ref}
+      className="fixed z-[9999] w-48 rounded-xl border border-[#dce6f3] bg-white p-3 shadow-[0_12px_40px_rgba(15,47,87,0.12)]"
+      style={{ left: pos.left, top: pos.top }}>
+      <div className="text-[11px] font-semibold text-[#5a6d8a] mb-1.5">专家明细</div>
+      {expertScores.map(es => (
+        <div key={es.name} className="flex items-center justify-between text-[11px] py-0.5">
+          <span className="text-[oklch(0.55_0.01_264)]">{es.name}</span>
+          <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{es.score.toFixed(1)}</span>
+        </div>
+      ))}
+    </div>,
+    document.body,
   );
 }
 
@@ -169,7 +224,8 @@ export default function BidEvaluatePage() {
   const [expandedCard, setExpandedCard] = useState<Set<string>>(new Set());
 
   // ═══ New UX state ═══
-  const [tooltip, setTooltip] = useState<{ cell: ExpertSupplierCell; expertName: string; supplierName: string } | null>(null);
+  const [tooltip, setTooltip] = useState<{ cell: ExpertSupplierCell; expertName: string; supplierName: string; anchorRect: DOMRect } | null>(null);
+  const [categoryTooltip, setCategoryTooltip] = useState<{ expertScores: { name: string; score: number }[]; anchorRect: DOMRect; key: string } | null>(null);
   const [wizardStep, setWizardStep] = useState<0 | 1 | 2>(0);
   const [showWizard, setShowWizard] = useState(false);
   const [revealResults, setRevealResults] = useState(false);
@@ -321,6 +377,22 @@ export default function BidEvaluatePage() {
       rankMap.set(entries[i].supplierId, rank);
     }
     return rankMap;
+  }, [project, categoryMatrix]);
+
+  const rankedSuppliers = useMemo(() => {
+    if (!project) return project?.suppliers ?? [];
+    return [...project.suppliers].sort((a, b) => {
+      const catMapA = categoryMatrix.get(a.id);
+      const catMapB = categoryMatrix.get(b.id);
+      let totalA = 0, totalB = 0;
+      for (const cat of CATEGORY_ORDER) {
+        const cellA = catMapA?.get(cat);
+        const cellB = catMapB?.get(cat);
+        if (cellA && cellA.count > 0) totalA += cellA.sum / cellA.count;
+        if (cellB && cellB.count > 0) totalB += cellB.sum / cellB.count;
+      }
+      return totalB - totalA;
+    });
   }, [project, categoryMatrix]);
 
   // ═══ Anomaly detection ═══
@@ -475,7 +547,7 @@ export default function BidEvaluatePage() {
                     <span className="text-[11px] font-mono font-semibold text-[oklch(0.42_0.14_260)]">{expert.progress}%</span>
                   </div>
                   <div className="text-[12px] text-[oklch(0.55_0.01_264)]">
-                    总分 <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{Number(expert.totalScore)}</span>
+                    平均分 <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{scoredCount > 0 ? (Number(expert.totalScore) / scoredCount).toFixed(1) : '0.0'}</span>
                   </div>
 
                   {/* Expandable: per-supplier progress */}
@@ -568,11 +640,11 @@ export default function BidEvaluatePage() {
                             return <td key={s.id} className="px-5 py-3 text-[12px] text-[oklch(0.62_0.008_264)]">—</td>;
                           }
                           return (
-                            <td key={s.id} className="px-5 py-3 relative">
-                              <div className={`inline-flex items-center gap-1 cursor-default rounded-md px-2 py-1 transition-all ${
+                            <td key={s.id} className="px-5 py-3">
+                              <div className={`relative inline-flex items-center gap-1 cursor-default rounded-md px-2 py-1 transition-all ${
                                 isAnomaly ? 'border border-[#f5a623] bg-[#fef6e8]' : ''
                               }`}
-                                onMouseEnter={() => setTooltip({ cell, expertName: expert.expertName, supplierName: s.supplierName })}
+                                onMouseEnter={(e) => setTooltip({ cell, expertName: expert.expertName, supplierName: s.supplierName, anchorRect: e.currentTarget.getBoundingClientRect() })}
                                 onMouseLeave={() => setTooltip(null)}
                               >
                                 <span className="font-mono text-[oklch(0.18_0.012_265)]">
@@ -581,11 +653,12 @@ export default function BidEvaluatePage() {
                                 </span>
                                 <span className="text-[11px] text-[oklch(0.62_0.008_264)]">({cell.scoredCount})</span>
                                 {isAnomaly && <AlertTriangle size={10} className="text-[#f5a623]" />}
+                                {tooltip && tooltip.expertName === expert.expertName && tooltip.supplierName === s.supplierName && (
+                                  <CellTooltip cell={cell} expertName={expert.expertName} supplierName={s.supplierName}
+                                    anchorRect={tooltip.anchorRect}
+                                    onClose={() => setTooltip(null)} />
+                                )}
                               </div>
-                              {tooltip && tooltip.expertName === expert.expertName && tooltip.supplierName === s.supplierName && (
-                                <CellTooltip cell={cell} expertName={expert.expertName} supplierName={s.supplierName}
-                                  onClose={() => setTooltip(null)} />
-                              )}
                             </td>
                           );
                         })}
@@ -691,7 +764,7 @@ export default function BidEvaluatePage() {
                 </tr>
               </thead>
               <tbody>
-                {suppliers.map(supplier => {
+                {rankedSuppliers.map(supplier => {
                   const catMap = categoryMatrix.get(supplier.id);
                   const rank = supplierRanks.get(supplier.id);
                   // 总分(平均)：各分类均分之和（与 per-category 显示值同源，确保自洽）
@@ -730,19 +803,16 @@ export default function BidEvaluatePage() {
                         return (
                           <td key={cat} className="px-5 py-3">
                             {avg != null ? (
-                              <span className="relative group inline-flex items-center gap-1.5 cursor-default">
+                              <span className="inline-flex items-center gap-1.5 cursor-default"
+                                onMouseEnter={(e) => setCategoryTooltip({ expertScores, anchorRect: e.currentTarget.getBoundingClientRect(), key: `${supplier.id}-${cat}` })}
+                                onMouseLeave={() => setCategoryTooltip(null)}
+                              >
                                 <span className="w-0.5 h-3 shrink-0" style={{ backgroundColor: CATEGORY_COLOR[cat] }} />
                                 <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{avg}</span>
-                                {expertScores.length > 0 && (
-                                  <div className="absolute left-0 top-full mt-1 w-48 rounded-xl border border-[#dce6f3] bg-white p-3 shadow-[0_12px_40px_rgba(15,47,87,0.12)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition duration-150 z-[100]">
-                                    <div className="text-[11px] font-semibold text-[#5a6d8a] mb-1.5">专家明细</div>
-                                    {expertScores.map(es => (
-                                      <div key={es.name} className="flex items-center justify-between text-[11px] py-0.5">
-                                        <span className="text-[oklch(0.55_0.01_264)]">{es.name}</span>
-                                        <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{es.score.toFixed(1)}</span>
-                                      </div>
-                                    ))}
-                                  </div>
+                                {categoryTooltip && categoryTooltip.key === `${supplier.id}-${cat}` && (
+                                  <CategoryDetailTooltip expertScores={categoryTooltip.expertScores}
+                                    anchorRect={categoryTooltip.anchorRect}
+                                    onClose={() => setCategoryTooltip(null)} />
                                 )}
                               </span>
                             ) : <span className="text-[12px] text-[oklch(0.62_0.008_264)]">—</span>}

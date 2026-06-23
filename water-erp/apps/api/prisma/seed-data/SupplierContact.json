@@ -680,26 +680,6 @@
     "updatedAt": "2026-06-13T11:02:25.834Z"
   },
   {
-    "id": "cmqc8xir000drko8fh0haf2oy",
-    "supplierId": "cmqc8r60300dpkoek0vhts0uy",
-    "name": "罗良元",
-    "phone": "13541161609",
-    "email": null,
-    "isPrimary": true,
-    "createdAt": "2026-06-13T11:02:25.836Z",
-    "updatedAt": "2026-06-13T11:02:25.836Z"
-  },
-  {
-    "id": "cmqc8xir300dyko8fabgt31pm",
-    "supplierId": "cmqc8r60600dwkoekmgndcoiv",
-    "name": "张坤森",
-    "phone": "13568994492",
-    "email": null,
-    "isPrimary": true,
-    "createdAt": "2026-06-13T11:02:25.839Z",
-    "updatedAt": "2026-06-13T11:02:25.839Z"
-  },
-  {
     "id": "cmqc8xir500e5ko8fx573eds7",
     "supplierId": "cmqc8r60900e3koekgp6iu4mj",
     "name": "金灿波",
@@ -2383,9 +2363,9 @@
     "id": "cmqrich-ct-zk03",
     "supplierId": "cmqc8r60300dpkoek0vhts0uy",
     "name": "罗良元",
-    "phone": "13902820001",
+    "phone": "13541161609 / 13902820001",
     "email": "luoly@zkcdit.com",
-    "isPrimary": false,
+    "isPrimary": true,
     "createdAt": "2026-06-13T06:18:29.742Z",
     "updatedAt": "2026-06-13T06:18:29.742Z"
   },
@@ -2403,9 +2383,9 @@
     "id": "cmqrich-ct-tx05",
     "supplierId": "cmqc8r60600dwkoekmgndcoiv",
     "name": "张坤森",
-    "phone": "13902830001",
+    "phone": "13568994492 / 13902830001",
     "email": "zhangks@scct.com",
-    "isPrimary": false,
+    "isPrimary": true,
     "createdAt": "2026-06-13T06:18:29.742Z",
     "updatedAt": "2026-06-13T06:18:29.742Z"
   },

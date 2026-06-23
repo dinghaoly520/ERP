@@ -72,8 +72,15 @@ export class ExpertService {
     const completedProjects = records.filter(e => e.progress >= 100).length;
     const signedInProjects = records.filter(e => e.signedIn).length;
     const pendingProjects = records.filter(e => !e.signedIn).length;
+    // 平均得分 = 所有打分项总分 / 被评供应商数（每位供应商满分100）
+    // 每个 BidExpert 下的 scoreRecords 中 supplierId 去重即为该专家在该项目中评过的供应商数
     const totalScoreSum = records.reduce((s, e) => s + Number(e.totalScore), 0);
-    const averageScore = records.length > 0 ? Math.round((totalScoreSum / records.length) * 10) / 10 : 0;
+    const distinctSupplierCount = new Set(
+      records.flatMap(e => e.scoreRecords.map(r => r.supplierId)),
+    ).size;
+    const averageScore = distinctSupplierCount > 0
+      ? Math.round((totalScoreSum / distinctSupplierCount) * 10) / 10
+      : 0;
 
     // 获取专家名称用于查询监督日志；无项目分配时跳过查询避免全量泄露
     const expertName = records.length > 0 ? records[0].expertName : '';
