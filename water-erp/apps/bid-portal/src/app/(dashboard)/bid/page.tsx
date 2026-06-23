@@ -262,6 +262,7 @@ export default function BidDashboard() {
         disabled: noExperts,
         disabledReason: '尚未抽取专家',
       });
+      items.push({ key: 'supervise', label: '监督视图', icon: ShieldCheck, onClick: () => gotoTab(p, 'supervise') });
       items.push({ key: 'clarify', label: '发起澄清', icon: MessageSquareText, onClick: () => gotoTab(p, 'clarify') });
     }
 
@@ -563,7 +564,7 @@ export default function BidDashboard() {
                           {p.stage === 'SUBMIT' && (
                             <button
                               onClick={(e) => { e.stopPropagation(); gotoTab(p, 'standard'); }}
-                              className="flex items-center gap-1 rounded-lg border border-[#dce6f3] px-2.5 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a] transition"
+                              className="flex items-center gap-1 rounded-lg border border-[#dce3eb] px-2.5 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
                             >
                               进入项目
                             </button>
@@ -599,7 +600,7 @@ export default function BidDashboard() {
                                 e.stopPropagation();
                                 router.push(`/bid/project/${p.id}?tab=open`);
                               }}
-                              className="flex items-center gap-1 rounded-lg border border-[#dce6f3] px-2.5 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
+                              className="flex items-center gap-1 rounded-lg border border-[#dce3eb] px-2.5 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
                             >
                               查看归档
                             </button>
@@ -608,7 +609,7 @@ export default function BidDashboard() {
                           {/* Secondary actions: toggle inline expansion row (在行下方横向展开) */}
                           <button
                             onClick={(e) => { e.stopPropagation(); toggleActionMenu(p.id); }}
-                            className="flex items-center gap-1 rounded-lg border border-[#dce6f3] px-2 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a] transition"
+                            className="flex items-center gap-1 rounded-lg border border-[#dce3eb] px-2 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
                             title="更多操作"
                           >
                             更多
@@ -630,7 +631,7 @@ export default function BidDashboard() {
                               e.stopPropagation();
                               toggleWorkspace(p.id);
                             }}
-                            className="flex items-center gap-1 rounded-lg border border-[#dce6f3] px-2 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
+                            className="flex items-center gap-1 rounded-lg border border-[#dce3eb] px-2 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
                             title="检查工作区"
                           >
                             {expandedIds.has(p.id) ? <ChevronDown size={11} strokeWidth={2} /> : <ChevronRight size={11} strokeWidth={2} />}
@@ -652,7 +653,7 @@ export default function BidDashboard() {
                                 const Icon = item.icon;
                                 const tone = item.tone ?? 'default';
                                 const toneText = tone === 'danger' ? 'text-[#e74c3c]' : tone === 'highlight' ? 'text-[#d97706]' : 'text-[#334155]';
-                                const toneBorder = tone === 'highlight' ? 'border-[#fcd34d]' : 'border-[#dce6f3]';
+                                const toneBorder = tone === 'highlight' ? 'border-[#fcd34d]' : 'border-[#dce3eb]';
                                 return (
                                   <button
                                     key={item.key}
