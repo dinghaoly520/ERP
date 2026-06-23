@@ -1510,3 +1510,70 @@ describe('BidService — getOpeningRecordDraft', () => {
     expect(draft.canView).toBe(false);
   });
 });
+
+describe('BidService — generateEvaluationResults 保证金软标记', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      bidScoreRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      auditLog: { create: jest.fn() },
+      $transaction: jest.fn(async (cb: any) => cb({
+        bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
+        bidSupervisionLog: { create: jest.fn() },
+      })),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: BidGateway, useValue: { notifySupervisionLog: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('bondRequired 且某供应商保证金未达标 → 写高风险监督日志，但仍纳入排名', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({
+      id: 'p1', name: 'X', stage: 'EVALUATING', bondRequired: true,
+      experts: [{ reportConfirmed: true }],
+      suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' }],
+    });
+    prisma.bidOpeningRecord.findMany.mockResolvedValue([{ bidSupplierId: 's1', bondStatus: '未缴纳' }]);
+    const txLogCreate = jest.fn();
+    prisma.$transaction.mockImplementation(async (cb: any) => cb({
+      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
+      bidSupervisionLog: { create: txLogCreate },
+    }));
+
+    await service.generateEvaluationResults('p1', 'actor1');
+
+    const flagged = txLogCreate.mock.calls.find(
+      (c: any[]) => c[0].data.riskFlag === '高风险' && String(c[0].data.action).includes('保证金'),
+    );
+    expect(flagged).toBeTruthy();
+  });
+
+  it('bondRequired=false → 不写保证金监督日志', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({
+      id: 'p1', name: 'X', stage: 'EVALUATING', bondRequired: false,
+      experts: [{ reportConfirmed: true }],
+      suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' }],
+    });
+    const txLogCreate = jest.fn();
+    prisma.$transaction.mockImplementation(async (cb: any) => cb({
+      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
+      bidSupervisionLog: { create: txLogCreate },
+    }));
+
+    await service.generateEvaluationResults('p1', 'actor1');
+
+    const flagged = txLogCreate.mock.calls.find((c: any[]) => String(c[0].data.action).includes('保证金'));
+    expect(flagged).toBeUndefined();
+  });
+});

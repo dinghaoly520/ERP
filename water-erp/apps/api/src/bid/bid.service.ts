@@ -20,6 +20,7 @@ import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../expert/expert-deviation';
 import { ScoreCategory } from '@prisma/client';
+import { isBondQualified } from './bid-bond-status';
 
 @Injectable()
 export class BidService {
@@ -924,6 +925,22 @@ export class BidService {
       s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED',
     );
 
+    // 保证金软标记：bondRequired 时查各供应商 bondStatus，异常者写监督日志（不排除，由评标委员会定）
+    const bondFlagged: { supplierName: string; bondStatus: string }[] = [];
+    if (project.bondRequired) {
+      const openingRecords = await this.prisma.bidOpeningRecord.findMany({
+        where: { projectId },
+        select: { bidSupplierId: true, bondStatus: true, supplierName: true },
+      });
+      const bondBySupplier = new Map(openingRecords.map(r => [r.bidSupplierId, r.bondStatus]));
+      for (const s of activeSuppliers) {
+        const status = bondBySupplier.get(s.id);
+        if (!isBondQualified(status)) {
+          bondFlagged.push({ supplierName: s.supplierName, bondStatus: status || '未核对' });
+        }
+      }
+    }
+
     // P0: Single batch query instead of per-supplier N+1 — fetch all scores at once
     const activeSupplierIds = activeSuppliers.map(s => s.id);
     const allScoreRecords = activeSupplierIds.length > 0
@@ -992,6 +1009,14 @@ export class BidService {
           action: '生成评标结果', result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}）`, riskFlag: '无',
         },
       });
+      for (const f of bondFlagged) {
+        await tx.bidSupervisionLog.create({
+          data: {
+            projectId, time: new Date(), role: '系统', target: f.supplierName,
+            action: '保证金异常标记', result: `保证金状态：${f.bondStatus}（未达标，供评标委员会审查）`, riskFlag: '高风险',
+          },
+        });
+      }
     });
     this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}）`, riskFlag: '无' });
     if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_RESULTS_GENERATED', target: `BidProject:${projectId}`, detail: { rankedCount: ranked.length } } });
