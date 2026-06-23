@@ -214,7 +214,7 @@ Passwords follow `<username>@2026` convention:
 
 > **「陈主任」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），三个 role 不同的账号共用登录名「陈主任」/ `czr@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、采购管理端→procurement_staff、开标端（专家门户 admin tab）→bid_host。详见 `auth.service.ts` 的 `PORTAL_ROLE_PRIORITY`。
 
-> `admin` role exists in schema/RBAC but has no seeded user. Use `lizhuren` (bid_host) for bid portal access.
+> `admin` role exists in schema/RBAC but has no seeded user. Use `陈主任` (bid_host) for bid portal access.
 
 > **评审专家库（186 名）**：来自真实专家库（`apps/api/prisma/seed-data/ExpertProfile.json`）。`seed.ts` 末尾会把真实库导出的编号用户名重置为专家姓名、口令统一为 `expert@2026`，便于演示登录。
 
@@ -247,6 +247,8 @@ Each portal uses an independent login session via named httpOnly cookies:
 
 The auth chain is `AuthGuard (global) → RolesGuard (global)`, registered via `APP_GUARD` in `AppModule`. `AuthGuard` extracts + verifies the JWT; `RolesGuard` checks `@Roles(...)` metadata. `@Public()` skips auth; no `@Roles` means any authenticated user can access.
 
+**Cookie resolution** is handled by `apps/api/src/auth/portal-cookie.ts`: portal is detected from `X-Portal` header → `Origin`/`Referer` port → falls back to legacy `token` cookie. This allows the API to serve multiple portals with independent sessions on `localhost` (where cookies are shared across ports).
+
 ### API
 
 The NestJS API (`apps/api`, :4001):
@@ -255,7 +257,7 @@ The NestJS API (`apps/api`, :4001):
 - Swagger docs at `/api/docs`
 - All error responses normalized to `{ statusCode, code, error, timestamp, path }` via `HttpExceptionFilter`
 
-**Key modules (22 total, all under `apps/api/src/`):**
+**Key modules (20 total, all under `apps/api/src/`):**
 
 | Module | Purpose |
 |--------|---------|
@@ -288,6 +290,11 @@ The NestJS API (`apps/api`, :4001):
 DATABASE_URL=postgresql://water_erp:water_erp_dev@localhost:5432/water_erp
 JWT_SECRET=water-erp-jwt-secret
 SMS_DEBUG_BYPASS=true              # Skip real SMS; auto-verify with code "123456"
+
+# ── AI / LLM ──
+DEEPSEEK_API_URL=https://api.deepseek.com
+DEEPSEEK_API_KEY=<key>             # Required for AI assistant + bid analysis
+DEEPSEEK_MODEL=deepseek-v4-flash
 ```
 
 ### WebSocket / Real-Time

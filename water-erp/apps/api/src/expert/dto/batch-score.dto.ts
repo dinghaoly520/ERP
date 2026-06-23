@@ -8,7 +8,7 @@ class ScoreItemDto {
   @IsString() @IsNotEmpty()
   supplierId: string;
 
-  @IsNumber() @Min(0) @Max(10000)
+  @IsNumber() @Min(0) @Max(100)
   score: number;
 
   @IsString() @IsOptional()

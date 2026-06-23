@@ -48,8 +48,8 @@
     "projectId": "cmqhero-bid-proj01",
     "supplierId": "cmqhero-bs02",
     "supplierName": "中科院成都信息技术股份有限公司",
-    "totalScore": "259",
-    "averageScore": "86.33",
+    "totalScore": "258.9",
+    "averageScore": "86.30",
     "rank": 1,
     "recommended": true,
     "generatedAt": "2026-07-03T08:00:00.000Z"
@@ -59,8 +59,8 @@
     "projectId": "cmqhero-bid-proj01",
     "supplierId": "cmqhero-bs01",
     "supplierName": "四川水发建设有限公司",
-    "totalScore": "253.5",
-    "averageScore": "84.5",
+    "totalScore": "255.4",
+    "averageScore": "85.13",
     "rank": 2,
     "recommended": false,
     "generatedAt": "2026-07-03T08:00:00.000Z"

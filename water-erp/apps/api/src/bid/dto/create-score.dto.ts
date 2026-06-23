@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsNotEmpty } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsNotEmpty, Min, Max } from 'class-validator';
 
 export class CreateScoreDto {
   @IsString()
@@ -14,6 +14,8 @@ export class CreateScoreDto {
   supplierId: string;
 
   @IsNumber()
+  @Min(0)
+  @Max(100)
   score: number;
 
   @IsString()

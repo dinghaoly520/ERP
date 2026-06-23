@@ -975,6 +975,14 @@ export class BidService {
       throw new BadRequestException({ error: '评分项不属于此项目', code: 'SCORE_ITEM_NOT_IN_PROJECT' });
     }
 
+    // 校验分数不超过评分项满分
+    if (Number(dto.score) > Number(scoreItem.maxScore)) {
+      throw new BadRequestException({
+        error: `评分项 ${scoreItem.name} 分数 ${dto.score} 超过满分 ${scoreItem.maxScore}`,
+        code: 'SCORE_EXCEEDS_MAX',
+      });
+    }
+
     // 利用唯一约束 upsert：存在则更新，不存在则创建
     const record = await this.prisma.bidScoreRecord.upsert({
       where: {

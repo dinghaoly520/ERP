@@ -4,7 +4,7 @@
     "expertId": "cmqhero-be01",
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs01",
-    "score": "82",
+    "score": "16.4",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -13,7 +13,7 @@
     "expertId": "cmqhero-be01",
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs01",
-    "score": "88",
+    "score": "44.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -22,7 +22,7 @@
     "expertId": "cmqhero-be01",
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs01",
-    "score": "85",
+    "score": "25.5",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -31,7 +31,7 @@
     "expertId": "cmqhero-be01",
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs02",
-    "score": "90",
+    "score": "18.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -40,7 +40,7 @@
     "expertId": "cmqhero-be01",
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs02",
-    "score": "92",
+    "score": "46.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -49,7 +49,7 @@
     "expertId": "cmqhero-be01",
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs02",
-    "score": "78",
+    "score": "23.4",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -58,7 +58,7 @@
     "expertId": "cmqhero-be01",
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs03",
-    "score": "85",
+    "score": "17.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -67,7 +67,7 @@
     "expertId": "cmqhero-be01",
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs03",
-    "score": "80",
+    "score": "40.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -76,7 +76,7 @@
     "expertId": "cmqhero-be01",
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs03",
-    "score": "90",
+    "score": "27.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -85,7 +85,7 @@
     "expertId": "cmqhero-be02",
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs01",
-    "score": "85",
+    "score": "17.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -94,7 +94,7 @@
     "expertId": "cmqhero-be02",
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs01",
-    "score": "85",
+    "score": "42.5",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -103,7 +103,7 @@
     "expertId": "cmqhero-be02",
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs01",
-    "score": "82",
+    "score": "24.6",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -112,7 +112,7 @@
     "expertId": "cmqhero-be02",
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs02",
-    "score": "88",
+    "score": "17.6",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -121,7 +121,7 @@
     "expertId": "cmqhero-be02",
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs02",
-    "score": "90",
+    "score": "45.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -130,7 +130,7 @@
     "expertId": "cmqhero-be02",
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs02",
-    "score": "80",
+    "score": "24.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -139,7 +139,7 @@
     "expertId": "cmqhero-be02",
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs03",
-    "score": "82",
+    "score": "16.4",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -148,7 +148,7 @@
     "expertId": "cmqhero-be02",
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs03",
-    "score": "78",
+    "score": "39.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -157,7 +157,7 @@
     "expertId": "cmqhero-be02",
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs03",
-    "score": "88",
+    "score": "26.4",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -166,7 +166,7 @@
     "expertId": "cmqhero-be03",
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs01",
-    "score": "80",
+    "score": "16.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -175,7 +175,7 @@
     "expertId": "cmqhero-be03",
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs01",
-    "score": "86",
+    "score": "43.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -184,7 +184,7 @@
     "expertId": "cmqhero-be03",
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs01",
-    "score": "88",
+    "score": "26.4",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -193,7 +193,7 @@
     "expertId": "cmqhero-be03",
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs02",
-    "score": "92",
+    "score": "18.4",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -202,7 +202,7 @@
     "expertId": "cmqhero-be03",
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs02",
-    "score": "88",
+    "score": "44.0",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -211,7 +211,7 @@
     "expertId": "cmqhero-be03",
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs02",
-    "score": "75",
+    "score": "22.5",
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   }
