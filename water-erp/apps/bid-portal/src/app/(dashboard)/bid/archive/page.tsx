@@ -414,7 +414,7 @@ export default function BidArchivePage() {
         <select
           value={rateFilter}
           onChange={e => setRateFilter(e.target.value)}
-          className="workbench-input cursor-pointer text-sm"
+          className="workbench-input cursor-pointer text-sm font-semibold !text-[#5a6d8a] py-2"
         >
           <option value="">全部完整率</option>
           <option value="100">100% 完整</option>
