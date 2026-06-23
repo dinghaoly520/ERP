@@ -159,7 +159,8 @@ export class SupplierService {
 
     // Build WHERE clause with Prisma.sql for safety
     const conditions: Prisma.Sql[] = [];
-    if (where.status) conditions.push(Prisma.sql`"status" = ${where.status}`);
+    // status 列是 SupplierStatus 枚举，参数需显式 cast，否则 PG 报 operator does not exist: SupplierStatus = text
+    if (where.status) conditions.push(Prisma.sql`"status" = ${where.status}::"SupplierStatus"`);
     if (where.classificationId) conditions.push(Prisma.sql`"classificationId" = ${where.classificationId}`);
     if (where.OR) {
       // search: name ILIKE or creditCode contains

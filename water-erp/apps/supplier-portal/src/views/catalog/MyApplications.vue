@@ -40,9 +40,9 @@ onMounted(load)
       </div>
     </div>
 
-    <el-tabs v-model="activeTab" style="margin-bottom:16px"><el-tab-pane :label="`进行中 (${counts.active})`" name="active" /><el-tab-pane :label="`已结束 (${counts.done})`" name="done" /></el-tabs>
+    <div class="tab-row"><el-tabs v-model="activeTab"><el-tab-pane name="active"><template #label><span class="tab-label">进行中<strong class="tab-count">{{ counts.active }}</strong></span></template></el-tab-pane><el-tab-pane name="done"><template #label><span class="tab-label">已结束<strong class="tab-count">{{ counts.done }}</strong></span></template></el-tab-pane></el-tabs></div>
 
-    <div v-if="filtered.length===0&&!loading" class="sp-empty-panel"><el-icon :size="32"><Document /></el-icon><p class="sp-empty-text">暂无申请记录</p><p class="sp-empty-desc">前往「集中采购目录」申请供货或新增品类</p></div>
+    <div v-if="filtered.length===0&&!loading" class="empty-center"><div class="sp-empty-panel"><el-icon :size="32"><Document /></el-icon><p class="sp-empty-text">暂无申请记录</p><p class="sp-empty-desc">前往「集中采购目录」申请供货或新增品类</p></div></div>
 
     <div v-else class="app-list">
       <div v-for="a in filtered" :key="a.id" class="app-card">
@@ -102,6 +102,29 @@ onMounted(load)
 .app-note-label { font-weight: 700; color: var(--sp-gray-600); margin-right: 6px; }
 .app-card-foot { display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-top: 1px solid rgba(0,0,0,0.04); background: rgba(255,255,255,0.40); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 
+.tab-row { margin-bottom: 16px; }
+
+.tab-label { display: inline-flex; align-items: baseline; gap: 6px; }
+
+.tab-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; padding: 0 6px;
+  font-family: 'Inter', 'SF Mono', 'JetBrains Mono', monospace;
+  font-size: 12px; font-weight: 600;
+  line-height: 1; letter-spacing: -0.01em;
+  border-radius: 10px;
+  color: var(--sp-gray-400);
+  background: var(--sp-gray-100);
+  transition: color 0.2s, background 0.2s;
+}
+
+.el-tabs__item.is-active .tab-count {
+  color: var(--sp-primary);
+  background: var(--sp-primary-lighter);
+}
+
+.empty-center { display: flex; align-items: center; justify-content: center; min-height: 60vh; }
+.sp-empty-panel { text-align: center; }
 .sp-empty-text { font-size: 15px; font-weight: 700; color: var(--sp-gray-500); margin-top: 12px; }
-.sp-empty-desc { font-size: 13px; margin-top: 4px; }
+.sp-empty-desc { font-size: 13px; margin-top: 4px; color: var(--sp-gray-400); }
 </style>

@@ -237,27 +237,27 @@ function BidDocUploader({ annId, bidDoc, onChanged }: { annId: string; bidDoc: B
   const [supplierSearch, setSupplierSearch] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [docTitle, setDocTitle] = useState('');
-  const [scope, setScope] = useState<'OPEN' | 'DESIGNATED' | 'INVITED'>(bidDoc?.accessScope || 'OPEN');
+  const [scope, setScope] = useState<'OPEN' | 'INVITED'>(bidDoc?.accessScope || 'OPEN');
   const [requirePayment, setRequirePayment] = useState(bidDoc?.requirePayment ?? false);
   const [price, setPrice] = useState<number | ''>(bidDoc?.price ?? '');
   const [selected, setSelected] = useState<string[]>(bidDoc?.allowedSupplierIds || []);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (scope === 'DESIGNATED') getSupplierList({ status: 'APPROVED', search: supplierSearch || undefined, pageSize: 50 }).then(r => setSuppliers(r.items)).catch(() => {});
+    if (scope === 'INVITED') getSupplierList({ status: 'APPROVED', search: supplierSearch || undefined, pageSize: 50 }).then(r => setSuppliers(r.items)).catch(() => {});
   }, [scope, supplierSearch]);
 
   const doUpload = async () => {
     if (!file) { toast.error('请选择招标文件'); return; }
     setBusy(true);
-    try { await uploadBidDocument(annId, file, { title: docTitle || file.name, accessScope: scope, requirePayment, price: requirePayment ? (price || 0) : undefined, allowedSupplierIds: scope === 'DESIGNATED' ? selected : undefined }); toast.success('招标文件已加密上传'); setFile(null); setDocTitle(''); onChanged(); }
+    try { await uploadBidDocument(annId, file, { title: docTitle || file.name, accessScope: scope, requirePayment, price: requirePayment ? (price || 0) : undefined, allowedSupplierIds: scope === 'INVITED' ? selected : undefined }); toast.success('招标文件已加密上传'); setFile(null); setDocTitle(''); onChanged(); }
     catch (e: any) { toast.error(e?.message || '上传失败'); }
     setBusy(false);
   };
   const saveConfig = async () => {
     if (!bidDoc) return;
     setBusy(true);
-    try { await updateBidDocumentConfig(annId, { accessScope: scope, requirePayment, price: requirePayment ? (price || 0) : undefined, allowedSupplierIds: scope === 'DESIGNATED' ? selected : undefined }); toast.success('配置已保存'); onChanged(); }
+    try { await updateBidDocumentConfig(annId, { accessScope: scope, requirePayment, price: requirePayment ? (price || 0) : undefined, allowedSupplierIds: scope === 'INVITED' ? selected : undefined }); toast.success('配置已保存'); onChanged(); }
     catch (e: any) { toast.error(e?.message || '保存失败'); }
     setBusy(false);
   };
@@ -266,13 +266,13 @@ function BidDocUploader({ annId, bidDoc, onChanged }: { annId: string; bidDoc: B
 
   const configRow = (
     <div className={`grid gap-3 mb-3 ${requirePayment ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
-      <div><label className="block text-xs font-semibold text-[#5a6d8a] mb-1">访问范围</label><select value={scope} onChange={e => setScope(e.target.value as any)} className={inputCls}><option value="OPEN">公开下载</option><option value="DESIGNATED">指定供应商</option><option value="INVITED">邀请招标</option></select></div>
+      <div><label className="block text-xs font-semibold text-[#5a6d8a] mb-1">访问范围</label><select value={scope} onChange={e => setScope(e.target.value as any)} className={inputCls}><option value="OPEN">公开下载</option><option value="INVITED">邀请招标</option></select></div>
       <div><label className="block text-xs font-semibold text-[#5a6d8a] mb-1">付费下载</label><select value={requirePayment ? '1' : '0'} onChange={e => setRequirePayment(e.target.value === '1')} className={inputCls}><option value="0">免费</option><option value="1">付费</option></select></div>
       {requirePayment && <div><label className="block text-xs font-semibold text-[#5a6d8a] mb-1">价格（元）</label><input type="number" value={price} onChange={e => setPrice(e.target.value === '' ? '' : Number(e.target.value))} className={inputCls} /></div>}
     </div>
   );
 
-  const picker = scope === 'DESIGNATED' && (
+  const picker = scope === 'INVITED' && (
     <div className="mb-3">
       <div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-[#5a6d8a]">可下载供应商（已选 {selected.length}）</span><input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="搜索供应商" className="px-2 py-1 border border-[#e5ecf4] rounded text-xs w-40" /></div>
       <div className="max-h-36 overflow-y-auto rounded border border-[#e5ecf4] divide-y divide-[#f1f5f9]">

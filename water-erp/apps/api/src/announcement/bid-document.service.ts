@@ -5,7 +5,7 @@ import { encryptBuffer, decryptBuffer, streamToBuffer } from './bid-document.cry
 import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import * as crypto from 'crypto';
 
-export type AccessScope = 'OPEN' | 'DESIGNATED' | 'INVITED';
+export type AccessScope = 'OPEN' | 'INVITED';
 
 @Injectable()
 export class BidDocumentService {
@@ -61,8 +61,8 @@ export class BidDocumentService {
       },
     });
 
-    // DESIGNATED 白名单 → 建 eligible access 记录
-    if (accessScope === 'DESIGNATED' && config.allowedSupplierIds?.length) {
+    // INVITED 白名单 → 建 eligible access 记录
+    if (accessScope === 'INVITED' && config.allowedSupplierIds?.length) {
       await this.syncWhitelist(doc.id, config.allowedSupplierIds);
     }
     return this.getForManagement(announcementId);
@@ -85,8 +85,8 @@ export class BidDocumentService {
     if (config.accessScope !== undefined) {
       data.accessScope = config.accessScope;
       if (config.accessScope === 'INVITED') data.bidProjectId = config.bidProjectId ?? doc.bidProjectId;
-      if (config.accessScope !== 'DESIGNATED') {
-        // 离开 DESIGNATED 时清空白名单 eligible
+      if (config.accessScope !== 'INVITED') {
+        // 离开 INVITED 时清空白名单 eligible
         await this.prisma.bidDocumentAccess.updateMany({ where: { documentId: doc.id, eligible: true, paid: false }, data: { eligible: false } });
       }
     }
@@ -98,7 +98,7 @@ export class BidDocumentService {
 
     await this.prisma.bidDocument.update({ where: { id: doc.id }, data });
 
-    if (config.accessScope === 'DESIGNATED' && config.allowedSupplierIds !== undefined) {
+    if (config.accessScope === 'INVITED' && config.allowedSupplierIds !== undefined) {
       await this.syncWhitelist(doc.id, config.allowedSupplierIds);
     }
     return this.getForManagement(announcementId);
@@ -213,16 +213,16 @@ export class BidDocumentService {
   /** 校验供应商是否有资格（不含付费） */
   private async checkEligibility(doc: any, supplierId: string): Promise<{ eligible: boolean; reason: string }> {
     if (doc.accessScope === 'OPEN') return { eligible: true, reason: '公开下载' };
-    if (doc.accessScope === 'DESIGNATED') {
-      const a = await this.prisma.bidDocumentAccess.findUnique({ where: { documentId_supplierId: { documentId: doc.id, supplierId } } });
-      if (a?.eligible) return { eligible: true, reason: '已列入可下载名单' };
-      return { eligible: false, reason: '未列入可下载名单' };
-    }
     if (doc.accessScope === 'INVITED') {
-      if (!doc.bidProjectId) return { eligible: false, reason: '未关联招标项目' };
-      const invited = await this.prisma.bidSupplier.findFirst({ where: { projectId: doc.bidProjectId, supplierId } });
-      if (invited) return { eligible: true, reason: '受邀参与本项目' };
-      return { eligible: false, reason: '未受邀参与本项目' };
+      // 检查是否在白名单中（管理员手动指定）
+      const whitelist = await this.prisma.bidDocumentAccess.findUnique({ where: { documentId_supplierId: { documentId: doc.id, supplierId } } });
+      if (whitelist?.eligible) return { eligible: true, reason: '已列入受邀名单' };
+      // 检查是否被邀参与关联项目
+      if (doc.bidProjectId) {
+        const invited = await this.prisma.bidSupplier.findFirst({ where: { projectId: doc.bidProjectId, supplierId } });
+        if (invited) return { eligible: true, reason: '受邀参与本项目' };
+      }
+      return { eligible: false, reason: '未列入受邀名单且未受邀参与本项目' };
     }
     return { eligible: false, reason: '未知访问模式' };
   }

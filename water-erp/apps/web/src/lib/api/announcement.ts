@@ -47,7 +47,7 @@ export interface BidDocumentManage {
   id: string;
   announcementId: string;
   title: string;
-  accessScope: 'OPEN' | 'DESIGNATED' | 'INVITED';
+  accessScope: 'OPEN' | 'INVITED';
   requirePayment: boolean;
   price: number | null;
   bidProjectId: string | null;
@@ -149,7 +149,7 @@ export function getBidDocument(announcementId: string) {
 }
 
 export function updateBidDocumentConfig(announcementId: string, data: {
-  accessScope?: 'OPEN' | 'DESIGNATED' | 'INVITED';
+  accessScope?: 'OPEN' | 'INVITED';
   requirePayment?: boolean;
   price?: number;
   bidProjectId?: string;
@@ -169,7 +169,7 @@ export function removeBidDocument(announcementId: string) {
 
 /** 上传加密招标文件（multipart） */
 export function uploadBidDocument(announcementId: string, file: File, config: {
-  title?: string; accessScope: 'OPEN' | 'DESIGNATED' | 'INVITED';
+  title?: string; accessScope: 'OPEN' | 'INVITED';
   requirePayment: boolean; price?: number; bidProjectId?: string; allowedSupplierIds?: string[];
 }) {
   const fd = new FormData();

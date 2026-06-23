@@ -116,11 +116,11 @@ export class AnnouncementController {
       properties: {
         file: { type: 'string', format: 'binary' },
         title: { type: 'string' },
-        accessScope: { type: 'string', description: 'OPEN | DESIGNATED | INVITED' },
+        accessScope: { type: 'string', description: 'OPEN | INVITED' },
         requirePayment: { type: 'string', description: 'true/false' },
         price: { type: 'number' },
         bidProjectId: { type: 'string' },
-        allowedSupplierIds: { type: 'string', description: '逗号分隔的供应商ID（DESIGNATED）' },
+        allowedSupplierIds: { type: 'string', description: '逗号分隔的供应商ID（INVITED 模式下手动指定受邀供应商）' },
       },
     },
   })

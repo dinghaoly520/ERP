@@ -53,8 +53,8 @@ onMounted(load)
       <span style="font-size:12px;color:var(--sp-gray-400);margin-left:auto">共 {{ totalFiltered }} 条</span>
     </div>
 
-    <div v-if="filteredSupply.length===0&&!loading&&supply.length>0" class="sp-empty-panel"><el-icon :size="32"><Search /></el-icon><p class="sp-empty-text">未找到匹配的供货</p><p class="sp-empty-desc">尝试其他关键词</p></div>
-    <div v-else-if="supply.length===0&&!loading" class="sp-empty-panel"><el-icon :size="32"><Box /></el-icon><p class="sp-empty-text">暂无供货关系</p><p class="sp-empty-desc">前往「集中采购目录」申请供货</p><el-button type="primary" style="margin-top:16px" @click="$router.push('/catalog')">浏览采购目录</el-button></div>
+    <div v-if="filteredSupply.length===0&&!loading&&supply.length>0" class="empty-center"><div class="sp-empty-panel"><el-icon :size="32"><Search /></el-icon><p class="sp-empty-text">未找到匹配的供货</p><p class="sp-empty-desc">尝试其他关键词</p></div></div>
+    <div v-else-if="supply.length===0&&!loading" class="empty-center"><div class="sp-empty-panel"><el-icon :size="32"><Box /></el-icon><p class="sp-empty-text">暂无供货关系</p><p class="sp-empty-desc">前往「集中采购目录」申请供货</p><el-button type="primary" style="margin-top:16px" @click="$router.push('/catalog')">浏览采购目录</el-button></div></div>
 
     <div v-else class="supply-grid">
       <div v-for="s in pagedSupply" :key="s.id" class="supply-card">
@@ -91,6 +91,8 @@ onMounted(load)
 .supply-time { font-size: 11px; color: var(--sp-gray-400); margin-top: 6px; }
 .supply-card-foot { padding: 12px 18px; border-top: 1px solid rgba(0,0,0,0.04); background: rgba(255,255,255,0.40); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 
+.empty-center { display: flex; align-items: center; justify-content: center; min-height: 60vh; }
+.sp-empty-panel { text-align: center; }
 .sp-empty-text { font-size: 15px; font-weight: 700; color: var(--sp-gray-500); margin-top: 12px; }
-.sp-empty-desc { font-size: 13px; margin-top: 4px; }
+.sp-empty-desc { font-size: 13px; margin-top: 4px; color: var(--sp-gray-400); }
 </style>
