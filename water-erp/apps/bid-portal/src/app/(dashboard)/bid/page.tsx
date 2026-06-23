@@ -353,7 +353,7 @@ export default function BidDashboard() {
         <select
           value={stageFilter}
           onChange={e => { setStageFilter(e.target.value); setReadinessFilter(''); }}
-          className="workbench-input cursor-pointer"
+          className="workbench-input cursor-pointer text-sm"
         >
           <option value="">全部阶段</option>
           {Object.entries(STAGE_LABEL).map(([k, v]) => (
@@ -363,7 +363,7 @@ export default function BidDashboard() {
         <select
           value={readinessFilter}
           onChange={e => setReadinessFilter(e.target.value)}
-          className="workbench-input cursor-pointer"
+          className="workbench-input cursor-pointer text-sm"
         >
           <option value="">全部状态</option>
           <option value="ready">● 就绪</option>
@@ -373,9 +373,9 @@ export default function BidDashboard() {
         </select>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a] transition"
+          className="flex items-center gap-1.5 rounded-xl border border-[#dce3eb] px-3 py-2 text-sm font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
         >
-          <Plus size={12} strokeWidth={1.5} />
+          <Plus size={14} strokeWidth={1.5} />
           手动创建
         </button>
       </DataToolbar>

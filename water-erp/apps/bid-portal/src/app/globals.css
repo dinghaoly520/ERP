@@ -71,6 +71,17 @@ body {
   box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.12);
 }
 
+/* ── Workbench select (like input-glow) ── */
+select.workbench-input {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+select.workbench-input:focus {
+  border-color: #0b63ce;
+  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.10);
+  background: #fff;
+}
+
 /* ─── Table — industrial data display ─── */
 .workbench-table {
   width: 100%;
