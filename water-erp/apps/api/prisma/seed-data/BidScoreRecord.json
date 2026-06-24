@@ -6,7 +6,7 @@
     "supplierId": "cmqhero-bs01",
     "score": "16.4",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr02",
@@ -15,7 +15,7 @@
     "supplierId": "cmqhero-bs01",
     "score": "44",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr03",
@@ -24,7 +24,7 @@
     "supplierId": "cmqhero-bs01",
     "score": "25.5",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr04",
@@ -33,7 +33,7 @@
     "supplierId": "cmqhero-bs02",
     "score": "18",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr05",
@@ -42,7 +42,7 @@
     "supplierId": "cmqhero-bs02",
     "score": "46",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr06",
@@ -51,7 +51,7 @@
     "supplierId": "cmqhero-bs02",
     "score": "23.4",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr07",
@@ -60,7 +60,7 @@
     "supplierId": "cmqhero-bs03",
     "score": "17",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr08",
@@ -69,7 +69,7 @@
     "supplierId": "cmqhero-bs03",
     "score": "40",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr09",
@@ -78,7 +78,7 @@
     "supplierId": "cmqhero-bs03",
     "score": "27",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr10",
@@ -87,7 +87,7 @@
     "supplierId": "cmqhero-bs01",
     "score": "17",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr11",
@@ -96,7 +96,7 @@
     "supplierId": "cmqhero-bs01",
     "score": "42.5",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr12",
@@ -105,7 +105,7 @@
     "supplierId": "cmqhero-bs01",
     "score": "24.6",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr13",
@@ -114,7 +114,7 @@
     "supplierId": "cmqhero-bs02",
     "score": "17.6",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr14",
@@ -123,7 +123,7 @@
     "supplierId": "cmqhero-bs02",
     "score": "45",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr15",
@@ -132,7 +132,7 @@
     "supplierId": "cmqhero-bs02",
     "score": "24",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr16",
@@ -141,7 +141,7 @@
     "supplierId": "cmqhero-bs03",
     "score": "16.4",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr17",
@@ -150,7 +150,7 @@
     "supplierId": "cmqhero-bs03",
     "score": "39",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr18",
@@ -159,7 +159,7 @@
     "supplierId": "cmqhero-bs03",
     "score": "26.4",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr19",
@@ -168,7 +168,7 @@
     "supplierId": "cmqhero-bs01",
     "score": "16",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr20",
@@ -177,7 +177,7 @@
     "supplierId": "cmqhero-bs01",
     "score": "43",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr21",
@@ -186,7 +186,7 @@
     "supplierId": "cmqhero-bs01",
     "score": "26.4",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr22",
@@ -195,7 +195,7 @@
     "supplierId": "cmqhero-bs02",
     "score": "18.4",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr23",
@@ -204,7 +204,7 @@
     "supplierId": "cmqhero-bs02",
     "score": "44",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
     "id": "cmqhero-sr24",
@@ -213,6 +213,330 @@
     "supplierId": "cmqhero-bs02",
     "score": "22.5",
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-1-0-BUSINESS",
+    "expertId": "cmqfix-1781-be-1",
+    "scoreItemId": "cmqgedld60012vkr4i40jkx26",
+    "supplierId": "cmqgedbr3000zvkr46arzzmi9",
+    "score": "17.0",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-1-0-TECHNICAL",
+    "expertId": "cmqfix-1781-be-1",
+    "scoreItemId": "cmqgedld60013vkr4dkrpc9b8",
+    "supplierId": "cmqgedbr3000zvkr46arzzmi9",
+    "score": "42.5",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-1-0-PRICE",
+    "expertId": "cmqfix-1781-be-1",
+    "scoreItemId": "cmqgedld60014vkr4x1ff4qyl",
+    "supplierId": "cmqgedbr3000zvkr46arzzmi9",
+    "score": "25.5",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-1-1-BUSINESS",
+    "expertId": "cmqfix-1781-be-1",
+    "scoreItemId": "cmqgedld60012vkr4i40jkx26",
+    "supplierId": "cmqgedbpu000vvkr4dicd8rtv",
+    "score": "17.0",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-1-1-TECHNICAL",
+    "expertId": "cmqfix-1781-be-1",
+    "scoreItemId": "cmqgedld60013vkr4dkrpc9b8",
+    "supplierId": "cmqgedbpu000vvkr4dicd8rtv",
+    "score": "42.5",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-1-1-PRICE",
+    "expertId": "cmqfix-1781-be-1",
+    "scoreItemId": "cmqgedld60014vkr4x1ff4qyl",
+    "supplierId": "cmqgedbpu000vvkr4dicd8rtv",
+    "score": "25.5",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-2-0-BUSINESS",
+    "expertId": "cmqfix-1781-be-2",
+    "scoreItemId": "cmqgedld60012vkr4i40jkx26",
+    "supplierId": "cmqgedbr3000zvkr46arzzmi9",
+    "score": "17.2",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-2-0-TECHNICAL",
+    "expertId": "cmqfix-1781-be-2",
+    "scoreItemId": "cmqgedld60013vkr4dkrpc9b8",
+    "supplierId": "cmqgedbr3000zvkr46arzzmi9",
+    "score": "43.0",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-2-0-PRICE",
+    "expertId": "cmqfix-1781-be-2",
+    "scoreItemId": "cmqgedld60014vkr4x1ff4qyl",
+    "supplierId": "cmqgedbr3000zvkr46arzzmi9",
+    "score": "25.8",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-2-1-BUSINESS",
+    "expertId": "cmqfix-1781-be-2",
+    "scoreItemId": "cmqgedld60012vkr4i40jkx26",
+    "supplierId": "cmqgedbpu000vvkr4dicd8rtv",
+    "score": "16.8",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-2-1-TECHNICAL",
+    "expertId": "cmqfix-1781-be-2",
+    "scoreItemId": "cmqgedld60013vkr4dkrpc9b8",
+    "supplierId": "cmqgedbpu000vvkr4dicd8rtv",
+    "score": "42.0",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-2-1-PRICE",
+    "expertId": "cmqfix-1781-be-2",
+    "scoreItemId": "cmqgedld60014vkr4x1ff4qyl",
+    "supplierId": "cmqgedbpu000vvkr4dicd8rtv",
+    "score": "25.2",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-3-0-BUSINESS",
+    "expertId": "cmqfix-1781-be-3",
+    "scoreItemId": "cmqgedld60012vkr4i40jkx26",
+    "supplierId": "cmqgedbr3000zvkr46arzzmi9",
+    "score": "16.8",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-3-0-TECHNICAL",
+    "expertId": "cmqfix-1781-be-3",
+    "scoreItemId": "cmqgedld60013vkr4dkrpc9b8",
+    "supplierId": "cmqgedbr3000zvkr46arzzmi9",
+    "score": "42.0",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-3-0-PRICE",
+    "expertId": "cmqfix-1781-be-3",
+    "scoreItemId": "cmqgedld60014vkr4x1ff4qyl",
+    "supplierId": "cmqgedbr3000zvkr46arzzmi9",
+    "score": "25.2",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-3-1-BUSINESS",
+    "expertId": "cmqfix-1781-be-3",
+    "scoreItemId": "cmqgedld60012vkr4i40jkx26",
+    "supplierId": "cmqgedbpu000vvkr4dicd8rtv",
+    "score": "16.8",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-3-1-TECHNICAL",
+    "expertId": "cmqfix-1781-be-3",
+    "scoreItemId": "cmqgedld60013vkr4dkrpc9b8",
+    "supplierId": "cmqgedbpu000vvkr4dicd8rtv",
+    "score": "42.0",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-sr-3-1-PRICE",
+    "expertId": "cmqfix-1781-be-3",
+    "scoreItemId": "cmqgedld60014vkr4x1ff4qyl",
+    "supplierId": "cmqgedbpu000vvkr4dicd8rtv",
+    "score": "25.2",
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-1-0-BUSINESS",
+    "expertId": "cmqfix-0618-be-1",
+    "scoreItemId": "cmqhf0ke0000gvk18si0biz003",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "17.4",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-1-0-TECHNICAL",
+    "expertId": "cmqfix-0618-be-1",
+    "scoreItemId": "cmqhf0ke0000hvk18si0tec004",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "43.5",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-1-0-PRICE",
+    "expertId": "cmqfix-0618-be-1",
+    "scoreItemId": "cmqhf0ke0000ivk18si0prc005",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "26.1",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-1-1-BUSINESS",
+    "expertId": "cmqfix-0618-be-1",
+    "scoreItemId": "cmqhf0ke0000gvk18si0biz003",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "16.6",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-1-1-TECHNICAL",
+    "expertId": "cmqfix-0618-be-1",
+    "scoreItemId": "cmqhf0ke0000hvk18si0tec004",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "41.5",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-1-1-PRICE",
+    "expertId": "cmqfix-0618-be-1",
+    "scoreItemId": "cmqhf0ke0000ivk18si0prc005",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "24.9",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-2-0-BUSINESS",
+    "expertId": "cmqfix-0618-be-2",
+    "scoreItemId": "cmqhf0ke0000gvk18si0biz003",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "17.2",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-2-0-TECHNICAL",
+    "expertId": "cmqfix-0618-be-2",
+    "scoreItemId": "cmqhf0ke0000hvk18si0tec004",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "43.0",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-2-0-PRICE",
+    "expertId": "cmqfix-0618-be-2",
+    "scoreItemId": "cmqhf0ke0000ivk18si0prc005",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "25.8",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-2-1-BUSINESS",
+    "expertId": "cmqfix-0618-be-2",
+    "scoreItemId": "cmqhf0ke0000gvk18si0biz003",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "16.4",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-2-1-TECHNICAL",
+    "expertId": "cmqfix-0618-be-2",
+    "scoreItemId": "cmqhf0ke0000hvk18si0tec004",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "41.0",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-2-1-PRICE",
+    "expertId": "cmqfix-0618-be-2",
+    "scoreItemId": "cmqhf0ke0000ivk18si0prc005",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "24.6",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-3-0-BUSINESS",
+    "expertId": "cmqfix-0618-be-3",
+    "scoreItemId": "cmqhf0ke0000gvk18si0biz003",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "17.4",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-3-0-TECHNICAL",
+    "expertId": "cmqfix-0618-be-3",
+    "scoreItemId": "cmqhf0ke0000hvk18si0tec004",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "43.5",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-3-0-PRICE",
+    "expertId": "cmqfix-0618-be-3",
+    "scoreItemId": "cmqhf0ke0000ivk18si0prc005",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "26.1",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-3-1-BUSINESS",
+    "expertId": "cmqfix-0618-be-3",
+    "scoreItemId": "cmqhf0ke0000gvk18si0biz003",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "16.6",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-3-1-TECHNICAL",
+    "expertId": "cmqfix-0618-be-3",
+    "scoreItemId": "cmqhf0ke0000hvk18si0tec004",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "41.5",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-sr-3-1-PRICE",
+    "expertId": "cmqfix-0618-be-3",
+    "scoreItemId": "cmqhf0ke0000ivk18si0prc005",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "24.9",
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
   }
 ]
