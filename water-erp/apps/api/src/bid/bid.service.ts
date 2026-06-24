@@ -21,6 +21,9 @@ import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../expert/expert-deviation';
 import { ScoreCategory } from '@prisma/client';
 import { isBondQualified } from './bid-bond-status';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 
 @Injectable()
 export class BidService {
@@ -28,6 +31,9 @@ export class BidService {
     private prisma: PrismaService,
     private notificationService: NotificationService,
     @Optional() private readonly gateway?: BidGateway,
+    @Optional()
+    @InjectQueue(QUEUE_NAMES.TENDER_PROCESSING)
+    private readonly tenderQueue?: Queue,
   ) {}
 
   private readonly logger = new Logger(BidService.name);
@@ -579,6 +585,28 @@ export class BidService {
       });
       if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'OPENING', to: 'EVALUATING', stage: 'EVALUATING' } } });
 
+      // 4.3: 创建 AI 分析 task（1:1，upsert 幂等）+ 为解密成功供应商创建 bidderResult（数据准备）
+      const aiTask = await tx.aiBidAnalysisTask.upsert({
+        where: { projectId: id },
+        create: { projectId: id, status: 'PENDING' },
+        update: {},
+      });
+      const evaluableSuppliers = await tx.bidSupplier.findMany({
+        where: { projectId: id, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+        select: { id: true },
+      });
+      if (evaluableSuppliers.length > 0) {
+        await tx.aiBidderResult.createMany({
+          data: evaluableSuppliers.map((s) => ({
+            taskId: aiTask.id,
+            bidSupplierId: s.id,
+            status: 'PENDING',
+          })),
+          skipDuplicates: true, // @@unique([taskId, bidSupplierId]) 幂等
+        });
+      }
+      // TODO Phase 5: 入队 BullMQ 触发 worker（OCR → extract → concordance → score）
+
       return result;
     });
 
@@ -586,6 +614,27 @@ export class BidService {
     this.gateway?.notifyStageChange(id, 'OPENING', 'EVALUATING', 'host');
     this.gateway?.notifyEvaluationStarted(id);
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '启动评标 (OPENING→EVALUATING)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
+
+    // 4.3: 入队 AI 分析（tender 处理 → 触发 worker 端到端）
+    if (this.tenderQueue) {
+      const aiTask = await this.prisma.aiBidAnalysisTask.findUnique({
+        where: { projectId: id },
+      });
+      if (aiTask) {
+        await this.tenderQueue.add(
+          'process',
+          { taskId: aiTask.id },
+          {
+            jobId: `tender-${aiTask.id}`,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+            removeOnComplete: { age: 7 * 24 * 3600 },
+            removeOnFail: { age: 30 * 24 * 3600 },
+          },
+        );
+        this.logger.log(`AI analysis task ${aiTask.id} enqueued for project ${id}`);
+      }
+    }
 
     return updated;
   }

@@ -10,13 +10,13 @@ datasource db {
 // ── 基础 ──
 
 model Department {
-  id                  String                @id @default(cuid())
-  name                String                @unique
-  code                String?               @unique
+  id                  String               @id @default(cuid())
+  name                String               @unique
+  code                String?              @unique
   users               User[]
   procurementProjects ProcurementProject[]
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 }
 
 model User {
@@ -38,12 +38,12 @@ model User {
   bidExperts          BidExpert[]
   uploadedFiles       FileAsset[]
   createdProcurements ProcurementProject[]
-  budgetLists                BudgetList[]
+  budgetLists         BudgetList[]
   favorites           UserFavorite[]
-  auditLogs            AuditLog[]
+  auditLogs           AuditLog[]
   expertProfile       ExpertProfile?
-  expertEvaluations   ExpertEvaluation[] @relation("ExpertEvaluationsReceived")
-  expertEvalsGiven    ExpertEvaluation[] @relation("ExpertEvaluationsGiven")
+  expertEvaluations   ExpertEvaluation[]   @relation("ExpertEvaluationsReceived")
+  expertEvalsGiven    ExpertEvaluation[]   @relation("ExpertEvaluationsGiven")
 
   @@unique([username, role])
 }
@@ -86,59 +86,191 @@ enum ArchiveStatus {
   NOT_STARTED
 }
 
+// ── AI 辅助评标（per-item 版，方案第三章；修正 1.5a 的 procurement 固定 breakdown 版）──
+enum AiAnalysisTaskStatus {
+  PENDING
+  TENDER_PROCESSING
+  ANALYZING
+  COMPLETED
+  COMPLETED_WITH_ERRORS
+  FAILED
+  CANCELLED
+}
+
+enum AiBidderStatus {
+  PENDING
+  OCR_PROCESSING
+  OCR_COMPLETED
+  EXTRACTING
+  EXTRACTED
+  CONCORDANCE_CHECKING
+  SCORING
+  SCORED
+  DEVIATION_ANALYZING
+  COMPLETED
+  FAILED
+}
+
+// AI 辅助评标任务（每个 BidProject 进入 EVALUATING 时创建，1:1）
+model AiBidAnalysisTask {
+  id                      String               @id @default(cuid())
+  projectId               String               @unique // ★ 1:1 关联 BidProject（修正 1.5a 的多对一）
+  status                  AiAnalysisTaskStatus @default(PENDING)
+  tenderText              String? // 招标文件 OCR 文本
+  tenderPages             Json?
+  requirements            Json? // LLM 提取的招标要求（含 scoringRules）
+  scoringCriteriaSnapshot Json? // AI 推断的评分标准快照（不回填 BidScoreItem，见方案 15.8）
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  completedAt             DateTime?
+
+  project              BidProject            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bidderResults        AiBidderResult[]
+  report               AiBidReport?
+  aiConcordanceResults AiConcordanceResult[]
+
+  @@index([status])
+  @@map("ai_bid_analysis_tasks")
+}
+
+// 投标单位分析结果（每个 BidSupplier 一条，per-item 评分对齐 BidScoreItem）
+model AiBidderResult {
+  id                  String         @id @default(cuid())
+  taskId              String
+  bidSupplierId       String // 关联 BidSupplier（BidSupplier.supplierId 可空）
+  status              AiBidderStatus @default(PENDING)
+  // 文本
+  technicalText       String? // 技术标 OCR 文本
+  businessText        String? // 商务标 OCR 文本
+  // 提取结果
+  extractedInfo       Json? // 标书 LLM 提取（审计快照）
+  systemInfo          Json? // 系统结构化数据快照（审计快照）
+  keyInfo             Json? // 融合后展示对象（权威源 + 一致性标注）
+  // per-item 评分（对齐 BidScoreItem，核心）
+  scoreItems          Json? // [{scoreItemId, category, name, score, maxScore, reason, evidence, confidence}]
+  categoryTotals      Json? // { QUALIFICATION:{score,max}, RESPONSIVE:{...}, ... }
+  totalScore          Decimal?       @db.Decimal(5, 2)
+  // 判定
+  qualificationStatus String?        @default("pending") // 通过/不通过/待审查
+  riskLevel           String?        @default("low")
+  riskAnalysis        Json?
+  strengths           Json?
+  weaknesses          Json?
+  overallComment      String?
+  deviationAnalysis   Json?
+  competitiveAnalysis Json? // 第二轮横向对比结果
+  processedAt         DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  task        AiBidAnalysisTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  bidSupplier BidSupplier          @relation(fields: [bidSupplierId], references: [id], onDelete: Cascade)
+  concordance AiConcordanceResult?
+
+  @@unique([taskId, bidSupplierId])
+  @@index([taskId])
+  @@index([bidSupplierId])
+  @@index([status])
+  @@map("ai_bidder_results")
+}
+
+// 双源一致性校验结果（每 AiBidderResult 一条，1:1）
+model AiConcordanceResult {
+  id             String   @id @default(cuid())
+  taskId         String
+  bidderResultId String   @unique // ★ 1:1 关联 AiBidderResult（修正方案 fields:[bidSupplierId] references:[id] 的不成立）
+  overallStatus  String // consistent | minor_diff | conflict | insufficient_data
+  conflictCount  Int      @default(0)
+  warningCount   Int      @default(0)
+  checkedFields  Json? // [{field,label,systemValue,docValue,status,severity,note}]
+  generatedAt    DateTime @default(now())
+
+  bidder AiBidderResult    @relation(fields: [bidderResultId], references: [id], onDelete: Cascade)
+  task   AiBidAnalysisTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("ai_concordance_results")
+}
+
+// 报告
+model AiBidReport {
+  id                  String            @id @default(cuid())
+  taskId              String            @unique
+  summary             Json?
+  ranking             Json?
+  keyInfoComparison   Json?
+  priceAnalysis       Json?
+  concordanceSummary  Json? // ★ per-item 版新增（方案第三章）
+  strengthsWeaknesses Json?
+  riskStats           Json?
+  highRiskDetails     Json?
+  fraudIndicators     Json? // 串通检测
+  reviewSuggestions   Json?
+  conclusion          String?
+  recommendation      Json?
+  docxFileId          String?
+  pdfFileId           String?
+  generatedAt         DateTime?
+  task                AiBidAnalysisTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("ai_bid_reports")
+}
+
 model BidProject {
-  id                  String                  @id @default(cuid())
-  projectCode         String                  @unique
-  name                String
-  procurementMethod   String
-  openTime            DateTime
-  deadline            DateTime
-  stage               BidStage                @default(DOWNLOAD)
-  riskNote            String?
-  budget              Decimal?                @db.Decimal(14, 2)
-  scope               String?
-  qualification       String?
-  contact             String?
-  qualityRequirement String?                   // 质量目标/标准（项目级统一，唱标带出）
-  bondRequired        Boolean  @default(false)  // 是否要求投标保证金
-  bondAmount          Decimal? @db.Decimal(14, 2) // 保证金金额（仅记录，不严格校验）
-  encryptionKeyId     String?                  // Track C: 项目数据密钥引用
-  suppliers           BidSupplier[]
-  openingSession      BidOpeningSession?
-  openingRecords      BidOpeningRecord[]
-  experts             BidExpert[]
-  scoreItems          BidScoreItem[]
-  clarifications      BidClarification[]
-  supervisionLogs     BidSupervisionLog[]
-  archiveItems        BidArchiveItem[]
-  evaluationResults        BidEvaluationResult[]
-  supervisionAnnotations   BidSupervisionAnnotation[]
-  supplierSubmissions      SupplierBidSubmission[]
-  procurementProject  ProcurementProject?
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
+  id                     String                     @id @default(cuid())
+  projectCode            String                     @unique
+  name                   String
+  procurementMethod      String
+  openTime               DateTime
+  deadline               DateTime
+  stage                  BidStage                   @default(DOWNLOAD)
+  riskNote               String?
+  budget                 Decimal?                   @db.Decimal(14, 2)
+  scope                  String?
+  qualification          String?
+  contact                String?
+  qualityRequirement     String? // 质量目标/标准（项目级统一，唱标带出）
+  bondRequired           Boolean                    @default(false) // 是否要求投标保证金
+  bondAmount             Decimal?                   @db.Decimal(14, 2) // 保证金金额（仅记录，不严格校验）
+  encryptionKeyId        String? // Track C: 项目数据密钥引用
+  suppliers              BidSupplier[]
+  openingSession         BidOpeningSession?
+  openingRecords         BidOpeningRecord[]
+  experts                BidExpert[]
+  scoreItems             BidScoreItem[]
+  clarifications         BidClarification[]
+  supervisionLogs        BidSupervisionLog[]
+  archiveItems           BidArchiveItem[]
+  aiAnalysisTask         AiBidAnalysisTask?
+  evaluationResults      BidEvaluationResult[]
+  supervisionAnnotations BidSupervisionAnnotation[]
+  supplierSubmissions    SupplierBidSubmission[]
+  procurementProject     ProcurementProject?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
 
   @@index([stage])
 }
 
 model BidSupplier {
-  id              String           @id @default(cuid())
-  projectId       String
-  supplierId      String?
-  supplierName    String
-  downloadStatus  String           @default("待下载")
-  submitStatus    String           @default("待提交")
-  encryptStatus   String           @default("待校验")
-  receiptNo       String?
-  decryptStatus   DecryptStatus    @default(PENDING)
-  confirmStatus   ConfirmStatus    @default(PENDING)
-  project         BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  supplier        Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id                    String                    @id @default(cuid())
+  projectId             String
+  supplierId            String?
+  supplierName          String
+  downloadStatus        String                    @default("待下载")
+  submitStatus          String                    @default("待提交")
+  encryptStatus         String                    @default("待校验")
+  receiptNo             String?
+  decryptStatus         DecryptStatus             @default(PENDING)
+  confirmStatus         ConfirmStatus             @default(PENDING)
+  project               BidProject                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier              Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
   bidScoreRecords       BidScoreRecord[]
+  bidderResults         AiBidderResult[]
   supervisionAnnotation BidSupervisionAnnotation?
-  decryptError          String?          // 解密失败原因
+  decryptError          String? // 解密失败原因
 
   @@unique([projectId, supplierName])
   @@index([supplierId])
@@ -183,38 +315,41 @@ model BidOpeningRecord {
 }
 
 model BidExpert {
-  id                 String           @id @default(cuid())
-  projectId          String
-  userId             String
-  expertName         String
-  major              String
-  signedIn           Boolean          @default(false)
-  phoneVerified      Boolean          @default(false)
-  avoidanceConfirmed  Boolean          @default(false)
-  conflictedSupplierIds Json            @default("[]")
-  progress           Int              @default(0)
-  totalScore         Decimal          @default("0") @db.Decimal(8, 1)
-  reportConfirmed    Boolean          @default(false)
-  reportConfirmedAt  DateTime?
-  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project            BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  scoreRecords       BidScoreRecord[]
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id                    String           @id @default(cuid())
+  projectId             String
+  userId                String
+  expertName            String
+  major                 String
+  signedIn              Boolean          @default(false)
+  phoneVerified         Boolean          @default(false)
+  avoidanceConfirmed    Boolean          @default(false)
+  conflictedSupplierIds Json             @default("[]")
+  progress              Int              @default(0)
+  totalScore            Decimal          @default("0") @db.Decimal(8, 1)
+  reportConfirmed       Boolean          @default(false)
+  reportConfirmedAt     DateTime?
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project               BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scoreRecords          BidScoreRecord[]
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
 
   @@unique([projectId, userId])
   @@index([userId])
 }
 
 model BidScoreItem {
-  id           String           @id @default(cuid())
-  projectId    String
-  category     ScoreCategory
-  name         String
-  maxScore     Decimal          @default("0") @db.Decimal(5, 1)
-  project      BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  scoreRecords BidScoreRecord[]
-  createdAt    DateTime         @default(now())
+  id              String           @id @default(cuid())
+  projectId       String
+  category        ScoreCategory
+  name            String
+  maxScore        Decimal          @default("0") @db.Decimal(5, 1)
+  scoringCriteria String? // ★ per-item 新增：评分细则（管理员填 或 AI 推断回填）
+  evidenceHint    String? // 评审要点
+  criteriaSource  String? // manual | ai_inferred
+  project         BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scoreRecords    BidScoreRecord[]
+  createdAt       DateTime         @default(now())
 
   @@index([projectId])
 }
@@ -322,8 +457,8 @@ model BidEvaluationResult {
 // ── 专家管理 ──
 
 model ExpertProfile {
-  id           String   @id @default(cuid())
-  userId       String   @unique
+  id           String    @id @default(cuid())
+  userId       String    @unique
   specialty    String // 专业领域（水利工程/机电设备/造价咨询/...）
   title        String? // 职称（教授级高工/高工/...）
   employer     String? // 工作单位（用于供应商回避校验）
@@ -332,12 +467,12 @@ model ExpertProfile {
   ethnicity    String? // 民族
   education    String? // 学历（博士/硕士/本科/大专/...）
   licenseNo    String? // 执业资格证号
-  availability String   @default("可用") // 可用 / 占用 / 停用
+  availability String    @default("可用") // 可用 / 占用 / 停用
   notes        String?
-  retiredAt    DateTime?                      // Track D: 退库时间（人工确认后写入）
-  retireReason String?                        // Track D: 退库原因
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  retiredAt    DateTime? // Track D: 退库时间（人工确认后写入）
+  retireReason String? // Track D: 退库原因
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -353,18 +488,18 @@ enum ExpertLevel {
 }
 
 model ExpertEvaluation {
-  id               String   @id @default(cuid())
-  expertUserId     String
-  projectId        String?
-  evaluatorId      String
-  attendanceScore  Int // 出勤纪律 0-100
-  qualityScore     Int // 评审质量 0-100
-  disciplineScore  Int // 廉洁纪律 0-100
-  overallScore     Int // 综合 0-100
-  level            ExpertLevel @default(B)
-  comment          String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String      @id @default(cuid())
+  expertUserId    String
+  projectId       String?
+  evaluatorId     String
+  attendanceScore Int // 出勤纪律 0-100
+  qualityScore    Int // 评审质量 0-100
+  disciplineScore Int // 廉洁纪律 0-100
+  overallScore    Int // 综合 0-100
+  level           ExpertLevel @default(B)
+  comment         String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   expertUser User @relation("ExpertEvaluationsReceived", fields: [expertUserId], references: [id], onDelete: Cascade)
   evaluator  User @relation("ExpertEvaluationsGiven", fields: [evaluatorId], references: [id], onDelete: Cascade)
@@ -404,18 +539,18 @@ model Supplier {
   classificationId  String?
   rejectReason      String?
   returnReason      String?
-  sm2PublicKey      String?        // SM2 公钥（04 开头 hex，用于验证投标签名）
+  sm2PublicKey      String? // SM2 公钥（04 开头 hex，用于验证投标签名）
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
-  user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  classification SupplierClassification? @relation(fields: [classificationId], references: [id])
-  contacts       SupplierContact[]
-  qualifications SupplierQualification[]
-  evaluations    SupplierEvaluation[]
-  changeRecords  SupplierChangeRecord[]
-  bidSuppliers   BidSupplier[]
-  bidSubmissions SupplierBidSubmission[]
+  user                User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classification      SupplierClassification?      @relation(fields: [classificationId], references: [id])
+  contacts            SupplierContact[]
+  qualifications      SupplierQualification[]
+  evaluations         SupplierEvaluation[]
+  changeRecords       SupplierChangeRecord[]
+  bidSuppliers        BidSupplier[]
+  bidSubmissions      SupplierBidSubmission[]
   bidDocumentAccesses BidDocumentAccess[]
   catalogApplications SupplierCatalogApplication[]
   catalogSupplies     CatalogSupplier[]
@@ -534,10 +669,10 @@ model Notification {
 
 model NotificationDeliveryLog {
   id             String   @id @default(cuid())
-  notificationId String?  // 关联站内信 id（in-app 渠道写入后回填）
+  notificationId String? // 关联站内信 id（in-app 渠道写入后回填）
   userId         String
-  channel        String   // in_app | email | sms
-  status         String   // sent | failed | skipped
+  channel        String // in_app | email | sms
+  status         String // sent | failed | skipped
   error          String?
   createdAt      DateTime @default(now())
 
@@ -588,11 +723,11 @@ model Announcement {
 // ── 公告附件（普通，公开可下载）──
 
 model AnnouncementAttachment {
-  id            String   @id @default(cuid())
+  id             String   @id @default(cuid())
   announcementId String
-  fileAssetId   String
-  title         String
-  createdAt     DateTime @default(now())
+  fileAssetId    String
+  title          String
+  createdAt      DateTime @default(now())
 
   announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
   fileAsset    FileAsset    @relation(fields: [fileAssetId], references: [id], onDelete: Cascade)
@@ -603,18 +738,18 @@ model AnnouncementAttachment {
 // ── 招标文件（加密 + 受控分发）──
 
 model BidDocument {
-  id             String    @id @default(cuid())
-  announcementId String    @unique
+  id             String   @id @default(cuid())
+  announcementId String   @unique
   fileAssetId    String
   title          String
-  accessScope    String    @default("OPEN") // OPEN | DESIGNATED | INVITED
-  requirePayment Boolean   @default(false)
-  price          Decimal?  @db.Decimal(12, 2)
-  decryptKey     String    // AES-256-GCM 密钥:iv:authTag (hex)
-  bidProjectId   String?   // INVITED 时关联招标项目
-  downloadCount  Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  accessScope    String   @default("OPEN") // OPEN | DESIGNATED | INVITED
+  requirePayment Boolean  @default(false)
+  price          Decimal? @db.Decimal(12, 2)
+  decryptKey     String // AES-256-GCM 密钥:iv:authTag (hex)
+  bidProjectId   String? // INVITED 时关联招标项目
+  downloadCount  Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   announcement Announcement        @relation(fields: [announcementId], references: [id], onDelete: Cascade)
   fileAsset    FileAsset           @relation(fields: [fileAssetId], references: [id], onDelete: Cascade)
@@ -630,7 +765,7 @@ model BidDocumentAccess {
   eligible       Boolean   @default(true) // DESIGNATED 白名单
   paid           Boolean   @default(false)
   paidAt         DateTime?
-  paymentRef     String?   // 付款凭证/流水号
+  paymentRef     String? // 付款凭证/流水号
   downloadCount  Int       @default(0)
   lastDownloadAt DateTime?
   createdAt      DateTime  @default(now())
@@ -646,31 +781,31 @@ model BidDocumentAccess {
 // ── 供应商标书提交 ──
 
 model SupplierBidSubmission {
-  id                    String    @id @default(cuid())
-  supplierId            String
-  projectId             String
-  bidPrice              String?
-  deliveryPeriod        String?
-  technicalFile         String?
-  businessFile          String?
-  coverLetter           String?
+  id                   String    @id @default(cuid())
+  supplierId           String
+  projectId            String
+  bidPrice             String?
+  deliveryPeriod       String?
+  technicalFile        String?
+  businessFile         String?
+  coverLetter          String?
   // 可验证、可授权的真实文件引用（指向 FileAsset.id）；保留旧字符串字段以兼容存量数据
-  technicalFileAssetId  String?
-  businessFileAssetId   String?
-  coverLetterAssetId    String?
-  bidBondAssetId        String?   // 投标保证金缴纳凭证 → FileAsset.id（程序性文件，不加密）
+  technicalFileAssetId String?
+  businessFileAssetId  String?
+  coverLetterAssetId   String?
+  bidBondAssetId       String? // 投标保证金缴纳凭证 → FileAsset.id（程序性文件，不加密）
   // Layer B：新提交的投标文件 AES-256-GCM 加密封存密钥（key:iv:authTag hex）。legacy 存量数据为 null。
-  technicalSealedKey    String?
-  businessSealedKey     String?
-  coverLetterSealedKey  String?
+  technicalSealedKey   String?
+  businessSealedKey    String?
+  coverLetterSealedKey String?
   // SM2 抗抵赖签名字段（可选，兼容存量数据）
-  fileHash              String?   // 投标文件整体 SHA-256（签名前计算）
-  signature             String?   // SM2 签名值 hex
-  signedAt              DateTime? // 签名时间
-  status                String    @default("draft") // draft, submitted, withdrawn
-  submittedAt           DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  fileHash             String? // 投标文件整体 SHA-256（签名前计算）
+  signature            String? // SM2 签名值 hex
+  signedAt             DateTime? // 签名时间
+  status               String    @default("draft") // draft, submitted, withdrawn
+  submittedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   supplier Supplier   @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   project  BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -687,21 +822,21 @@ model SupplierBidSubmission {
 // ── 文件资产 ──
 
 model FileAsset {
-  id           String   @id @default(cuid())
-  key          String   @unique
-  originalName String
-  mimeType     String
-  size         Int
-  sha256       String
-  category     String
-  uploaderId   String?
-  encrypted       Boolean   @default(false)   // Track C: 标书静态加密标记
-  encryptionKeyId String?                      // Track C: 项目数据密钥引用
-  iv              String?                      // Track C: AES-GCM iv (base64)
-  authTag         String?                      // Track C: AES-GCM authTag (base64)
-  sealedPath      String?                      // Layer B: 密文存储路径（不覆盖原明文）
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(cuid())
+  key             String   @unique
+  originalName    String
+  mimeType        String
+  size            Int
+  sha256          String
+  category        String
+  uploaderId      String?
+  encrypted       Boolean  @default(false) // Track C: 标书静态加密标记
+  encryptionKeyId String? // Track C: 项目数据密钥引用
+  iv              String? // Track C: AES-GCM iv (base64)
+  authTag         String? // Track C: AES-GCM authTag (base64)
+  sealedPath      String? // Layer B: 密文存储路径（不覆盖原明文）
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   uploader User? @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
 
@@ -730,8 +865,8 @@ model ProcurementProject {
   projectCode       String            @unique
   description       String?
   budget            Decimal?          @db.Decimal(12, 2)
-  procurementType   String            // 货物/工程/服务
-  procurementMethod String            // 公开招标/邀请招标/竞争性谈判/单一来源
+  procurementType   String // 货物/工程/服务
+  procurementMethod String // 公开招标/邀请招标/竞争性谈判/单一来源
   status            ProcurementStatus @default(DRAFT)
   rejectReason      String?
   departmentId      String?
@@ -750,33 +885,33 @@ model ProcurementProject {
 // ── 电子商城采购目录 ──
 
 model CatalogItem {
-  id              String    @id @default(cuid())
-  code            String    @unique
-  name            String
-  specification   String
-  category        String
-  group           String
-  unit            String
-  referencePrice  Decimal   @db.Decimal(12, 2)
-  priceMin        Decimal   @db.Decimal(12, 2)
-  priceMax        Decimal   @db.Decimal(12, 2)
-  lastDealPrice   Decimal   @db.Decimal(12, 2)
-  averagePrice    Decimal   @db.Decimal(12, 2)
-  supplier        String
-  supplierType    String
-  priceSource     String
-  region          String
-  taxIncluded     Boolean   @default(true)
-  freightIncluded Boolean   @default(false)
-  changeRate      Decimal   @db.Decimal(5, 2)
-  minOrder        String
-  remark          String?
-  status          String    @default("有效")
-  validUntil      DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  budgetItems     BudgetItem[]
-  priceHistory    PriceHistory[]
+  id                  String                       @id @default(cuid())
+  code                String                       @unique
+  name                String
+  specification       String
+  category            String
+  group               String
+  unit                String
+  referencePrice      Decimal                      @db.Decimal(12, 2)
+  priceMin            Decimal                      @db.Decimal(12, 2)
+  priceMax            Decimal                      @db.Decimal(12, 2)
+  lastDealPrice       Decimal                      @db.Decimal(12, 2)
+  averagePrice        Decimal                      @db.Decimal(12, 2)
+  supplier            String
+  supplierType        String
+  priceSource         String
+  region              String
+  taxIncluded         Boolean                      @default(true)
+  freightIncluded     Boolean                      @default(false)
+  changeRate          Decimal                      @db.Decimal(5, 2)
+  minOrder            String
+  remark              String?
+  status              String                       @default("有效")
+  validUntil          DateTime?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  budgetItems         BudgetItem[]
+  priceHistory        PriceHistory[]
   favoritedBy         UserFavorite[]
   catalogApplications SupplierCatalogApplication[]
   catalogSuppliers    CatalogSupplier[]
@@ -785,7 +920,6 @@ model CatalogItem {
   @@index([group])
   @@index([status])
 }
-
 
 // ── 电子商城预算清单 ──
 
@@ -796,7 +930,7 @@ model BudgetList {
   user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   items                BudgetItem[]
   procurementProjectId String?             @unique
-  procurementProject   ProcurementProject?  @relation(fields: [procurementProjectId], references: [id], onDelete: SetNull)
+  procurementProject   ProcurementProject? @relation(fields: [procurementProjectId], references: [id], onDelete: SetNull)
   totalAmount          Decimal?            @db.Decimal(14, 2)
   itemCount            Int                 @default(0)
   status               String              @default("ACTIVE") // ACTIVE | CONVERTED | ARCHIVED
@@ -809,19 +943,19 @@ model BudgetList {
 }
 
 model BudgetItem {
-  id             String      @id @default(cuid())
+  id             String       @id @default(cuid())
   budgetListId   String
-  budgetList     BudgetList  @relation(fields: [budgetListId], references: [id], onDelete: Cascade)
+  budgetList     BudgetList   @relation(fields: [budgetListId], references: [id], onDelete: Cascade)
   catalogItemId  String?
   catalogItem    CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
   code           String
   name           String
   specification  String?
   unit           String
-  referencePrice Decimal     @db.Decimal(12, 2)
-  qty            Decimal     @db.Decimal(12, 2)
-  sortOrder      Int         @default(0)
-  createdAt      DateTime    @default(now())
+  referencePrice Decimal      @db.Decimal(12, 2)
+  qty            Decimal      @db.Decimal(12, 2)
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
 
   @@index([budgetListId])
   @@index([catalogItemId])
@@ -858,12 +992,12 @@ model UserFavorite {
 // ── 供应商目录/供货申请（新增品类 / 加入供货 / 改报价，含议价回环）──
 
 model SupplierCatalogApplication {
-  id          String   @id @default(cuid())
-  supplierId  String
-  type        String   // NEW_ITEM(新增品类) | JOIN_EXISTING(加入已有供货) | UPDATE_QUOTE(改报价)
+  id         String @id @default(cuid())
+  supplierId String
+  type       String // NEW_ITEM(新增品类) | JOIN_EXISTING(加入已有供货) | UPDATE_QUOTE(改报价)
 
   // JOIN_EXISTING / UPDATE_QUOTE 指向已有目录条目
-  catalogItemId   String?
+  catalogItemId String?
 
   // NEW_ITEM 拟增物资信息
   proposedName     String?
@@ -881,24 +1015,24 @@ model SupplierCatalogApplication {
   freightIncluded Boolean  @default(false)
 
   // 议价：管理员反报价
-  counterPrice    Decimal? @db.Decimal(12, 2)
-  counterNote     String?
+  counterPrice Decimal? @db.Decimal(12, 2)
+  counterNote  String?
 
   // 资质说明 + 证明附件（FileAsset.id）
   qualificationNote     String?
   attachmentFileAssetId String?
 
   // 状态机：PENDING | COUNTERED | RETURNED | APPROVED | REJECTED | WITHDRAWN
-  status        String    @default("PENDING")
-  reviewedBy    String?
-  reviewedAt    DateTime?
-  rejectReason  String?
-  reviewerNote  String?
+  status       String    @default("PENDING")
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  rejectReason String?
+  reviewerNote String?
 
   // NEW_ITEM 通过时管理员填写的官方参考价（写入新建 CatalogItem）
-  approvedReferencePrice Decimal? @db.Decimal(12, 2)
-  approvedPriceMin       Decimal? @db.Decimal(12, 2)
-  approvedPriceMax       Decimal? @db.Decimal(12, 2)
+  approvedReferencePrice Decimal?  @db.Decimal(12, 2)
+  approvedPriceMin       Decimal?  @db.Decimal(12, 2)
+  approvedPriceMax       Decimal?  @db.Decimal(12, 2)
   approvedValidUntil     DateTime?
 
   createdAt DateTime @default(now())
@@ -916,19 +1050,19 @@ model SupplierCatalogApplication {
 // ── 品类↔供应商准入关系（审核通过的产物，当前供货态）──
 
 model CatalogSupplier {
-  id            String   @id @default(cuid())
-  catalogItemId String
-  supplierId    String
-  quotedPrice   Decimal  @db.Decimal(12, 2)
-  deliveryPeriod String?
-  region         String?
-  minOrder       String?
-  taxIncluded    Boolean  @default(true)
-  freightIncluded Boolean @default(false)
-  status         String   @default("ACTIVE") // ACTIVE | SUSPENDED | DISABLED
+  id                  String   @id @default(cuid())
+  catalogItemId       String
+  supplierId          String
+  quotedPrice         Decimal  @db.Decimal(12, 2)
+  deliveryPeriod      String?
+  region              String?
+  minOrder            String?
+  taxIncluded         Boolean  @default(true)
+  freightIncluded     Boolean  @default(false)
+  status              String   @default("ACTIVE") // ACTIVE | SUSPENDED | DISABLED
   sourceApplicationId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   catalogItem CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
   supplier    Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
@@ -954,21 +1088,21 @@ model AuditLog {
 // ── 水叮当智能助手 ──
 
 model AssistantConversation {
-  id        String              @id @default(cuid())
+  id        String             @id @default(cuid())
   title     String?
   messages  AssistantMessage[]
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 }
 
 model AssistantMessage {
-  id             String               @id @default(cuid())
+  id             String                @id @default(cuid())
   conversationId String
-  role           String               // user | assistant | tool
+  role           String // user | assistant | tool
   content        String
   cardsJson      Json?
   citationsJson  Json?
-  createdAt      DateTime             @default(now())
+  createdAt      DateTime              @default(now())
   conversation   AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
@@ -978,12 +1112,12 @@ model AssistantActionLog {
   id             String    @id @default(cuid())
   conversationId String?
   actionType     String
-  status         String    // pending | confirmed | cancelled | success | failed
+  status         String // pending | confirmed | cancelled | success | failed
   targetType     String?
   targetId       String?
   payloadJson    Json
   resultJson     Json?
-  riskLevel      String    // low | medium | high
+  riskLevel      String // low | medium | high
   createdAt      DateTime  @default(now())
   confirmedAt    DateTime?
   executedAt     DateTime?

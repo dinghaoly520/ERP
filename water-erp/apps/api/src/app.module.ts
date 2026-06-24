@@ -21,12 +21,21 @@ import { AuditModule } from './audit/audit.module';
 import { AssistantModule } from './assistant/assistant.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { AlertsModule } from './alerts/alerts.module';
+import { LocalAiModule } from './local-ai/local-ai.module';
+import { StorageModule } from './storage/storage.module';
+import { AiBidAnalysisModule } from './ai-bid-analysis/ai-bid-analysis.module';
+import { BullModule } from '@nestjs/bullmq';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    BullModule.forRoot({
+      connection: {
+        url: process.env.REDIS_URL || 'redis://localhost:6380',
+      },
+    }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
     PrismaModule,
     RedisModule,
@@ -47,6 +56,9 @@ import { RolesGuard } from './common/guards/roles.guard';
     AssistantModule,
     SchedulerModule,
     AlertsModule,
+    LocalAiModule,
+    StorageModule,
+    AiBidAnalysisModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
