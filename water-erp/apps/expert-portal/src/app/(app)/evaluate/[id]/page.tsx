@@ -1185,11 +1185,12 @@ export default function ExpertEvaluatePage() {
                                   <div className="flex items-center gap-4 mb-3">
                                     <input type="range" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [k]: { score: parseFloat(e.target.value), reason: prev[k]?.reason || '' } }))}
-                                      className="flex-1 h-2 bg-[oklch(0.94_0.004_264)] rounded-full appearance-none cursor-pointer accent-[#064ea2]"
+                                      className="flex-1 h-2 bg-[oklch(0.94_0.004_264)] rounded-full appearance-none cursor-pointer accent-[#064ea2] focus:outline-none focus:ring-2 focus:ring-[#064ea2] focus:ring-offset-2"
                                       style={{ background: `linear-gradient(to right, ${CATEGORY_COLOR[category] || '#064ea2'} ${pct}%, #f0f4f8 ${pct}%)` }}
-                                      aria-label={`${item.name} 评分`} aria-valuemin={0} aria-valuemax={max} aria-valuenow={currentScore} tabIndex={0} />
+                                      aria-label={`${item.name} 评分`} aria-valuemin={0} aria-valuemax={max} aria-valuenow={currentScore} aria-valuetext={`${currentScore} / ${max} 分`} tabIndex={0} />
                                     <input type="number" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.min(parseFloat(e.target.value) || 0, max), reason: prev[k]?.reason || '' } }))}
+                                      onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); const v = Math.min((currentScore || 0) + 0.5, max); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } else if (e.key === 'ArrowDown') { e.preventDefault(); const v = Math.max((currentScore || 0) - 0.5, 0); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } handleScoringKeyDown(e, false); }}
                                       className="w-20 text-center border border-blue-100 rounded-lg px-2 py-1.5 text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2] outline-none"
                                       aria-label={`${item.name} 数值输入`} tabIndex={0} />
                                   </div>
