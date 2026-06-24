@@ -164,12 +164,12 @@ export interface ExpertProject {
     scoreItems: BidScoreItem[];
     _count: { clarifications: number };
   };
-  scoreRecords: { id: string; expertId: string; supplierId: string; scoreItemId: string; score: number; reason?: string; scoreItem: BidScoreItem }[];
+  scoreRecords: { id: string; expertId: string; supplierId: string; scoreItemId: string; score: number; passed?: boolean | null; reason?: string; scoreItem: BidScoreItem }[];
 }
 
 export interface ExpertProjectDetail extends BidProjectDetail {
   myExpertRecord: BidExpert & { id: string };
-  myScores: { id: string; expertId: string; supplierId: string; scoreItemId: string; score: number; reason?: string; scoreItem: BidScoreItem }[];
+  myScores: { id: string; expertId: string; supplierId: string; scoreItemId: string; score: number; passed?: boolean | null; reason?: string; scoreItem: BidScoreItem }[];
 }
 
 export interface DecryptedDocuments {
@@ -208,7 +208,7 @@ export interface EvaluationReport {
     supplierName: string;
     totalScore: number;
     perSupplierComplete: boolean;
-    categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; reason?: string }[] }>;
+    categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; passed?: boolean; reason?: string }[] }>;
   }[];
   scoreItems: BidScoreItem[];
   canConfirm: boolean;
@@ -359,4 +359,15 @@ export interface DashboardStats {
   totalAnnouncements: number;
   stageDistribution: Record<string, number>;
   recentActivity: BidSupervisionLog[];
+}
+
+export interface BidEvaluationResultView {
+  supplierId: string;
+  supplierName: string;
+  totalScore: number;
+  averageScore: number;
+  rank: number;
+  recommended: boolean;
+  disqualified?: boolean;
+  generatedAt: string;
 }

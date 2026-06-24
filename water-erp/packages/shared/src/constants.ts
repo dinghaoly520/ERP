@@ -190,3 +190,7 @@ export function maskName(name: string): string {
   const middle = '某'.repeat(name.length - 2);
   return name[0] + middle + name[name.length - 1];
 }
+
+/** 通过性审查类别（通过/不通过），区别于数值打分类别。 */
+export const PASS_FAIL_CATEGORIES = new Set(['QUALIFICATION', 'RESPONSIVE']);
+export const isPassFailCategory = (category: string): boolean => PASS_FAIL_CATEGORIES.has(category);
