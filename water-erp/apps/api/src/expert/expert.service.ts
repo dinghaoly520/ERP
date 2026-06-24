@@ -379,12 +379,12 @@ export class ExpertService {
     const scoreItemIds = dto.scores.map(s => s.scoreItemId);
     const scoreItems = await this.prisma.bidScoreItem.findMany({
       where: { id: { in: scoreItemIds }, projectId },
-      select: { id: true, maxScore: true },
+      select: { id: true, maxScore: true, category: true },
     });
     if (scoreItems.length !== new Set(scoreItemIds).size) {
       throw new BadRequestException({ error: '评分项不属于当前项目', code: 'SCORE_ITEM_NOT_IN_PROJECT' });
     }
-    const maxScoreMap = new Map(scoreItems.map(si => [si.id, Number(si.maxScore)]));
+    const itemMeta = new Map(scoreItems.map(si => [si.id, { maxScore: Number(si.maxScore), category: si.category as string }]));
 
     const supplierIds = Array.from(new Set(dto.scores.map(s => s.supplierId)));
     const bidSuppliers = await this.prisma.bidSupplier.findMany({
@@ -400,12 +400,32 @@ export class ExpertService {
     }
 
     for (const item of dto.scores) {
-      const maxScore = maxScoreMap.get(item.scoreItemId);
-      if (maxScore !== undefined && item.score > maxScore) {
-        throw new BadRequestException({
-          error: `评分项 ${item.scoreItemId} 分数 ${item.score} 超过满分 ${maxScore}`,
-          code: 'SCORE_EXCEEDS_MAX',
-        });
+      const meta = itemMeta.get(item.scoreItemId);
+      if (!meta) continue;
+      if (meta.category === 'QUALIFICATION' || meta.category === 'RESPONSIVE') {
+        // 通过性项：必须有 passed，忽略 score
+        if (typeof item.passed !== 'boolean') {
+          throw new BadRequestException({
+            error: `通过性审查项 ${item.scoreItemId} 必须提供 passed（通过/不通过）`,
+            code: 'PASS_FAIL_VERDICT_REQUIRED',
+          });
+        }
+        item.score = 0; // 落库固定 0，不进总分
+      } else {
+        // 数值项：必须有 score 且 ≤ maxScore
+        if (typeof item.score !== 'number') {
+          throw new BadRequestException({
+            error: `评分项 ${item.scoreItemId} 必须提供 score`,
+            code: 'SCORE_REQUIRED',
+          });
+        }
+        if (item.score > meta.maxScore) {
+          throw new BadRequestException({
+            error: `评分项 ${item.scoreItemId} 分数 ${item.score} 超过满分 ${meta.maxScore}`,
+            code: 'SCORE_EXCEEDS_MAX',
+          });
+        }
+        item.passed = null as unknown as undefined;
       }
     }
 
@@ -432,12 +452,13 @@ export class ExpertService {
               supplierId: item.supplierId,
             },
           },
-          update: { score: item.score, reason: item.reason },
+          update: { score: item.score ?? 0, passed: item.passed ?? null, reason: item.reason },
           create: {
             expertId: expert.id,
             scoreItemId: item.scoreItemId,
             supplierId: item.supplierId,
-            score: item.score,
+            score: item.score ?? 0,
+            passed: item.passed ?? null,
             reason: item.reason,
           },
         });
