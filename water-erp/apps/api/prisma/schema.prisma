@@ -86,17 +86,13 @@ enum ArchiveStatus {
   NOT_STARTED
 }
 
-// ── AI 投标文件分析（移植自 procurement ai-bid-analysis，Phase 1.5a）──
-enum AiBidTaskStatus {
-  CREATED
-  TENDER_UPLOADING
+// ── AI 辅助评标（per-item 版，方案第三章；修正 1.5a 的 procurement 固定 breakdown 版）──
+enum AiAnalysisTaskStatus {
+  PENDING
   TENDER_PROCESSING
-  TENDER_READY
-  RULES_PREVIEW
-  BIDDERS_UPLOADING
-  BIDDERS_PROCESSING
   ANALYZING
   COMPLETED
+  COMPLETED_WITH_ERRORS
   FAILED
   CANCELLED
 }
@@ -107,6 +103,7 @@ enum AiBidderStatus {
   OCR_COMPLETED
   EXTRACTING
   EXTRACTED
+  CONCORDANCE_CHECKING
   SCORING
   SCORED
   DEVIATION_ANALYZING
@@ -114,81 +111,88 @@ enum AiBidderStatus {
   FAILED
 }
 
+// AI 辅助评标任务（每个 BidProject 进入 EVALUATING 时创建，1:1）
 model AiBidAnalysisTask {
-  id             String          @id @default(cuid())
-  projectId      String // ★ ERP 适配：关联 BidProject（procurement 原为 name/projectName 软关联）
-  name           String
-  projectName    String?
-  tenderFileId   String?
-  tenderFileName String?
-  tenderText     String?
-  tenderPages    Json?
-  requirements   Json?
-  scoringRules   Json?
-  status         AiBidTaskStatus @default(CREATED)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  createdBy      String?
-  completedAt    DateTime?
-  project        BidProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  report         AiBidReport?
-  bidders        AiBidder[]
-  tenderFiles    AiTenderFile[]
+  id                      String               @id @default(cuid())
+  projectId               String               @unique // ★ 1:1 关联 BidProject（修正 1.5a 的多对一）
+  status                  AiAnalysisTaskStatus @default(PENDING)
+  tenderText              String? // 招标文件 OCR 文本
+  tenderPages             Json?
+  requirements            Json? // LLM 提取的招标要求（含 scoringRules）
+  scoringCriteriaSnapshot Json? // AI 推断的评分标准快照（不回填 BidScoreItem，见方案 15.8）
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  completedAt             DateTime?
+
+  project              BidProject            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bidderResults        AiBidderResult[]
+  report               AiBidReport?
+  aiConcordanceResults AiConcordanceResult[]
 
   @@index([status])
-  @@index([projectId])
-  @@index([createdBy])
   @@map("ai_bid_analysis_tasks")
 }
 
-model AiTenderFile {
-  id        String            @id @default(cuid())
-  taskId    String
-  fileId    String
-  fileName  String
-  text      String?
-  pages     Json?
-  isMain    Boolean           @default(false)
-  order     Int               @default(0)
-  createdAt DateTime          @default(now())
-  task      AiBidAnalysisTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  @@index([taskId])
-  @@map("ai_tender_files")
-}
-
-model AiBidder {
-  id                  String            @id @default(cuid())
+// 投标单位分析结果（每个 BidSupplier 一条，per-item 评分对齐 BidScoreItem）
+model AiBidderResult {
+  id                  String         @id @default(cuid())
   taskId              String
-  name                String
-  fileName            String?
-  fileId              String?
-  text                String?
-  pages               Json?
-  extractedInfo       Json?
-  keyInfo             Json?
-  deviationAnalysis   Json?
-  scores              Json?
-  totalScore          Decimal?          @db.Decimal(5, 2)
-  qualificationStatus String?           @default("pending")
-  riskLevel           String?           @default("low")
+  bidSupplierId       String // 关联 BidSupplier（BidSupplier.supplierId 可空）
+  status              AiBidderStatus @default(PENDING)
+  // 文本
+  technicalText       String? // 技术标 OCR 文本
+  businessText        String? // 商务标 OCR 文本
+  // 提取结果
+  extractedInfo       Json? // 标书 LLM 提取（审计快照）
+  systemInfo          Json? // 系统结构化数据快照（审计快照）
+  keyInfo             Json? // 融合后展示对象（权威源 + 一致性标注）
+  // per-item 评分（对齐 BidScoreItem，核心）
+  scoreItems          Json? // [{scoreItemId, category, name, score, maxScore, reason, evidence, confidence}]
+  categoryTotals      Json? // { QUALIFICATION:{score,max}, RESPONSIVE:{...}, ... }
+  totalScore          Decimal?       @db.Decimal(5, 2)
+  // 判定
+  qualificationStatus String?        @default("pending") // 通过/不通过/待审查
+  riskLevel           String?        @default("low")
   riskAnalysis        Json?
-  analysis            String?
   strengths           Json?
   weaknesses          Json?
   overallComment      String?
-  status              AiBidderStatus    @default(PENDING)
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  deviationAnalysis   Json?
+  competitiveAnalysis Json? // 第二轮横向对比结果
   processedAt         DateTime?
-  competitiveAnalysis Json?
-  task                AiBidAnalysisTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
+  task        AiBidAnalysisTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  bidSupplier BidSupplier          @relation(fields: [bidSupplierId], references: [id], onDelete: Cascade)
+  concordance AiConcordanceResult?
+
+  @@unique([taskId, bidSupplierId])
   @@index([taskId])
+  @@index([bidSupplierId])
   @@index([status])
-  @@map("ai_bidders")
+  @@map("ai_bidder_results")
 }
 
+// 双源一致性校验结果（每 AiBidderResult 一条，1:1）
+model AiConcordanceResult {
+  id             String   @id @default(cuid())
+  taskId         String
+  bidderResultId String   @unique // ★ 1:1 关联 AiBidderResult（修正方案 fields:[bidSupplierId] references:[id] 的不成立）
+  overallStatus  String // consistent | minor_diff | conflict | insufficient_data
+  conflictCount  Int      @default(0)
+  warningCount   Int      @default(0)
+  checkedFields  Json? // [{field,label,systemValue,docValue,status,severity,note}]
+  generatedAt    DateTime @default(now())
+
+  bidder AiBidderResult    @relation(fields: [bidderResultId], references: [id], onDelete: Cascade)
+  task   AiBidAnalysisTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("ai_concordance_results")
+}
+
+// 报告
 model AiBidReport {
   id                  String            @id @default(cuid())
   taskId              String            @unique
@@ -196,11 +200,12 @@ model AiBidReport {
   ranking             Json?
   keyInfoComparison   Json?
   priceAnalysis       Json?
+  concordanceSummary  Json? // ★ per-item 版新增（方案第三章）
   strengthsWeaknesses Json?
   riskStats           Json?
   highRiskDetails     Json?
+  fraudIndicators     Json? // 串通检测
   reviewSuggestions   Json?
-  fraudIndicators     Json?
   conclusion          String?
   recommendation      Json?
   docxFileId          String?
@@ -236,7 +241,7 @@ model BidProject {
   clarifications         BidClarification[]
   supervisionLogs        BidSupervisionLog[]
   archiveItems           BidArchiveItem[]
-  aiAnalysisTasks        AiBidAnalysisTask[]
+  aiAnalysisTask         AiBidAnalysisTask?
   evaluationResults      BidEvaluationResult[]
   supervisionAnnotations BidSupervisionAnnotation[]
   supplierSubmissions    SupplierBidSubmission[]
@@ -263,6 +268,7 @@ model BidSupplier {
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
   bidScoreRecords       BidScoreRecord[]
+  bidderResults         AiBidderResult[]
   supervisionAnnotation BidSupervisionAnnotation?
   decryptError          String? // 解密失败原因
 
@@ -333,14 +339,17 @@ model BidExpert {
 }
 
 model BidScoreItem {
-  id           String           @id @default(cuid())
-  projectId    String
-  category     ScoreCategory
-  name         String
-  maxScore     Decimal          @default("0") @db.Decimal(5, 1)
-  project      BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  scoreRecords BidScoreRecord[]
-  createdAt    DateTime         @default(now())
+  id              String           @id @default(cuid())
+  projectId       String
+  category        ScoreCategory
+  name            String
+  maxScore        Decimal          @default("0") @db.Decimal(5, 1)
+  scoringCriteria String? // ★ per-item 新增：评分细则（管理员填 或 AI 推断回填）
+  evidenceHint    String? // 评审要点
+  criteriaSource  String? // manual | ai_inferred
+  project         BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scoreRecords    BidScoreRecord[]
+  createdAt       DateTime         @default(now())
 
   @@index([projectId])
 }

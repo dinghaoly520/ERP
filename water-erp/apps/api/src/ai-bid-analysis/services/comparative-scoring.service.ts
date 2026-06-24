@@ -52,15 +52,15 @@ export class ComparativeScoringService {
   ) {}
 
   async score(taskId: string): Promise<void> {
-    const bidders = await this.prisma.aiBidder.findMany({
+    const bidders = await this.prisma.aiBidderResult.findMany({
       where: { taskId, status: 'COMPLETED' },
       select: {
         id: true,
-        name: true,
         keyInfo: true,
         extractedInfo: true,
-        scores: true,
+        categoryTotals: true,
         totalScore: true,
+        bidSupplier: { select: { supplierName: true } },
       },
     });
 
@@ -96,13 +96,13 @@ export class ComparativeScoringService {
     }
 
     for (const item of result.scores) {
-      const bidder = bidders.find(b => b.name === item.bidderName);
+      const bidder = bidders.find((b) => b.bidSupplier.supplierName === item.bidderName);
       if (!bidder) {
         this.logger.warn(`Task ${taskId}: comparative scoring references unknown bidder "${item.bidderName}"`);
         continue;
       }
 
-      const oldScores = bidder.scores as Record<string, any> | null;
+      const oldScores = (bidder.categoryTotals ?? null) as Record<string, any> | null;
       const oldTechnical = Number(oldScores?.technical?.totalScore ?? 0);
       const oldCommercial = Number(oldScores?.commercial?.totalScore ?? 0);
       const oldPrice = Number(oldScores?.price?.totalScore ?? 0);
@@ -158,16 +158,16 @@ export class ComparativeScoringService {
         mergedScores.price = { totalScore: newPrice, maxScore: 20 };
       }
 
-      await this.prisma.aiBidder.update({
+      await this.prisma.aiBidderResult.update({
         where: { id: bidder.id },
         data: {
-          scores: mergedScores as any,
+          categoryTotals: mergedScores as any,
           totalScore: newTotal,
         },
       });
 
       this.logger.log(
-        `  ${bidder.name}: ${oldTechnical}+${oldCommercial}+${oldPrice}=${oldTotal} → ${newTechnical}+${newCommercial}+${newPrice}=${newTotal}`,
+        `  ${bidder.bidSupplier.supplierName}: ${oldTechnical}+${oldCommercial}+${oldPrice}=${oldTotal} → ${newTechnical}+${newCommercial}+${newPrice}=${newTotal}`,
       );
     }
   }
