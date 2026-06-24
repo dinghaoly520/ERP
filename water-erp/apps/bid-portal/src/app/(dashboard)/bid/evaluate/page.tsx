@@ -33,7 +33,7 @@ interface BidProjectEvalDetail extends Omit<BidProjectDetail, 'experts'> {
 interface EvalResult {
   id: string; supplierId: string; supplierName: string;
   totalScore: string; averageScore: string;
-  rank: number; recommended: boolean; generatedAt: string;
+  rank: number; recommended: boolean; disqualified?: boolean; generatedAt: string;
 }
 interface ExpertSupplierCell {
   totalScore: number; maxScore: number; scoredCount: number; totalCount: number;
@@ -795,8 +795,9 @@ export default function BidEvaluatePage() {
                     }
                   }
                   const overallAvg = total > 0 ? total.toFixed(1) : null;
+                  const evalResult = results.find(r => r.supplierId === supplier.id);
                   return (
-                    <tr key={supplier.id} className="transition-colors">
+                    <tr key={supplier.id} className={`transition-colors ${evalResult?.disqualified ? 'opacity-60' : ''}`}>
                       <td className="px-5 py-3">
                         {rank != null ? (
                           <span className="font-mono font-bold text-[oklch(0.18_0.012_265)] transition-all duration-300">#{rank}</span>
@@ -843,18 +844,19 @@ export default function BidEvaluatePage() {
                           <span className="font-mono font-bold text-[oklch(0.42_0.14_260)]">{overallAvg}</span>
                         ) : <span className="text-[12px] text-[oklch(0.62_0.008_264)]">—</span>}
                       </td>
-                      {results.length > 0 && (() => {
-                        const evalResult = results.find(r => r.supplierId === supplier.id);
-                        return (
+                      {results.length > 0 && (
                           <td className="px-5 py-3">
-                            {evalResult?.recommended ? (
+                            {evalResult?.disqualified ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 tracking-wide rounded-full text-[#e74c3c] border border-[#e74c3c]/40 bg-[#fef2f2]">
+                                废标（资格/响应性不通过）
+                              </span>
+                            ) : evalResult?.recommended ? (
                               <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 tracking-wide rounded-full text-[#11a874] border border-[#11a874]/40 bg-gradient-to-r from-[#f0fdf4] to-[#ecfdf5]">
                                 <Trophy size={11} /> 第一中标候选人
                               </span>
                             ) : <span className="text-[11px] text-[oklch(0.62_0.008_264)]">—</span>}
                           </td>
-                        );
-                      })()}
+                        )}
                     </tr>
                   );
                 })}
