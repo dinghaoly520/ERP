@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
+import { isPassFailCategory } from '@water-erp/shared';
 import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, Gavel, MessageSquare } from 'lucide-react';
 
 type Step = 'verify' | 'documents' | 'assist' | 'scoring' | 'report';
@@ -107,7 +108,7 @@ export default function ExpertEvaluatePage() {
   const [assistData, setAssistData] = useState<AssistData | null>(null);
   const [assistLoading, setAssistLoading] = useState(false);
   // P0-1: scores keyed by `${supplierId}:${scoreItemId}` (composite) — never flat by scoreItemId.
-  const [scores, setScores] = useState<Record<string, { score: number; reason: string }>>({});
+  const [scores, setScores] = useState<Record<string, { score: number; reason: string; passed?: boolean }>>({});
   const [report, setReport] = useState<EvaluationReport | null>(null);
 
   const [confidentialityAgreed, setConfidentialityAgreed] = useState(false);
@@ -365,17 +366,21 @@ export default function ExpertEvaluatePage() {
       toast.warning('该投标单位未解密成功或已撤回，不能评分');
       return;
     }
-    // P0-2: any item scored below full marks MUST carry a non-empty reason (满分项豁免).
     const missing: string[] = [];
     for (const si of project.scoreItems) {
       const entry = scores[scoreKey(activeSupplier, si.id)];
-      const score = entry?.score ?? 0;
-      const reason = (entry?.reason ?? '').trim();
-      if (score < Number(si.maxScore) && !reason) missing.push(si.id);
+      if (isPassFailCategory(si.category)) {
+        if (typeof entry?.passed !== 'boolean' || (entry.passed === false && !(entry.reason || '').trim())) {
+          missing.push(si.id);
+        }
+      } else {
+        const score = entry?.score ?? 0;
+        if (score < Number(si.maxScore) && !(entry?.reason || '').trim()) missing.push(si.id);
+      }
     }
     if (missing.length > 0) {
       setMissingReasons(new Set(missing));
-      toast.warning(`${missing.length} 个评分项得分低于满分但未填写评分理由，已高亮标记，请补充后再提交`);
+      toast.warning(`有评分项未完成，已高亮标记，请补充后再提交`);
       const firstEl = document.querySelector(`[data-score-item="${missing[0]}"]`);
       firstEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
@@ -383,6 +388,9 @@ export default function ExpertEvaluatePage() {
     setMissingReasons(new Set()); // clear on valid submit
     const scoresPayload = project.scoreItems.map(si => {
       const entry = scores[scoreKey(activeSupplier, si.id)];
+      if (isPassFailCategory(si.category)) {
+        return { scoreItemId: si.id, supplierId: activeSupplier, passed: entry?.passed, reason: entry?.reason ?? '' };
+      }
       return { scoreItemId: si.id, supplierId: activeSupplier, score: entry?.score ?? 0, reason: entry?.reason ?? '' };
     });
     setBusy(true);
@@ -1116,19 +1124,58 @@ export default function ExpertEvaluatePage() {
                               <span className="text-sm text-[oklch(0.55_0.01_264)]">{items.length} 项</span>
                             </div>
                             <div className="flex items-center gap-3">
-                              <span className="text-sm text-[oklch(0.55_0.01_264)]">得分</span>
-                              <span className="text-lg font-bold" style={{ color: CATEGORY_COLOR[category] || '#064ea2' }}>{catScored}</span>
-                              <span className="text-sm text-[oklch(0.55_0.01_264)]">/ {catTotal}</span>
+                              {isPassFailCategory(category) ? (
+                                <span className="text-sm font-bold text-[oklch(0.55_0.01_264)]">通过性审查</span>
+                              ) : (
+                                <>
+                                  <span className="text-sm text-[oklch(0.55_0.01_264)]">得分</span>
+                                  <span className="text-lg font-bold" style={{ color: CATEGORY_COLOR[category] || '#064ea2' }}>{catScored}</span>
+                                  <span className="text-sm text-[oklch(0.55_0.01_264)]">/ {catTotal}</span>
+                                </>
+                              )}
                             </div>
                           </div>
                           <div className="p-4 space-y-4">
                             {items.map(item => {
                               const k = scoreKey(activeSupplier, item.id);
                               const val = scores[k];
+                              const reasonMissing = missingReasons.has(item.id);
+                              const passFail = isPassFailCategory(item.category);
+                              if (passFail) {
+                                const verdict = val?.passed;
+                                return (
+                                  <div key={item.id} data-score-item={item.id} className={`glass-card glass-card-lighter rounded-lg p-4 ${reasonMissing ? 'border-red-300 ring-1 ring-red-200' : 'border-blue-100'}`}>
+                                    <h4 className="font-semibold text-[oklch(0.18_0.012_265)] mb-3">{item.name}</h4>
+                                    <div className="flex items-center gap-3 mb-3">
+                                      {[
+                                        { v: true, label: '通过', cls: verdict === true ? 'bg-[#11a874] text-white border-[#11a874]' : 'bg-white text-[#11a874] border-[#11a874]/40 hover:bg-[#ecfdf5]' },
+                                        { v: false, label: '不通过', cls: verdict === false ? 'bg-[#e74c3c] text-white border-[#e74c3c]' : 'bg-white text-[#e74c3c] border-[#e74c3c]/40 hover:bg-[#fef2f2]' },
+                                      ].map(opt => (
+                                        <button key={String(opt.v)} type="button"
+                                          onClick={() => setScores(prev => ({ ...prev, [k]: { score: 0, reason: prev[k]?.reason || '', passed: opt.v } }))}
+                                          className={`px-5 py-2 rounded-lg text-sm font-bold border transition ${opt.cls}`}>
+                                          {opt.label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                    {verdict === false && (
+                                      <textarea placeholder="不通过理由（必填）" value={val?.reason || ''}
+                                        onChange={e => {
+                                          const v = e.target.value;
+                                          setScores(prev => ({ ...prev, [k]: { score: 0, reason: v, passed: false } }));
+                                          if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
+                                        }}
+                                        className={`w-full rounded-lg px-3 py-2 text-sm text-[oklch(0.18_0.012_265)] resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
+                                        aria-label={`${item.name} 不通过理由`} />
+                                    )}
+                                    {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold">⚠ 请选择「通过 / 不通过」，不通过需填理由</p>}
+                                  </div>
+                                );
+                              }
+                              // 数值项：保持原渲染
                               const currentScore = val?.score ?? 0;
                               const max = Number(item.maxScore);
                               const pct = max > 0 ? (currentScore / max) * 100 : 0;
-                              const reasonMissing = missingReasons.has(item.id);
                               return (
                                 <div key={item.id} data-score-item={item.id} className={`glass-card glass-card-lighter rounded-lg p-4 ${reasonMissing ? 'border-red-300 ring-1 ring-red-200' : 'border-blue-100'}`}>
                                   <div className="flex items-center justify-between mb-3">
@@ -1138,13 +1185,11 @@ export default function ExpertEvaluatePage() {
                                   <div className="flex items-center gap-4 mb-3">
                                     <input type="range" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [k]: { score: parseFloat(e.target.value), reason: prev[k]?.reason || '' } }))}
-                                      className="flex-1 h-2 bg-[oklch(0.94_0.004_264)] rounded-full appearance-none cursor-pointer accent-[#064ea2] focus:outline-none focus:ring-2 focus:ring-[#064ea2] focus:ring-offset-2"
+                                      className="flex-1 h-2 bg-[oklch(0.94_0.004_264)] rounded-full appearance-none cursor-pointer accent-[#064ea2]"
                                       style={{ background: `linear-gradient(to right, ${CATEGORY_COLOR[category] || '#064ea2'} ${pct}%, #f0f4f8 ${pct}%)` }}
-                                      aria-label={`${item.name} 评分`} aria-valuemin={0} aria-valuemax={max} aria-valuenow={currentScore} aria-valuetext={`${currentScore} / ${max} 分`}
-                                      tabIndex={0} />
+                                      aria-label={`${item.name} 评分`} aria-valuemin={0} aria-valuemax={max} aria-valuenow={currentScore} tabIndex={0} />
                                     <input type="number" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.min(parseFloat(e.target.value) || 0, max), reason: prev[k]?.reason || '' } }))}
-                                      onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); const v = Math.min((currentScore || 0) + 0.5, max); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } else if (e.key === 'ArrowDown') { e.preventDefault(); const v = Math.max((currentScore || 0) - 0.5, 0); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } }}
                                       className="w-20 text-center border border-blue-100 rounded-lg px-2 py-1.5 text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2] outline-none"
                                       aria-label={`${item.name} 数值输入`} tabIndex={0} />
                                   </div>
@@ -1154,9 +1199,8 @@ export default function ExpertEvaluatePage() {
                                       setScores(prev => ({ ...prev, [k]: { score: prev[k]?.score ?? 0, reason: v } }));
                                       if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
                                     }}
-                                    className={`w-full rounded-lg px-3 py-2 text-sm text-[oklch(0.18_0.012_265)] placeholder-[#b8c8d8] resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-300' : 'border-blue-100 focus:border-[#064ea2] focus:ring-[#064ea2]'}`}
-                                    aria-label={`${item.name} 评分理由`} tabIndex={0}
-                                    onKeyDown={(e) => handleScoringKeyDown(e, false)} />
+                                    className={`w-full rounded-lg px-3 py-2 text-sm resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
+                                    aria-label={`${item.name} 评分理由`} tabIndex={0} />
                                   {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold">⚠ 该项得分低于满分，请填写评分理由</p>}
                                 </div>
                               );
