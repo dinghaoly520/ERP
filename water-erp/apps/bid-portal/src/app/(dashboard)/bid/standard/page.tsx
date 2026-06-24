@@ -12,7 +12,7 @@ import { TableSkeleton } from '@/components/skeleton';
 import Dialog from '@/components/dialog';
 import NoProjectGuide from '@/components/no-project-guide';
 import { Plus, Pencil, Trash2, Check, X, FileSpreadsheet, Lock } from 'lucide-react';
-import { CATEGORY_LABEL, CATEGORY_COLOR, STAGE_LABEL } from '@water-erp/shared';
+import { CATEGORY_LABEL, CATEGORY_COLOR, STAGE_LABEL, isPassFailCategory } from '@water-erp/shared';
 import { toast } from 'sonner';
 
 const CATEGORY_OPTIONS = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'];
@@ -60,7 +60,7 @@ export default function BidStandardPage() {
     if (!projectId) return;
     if (!draft.name.trim()) { toast.error('请填写评分项名称'); return; }
     try {
-      const created = await createScoreItem(projectId, { category: draft.category, name: draft.name.trim(), maxScore: Number(draft.maxScore) });
+      const created = await createScoreItem(projectId, { category: draft.category, name: draft.name.trim(), maxScore: isPassFailCategory(draft.category) ? 0 : Number(draft.maxScore) });
       setItems(prev => [...prev, created]);
       setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 });
       setShowAdd(false);
@@ -78,7 +78,7 @@ export default function BidStandardPage() {
     if (!editDraft.name.trim()) { toast.error('请填写评分项名称'); return; }
     try {
       const updated = await updateScoreItem(projectId, id, {
-        category: editDraft.category, name: editDraft.name.trim(), maxScore: Number(editDraft.maxScore),
+        category: editDraft.category, name: editDraft.name.trim(), maxScore: isPassFailCategory(editDraft.category) ? 0 : Number(editDraft.maxScore),
       });
       setItems(prev => prev.map(i => (i.id === id ? updated : i)));
       setEditingId(null);
@@ -204,15 +204,17 @@ export default function BidStandardPage() {
                       </td>
                       <td className="px-4 py-3">
                         {isEdit ? (
-                          <input
-                            type="number" min={0} step="0.1"
-                            value={editDraft.maxScore}
-                            onChange={e => setEditDraft(d => ({ ...d, maxScore: Number(e.target.value) }))}
-                            className={`${inputCls} w-[100px] font-mono`}
-                          />
+                          isPassFailCategory(editDraft.category) ? (
+                            <span className="text-xs font-bold text-[#5a6d8a]">通过性</span>
+                          ) : (
+                            <input type="number" min={0} step="0.1"
+                              value={editDraft.maxScore}
+                              onChange={e => setEditDraft(d => ({ ...d, maxScore: Number(e.target.value) }))}
+                              className={`${inputCls} w-[100px] font-mono`} />
+                          )
                         ) : (
                           <span className="font-mono text-sm font-bold text-[#064ea2]">
-                            {Number(it.maxScore) > 0 ? `${Number(it.maxScore)}` : '—'}
+                            {isPassFailCategory(it.category) ? '通过性' : (Number(it.maxScore) > 0 ? `${Number(it.maxScore)}` : '—')}
                           </span>
                         )}
                       </td>
@@ -266,12 +268,14 @@ export default function BidStandardPage() {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <input
-                        type="number" min={0} step="0.1"
-                        value={draft.maxScore}
-                        onChange={e => setDraft(d => ({ ...d, maxScore: Number(e.target.value) }))}
-                        className={`${inputCls} w-[100px] font-mono`}
-                      />
+                      {isPassFailCategory(draft.category) ? (
+                        <span className="text-xs font-bold text-[#5a6d8a]">通过性</span>
+                      ) : (
+                        <input type="number" min={0} step="0.1"
+                          value={draft.maxScore}
+                          onChange={e => setDraft(d => ({ ...d, maxScore: Number(e.target.value) }))}
+                          className={`${inputCls} w-[100px] font-mono`} />
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">

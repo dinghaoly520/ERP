@@ -962,7 +962,46 @@ export class BidService {
     // G2: 按供应商聚合 → 每专家对该供应商的总评分 → 专家组≥5 去 1 高 1 低 → 求平均
     const panelSize = project.experts.length;
 
-    const ranked: { supplierId: string; supplierName: string; totalScore: number; averageScore: number }[] = [];
+    // ── 通过性审查废标判定：某项不通过票严格过半 → 该供应商废标 ──
+    const passFailVerdicts = new Map<string, boolean>(); // supplierId -> disqualified
+    const passFailFailures: { supplierId: string; supplierName: string; category: string; fail: number; total: number }[] = [];
+    {
+      // 收集所有通过性 scoreItemId（按项目）
+      const passFailItemIds = new Set<string>();
+      // 需要每个 record 的 scoreItem.category；上面 allScoreRecords 未 include scoreItem，单独查一次通过性项
+      const passFailItems = await this.prisma.bidScoreItem.findMany({
+        where: { projectId, category: { in: ['QUALIFICATION', 'RESPONSIVE'] } },
+        select: { id: true, category: true },
+      });
+      for (const it of passFailItems) passFailItemIds.add(it.id);
+      const categoryById = new Map(passFailItems.map(it => [it.id, it.category as string]));
+
+      for (const supplier of activeSuppliers) {
+        const records = recordsBySupplier.get(supplier.id) ?? [];
+        let disqualified = false;
+        // 逐项统计
+        const byItem = new Map<string, { fail: number; total: number }>();
+        for (const r of records) {
+          if (!passFailItemIds.has(r.scoreItemId) || r.passed === null || r.passed === undefined) continue;
+          const agg = byItem.get(r.scoreItemId) ?? { fail: 0, total: 0 };
+          agg.total += 1;
+          if (r.passed === false) agg.fail += 1;
+          byItem.set(r.scoreItemId, agg);
+        }
+        for (const [itemId, agg] of byItem) {
+          if (agg.fail > agg.total - agg.fail) { // 不通过票严格过半
+            disqualified = true;
+            passFailFailures.push({
+              supplierId: supplier.id, supplierName: supplier.supplierName,
+              category: categoryById.get(itemId) || '通过性', fail: agg.fail, total: agg.total,
+            });
+          }
+        }
+        passFailVerdicts.set(supplier.id, disqualified);
+      }
+    }
+
+    const ranked: { supplierId: string; supplierName: string; totalScore: number; averageScore: number; disqualified: boolean }[] = [];
     for (const supplier of activeSuppliers) {
       const records = recordsBySupplier.get(supplier.id) ?? [];
       // 每位专家对该供应商的总评分
@@ -982,11 +1021,16 @@ export class BidService {
         ? Math.round((trimmed.reduce((s, v) => s + v, 0) / trimmed.length) * 100) / 100
         : 0;
 
-      ranked.push({ supplierId: supplier.id, supplierName: supplier.supplierName, totalScore, averageScore });
+      ranked.push({ supplierId: supplier.id, supplierName: supplier.supplierName, totalScore, averageScore, disqualified: !!passFailVerdicts.get(supplier.id) });
     }
-    ranked.sort((a, b) => b.averageScore - a.averageScore);
+    // 合格者在前、废标者在后；同组内按 averageScore 降序
+    ranked.sort((a, b) => {
+      if (a.disqualified !== b.disqualified) return a.disqualified ? 1 : -1;
+      return b.averageScore - a.averageScore;
+    });
 
-    const winnerCount = Math.min(this.DEFAULT_WINNER_COUNT, ranked.length);
+    const qualifiedRanked = ranked.filter(r => !r.disqualified);
+    const winnerCount = Math.min(this.DEFAULT_WINNER_COUNT, qualifiedRanked.length);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.bidEvaluationResult.deleteMany({ where: { projectId } });
@@ -999,7 +1043,8 @@ export class BidService {
             totalScore: r.totalScore,
             averageScore: r.averageScore,
             rank: index + 1,
-            recommended: index < winnerCount,
+            recommended: !r.disqualified && index < winnerCount,
+            disqualified: r.disqualified,
           })),
         });
       }
@@ -1014,6 +1059,14 @@ export class BidService {
           data: {
             projectId, time: new Date(), role: '系统', target: f.supplierName,
             action: '保证金异常标记', result: `保证金状态：${f.bondStatus}（未达标，供评标委员会审查）`, riskFlag: '高风险',
+          },
+        });
+      }
+      for (const f of passFailFailures) {
+        await tx.bidSupervisionLog.create({
+          data: {
+            projectId, time: new Date(), role: '系统', target: f.supplierName,
+            action: '资格审查', result: `因${f.category === 'QUALIFICATION' ? '资格' : '响应性'}性审查不通过废标（不通过 ${f.fail}/${f.total} 票）`, riskFlag: '高风险',
           },
         });
       }

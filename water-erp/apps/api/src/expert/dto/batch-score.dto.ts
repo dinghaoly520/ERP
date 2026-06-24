@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsArray, ValidateNested, IsNumber, IsOptional, Min, Max } from 'class-validator';
+import { IsString, IsNotEmpty, IsArray, ValidateNested, IsNumber, IsOptional, IsBoolean, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class ScoreItemDto {
@@ -8,8 +8,11 @@ class ScoreItemDto {
   @IsString() @IsNotEmpty()
   supplierId: string;
 
-  @IsNumber() @Min(0) @Max(100)
-  score: number;
+  @IsNumber() @Min(0) @Max(100) @IsOptional()
+  score?: number;
+
+  @IsBoolean() @IsOptional()
+  passed?: boolean;
 
   @IsString() @IsOptional()
   reason?: string;

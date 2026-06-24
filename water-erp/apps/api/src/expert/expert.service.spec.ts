@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, BadRequestException } from '@nestjs/common';
 import { ExpertService } from './expert.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
@@ -42,11 +42,13 @@ describe('ExpertService', () => {
         create: jest.fn(),
         createMany: jest.fn(),
         count: jest.fn(),
+        upsert: jest.fn(),
       },
       bidScoreItem: { findMany: jest.fn() },
       bidSupplierCount: jest.fn(),
       bidSupervisionLog: { create: jest.fn(), findMany: jest.fn() },
       bidClarification: { create: jest.fn() },
+      $transaction: jest.fn(async (fn: any) => fn(prisma)),
     };
 
     ai = { analyzeBid: jest.fn() };
@@ -231,6 +233,53 @@ describe('ExpertService', () => {
         scores: [{ supplierId: 'supplier-1', scoreItemId: 'item-1', score: 80 }],
       })).rejects.toMatchObject({ response: { code: 'SCORE_LOCKED' } });
     });
+
+    it('submitScores：通过性项接收 passed、跳过 maxScore、落库 score=0', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp1', userId: 'u1', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, conflictedSupplierIds: [], expertName: '刘',
+      });
+      // 通过性项 maxScore=0
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'si1', maxScore: 0, category: 'QUALIFICATION' },
+      ]);
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' },
+      ]);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScoreRecord.upsert.mockResolvedValue({});
+      prisma.bidScoreItem.findMany // progress 回读
+        .mockResolvedValueOnce([{ id: 'si1', maxScore: 0, category: 'QUALIFICATION' }])
+        .mockResolvedValueOnce([{ id: 'si1' }]);
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([{ score: 0 }]);
+      prisma.bidExpert.update.mockResolvedValue({});
+
+      await service.submitScores('u1', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: 'si1', supplierId: 'sup1', passed: false, reason: '资质不符' }],
+      } as any);
+
+      expect(prisma.bidScoreRecord.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        update: expect.objectContaining({ score: 0, passed: false, reason: '资质不符' }),
+        create: expect.objectContaining({ score: 0, passed: false }),
+      }));
+    });
+
+    it('submitScores：通过性项缺 passed 报错', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp1', userId: 'u1', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, conflictedSupplierIds: [], expertName: '刘',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 0, category: 'RESPONSIVE' }]);
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' },
+      ]);
+      await expect(service.submitScores('u1', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: 'si1', supplierId: 'sup1', score: 0 }],
+      } as any)).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('confirmReport', () => {
@@ -361,6 +410,20 @@ describe('ExpertService', () => {
       expect(report.overallComplete).toBe(false); // progress=80
       // perSupplierComplete 仍可 true（mock 数据中该供应商 1 项已评 1 项）
       expect(report.supplierScores[0].perSupplierComplete).toBe(true);
+    });
+
+    it('通过性类别的 item 带 passed（供前端 Task 8 渲染）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '项目', projectCode: 'P1',
+        suppliers: [{ id: 'sup1', supplierName: '甲' }],
+        scoreItems: [{ id: 'si1', category: 'QUALIFICATION', name: '资格性审查', maxScore: 0 }],
+      });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        { supplierId: 'sup1', score: 0, passed: false, reason: '不符', scoreItem: { id: 'si1', category: 'QUALIFICATION', name: '资格性审查', maxScore: 0 } },
+      ]);
+      const report = await service.getReport('u1', 'p1');
+      const item = report.supplierScores[0].categoryScores['QUALIFICATION'].items[0];
+      expect(item.passed).toBe(false);
     });
   });
 });
