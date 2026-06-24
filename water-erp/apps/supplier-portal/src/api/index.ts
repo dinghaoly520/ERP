@@ -13,7 +13,7 @@ api.defaults.headers.common['X-Portal'] = 'supplier'
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => response.config.responseType === 'blob' ? response : response.data,
   (error) => {
     const status = error.response?.status
     const data = error.response?.data

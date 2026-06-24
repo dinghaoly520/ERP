@@ -25,11 +25,18 @@ const stageFilters = [
   { label: '开标', value: 'OPENING' }, { label: '评标', value: 'EVALUATING' }, { label: '归档', value: 'ARCHIVED' },
 ]
 
+const page = ref(1)
+const pageSize = ref(10)
 const filteredProjects = computed(() => {
   let list = bidStore.projects
   if (filterStage.value) list = list.filter((p: any) => p.stage === filterStage.value)
   if (search.value) { const s = search.value.toLowerCase(); list = list.filter((p: any) => p.name?.toLowerCase().includes(s) || p.projectCode?.toLowerCase().includes(s)) }
   return list
+})
+const totalPages = computed(() => Math.ceil(filteredProjects.value.length / pageSize.value))
+const paginatedProjects = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return filteredProjects.value.slice(start, start + pageSize.value)
 })
 const submitCount = computed(() => bidStore.projects.filter((p: any) => p.stage === 'SUBMIT').length)
 const activeCount = computed(() => bidStore.projects.filter((p: any) => ['DOWNLOAD','SUBMIT','OPENING'].includes(p.stage)).length)
@@ -75,8 +82,8 @@ function isDeadlinePassed(deadline: string) { return new Date(deadline) < new Da
       </div>
     </div>
 
-    <div v-if="filteredProjects.length > 0" class="opportunity-list">
-      <div v-for="p in filteredProjects" :key="p.id" class="opportunity-row" @click="router.push(`/bids/${p.id}`)">
+    <div v-if="paginatedProjects.length > 0" class="opportunity-list">
+      <div v-for="p in paginatedProjects" :key="p.id" class="opportunity-row" @click="router.push(`/bids/${p.id}`)">
         <div class="row-main">
           <div class="row-title-line"><h3>{{ p.name }}</h3>
             <span class="sp-status" :style="{ background: (stageMap[p.stage]?.color || '#94a3b8') + '18', color: stageMap[p.stage]?.color || '#94a3b8' }">{{ stageMap[p.stage]?.label || p.stage }}</span>
@@ -89,6 +96,16 @@ function isDeadlinePassed(deadline: string) { return new Date(deadline) < new Da
         </div>
         <el-button type="primary" plain size="small">详情</el-button>
       </div>
+    </div>
+
+    <div v-if="totalPages > 1" class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        :total="filteredProjects.length"
+        layout="prev, pager, next"
+        background
+      />
     </div>
 
     <div v-else class="sp-empty-panel">

@@ -255,6 +255,9 @@ export class BidDocumentService {
     }
 
     // 读取密文 → 解密
+    // TODO: 大文件下载应使用 createDecryptStream() 进行流式解密，
+    // 将 objStream.pipe(createDecryptStream(rawKey)).pipe(response)，
+    // 当前 streamToBuffer + decryptBuffer 全量读入内存，对大文件不够友好。
     const objStream = await minioClient.getObject(MINIO_BUCKET, doc.fileAsset.key);
     const ciphertext = await streamToBuffer(objStream);
     const rawKey = isWrappedKey(doc.decryptKey)

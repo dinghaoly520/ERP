@@ -413,6 +413,9 @@ export class SupplierPortalService {
     ]);
 
     // ── Layer C: SM2 digital signature verification (anti-repudiation) ──
+    // TODO (Phase 6): 当前前端 BidSubmit.vue 未实现 SM2 客户端签名，
+    // 因此 signature/fileHash 始终为空，此验证跳过。
+    // 需在客户端实现：计算标书文件 SHA-256 → 用供应商 SM2 私钥签名 → 随提交发送。
     if (data.signature && data.fileHash) {
       const pubKey = supplier.sm2PublicKey;
       if (!pubKey) {
