@@ -399,7 +399,7 @@ export default function BidEvaluatePage() {
   }, [project, categoryMatrix]);
 
   const rankedSuppliers = useMemo(() => {
-    if (!project) return project?.suppliers ?? [];
+    if (!project) return [];
     return [...project.suppliers].sort((a, b) => {
       const catMapA = categoryMatrix.get(a.id);
       const catMapB = categoryMatrix.get(b.id);
