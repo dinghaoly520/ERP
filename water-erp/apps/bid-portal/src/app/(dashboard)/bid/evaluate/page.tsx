@@ -107,24 +107,43 @@ function RingChart({ pct, size = 56, stroke = 5, color }: { pct: number; size?: 
   );
 }
 
-/* ── Score distribution mini chart ── */
+/* ── Score distribution mini line chart ── */
 function DistributionChart({ scores, avg }: { scores: number[]; avg: number }) {
   if (scores.length === 0) return null;
+  const w = 52, h = 28, padX = 2, padY = 4;
+  const minScore = Math.min(...scores);
+  const maxScore = Math.max(...scores);
+  const range = maxScore - minScore || 1; // avoid div-by-zero when all equal
+  // Expand range by 10% so extremes don't clip at egde; keep within [0,100]
+  const yMin = Math.max(0, minScore - range * 0.15);
+  const yMax = Math.min(100, maxScore + range * 0.15);
+  const ySpan = yMax - yMin || 1;
+  const xStep = scores.length > 1 ? (w - padX * 2) / (scores.length - 1) : 0;
+  const points = scores.map((s, i) => {
+    const x = padX + i * xStep;
+    const y = padY + (h - padY * 2) * (1 - (s - yMin) / ySpan);
+    return `${x},${y}`;
+  });
+  const polyline = points.join(' ');
+  const avgY = padY + (h - padY * 2) * (1 - (avg - yMin) / ySpan);
   return (
-    <div className="flex items-end gap-0.5 h-8">
-      {scores.map((s, i) => (
-        <div key={i} className="relative group">
-          <div className="w-1.5 rounded-t-sm transition-all" style={{
-            height: `${Math.max(4, (s / 100) * 32)}px`,
-            backgroundColor: s >= 85 ? '#11a874' : s >= 70 ? '#064ea2' : s >= 55 ? '#d97706' : '#dc2626',
-            opacity: 0.7,
-          }} />
-          <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-[#18243a] text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10">
-            {s.toFixed(0)}
-          </div>
-        </div>
-      ))}
-      <div className="w-px h-full bg-[oklch(0.55_0.01_264)]/40 ml-0.5" title={`平均 ${avg.toFixed(1)}`} />
+    <div className="relative group shrink-0" style={{ width: w, height: h }}>
+      <svg width={w} height={h} className="block">
+        {/* Grid line at avg */}
+        <line x1={0} x2={w} y1={avgY} y2={avgY}
+          stroke="oklch(0.55 0.01 264)" strokeWidth={0.5} strokeDasharray="2 2" opacity={0.5} />
+        {/* Polyline */}
+        <polyline points={polyline} fill="none" stroke="#064ea2" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
+        {/* Dots */}
+        {scores.map((s, i) => {
+          const x = padX + i * xStep;
+          const y = padY + (h - padY * 2) * (1 - (s - yMin) / ySpan);
+          return <circle key={i} cx={x} cy={y} r={2} fill="white" stroke="#064ea2" strokeWidth={1.2} />;
+        })}
+      </svg>
+      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-[#18243a] text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10">
+        均分 {avg.toFixed(0)}
+      </div>
     </div>
   );
 }
@@ -595,7 +614,7 @@ export default function BidEvaluatePage() {
             <div className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无专家数据</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="workbench-table">
+              <table className="workbench-table mx-auto">
                 <thead>
                   <tr className="text-[oklch(0.55_0.01_264)]">
                     <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">专家</th>
@@ -608,7 +627,7 @@ export default function BidEvaluatePage() {
                       return (
                         <th key={s.id} className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">
                           <div className="text-[oklch(0.18_0.012_265)]">{s.supplierName}</div>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex items-center justify-center gap-2 mt-1">
                             <span className="text-[10px] font-normal text-[oklch(0.62_0.008_264)]">{DECRYPT_LABEL[s.decryptStatus] || s.decryptStatus}</span>
                             {scores.length > 1 && <DistributionChart scores={scores} avg={avg} />}
                           </div>
@@ -626,7 +645,7 @@ export default function BidEvaluatePage() {
                       <tr key={expert.id}>
                         <td className="px-5 py-3">
                           <button onClick={() => setExpandedExperts(prev => { const next = new Set(prev); if (isExpanded) next.delete(expert.id); else next.add(expert.id); return next; })} disabled={!hasAnyScore}
-                            className={`flex items-center gap-1.5 text-left ${hasAnyScore ? 'cursor-pointer hover:text-[oklch(0.42_0.14_260)]' : 'cursor-default'} transition-colors`}>
+                            className={`inline-flex items-center gap-1.5 text-left ${hasAnyScore ? 'cursor-pointer hover:text-[oklch(0.42_0.14_260)]' : 'cursor-default'} transition-colors`}>
                             {hasAnyScore && (isExpanded ? <ChevronDown size={12} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)] shrink-0" /> : <ChevronRight size={12} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)] shrink-0" />)}
                             <span className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">{expert.expertName}</span>
                           </button>
@@ -749,7 +768,7 @@ export default function BidEvaluatePage() {
             </div>
           </div>
           <div className="overflow-x-auto overflow-y-visible">
-            <table className="workbench-table">
+            <table className="workbench-table mx-auto">
               <thead>
                 <tr className="text-[oklch(0.55_0.01_264)] relative z-0">
                   <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap" title="按专家总分均分排名，同分同名次（竞赛式）">排名</th>
