@@ -1294,12 +1294,22 @@ export default function ExpertEvaluatePage() {
                       </div>
                       {Object.entries(ss.categoryScores).length > 0 && (
                         <div className="p-5 grid grid-cols-3 gap-3">
-                          {Object.entries(ss.categoryScores).map(([cat, data]) => (
-                            <div key={cat} className="bg-blue-50 rounded-lg p-3" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[cat] || '#064ea2'}` }}>
-                              <div className="text-xs font-semibold mb-1" style={{ color: CATEGORY_COLOR[cat] || '#064ea2' }}>{CATEGORY_LABEL[cat] || cat}</div>
-                              <div className="text-lg font-bold text-[oklch(0.18_0.012_265)]">{data.total} <span className="text-xs text-[oklch(0.55_0.01_264)] font-normal">/ {data.max}</span></div>
-                            </div>
-                          ))}
+                          {Object.entries(ss.categoryScores).map(([cat, data]) => {
+                            const passFail = isPassFailCategory(cat);
+                            const firstPassed = data.items[0]?.passed;
+                            return (
+                              <div key={cat} className="bg-blue-50 rounded-lg p-3" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[cat] || '#064ea2'}` }}>
+                                <div className="text-xs font-semibold mb-1" style={{ color: CATEGORY_COLOR[cat] || '#064ea2' }}>{CATEGORY_LABEL[cat] || cat}</div>
+                                {passFail ? (
+                                  <div className={`text-lg font-bold ${firstPassed === false ? 'text-[#e74c3c]' : 'text-[#11a874]'}`}>
+                                    {firstPassed === false ? '不通过' : '通过'}
+                                  </div>
+                                ) : (
+                                  <div className="text-lg font-bold text-[oklch(0.18_0.012_265)]">{data.total} <span className="text-xs text-[oklch(0.55_0.01_264)] font-normal">/ {data.max}</span></div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
