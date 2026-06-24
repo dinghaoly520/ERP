@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 import type { BidProjectDetail, BidExpert, BidSupplier, BidScoreItem } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
-import { CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
+import { CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, isPassFailCategory } from '@water-erp/shared';
 
 import { TableSkeleton } from '@/components/skeleton';
 import { MetricCard, SectionCard } from '@water-erp/ui';
@@ -22,7 +22,7 @@ import {
 /* ── Local types ── */
 interface ExpertScoreRecord {
   id: string; expertId: string; scoreItemId: string; supplierId: string;
-  score: string; reason?: string | null;
+  score: string; passed?: boolean | null; reason?: string | null;
 }
 interface BidExpertWithScores extends BidExpert {
   scoreRecords: ExpertScoreRecord[];
@@ -37,7 +37,7 @@ interface EvalResult {
 }
 interface ExpertSupplierCell {
   totalScore: number; maxScore: number; scoredCount: number; totalCount: number;
-  items: { name: string; score: number; maxScore: number; reason?: string | null; category?: string }[];
+  items: { name: string; score: number; maxScore: number; passed?: boolean | null; reason?: string | null; category?: string }[];
 }
 type ExpertSupplierMatrix = Map<string, Map<string, ExpertSupplierCell>>;
 interface SupplierCategoryCell { sum: number; max: number; count: number; }
@@ -62,7 +62,7 @@ function buildExpertSupplierMatrix(
       if (!cell) continue;
       const score = Number(record.score);
       cell.totalScore += score; cell.maxScore += Number(item.maxScore); cell.scoredCount += 1;
-      cell.items.push({ name: item.name, score, maxScore: Number(item.maxScore), reason: record.reason, category: item.category });
+      cell.items.push({ name: item.name, score, maxScore: Number(item.maxScore), passed: record.passed, reason: record.reason, category: item.category });
     }
     matrix.set(expert.id, expertRow);
   }
@@ -790,6 +790,7 @@ export default function BidEvaluatePage() {
                   let total = 0;
                   if (catMap) {
                     for (const cat of CATEGORY_ORDER) {
+                      if (isPassFailCategory(cat)) continue;
                       const cell = catMap.get(cat);
                       if (cell && cell.count > 0) total += cell.sum / cell.count;
                     }
@@ -806,9 +807,34 @@ export default function BidEvaluatePage() {
                       <td className="px-5 py-3 font-semibold text-[oklch(0.18_0.012_265)] whitespace-nowrap">{supplier.supplierName}</td>
                       {CATEGORY_ORDER.map(cat => {
                         const cell = catMap?.get(cat);
+                        // ── Pass-fail categories: show verdict ──
+                        if (isPassFailCategory(cat)) {
+                          let passCount = 0, failCount = 0;
+                          for (const expert of experts) {
+                            const expertCell = expertMatrix.get(expert.id)?.get(supplier.id);
+                            if (expertCell) {
+                              const catItems = expertCell.items.filter(i => i.category === cat);
+                              for (const it of catItems) {
+                                if (it.passed === false) failCount++;
+                                else if (it.passed === true) passCount++;
+                              }
+                            }
+                          }
+                          const hasVerdict = passCount + failCount > 0;
+                          const failed = failCount > passCount;
+                          return (
+                            <td key={cat} className="px-5 py-3">
+                              {hasVerdict ? (
+                                <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2 py-0.5 rounded-full ${failed ? 'text-[#e74c3c] border border-[#e74c3c]/40 bg-[#fef2f2]' : 'text-[#11a874] border border-[#11a874]/40 bg-[#ecfdf5]'}`}>
+                                  {failed ? '不通过' : '通过'}
+                                </span>
+                              ) : <span className="text-[12px] text-[oklch(0.62_0.008_264)]">—</span>}
+                            </td>
+                          );
+                        }
+                        // ── Numeric categories: show avg ──
                         const hasData = cell && cell.count > 0;
                         const avg = hasData ? (cell!.sum / cell!.count).toFixed(1) : null;
-                        // Get per-expert scores for this category
                         const expertScores: { name: string; score: number }[] = [];
                         if (catMap) {
                           for (const expert of experts) {
