@@ -621,18 +621,27 @@ export class BidService {
         where: { projectId: id },
       });
       if (aiTask) {
-        await this.tenderQueue.add(
-          'process',
-          { taskId: aiTask.id },
-          {
-            jobId: `tender-${aiTask.id}`,
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 5000 },
-            removeOnComplete: { age: 7 * 24 * 3600 },
-            removeOnFail: { age: 30 * 24 * 3600 },
-          },
-        );
-        this.logger.log(`AI analysis task ${aiTask.id} enqueued for project ${id}`);
+        try {
+          await this.tenderQueue.add(
+            'process',
+            { taskId: aiTask.id },
+            {
+              jobId: `tender-${aiTask.id}`,
+              attempts: 3,
+              backoff: { type: 'exponential', delay: 5000 },
+              removeOnComplete: { age: 7 * 24 * 3600 },
+              removeOnFail: { age: 30 * 24 * 3600 },
+            },
+          );
+          this.logger.log(`AI analysis task ${aiTask.id} enqueued for project ${id}`);
+        } catch (err) {
+          this.logger.error(`Failed to enqueue AI analysis task ${aiTask.id}: ${(err as Error).message}`);
+          // 入队失败则将任务标记为 FAILED，避免永久 PENDING
+          await this.prisma.aiBidAnalysisTask.update({
+            where: { id: aiTask.id },
+            data: { status: 'FAILED' },
+          }).catch(() => {});
+        }
       }
     }
 
@@ -1166,13 +1175,14 @@ export class BidService {
           supplierId: dto.supplierId,
         },
       },
-      update: { score: dto.score, reason: dto.reason },
+      update: { score: dto.score, reason: dto.reason, ...(dto.passed !== undefined ? { passed: dto.passed } : {}) },
       create: {
         expertId: dto.expertId,
         scoreItemId: dto.scoreItemId,
         supplierId: dto.supplierId,
         score: dto.score,
         reason: dto.reason,
+        ...(dto.passed !== undefined ? { passed: dto.passed } : {}),
       },
     });
     // P1: 评分偏差实时检测
