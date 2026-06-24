@@ -21,6 +21,9 @@ import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../expert/expert-deviation';
 import { ScoreCategory } from '@prisma/client';
 import { isBondQualified } from './bid-bond-status';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 
 @Injectable()
 export class BidService {
@@ -28,6 +31,9 @@ export class BidService {
     private prisma: PrismaService,
     private notificationService: NotificationService,
     @Optional() private readonly gateway?: BidGateway,
+    @Optional()
+    @InjectQueue(QUEUE_NAMES.TENDER_PROCESSING)
+    private readonly tenderQueue?: Queue,
   ) {}
 
   private readonly logger = new Logger(BidService.name);
@@ -608,6 +614,27 @@ export class BidService {
     this.gateway?.notifyStageChange(id, 'OPENING', 'EVALUATING', 'host');
     this.gateway?.notifyEvaluationStarted(id);
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '启动评标 (OPENING→EVALUATING)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
+
+    // 4.3: 入队 AI 分析（tender 处理 → 触发 worker 端到端）
+    if (this.tenderQueue) {
+      const aiTask = await this.prisma.aiBidAnalysisTask.findUnique({
+        where: { projectId: id },
+      });
+      if (aiTask) {
+        await this.tenderQueue.add(
+          'process',
+          { taskId: aiTask.id },
+          {
+            jobId: `tender-${aiTask.id}`,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+            removeOnComplete: { age: 7 * 24 * 3600 },
+            removeOnFail: { age: 30 * 24 * 3600 },
+          },
+        );
+        this.logger.log(`AI analysis task ${aiTask.id} enqueued for project ${id}`);
+      }
+    }
 
     return updated;
   }
