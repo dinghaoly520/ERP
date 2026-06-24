@@ -411,5 +411,19 @@ describe('ExpertService', () => {
       // perSupplierComplete 仍可 true（mock 数据中该供应商 1 项已评 1 项）
       expect(report.supplierScores[0].perSupplierComplete).toBe(true);
     });
+
+    it('通过性类别的 item 带 passed（供前端 Task 8 渲染）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '项目', projectCode: 'P1',
+        suppliers: [{ id: 'sup1', supplierName: '甲' }],
+        scoreItems: [{ id: 'si1', category: 'QUALIFICATION', name: '资格性审查', maxScore: 0 }],
+      });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        { supplierId: 'sup1', score: 0, passed: false, reason: '不符', scoreItem: { id: 'si1', category: 'QUALIFICATION', name: '资格性审查', maxScore: 0 } },
+      ]);
+      const report = await service.getReport('u1', 'p1');
+      const item = report.supplierScores[0].categoryScores['QUALIFICATION'].items[0];
+      expect(item.passed).toBe(false);
+    });
   });
 });

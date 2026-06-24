@@ -609,7 +609,7 @@ export class ExpertService {
     const supplierScores = project.suppliers.map(supplier => {
       const records = bySupplier.get(supplier.id) || [];
       const totalScore = records.reduce((sum, r) => sum + Number(r.score), 0);
-      const categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; reason?: string }[] }> = {};
+      const categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; passed?: boolean; reason?: string }[] }> = {};
 
       for (const record of records) {
         const cat = record.scoreItem.category;
@@ -620,6 +620,7 @@ export class ExpertService {
           name: record.scoreItem.name,
           score: Number(record.score),
           maxScore: Number(record.scoreItem.maxScore),
+          passed: (record as any).passed ?? undefined,
           reason: record.reason || undefined,
         });
       }
