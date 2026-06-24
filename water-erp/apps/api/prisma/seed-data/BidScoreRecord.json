@@ -1,5 +1,65 @@
 [
   {
+    "id": "cmqhero-qual-sr01",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si01",
+    "supplierId": "cmqhero-bs01",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-20T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-qual-sr02",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si01",
+    "supplierId": "cmqhero-bs02",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-20T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-qual-sr03",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si01",
+    "supplierId": "cmqhero-bs03",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-20T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-resp-sr01",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si02",
+    "supplierId": "cmqhero-bs01",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-20T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-resp-sr02",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si02",
+    "supplierId": "cmqhero-bs02",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-20T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-resp-sr03",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si02",
+    "supplierId": "cmqhero-bs03",
+    "score": "0",
+    "passed": false,
+    "reason": "投标文件响应性条款缺失",
+    "createdAt": "2026-06-20T06:00:00.000Z"
+  },
+  {
     "id": "cmqhero-sr01",
     "expertId": "cmqhero-be01",
     "scoreItemId": "cmqhero-si03",
@@ -216,6 +276,46 @@
     "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
+    "id": "cmqfix-1781-qual-0",
+    "expertId": "cmqfix-1781-be-1",
+    "scoreItemId": "cmqgedld60010vkr4eickzssr",
+    "supplierId": "cmqgedbr3000zvkr46arzzmi9",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-qual-1",
+    "expertId": "cmqfix-1781-be-1",
+    "scoreItemId": "cmqgedld60010vkr4eickzssr",
+    "supplierId": "cmqgedbpu000vvkr4dicd8rtv",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-resp-0",
+    "expertId": "cmqfix-1781-be-1",
+    "scoreItemId": "cmqgedld60011vkr40olbvhq3",
+    "supplierId": "cmqgedbr3000zvkr46arzzmi9",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-1781-resp-1",
+    "expertId": "cmqfix-1781-be-1",
+    "scoreItemId": "cmqgedld60011vkr40olbvhq3",
+    "supplierId": "cmqgedbpu000vvkr4dicd8rtv",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
     "id": "cmqfix-1781-sr-1-0-BUSINESS",
     "expertId": "cmqfix-1781-be-1",
     "scoreItemId": "cmqgedld60012vkr4i40jkx26",
@@ -376,6 +476,46 @@
     "score": "25.2",
     "reason": null,
     "createdAt": "2026-06-08T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-qual-0",
+    "expertId": "cmqfix-0618-be-1",
+    "scoreItemId": "cmqhf0ke0000evk18si0qual01",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-qual-1",
+    "expertId": "cmqfix-0618-be-1",
+    "scoreItemId": "cmqhf0ke0000evk18si0qual01",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-resp-0",
+    "expertId": "cmqfix-0618-be-1",
+    "scoreItemId": "cmqhf0ke0000fvk18si0resp02",
+    "supplierId": "cmqhf0kkh0009vk18sblw0e1k",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqfix-0618-resp-1",
+    "expertId": "cmqfix-0618-be-1",
+    "scoreItemId": "cmqhf0ke0000fvk18si0resp02",
+    "supplierId": "cmqhf0kkd0007vk18ikuf9mwu",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-06-21T06:00:00.000Z"
   },
   {
     "id": "cmqfix-0618-sr-1-0-BUSINESS",
