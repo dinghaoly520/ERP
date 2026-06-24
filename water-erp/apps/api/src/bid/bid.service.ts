@@ -579,6 +579,28 @@ export class BidService {
       });
       if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'OPENING', to: 'EVALUATING', stage: 'EVALUATING' } } });
 
+      // 4.3: 创建 AI 分析 task（1:1，upsert 幂等）+ 为解密成功供应商创建 bidderResult（数据准备）
+      const aiTask = await tx.aiBidAnalysisTask.upsert({
+        where: { projectId: id },
+        create: { projectId: id, status: 'PENDING' },
+        update: {},
+      });
+      const evaluableSuppliers = await tx.bidSupplier.findMany({
+        where: { projectId: id, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+        select: { id: true },
+      });
+      if (evaluableSuppliers.length > 0) {
+        await tx.aiBidderResult.createMany({
+          data: evaluableSuppliers.map((s) => ({
+            taskId: aiTask.id,
+            bidSupplierId: s.id,
+            status: 'PENDING',
+          })),
+          skipDuplicates: true, // @@unique([taskId, bidSupplierId]) 幂等
+        });
+      }
+      // TODO Phase 5: 入队 BullMQ 触发 worker（OCR → extract → concordance → score）
+
       return result;
     });
 

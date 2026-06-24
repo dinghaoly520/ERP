@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { LlmOutputValidator } from './llm-output-validator';
 import { LlmService } from './llm.service';
 import { OcrService } from './ocr.service';
@@ -10,6 +10,7 @@ import { OcrService } from './ocr.service';
  *  - 剥离 VllmMonitorService / EmbeddingService（ERP 无 vLLM 基建）
  *  - 剥离 ScheduleModule（原为 vllm-monitor 定时轮询用）
  */
+@Global()
 @Module({
   providers: [LlmService, LlmOutputValidator, OcrService],
   exports: [LlmService, LlmOutputValidator, OcrService],

@@ -23,6 +23,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { LocalAiModule } from './local-ai/local-ai.module';
 import { StorageModule } from './storage/storage.module';
+import { AiBidAnalysisModule } from './ai-bid-analysis/ai-bid-analysis.module';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -51,6 +52,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     AlertsModule,
     LocalAiModule,
     StorageModule,
+    AiBidAnalysisModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

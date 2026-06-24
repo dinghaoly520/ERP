@@ -342,8 +342,36 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
-    // 使用 AI 引擎进行全方位分析
-    return this.aiService.analyzeBid(projectId, supplierId, expert.id);
+    // 4.5: 优先读 AiBidderResult（per-item LLM 结果），降级用规则引擎
+    const bidderResult = await this.prisma.aiBidderResult.findFirst({
+      where: { bidSupplierId: supplierId, status: 'COMPLETED' },
+      include: {
+        concordance: true,
+        bidSupplier: { select: { supplierName: true } },
+      },
+    });
+    if (bidderResult) {
+      return {
+        source: 'ai_bidder_result',
+        supplierName: bidderResult.bidSupplier.supplierName,
+        totalScore: bidderResult.totalScore,
+        scoreItems: bidderResult.scoreItems, // per-item（对齐 BidScoreItem）
+        categoryTotals: bidderResult.categoryTotals, // 5 维聚合（雷达图）
+        keyInfo: bidderResult.keyInfo,
+        concordance: bidderResult.concordance?.checkedFields ?? null,
+        concordanceStatus: bidderResult.concordance?.overallStatus ?? null,
+        strengths: bidderResult.strengths,
+        weaknesses: bidderResult.weaknesses,
+        overallComment: bidderResult.overallComment,
+        qualificationStatus: bidderResult.qualificationStatus,
+        riskLevel: bidderResult.riskLevel,
+      };
+    }
+    // 降级：规则引擎（LLM/OCR 不可用或 bidderResult 未就绪时）
+    return {
+      source: 'rules_fallback',
+      ...(await this.aiService.analyzeBid(projectId, supplierId, expert.id)),
+    };
   }
 
   /* ── 专家打分 ── */
