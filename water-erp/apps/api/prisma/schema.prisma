@@ -99,6 +99,9 @@ model BidProject {
   scope               String?
   qualification       String?
   contact             String?
+  qualityRequirement String?                   // 质量目标/标准（项目级统一，唱标带出）
+  bondRequired        Boolean  @default(false)  // 是否要求投标保证金
+  bondAmount          Decimal? @db.Decimal(14, 2) // 保证金金额（仅记录，不严格校验）
   encryptionKeyId     String?                  // Track C: 项目数据密钥引用
   suppliers           BidSupplier[]
   openingSession      BidOpeningSession?
@@ -653,6 +656,7 @@ model SupplierBidSubmission {
   technicalFileAssetId  String?
   businessFileAssetId   String?
   coverLetterAssetId    String?
+  bidBondAssetId        String?   // 投标保证金缴纳凭证 → FileAsset.id（程序性文件，不加密）
   // Layer B：新提交的投标文件 AES-256-GCM 加密封存密钥（key:iv:authTag hex）。legacy 存量数据为 null。
   technicalSealedKey    String?
   businessSealedKey     String?
@@ -675,6 +679,7 @@ model SupplierBidSubmission {
   @@index([technicalFileAssetId])
   @@index([businessFileAssetId])
   @@index([coverLetterAssetId])
+  @@index([bidBondAssetId])
 }
 
 // ── 文件资产 ──

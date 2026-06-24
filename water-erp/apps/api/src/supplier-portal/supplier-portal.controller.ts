@@ -178,6 +178,7 @@ export class SupplierPortalController {
       bidPrice?: string; deliveryPeriod?: string;
       technicalFile?: string; businessFile?: string; coverLetter?: string;
       technicalFileAssetId?: string; businessFileAssetId?: string; coverLetterAssetId?: string;
+      bidBondAssetId?: string;
     },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
@@ -192,6 +193,7 @@ export class SupplierPortalController {
       bidPrice?: string; deliveryPeriod?: string;
       technicalFile?: string; businessFile?: string; coverLetter?: string;
       technicalFileAssetId?: string; businessFileAssetId?: string; coverLetterAssetId?: string;
+      bidBondAssetId?: string;
     },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);

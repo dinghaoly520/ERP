@@ -17,6 +17,9 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
   const [openTime, setOpenTime] = useState('');
   const [deadline, setDeadline] = useState('');
   const [riskNote, setRiskNote] = useState('');
+  const [qualityRequirement, setQualityRequirement] = useState('');
+  const [bondRequired, setBondRequired] = useState(false);
+  const [bondAmount, setBondAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -38,6 +41,9 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
         openTime: new Date(openTime).toISOString(),
         deadline: new Date(deadline).toISOString(),
         riskNote: riskNote.trim() || undefined,
+        qualityRequirement: qualityRequirement.trim() || undefined,
+        bondRequired,
+        bondAmount: bondAmount ? Number(bondAmount) : undefined,
       });
       onCreated();
     } catch (e: any) {
@@ -129,6 +135,25 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: Props)
                 focus:outline-none focus:border-[#0b63ce] focus:shadow-[0_0_0_3px_rgba(11,99,206,0.12)] transition-colors
                 placeholder:text-[#94a3b8]"
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-[#18243a]">质量目标 / 标准</label>
+            <input value={qualityRequirement} onChange={e => setQualityRequirement(e.target.value)}
+              className="workbench-input mt-1 w-full" placeholder="如 合格，符合 GB50300 验收标准（项目级统一，唱标带出）" />
+
+            <label className="mt-3 flex items-center gap-2 text-xs font-bold text-[#18243a]">
+              <input type="checkbox" checked={bondRequired} onChange={e => setBondRequired(e.target.checked)}
+                className="h-4 w-4 rounded border-[#dce6f3]" />
+              要求投标保证金
+            </label>
+            {bondRequired && (
+              <div className="mt-2">
+                <label className="text-xs font-semibold text-[#5a6d8a]">保证金金额（元，仅记录，不严格校验）</label>
+                <input value={bondAmount} onChange={e => setBondAmount(e.target.value)}
+                  className="workbench-input mt-1 w-full font-mono" placeholder="如 200000" />
+              </div>
+            )}
           </div>
 
           {error && (

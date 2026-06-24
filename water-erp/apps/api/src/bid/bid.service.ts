@@ -20,6 +20,7 @@ import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../expert/expert-deviation';
 import { ScoreCategory } from '@prisma/client';
+import { isBondQualified } from './bid-bond-status';
 
 @Injectable()
 export class BidService {
@@ -288,6 +289,9 @@ export class BidService {
         openTime: new Date(dto.openTime),
         deadline: new Date(dto.deadline),
         riskNote: dto.riskNote,
+        qualityRequirement: dto.qualityRequirement,
+        bondRequired: dto.bondRequired ?? false,
+        bondAmount: dto.bondAmount,
       },
     });
 
@@ -399,6 +403,9 @@ export class BidService {
         ...(dto.scope !== undefined && { scope: dto.scope }),
         ...(dto.qualification !== undefined && { qualification: dto.qualification }),
         ...(dto.contact !== undefined && { contact: dto.contact }),
+        ...(dto.qualityRequirement !== undefined && { qualityRequirement: dto.qualityRequirement }),
+        ...(dto.bondRequired !== undefined && { bondRequired: dto.bondRequired }),
+        ...(dto.bondAmount !== undefined && { bondAmount: dto.bondAmount }),
       },
     });
   }
@@ -758,6 +765,47 @@ export class BidService {
   }
 
   /**
+   * 唱标预填草稿：聚合项目级质量目标 + 投标提交的报价/工期 + 已有开标记录的保证金状态。
+   * 仅 OPENING 阶段且该供应商解密成功才返回真实数据（canView=true），
+   * 保证金凭证（bidBondAssetId）同样仅此时可见，供主持人核对。
+   */
+  async getOpeningRecordDraft(projectId: string, bidSupplierId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, qualityRequirement: true },
+    });
+    const empty = { canView: false, amount: null, period: null, qualityTarget: null, bondStatus: null, bidBondAssetId: null };
+    if (!project || project.stage !== 'OPENING') return { ...empty, qualityTarget: project?.qualityRequirement ?? null };
+
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { id: bidSupplierId, projectId },
+      select: { id: true, decryptStatus: true, supplierId: true },
+    });
+    if (!bidSupplier || bidSupplier.decryptStatus !== 'SUCCESS') return empty;
+
+    const submission = bidSupplier.supplierId
+      ? await this.prisma.supplierBidSubmission.findUnique({
+          where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
+          select: { bidPrice: true, deliveryPeriod: true, bidBondAssetId: true },
+        })
+      : null;
+
+    const existingRecord = await this.prisma.bidOpeningRecord.findFirst({
+      where: { projectId, bidSupplierId },
+      select: { bondStatus: true },
+    });
+
+    return {
+      canView: true,
+      amount: submission?.bidPrice ?? null,
+      period: submission?.deliveryPeriod ?? null,
+      qualityTarget: project.qualityRequirement,
+      bondStatus: existingRecord?.bondStatus ?? null,
+      bidBondAssetId: submission?.bidBondAssetId ?? null,
+    };
+  }
+
+  /**
    * 主持人录入唱标信息（报价/工期/质量目标/保证金）。
    * 解决"解密不落开标记录"的断链：解密仅做密文校验，唱标信息由主持人据解密内容补录，
    * 据此生成/更新 BidOpeningRecord（confirmStatus=待供应商确认），供供应商确认或异议。
@@ -877,6 +925,22 @@ export class BidService {
       s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED',
     );
 
+    // 保证金软标记：bondRequired 时查各供应商 bondStatus，异常者写监督日志（不排除，由评标委员会定）
+    const bondFlagged: { supplierName: string; bondStatus: string }[] = [];
+    if (project.bondRequired) {
+      const openingRecords = await this.prisma.bidOpeningRecord.findMany({
+        where: { projectId },
+        select: { bidSupplierId: true, bondStatus: true, supplierName: true },
+      });
+      const bondBySupplier = new Map(openingRecords.map(r => [r.bidSupplierId, r.bondStatus]));
+      for (const s of activeSuppliers) {
+        const status = bondBySupplier.get(s.id);
+        if (!isBondQualified(status)) {
+          bondFlagged.push({ supplierName: s.supplierName, bondStatus: status || '未核对' });
+        }
+      }
+    }
+
     // P0: Single batch query instead of per-supplier N+1 — fetch all scores at once
     const activeSupplierIds = activeSuppliers.map(s => s.id);
     const allScoreRecords = activeSupplierIds.length > 0
@@ -945,6 +1009,14 @@ export class BidService {
           action: '生成评标结果', result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}）`, riskFlag: '无',
         },
       });
+      for (const f of bondFlagged) {
+        await tx.bidSupervisionLog.create({
+          data: {
+            projectId, time: new Date(), role: '系统', target: f.supplierName,
+            action: '保证金异常标记', result: `保证金状态：${f.bondStatus}（未达标，供评标委员会审查）`, riskFlag: '高风险',
+          },
+        });
+      }
     });
     this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}）`, riskFlag: '无' });
     if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_RESULTS_GENERATED', target: `BidProject:${projectId}`, detail: { rankedCount: ranked.length } } });

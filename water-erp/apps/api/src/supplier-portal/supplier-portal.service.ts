@@ -22,6 +22,7 @@ type BidSubmissionData = {
   technicalFileAssetId?: string;
   businessFileAssetId?: string;
   coverLetterAssetId?: string;
+  bidBondAssetId?: string;
   fileHash?: string;
   signature?: string;
 };
@@ -408,6 +409,7 @@ export class SupplierPortalService {
       data.technicalFileAssetId,
       data.businessFileAssetId,
       data.coverLetterAssetId,
+      data.bidBondAssetId,
     ]);
 
     // ── Layer C: SM2 digital signature verification (anti-repudiation) ──
@@ -533,6 +535,7 @@ export class SupplierPortalService {
       data.technicalFileAssetId,
       data.businessFileAssetId,
       data.coverLetterAssetId,
+      data.bidBondAssetId,
     ]);
 
     const existing = await this.prisma.supplierBidSubmission.findUnique({

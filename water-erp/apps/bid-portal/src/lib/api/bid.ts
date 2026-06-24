@@ -127,6 +127,19 @@ export function enterOpeningRecord(projectId: string, body: {
   return api.post(`/bid/projects/${projectId}/opening-records`, body);
 }
 
+/** 唱标预填草稿（OPENING 阶段聚合报价/工期/质量目标/保证金凭证）。 */
+export type OpeningDraftResult = {
+  canView: boolean;
+  amount: string | null;
+  period: string | null;
+  qualityTarget: string | null;
+  bondStatus: string | null;
+  bidBondAssetId: string | null;
+};
+
+export const getOpeningDraft = (projectId: string, supplierId: string) =>
+  api.get<OpeningDraftResult>(`/bid/projects/${projectId}/suppliers/${supplierId}/opening-draft`);
+
 export function submitScore(projectId: string, body: {
   expertId: string; scoreItemId: string; supplierId: string;
   score: number; reason?: string;

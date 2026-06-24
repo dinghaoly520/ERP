@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsDateString, IsBoolean } from 'class-validator';
 
 export class UpdateBidProjectDto {
   @IsString() @IsOptional() name?: string;
@@ -11,4 +11,7 @@ export class UpdateBidProjectDto {
   @IsString() @IsOptional() scope?: string;
   @IsString() @IsOptional() qualification?: string;
   @IsString() @IsOptional() contact?: string;
+  @IsString() @IsOptional() qualityRequirement?: string;
+  @IsBoolean() @IsOptional() bondRequired?: boolean;
+  @IsNumber() @IsOptional() bondAmount?: number;
 }

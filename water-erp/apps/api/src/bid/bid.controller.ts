@@ -118,6 +118,12 @@ export class BidController {
     return this.bidService.enterOpeningRecord(id, dto);
   }
 
+  @Get('projects/:id/suppliers/:supplierId/opening-draft')
+  @ApiOperation({ summary: '唱标预填草稿（OPENING 阶段聚合报价/工期/质量目标/保证金凭证）' })
+  getOpeningRecordDraft(@Param('id') id: string, @Param('supplierId') supplierId: string) {
+    return this.bidService.getOpeningRecordDraft(id, supplierId);
+  }
+
   @Post('projects/:id/opening-records/:recordId/resolve-dispute')
   @ApiOperation({ summary: '处理开标异议' })
   resolveOpeningDispute(
