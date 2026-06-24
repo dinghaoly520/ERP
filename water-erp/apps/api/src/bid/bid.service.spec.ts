@@ -85,7 +85,7 @@ describe('BidService — stage transitions', () => {
       },
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
       bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
-      bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn() },
+      bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn() },
@@ -578,6 +578,69 @@ describe('BidService — stage transitions', () => {
       const data = call.data as any[];
       const recommendedRanks = data.filter((d: any) => d.recommended).map((d: any) => d.rank).sort();
       expect(recommendedRanks).toEqual([1, 2, 3]);
+    });
+
+    it('generateEvaluationResults：通过性过半不通过 → 废标，排末位且不推荐', async () => {
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'si_qual', category: 'QUALIFICATION' },
+      ]);
+      // 3 专家，2 票不通过 1 票通过 → 过半废标
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false,
+        experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }, { id: 'e3', reportConfirmed: true }],
+        suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'ok', confirmStatus: 'CONFIRMED' }],
+      });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        // 通过性项：2 不通过 + 1 通过
+        { supplierId: 's1', expertId: 'e1', score: 0, passed: false, scoreItemId: 'si_qual' },
+        { supplierId: 's1', expertId: 'e2', score: 0, passed: false, scoreItemId: 'si_qual' },
+        { supplierId: 's1', expertId: 'e3', score: 0, passed: true, scoreItemId: 'si_qual' },
+        // 数值项每人 10 分
+        { supplierId: 's1', expertId: 'e1', score: 10 },
+        { supplierId: 's1', expertId: 'e2', score: 10 },
+        { supplierId: 's1', expertId: 'e3', score: 10 },
+      ]);
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({});
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([
+        { supplierId: 's1', supplierName: '甲', totalScore: 30, averageScore: 10, rank: 1, recommended: false, disqualified: true },
+      ]);
+
+      await service.generateEvaluationResults('p1');
+
+      const created = (prisma.bidEvaluationResult.createMany.mock.calls[0][0] as any).data[0];
+      expect(created.disqualified).toBe(true);
+      expect(created.recommended).toBe(false);
+    });
+
+    it('generateEvaluationResults：不通过不过半 → 不废标', async () => {
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'si_resp', category: 'RESPONSIVE' },
+      ]);
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false,
+        experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }, { id: 'e3', reportConfirmed: true }],
+        suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'ok', confirmStatus: 'CONFIRMED' }],
+      });
+      // 1 不通过 2 通过 → 不过半
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        { supplierId: 's1', expertId: 'e1', score: 0, passed: false, scoreItemId: 'si_resp' },
+        { supplierId: 's1', expertId: 'e2', score: 0, passed: true, scoreItemId: 'si_resp' },
+        { supplierId: 's1', expertId: 'e3', score: 0, passed: true, scoreItemId: 'si_resp' },
+        { supplierId: 's1', expertId: 'e1', score: 20 },
+        { supplierId: 's1', expertId: 'e2', score: 20 },
+        { supplierId: 's1', expertId: 'e3', score: 20 },
+      ]);
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({});
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([]);
+
+      await service.generateEvaluationResults('p1');
+
+      const created = (prisma.bidEvaluationResult.createMany.mock.calls[0][0] as any).data[0];
+      expect(created.disqualified).toBe(false);
     });
   });
 
@@ -1339,7 +1402,7 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
       },
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
       bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
-      bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn() },
+      bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
@@ -1519,6 +1582,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
     prisma = {
       bidProject: { findUnique: jest.fn() },
       bidScoreRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
       auditLog: { create: jest.fn() },
