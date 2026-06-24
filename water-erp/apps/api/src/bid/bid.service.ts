@@ -301,6 +301,14 @@ export class BidService {
       },
     });
 
+    // 若提供了 announcementId，自动关联公告的 relatedProjectCode
+    if (dto.announcementId) {
+      await this.prisma.announcement.update({
+        where: { id: dto.announcementId },
+        data: { relatedProjectCode: project.projectCode },
+      });
+    }
+
     await this.notificationService.sendToRole('bid_host', {
       type: 'BID_PUBLISHED',
       title: `新招标项目：${project.name}`,

@@ -182,9 +182,8 @@ export class AnnouncementService {
     }
 
     // ── 联动：BID_NOTICE 首次发布 → 创建 BidProject ──
-    // P2: 联动后重新查询以返回正确的 relatedProjectCode
     if (isPublishTransition) {
-      await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: announcement.relatedProjectCode });
+      await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: result.relatedProjectCode });
       return this.get(id);
     }
 
@@ -195,7 +194,7 @@ export class AnnouncementService {
   private async syncBidProject(annId: string, announcement: { id: string; title: string; publishDate: Date | null; metadata?: any; relatedProjectCode?: string | null }) {
     if (!this.bidService) return;
     try {
-      const meta = (announcement.metadata || {}) as Record<string, any>;
+      const meta = AnnouncementService.validateMetadata(announcement.metadata);
       let existingProject = null;
       if (announcement.relatedProjectCode) {
         existingProject = await this.prisma.bidProject.findUnique({
@@ -238,19 +237,35 @@ export class AnnouncementService {
     const project = relatedProjectCode
       ? await this.prisma.bidProject.findUnique({
           where: { projectCode: relatedProjectCode },
+          select: { id: true, projectCode: true, stage: true, riskNote: true },
         })
       : null;
 
     try {
       await this.prisma.$transaction(async (tx) => {
-        // Cleanup linked project before delete
+        // Cleanup linked project before delete — reset to DOWNLOAD if progressed
         if (project) {
+          const stageReset = project.stage !== 'DOWNLOAD' && project.stage !== 'ARCHIVED';
           await tx.bidProject.update({
             where: { projectCode: relatedProjectCode! },
             data: {
+              stage: stageReset ? 'DOWNLOAD' : undefined,
               riskNote: (project.riskNote || '') + '（来源公告已删除）',
             },
           });
+          if (stageReset) {
+            await tx.bidSupervisionLog.create({
+              data: {
+                projectId: project.id,
+                time: new Date(),
+                role: '系统',
+                target: relatedProjectCode!,
+                action: '公告删除导致项目阶段重置',
+                result: `阶段从 ${project.stage} 重置为 DOWNLOAD（来源公告已删除）`,
+                riskFlag: '高',
+              },
+            });
+          }
           await tx.bidDocument.updateMany({
             where: { announcementId: id },
             data: { bidProjectId: null },
@@ -284,6 +299,30 @@ export class AnnouncementService {
     return { total, published, bidNotice, winNotice, policy };
   }
 
+  /** 运行时校验公告 metadata 字段类型，防止 typo 导致静默数据丢失 */
+  private static METADATA_SCHEMA: Record<string, { type: string }> = {
+    method: { type: 'string' },
+    budget: { type: 'number' },
+    scope: { type: 'string' },
+    qualification: { type: 'string' },
+    contact: { type: 'string' },
+    openTime: { type: 'string' },
+    deadline: { type: 'string' },
+  };
+
+  private static validateMetadata(raw: any): Record<string, any> {
+    if (typeof raw !== 'object' || raw === null) return {};
+    const validated: Record<string, any> = {};
+    for (const [key, spec] of Object.entries(AnnouncementService.METADATA_SCHEMA)) {
+      if (raw[key] !== undefined) {
+        validated[key] = spec.type === 'number' && typeof raw[key] === 'string'
+          ? Number(raw[key])
+          : raw[key];
+      }
+    }
+    return validated;
+  }
+
   /** 招标公示的投标情况：关联项目 → 参与供应商 + 是否已投标（只读监控，不含开标/评标） */
   async getParticipants(id: string) {
     const ann = await this.prisma.announcement.findUnique({ where: { id }, select: { type: true, relatedProjectCode: true } });
@@ -310,6 +349,7 @@ export class AnnouncementService {
     const subMap = new Map(submissions.map(s => [s.supplierId, s]));
     const rows = suppliers.map(s => {
       const sub = s.supplierId ? subMap.get(s.supplierId) : null;
+      const isBidPriceVisible = project.stage === 'OPENING' || project.stage === 'EVALUATING' || project.stage === 'ARCHIVED';
       return {
         supplierName: s.supplierName,
         classification: s.supplier?.classification?.name,
@@ -318,7 +358,7 @@ export class AnnouncementService {
         submitted: sub?.status === 'submitted' || (!sub && s.submitStatus === '已提交'),
         withdrawn: sub?.status === 'withdrawn',
         submittedAt: sub?.submittedAt,
-        bidPrice: sub?.bidPrice,
+        bidPrice: isBidPriceVisible ? sub?.bidPrice : null,
       };
     });
     return {
