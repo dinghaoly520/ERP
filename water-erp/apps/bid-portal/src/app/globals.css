@@ -93,12 +93,13 @@ select.workbench-input:focus {
 .workbench-table thead tr {
   border-bottom: 1px solid #e5ecf4;
   color: #5a6d8a;
-  text-align: left;
+  text-align: center;
 }
 
 .workbench-table th,
 .workbench-table td {
   padding: 0.875rem 1.25rem;
+  text-align: center;
 }
 
 .workbench-table tbody tr {
