@@ -1,9 +1,10 @@
-# Procurement AI-Bid-Analysis → ERP Expert 辅助评标 移植方案 (v4·本机实证版)
+# Procurement AI-Bid-Analysis → ERP Expert 辅助评标 移植方案 (v4.1·本机实证版)
 
 > 将 `/home/asus/桌面/procurement` 的 `ai-bid-analysis` 模块移植到 `/home/asus/桌面/ERP` 的专家端辅助评标。
 >
 > - **v3** 基于对两个项目的彻底代码审查（procurement 全模块 + ERP expert/ai/bid/announcement/supplier-portal），修正了 v2 的致命错误。所有字段类型、解密机制、环境依赖均以实际代码为准。
 > - **v4** 基于 2026-06-24 本机实证（procurement 与 ERP **同机**；GPU = RTX 5090D；逐条复核 v3 的 22 条事实声明），修正 v3 的 OCR 第十/十四章失实、15.1 过滤条件偏差，并补充保证金（bond）交叉处理。**v4 是当前实施依据；v3 的 OCR 第十章/第十四章已废止。**
+> - **v4.1** 修正 v4 的 4 处移植陷阱（实证 `bid.service.ts:668-694` 真实解密逻辑 + `llm.service.ts:37` 硬编码 + `startEvaluation` 无 AI hook）：见「零、丙」。**v4.1 是当前实施依据。**
 
 ---
 
@@ -19,6 +20,19 @@
 | 6 | 工期 15-18 天 | OCR 部署归零（同机复用），**砍至 13-16 天** | 上 |
 
 > **核查结论**：v3 的 22 条事实声明逐条比对，21 条属实，仅 15.1 一处精度偏差；但 OCR 第十/十四章的**配置描述**与 procurement 本机实况不符（over-engineering），v4 整体废止并替换为同机复用方案。
+
+---
+
+## 零、丙、v4 → v4.1 关键修正（实证解密逻辑，必读）
+
+| # | v4 缺陷 | v4.1 修正 | 实证依据 |
+|---|--------|----------|---------|
+| 1 | 5.2 `fetchBidderPlaintext` 写 `if(!sealedKey) throw`，与种子 sealedKey=null 冲突，对所有投标文件抛「缺少文件」 | sealedKey **可空**——对齐 `bid.service.ts:678` 真实 `if(ref.sealedKey){解密}`：为空则明文直读，仅做完整性校验（15.2 同步修正） | bid.service.ts:668-694；种子 `technicalSealedKey` 12/12=null 却解出 SUCCESS |
+| 2 | 15.11 清单「三份文件能解密（sealedKey+unwrapKey+verifyIntegrity）」对当前种子是假命题 | 订正：种子走明文直读路径；真加密流需另生成带 sealedKey 的种子（非首期阻塞） | SupplierBidSubmission.json |
+| 3 | 8.1/10.1 把 LlmService 当「改 env 即可」 | `llm.service.ts:37` **硬编码** `'deepseek-v4-pro'` 不读 env；构造函数 `@Inject(forwardRef(()=>VllmMonitorService))` 强依赖 vLLM 监控，ERP 无 vLLM 基建 → DI 启动即崩。必须抽 DeepSeek-only 精简版 | llm.service.ts:27,37 |
+| 4 | Phase 4.3「startEvaluation 触发 AI」暗示扩展现有 hook | 现状 `startEvaluation`(bid.service.ts:530-584) 体内**无任何 AI/queue 调用**——是**新增**逻辑而非扩展；三重门控已就位 | bid.service.ts:530-584 |
+
+> **核查结论**：v4 的 OCR 同机复用、15.1 过滤、15.12 保证金均经 v4.1 复核**确认无误**；v4.1 仅修补 4 处移植陷阱（均围绕「照搬 procurement 代码」的隐含假设）。H1 的种子 sealedKey 争议已由实证平息：真实解密逻辑本就兼容明文直读，**无需重生成种子即可跑通首期 E2E**。
 
 ---
 
@@ -294,9 +308,12 @@ coverLetterAssetId    + coverLetterSealedKey // 投标函
 + fileHash + signature (SM2) + signedAt      // 抗抵赖
 ```
 
-### 5.2 解密流程（复用 bid.service.ts:661-687 的完整逻辑）
+### 5.2 解密流程（★ v4.1：复用 bid.service.ts:668-694 真实逻辑，sealedKey 可空）
+
+> **v4.1 关键修正**：v4 原写 `if (!sealedKey) throw` 是**错的**。实证 `bid.service.ts:678` 真实逻辑是 `if (ref.sealedKey) { 解密 }`——**sealedKey 为空时跳过 AES 解密、直接当明文读**（Layer A 仅做完整性校验）。这正是种子 `technicalSealedKey=null`（12/12）却能解出 SUCCESS 的原因：种子走明文直读路径。AI 抓取必须与此对齐，否则对所有种子投标文件抛「缺少文件」。
 
 ```typescript
+// ★ v4.1：与 decryptSupplier (bid.service.ts:668-694) 逐行对齐
 async fetchBidderPlaintext(submission: SupplierBidSubmission, which: 'technical'|'business'|'coverLetter'): Promise<Buffer> {
   const assetId = which === 'technical' ? submission.technicalFileAssetId
                 : which === 'business'  ? submission.businessFileAssetId
@@ -304,17 +321,26 @@ async fetchBidderPlaintext(submission: SupplierBidSubmission, which: 'technical'
   const sealedKey = which === 'technical' ? submission.technicalSealedKey
                 : which === 'business'  ? submission.businessSealedKey
                 : submission.coverLetterSealedKey;
-  if (!assetId || !sealedKey) throw new Error(`缺少 ${which} 文件`);
+  if (!assetId) throw new Error(`缺少 ${which} 文件引用`);  // ★ 仅 assetId 必需；sealedKey 可空
 
   const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
-  // sealedPath 优先（Layer B 密文），回退原 key
-  const readKey = asset.sealedPath || asset.key;
-  const ciphertext = await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, readKey));
+  if (!asset) throw new Error(`投标文件记录缺失: ${assetId}`);
 
-  const rawKey = isWrappedKey(sealedKey) ? unwrapKey(sealedKey, process.env.KMS_SECRET!) : sealedKey;
-  const plaintext = decryptBuffer(ciphertext, rawKey);
-  verifyIntegrity(plaintext, asset.sha256);
-  return plaintext;
+  // sealedPath 优先（Layer B 密文路径），回退原 key（兼容存量明文）
+  const readKey = asset.sealedPath || asset.key;
+  let buffer = await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, readKey));
+
+  // ★ Layer B：仅当 sealedKey 存在时执行真实 AES 解密；为空则明文直读（种子/legacy 路径）
+  if (sealedKey) {
+    const rawKey = isWrappedKey(sealedKey) ? unwrapKey(sealedKey, process.env.KMS_SECRET!) : sealedKey;
+    buffer = decryptBuffer(buffer, rawKey);
+  }
+
+  // Layer A：完整性校验（明文 vs 存储 sha256）
+  if (verifyIntegrity(buffer, asset.sha256) === false) {
+    throw new Error(`${which} 标书完整性校验失败：SHA-256 不匹配`);
+  }
+  return buffer;  // 明文，内存中，不落盘（见 15.2）
 }
 ```
 
@@ -480,7 +506,7 @@ private extractQualificationLevels(quals: SupplierQualification[]): string[] {
 
 | procurement 服务 | 适配点 |
 |----------------|--------|
-| `LlmService`（local-ai/llm.service.ts） | DeepSeek 配置已有；模型决定用 pro（深分析）还是 flash（省钱），建议 `DEEPSEEK_MODEL=deepseek-v4-pro` |
+| `LlmService`（local-ai/llm.service.ts） | ★ v4.1：**不能原样复制**——(1) `llm.service.ts:37` 硬编码 `model:'deepseek-v4-pro'` 不读 env，必须重构为 `config.get('DEEPSEEK_MODEL','deepseek-v4-pro')`；(2) 构造函数 `@Inject(forwardRef(()=>VllmMonitorService))` 强依赖 vLLM 监控，ERP 无 vLLM 基建 → DI 启动即崩。推荐抽 **DeepSeek-only 精简版**（去掉 local/vLLM fallback + `VllmMonitorService`/`embedding.service.ts` 依赖） |
 | `OcrService`（local-ai/ocr.service.ts） | `OCR_SERVICE_URL` 指向**本机 procurement :8100**（同机复用，不部署新服务，见第十四章） |
 | `DocumentMetadataExtractorService` | 直接复用（串通检测元数据维度） |
 | `FraudDetectorService`（6 维算法） | 直接复用；增强：用 `SupplierContact` 全量数据做联系方式检测 |
@@ -508,7 +534,7 @@ private extractQualificationLevels(quals: SupplierQualification[]): string[] {
 |------|------|
 | `ExpertService.getAssistData` | 从读 `AiService.analyzeBid`（规则）→ 读 `AiBidderResult`（LLM 结果），保留 per-item 结构 |
 | `AiService` | 保留规则引擎作为**降级 fallback**（LLM/OCR 不可用时） |
-| `BidService.startEvaluation` | 触发 AI 分析（创建 task + 入队） |
+| `BidService.startEvaluation` | ★ v4.1：**新增** AI 触发（创建 task + 入队）；现状该函数无 AI hook，见 Phase 4.3 |
 | 新增 `POST /bid/projects/:id/decrypt-all` | 一键解密窗口内待解密供应商 |
 
 ---
@@ -569,8 +595,9 @@ KMS_SECRET=<openssl rand -hex 32 生成>
 # OCR 服务（新增）
 OCR_SERVICE_URL=http://localhost:8100
 
-# DeepSeek（已有，建议模型改 pro 以获更深分析）
-DEEPSEEK_MODEL=deepseek-v4-pro   # 当前是 flash
+# DeepSeek（已有 KEY + flash）。★ v4.1：仅改 env 不生效——procurement llm.service.ts:37 硬编码 pro 不读 env；
+# 必须先重构该行为 env 驱动（见 8.1 / Phase 2.1），此行才生效
+DEEPSEEK_MODEL=deepseek-v4-pro   # 当前是 flash；改 pro 获更深分析（可选，重构后生效）
 
 # BullMQ 用现有 Redis（注意端口 6380→6379）
 REDIS_URL=redis://localhost:6380
@@ -652,7 +679,7 @@ procurement 是"AI 决策最终结果"，ERP 是"AI 辅助参考"。复用 `neut
 
 ```
 □ 1.1 .env 加 KMS_SECRET（openssl rand -hex 32）、OCR_SERVICE_URL、REDIS_URL=6380
-□ 1.2 DEEPSEEK_MODEL 改 pro（可选）
+□ 1.2 DEEPSEEK_MODEL 改 pro（可选；★ v4.1：需先重构 llm.service.ts:37 为 env 驱动，否则改了不生效，见 Phase 2.1）
 □ 1.3 pnpm --filter api add @nestjs/bullmq bullmq
 □ 1.4 复制 Node 端 `local-ai/ocr.service.ts` 到 ERP；`OCR_SERVICE_URL` 指向本机 procurement :8100（**无需部署 Python 服务**，见第十四章）
 □ 1.5 Prisma 迁移：AiBidAnalysisTask/AiBidderResult/AiConcordanceResult/AiBidReport + BidScoreItem 加 3 字段
@@ -661,7 +688,7 @@ procurement 是"AI 决策最终结果"，ERP 是"AI 辅助参考"。复用 `neut
 ### Phase 2: 基础模块移植（2 天）
 
 ```
-□ 2.1 复制 local-ai/（LlmService/OcrService/DocumentMetadataExtractor/utils）
+□ 2.1 复制 local-ai/——★ v4.1 前置：LlmService 抽 **DeepSeek-only 精简版**（重构 `llm.service.ts:37` 硬编码 model 为 env；剥离 `VllmMonitorService`/`embedding.service.ts` 强依赖，否则 DI 崩）；OcrService/DocumentMetadataExtractor/utils 直接复用
 □ 2.2 复制 ai-bid-analysis/ services（FraudDetector/CompetitiveAnalysis/Report/Docx/extractors）
 □ 2.3 适配 StorageModule → ERP MinIO（复用 sealedPath + isWrappedKey 解密）
 □ 2.4 改写 ComparativeScoring 为 per-item 合并
@@ -682,7 +709,7 @@ procurement 是"AI 决策最终结果"，ERP 是"AI 辅助参考"。复用 `neut
 ```
 □ 4.1 fetchTenderPlaintext（isWrappedKey 双格式）
 □ 4.2 fetchBidderPlaintext（三份文件，复用 bid.service 解密流程）
-□ 4.3 BidService.startEvaluation 触发 AI（创建 task + 入队）
+□ 4.3 ★ v4.1：在 BidService.startEvaluation（bid.service.ts:530-584）**新增** AI 触发调用（创建 task + 入队）——现状该函数体内无任何 AI/queue 调用，是新增逻辑而非扩展；三重门控（≥1 专家 + ≥1 解密成功供应商 + ≥1 评分项）已就位
 □ 4.4 新增 POST /bid/projects/:id/decrypt-all
 □ 4.5 改造 ExpertService.getAssistData（读 AiBidderResult，规则引擎降级）
 ```
@@ -825,10 +852,14 @@ const analyzableSuppliers = project.suppliers.filter(s =>
 
 **实现**（内存流）：
 ```typescript
-// BidderProcessor 中
+// BidderProcessor 中（★ v4.1：sealedKey 可空，对齐 bid.service.ts:678）
 const ciphertext = await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, asset.sealedPath || asset.key));
-const rawKey = isWrappedKey(sealedKey) ? unwrapKey(sealedKey, KMS_SECRET!) : sealedKey;
-const plaintext: Buffer = decryptBuffer(ciphertext, rawKey);  // 内存中明文
+// 仅当 sealedKey 存在才 AES 解密；为空则明文直读（种子/legacy 路径）
+let plaintext: Buffer = ciphertext;
+if (sealedKey) {
+  const rawKey = isWrappedKey(sealedKey) ? unwrapKey(sealedKey, KMS_SECRET!) : sealedKey;
+  plaintext = decryptBuffer(ciphertext, rawKey);  // 内存中明文
+}
 
 // 直接 POST 给 OCR 服务，不 putObject 到 MinIO
 const formData = new FormData();
@@ -985,9 +1016,9 @@ E2E 验证前确认种子数据齐备：
 
 ```
 □ BidDocument 存在（announcementId 关联，type=BID_NOTICE）
-□ decryptKey 可解密（KMS_SECRET 已配置 + isWrappedKey 双格式覆盖）
-□ SupplierBidSubmission 三份文件齐全（technical/business/coverLetter 各有 AssetId + SealedKey）
-□ 三份文件能解密（sealedKey + unwrapKey + verifyIntegrity 通过）
+□ decryptKey 可解密（KMS_SECRET 已配置 + isWrappedKey 双格式覆盖；hero 招标 decryptKey 是 legacy 原始 hex）
+□ SupplierBidSubmission 三份文件齐全（technical/business/coverLetter 各有 AssetId；**SealedKey 当前全 null——走明文直读，见 5.2**）
+□ ★ v4.1：种子 `technicalSealedKey` 实测 12/12 为 null → fetchBidderPlaintext 走「sealedKey 可空」明文直读路径（5.2 已对齐 bid.service.ts:678）。**真加密流 E2E 需另生成带 sealedKey 的种子**（非首期阻塞）
 □ BidSupplier 解密状态 SUCCESS（非 PENDING/DANGER）
 □ BidScoreItem 已配置（非空，有评分项）
 □ BidOpeningRecord 有 amount/period（一致性校验需要）
