@@ -5,6 +5,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from './prisma/prisma.module';
+import { PrismaService } from './prisma/prisma.service';
 import { LocalAiModule } from './local-ai/local-ai.module';
 import { StorageModule } from './storage/storage.module';
 import { AiBidAnalysisModule } from './ai-bid-analysis/ai-bid-analysis.module';
@@ -26,6 +27,6 @@ import { BidderProcessor } from './ai-bid-analysis/queues/bidder.processor';
     AiBidAnalysisModule,
     AiBidQueueModule,
   ],
-  providers: [TenderProcessor, BidderProcessor],
+  providers: [PrismaService, TenderProcessor, BidderProcessor],
 })
 export class AiBidAnalysisWorkerModule {}
