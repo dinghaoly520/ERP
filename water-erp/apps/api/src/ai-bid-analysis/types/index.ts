@@ -271,3 +271,50 @@ export interface TenderRequirements {
     notes: string;
   };
 }
+
+// ── per-item 版新增类型（Phase 3，方案第三/六/七章）──
+
+/** 系统结构化数据（权威源，方案 2.2 数据优先级）—— 从 ERP 多表聚合 */
+export interface SystemData {
+  openingAmount?: string | null; // BidOpeningRecord.amount（String）
+  submissionPrice?: string | null; // SupplierBidSubmission 表单报价
+  openingPeriod?: string | null; // BidOpeningRecord.period（String）
+  submissionPeriod?: string | null;
+  legalPerson?: string | null; // Supplier.legalPerson
+  creditCode?: string | null; // Supplier 统一社会信用代码
+  qualifications: Array<{ name?: string | null }>; // SupplierQualification（无 level，从 name 正则）
+  contacts: Array<{ phone?: string | null; email?: string | null }>; // SupplierContact（email 可空）
+}
+
+/** 单字段一致性检查结果 */
+export interface FieldCheck {
+  field: string;
+  label: string;
+  systemValue: unknown;
+  docValue: unknown;
+  status: 'consistent' | 'minor_diff' | 'conflict' | 'insufficient_data';
+  severity: 'low' | 'medium' | 'high';
+  note?: string;
+}
+
+/** 双源一致性总结果（存 AiConcordanceResult.checkedFields） */
+export interface ConcordanceResult {
+  overallStatus: 'consistent' | 'minor_diff' | 'conflict' | 'insufficient_data';
+  conflictCount: number;
+  warningCount: number;
+  checks: FieldCheck[];
+}
+
+/** per-item AI 评分项（存 AiBidderResult.scoreItems，对齐 BidScoreItem） */
+export interface AiScoreItem {
+  scoreItemId: string; // BidScoreItem.id
+  category: string; // ScoreCategory: QUALIFICATION|RESPONSIVE|BUSINESS|TECHNICAL|PRICE
+  name: string;
+  score: number;
+  maxScore: number;
+  reason?: string;
+  evidence?: string;
+  confidence?: number;
+  /** 符合性审查项（maxScore=0）用：通过/不通过 */
+  pass?: boolean;
+}
