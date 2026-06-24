@@ -17,6 +17,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
@@ -33,6 +34,7 @@
     "@water-erp/config": "workspace:*",
     "@water-erp/shared": "workspace:*",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^5.79.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.4",
     "cookie-parser": "^1.4.7",
