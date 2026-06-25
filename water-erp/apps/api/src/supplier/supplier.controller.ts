@@ -58,6 +58,13 @@ export class SupplierController {
 
   // ─── 静态路由（必须在动态 :id 路由之前，否则会被吞掉）───
 
+  @Public()
+  @Get('bigscreen')
+  @ApiOperation({ summary: '大屏供应商统计（公开）' })
+  async getBigscreenStats() {
+    return this.supplierService.getBigscreenStats();
+  }
+
   @Get('evaluations/stats')
   @UseGuards(AuthGuard)
   @Roles('admin', 'procurement_staff', 'leader')

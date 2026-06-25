@@ -713,6 +713,54 @@ export class SupplierService {
     return { total, pending, approved, disabled, blacklist };
   }
 
+  async getBigscreenStats() {
+    const [stats, evals, classifications] = await Promise.all([
+      this.getStats(),
+      this.prisma.supplierEvaluation.findMany({
+        select: { level: true, overallScore: true, createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.supplierClassification.findMany({
+        select: {
+          id: true,
+          name: true,
+          _count: { select: { suppliers: true } },
+        },
+        orderBy: { suppliers: { _count: 'desc' } },
+      }),
+    ]);
+
+    const levelCounts = { A: 0, B: 0, C: 0, D: 0 };
+    let scoreSum = 0;
+    for (const e of evals) {
+      const key = e.level as 'A'|'B'|'C'|'D';
+      if (key in levelCounts) levelCounts[key]++;
+      scoreSum += Number(e.overallScore);
+    }
+    const total = evals.length;
+    const avgScore = total > 0 ? Math.round((scoreSum / total) * 10) / 10 : 0;
+
+    // 趋势：近半 vs 前半
+    let trend: 'improving' | 'stable' | 'declining' = 'stable';
+    if (total >= 2) {
+      const half = Math.ceil(total / 2);
+      const firstHalf = evals.slice(0, half);
+      const secondHalf = evals.slice(-half);
+      const firstAvg = firstHalf.reduce((s, e) => s + Number(e.overallScore), 0) / firstHalf.length;
+      const secondAvg = secondHalf.reduce((s, e) => s + Number(e.overallScore), 0) / secondHalf.length;
+      if (secondAvg > firstAvg + 3) trend = 'improving';
+      else if (secondAvg < firstAvg - 3) trend = 'declining';
+    }
+
+    const cats = classifications.map(c => ({
+      id: c.id,
+      name: c.name,
+      count: c._count.suppliers,
+    }));
+
+    return { ...stats, levelCounts, avgScore, evalTotal: total, trend, cats };
+  }
+
   async listClassifications() {
     return this.prisma.supplierClassification.findMany({
       orderBy: { createdAt: 'asc' },

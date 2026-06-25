@@ -681,8 +681,8 @@ export class BidService {
     // 清除旧结果：bidderResult + report + concordance（cascade 会处理部分）
     await this.prisma.$transaction(async (tx) => {
       await tx.aiBidReport.deleteMany({ where: { taskId: task.id } });
-      await tx.aiBidConcordance.deleteMany({ where: { taskId: task.id } });
-      await tx.aiBidderResult.deleteMany({ where: { taskId } });
+      await tx.aiConcordanceResult.deleteMany({ where: { taskId: task.id } });
+      await tx.aiBidderResult.deleteMany({ where: { taskId: task.id } });
       // 重置 task 为 PENDING
       await tx.aiBidAnalysisTask.update({
         where: { id: task.id },

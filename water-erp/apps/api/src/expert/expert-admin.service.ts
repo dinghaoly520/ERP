@@ -344,7 +344,7 @@ export class ExpertAdminService {
         where: { user: { role: 'bid_expert', isActive: true } },
         _count: true,
         orderBy: { _count: { specialty: 'desc' } },
-        take: 8,
+        take: 4,
       }),
       this.prisma.expertProfile.groupBy({
         by: ['title'],
