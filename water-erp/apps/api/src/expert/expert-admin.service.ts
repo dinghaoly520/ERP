@@ -329,6 +329,106 @@ export class ExpertAdminService {
     return { success: true, count: created.length };
   }
 
+  /* ── 大屏聚合统计（公开，无需登录）── */
+
+  async getBigscreenStats() {
+    const [total, availGroups, specGroups, titleGroups, evals, scoreRecords] = await Promise.all([
+      this.prisma.user.count({ where: { role: 'bid_expert' } }),
+      this.prisma.expertProfile.groupBy({
+        by: ['availability'],
+        where: { user: { role: 'bid_expert' } },
+        _count: true,
+      }),
+      this.prisma.expertProfile.groupBy({
+        by: ['specialty'],
+        where: { user: { role: 'bid_expert', isActive: true } },
+        _count: true,
+        orderBy: { _count: { specialty: 'desc' } },
+        take: 8,
+      }),
+      this.prisma.expertProfile.groupBy({
+        by: ['title'],
+        where: { user: { role: 'bid_expert', isActive: true } },
+        _count: true,
+        orderBy: { _count: { title: 'desc' } },
+      }),
+      this.prisma.expertEvaluation.findMany({
+        select: { level: true, overallScore: true, expertUserId: true, createdAt: true },
+      }),
+      this.prisma.bidScoreRecord.findMany({
+        select: {
+          score: true, scoreItemId: true, supplierId: true,
+          expert: { select: { userId: true } },
+        },
+      }),
+    ]);
+
+    // 可用状态
+    const amap: Record<string, number> = {};
+    for (const g of availGroups) amap[g.availability] = g._count;
+    const avail = amap['可用'] ?? 0;
+    const occupied = amap['占用'] ?? 0;
+    const disabled = amap['停用'] ?? 0;
+
+    // 专业分布（最大值为 100% 基准）
+    const maxSpec = specGroups[0]?._count ?? 1;
+    const specialties = specGroups.map(g => ({
+      name: g.specialty,
+      count: g._count,
+      pct: Math.round((g._count / maxSpec) * 100),
+    }));
+
+    // 履职评价等级分布
+    const levelCounts = { A: 0, B: 0, C: 0, D: 0 };
+    for (const e of evals) levelCounts[e.level] = (levelCounts[e.level] ?? 0) + 1;
+    const evalTotal = evals.length;
+    const avgScore = evalTotal > 0
+      ? Math.round(evals.reduce((s, e) => s + e.overallScore, 0) / evalTotal * 10) / 10
+      : 0;
+
+    // 评分偏离度
+    const deviations = computeExpertMeanDeviations(
+      scoreRecords.map(r => ({
+        expertId: r.expert.userId,
+        scoreItemId: r.scoreItemId,
+        supplierId: r.supplierId,
+        score: Number(r.score),
+      })),
+    );
+    const avgDeviation = deviations.length > 0
+      ? Math.round(deviations.reduce((s, d) => s + d.meanDeviation, 0) / deviations.length * 10) / 10
+      : 0;
+
+    // 职称归类
+    const titleBuckets: Record<string, number> = {};
+    for (const t of titleGroups) {
+      const raw = (t.title ?? '').trim();
+      let cat: string;
+      if (!raw) cat = '未填写';
+      else if (raw.includes('教授') || raw.includes('正高')) cat = '教授级高工';
+      else if (raw.includes('高工') || raw.includes('高级')) cat = '高级工程师';
+      else if (raw.includes('工程师') || raw.includes('中级')) cat = '工程师';
+      else cat = '其他';
+      titleBuckets[cat] = (titleBuckets[cat] ?? 0) + t._count;
+    }
+    const titles = Object.entries(titleBuckets)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      total,
+      availability: {
+        available: avail,
+        occupied,
+        disabled,
+        availableRate: total > 0 ? Math.round((avail / total) * 1000) / 10 : 0,
+      },
+      specialties,
+      evaluation: { levelCounts, avgScore, total: evalTotal, avgScoreDeviation: avgDeviation },
+      titles,
+    };
+  }
+
   /* ── 专家评价 ── */
 
   async createEvaluation(evaluatorId: string, dto: CreateExpertEvaluationDto) {

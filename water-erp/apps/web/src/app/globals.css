@@ -373,6 +373,76 @@ input[type="range"].range-enhanced::-webkit-slider-thumb:active {
   75%      { transform: translate(-0.5%, 0.5%) scale(1.015); }
 }
 
+/* ═══════════════════════════════════════════════════════════
+   KPI Card — Light Flow & Dynamic Effects
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Diagonal light sweep across card surface ── */
+@keyframes kpi-shine-flow {
+  0%   { left: -120%; opacity: 0; }
+  12%  { opacity: 1; }
+  35%  { left: 120%; opacity: 1; }
+  36%  { opacity: 0; }
+  100% { left: 120%; opacity: 0; }
+}
+
+@keyframes kpi-shine-flow-reverse {
+  0%   { right: -120%; opacity: 0; }
+  8%   { opacity: 0; }
+  20%  { opacity: 1; }
+  42%  { right: 120%; opacity: 1; }
+  43%  { opacity: 0; }
+  100% { right: 120%; opacity: 0; }
+}
+
+@keyframes kpi-number-land {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes kpi-glow-pulse {
+  0%, 100% { box-shadow: 0 1px 2px rgba(15, 35, 65, 0.02), 0 4px 16px rgba(91, 155, 213, 0.04); }
+  50%      { box-shadow: 0 1px 2px rgba(15, 35, 65, 0.03), 0 6px 24px rgba(91, 155, 213, 0.09); }
+}
+
+.kpi-card-shine {
+  overflow: hidden;
+}
+
+.kpi-card-shine::after {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: -120%;
+  width: 70%;
+  height: 120%;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 18%,
+    rgba(255, 255, 255, 0.28) 38%,
+    rgba(255, 255, 255, 0.42) 50%,
+    rgba(255, 255, 255, 0.28) 62%,
+    rgba(255, 255, 255, 0.08) 82%,
+    transparent 100%
+  );
+  transform: skewX(-22deg);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.kpi-card-shine:nth-child(1)::after  { animation: kpi-shine-flow 5.5s ease-in-out infinite; }
+.kpi-card-shine:nth-child(2)::after  { animation: kpi-shine-flow 5.8s ease-in-out 1.3s infinite; }
+.kpi-card-shine:nth-child(3)::after  { animation: kpi-shine-flow-reverse 6.2s ease-in-out 0.7s infinite; }
+.kpi-card-shine:nth-child(4)::after  { animation: kpi-shine-flow 5.2s ease-in-out 2.1s infinite; }
+
+/* digital number land animation */
+.kpi-number-animate {
+  display: inline-block;
+  animation: kpi-number-land 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 /* ── Base glass card ── */
 .glass-card {
   --glass-alpha: 0.78;

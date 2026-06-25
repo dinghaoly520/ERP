@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Body, Param, Query, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { ExpertAdminService } from './expert-admin.service';
 import { CreateExpertDto } from './dto/create-expert.dto';
 import { ExtractPreviewDto } from './dto/extract-preview.dto';
@@ -14,6 +15,13 @@ import { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
 @Roles('admin', 'bid_host', 'procurement_staff')
 export class ExpertAdminController {
   constructor(private expertAdminService: ExpertAdminService) {}
+
+  @Public()
+  @Get('bigscreen-stats')
+  @ApiOperation({ summary: '大屏专家库聚合统计（公开，无需登录）' })
+  getBigscreenStats() {
+    return this.expertAdminService.getBigscreenStats();
+  }
 
   @Get()
   @ApiOperation({ summary: '专家库列表' })

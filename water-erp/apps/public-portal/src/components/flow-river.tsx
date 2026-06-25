@@ -20,16 +20,24 @@ export function FlowRiver({ accent = 'brand' }: { accent?: 'brand' | 'water' }) 
           <stop offset="82%" stopColor={main} stopOpacity="0.85" />
           <stop offset="100%" stopColor={main} stopOpacity="0" />
         </linearGradient>
+        <style>{`
+          @keyframes flowDash {
+            from { stroke-dashoffset: 0; }
+            to   { stroke-dashoffset: -140; }
+          }
+          .flow-river-current {
+            animation: flowDash 8s linear infinite;
+            will-change: stroke-dashoffset;
+          }
+        `}</style>
       </defs>
 
       {/* wide soft band */}
       <path d={path} fill="none" stroke={main} strokeOpacity="0.14" strokeWidth="46" strokeLinecap="round" />
       {/* outer faint line */}
       <path d={path} fill="none" stroke={main} strokeOpacity="0.4" strokeWidth="1.5" />
-      {/* flowing current */}
-      <path d={path} fill="none" stroke={`url(#${gid})`} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="2 12">
-        <animate attributeName="stroke-dashoffset" from="0" to="-140" dur="2.6s" repeatCount="indefinite" />
-      </path>
+      {/* flowing current — CSS animation on compositor thread, immune to scroll jank */}
+      <path d={path} fill="none" stroke={`url(#${gid})`} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="2 12" className="flow-river-current" />
 
       {/* station marks */}
       {[120, 420, 720, 1020, 1320].map((x, i) => (

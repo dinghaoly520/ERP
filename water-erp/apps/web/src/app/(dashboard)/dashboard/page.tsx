@@ -107,10 +107,10 @@ export default function DashboardPage() {
     <div className="min-h-full space-y-6">
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="信息发布" value={loading ? '—' : `${announcementPublished}/${announcementTotal}`} hint="已发布 / 信息总量" tone="blue" icon={<Megaphone size={18} strokeWidth={1.7} />} onClick={() => router.push('/notice')} trendDirection="up-good" trendDelta={trendAnnouncement?.delta ?? null} trendHistory={trendAnnouncement} />
-        <MetricCard label="供应商资源" value={loading ? '—' : `${supplierApproved}/${supplierTotal}`} hint="已入库 / 供应商总数" tone="green" icon={<Building2 size={18} strokeWidth={1.7} />} onClick={() => router.push('/supplier/repository')} trendDirection="up-good" trendDelta={trendSupplier?.delta ?? null} trendHistory={trendSupplier} />
-        <MetricCard label="专家资源" value={loading ? '—' : `${expertTotal}`} hint={`${expertAssignments} 条参与记录`} tone="purple" icon={<UsersRound size={18} strokeWidth={1.7} />} onClick={() => router.push('/expert/repository')} trendDirection="neutral" trendHistory={trendExpert} />
-        <MetricCard label="商城目录" value={loading ? '—' : `${mallCatalogActive}/${mallCatalogTotal}`} hint="有效目录 / 目录总量" tone="cyan" icon={<ShoppingCart size={18} strokeWidth={1.7} />} onClick={() => router.push('/mall-management/catalog')} trendDirection="up-good" trendDelta={trendCatalog?.delta ?? null} trendHistory={trendCatalog} />
+        <MetricCard shimmer label="信息发布" value={loading ? '—' : `${announcementPublished}/${announcementTotal}`} hint="已发布 / 信息总量" tone="blue" icon={<Megaphone size={18} strokeWidth={1.7} />} onClick={() => router.push('/notice')} trendDirection="up-good" trendDelta={trendAnnouncement?.delta ?? null} trendHistory={trendAnnouncement} />
+        <MetricCard shimmer label="供应商资源" value={loading ? '—' : `${supplierApproved}/${supplierTotal}`} hint="已入库 / 供应商总数" tone="blue" icon={<Building2 size={18} strokeWidth={1.7} />} onClick={() => router.push('/supplier/repository')} trendDirection="up-good" trendDelta={trendSupplier?.delta ?? null} trendHistory={trendSupplier} />
+        <MetricCard shimmer label="专家资源" value={loading ? '—' : `${expertTotal}`} hint={`${expertAssignments} 条参与记录`} tone="blue" icon={<UsersRound size={18} strokeWidth={1.7} />} onClick={() => router.push('/expert/repository')} trendDirection="neutral" trendHistory={trendExpert} />
+        <MetricCard shimmer label="商城目录" value={loading ? '—' : `${mallCatalogActive}/${mallCatalogTotal}`} hint="有效目录 / 目录总量" tone="blue" icon={<ShoppingCart size={18} strokeWidth={1.7} />} onClick={() => router.push('/mall-management/catalog')} trendDirection="up-good" trendDelta={trendCatalog?.delta ?? null} trendHistory={trendCatalog} />
       </section>
 
       <DashboardAiPanel context={dashboardContext} ready={!loading} />
