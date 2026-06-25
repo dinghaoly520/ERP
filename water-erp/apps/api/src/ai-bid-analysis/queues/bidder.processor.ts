@@ -14,6 +14,7 @@ import { ConcordanceVerifierService } from '../services/concordance-verifier.ser
 import { GenericItemScorerService } from '../services/generic-item-scorer.service';
 import { FraudDetectorService } from '../services/fraud-detector.service';
 import { ComparativeScoringService } from '../services/comparative-scoring.service';
+import { CompetitiveAnalysisService } from '../services/competitive-analysis.service';
 import { ReportGeneratorService } from '../services/report-generator.service';
 import { DocxGeneratorService } from '../services/docx-generator.service';
 import { minioClient, MINIO_BUCKET, ensureBucket } from '../../upload/minio.client';
@@ -43,6 +44,7 @@ export class BidderProcessor extends WorkerHost {
     private genericItemScorer: GenericItemScorerService,
     private fraudDetector: FraudDetectorService,
     private comparativeScoring: ComparativeScoringService,
+    private competitiveAnalysis: CompetitiveAnalysisService,
     private reportGenerator: ReportGeneratorService,
     private docxGenerator: DocxGeneratorService,
   ) {
@@ -203,6 +205,43 @@ export class BidderProcessor extends WorkerHost {
             ? 'medium'
             : 'low';
 
+      // 6. 竞争分析：正向依据 + 需关注事项（LLM）
+      let strengths: any[] = [];
+      let weaknesses: any[] = [];
+      let keyObservations: string[] = [];
+      let competitiveComment = scoreResult.overallComment;
+      try {
+        // 将 per-item categoryTotals 映射为 competitive analysis 期望的三维 scores
+        const catScores = scoreResult.categoryTotals ?? {};
+        const compScores = {
+          technical: catScores.TECHNICAL ?? { score: 0, max: 0 },
+          commercial: {
+            score: (catScores.BUSINESS?.score ?? 0) + (catScores.QUALIFICATION?.score ?? 0),
+            max: (catScores.BUSINESS?.max ?? 0) + (catScores.QUALIFICATION?.max ?? 0),
+          },
+          price: catScores.PRICE ?? { score: 0, max: 0 },
+        };
+        const compResult = await this.competitiveAnalysis.analyze(
+          bidderResult.bidSupplier.supplierName,
+          scoreResult.totalScore,
+          compScores,
+          keyInfo as any,
+          taskId,
+          bidderResultId,
+        );
+        strengths = compResult.strengths;
+        weaknesses = compResult.weaknesses;
+        keyObservations = compResult.keyObservations;
+        competitiveComment = compResult.overallComment || scoreResult.overallComment;
+        this.logger.log(
+          `bidderResult ${bidderResultId}: competitive analysis done (${strengths.length}S, ${weaknesses.length}W)`,
+        );
+      } catch (e) {
+        this.logger.warn(
+          `bidderResult ${bidderResultId}: competitive analysis LLM failed, using score-only comment: ${(e as Error).message.slice(0, 150)}`,
+        );
+      }
+
       await this.prisma.aiBidderResult.update({
         where: { id: bidderResultId },
         data: {
@@ -210,13 +249,20 @@ export class BidderProcessor extends WorkerHost {
           scoreItems: scoreResult.scoreItems as any,
           categoryTotals: scoreResult.categoryTotals as any,
           totalScore: scoreResult.totalScore,
-          overallComment: neutralizeRecommendationText(scoreResult.overallComment),
+          overallComment: neutralizeRecommendationText(competitiveComment),
           qualificationStatus,
           riskLevel,
           riskAnalysis: {
             concordanceStatus: concordance.overallStatus,
             conflictCount: concordance.conflictCount,
             warningCount: concordance.warningCount,
+          } as any,
+          strengths: strengths as any,
+          weaknesses: weaknesses as any,
+          competitiveAnalysis: {
+            strengths,
+            weaknesses,
+            keyObservations,
           } as any,
           status: AiBidderStatus.COMPLETED,
           processedAt: new Date(),

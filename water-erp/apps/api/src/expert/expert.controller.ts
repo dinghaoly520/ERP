@@ -65,6 +65,16 @@ export class ExpertController {
   }
 
   /* ── 辅助评标 ── */
+
+  /** 跨供应商对比概览 — 必须在 :supplierId 路由前注册，否则 "compare" 会被当作 supplierId */
+  @Get('projects/:projectId/assist/compare')
+  getAssistCompare(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+  ) {
+    return this.expertService.getAssistCompare(userId, projectId);
+  }
+
   @Get('projects/:projectId/assist/:supplierId')
   getAssistData(
     @CurrentUser('sub') userId: string,

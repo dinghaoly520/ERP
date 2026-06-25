@@ -400,6 +400,36 @@ export class ExpertService {
     };
   }
 
+  /** 跨供应商对比概览 — 返回项目下所有已完成 AI 分析的供应商摘要 */
+  async getAssistCompare(userId: string, projectId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { userId, projectId },
+    });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+
+    const task = await this.prisma.aiBidAnalysisTask.findUnique({
+      where: { projectId },
+      select: { id: true },
+    });
+    if (!task) return { bidders: [] };
+
+    const results = await this.prisma.aiBidderResult.findMany({
+      where: { taskId: task.id, status: 'COMPLETED' },
+      include: { bidSupplier: { select: { supplierName: true } } },
+    });
+
+    return {
+      bidders: results.map((r) => ({
+        supplierId: r.bidSupplierId,
+        supplierName: r.bidSupplier.supplierName,
+        totalScore: r.totalScore != null ? Number(r.totalScore) : 0,
+        categoryTotals: (r.categoryTotals as Record<string, { score: number; max: number }>) ?? {},
+        qualificationStatus: r.qualificationStatus ?? '待审查',
+        riskLevel: r.riskLevel ?? 'low',
+      })),
+    };
+  }
+
   /* ── 专家打分 ── */
 
   async submitScores(userId: string, projectId: string, dto: BatchScoreDto) {
