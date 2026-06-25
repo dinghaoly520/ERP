@@ -342,6 +342,12 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
+    // 15.4: 专家回避屏蔽 — 回避名单中的供应商不可查看 AI 分析
+    const conflictedIds: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    if (conflictedIds.includes(supplierId)) {
+      throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
+    }
+
     // 4.5: 优先读 AiBidderResult（per-item LLM 结果），降级用规则引擎
     const bidderResult = await this.prisma.aiBidderResult.findFirst({
       where: { bidSupplierId: supplierId, status: 'COMPLETED' },
