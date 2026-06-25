@@ -316,10 +316,11 @@
   .su-bar-row:nth-child(3) .su-bar i{background:linear-gradient(90deg,rgba(248,113,113,.6),rgba(248,113,113,.2))}
   .su-bar-row:nth-child(4) .su-bar i{background:linear-gradient(90deg,rgba(148,163,184,.5),rgba(148,163,184,.15))}
   .su-bar-row b{font-size:11px;font-weight:700;color:#b0c8d8;min-width:24px;text-align:right}
-  #expert .su-bar-row:nth-child(1) .su-bar i{background:linear-gradient(90deg,rgba(56,189,248,.6),rgba(56,189,248,.2))}
-  #expert .su-bar-row:nth-child(2) .su-bar i{background:linear-gradient(90deg,rgba(167,139,250,.6),rgba(167,139,250,.2))}
-  #expert .su-bar-row:nth-child(3) .su-bar i{background:linear-gradient(90deg,rgba(52,211,153,.6),rgba(52,211,153,.2))}
-  #expert .su-bar-row:nth-child(4) .su-bar i{background:linear-gradient(90deg,rgba(251,191,36,.6),rgba(251,191,36,.2))}
+  #expertCols .su-bar-row span{width:56px;font-size:10px} /* 5汉字=~50px */
+  .eval-a .su-bar i{background:linear-gradient(90deg,rgba(52,211,153,.20),rgba(52,211,153,.10))}
+  .eval-b .su-bar i{background:linear-gradient(90deg,rgba(56,189,248,.20),rgba(56,189,248,.10))}
+  .eval-c .su-bar i{background:linear-gradient(90deg,rgba(251,191,36,.20),rgba(251,191,36,.10))}
+  .eval-d .su-bar i{background:linear-gradient(90deg,rgba(248,113,113,.20),rgba(248,113,113,.10))}
   .su-tags{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
   .su-tags span{padding:2px 10px;border-radius:3px;font-size:9px;font-weight:600;color:#90b8cc;background:rgba(28,60,100,.25);border:1px solid rgba(42,120,180,.10)}
   .su-kpi{transition:all .3s;cursor:pointer}
@@ -333,16 +334,17 @@
   .ct-footer{font-size:9px;color:#5a7d9a}
   .ct-footer b{font-weight:700;color:#a0c8d8}
   /* Contract compliance */
-  .co-stat-row{display:flex;gap:8px}
-  .co-stat{flex:1;text-align:center;padding:8px 2px;border-radius:4px;background:rgba(18,40,70,.35);border:1px solid rgba(42,120,180,.08)}
-  .co-stat b{display:block;font-size:20px;font-weight:900;line-height:1}
-  .co-stat span{font-size:9px;font-weight:500}
-  .co-ok b{color:#34d399}.co-ok span{color:#5eead4}
-  .co-warn b{color:#fbbf24}.co-warn span{color:#fde68a}
-  .co-danger b{color:#f87171}.co-danger span{color:#fca5a5}
-  .co-bar-wrap{display:flex;align-items:center;gap:6px}
-  .co-bar{display:flex;height:10px;border-radius:5px;overflow:hidden;flex:1;background:rgba(28,80,130,.15)}
-  .co-bar i{display:block;height:100%}
+  .co-cols{display:flex;gap:6px}
+  .co-col{flex:1;text-align:center;padding:8px 4px 6px;border-radius:5px;background:rgba(18,40,70,.35);border:1px solid rgba(42,120,180,.08);transition:all .3s;cursor:pointer}
+  .co-col:hover{transform:translateY(-2px)}
+  .co-col b{display:block;font-size:18px;font-weight:900;color:#e8f4ff;line-height:1}
+  .co-col span{font-size:9px;font-weight:500;display:block;margin-top:2px}
+  .co-col em{display:block;font-size:11px;font-weight:700;font-style:normal;margin-top:3px}
+  .co-col-ok{border-top:2px solid #34d399}.co-col-ok b{color:#34d399}.co-col-ok em{color:#5eead4}
+  .co-col-warn{border-top:2px solid #fbbf24}.co-col-warn b{color:#fbbf24}.co-col-warn em{color:#fde68a}
+  .co-col-danger{border-top:2px solid #f87171}.co-col-danger b{color:#f87171}.co-col-danger em{color:#fca5a5}
+  .co-bar-simple{display:flex;height:6px;border-radius:3px;overflow:hidden;background:rgba(28,80,130,.15)}
+  .co-bar-simple i{display:block;height:100%;border-radius:0}
 
   .legend-item{transition:opacity .2s} .legend-item:hover{opacity:.6}
   .gauge{transition:box-shadow .3s} .gauge:hover{box-shadow:0 0 16px rgba(26,222,255,.3)}
@@ -604,7 +606,7 @@
   </section>
 
   <section id="supplier" class="panel"><div class="panel-title">供应商库分析 <span class="unit">（504 家）</span></div>
-    <div class="chart" style="display:flex;flex-direction:column;gap:10px;padding:0 10px">
+    <div class="chart" style="display:flex;flex-direction:column;gap:6px;padding:0 10px">
       <!-- KPI row -->
       <div class="su-kpi-row">
         <div class="su-kpi"><b>504</b><span>总数</span></div>
@@ -613,40 +615,60 @@
         <div class="su-kpi su-danger"><b>12</b><span>退回</span></div>
         <div class="su-kpi"><b>8</b><span>停用</span></div>
       </div>
-      <!-- Status bar -->
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <div class="su-bar-row"><span>已批准</span><div class="su-bar"><i style="--w:90%"></i></div><b>452</b></div>
-        <div class="su-bar-row"><span>待审核</span><div class="su-bar"><i style="--w:6.4%"></i></div><b>32</b></div>
-        <div class="su-bar-row"><span>退回</span><div class="su-bar"><i style="--w:2.4%"></i></div><b>12</b></div>
-        <div class="su-bar-row"><span>停用</span><div class="su-bar"><i style="--w:1.6%"></i></div><b>8</b></div>
-      </div>
-      <!-- Type tags -->
-      <div class="su-tags">
-        <span>有限公司 45%</span><span>股份公司 20%</span><span>国有企业 15%</span><span>外资/其他 20%</span>
+      <!-- 评价 + 分类 -->
+      <div style="display:flex;flex-direction:column;gap:0;flex:1;justify-content:space-evenly">
+        <div class="su-bar-row eval-a"><span style="font-size:10px">A级</span><div class="su-bar"><i id="evalABar" style="--w:0%"></i></div><b id="evalACnt" style="font-size:11px">-</b></div>
+        <div class="su-bar-row eval-b"><span style="font-size:10px">B级</span><div class="su-bar"><i id="evalBBar" style="--w:0%"></i></div><b id="evalBCnt" style="font-size:11px">-</b></div>
+        <div class="su-bar-row eval-c"><span style="font-size:10px">C级</span><div class="su-bar"><i id="evalCBar" style="--w:0%"></i></div><b id="evalCCnt" style="font-size:11px">-</b></div>
+        <div class="su-bar-row eval-d"><span style="font-size:10px">D级</span><div class="su-bar"><i id="evalDBar" style="--w:0%"></i></div><b id="evalDCnt" style="font-size:11px">-</b></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:10px;color:#90b8cc;flex-shrink:0;width:28px">分类</span>
+          <div id="supplierCatBars" class="co-bar" style="display:flex;height:8px;border-radius:4px;overflow:hidden;flex:1;background:rgba(28,80,130,.15)"></div>
+        </div>
+        <div id="supplierCatTags" style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;font-size:8px;color:#5a7d9a;padding:0 4px"></div>
+        <div style="display:flex;justify-content:center;gap:16px;font-size:9px;color:#6a8ca0;padding:0 2px;line-height:1">
+          <span>共 <b id="evalTotal" style="color:#a0c8d8">-</b> 次评价</span>
+          <span>均分 <b id="evalAvg" style="color:#a0c8d8">-</b></span>
+          <span>A+B <b id="evalAB" style="color:#a0c8d8">-</b></span>
+          <span id="evalTrend" style="color:#5eead4">-</span>
+        </div>
       </div>
     </div>
   </section>
 
-  <section id="expert" class="panel"><div class="panel-title">专家库结构分析 <span class="unit">（186 人）</span></div>
-    <div class="chart" style="display:flex;flex-direction:column;gap:10px;padding:0 10px">
-      <!-- KPI row -->
-      <div class="su-kpi-row">
-        <div class="su-kpi"><b>186</b><span>入库总数</span></div>
-        <div class="su-kpi su-ok"><b>168</b><span>当前可用</span></div>
-        <div class="su-kpi su-warn"><b>18</b><span>占用中</span></div>
-        <div class="su-kpi"><b>90.3%</b><span>可用率</span></div>
-        <div class="su-kpi"><b>68.4%</b><span>活跃度</span></div>
+  <section id="expert" class="panel"><div class="panel-title">专家库结构分析 <span class="unit" id="expertTotal">（… 人）</span></div>
+    <div class="chart" style="display:flex;flex-direction:column;gap:4px;padding:0 10px">
+      <!-- Row 1: Status KPI -->
+      <div class="su-kpi-row" id="expertKpiRow">
+        <div class="su-kpi"><b>…</b><span>入库总数</span></div>
+        <div class="su-kpi su-ok"><b>…</b><span>当前可用</span></div>
+        <div class="su-kpi su-warn"><b>…</b><span>占用中</span></div>
+        <div class="su-kpi su-danger"><b>…</b><span>已停用</span></div>
+        <div class="su-kpi"><b>…</b><span>可用率</span></div>
       </div>
-      <!-- Domain bars -->
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <div class="su-bar-row"><span>水利工程</span><div class="su-bar"><i style="--w:95%"></i></div><b>62</b></div>
-        <div class="su-bar-row"><span>工程造价</span><div class="su-bar"><i style="--w:73%"></i></div><b>45</b></div>
-        <div class="su-bar-row"><span>市政工程</span><div class="su-bar"><i style="--w:66%"></i></div><b>41</b></div>
-        <div class="su-bar-row"><span>机电设备</span><div class="su-bar"><i style="--w:61%"></i></div><b>38</b></div>
+      <!-- Row 2: Two-column — 专业分布 | 职称结构 -->
+      <div style="display:flex;gap:14px" id="expertCols">
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:10px;color:#7ea8c4;font-weight:600;margin-bottom:1px">专业分布</div>
+          <div id="expertSpecBars" style="display:flex;flex-direction:column;gap:3px">
+            <div class="su-bar-row"><span>水利工程</span><div class="su-bar"><i style="--w:95%"></i></div><b>62</b></div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:10px;color:#7ea8c4;font-weight:600;margin-bottom:1px">职称结构</div>
+          <div id="expertTitleBars" style="display:flex;flex-direction:column;gap:3px">
+            <div class="su-bar-row"><span>高级工程师</span><div class="su-bar"><i style="--w:90%"></i></div><b>109</b></div>
+          </div>
+        </div>
       </div>
-      <!-- Availability tag -->
-      <div class="su-tags">
-        <span>水利工程 62</span><span>工程造价 45</span><span>市政工程 41</span><span>机电设备 38</span>
+      <!-- Row 3: 履职评价 -->
+      <div id="expertEvalRow" style="display:flex;flex-direction:column;gap:2px">
+        <div class="su-bar-row">
+          <span style="color:#90b8cc">履职评价</span>
+          <div class="su-bar" style="background:rgba(28,80,130,.10);height:8px;border-radius:4px;flex:1"></div>
+          <b style="color:#5a7d9a">0次</b>
+        </div>
+        <div style="text-align:center;font-size:10px;color:#5a7d9a">暂无评价数据，完成评标后自动汇聚</div>
       </div>
     </div>
   </section>
@@ -662,21 +684,17 @@
     </div>
   </section>
 
-  <section id="contract" class="panel"><div class="panel-title">合同履约 <span class="unit">（85 项合同）</span></div>
+  <section id="contract" class="panel"><div class="panel-title">合同履约 <span class="unit">（85 项 · 总额 ¥865.34亿）</span></div>
     <div class="chart" style="top:28px;padding:0 8px;display:flex;flex-direction:column;justify-content:center;gap:8px">
-      <!-- Stat row -->
-      <div class="co-stat-row">
-        <div class="co-stat co-ok"><b>59%</b><span>已完成</span></div>
-        <div class="co-stat co-warn"><b>32%</b><span>履约中</span></div>
-        <div class="co-stat co-danger"><b>9%</b><span>异常</span></div>
+      <!-- Three stat columns -->
+      <div class="co-cols">
+        <div class="co-col co-col-ok"><b>50 项</b><span>已完成</span><em>¥1.09亿</em></div>
+        <div class="co-col co-col-warn"><b>27 项</b><span>履约中</span><em>¥0.59亿</em></div>
+        <div class="co-col co-col-danger"><b>8 项</b><span>异常</span><em>¥0.17亿</em></div>
       </div>
-      <!-- Stacked bar -->
-      <div class="co-bar-wrap">
-        <div class="co-bar"><i style="width:59%;background:#34d399"></i><i style="width:32%;background:#fbbf24"></i><i style="width:9%;background:#f87171"></i></div>
-      </div>
-      <!-- Detail row -->
-      <div style="display:flex;justify-content:space-between;font-size:9px;color:#5a7d9a">
-        <span>总额 865.34 亿</span><span>签约 <b style="color:#a0c8d8">78</b> 项</span>
+      <!-- Simple proportion bar -->
+      <div class="co-bar-simple">
+        <i style="width:59%;background:#34d399"></i><i style="width:32%;background:#fbbf24"></i><i style="width:9%;background:#f87171"></i>
       </div>
     </div>
   </section>
@@ -976,14 +994,6 @@
     });
   })();
 
-  // === CONTRACT BAR ANIMATION ===
-  const coBars=document.querySelectorAll('.co-bar i');
-  if(coBars.length){
-    const finalW=[59,32,9];
-    coBars.forEach((el,i)=>{el.style.width='0%';el.style.transition='width 1.5s ease-out';});
-    setTimeout(()=>{coBars.forEach((el,i)=>el.style.width=finalW[i]+'%');},800);
-  }
-
   // === DONUT CENTER COUNT-UP ===
   document.querySelectorAll('#notice .zone-ctr b, #archive .zone-ctr b').forEach(el=>{
     const to=parseInt(el.textContent);if(!to)return;
@@ -1005,6 +1015,145 @@
       if(ring[idx]){ ring[idx].style.opacity='0.72';ring[idx].style.filter='brightness(0.9)'; }
     });
   });
+  // === SUPPLIER PANEL: fetch real data from API ===
+  (async function(){
+    var $id = function(s){ return document.getElementById(s); };
+    try {
+      var res = await fetch('/api/supplier/bigscreen');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var d = await res.json();
+
+      // Title badge
+      var titleEl = document.querySelector('#supplier .unit');
+      if (titleEl && d.total) titleEl.textContent = '（' + d.total + ' 家）';
+
+      // KPI
+      var kpiBs = document.querySelectorAll('#supplier .su-kpi b');
+      if (kpiBs.length >= 5) {
+        kpiBs[0].textContent = d.total;
+        kpiBs[1].textContent = d.approved;
+        kpiBs[2].textContent = d.pending;
+        kpiBs[3].textContent = d.disabled;
+        kpiBs[4].textContent = d.blacklist;
+      }
+
+      // Evaluation bars
+      var lc = d.levelCounts || {A:0,B:0,C:0,D:0};
+      var tot = d.evalTotal || 0;
+      if (tot > 0) {
+        $id('evalABar').style.setProperty('--w',(lc.A/tot*100).toFixed(1)+'%');
+        $id('evalBBar').style.setProperty('--w',(lc.B/tot*100).toFixed(1)+'%');
+        $id('evalCBar').style.setProperty('--w',(lc.C/tot*100).toFixed(1)+'%');
+        $id('evalDBar').style.setProperty('--w',(lc.D/tot*100).toFixed(1)+'%');
+        $id('evalACnt').textContent=lc.A;$id('evalBCnt').textContent=lc.B;
+        $id('evalCCnt').textContent=lc.C;$id('evalDCnt').textContent=lc.D;
+        $id('evalTotal').textContent=tot;$id('evalAvg').textContent=d.avgScore;
+        $id('evalAB').textContent=((lc.A+lc.B)/tot*100).toFixed(0)+'%';
+        var tm={improving:'↑改善',stable:'→稳定',declining:'↓下滑'};
+        $id('evalTrend').textContent=tm[d.trend]||'';
+      }
+
+      // Classification bars
+      var cats = d.cats || [];
+      if (cats.length) {
+        var catTotal = cats.reduce(function(s,c){return s+c.count;},0);
+        var hues = [200,160,270,40,190,120,330];
+        var barsHtml = '', tagsHtml = '';
+        cats.slice(0,5).forEach(function(c,i){
+          var pct = (c.count/catTotal*100).toFixed(1);
+          var hue = hues[i%hues.length];
+          barsHtml += '<i style="height:100%;width:'+pct+'%;background:hsla('+hue+',55%,52%,.6)"></i>';
+          tagsHtml += '<span style="color:hsla('+hue+',55%,65%,.85)">'+c.name+' <b>'+c.count+'</b></span>';
+        });
+        $id('supplierCatBars').innerHTML = barsHtml;
+        $id('supplierCatTags').innerHTML = tagsHtml;
+      }
+    } catch(e) {
+      console.log('大屏供应商面板：API未连接，使用静态演示数据');
+    }
+  })();
+  // === EXPERT PANEL: fetch real data from API ===
+  (async function(){
+    var $id = function(s){ return document.getElementById(s); };
+    try {
+      var res = await fetch('/api/expert-admin/bigscreen-stats');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var d = await res.json();
+
+      // Title badge
+      var totalEl = $id('expertTotal');
+      if (totalEl) totalEl.textContent = '（' + d.total + ' 人）';
+
+      // KPI row
+      var kpiBs = document.querySelectorAll('#expertKpiRow .su-kpi b');
+      if (kpiBs.length >= 5) {
+        kpiBs[0].textContent = d.total;
+        kpiBs[1].textContent = d.availability.available;
+        kpiBs[2].textContent = d.availability.occupied;
+        kpiBs[3].textContent = d.availability.disabled;
+        kpiBs[4].textContent = d.availability.availableRate + '%';
+      }
+
+      var colors = [
+        'rgba(56,189,248,.6),rgba(56,189,248,.2)',
+        'rgba(167,139,250,.6),rgba(167,139,250,.2)',
+        'rgba(52,211,153,.6),rgba(52,211,153,.2)',
+        'rgba(251,191,36,.6),rgba(251,191,36,.2)',
+        'rgba(248,113,113,.6),rgba(248,113,113,.2)'
+      ];
+
+      // Left column: 专业分布 bars
+      var specEl = $id('expertSpecBars');
+      if (specEl && d.specialties && d.specialties.length) {
+        specEl.innerHTML = d.specialties.map(function(s,i){
+          return '<div class="su-bar-row"><span>' + s.name + '</span><div class="su-bar"><i style="--w:' + s.pct + '%;background:linear-gradient(90deg,' + (colors[i]||colors[0]) + ')"></i></div><b>' + s.count + '</b></div>';
+        }).join('');
+      }
+
+      // Right column: 职称结构 bars
+      var titleEl = $id('expertTitleBars');
+      if (titleEl && d.titles && d.titles.length) {
+        var maxTitle = d.titles[0].count;
+        titleEl.innerHTML = d.titles.map(function(t,i){
+          var pct = Math.round(t.count / maxTitle * 100);
+          return '<div class="su-bar-row"><span>' + t.name + '</span><div class="su-bar"><i style="--w:' + pct + '%;background:linear-gradient(90deg,' + (colors[i]||colors[0]) + ')"></i></div><b>' + t.count + '</b></div>';
+        }).join('');
+      }
+
+      // Evaluation row
+      var ev = d.evaluation;
+      var evalRow = $id('expertEvalRow');
+      if (evalRow && ev && ev.total > 0) {
+        var lc = ev.levelCounts;
+        var total = ev.total;
+        var aPct = (lc.A/total*100).toFixed(1);
+        var bPct = (lc.B/total*100).toFixed(1);
+        var cPct = (lc.C/total*100).toFixed(1);
+        var dPct = (lc.D/total*100).toFixed(1);
+        var sign = ev.avgScoreDeviation >= 0 ? '+' : '';
+        evalRow.innerHTML =
+          '<div class="su-bar-row">' +
+            '<span style="color:#90b8cc">履职评价</span>' +
+            '<div class="su-bar eval-stack" style="display:flex;background:rgba(28,80,130,.10);height:8px;border-radius:4px;overflow:hidden">' +
+              '<i style="height:100%;width:' + aPct + '%;background:#22c55e;border-radius:4px 0 0 4px"></i>' +
+              '<i style="height:100%;width:' + bPct + '%;background:#3b82f6"></i>' +
+              '<i style="height:100%;width:' + cPct + '%;background:#eab308"></i>' +
+              '<i style="height:100%;width:' + dPct + '%;background:#ef4444;border-radius:0 4px 4px 0"></i>' +
+            '</div><b>' + total + '次</b>' +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#7ea8c4;padding:0 4px">' +
+            '<span>A级 <b style="color:#22c55e">' + lc.A + '</b></span>' +
+            '<span>B级 <b style="color:#3b82f6">' + lc.B + '</b></span>' +
+            '<span>C级 <b style="color:#eab308">' + lc.C + '</b></span>' +
+            '<span>D级 <b style="color:#ef4444">' + lc.D + '</b></span>' +
+            '<span>均分 <b style="color:#e8f4ff">' + ev.avgScore + '</b></span>' +
+            '<span>偏离 <b style="color:#a78bfa">' + sign + ev.avgScoreDeviation + '</b></span>' +
+          '</div>';
+      }
+    } catch(e) {
+      console.log('大屏专家面板：API未连接，使用静态演示数据');
+    }
+  })();
 </script>
 </body>
 </html>
