@@ -656,6 +656,39 @@ export class BidService {
     return updated;
   }
 
+  /**
+   * 4.4: 一键解密窗口内所有待解密供应商
+   */
+  async decryptAllSuppliers(projectId: string, actorId: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, name: true } });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '项目不在开标阶段', code: 'PROJECT_NOT_OPENING' });
+    }
+
+    const pendingSuppliers = await this.prisma.bidSupplier.findMany({
+      where: { projectId, decryptStatus: { in: ['PENDING', 'DANGER'] }, submitStatus: { not: '已撤回' } },
+      select: { id: true, supplierName: true },
+    });
+
+    const results: Array<{ supplierId: string; supplierName: string; success: boolean; error?: string }> = [];
+    for (const s of pendingSuppliers) {
+      try {
+        await this.decryptSupplier(projectId, s.id, undefined, actorId);
+        results.push({ supplierId: s.id, supplierName: s.supplierName, success: true });
+      } catch (e) {
+        results.push({ supplierId: s.id, supplierName: s.supplierName, success: false, error: (e as Error).message });
+      }
+    }
+
+    this.gateway?.notifySupervisionLog(projectId, {
+      role: '系统', action: '一键解密', target: project.name,
+      result: `${results.filter(r => r.success).length}/${results.length} 成功`, riskFlag: '无',
+    });
+
+    return { total: results.length, success: results.filter(r => r.success).length, failed: results.filter(r => !r.success).length, details: results };
+  }
+
   async decryptSupplier(projectId: string, supplierId: string, dto?: DecryptSupplierDto, actorId?: string) {
     return this.prisma.$transaction(async (tx) => {
       const bidSupplier = await tx.bidSupplier.findFirst({

@@ -85,6 +85,10 @@ export class BidController {
   @ApiOperation({ summary: '启动评标 (OPENING→EVALUATING)' })
   startEvaluation(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.startEvaluation(id, userId); }
 
+  @Post('projects/:id/decrypt-all')
+  @ApiOperation({ summary: '一键解密窗口内待解密供应商（4.4）' })
+  decryptAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.decryptAllSuppliers(id, userId); }
+
   @Post('projects/:id/nudge-suppliers')
   @ApiOperation({ summary: '催促供应商投标（站内信+Email 多通道）' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
