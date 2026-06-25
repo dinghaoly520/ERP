@@ -4,6 +4,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
+import { RedisModule } from './redis/redis.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PrismaService } from './prisma/prisma.service';
 import { LocalAiModule } from './local-ai/local-ai.module';
@@ -22,6 +23,7 @@ import { BidderProcessor } from './ai-bid-analysis/queues/bidder.processor';
       },
     }),
     PrismaModule,
+    RedisModule,
     LocalAiModule,
     StorageModule,
     AiBidAnalysisModule,
