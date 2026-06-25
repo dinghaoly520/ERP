@@ -85,14 +85,58 @@ export class PlaintextFetcherService {
   }
 
   /**
-   * 获取招标文件明文（方案 4.1 链路：BidProject → Announcement → BidDocument → FileAsset）
-   * TODO: ERP 的 BidProject→Announcement 关联字段待确认（relatedProjectCode?），
-   *       确认后补全查询链路；当前返回 null 让调用方降级（TenderExtractor 可用 task.tenderText）
+   * 获取招标文件明文（方案 4.1 链路）
+   * BidProject.projectCode → Announcement(relatedProjectCode, BID_NOTICE, PUBLISHED)
+   *   → BidDocument(announcementId @unique) → decryptKey + FileAsset
    */
-  async fetchTenderPlaintext(_projectId: string): Promise<Buffer | null> {
-    // 链路待确认：BidProject.relatedProjectCode → Announcement(type=BID_NOTICE)
-    //   → BidDocument(announcementId) → decryptKey + FileAsset
-    // 暂返回 null（worker 可降级用 task.tenderText，或手动上传招标文本）
-    return null;
+  async fetchTenderPlaintext(projectId: string): Promise<Buffer | null> {
+    // 1. BidProject → projectCode
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { projectCode: true },
+    });
+    if (!project?.projectCode) return null;
+
+    // 2. Announcement（BID_NOTICE 已发布，按 relatedProjectCode 关联）
+    const announcement = await this.prisma.announcement.findFirst({
+      where: {
+        relatedProjectCode: project.projectCode,
+        type: 'BID_NOTICE',
+        status: 'PUBLISHED',
+      },
+      select: { id: true },
+    });
+    if (!announcement) return null;
+
+    // 3. BidDocument（1:1 Announcement）→ decryptKey + fileAssetId
+    const bidDocument = await this.prisma.bidDocument.findUnique({
+      where: { announcementId: announcement.id },
+    });
+    if (!bidDocument) return null;
+
+    // 4. FileAsset
+    const asset = await this.prisma.fileAsset.findUnique({
+      where: { id: bidDocument.fileAssetId },
+    });
+    if (!asset) return null;
+
+    // 5. 下载 + 解密（decryptKey）+ 完整性校验
+    const readKey = asset.sealedPath || asset.key;
+    let buffer = await streamToBuffer(
+      await minioClient.getObject(MINIO_BUCKET, readKey),
+    );
+
+    if (bidDocument.decryptKey) {
+      const rawKey = isWrappedKey(bidDocument.decryptKey)
+        ? unwrapKey(bidDocument.decryptKey, process.env.KMS_SECRET!)
+        : bidDocument.decryptKey;
+      buffer = decryptBuffer(buffer, rawKey);
+    }
+
+    if (verifyIntegrity(buffer, asset.sha256) === false) {
+      throw new Error('招标文件完整性校验失败：SHA-256 不匹配');
+    }
+
+    return buffer;
   }
 }

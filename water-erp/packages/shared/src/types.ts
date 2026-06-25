@@ -8,6 +8,20 @@ export type AppRole = 'admin' | 'bid_host' | 'bid_expert' | 'supplier' | 'procur
 export type SupplierStatus = 'PENDING' | 'RETURNED' | 'APPROVED' | 'REJECTED' | 'DISABLED' | 'BLACKLIST';
 export type ChangeStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED';
+
+/* ── AI 辅助评标 per-item（Phase 6）── */
+
+export interface AiScoreItem {
+  scoreItemId: string;
+  category: string;
+  name: string;
+  score: number;
+  maxScore: number;
+  reason?: string;
+  evidence?: string;
+  confidence?: number;
+  pass?: boolean;
+}
 export type AnnouncementType = 'BID_NOTICE' | 'WIN_NOTICE' | 'POLICY' | 'PLATFORM';
 export type AnnouncementStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 export type DecryptStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'DANGER';
@@ -187,9 +201,23 @@ export interface DecryptedDocuments {
 }
 
 export interface AssistData {
+  source?: 'ai_bidder_result' | 'rules_fallback';
   supplierName: string;
   generatedAt?: string;
   model?: string;
+  // ── ai_bidder_result（per-item，Phase 6 新增）──
+  totalScore?: number;
+  scoreItems?: AiScoreItem[];
+  categoryTotals?: Record<string, { score: number; max: number }>;
+  keyInfo?: Record<string, unknown>;
+  concordance?: any;
+  concordanceStatus?: string;
+  strengths?: any;
+  weaknesses?: any;
+  overallComment?: string;
+  qualificationStatus?: string;
+  riskLevel?: string;
+  // ── rules_fallback（旧规则引擎结构，降级时用）──
   overall?: { score: number; level: string; breakdown: { compliance: { weight: number; score: number }; risk: { weight: number; score: number }; scoring: { weight: number; score: number } } };
   complianceCheck: { overall: string; score?: number; items: { name: string; status: string; detail: string }[] };
   riskAnalysis: { level: string; category: string; content: string; confidence?: number }[];
