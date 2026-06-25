@@ -61,9 +61,22 @@ export class TenderProcessor extends WorkerHost {
       }
 
       // 2. 提取招标要求（qualification/technical/commercial/scoringRules）
+      // C11 (15.9): 纳入已回复的澄清答疑，增强需求提取完整性
       let requirements: any = task.requirements;
       if (tenderText && !requirements) {
-        requirements = await this.tenderExtractor.extract(tenderText, taskId);
+        let extractionText = tenderText;
+        const clarifications = await this.prisma.bidClarification.findMany({
+          where: { projectId: task.projectId, status: '已回复' },
+          select: { question: true, reply: true, supplierName: true },
+        });
+        if (clarifications.length > 0) {
+          const clarificationText = clarifications
+            .map((c) => `【澄清答疑-${c.supplierName}】\n问：${c.question}\n答：${c.reply}`)
+            .join('\n\n');
+          extractionText = `${tenderText}\n\n=== 澄清答疑（${clarifications.length} 条） ===\n${clarificationText}`;
+          this.logger.log(`Task ${taskId}: merged ${clarifications.length} clarifications into extraction text`);
+        }
+        requirements = await this.tenderExtractor.extract(extractionText, taskId);
       }
 
       // 3. ScoreCriteriaInferer：为缺细则的评分项推断 scoringCriteria（存 snapshot，不回填 BidScoreItem）
