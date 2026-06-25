@@ -363,15 +363,17 @@ export class ExpertService {
         select: { id: true },
       });
       let fraudSummary: { riskLevel: string; indicatorCount: number } | null = null;
+      let reportDocxId: string | null = null;
       if (task) {
         const report = await this.prisma.aiBidReport.findUnique({
           where: { taskId: task.id },
-          select: { fraudIndicators: true },
+          select: { fraudIndicators: true, docxFileId: true },
         });
         if (report?.fraudIndicators) {
           const fi = report.fraudIndicators as any;
           fraudSummary = { riskLevel: fi.riskLevel ?? 'low', indicatorCount: fi.summary?.totalCount ?? fi.indicators?.length ?? 0 };
         }
+        reportDocxId = report?.docxFileId ?? null;
       }
       return {
         source: 'ai_bidder_result',
@@ -388,6 +390,7 @@ export class ExpertService {
         qualificationStatus: bidderResult.qualificationStatus,
         riskLevel: bidderResult.riskLevel,
         fraudSummary, // B5: 串通检测摘要（专家端仅看风险等级+数量）
+        reportDocxUrl: reportDocxId ? `/api/upload/files/${reportDocxId}` : null, // B6: 综合报告 DOCX 下载
       };
     }
     // 降级：规则引擎（LLM/OCR 不可用或 bidderResult 未就绪时）

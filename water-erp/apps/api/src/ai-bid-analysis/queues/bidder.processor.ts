@@ -14,7 +14,11 @@ import { ConcordanceVerifierService } from '../services/concordance-verifier.ser
 import { GenericItemScorerService } from '../services/generic-item-scorer.service';
 import { FraudDetectorService } from '../services/fraud-detector.service';
 import { ComparativeScoringService } from '../services/comparative-scoring.service';
+import { ReportGeneratorService } from '../services/report-generator.service';
+import { DocxGeneratorService } from '../services/docx-generator.service';
+import { minioClient, MINIO_BUCKET, ensureBucket } from '../../upload/minio.client';
 import { AiBidderStatus } from '@prisma/client';
+import * as crypto from 'crypto';
 import { QUEUE_NAMES } from './queue.module';
 import { processFile } from '../utils/file-processor';
 import { neutralizeRecommendationText } from '../utils/neutralize';
@@ -39,6 +43,8 @@ export class BidderProcessor extends WorkerHost {
     private genericItemScorer: GenericItemScorerService,
     private fraudDetector: FraudDetectorService,
     private comparativeScoring: ComparativeScoringService,
+    private reportGenerator: ReportGeneratorService,
+    private docxGenerator: DocxGeneratorService,
   ) {
     super();
   }
@@ -284,6 +290,74 @@ export class BidderProcessor extends WorkerHost {
         this.logger.log(`Task ${taskId}: fraud detection done, risk=${fraudIndicators.riskLevel}, indicators=${fraudIndicators.indicators.length}`);
       } catch (e) {
         this.logger.warn(`Task ${taskId}: fraud detection failed: ${e}`);
+      }
+    }
+
+    // B6: 综合报告 + DOCX 导出 — 所有 bidder 终态后生成
+    if (completed.length >= 2) {
+      try {
+        this.logger.log(`Task ${taskId}: generating comprehensive report`);
+        // 取 task（含 project.name）和已完成的 bidder（含 supplierName）
+        const task = await this.prisma.aiBidAnalysisTask.findUnique({
+          where: { id: taskId },
+          include: { project: { select: { name: true } } },
+        });
+        const bidders = await this.prisma.aiBidderResult.findMany({
+          where: { taskId, status: 'COMPLETED' },
+          include: { bidSupplier: { select: { supplierName: true } } },
+        });
+        // 读取已保存的 fraudIndicators
+        const existingReport = await this.prisma.aiBidReport.findUnique({
+          where: { taskId },
+          select: { fraudIndicators: true },
+        });
+        const fraudIndicators = (existingReport?.fraudIndicators as any) ?? null;
+
+        // 生成报告 JSON
+        const reportData = await this.reportGenerator.generate(
+          task as any,
+          bidders as any,
+          fraudIndicators,
+        );
+
+        // 生成 DOCX buffer
+        const docxBuffer = await this.docxGenerator.generate(reportData as any);
+
+        // 上传 DOCX 到 MinIO
+        await ensureBucket();
+        const docxKey = `reports/${taskId}/ai-bid-analysis-report.docx`;
+        await minioClient.putObject(MINIO_BUCKET, docxKey, docxBuffer, docxBuffer.length, {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+        const sha256 = crypto.createHash('sha256').update(docxBuffer).digest('hex');
+        const fileAsset = await this.prisma.fileAsset.create({
+          data: {
+            key: docxKey,
+            originalName: `投标文件分析报告-${task?.project.name ?? taskId}.docx`,
+            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            size: docxBuffer.length,
+            sha256,
+            category: 'general',
+          },
+        });
+
+        // 合并 reportData + fraudIndicators + docxFileId → upsert AiBidReport
+        await this.prisma.aiBidReport.upsert({
+          where: { taskId },
+          create: {
+            taskId,
+            ...reportData,
+            fraudIndicators: fraudIndicators ?? undefined,
+            docxFileId: fileAsset.id,
+          } as any,
+          update: {
+            ...reportData,
+            docxFileId: fileAsset.id,
+          } as any,
+        });
+        this.logger.log(`Task ${taskId}: report + DOCX saved (fileId=${fileAsset.id})`);
+      } catch (e) {
+        this.logger.warn(`Task ${taskId}: report generation failed: ${e}`);
       }
     }
 
