@@ -1134,10 +1134,26 @@ export default function ExpertEvaluatePage() {
 
                     {/* ── Tab 4: 串通检测 ── */}
                     {assistTab === 'fraud' && (
-                      <div className="bg-white rounded-xl border border-[oklch(0.92_0.004_287)] p-8 text-center">
-                        <AlertTriangle size={32} strokeWidth={1} className="text-gray-300 mx-auto mb-3" />
-                        <p className="text-sm text-gray-400">串通检测为多供应商横向分析</p>
-                        <p className="text-xs text-gray-300 mt-1">需在评标管理端触发第二轮分析后生成</p>
+                      <div className="bg-white rounded-xl border border-[oklch(0.92_0.004_287)] p-6">
+                        <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3 flex items-center gap-1.5"><AlertTriangle size={14} strokeWidth={1.5} /> 串通检测摘要</h3>
+                        {(assistData as any).fraudSummary ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-4">
+                              <div className={`px-4 py-2 rounded-lg font-bold text-sm ${((assistData as any).fraudSummary.riskLevel === 'high') ? 'bg-red-100 text-red-700' : ((assistData as any).fraudSummary.riskLevel === 'medium') ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                风险等级：{((assistData as any).fraudSummary.riskLevel === 'high') ? '高' : ((assistData as any).fraudSummary.riskLevel === 'medium') ? '中' : '低'}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                检测到 <span className="font-bold text-gray-700">{(assistData as any).fraudSummary.indicatorCount}</span> 项风险线索
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-400">检测维度：报价离散度/报价模式/联系方式重叠/文档相似度/元数据一致性/价格结构相似度</p>
+                            <div className="bg-amber-50 rounded-lg p-3 text-xs text-amber-700">
+                              ⚠ 详细检测结果仅对管理端/监督端可见。专家端仅展示风险摘要，不影响您的独立评分。
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-400">暂无串通检测数据（需所有供应商分析完成后自动生成）</p>
+                        )}
                       </div>
                     )}
 

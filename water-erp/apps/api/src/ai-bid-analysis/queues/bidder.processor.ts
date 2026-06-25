@@ -12,6 +12,8 @@ import { PlaintextFetcherService } from '../services/plaintext-fetcher.service';
 import { SystemDataAggregatorService } from '../services/system-data-aggregator.service';
 import { ConcordanceVerifierService } from '../services/concordance-verifier.service';
 import { GenericItemScorerService } from '../services/generic-item-scorer.service';
+import { FraudDetectorService } from '../services/fraud-detector.service';
+import { ComparativeScoringService } from '../services/comparative-scoring.service';
 import { AiBidderStatus } from '@prisma/client';
 import { QUEUE_NAMES } from './queue.module';
 import { processFile } from '../utils/file-processor';
@@ -35,6 +37,8 @@ export class BidderProcessor extends WorkerHost {
     private systemDataAggregator: SystemDataAggregatorService,
     private concordanceVerifier: ConcordanceVerifierService,
     private genericItemScorer: GenericItemScorerService,
+    private fraudDetector: FraudDetectorService,
+    private comparativeScoring: ComparativeScoringService,
   ) {
     super();
   }
@@ -232,8 +236,7 @@ export class BidderProcessor extends WorkerHost {
 
   /**
    * 15.6: 检查任务是否全部终态（COMPLETED/FAILED）
-   * - ≥2 COMPLETED → 触发 comparativeScoring（横向对比）
-   * - 全部终态 → 更新 task COMPLETED 或 COMPLETED_WITH_ERRORS
+   * - 全部终态 → 横向对比评分（comparativeScoring）+ 串通检测（fraudDetector）+ 更新 task 终态
    */
   private async checkTaskCompletion(taskId: string): Promise<void> {
     const all = await this.prisma.aiBidderResult.findMany({
@@ -244,9 +247,47 @@ export class BidderProcessor extends WorkerHost {
     const failed = all.filter((r) => r.status === 'FAILED');
     const pending = all.filter((r) => r.status !== 'COMPLETED' && r.status !== 'FAILED');
 
-    if (pending.length > 0) return; // 还有未完成的，不触发
+    if (pending.length > 0) return;
 
-    // 全部终态 → 更新 task 状态
+    // ≥2 COMPLETED → 横向对比评分
+    if (completed.length >= 2) {
+      try {
+        this.logger.log(`Task ${taskId}: running comparative scoring (${completed.length} bidders)`);
+        await this.comparativeScoring.score(taskId);
+      } catch (e) {
+        this.logger.warn(`Task ${taskId}: comparative scoring failed: ${e}`);
+      }
+    }
+
+    // 串通检测（B5）：需要 ≥2 bidder 的 keyInfo/text
+    if (completed.length >= 2) {
+      try {
+        this.logger.log(`Task ${taskId}: running fraud detection`);
+        const bidderData = await this.prisma.aiBidderResult.findMany({
+          where: { taskId, status: 'COMPLETED' },
+          select: { id: true, keyInfo: true, technicalText: true, bidSupplier: { select: { supplierName: true } } },
+        });
+        const fraudIndicators = await this.fraudDetector.detect(
+          bidderData.map((b) => ({
+            id: b.id,
+            name: b.bidSupplier.supplierName,
+            keyInfo: b.keyInfo as any,
+            text: b.technicalText ?? undefined,
+          })),
+        );
+        // 存入 AiBidReport
+        await this.prisma.aiBidReport.upsert({
+          where: { taskId },
+          create: { taskId, fraudIndicators: fraudIndicators as any },
+          update: { fraudIndicators: fraudIndicators as any },
+        });
+        this.logger.log(`Task ${taskId}: fraud detection done, risk=${fraudIndicators.riskLevel}, indicators=${fraudIndicators.indicators.length}`);
+      } catch (e) {
+        this.logger.warn(`Task ${taskId}: fraud detection failed: ${e}`);
+      }
+    }
+
+    // 更新 task 终态
     const hasFailed = failed.length > 0;
     await this.prisma.aiBidAnalysisTask.update({
       where: { id: taskId },
@@ -255,19 +296,7 @@ export class BidderProcessor extends WorkerHost {
         completedAt: new Date(),
       },
     });
-
-    // ≥2 COMPLETED → 触发横向对比评分（comparativeScoring）
-    if (completed.length >= 2) {
-      try {
-        // 注：ComparativeScoringService 通过 module DI 注入
-        // 此处用延迟加载避免循环依赖——通过 prisma 直接操作（comparativeScoring 已在 bidder.processor 重写为 per-item）
-        this.logger.log(`Task ${taskId}: all terminal (${completed.length} completed, ${failed.length} failed), task ${hasFailed ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED'}`);
-      } catch (e) {
-        this.logger.warn(`Task ${taskId}: post-completion check failed: ${e}`);
-      }
-    } else {
-      this.logger.log(`Task ${taskId}: all terminal but only ${completed.length} completed, skip comparative`);
-    }
+    this.logger.log(`Task ${taskId}: ${hasFailed ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED'} (${completed.length} ok, ${failed.length} failed)`);
   }
 
   /** 收集任务下所有 bidderResult 的报价（价格公式基准） */

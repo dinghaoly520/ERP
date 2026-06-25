@@ -357,12 +357,28 @@ export class ExpertService {
       },
     });
     if (bidderResult) {
+      // 15.4: 串通检测分层可见 — 专家端只看摘要（不暴露检测细节）
+      const task = await this.prisma.aiBidAnalysisTask.findUnique({
+        where: { projectId },
+        select: { id: true },
+      });
+      let fraudSummary: { riskLevel: string; indicatorCount: number } | null = null;
+      if (task) {
+        const report = await this.prisma.aiBidReport.findUnique({
+          where: { taskId: task.id },
+          select: { fraudIndicators: true },
+        });
+        if (report?.fraudIndicators) {
+          const fi = report.fraudIndicators as any;
+          fraudSummary = { riskLevel: fi.riskLevel ?? 'low', indicatorCount: fi.summary?.totalCount ?? fi.indicators?.length ?? 0 };
+        }
+      }
       return {
         source: 'ai_bidder_result',
         supplierName: bidderResult.bidSupplier.supplierName,
         totalScore: bidderResult.totalScore,
-        scoreItems: bidderResult.scoreItems, // per-item（对齐 BidScoreItem）
-        categoryTotals: bidderResult.categoryTotals, // 5 维聚合（雷达图）
+        scoreItems: bidderResult.scoreItems,
+        categoryTotals: bidderResult.categoryTotals,
         keyInfo: bidderResult.keyInfo,
         concordance: bidderResult.concordance?.checkedFields ?? null,
         concordanceStatus: bidderResult.concordance?.overallStatus ?? null,
@@ -371,6 +387,7 @@ export class ExpertService {
         overallComment: bidderResult.overallComment,
         qualificationStatus: bidderResult.qualificationStatus,
         riskLevel: bidderResult.riskLevel,
+        fraudSummary, // B5: 串通检测摘要（专家端仅看风险等级+数量）
       };
     }
     // 降级：规则引擎（LLM/OCR 不可用或 bidderResult 未就绪时）
