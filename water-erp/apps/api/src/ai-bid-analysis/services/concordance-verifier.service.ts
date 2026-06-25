@@ -45,7 +45,9 @@ export class ConcordanceVerifierService {
   private normalizePrice(value: unknown): number | null {
     if (typeof value === 'number') return value;
     if (typeof value !== 'string') return null;
-    const m = value.match(/-?\d+(?:\.\d+)?/);
+    // ★ 去除千分位逗号后再匹配（"1,539,500.00元" → "1539500.00元"）
+    const cleaned = value.replace(/[,，\s]/g, '');
+    const m = cleaned.match(/-?\d+(?:\.\d+)?/);
     if (!m) return null;
     let n = parseFloat(m[0]);
     if (value.includes('亿')) n *= 10000;
