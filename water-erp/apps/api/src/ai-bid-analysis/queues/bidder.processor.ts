@@ -15,6 +15,7 @@ import { GenericItemScorerService } from '../services/generic-item-scorer.servic
 import { AiBidderStatus } from '@prisma/client';
 import { QUEUE_NAMES } from './queue.module';
 import { processFile } from '../utils/file-processor';
+import { neutralizeRecommendationText } from '../utils/neutralize';
 
 interface BidderJobData {
   bidderResultId: string;
@@ -199,7 +200,7 @@ export class BidderProcessor extends WorkerHost {
           scoreItems: scoreResult.scoreItems as any,
           categoryTotals: scoreResult.categoryTotals as any,
           totalScore: scoreResult.totalScore,
-          overallComment: scoreResult.overallComment,
+          overallComment: neutralizeRecommendationText(scoreResult.overallComment),
           qualificationStatus,
           riskLevel,
           riskAnalysis: {
