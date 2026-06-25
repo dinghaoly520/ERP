@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
-import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, Gavel, MessageSquare } from 'lucide-react';
+import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, AlertCircle, CheckCircle, Lightbulb, Key, Clipboard, Gavel, MessageSquare } from 'lucide-react';
 
 type Step = 'verify' | 'documents' | 'assist' | 'scoring' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
@@ -898,7 +898,11 @@ export default function ExpertEvaluatePage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-xl font-bold text-[oklch(0.18_0.012_265)]"><Sparkles size={14} strokeWidth={1.5} /> AI 辅助评标</h2>
-                  <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">智能分析引擎基于规则+统计驱动，结果仅供参考，请以专业判断为准</p>
+                  <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">
+                    {assistData?.source === 'ai_bidder_result'
+                      ? 'LLM+OCR 深度分析投标文件，双源一致性校验，per-item 评分'
+                      : '规则+统计引擎（降级模式），结果仅供参考，请以专业判断为准'}
+                  </p>
                 </div>
                 <span className="text-xs bg-blue-50 text-[#064ea2] px-3 py-1.5 rounded-lg font-semibold">
                   当前：{project.suppliers.find(s => s.id === activeSupplier)?.supplierName || '请选择'}
@@ -906,12 +910,134 @@ export default function ExpertEvaluatePage() {
               </div>
 
               {assistData ? (
+                (assistData.source === 'ai_bidder_result' ? (
+                  /* ── per-item AI 分析结果（Tab 容器） ── */
+                  <div className="space-y-4">
+                    {/* 总分 + 资格 + 风险 概览卡 */}
+                    <div className="bg-gradient-to-r from-[#054280] to-[#064ea2] rounded-xl p-6 text-white">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="text-white/60 text-xs mb-1">LLM + OCR 分析（per-item）</p>
+                          <div className="flex items-baseline gap-3">
+                            <span className="text-4xl font-extrabold">{assistData.totalScore?.toFixed(1) ?? '-'}</span>
+                            <span className="text-white/70 text-sm">总分</span>
+                            <span className={`ml-2 text-sm font-bold px-3 py-0.5 rounded-full ${(assistData.qualificationStatus === '通过') ? 'bg-emerald-400/30 text-emerald-100' : (assistData.qualificationStatus === '不通过') ? 'bg-red-400/30 text-red-100' : 'bg-amber-400/30 text-amber-100'}`}>
+                              资格：{assistData.qualificationStatus ?? '待审查'}
+                            </span>
+                            <span className={`text-sm font-bold px-3 py-0.5 rounded-full ${(assistData.riskLevel === 'low') ? 'bg-emerald-400/30 text-emerald-100' : (assistData.riskLevel === 'medium') ? 'bg-amber-400/30 text-amber-100' : 'bg-red-400/30 text-red-100'}`}>
+                              风险：{assistData.riskLevel === 'low' ? '低' : assistData.riskLevel === 'medium' ? '中' : '高'}
+                            </span>
+                          </div>
+                        </div>
+                        {assistData.concordanceStatus && (
+                          <div className="text-right text-xs">
+                            <div className="text-white/50">一致性校验</div>
+                            <span className={`font-bold ${assistData.concordanceStatus === 'consistent' ? 'text-emerald-300' : assistData.concordanceStatus === 'conflict' ? 'text-red-300' : 'text-amber-300'}`}>
+                              {assistData.concordanceStatus === 'consistent' ? '一致' : assistData.concordanceStatus === 'conflict' ? '冲突' : assistData.concordanceStatus === 'minor_diff' ? '轻微差异' : '数据不足'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {/* 5 维 categoryTotals 横向条 */}
+                      {assistData.categoryTotals && (
+                        <div className="grid grid-cols-5 gap-2 mt-3">
+                          {(['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'] as const).map(cat => {
+                            const ct = (assistData.categoryTotals as Record<string, { score: number; max: number }>)[cat];
+                            if (!ct || ct.max === 0) return null;
+                            const pct = Math.round((ct.score / ct.max) * 100);
+                            const labels: Record<string, string> = { QUALIFICATION: '资格', RESPONSIVE: '响应性', BUSINESS: '商务', TECHNICAL: '技术', PRICE: '价格' };
+                            return (
+                              <div key={cat} className="text-center">
+                                <div className="text-xs text-white/60 mb-1">{labels[cat]}</div>
+                                <div className="text-lg font-bold">{ct.score.toFixed(1)}</div>
+                                <div className="text-xs text-white/40">/ {ct.max}</div>
+                                <div className="h-1.5 bg-white/10 rounded-full mt-1">
+                                  <div className="h-full bg-white/60 rounded-full" style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 一致性校验详情 */}
+                    {assistData.concordance && Array.isArray((assistData.concordance as any[])) && (
+                      <div className="bg-white rounded-xl border border-[oklch(0.92_0.004_287)] p-4">
+                        <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3 flex items-center gap-1.5"><AlertCircle size={14} strokeWidth={1.5} /> 双源一致性校验</h3>
+                        <div className="space-y-2">
+                          {(assistData.concordance as Array<{ label?: string; field?: string; systemValue?: unknown; docValue?: unknown; status?: string; severity?: string; note?: string }>).filter(c => c.status !== 'insufficient_data').map((check, i) => (
+                            <div key={i} className={`flex items-center gap-3 p-2 rounded-lg text-sm ${(check.status === 'conflict') ? 'bg-red-50 text-red-700' : (check.status === 'minor_diff') ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${(check.status === 'conflict') ? 'bg-red-500' : (check.status === 'minor_diff') ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                              <span className="font-semibold min-w-20">{check.label || check.field}</span>
+                              <span className="text-gray-500">系统：{String(check.systemValue ?? '—')}</span>
+                              <span className="text-gray-400">vs</span>
+                              <span className="text-gray-500">标书：{String(check.docValue ?? '—')}</span>
+                              {check.note && <span className="text-xs text-gray-400 ml-auto">{check.note}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* per-item 评分明细（按 category 分组） */}
+                    {assistData.scoreItems && assistData.scoreItems.length > 0 && (
+                      <div className="bg-white rounded-xl border border-[oklch(0.92_0.004_287)] p-4">
+                        <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3 flex items-center gap-1.5"><FileText size={14} strokeWidth={1.5} /> 评分明细（per-item）</h3>
+                        <div className="space-y-3">
+                          {Object.entries(
+                            assistData.scoreItems.reduce((acc, si) => {
+                              const cat = si.category;
+                              if (!acc[cat]) acc[cat] = [];
+                              acc[cat].push(si);
+                              return acc;
+                            }, {} as Record<string, typeof assistData.scoreItems>)
+                          ).map(([cat, items]) => {
+                            const catLabels: Record<string, string> = { QUALIFICATION: '资格', RESPONSIVE: '响应性', BUSINESS: '商务', TECHNICAL: '技术', PRICE: '价格' };
+                            const catTotal = (assistData.categoryTotals as Record<string, { score: number; max: number }>)?.[cat];
+                            return (
+                              <div key={cat}>
+                                <div className="flex items-center gap-2 mb-2 text-sm font-bold text-[oklch(0.3_0.01_264)]">
+                                  <span className="border-l-2 border-[#064ea2] pl-2">{catLabels[cat] || cat}</span>
+                                  {catTotal && <span className="text-xs text-gray-400 font-normal">{catTotal.score.toFixed(1)} / {catTotal.max}</span>}
+                                </div>
+                                <div className="space-y-1.5">
+                                  {items.map((si, idx) => (
+                                    <div key={idx} className="flex items-start gap-3 text-sm pl-4 py-1">
+                                      <span className="text-gray-600 min-w-32 flex-shrink-0">{si.name}</span>
+                                      <span className="font-bold text-[oklch(0.18_0.012_265)] min-w-16">{si.maxScore === 0 ? (si.pass ? '通过' : '不通过') : `${si.score.toFixed(1)} / ${si.maxScore}`}</span>
+                                      {si.reason && <span className="text-xs text-gray-400 flex-1">{si.reason}</span>}
+                                      {si.confidence != null && si.confidence < 0.6 && <span className="text-xs text-amber-500 flex-shrink-0">低置信度</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* AI 评语 */}
+                    {assistData.overallComment && (
+                      <div className="bg-blue-50 rounded-xl p-4 text-sm text-[oklch(0.3_0.01_264)]">
+                        <span className="font-bold">AI 分析评语：</span>{assistData.overallComment}
+                      </div>
+                    )}
+
+                    {/* 定位声明 */}
+                    <div className="text-xs text-gray-400 text-center border-t pt-3">
+                      以上结果由 AI（LLM + OCR）辅助生成，仅供参考，以专家独立评分为准。
+                    </div>
+                  </div>
+                ) : (
                 <div className="space-y-6">
+                  {/* ── 旧规则引擎结构（降级模式） ── */}
                   {/* AI 综合评分卡 */}
                   <div className="bg-gradient-to-r from-[#054280] to-[#064ea2] rounded-xl p-6 text-white">
                     <div className="flex items-center justify-between mb-4">
                       <div>
-                        <p className="text-white/60 text-xs mb-1">{assistData.model || 'AI Engine'}</p>
+                        <p className="text-white/60 text-xs mb-1">{assistData.model || 'AI Engine（规则降级）'}</p>
                         <div className="flex items-baseline gap-2">
                           <span className="text-4xl font-extrabold">{assistData.overall?.score ?? '-'}</span>
                           <span className="text-white/70 text-sm">/100</span>
@@ -1042,6 +1168,7 @@ export default function ExpertEvaluatePage() {
                     </ul>
                   </div>
                 </div>
+                )) /* 闭合 ai_bidder_result 三元 */
               ) : assistLoading ? (
                 <div className="text-center py-12 text-[oklch(0.55_0.01_264)]">
                   <div className="mb-4"><Sparkles size={40} strokeWidth={1} className="text-[#064ea2] animate-pulse" /></div>
