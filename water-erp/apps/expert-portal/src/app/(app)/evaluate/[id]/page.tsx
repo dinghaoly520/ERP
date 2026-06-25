@@ -107,6 +107,7 @@ export default function ExpertEvaluatePage() {
   const [documents, setDocuments] = useState<DecryptedDocuments | null>(null);
   const [assistData, setAssistData] = useState<AssistData | null>(null);
   const [assistLoading, setAssistLoading] = useState(false);
+  const [assistTab, setAssistTab] = useState<'concordance' | 'keyInfo' | 'scoring' | 'fraud' | 'report'>('concordance');
   // P0-1: scores keyed by `${supplierId}:${scoreItemId}` (composite) — never flat by scoreItemId.
   const [scores, setScores] = useState<Record<string, { score: number; reason: string; passed?: boolean }>>({});
   const [report, setReport] = useState<EvaluationReport | null>(null);
@@ -919,117 +920,233 @@ export default function ExpertEvaluatePage() {
 
               {assistData ? (
                 (assistData.source === 'ai_bidder_result' ? (
-                  /* ── per-item AI 分析结果（Tab 容器） ── */
+                  /* ── per-item AI 分析结果（Tab 容器，方案 11.2） ── */
                   <div className="space-y-4">
-                    {/* 总分 + 资格 + 风险 概览卡 */}
-                    <div className="bg-gradient-to-r from-[#054280] to-[#064ea2] rounded-xl p-6 text-white">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <p className="text-white/60 text-xs mb-1">LLM + OCR 分析（per-item）</p>
-                          <div className="flex items-baseline gap-3">
-                            <span className="text-4xl font-extrabold">{assistData.totalScore?.toFixed(1) ?? '-'}</span>
-                            <span className="text-white/70 text-sm">总分</span>
-                            <span className={`ml-2 text-sm font-bold px-3 py-0.5 rounded-full ${(assistData.qualificationStatus === '通过') ? 'bg-emerald-400/30 text-emerald-100' : (assistData.qualificationStatus === '不通过') ? 'bg-red-400/30 text-red-100' : 'bg-amber-400/30 text-amber-100'}`}>
-                              资格：{assistData.qualificationStatus ?? '待审查'}
-                            </span>
-                            <span className={`text-sm font-bold px-3 py-0.5 rounded-full ${(assistData.riskLevel === 'low') ? 'bg-emerald-400/30 text-emerald-100' : (assistData.riskLevel === 'medium') ? 'bg-amber-400/30 text-amber-100' : 'bg-red-400/30 text-red-100'}`}>
-                              风险：{assistData.riskLevel === 'low' ? '低' : assistData.riskLevel === 'medium' ? '中' : '高'}
-                            </span>
-                          </div>
+                    {/* 总分概览卡（始终显示） */}
+                    <div className="bg-gradient-to-r from-[#054280] to-[#064ea2] rounded-xl p-5 text-white">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-baseline gap-3">
+                          <span className="text-4xl font-extrabold">{Number(assistData.totalScore ?? 0).toFixed(1)}</span>
+                          <span className="text-white/70 text-sm">总分</span>
+                          <span className={`ml-2 text-xs font-bold px-2.5 py-0.5 rounded-full ${(assistData.qualificationStatus === '通过') ? 'bg-emerald-400/30 text-emerald-100' : (assistData.qualificationStatus === '不通过') ? 'bg-red-400/30 text-red-100' : 'bg-amber-400/30 text-amber-100'}`}>
+                            资格：{assistData.qualificationStatus ?? '待审查'}
+                          </span>
+                          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${(assistData.riskLevel === 'low') ? 'bg-emerald-400/30 text-emerald-100' : (assistData.riskLevel === 'medium') ? 'bg-amber-400/30 text-amber-100' : 'bg-red-400/30 text-red-100'}`}>
+                            风险：{assistData.riskLevel === 'low' ? '低' : assistData.riskLevel === 'medium' ? '中' : '高'}
+                          </span>
                         </div>
                         {assistData.concordanceStatus && (
                           <div className="text-right text-xs">
-                            <div className="text-white/50">一致性校验</div>
                             <span className={`font-bold ${assistData.concordanceStatus === 'consistent' ? 'text-emerald-300' : assistData.concordanceStatus === 'conflict' ? 'text-red-300' : 'text-amber-300'}`}>
-                              {assistData.concordanceStatus === 'consistent' ? '一致' : assistData.concordanceStatus === 'conflict' ? '冲突' : assistData.concordanceStatus === 'minor_diff' ? '轻微差异' : '数据不足'}
+                              一致性：{assistData.concordanceStatus === 'consistent' ? '✓ 一致' : assistData.concordanceStatus === 'conflict' ? '⚠ 冲突' : assistData.concordanceStatus === 'minor_diff' ? '⚠ 轻微差异' : '数据不足'}
                             </span>
                           </div>
                         )}
                       </div>
-                      {/* 5 维 categoryTotals 横向条 */}
-                      {assistData.categoryTotals && (
-                        <div className="grid grid-cols-5 gap-2 mt-3">
-                          {(['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'] as const).map(cat => {
-                            const ct = (assistData.categoryTotals as Record<string, { score: number; max: number }>)[cat];
-                            if (!ct || ct.max === 0) return null;
-                            const pct = Math.round((ct.score / ct.max) * 100);
-                            const labels: Record<string, string> = { QUALIFICATION: '资格', RESPONSIVE: '响应性', BUSINESS: '商务', TECHNICAL: '技术', PRICE: '价格' };
-                            return (
-                              <div key={cat} className="text-center">
-                                <div className="text-xs text-white/60 mb-1">{labels[cat]}</div>
-                                <div className="text-lg font-bold">{ct.score.toFixed(1)}</div>
-                                <div className="text-xs text-white/40">/ {ct.max}</div>
-                                <div className="h-1.5 bg-white/10 rounded-full mt-1">
-                                  <div className="h-full bg-white/60 rounded-full" style={{ width: `${pct}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
                     </div>
 
-                    {/* 一致性校验详情 */}
-                    {assistData.concordance && Array.isArray((assistData.concordance as any[])) && (
+                    {/* Tab 导航 */}
+                    <div className="flex gap-1 border-b border-[oklch(0.90_0.003_287)]">
+                      {([
+                        { key: 'concordance', label: '数据一致性', icon: '🔴' },
+                        { key: 'keyInfo', label: '关键信息', icon: '📋' },
+                        { key: 'scoring', label: '评分分析', icon: '📊' },
+                        { key: 'fraud', label: '串通检测', icon: '🔍' },
+                        { key: 'report', label: '综合报告', icon: '📄' },
+                      ] as const).map(tab => (
+                        <button
+                          key={tab.key}
+                          onClick={() => setAssistTab(tab.key)}
+                          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${assistTab === tab.key ? 'border-[#064ea2] text-[#064ea2]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* ── Tab 1: 数据一致性 ── */}
+                    {assistTab === 'concordance' && (
                       <div className="bg-white rounded-xl border border-[oklch(0.92_0.004_287)] p-4">
-                        <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3 flex items-center gap-1.5"><AlertCircle size={14} strokeWidth={1.5} /> 双源一致性校验</h3>
-                        <div className="space-y-2">
-                          {(assistData.concordance as Array<{ label?: string; field?: string; systemValue?: unknown; docValue?: unknown; status?: string; severity?: string; note?: string }>).filter(c => c.status !== 'insufficient_data').map((check, i) => (
-                            <div key={i} className={`flex items-center gap-3 p-2 rounded-lg text-sm ${(check.status === 'conflict') ? 'bg-red-50 text-red-700' : (check.status === 'minor_diff') ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${(check.status === 'conflict') ? 'bg-red-500' : (check.status === 'minor_diff') ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                              <span className="font-semibold min-w-20">{check.label || check.field}</span>
-                              <span className="text-gray-500">系统：{String(check.systemValue ?? '—')}</span>
-                              <span className="text-gray-400">vs</span>
-                              <span className="text-gray-500">标书：{String(check.docValue ?? '—')}</span>
-                              {check.note && <span className="text-xs text-gray-400 ml-auto">{check.note}</span>}
+                        <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3 flex items-center gap-1.5"><AlertCircle size={14} strokeWidth={1.5} /> 双源一致性校验（系统数据 vs 标书 OCR）</h3>
+                        {assistData.concordance && Array.isArray((assistData.concordance as any[])) ? (
+                          <div className="space-y-2">
+                            {/* 统计条 */}
+                            <div className="flex gap-4 mb-3 text-sm">
+                              <span className="text-red-600 font-semibold">冲突 {((assistData.concordance as any[]).filter(c => c.status === 'conflict')).length}</span>
+                              <span className="text-amber-600 font-semibold">警告 {((assistData.concordance as any[]).filter(c => c.status === 'minor_diff')).length}</span>
+                              <span className="text-emerald-600 font-semibold">一致 {((assistData.concordance as any[]).filter(c => c.status === 'consistent')).length}</span>
                             </div>
-                          ))}
-                        </div>
+                            {/* 字段明细（冲突优先） */}
+                            {(assistData.concordance as Array<{ label?: string; field?: string; systemValue?: unknown; docValue?: unknown; status?: string; severity?: string; note?: string }>)
+                              .filter(c => c.status !== 'insufficient_data')
+                              .sort((a, b) => (a.status === 'conflict' ? 0 : a.status === 'minor_diff' ? 1 : 2) - (b.status === 'conflict' ? 0 : b.status === 'minor_diff' ? 1 : 2))
+                              .map((check, i) => (
+                                <div key={i} className={`p-3 rounded-lg ${(check.status === 'conflict') ? 'bg-red-50 border border-red-200' : (check.status === 'minor_diff') ? 'bg-amber-50 border border-amber-200' : 'bg-emerald-50 border border-emerald-200'}`}>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${(check.status === 'conflict') ? 'bg-red-500' : (check.status === 'minor_diff') ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                    <span className="font-bold text-sm">{check.label || check.field}</span>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ml-auto ${(check.status === 'conflict') ? 'bg-red-100 text-red-700' : (check.status === 'minor_diff') ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                      {check.status === 'conflict' ? '冲突' : check.status === 'minor_diff' ? '轻微差异' : '一致'}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 text-xs ml-4">
+                                    <div><span className="text-gray-400">系统：</span><span className="text-gray-700 font-medium">{String(check.systemValue ?? '—')}</span></div>
+                                    <div><span className="text-gray-400">标书：</span><span className="text-gray-700 font-medium">{String(check.docValue ?? '—')}</span></div>
+                                  </div>
+                                  {check.note && <div className="text-xs text-gray-400 mt-1 ml-4">{check.note}</div>}
+                                </div>
+                              ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-400">暂无一致性校验数据</p>
+                        )}
                       </div>
                     )}
 
-                    {/* per-item 评分明细（按 category 分组） */}
-                    {assistData.scoreItems && assistData.scoreItems.length > 0 && (
+                    {/* ── Tab 2: 关键信息 ── */}
+                    {assistTab === 'keyInfo' && (
                       <div className="bg-white rounded-xl border border-[oklch(0.92_0.004_287)] p-4">
-                        <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3 flex items-center gap-1.5"><FileText size={14} strokeWidth={1.5} /> 评分明细（per-item）</h3>
-                        <div className="space-y-3">
-                          {Object.entries(
-                            assistData.scoreItems.reduce((acc, si) => {
-                              const cat = si.category;
-                              if (!acc[cat]) acc[cat] = [];
-                              acc[cat].push(si);
-                              return acc;
-                            }, {} as Record<string, typeof assistData.scoreItems>)
-                          ).map(([cat, items]) => {
-                            const catLabels: Record<string, string> = { QUALIFICATION: '资格', RESPONSIVE: '响应性', BUSINESS: '商务', TECHNICAL: '技术', PRICE: '价格' };
-                            const catTotal = (assistData.categoryTotals as Record<string, { score: number; max: number }>)?.[cat];
-                            return (
-                              <div key={cat}>
-                                <div className="flex items-center gap-2 mb-2 text-sm font-bold text-[oklch(0.3_0.01_264)]">
-                                  <span className="border-l-2 border-[#064ea2] pl-2">{catLabels[cat] || cat}</span>
-                                  {catTotal && <span className="text-xs text-gray-400 font-normal">{catTotal.score.toFixed(1)} / {catTotal.max}</span>}
+                        <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3 flex items-center gap-1.5"><Clipboard size={14} strokeWidth={1.5} /> 关键信息（标书提取）</h3>
+                        {assistData.keyInfo ? (
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            {[
+                              { label: '法定代表人', key: 'legalPerson' },
+                              { label: '投标报价', key: 'quotePriceYuan', suffix: '元' },
+                              { label: '工期', key: 'constructionPeriod' },
+                              { label: '资质等级', key: 'qualificationLevel' },
+                              { label: '资质名称', key: 'qualificationName' },
+                              { label: '注册资本', key: 'registeredCapital' },
+                              { label: '项目经理', key: 'proposedProjectManager' },
+                              { label: '联系电话', key: 'contactInfo.phone', nested: true },
+                              { label: '电子邮箱', key: 'contactInfo.email', nested: true },
+                              { label: '业绩数量', key: 'performanceCount' },
+                            ].map(({ label, key, nested, suffix }) => {
+                              const val = nested
+                                ? (assistData.keyInfo as Record<string, any>)['contactInfo']?.[key.split('.')[1]]
+                                : (assistData.keyInfo as Record<string, any>)[key];
+                              return (
+                                <div key={key} className="p-2.5 bg-gray-50 rounded-lg">
+                                  <div className="text-xs text-gray-400 mb-0.5">{label}</div>
+                                  <div className="font-semibold text-[oklch(0.18_0.012_265)]">{val ? String(val) + (suffix || '') : '—'}</div>
                                 </div>
-                                <div className="space-y-1.5">
-                                  {items.map((si, idx) => (
-                                    <div key={idx} className="flex items-start gap-3 text-sm pl-4 py-1">
-                                      <span className="text-gray-600 min-w-32 flex-shrink-0">{si.name}</span>
-                                      <span className="font-bold text-[oklch(0.18_0.012_265)] min-w-16">{si.maxScore === 0 ? (si.pass ? '通过' : '不通过') : `${si.score.toFixed(1)} / ${si.maxScore}`}</span>
-                                      {si.reason && <span className="text-xs text-gray-400 flex-1">{si.reason}</span>}
-                                      {si.confidence != null && si.confidence < 0.6 && <span className="text-xs text-amber-500 flex-shrink-0">低置信度</span>}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-400">暂无关键信息</p>
+                        )}
                       </div>
                     )}
 
-                    {/* AI 评语 */}
-                    {assistData.overallComment && (
-                      <div className="bg-blue-50 rounded-xl p-4 text-sm text-[oklch(0.3_0.01_264)]">
-                        <span className="font-bold">AI 分析评语：</span>{assistData.overallComment}
+                    {/* ── Tab 3: 评分分析 ── */}
+                    {assistTab === 'scoring' && (
+                      <div className="space-y-4">
+                        {/* 5 维雷达图（SVG） */}
+                        {assistData.categoryTotals && (
+                          <div className="bg-white rounded-xl border border-[oklch(0.92_0.004_287)] p-4">
+                            <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3 flex items-center gap-1.5"><BarChart3 size={14} strokeWidth={1.5} /> 评分维度（雷达图）</h3>
+                            <RadarChart categoryTotals={assistData.categoryTotals as Record<string, { score: number; max: number }>} />
+                          </div>
+                        )}
+                        {/* per-item 评分明细 */}
+                        {assistData.scoreItems && assistData.scoreItems.length > 0 && (
+                          <div className="bg-white rounded-xl border border-[oklch(0.92_0.004_287)] p-4">
+                            <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-3 flex items-center gap-1.5"><FileText size={14} strokeWidth={1.5} /> per-item 评分明细</h3>
+                            <div className="space-y-3">
+                              {Object.entries(
+                                assistData.scoreItems.reduce((acc, si) => {
+                                  const cat = si.category;
+                                  if (!acc[cat]) acc[cat] = [];
+                                  acc[cat].push(si);
+                                  return acc;
+                                }, {} as Record<string, typeof assistData.scoreItems>)
+                              ).map(([cat, items]) => {
+                                const catLabels: Record<string, string> = { QUALIFICATION: '资格', RESPONSIVE: '响应性', BUSINESS: '商务', TECHNICAL: '技术', PRICE: '价格' };
+                                const catTotal = (assistData.categoryTotals as Record<string, { score: number; max: number }>)?.[cat];
+                                return (
+                                  <div key={cat}>
+                                    <div className="flex items-center gap-2 mb-2 text-sm font-bold text-[oklch(0.3_0.01_264)]">
+                                      <span className="border-l-2 border-[#064ea2] pl-2">{catLabels[cat] || cat}</span>
+                                      {catTotal && <span className="text-xs text-gray-400 font-normal">{Number(catTotal.score).toFixed(1)} / {catTotal.max}</span>}
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      {items.map((si, idx) => (
+                                        <div key={idx} className="flex items-start gap-3 text-sm pl-4 py-1">
+                                          <span className="text-gray-600 min-w-32 flex-shrink-0">{si.name}</span>
+                                          <span className="font-bold text-[oklch(0.18_0.012_265)] min-w-16">{si.maxScore === 0 ? (si.pass ? '通过' : '不通过') : `${Number(si.score).toFixed(1)} / ${si.maxScore}`}</span>
+                                          {si.reason && <span className="text-xs text-gray-400 flex-1">{si.reason}</span>}
+                                          {si.confidence != null && si.confidence < 0.6 && <span className="text-xs text-amber-500 flex-shrink-0">低置信度</span>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {assistData.overallComment && (
+                          <div className="bg-blue-50 rounded-xl p-4 text-sm text-[oklch(0.3_0.01_264)]">
+                            <span className="font-bold">AI 分析评语：</span>{assistData.overallComment}
+                          </div>
+                        )}
+                        {/* AI 建议 vs 专家评分对比（6.4） */}
+                        {activeSupplier && assistData.scoreItems && (() => {
+                          const myScoredItems = project.scoreItems.filter(si => scores[scoreKey(activeSupplier, si.id)]);
+                          if (myScoredItems.length === 0) return null;
+                          return (
+                            <div className="bg-white rounded-xl border border-[oklch(0.92_0.004_287)] p-4">
+                              <h4 className="font-bold text-[oklch(0.18_0.012_265)] mb-3 flex items-center gap-1.5 text-sm"><Edit3 size={13} strokeWidth={1.5} /> AI 建议 vs 您的评分</h4>
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="text-xs text-gray-400 border-b">
+                                    <th className="text-left pb-1">评分项</th>
+                                    <th className="text-right pb-1">AI 建议</th>
+                                    <th className="text-right pb-1">您的评分</th>
+                                    <th className="text-right pb-1">偏差</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {myScoredItems.map(si => {
+                                    const aiItem = assistData.scoreItems?.find(a => a.scoreItemId === si.id);
+                                    const myScore = scores[scoreKey(activeSupplier, si.id)];
+                                    const aiScore = aiItem ? Number(aiItem.score) : null;
+                                    const diff = aiScore != null ? Number(myScore.score) - aiScore : null;
+                                    return (
+                                      <tr key={si.id} className="border-b border-gray-50 last:border-0">
+                                        <td className="py-1.5 text-gray-600">{si.name}</td>
+                                        <td className="py-1.5 text-right text-[#064ea2] font-semibold">{aiScore != null ? aiScore.toFixed(1) : '—'}</td>
+                                        <td className="py-1.5 text-right font-bold">{Number(myScore.score).toFixed(1)}</td>
+                                        <td className={`py-1.5 text-right text-xs font-semibold ${diff != null && Math.abs(diff) >= 2 ? 'text-red-500' : diff != null && Math.abs(diff) >= 1 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                          {diff != null ? (diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1)) : '—'}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                              <p className="text-xs text-gray-400 mt-2">偏差 ≥2 分标红，建议复核该项评分依据。</p>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {/* ── Tab 4: 串通检测 ── */}
+                    {assistTab === 'fraud' && (
+                      <div className="bg-white rounded-xl border border-[oklch(0.92_0.004_287)] p-8 text-center">
+                        <AlertTriangle size={32} strokeWidth={1} className="text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm text-gray-400">串通检测为多供应商横向分析</p>
+                        <p className="text-xs text-gray-300 mt-1">需在评标管理端触发第二轮分析后生成</p>
+                      </div>
+                    )}
+
+                    {/* ── Tab 5: 综合报告 ── */}
+                    {assistTab === 'report' && (
+                      <div className="bg-white rounded-xl border border-[oklch(0.92_0.004_287)] p-8 text-center">
+                        <FileText size={32} strokeWidth={1} className="text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm text-gray-400">综合报告在所有供应商评标完成后生成</p>
+                        <p className="text-xs text-gray-300 mt-1">含排名、DOCX 导出等</p>
                       </div>
                     )}
 
@@ -1456,6 +1573,63 @@ export default function ExpertEvaluatePage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ── 雷达图组件（5 维 categoryTotals，方案 11.3） ── */
+function RadarChart({ categoryTotals }: { categoryTotals: Record<string, { score: number; max: number }> }) {
+  const cats = [
+    { key: 'TECHNICAL', label: '技术' },
+    { key: 'BUSINESS', label: '商务' },
+    { key: 'PRICE', label: '价格' },
+    { key: 'RESPONSIVE', label: '响应性' },
+    { key: 'QUALIFICATION', label: '资格' },
+  ].filter(c => categoryTotals[c.key] && categoryTotals[c.key].max > 0);
+
+  if (cats.length < 3) return <p className="text-sm text-gray-400">评分维度不足，无法绘制雷达图</p>;
+
+  const cx = 130, cy = 130, r = 90;
+  const angleStep = (Math.PI * 2) / cats.length;
+
+  const points = cats.map((cat, i) => {
+    const ct = categoryTotals[cat.key];
+    const ratio = Math.min(1, Number(ct.score) / ct.max);
+    const angle = -Math.PI / 2 + i * angleStep;
+    return { x: cx + Math.cos(angle) * r * ratio, y: cy + Math.sin(angle) * r * ratio };
+  });
+  const labelPoints = cats.map((cat, i) => {
+    const angle = -Math.PI / 2 + i * angleStep;
+    return { x: cx + Math.cos(angle) * (r + 20), y: cy + Math.sin(angle) * (r + 20), label: cat.label, score: Number(categoryTotals[cat.key].score).toFixed(1), max: categoryTotals[cat.key].max };
+  });
+  const polygonStr = points.map(p => `${p.x},${p.y}`).join(' ');
+
+  return (
+    <div className="flex justify-center">
+      <svg width={280} height={280} className="overflow-visible">
+        {/* 同心圆背景 */}
+        {[0.25, 0.5, 0.75, 1].map(ratio => (
+          <polygon key={ratio} points={cats.map((_, i) => {
+            const angle = -Math.PI / 2 + i * angleStep;
+            return `${cx + Math.cos(angle) * r * ratio},${cy + Math.sin(angle) * r * ratio}`;
+          }).join(' ')} fill="none" stroke="#e2e8f0" strokeWidth={1} />
+        ))}
+        {/* 轴线 */}
+        {cats.map((cat, i) => {
+          const angle = -Math.PI / 2 + i * angleStep;
+          return <line key={i} x1={cx} y1={cy} x2={cx + Math.cos(angle) * r} y2={cy + Math.sin(angle) * r} stroke="#e2e8f0" strokeWidth={1} />;
+        })}
+        {/* 评分多边形 */}
+        <polygon points={polygonStr} fill="rgba(6, 78, 162, 0.15)" stroke="#064ea2" strokeWidth={2} />
+        {points.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={3} fill="#064ea2" />)}
+        {/* 标签 */}
+        {labelPoints.map((lp, i) => (
+          <g key={i}>
+            <text x={lp.x} y={lp.y - 4} textAnchor="middle" className="text-xs fill-gray-600" style={{ fontSize: 11, fontWeight: 600 }}>{lp.label}</text>
+            <text x={lp.x} y={lp.y + 8} textAnchor="middle" className="fill-[#064ea2]" style={{ fontSize: 10 }}>{lp.score}/{lp.max}</text>
+          </g>
+        ))}
+      </svg>
     </div>
   );
 }
