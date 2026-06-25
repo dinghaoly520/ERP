@@ -623,6 +623,12 @@ export class BidService {
     this.gateway?.notifyEvaluationStarted(id);
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '启动评标 (OPENING→EVALUATING)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
 
+    // 15.10: AI 分析启动监督日志
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '启动AI辅助分析', result: `${evaluableSupplierCount}家供应商入队分析`, riskFlag: '无' },
+    }).catch(() => {});
+    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '启动AI辅助分析', target: project.name, result: `${evaluableSupplierCount}家供应商入队`, riskFlag: '无' });
+
     // 4.3: 入队 AI 分析（tender 处理 → 触发 worker 端到端）
     if (this.tenderQueue) {
       const aiTask = await this.prisma.aiBidAnalysisTask.findUnique({
