@@ -428,24 +428,133 @@
   @keyframes suFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
   /* Catalog bubbles */
   .ct-bubble-wrap{position:relative;width:100%;height:calc(100% - 12px)}
-  .ct-bubble{position:absolute;border-radius:50%;display:grid;place-items:center;text-align:center;cursor:pointer;transition:transform .25s ease,box-shadow .25s ease}
+  .ct-bubble{position:absolute;border-radius:50%;display:grid;place-items:center;text-align:center;cursor:pointer;
+    transition:transform .3s cubic-bezier(.4,0,.2,1),box-shadow .35s ease,filter .5s ease,border-color .5s ease}
   .ct-bubble:hover{transform:scale(1.2)!important;z-index:5}
-  .ct-bubble span{font-size:8px;font-weight:500;color:rgba(255,255,255,.72);line-height:1.1}
-  .ct-bubble b{display:block;font-size:16px;font-weight:900;color:#fff;line-height:1;text-shadow:0 0 6px rgba(0,0,0,.3)}
+  .ct-bubble span{font-size:8px;font-weight:500;color:rgba(255,255,255,.72);line-height:1.1;transition:color .4s}
+  .ct-bubble b{display:block;font-size:16px;font-weight:900;color:#fff;line-height:1;text-shadow:0 0 6px rgba(0,0,0,.3);transition:text-shadow .4s,color .4s}
+  /* ── Highlight pulse: color flash + pop ── */
+  .ct-bubble.ct-glow{filter:brightness(1.45) saturate(1.4);z-index:4}
+  .ct-bubble.ct-glow b{color:#fff;text-shadow:0 0 14px rgba(255,255,255,.55)}
+  .ct-bubble.ct-glow span{color:rgba(255,255,255,.92)}
+  .ct-bubble.ct-pop{transform:scale(1.10)}
+  /* ── Flash ring pseudo-element ── */
+  .ct-bubble.ct-glow:before{content:"";position:absolute;inset:-6px;border-radius:50%;
+    border:1.5px solid rgba(255,255,255,.25);pointer-events:none;
+    animation:ctRingFlash .55s ease-out both}
+  @keyframes ctRingFlash{0%{inset:-2px;opacity:.8;border-color:rgba(255,255,255,.45)}100%{inset:-16px;opacity:0;border-color:rgba(255,255,255,0)}}
   .ct-footer{font-size:9px;color:#5a7d9a}
   .ct-footer b{font-weight:700;color:#a0c8d8}
-  /* Contract compliance */
+  /* ═══════════════════════════════════════════
+     Contract compliance — rich color + glow system
+     Palette: emerald · amber · rose
+     ═══════════════════════════════════════════ */
+
+  /* ── Panel ambient breath — border + inner glow pulse ── */
+  #contract{animation:coBreathe 4s ease-in-out infinite}
+  @keyframes coBreathe{
+    0%,100%{box-shadow:0 0 12px rgba(0,164,255,.08)}
+    50%{box-shadow:0 0 12px rgba(0,164,255,.08),0 0 22px rgba(52,211,153,.10),0 0 36px rgba(251,191,36,.06)}
+  }
+  /* ── Corner beacon dot (top-right status indicator) ── */
+  #contract:after{content:"";position:absolute;right:8px;top:6px;width:6px;height:6px;
+    border-radius:50%;background:#34d399;z-index:10;pointer-events:none;
+    box-shadow:0 0 8px #34d399,0 0 18px rgba(52,211,153,.45);
+    animation:coBeacon 2s ease-in-out infinite}
+  @keyframes coBeacon{
+    0%,100%{box-shadow:0 0 6px #34d399,0 0 14px rgba(52,211,153,.35);transform:scale(1)}
+    50%{box-shadow:0 0 12px #34d399,0 0 24px rgba(52,211,153,.60),0 0 36px rgba(52,211,153,.25);transform:scale(1.5)}
+  }
+  /* ── Beacon ripple ring ── */
+  #contract .co-ripple{position:absolute;right:5px;top:3px;width:12px;height:12px;
+    border-radius:50%;border:1px solid rgba(52,211,153,.4);pointer-events:none;z-index:9;
+    animation:coRipple 2s ease-out infinite}
+  @keyframes coRipple{
+    0%{transform:scale(.5);opacity:.7;border-color:rgba(52,211,153,.5)}
+    100%{transform:scale(2.8);opacity:0;border-color:rgba(52,211,153,.0)}
+  }
+
+  /* ── Stat columns ── */
   .co-cols{display:flex;gap:6px}
-  .co-col{flex:1;text-align:center;padding:8px 4px 6px;border-radius:5px;background:rgba(18,40,70,.35);border:1px solid rgba(42,120,180,.08);transition:all .3s;cursor:pointer}
-  .co-col:hover{transform:translateY(-2px)}
-  .co-col b{display:block;font-size:18px;font-weight:900;color:#e8f4ff;line-height:1}
-  .co-col span{font-size:9px;font-weight:500;display:block;margin-top:2px}
-  .co-col em{display:block;font-size:11px;font-weight:700;font-style:normal;margin-top:3px}
-  .co-col-ok{border-top:2px solid #34d399}.co-col-ok b{color:#34d399}.co-col-ok em{color:#5eead4}
-  .co-col-warn{border-top:2px solid #fbbf24}.co-col-warn b{color:#fbbf24}.co-col-warn em{color:#fde68a}
-  .co-col-danger{border-top:2px solid #f87171}.co-col-danger b{color:#f87171}.co-col-danger em{color:#fca5a5}
-  .co-bar-simple{display:flex;height:6px;border-radius:3px;overflow:hidden;background:rgba(28,80,130,.15)}
-  .co-bar-simple i{display:block;height:100%;border-radius:0}
+  .co-col{flex:1;text-align:center;padding:8px 4px 6px;border-radius:5px;
+    background:rgba(18,40,70,.35);border:1px solid rgba(42,120,180,.08);
+    transition:all .35s cubic-bezier(.4,0,.2,1);cursor:pointer;position:relative}
+  .co-col:hover{transform:translateY(-3px)}
+  .co-col b{display:block;font-size:18px;font-weight:900;color:#e8f4ff;line-height:1;transition:color .35s,text-shadow .35s;position:relative;z-index:1}
+  .co-col span{font-size:9px;font-weight:500;display:block;margin-top:2px;position:relative;z-index:1;transition:color .35s}
+  .co-col em{display:block;font-size:11px;font-weight:700;font-style:normal;margin-top:3px;position:relative;z-index:1;transition:color .35s}
+
+  /* ── Per-card accents ── */
+  .co-col-ok{border-top:2px solid #34d399}
+  .co-col-ok b{color:#34d399}.co-col-ok em{color:#5eead4}
+  .co-col-ok:hover{background:linear-gradient(180deg,rgba(52,211,153,.28),rgba(52,211,153,.04))!important;
+    border-color:rgba(52,211,153,.50)!important;
+    box-shadow:0 0 22px rgba(52,211,153,.28),inset 0 0 18px rgba(52,211,153,.06)}
+  .co-col-ok:hover b{color:#6ee7b7;text-shadow:0 0 10px rgba(52,211,153,.5)}
+
+  .co-col-warn{border-top:2px solid #fbbf24}
+  .co-col-warn b{color:#fbbf24}.co-col-warn em{color:#fde68a}
+  .co-col-warn:hover{background:linear-gradient(180deg,rgba(251,191,36,.28),rgba(251,191,36,.04))!important;
+    border-color:rgba(251,191,36,.50)!important;
+    box-shadow:0 0 22px rgba(251,191,36,.28),inset 0 0 18px rgba(251,191,36,.06)}
+  .co-col-warn:hover b{color:#fcd34d;text-shadow:0 0 10px rgba(251,191,36,.5)}
+
+  .co-col-danger{border-top:2px solid #f87171}
+  .co-col-danger b{color:#f87171}.co-col-danger em{color:#fca5a5}
+  .co-col-danger:hover{background:linear-gradient(180deg,rgba(248,113,113,.28),rgba(248,113,113,.04))!important;
+    border-color:rgba(248,113,113,.50)!important;
+    box-shadow:0 0 22px rgba(248,113,113,.28),inset 0 0 18px rgba(248,113,113,.06)}
+  .co-col-danger:hover b{color:#fca5a5;text-shadow:0 0 10px rgba(248,113,113,.5)}
+
+  /* ── Number pop on load ── */
+  .co-pop b{animation:coNumPop .5s ease-out}
+  @keyframes coNumPop{0%{transform:scale(1.35);color:#fff;text-shadow:0 0 16px rgba(200,240,255,.7)}100%{transform:scale(1);color:inherit;text-shadow:none}}
+
+  /* ── Danger card periodic pulse ── */
+  .co-col-danger.pulse{animation:coDangerPulse 2.2s ease-in-out}
+  @keyframes coDangerPulse{0%,100%{box-shadow:0 0 6px rgba(248,113,113,.10)}40%{box-shadow:0 0 18px rgba(248,113,113,.35),0 0 6px rgba(248,113,113,.15)}}
+
+  /* ── Highlighted column (click-selected) ── */
+  .co-col.co-hi{transform:translateY(-4px)!important;z-index:3}
+  .co-col-ok.co-hi{background:linear-gradient(180deg,rgba(52,211,153,.35),rgba(52,211,153,.06))!important;
+    border-color:rgba(52,211,153,.55)!important;
+    box-shadow:0 0 26px rgba(52,211,153,.35),0 8px 20px rgba(0,0,0,.3)}
+  .co-col-ok.co-hi b{color:#6ee7b7!important;text-shadow:0 0 12px rgba(52,211,153,.5)}
+  .co-col-warn.co-hi{background:linear-gradient(180deg,rgba(251,191,36,.35),rgba(251,191,36,.06))!important;
+    border-color:rgba(251,191,36,.55)!important;
+    box-shadow:0 0 26px rgba(251,191,36,.35),0 8px 20px rgba(0,0,0,.3)}
+  .co-col-warn.co-hi b{color:#fcd34d!important;text-shadow:0 0 12px rgba(251,191,36,.5)}
+  .co-col-danger.co-hi{background:linear-gradient(180deg,rgba(248,113,113,.35),rgba(248,113,113,.06))!important;
+    border-color:rgba(248,113,113,.55)!important;
+    box-shadow:0 0 26px rgba(248,113,113,.35),0 8px 20px rgba(0,0,0,.3)}
+  .co-col-danger.co-hi b{color:#fca5a5!important;text-shadow:0 0 12px rgba(248,113,113,.5)}
+
+  /* ── Proportion bar ── */
+  .co-bar-simple{display:flex;height:6px;border-radius:3px;overflow:hidden;
+    background:rgba(28,80,130,.15);position:relative}
+  .co-bar-simple i{display:block;height:100%;border-radius:0;transition:filter .35s,box-shadow .35s;cursor:pointer}
+  .co-bar-simple i:hover{filter:brightness(1.6);box-shadow:0 0 10px currentColor;z-index:2}
+  /* Bar shimmer sweep */
+  .co-bar-simple:after{content:"";position:absolute;inset:0;border-radius:3px;
+    background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.0) 30%,rgba(255,255,255,.10) 50%,rgba(255,255,255,.0) 70%,transparent 100%);
+    animation:coBarShimmer 3.5s ease-in-out infinite;pointer-events:none;z-index:1}
+  @keyframes coBarShimmer{0%,100%{transform:translateX(-100%)}50%{transform:translateX(100%)}}
+  /* Bar grow entrance */
+  .co-bar-simple i{animation:coBarGrow 1.4s ease-out both}
+  .co-bar-simple i:nth-child(1){animation-delay:.2s}
+  .co-bar-simple i:nth-child(2){animation-delay:.45s}
+  .co-bar-simple i:nth-child(3){animation-delay:.7s}
+  @keyframes coBarGrow{from{width:0!important;opacity:.15}to{width:var(--w);opacity:1}}
+
+  /* ── Detail tooltip on hover ── */
+  .co-detail{font-size:9px;color:#7ea8c4;text-align:center;padding-top:2px;
+    opacity:0;transform:translateY(4px);transition:all .35s ease}
+  .co-detail.show{opacity:1;transform:translateY(0)}
+  .co-detail b{font-weight:700;color:#c0d8e8}
+
+  /* ── Fade-in for detail row ── */
+  .co-fade-in{animation:coFadeIn .7s ease-out both}
+  @keyframes coFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 
   .legend-item{transition:opacity .2s} .legend-item:hover{opacity:.6}
   .gauge{transition:box-shadow .3s} .gauge:hover{box-shadow:0 0 16px rgba(26,222,255,.3)}
@@ -792,18 +901,29 @@
     </div>
   </section>
 
-  <section id="contract" class="panel"><div class="panel-title">合同履约 <span class="unit">（85 项 · 总额 ¥865.34亿）</span></div>
+  <section id="contract" class="panel"><div class="panel-title">合同履约 <span class="unit" id="coTitle">（85 项 · 总额 ¥865.34亿）</span></div>
+    <div class="co-ripple"></div><div class="co-ripple" style="animation-delay:1s"></div>
     <div class="chart" style="top:28px;padding:0 8px;display:flex;flex-direction:column;justify-content:center;gap:8px">
-      <!-- Three stat columns -->
-      <div class="co-cols">
-        <div class="co-col co-col-ok"><b>50 项</b><span>已完成</span><em>¥1.09亿</em></div>
-        <div class="co-col co-col-warn"><b>27 项</b><span>履约中</span><em>¥0.59亿</em></div>
-        <div class="co-col co-col-danger"><b>8 项</b><span>异常</span><em>¥0.17亿</em></div>
+      <!-- Three stat columns with data attrs -->
+      <div class="co-cols" id="coCols">
+        <div class="co-col co-col-ok" data-key="ok" data-count="50" data-amount="1.09">
+          <b>50 项</b><span>已完成</span><em>¥1.09亿</em>
+        </div>
+        <div class="co-col co-col-warn" data-key="warn" data-count="27" data-amount="0.59">
+          <b>27 项</b><span>履约中</span><em>¥0.59亿</em>
+        </div>
+        <div class="co-col co-col-danger" data-key="danger" data-count="8" data-amount="0.17">
+          <b>8 项</b><span>异常</span><em>¥0.17亿</em>
+        </div>
       </div>
-      <!-- Simple proportion bar -->
-      <div class="co-bar-simple">
-        <i style="width:59%;background:#34d399"></i><i style="width:32%;background:#fbbf24"></i><i style="width:9%;background:#f87171"></i>
+      <!-- Proportion bar -->
+      <div class="co-bar-simple" id="coBar">
+        <i style="--w:59%;width:59%;background:#34d399" data-key="ok"></i>
+        <i style="--w:32%;width:32%;background:#fbbf24" data-key="warn"></i>
+        <i style="--w:9%;width:9%;background:#f87171" data-key="danger"></i>
       </div>
+      <!-- Cycling detail row -->
+      <div class="co-detail" id="coDetail"><b>50 项</b> 已完成履约 · 占比 <b>59%</b></div>
     </div>
   </section>
 
@@ -1100,6 +1220,50 @@
       el.addEventListener('click',()=>{el.style.transform='scale(0.9)';setTimeout(()=>el.style.transform='',150)});
       wrap.appendChild(el);
     });
+
+    // ── Staggered color highlight pulse — "气泡高亮跳动" ──
+    const bubbles = wrap.querySelectorAll('.ct-bubble');
+    if (bubbles.length) {
+      const PULSE_GAP = 7000;          // full cycle per bubble
+      const STAGGER = PULSE_GAP / bubbles.length; // evenly spaced stagger
+      let round = 0;
+
+      function triggerPulse(el) {
+        el.classList.add('ct-glow');
+        requestAnimationFrame(() => {
+          el.classList.add('ct-pop');
+          // pop peaks at 150ms, then settle
+          setTimeout(() => el.classList.remove('ct-pop'), 180);
+          // glow fades out after pop settles
+          setTimeout(() => el.classList.remove('ct-glow'), 700);
+        });
+      }
+
+      // Initial entrance wave — fire all in rapid sequence
+      setTimeout(() => {
+        bubbles.forEach((b, i) => {
+          setTimeout(() => triggerPulse(b), i * 120);
+        });
+      }, 1200);
+
+      // Staggered infinite loop
+      function scheduleNext(b, idx) {
+        const baseDelay = idx * STAGGER + round * PULSE_GAP;
+        const now = performance.now();
+        // Fire this bubble's pulse
+        setTimeout(() => {
+          triggerPulse(b);
+          // Schedule next round
+          if (idx === bubbles.length - 1) round++;
+          scheduleNext(b, idx);
+        }, Math.max(0, baseDelay - (performance.now() - now)));
+      }
+
+      // Kick off the stagger loop after entrance wave
+      setTimeout(() => {
+        bubbles.forEach((b, i) => scheduleNext(b, i));
+      }, 1200 + bubbles.length * 120 + 600);
+    }
   })();
 
   // === DONUT CENTER COUNT-UP ===
@@ -1339,6 +1503,198 @@
       }
     } catch(e) {
       console.log('大屏专家面板：API未连接，使用静态演示数据');
+    }
+  })();
+
+  // === CONTRACT PANEL: 合同履约 — 交互+光影+动效 ===
+  (function(){
+    var coCols = document.querySelectorAll('#coCols .co-col');
+    var coBar = document.getElementById('coBar');
+    var coDetail = document.getElementById('coDetail');
+    var coTitle = document.getElementById('coTitle');
+    if (!coCols.length) return;
+
+    // Data sets for cycling (3 views)
+    var views = [
+      { title:'（85 项 · 总额 ¥865.34亿）', counts:['50','27','8'], amounts:['1.09','0.59','0.17'], pcts:[59,32,9],
+        detail:'<b>50 项</b> 已完成履约 · 占比 <b>59%</b>' },
+      { title:'（按合同类型）', counts:['38','35','12'], amounts:['0.72','0.63','0.22'], pcts:[45,41,14],
+        detail:'工程类 <b>38 项</b> · 货物类 <b>35 项</b> · 服务类 <b>12 项</b>' },
+      { title:'（按履约进度）', counts:['22','41','22'], amounts:['0.34','0.83','0.40'], pcts:[26,48,26],
+        detail:'按期 <b>22 项</b> · 提前 <b>41 项</b> · 滞后 <b>22 项</b>' }
+    ];
+    var vi = 0; // current view index
+
+    // ── Count-up helper ──
+    function countUpText(el, from, to, dur, fmt){
+      var start = performance.now();
+      function step(ts){
+        var p = Math.min((ts - start) / dur, 1);
+        var ease = 1 - Math.pow(1 - p, 3);
+        var v = from + (to - from) * ease;
+        el.textContent = fmt ? fmt(v) : Math.round(v);
+        if (p < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    // ── Render a view ──
+    function renderView(v, animate){
+      var cols = document.querySelectorAll('#coCols .co-col');
+      var barSegs = document.querySelectorAll('#coBar i');
+      var labels = ['已完成','履约中','异常'];
+      var colors = ['#34d399','#fbbf24','#f87171'];
+      var emColors = ['#5eead4','#fde68a','#fca5a5'];
+
+      cols.forEach(function(col, i){
+        var b = col.querySelector('b');
+        var em = col.querySelector('em');
+        if (animate && b) {
+          var cur = parseInt(b.textContent) || 0;
+          var to = parseInt(v.counts[i]);
+          countUpText(b, cur, to, 600 + i * 150, function(x){ return Math.round(x) + ' 项'; });
+        } else if (b) {
+          b.textContent = v.counts[i] + ' 项';
+        }
+        if (em) em.textContent = '¥' + v.amounts[i] + '亿';
+        col.setAttribute('data-count', v.counts[i]);
+        col.setAttribute('data-amount', v.amounts[i]);
+      });
+
+      barSegs.forEach(function(seg, i){
+        seg.style.width = v.pcts[i] + '%';
+        seg.style.setProperty('--w', v.pcts[i] + '%');
+        if (animate) {
+          seg.style.animation = 'none';
+          seg.offsetHeight; // force reflow
+          seg.style.animation = 'coBarGrow 0.9s ease-out both';
+          seg.style.animationDelay = (i * 0.2) + 's';
+        }
+      });
+
+      if (coDetail) { coDetail.innerHTML = v.detail; coDetail.classList.add('show'); }
+      if (coTitle) coTitle.textContent = v.title;
+    }
+
+    // ── Highlight a column ──
+    function highlightCol(key){
+      coCols.forEach(function(col){ col.classList.remove('co-hi'); });
+      var barSegs = document.querySelectorAll('#coBar i');
+      barSegs.forEach(function(seg){ seg.style.filter = ''; seg.style.boxShadow = ''; });
+
+      if (!key) return;
+      var col = document.querySelector('#coCols .co-col[data-key="'+key+'"]');
+      if (col) col.classList.add('co-hi');
+      var seg = document.querySelector('#coBar i[data-key="'+key+'"]');
+      if (seg) { seg.style.filter = 'brightness(1.6)'; seg.style.boxShadow = '0 0 12px currentColor'; }
+    }
+
+    // ── INIT: staggered entrance + count-up ──
+    setTimeout(function(){
+      // 1. KPI number pop
+      coCols.forEach(function(col, i){
+        setTimeout(function(){
+          col.classList.add('co-pop');
+          setTimeout(function(){ col.classList.remove('co-pop'); }, 500);
+        }, 300 + i * 180);
+      });
+      // 2. Bar grow (already in CSS via .co-bar-simple i)
+      // 3. Detail fade-in
+      if (coDetail) {
+        coDetail.classList.add('co-fade-in');
+        setTimeout(function(){ coDetail.classList.add('show'); }, 400);
+      }
+
+      // ── Click on stat column → highlight ──
+      coCols.forEach(function(col){
+        col.addEventListener('click', function(e){
+          e.stopPropagation();
+          var key = col.getAttribute('data-key');
+          var currentlyHi = col.classList.contains('co-hi');
+          highlightCol(currentlyHi ? null : key);
+        });
+      });
+
+      // ── Click on bar segment → highlight corresponding column ──
+      var barSegs = document.querySelectorAll('#coBar i');
+      barSegs.forEach(function(seg){
+        seg.addEventListener('click', function(e){
+          e.stopPropagation();
+          var key = seg.getAttribute('data-key');
+          var currentlyHi = document.querySelector('#coCols .co-col.co-hi[data-key="'+key+'"]');
+          highlightCol(currentlyHi ? null : key);
+        });
+      });
+
+      // ── Hover on column ↔ bar sync ──
+      coCols.forEach(function(col){
+        col.addEventListener('mouseenter', function(){
+          var key = col.getAttribute('data-key');
+          var seg = document.querySelector('#coBar i[data-key="'+key+'"]');
+          if (seg && !col.classList.contains('co-hi')) {
+            seg.style.filter = 'brightness(1.5)'; seg.style.boxShadow = '0 0 8px currentColor';
+          }
+        });
+        col.addEventListener('mouseleave', function(){
+          var key = col.getAttribute('data-key');
+          var seg = document.querySelector('#coBar i[data-key="'+key+'"]');
+          if (seg && !col.classList.contains('co-hi')) {
+            seg.style.filter = ''; seg.style.boxShadow = '';
+          }
+        });
+      });
+
+      barSegs.forEach(function(seg){
+        seg.addEventListener('mouseenter', function(){
+          var key = seg.getAttribute('data-key');
+          var col = document.querySelector('#coCols .co-col[data-key="'+key+'"]');
+          if (col && !col.classList.contains('co-hi')) {
+            col.style.transform = 'translateY(-3px)';
+            col.style.borderColor = 'rgba(80,230,255,.45)';
+          }
+        });
+        seg.addEventListener('mouseleave', function(){
+          var key = seg.getAttribute('data-key');
+          var col = document.querySelector('#coCols .co-col[data-key="'+key+'"]');
+          if (col && !col.classList.contains('co-hi')) {
+            col.style.transform = '';
+            col.style.borderColor = '';
+          }
+        });
+      });
+
+      // ── Periodic danger pulse ──
+      var dangerCol = document.querySelector('#coCols .co-col-danger');
+      if (dangerCol) {
+        setInterval(function(){
+          dangerCol.classList.add('pulse');
+          setTimeout(function(){ dangerCol.classList.remove('pulse'); }, 2200);
+        }, 8000);
+        // Initial pulse after entrance
+        setTimeout(function(){
+          dangerCol.classList.add('pulse');
+          setTimeout(function(){ dangerCol.classList.remove('pulse'); }, 2200);
+        }, 3600);
+      }
+    }, 600); // delay for entrance animation
+
+    // ── View cycling (every 12s) ──
+    setInterval(function(){
+      vi = (vi + 1) % views.length;
+      renderView(views[vi], true);
+    }, 12000);
+
+    // ── Click on detail row → cycle view ──
+    if (coDetail) {
+      coDetail.style.cursor = 'pointer';
+      coDetail.title = '点击切换履约视图';
+      coDetail.addEventListener('click', function(){
+        vi = (vi + 1) % views.length;
+        renderView(views[vi], true);
+        // Brief flash on detail
+        coDetail.style.color = '#e8f4ff';
+        setTimeout(function(){ coDetail.style.color = ''; }, 300);
+      });
     }
   })();
 </script>
