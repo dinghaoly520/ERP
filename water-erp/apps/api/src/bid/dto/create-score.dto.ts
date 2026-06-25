@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsNotEmpty, Min, Max } from 'class-validator';
+import { IsString, IsNumber, IsBoolean, IsOptional, IsNotEmpty, Min, Max } from 'class-validator';
 
 export class CreateScoreDto {
   @IsString()
@@ -21,4 +21,8 @@ export class CreateScoreDto {
   @IsString()
   @IsOptional()
   reason?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  passed?: boolean;
 }

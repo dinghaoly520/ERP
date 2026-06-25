@@ -388,7 +388,14 @@ export class ExpertService {
       throw new ForbiddenException({ error: '请先完成身份核验和回避确认', code: 'VERIFICATION_REQUIRED' });
     }
     // P2: block scoring for suppliers the expert declared as conflicted
-    const expertConflicts: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    // 防御性处理：Prisma Json 字段可能返回数组或字符串（seed 数据历史遗留）
+    const rawConflicts = expert.conflictedSupplierIds;
+    let expertConflicts: string[] = [];
+    if (Array.isArray(rawConflicts)) {
+      expertConflicts = rawConflicts as string[];
+    } else if (typeof rawConflicts === 'string' && rawConflicts.length > 0) {
+      try { expertConflicts = JSON.parse(rawConflicts); } catch { /* 解析失败则保持空数组 */ }
+    }
     const conflictSuppliers = dto.scores
       .map(s => s.supplierId)
       .filter(sid => expertConflicts.includes(sid));

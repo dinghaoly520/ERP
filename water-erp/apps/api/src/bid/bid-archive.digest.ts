@@ -11,6 +11,8 @@ interface ArchiveItemLike {
   name: string;
   ownerRole: string;
   status: string;
+  /** 关联文件的 SHA-256 哈希，纳入链式哈希以保证内容完整性 */
+  fileHashes?: string[];
 }
 
 /** 稳定排序：归档项按 id 升序，确保输入顺序不影响哈希。 */
@@ -37,7 +39,9 @@ export function genesisHash(project: ArchiveProject): string {
  * @deprecated 新代码应使用 {@link computeArchiveChain} 获取逐项链式哈希。
  */
 export function computeArchiveDigest(project: ArchiveProject, items: ArchiveItemLike[]): string {
-  const normalizedItems = sortByItemId(items).map(i => [i.id, i.name, i.ownerRole, i.status]);
+  const normalizedItems = sortByItemId(items).map(i =>
+    [i.id, i.name, i.ownerRole, i.status, ...(i.fileHashes?.length ? [i.fileHashes.slice().sort()] : [])],
+  );
   const payload = JSON.stringify({
     projectId: project.id,
     projectCode: project.projectCode,
@@ -70,6 +74,7 @@ export function computeArchiveChain(project: ArchiveProject, items: ArchiveItemL
       name: item.name,
       ownerRole: item.ownerRole,
       status: item.status,
+      ...(item.fileHashes?.length ? { fileHashes: item.fileHashes.slice().sort() } : {}),
     });
     const h = crypto.createHash('sha256').update(itemPayload, 'utf8').digest('hex');
     result.set(item.id, `sha256:${h}`);

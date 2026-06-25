@@ -13,4 +13,6 @@ export class CreateBidProjectDto {
   @IsString() @IsOptional() qualityRequirement?: string;
   @IsBoolean() @IsOptional() bondRequired?: boolean;
   @IsNumber() @IsOptional() bondAmount?: number;
+  /** 关联公告 ID：通过公告创建项目时填入，自动写入公告的 relatedProjectCode */
+  @IsString() @IsOptional() announcementId?: string;
 }

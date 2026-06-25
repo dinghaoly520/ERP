@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import type { ConnectionState, ExpertPresenceAggregatePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload } from '@water-erp/shared';
+import { BID_EVENT } from '@water-erp/shared';
+import { portalURL } from '@water-erp/config';
 
 function wsUrl(): string {
   if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
-  return 'http://localhost:4001/bid';
+  return portalURL('api', '/bid');
 }
 
 interface Handlers {
@@ -96,11 +98,11 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
       });
     };
     const h = handlersRef;
-    on('expert:presence:aggregate', h.current.onAggregatePresence);
-    on('decrypt:status', h.current.onDecryptStatus);
-    on('stage:change', h.current.onStageChange);
-    on('clarification:created', h.current.onClarificationCreated);
-    on('clarification:replied', h.current.onClarificationReplied);
+    on(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, h.current.onAggregatePresence);
+    on(BID_EVENT.DECRYPT_STATUS, h.current.onDecryptStatus);
+    on(BID_EVENT.STAGE_CHANGE, h.current.onStageChange);
+    on(BID_EVENT.CLARIFICATION_CREATED, h.current.onClarificationCreated);
+    on(BID_EVENT.CLARIFICATION_REPLIED, h.current.onClarificationReplied);
   }, [projectId]);
 
   const reconnectNow = useCallback(() => {

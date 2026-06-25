@@ -10,6 +10,8 @@ import { useAutoSave, useRouteLeaveGuard } from '@/composables'
 import dayjs from 'dayjs'
 
 const route = useRoute(); const router = useRouter(); const bidStore = useBidStore(); const supplierStore = useSupplierStore()
+const maxUploadSizeMB = Number(import.meta.env.VITE_MAX_UPLOAD_SIZE_MB) || 50
+const maxUploadSize = maxUploadSizeMB * 1024 * 1024
 const loading = ref(true); const error = ref(false); const submitting = ref(false); const saving = ref(false)
 const projectId = computed(() => route.params.id as string)
 const form = ref({ bidPrice: '', deliveryPeriod: '', technicalFileAssetId: '', businessFileAssetId: '', coverLetter: '', bidBondAssetId: '' })
@@ -25,7 +27,7 @@ function discardRecovery() { draft.clearDraft(); showRecovery.value = false }
 
 async function handleFileUpload(options: any, field: 'technicalFileAssetId' | 'businessFileAssetId' | 'bidBondAssetId') {
   const file = options.file as File
-  if (file.size > 50*1024*1024) { ElMessage.error('文件不能超过50MB'); options.onError(new Error('FILE_TOO_LARGE')); return }
+  if (file.size > maxUploadSize) { ElMessage.error(`文件不能超过${maxUploadSizeMB}MB`); options.onError(new Error('FILE_TOO_LARGE')); return }
   const pRef = field==='technicalFileAssetId' ? techUploadProgress : (field==='businessFileAssetId' ? bizUploadProgress : bondUploadProgress)
   pRef.value = 0
   try { const res = await uploadFile(file, 'bid_document', (pct)=> { pRef.value = pct }); form.value[field] = res.id; if (field === 'technicalFileAssetId') techFileMeta.value = res; else if (field === 'businessFileAssetId') bizFileMeta.value = res; else bondFileMeta.value = res; options.onSuccess(res); ElMessage.success('文件上传成功') } catch (e: any) { options.onError(e) } finally { pRef.value = null }
@@ -34,7 +36,14 @@ const uploadTech = (o: any) => handleFileUpload(o, 'technicalFileAssetId'); cons
 function formatSize(bytes: number): string { if (bytes<1024) return `${bytes} B`; if (bytes<1024*1024) return `${(bytes/1024).toFixed(1)} KB`; return `${(bytes/1024/1024).toFixed(1)} MB` }
 
 onMounted(async () => {
-  try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); try { const sub = await supplierApi.getBidSubmission(projectId.value) as any; if (sub) { existingSubmission.value = sub; form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', technicalFileAssetId: sub.technicalFileAssetId||'', businessFileAssetId: sub.businessFileAssetId||'', coverLetter: sub.coverLetter||'', bidBondAssetId: sub.bidBondAssetId || '' } } } catch {}; if (draft.restoreDraft() && draft.storedAt.value && (!existingSubmission.value || draft.storedAt.value > new Date(existingSubmission.value.updatedAt).getTime())) { showRecovery.value = true } } catch { error.value = true } finally { loading.value = false; autoSaveReady.value = true; draft.markClean() }
+  try {
+    await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()])
+    if (project.value && project.value.stage !== 'SUBMIT') {
+      ElMessage.warning('该项目当前不在投标阶段')
+      router.push(`/bids/${projectId.value}`)
+      return
+    }
+    try { const sub = await supplierApi.getBidSubmission(projectId.value) as any; if (sub) { existingSubmission.value = sub; form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', technicalFileAssetId: sub.technicalFileAssetId||'', businessFileAssetId: sub.businessFileAssetId||'', coverLetter: sub.coverLetter||'', bidBondAssetId: sub.bidBondAssetId || '' } } } catch {}; if (draft.restoreDraft() && draft.storedAt.value && (!existingSubmission.value || draft.storedAt.value > new Date(existingSubmission.value.updatedAt).getTime())) { showRecovery.value = true } } catch { error.value = true } finally { loading.value = false; autoSaveReady.value = true; draft.markClean() }
 })
 async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); try { const sub = await supplierApi.getBidSubmission(projectId.value) as any; if (sub) { existingSubmission.value = sub; form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', technicalFileAssetId: sub.technicalFileAssetId||'', businessFileAssetId: sub.businessFileAssetId||'', coverLetter: sub.coverLetter||'', bidBondAssetId: sub.bidBondAssetId || '' } } } catch {} } catch { error.value = true } finally { loading.value = false } }
 const isApproved = computed(() => supplierStore.profile?.status === 'APPROVED')
@@ -55,7 +64,10 @@ const preflightItems = computed(() => {
 })
 const canConfirm = computed(() => preflightItems.value.every(i => i.ok || !i.required))
 function openSubmitDialog() { submitDialogVisible.value = true }
-async function confirmSubmit() { submitDialogVisible.value = false; submitting.value = true; try { await supplierApi.submitBid(projectId.value, form.value); draft.clearDraft(); ElMessage.success('标书提交成功！'); router.push('/my-bids') } catch (err: any) { ElMessage.error(err?.response?.data?.error || '提交失败') } finally { submitting.value = false } }
+async function confirmSubmit() {
+  // TODO (Phase 6): 实现 SM2 数字签名 — 提交前计算文件 SHA-256 哈希并用供应商私钥签名
+  // 后端 anti-repudiation 检查已就绪 (supplier-portal.service.ts:416-425)
+  submitDialogVisible.value = false; submitting.value = true; try { await supplierApi.submitBid(projectId.value, form.value); draft.clearDraft(); ElMessage.success('标书提交成功！'); router.push('/my-bids') } catch (err: any) { ElMessage.error(err?.response?.data?.error || '提交失败') } finally { submitting.value = false } }
 </script>
 
 <template>
@@ -86,9 +98,9 @@ async function confirmSubmit() { submitDialogVisible.value = false; submitting.v
         <el-form :model="form" label-width="120px" size="large" :disabled="!canSubmit||existingSubmission?.status==='submitted'">
           <el-form-item label="投标报价" required><el-input v-model="form.bidPrice" placeholder="例如：1260.00"><template #append>万元</template></el-input></el-form-item>
           <el-form-item label="交货/工期" required><el-input v-model="form.deliveryPeriod" placeholder="例如：120日历天" /></el-form-item>
-          <el-form-item label="技术方案"><div class="file-area"><el-upload :http-request="uploadTech" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传技术方案</el-button></el-upload><span class="file-hint">PDF，≤50MB</span><span v-if="techFileMeta" class="file-name">{{ techFileMeta.originalName }}（{{ formatSize(techFileMeta.size) }}）</span><span v-else-if="form.technicalFileAssetId" class="file-name">已上传</span><el-progress v-if="techUploadProgress!==null" :percentage="techUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
-          <el-form-item label="商务文件"><div class="file-area"><el-upload :http-request="uploadBiz" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传商务文件</el-button></el-upload><span class="file-hint">PDF，≤50MB</span><span v-if="bizFileMeta" class="file-name">{{ bizFileMeta.originalName }}（{{ formatSize(bizFileMeta.size) }}）</span><span v-else-if="form.businessFileAssetId" class="file-name">已上传</span><el-progress v-if="bizUploadProgress!==null" :percentage="bizUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
-          <el-form-item v-if="bidStore.project?.bondRequired" label="保证金凭证" required><div class="file-area"><el-upload :http-request="uploadBond" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传保证金缴纳凭证</el-button></el-upload><span class="file-hint">银行回单/保函，PDF≤50MB</span><span v-if="bondFileMeta" class="file-name">{{ bondFileMeta.originalName }}（{{ formatSize(bondFileMeta.size) }}）</span><span v-else-if="form.bidBondAssetId" class="file-name">已上传</span><el-progress v-if="bondUploadProgress!==null" :percentage="bondUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
+          <el-form-item label="技术方案"><div class="file-area"><el-upload :http-request="uploadTech" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传技术方案</el-button></el-upload><span class="file-hint">PDF，≤{{ maxUploadSizeMB }}MB</span><span v-if="techFileMeta" class="file-name">{{ techFileMeta.originalName }}（{{ formatSize(techFileMeta.size) }}）</span><span v-else-if="form.technicalFileAssetId" class="file-name">已上传</span><el-progress v-if="techUploadProgress!==null" :percentage="techUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
+          <el-form-item label="商务文件"><div class="file-area"><el-upload :http-request="uploadBiz" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传商务文件</el-button></el-upload><span class="file-hint">PDF，≤{{ maxUploadSizeMB }}MB</span><span v-if="bizFileMeta" class="file-name">{{ bizFileMeta.originalName }}（{{ formatSize(bizFileMeta.size) }}）</span><span v-else-if="form.businessFileAssetId" class="file-name">已上传</span><el-progress v-if="bizUploadProgress!==null" :percentage="bizUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
+          <el-form-item v-if="bidStore.project?.bondRequired" label="保证金凭证" required><div class="file-area"><el-upload :http-request="uploadBond" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传保证金缴纳凭证</el-button></el-upload><span class="file-hint">银行回单/保函，PDF≤{{ maxUploadSizeMB }}MB</span><span v-if="bondFileMeta" class="file-name">{{ bondFileMeta.originalName }}（{{ formatSize(bondFileMeta.size) }}）</span><span v-else-if="form.bidBondAssetId" class="file-name">已上传</span><el-progress v-if="bondUploadProgress!==null" :percentage="bondUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
           <el-form-item label="投标函"><el-input v-model="form.coverLetter" type="textarea" :rows="4" placeholder="请输入投标函内容（选填）" /></el-form-item>
         </el-form>
         <div v-if="canSubmit && existingSubmission?.status!=='submitted'" class="submit-actions">
