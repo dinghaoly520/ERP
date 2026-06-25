@@ -1,45 +1,23 @@
 // apps/api/src/ai-bid-analysis/services/comparative-scoring.service.ts
+// ★ per-item 横向重写（Phase 2.4）：第二轮 LLM 横向对比多家 bidderResult
+//   读 categoryTotals（5 维 {CATEGORY:{score,max}}，非 procurement breakdown）
+//   LLM 校准各维度公平性 → update categoryTotals + totalScore
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../local-ai/llm.service';
 import { COMPARATIVE_SCORING_PROMPT } from '../prompts/comparative-scoring.prompt';
 import { deterministicSeed } from '../utils';
 
-interface BidderSummary {
-  id: string;
-  name: string;
-  quotePrice: number;
-  qualificationLevel: string;
-  performanceCount: number;
-  keyPerformances: Array<{ projectName: string; contractAmount: string; keyMetrics: string }>;
-  teamSummary: string;
-  equipmentSummary: string;
-  methodologySummary: string;
-  serviceCommitment: string;
-  warranty: string;
-  firstRoundScores: {
-    technical: number;
-    commercial: number;
-    price: number;
-    total: number;
-  };
-}
+/** categoryTotals 结构（per-item 5 维聚合） */
+type CategoryTotals = Record<string, { score: number; max: number }>;
 
-interface ComparativeScoreItem {
+/** LLM 横向返回的单家校准项（按 category 给新分） */
+interface ComparativeAdjust {
   bidderName: string;
-  technical: {
-    totalScore: number;
-    breakdown: Record<string, { score: number; maxScore: number; reason: string }>;
-  };
-  commercial: {
-    totalScore: number;
-    breakdown: Record<string, { score: number; maxScore: number; reason: string }>;
-  };
-  price: {
-    totalScore: number;
-    maxScore: number;
-    reason: string;
-  };
+  technical?: number;
+  commercial?: number;
+  price?: number;
+  reason?: string;
 }
 
 @Injectable()
@@ -51,13 +29,13 @@ export class ComparativeScoringService {
     private llmService: LlmService,
   ) {}
 
+  /** 第二轮横向评分：所有 bidderResult COMPLETED 后调用 */
   async score(taskId: string): Promise<void> {
     const bidders = await this.prisma.aiBidderResult.findMany({
       where: { taskId, status: 'COMPLETED' },
       select: {
         id: true,
         keyInfo: true,
-        extractedInfo: true,
         categoryTotals: true,
         totalScore: true,
         bidSupplier: { select: { supplierName: true } },
@@ -65,173 +43,140 @@ export class ComparativeScoringService {
     });
 
     if (bidders.length < 2) {
-      this.logger.log(`Task ${taskId}: only ${bidders.length} completed bidder, skip comparative scoring`);
+      this.logger.log(
+        `Task ${taskId}: only ${bidders.length} completed bidder, skip comparative scoring`,
+      );
       return;
     }
 
-    const summaries = bidders.map(b => this.buildSummary(b as any));
-
-    this.logger.log(`Task ${taskId}: running comparative scoring for ${bidders.length} bidders`);
-
-    const biddersData = summaries.map(s => this.formatBidderSummary(s)).join('\n');
+    // 构建横向对比摘要（首轮 categoryTotals + 关键信息）
+    const summaries = bidders.map((b) => this.buildSummary(b));
+    const biddersData = summaries.map((s) => this.formatSummary(s)).join('\n');
     const prompt = COMPARATIVE_SCORING_PROMPT.replace('{{BIDDERS_DATA}}', biddersData);
 
-    let result: { scores: ComparativeScoreItem[] };
+    this.logger.log(
+      `Task ${taskId}: running per-item comparative scoring for ${bidders.length} bidders`,
+    );
+
+    let result: { scores: ComparativeAdjust[] };
     try {
-      result = await this.llmService.chatJson<{ scores: ComparativeScoreItem[] }>(
-        '你是一名资深招投标评审专家，擅长对比多家投标单位进行公正评分。',
+      result = await this.llmService.chatJson<{ scores: ComparativeAdjust[] }>(
+        '你是一名资深招投标评审专家，基于各家横向对比，对技术/商务/报价三个维度做公平性校准。',
         prompt,
         0,
         undefined,
-        deterministicSeed(taskId + ':comparative'),
+        deterministicSeed(`${taskId}:comparative`),
       );
     } catch (err) {
-      this.logger.warn(`Task ${taskId}: comparative scoring LLM call failed: ${String(err).slice(0, 200)}`);
+      this.logger.warn(
+        `Task ${taskId}: comparative scoring LLM failed: ${String(err).slice(0, 200)}`,
+      );
       return;
     }
 
     if (!Array.isArray(result.scores)) {
-      this.logger.warn(`Task ${taskId}: comparative scoring returned invalid format`);
+      this.logger.warn(`Task ${taskId}: comparative scoring invalid format`);
       return;
     }
 
-    for (const item of result.scores) {
-      const bidder = bidders.find((b) => b.bidSupplier.supplierName === item.bidderName);
+    for (const adj of result.scores) {
+      const bidder = bidders.find(
+        (b) => b.bidSupplier.supplierName === adj.bidderName,
+      );
       if (!bidder) {
-        this.logger.warn(`Task ${taskId}: comparative scoring references unknown bidder "${item.bidderName}"`);
+        this.logger.warn(
+          `Task ${taskId}: comparative references unknown bidder "${adj.bidderName}"`,
+        );
         continue;
       }
 
-      const oldScores = (bidder.categoryTotals ?? null) as Record<string, any> | null;
-      const oldTechnical = Number(oldScores?.technical?.totalScore ?? 0);
-      const oldCommercial = Number(oldScores?.commercial?.totalScore ?? 0);
-      const oldPrice = Number(oldScores?.price?.totalScore ?? 0);
+      const totals = (bidder.categoryTotals ?? {}) as CategoryTotals;
       const oldTotal = Number(bidder.totalScore ?? 0);
 
-      const newTechnical = this.clamp(item.technical?.totalScore, 0, 50);
-      const newCommercial = this.clamp(item.commercial?.totalScore, 0, 30);
-      const newPrice = this.clamp(item.price?.totalScore, 0, 20);
-      const newTotal = Math.round((newTechnical + newCommercial + newPrice) * 10) / 10;
-
-      // Merge comparative scores into existing scores (preserve breakdown details)
-      const mergedScores = { ...(oldScores || {}) };
-
-      if (mergedScores.technical && item.technical?.breakdown) {
-        mergedScores.technical = {
-          ...mergedScores.technical,
-          totalScore: newTechnical,
-          breakdown: {
-            ...mergedScores.technical.breakdown,
-            ...Object.fromEntries(
-              Object.entries(item.technical.breakdown).map(([key, val]) => [
-                key,
-                { ...(mergedScores.technical.breakdown?.[key] || {}), score: val.score, reason: val.reason },
-              ]),
-            ),
-          },
+      // 校准各维度（clamp 到 max 内），保留 max 不变
+      const newTotals: CategoryTotals = { ...totals };
+      if (adj.technical != null && totals.TECHNICAL) {
+        newTotals.TECHNICAL = {
+          score: this.clamp(adj.technical, 0, totals.TECHNICAL.max),
+          max: totals.TECHNICAL.max,
         };
-      } else if (item.technical) {
-        mergedScores.technical = { totalScore: newTechnical, maxScore: 50, breakdown: item.technical.breakdown };
       }
-
-      if (mergedScores.commercial && item.commercial?.breakdown) {
-        mergedScores.commercial = {
-          ...mergedScores.commercial,
-          totalScore: newCommercial,
-          breakdown: {
-            ...mergedScores.commercial.breakdown,
-            ...Object.fromEntries(
-              Object.entries(item.commercial.breakdown).map(([key, val]) => [
-                key,
-                { ...(mergedScores.commercial.breakdown?.[key] || {}), score: val.score, reason: val.reason },
-              ]),
-            ),
-          },
+      if (adj.commercial != null && totals.COMMERCIAL) {
+        newTotals.COMMERCIAL = {
+          score: this.clamp(adj.commercial, 0, totals.COMMERCIAL.max),
+          max: totals.COMMERCIAL.max,
         };
-      } else if (item.commercial) {
-        mergedScores.commercial = { totalScore: newCommercial, maxScore: 30, breakdown: item.commercial.breakdown };
+      }
+      if (adj.price != null && totals.PRICE) {
+        newTotals.PRICE = {
+          score: this.clamp(adj.price, 0, totals.PRICE.max),
+          max: totals.PRICE.max,
+        };
       }
 
-      if (mergedScores.price) {
-        mergedScores.price = { ...mergedScores.price, totalScore: newPrice };
-      } else if (item.price) {
-        mergedScores.price = { totalScore: newPrice, maxScore: 20 };
-      }
+      // 重算总分（所有维度 score 之和）
+      const newTotal =
+        Math.round(
+          Object.values(newTotals).reduce((a, c) => a + (c?.score ?? 0), 0) * 10,
+        ) / 10;
 
       await this.prisma.aiBidderResult.update({
         where: { id: bidder.id },
         data: {
-          categoryTotals: mergedScores as any,
+          categoryTotals: newTotals as any,
           totalScore: newTotal,
+          competitiveAnalysis: {
+            comparativeScore: newTotal,
+            previousScore: oldTotal,
+            reason: adj.reason ?? '横向校准',
+          } as any,
         },
       });
 
       this.logger.log(
-        `  ${bidder.bidSupplier.supplierName}: ${oldTechnical}+${oldCommercial}+${oldPrice}=${oldTotal} → ${newTechnical}+${newCommercial}+${newPrice}=${newTotal}`,
+        `  ${bidder.bidSupplier.supplierName}: ${oldTotal} → ${newTotal}（横向校准）`,
       );
     }
   }
 
-  private buildSummary(bidder: any): BidderSummary {
+  /** 构建 per-item 摘要：categoryTotals（5 维）+ keyInfo */
+  private buildSummary(bidder: {
+    id: string;
+    keyInfo: any;
+    categoryTotals: any;
+    totalScore: any;
+    bidSupplier: { supplierName: string };
+  }) {
     const keyInfo = bidder.keyInfo || {};
-    const extractedInfo = bidder.extractedInfo || {};
-    const scores = bidder.scores || {};
-
-    const team = extractedInfo.team || {};
-    const techProposal = extractedInfo.technicalProposal || {};
-    const commercial = extractedInfo.commercial || {};
-
-    const pm = team.projectManager || {};
-    const teamSummary = `项目经理：${pm.name || '未知'}（${pm.title || '未知职称'}，${pm.qualification || '未知资格'}），团队${team.totalPersonnel || '未知'}人`;
-    const equipmentSummary = Array.isArray(techProposal.equipment)
-      ? techProposal.equipment.map((e: any) => `${e.name || ''}(${e.model || ''}×${e.quantity || ''})`).join('、') || '未提供'
-      : '未提供';
-    const methodologySummary = typeof techProposal.methodology === 'string'
-      ? techProposal.methodology
-      : '未提供';
+    const totals = (bidder.categoryTotals ?? {}) as CategoryTotals;
+    const get = (cat: string) => totals[cat]?.score ?? 0;
 
     return {
       id: bidder.id,
-      name: bidder.name,
+      name: bidder.bidSupplier.supplierName,
       quotePrice: Number(keyInfo.quotePrice) || 0,
       qualificationLevel: keyInfo.qualificationLevel || '未知',
       performanceCount: Number(keyInfo.performanceCount) || 0,
-      keyPerformances: Array.isArray(keyInfo.keyPerformances) ? keyInfo.keyPerformances : [],
-      teamSummary,
-      equipmentSummary,
-      methodologySummary,
-      serviceCommitment: commercial.serviceCommitment || '未提供',
-      warranty: commercial.warranty || keyInfo.warrantyPeriod || '未提供',
-      firstRoundScores: {
-        technical: Number(scores.technical?.totalScore ?? 0),
-        commercial: Number(scores.commercial?.totalScore ?? 0),
-        price: Number(scores.price?.totalScore ?? 0),
+      firstRound: {
+        technical: get('TECHNICAL'),
+        commercial: get('COMMERCIAL'),
+        price: get('PRICE'),
+        qualification: get('QUALIFICATION'),
+        responsive: get('RESPONSIVE'),
         total: Number(bidder.totalScore ?? 0),
       },
     };
   }
 
-  private formatBidderSummary(s: BidderSummary): string {
-    const performances = s.keyPerformances.length > 0
-      ? s.keyPerformances.map(p => `  - ${p.projectName}（${p.contractAmount}，${p.keyMetrics || '无指标'}）`).join('\n')
-      : '  无业绩数据';
-
+  private formatSummary(s: ReturnType<ComparativeScoringService['buildSummary']>): string {
     return `【${s.name}】
 - 报价：${s.quotePrice}万元
 - 资质等级：${s.qualificationLevel}
 - 业绩数量：${s.performanceCount}个
-- 主要业绩：
-${performances}
-- 团队：${s.teamSummary}
-- 设备：${s.equipmentSummary}
-- 技术方案：${s.methodologySummary}
-- 服务承诺：${s.serviceCommitment}
-- 质保：${s.warranty}
-- 首轮评分：技术${s.firstRoundScores.technical}/商务${s.firstRoundScores.commercial}/报价${s.firstRoundScores.price}，总分${s.firstRoundScores.total}`;
+- 首轮评分：技术${s.firstRound.technical} / 商务${s.firstRound.commercial} / 报价${s.firstRound.price}，总分${s.firstRound.total}`;
   }
 
-  private clamp(v: number | undefined, min: number, max: number): number {
-    if (v == null) return min;
+  private clamp(v: number, min: number, max: number): number {
     return Math.round(Math.min(max, Math.max(min, v)) * 10) / 10;
   }
 }
