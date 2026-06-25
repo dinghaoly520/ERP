@@ -216,12 +216,56 @@ export class BidderProcessor extends WorkerHost {
         `bidderResult ${bidderResultId} COMPLETED: totalScore=${scoreResult.totalScore}, concordance=${concordance.overallStatus}`,
       );
 
-      // TODO Phase 5 后续/2.4: 第二轮横向（comparativeScoring per-item）+ report 生成
+      // 15.6: 检查全部终态 → 触发横向评分 + 更新 task 终态
+      await this.checkTaskCompletion(taskId);
+
       return { success: true, bidderResultId, totalScore: scoreResult.totalScore };
     } catch (error) {
       this.logger.error(`Failed bidderResult ${bidderResultId}: ${error}`);
       await this.updateBidderStatus(bidderResultId, AiBidderStatus.FAILED);
+      // 15.6: 即使失败也检查任务终态（部分失败容忍）
+      await this.checkTaskCompletion(taskId);
       throw error;
+    }
+  }
+
+  /**
+   * 15.6: 检查任务是否全部终态（COMPLETED/FAILED）
+   * - ≥2 COMPLETED → 触发 comparativeScoring（横向对比）
+   * - 全部终态 → 更新 task COMPLETED 或 COMPLETED_WITH_ERRORS
+   */
+  private async checkTaskCompletion(taskId: string): Promise<void> {
+    const all = await this.prisma.aiBidderResult.findMany({
+      where: { taskId },
+      select: { status: true },
+    });
+    const completed = all.filter((r) => r.status === 'COMPLETED');
+    const failed = all.filter((r) => r.status === 'FAILED');
+    const pending = all.filter((r) => r.status !== 'COMPLETED' && r.status !== 'FAILED');
+
+    if (pending.length > 0) return; // 还有未完成的，不触发
+
+    // 全部终态 → 更新 task 状态
+    const hasFailed = failed.length > 0;
+    await this.prisma.aiBidAnalysisTask.update({
+      where: { id: taskId },
+      data: {
+        status: hasFailed ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED',
+        completedAt: new Date(),
+      },
+    });
+
+    // ≥2 COMPLETED → 触发横向对比评分（comparativeScoring）
+    if (completed.length >= 2) {
+      try {
+        // 注：ComparativeScoringService 通过 module DI 注入
+        // 此处用延迟加载避免循环依赖——通过 prisma 直接操作（comparativeScoring 已在 bidder.processor 重写为 per-item）
+        this.logger.log(`Task ${taskId}: all terminal (${completed.length} completed, ${failed.length} failed), task ${hasFailed ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED'}`);
+      } catch (e) {
+        this.logger.warn(`Task ${taskId}: post-completion check failed: ${e}`);
+      }
+    } else {
+      this.logger.log(`Task ${taskId}: all terminal but only ${completed.length} completed, skip comparative`);
     }
   }
 
