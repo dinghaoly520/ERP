@@ -663,6 +663,80 @@ export class BidService {
   }
 
   /**
+   * B8 (15.5): 重新触发 AI 分析 — 清除旧结果 → 重置 PENDING → 入队
+   */
+  async rerunAiAnalysis(projectId: string, actorId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'EVALUATING') {
+      throw new BadRequestException({ error: '项目不在评标阶段，无法重新分析', code: 'PROJECT_NOT_EVALUATING' });
+    }
+
+    const task = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
+    if (!task) throw new BadRequestException({ error: '未找到 AI 分析任务', code: 'TASK_NOT_FOUND' });
+
+    // 清除旧结果：bidderResult + report + concordance（cascade 会处理部分）
+    await this.prisma.$transaction(async (tx) => {
+      await tx.aiBidReport.deleteMany({ where: { taskId: task.id } });
+      await tx.aiBidConcordance.deleteMany({ where: { taskId: task.id } });
+      await tx.aiBidderResult.deleteMany({ where: { taskId } });
+      // 重置 task 为 PENDING
+      await tx.aiBidAnalysisTask.update({
+        where: { id: task.id },
+        data: { status: 'PENDING', completedAt: null },
+      });
+      // 重新创建 evaluable bidderResult
+      const evaluableSuppliers = await tx.bidSupplier.findMany({
+        where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+        select: { id: true },
+      });
+      if (evaluableSuppliers.length > 0) {
+        await tx.aiBidderResult.createMany({
+          data: evaluableSuppliers.map((s) => ({
+            taskId: task.id,
+            bidSupplierId: s.id,
+            status: 'PENDING',
+          })),
+          skipDuplicates: true,
+        });
+      }
+    });
+
+    // 入队 tender 处理
+    if (this.tenderQueue) {
+      try {
+        await this.tenderQueue.add(
+          'process',
+          { taskId: task.id },
+          {
+            jobId: `tender-rerun-${task.id}`,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+            removeOnComplete: { age: 7 * 24 * 3600 },
+            removeOnFail: { age: 30 * 24 * 3600 },
+          },
+        );
+        this.logger.log(`AI analysis rerun enqueued: task=${task.id}, project=${projectId}`);
+      } catch (err) {
+        this.logger.error(`Failed to enqueue rerun for task ${task.id}: ${(err as Error).message}`);
+        await this.prisma.aiBidAnalysisTask.update({
+          where: { id: task.id },
+          data: { status: 'FAILED' },
+        }).catch(() => {});
+        throw new BadRequestException({ error: '入队失败，任务已标记为 FAILED', code: 'ENQUEUE_FAILED' });
+      }
+    }
+
+    // 监督日志
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId, time: new Date(), role: '系统', target: project.name, action: '重新启动AI辅助分析', result: '旧结果已清除，重新入队', riskFlag: '无' },
+    }).catch(() => {});
+  }
+
+  /**
    * 4.4: 一键解密窗口内所有待解密供应商
    */
   async decryptAllSuppliers(projectId: string, actorId: string) {

@@ -89,6 +89,10 @@ export class BidController {
   @ApiOperation({ summary: '一键解密窗口内待解密供应商（4.4）' })
   decryptAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.decryptAllSuppliers(id, userId); }
 
+  @Post('projects/:id/rerun-ai-analysis')
+  @ApiOperation({ summary: '重新触发 AI 辅助分析（B8/15.5）——清除旧结果并重新入队' })
+  rerunAiAnalysis(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.rerunAiAnalysis(id, userId); }
+
   @Post('projects/:id/nudge-suppliers')
   @ApiOperation({ summary: '催促供应商投标（站内信+Email 多通道）' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
