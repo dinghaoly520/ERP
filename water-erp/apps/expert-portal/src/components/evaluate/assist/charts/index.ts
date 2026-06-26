@@ -7,3 +7,6 @@ export { RadarChart } from './radar-chart';
 export type { RadarAxis } from './radar-chart';
 
 export { PriceComparisonChart } from './price-comparison-chart';
+
+export { ScoreBarChart } from './score-bar-chart';
+export type { ScoreBarChartData } from './score-bar-chart';

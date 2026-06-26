@@ -10,7 +10,6 @@ import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationRep
 import { isPassFailCategory } from '@water-erp/shared';
 import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, Gavel, MessageSquare } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
-import { CrossBidderOverview } from '@/components/evaluate/assist/cross-bidder-overview';
 
 type Step = 'verify' | 'documents' | 'assist' | 'scoring' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
@@ -905,7 +904,6 @@ export default function ExpertEvaluatePage() {
           {/* ====== 辅助评标（AI引擎驱动） ====== */}
           {step === 'assist' && (
             <div>
-              <CrossBidderOverview projectId={projectId} activeSupplier={activeSupplier} />
               <AssistPanel
                 assistData={assistData}
                 assistLoading={assistLoading}

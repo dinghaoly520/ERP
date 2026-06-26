@@ -6,7 +6,6 @@ import type { AssistData, BidScoreItem } from '@water-erp/shared';
 import { ConcordanceTab } from './tabs/concordance-tab';
 import { KeyInfoTab } from './tabs/key-info-tab';
 import { ScoringTab } from './tabs/scoring-tab';
-import { StrengthsWeaknessesTab } from './tabs/strengths-weaknesses-tab';
 import { FraudTab } from './tabs/fraud-tab';
 import { ReportTab } from './tabs/report-tab';
 
@@ -16,7 +15,6 @@ type AssistTabKey =
   | 'concordance'
   | 'keyInfo'
   | 'scoring'
-  | 'strengthsWeaknesses'
   | 'fraud'
   | 'report';
 
@@ -29,7 +27,6 @@ const TABS: AssistTab[] = [
   { key: 'concordance', label: '数据一致性' },
   { key: 'keyInfo', label: '关键信息' },
   { key: 'scoring', label: '评分分析' },
-  { key: 'strengthsWeaknesses', label: '正向依据与需关注' },
   { key: 'fraud', label: '串通检测' },
   { key: 'report', label: '综合报告' },
 ];
@@ -286,17 +283,9 @@ export function AssistPanel({
                 expertScores={expertScores}
                 activeSupplier={activeSupplier}
                 projectScoreItems={projectScoreItems}
-              />
-            )}
-            {activeTab === 'strengthsWeaknesses' && (
-              <StrengthsWeaknessesTab
-                strengths={
-                  Array.isArray(assistData.strengths) ? assistData.strengths : null
-                }
-                weaknesses={
-                  Array.isArray(assistData.weaknesses) ? assistData.weaknesses : null
-                }
-                overallComment={assistData.overallComment}
+                projectId={projectId}
+                strengths={Array.isArray(assistData.strengths) ? assistData.strengths : null}
+                weaknesses={Array.isArray(assistData.weaknesses) ? assistData.weaknesses : null}
                 keyObservations={
                   Array.isArray((assistData as any).keyObservations)
                     ? (assistData as any).keyObservations
