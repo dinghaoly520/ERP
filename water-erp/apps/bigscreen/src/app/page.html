@@ -325,6 +325,20 @@
   .s-c8 .sc-bar i{background:linear-gradient(90deg,rgba(17,168,116,.65),rgba(17,168,116,.20))}.s-c8{border-top:2px solid #11a874}
   .s-card.s-hi{transform:translateY(-4px)!important;box-shadow:0 8px 24px rgba(0,0,0,.4)}
   .s-card.s-hi .sc-bar{width:100%}
+  /* ── Number pop when card activates ── */
+  .s-card.s-hi .sc-num{animation:scNumPop .45s ease-out}
+  @keyframes scNumPop{0%{transform:scale(1.25);color:#fff;text-shadow:0 0 12px rgba(200,240,255,.6)}100%{transform:scale(1)}}
+  /* ── Bar shimmer on active card ── */
+  .s-card.s-hi .sc-bar{position:relative;overflow:hidden}
+  .s-card.s-hi .sc-bar:after{content:"";position:absolute;inset:0;
+    background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.25) 45%,rgba(255,255,255,.35) 50%,rgba(255,255,255,.25) 55%,transparent 100%);
+    animation:scBarSweep 1.5s ease-in-out infinite}
+  @keyframes scBarSweep{0%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+  /* ── Bridge dot pulse on move ── */
+  .stage-bridge-dot{transition:left 1s ease-in-out,box-shadow .4s ease}
+  .stage-bridge-dot.dot-pop{box-shadow:0 0 22px rgba(200,240,255,.95),0 0 36px rgba(180,220,255,.4)}
+  /* ── Active badge glow boost ── */
+  .s-badge.s-hi small{color:#c0dce8!important;transition:color .3s}
   .s-c1.s-hi{background:linear-gradient(180deg,rgba(2,132,199,.35),rgba(2,132,199,.08))!important;border-color:rgba(2,132,199,.55)!important;box-shadow:0 8px 24px rgba(2,132,199,.25)}.s-c1.s-hi .sc-num,.s-c1.s-hi .sc-pct{color:#7dd3fc}
   .s-c2.s-hi{background:linear-gradient(180deg,rgba(14,165,233,.35),rgba(14,165,233,.08))!important;border-color:rgba(14,165,233,.55)!important;box-shadow:0 8px 24px rgba(14,165,233,.25)}.s-c2.s-hi .sc-num,.s-c2.s-hi .sc-pct{color:#67e8f9}
   .s-c3.s-hi{background:linear-gradient(180deg,rgba(8,145,178,.35),rgba(8,145,178,.08))!important;border-color:rgba(8,145,178,.55)!important;box-shadow:0 8px 24px rgba(8,145,178,.25)}.s-c3.s-hi .sc-num,.s-c3.s-hi .sc-pct{color:#22d3ee}
@@ -1445,6 +1459,9 @@
         const pct=dotX/bridgeR.width*100;
         bridgeFill.style.setProperty('--p',pct+'%');
         bridgeDot.style.left=pct+'%';
+        // Pulse the dot on move
+        bridgeDot.classList.add('dot-pop');
+        setTimeout(()=>bridgeDot.classList.remove('dot-pop'),400);
       }
       si=(si+1)%sBadges.length;
     },2000);
