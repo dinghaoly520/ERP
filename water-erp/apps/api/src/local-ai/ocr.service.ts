@@ -24,7 +24,7 @@ export class OcrService {
   // 批处理配置
   // OCR 服务有 2 个并行 worker，每批 40 页 = 每个 worker 处理 20 页
   private readonly BATCH_PAGES = 40;
-  private readonly LARGE_FILE_THRESHOLD_MB = 30;
+  private readonly LARGE_FILE_THRESHOLD_MB = 20;
   private readonly BATCH_DELAY_MS = 500;
   private readonly BATCH_RETRIES = 3;
   private readonly RETRY_DELAY_MS = 500;
