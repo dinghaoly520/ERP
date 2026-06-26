@@ -182,7 +182,8 @@ export class OcrService {
   }
 
   private async getPdfPageCount(buffer: Buffer): Promise<number> {
-    const result = await this.ocrPdfSingle(buffer, 0, 50, null);
+    // 只 OCR 第 1 页即可获取总页数（PyMuPDF 在 page_count 字段返回总页数）
+    const result = await this.ocrPdfSingle(buffer, 1, 50, '1-1');
     if (!result.pageCount || result.pageCount < 1) {
       throw new ServiceUnavailableException(
         'OCR service did not return a valid PDF page count',
