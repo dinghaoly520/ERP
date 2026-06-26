@@ -1,7 +1,7 @@
 'use client';
 
-import { BarChart3, FileText, Edit3, Sparkles } from 'lucide-react';
-import type { AssistData, BidScoreItem } from '@water-erp/shared';
+import { BarChart3, FileText, Edit3, Sparkles, CheckCircle, XCircle, AlertTriangle, ShieldCheck, ClipboardCheck } from 'lucide-react';
+import type { AssistData, BidScoreItem, AiScoreItem } from '@water-erp/shared';
 import { RadarChart } from '../charts/radar-chart';
 import type { RadarAxis } from '../charts/radar-chart';
 import { ScoreBreakdownBars, CATEGORY_LABEL, CATEGORY_COLOR } from '../charts/score-breakdown-bars';
@@ -18,20 +18,70 @@ interface ScoringTabProps {
 
 /**
  * 从 categoryTotals 构建雷达图坐标轴。
- * 复用 RadarChart 组件，自动适配 per-item 的 5 维分类。
+ * 仅包含评分维度（排除资格审查和响应性评审）
  */
 function buildRadarAxes(
   categoryTotals?: Record<string, { score: number; max: number }>,
 ): RadarAxis[] {
   if (!categoryTotals) return [];
-  const order = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'];
-  return order
+  // 仅保留有分数的评分维度，排除 pass/fail 类型
+  const scoreKeys = ['BUSINESS', 'TECHNICAL', 'PRICE'];
+  return scoreKeys
     .filter((k) => categoryTotals[k] && categoryTotals[k].max > 0)
     .map((k) => ({
       key: k,
       label: CATEGORY_LABEL[k] ?? k,
       max: categoryTotals[k].max,
     }));
+}
+
+/** Pass/Fail 审查项卡片 */
+function PassFailReviewCard({ item }: { item: AiScoreItem }) {
+  const isPass = item.pass === true;
+  return (
+    <div
+      className={`flex items-start gap-3 p-3 rounded-lg border ${
+        isPass
+          ? 'bg-emerald-50 border-emerald-200'
+          : 'bg-red-50 border-red-200'
+      }`}
+    >
+      <span
+        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+          isPass ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+        }`}
+      >
+        {isPass ? <CheckCircle size={14} /> : <XCircle size={14} />}
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="font-semibold text-sm text-[var(--color-text)]">
+            {item.name}
+          </span>
+          <span
+            className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+              isPass
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-red-100 text-red-700'
+            }`}
+          >
+            {isPass ? '通过' : '不通过'}
+          </span>
+        </div>
+        {item.reason && (
+          <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+            {item.reason}
+          </p>
+        )}
+        {item.evidence && (
+          <div className="mt-1.5 text-[11px] text-[var(--color-text-tertiary)]">
+            <span className="font-medium">证据：</span>
+            {item.evidence}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function ScoringTab({
@@ -93,12 +143,55 @@ export function ScoringTab({
         <div className="glass-card rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <FileText size={16} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-            <h3 className="font-bold text-[var(--color-text)]">Per-Item 评分明细</h3>
+            <h3 className="font-bold text-[var(--color-text)]">评分明细</h3>
             <span className="text-xs text-[var(--color-text-tertiary)] ml-auto">
               共 {scoreItems!.length} 项
             </span>
           </div>
-          <ScoreBreakdownBars scoreItems={scoreItems!} />
+
+          {/* 资格审查 & 响应性评审：pass/fail 审查卡片 */}
+          {['QUALIFICATION', 'RESPONSIVE'].map((cat) => {
+            const items = scoreItems!.filter((si) => si.category === cat);
+            if (items.length === 0) return null;
+            const passCount = items.filter((si) => si.pass === true).length;
+            const failCount = items.filter((si) => si.pass === false).length;
+            const Icon = cat === 'QUALIFICATION' ? ShieldCheck : ClipboardCheck;
+            return (
+              <div key={cat} className="mb-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <span
+                    className="w-1.5 h-5 rounded-full"
+                    style={{ background: CATEGORY_COLOR[cat] ?? '#0b63ce' }}
+                  />
+                  <Icon size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
+                  <span className="font-bold text-sm text-[var(--color-text)]">
+                    {CATEGORY_LABEL[cat] ?? cat}
+                  </span>
+                  <span className="text-xs text-[var(--color-text-tertiary)] ml-auto">
+                    通过 {passCount} / 不通过 {failCount} / 共 {items.length} 项
+                  </span>
+                </div>
+                <div className="space-y-2 pl-4">
+                  {items.map((item) => (
+                    <PassFailReviewCard key={item.scoreItemId} item={item} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* 商务/技术/价格：横向柱状图 */}
+          {['BUSINESS', 'TECHNICAL', 'PRICE'].some((cat) =>
+            scoreItems!.some((si) => si.category === cat),
+          ) && (
+            <div className={scoreItems!.some((si) => ['QUALIFICATION', 'RESPONSIVE'].includes(si.category)) ? 'mt-4 pt-4 border-t border-[oklch(0.91_0.006_264)]' : ''}>
+              <ScoreBreakdownBars
+                scoreItems={scoreItems!.filter((si) =>
+                  ['BUSINESS', 'TECHNICAL', 'PRICE'].includes(si.category),
+                )}
+              />
+            </div>
+          )}
 
           {/* 置信度低的项目提醒 */}
           {scoreItems!.filter((si) => si.confidence != null && si.confidence < 0.6).length > 0 && (
