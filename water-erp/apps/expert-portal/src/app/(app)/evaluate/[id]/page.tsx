@@ -10,7 +10,6 @@ import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationRep
 import { isPassFailCategory } from '@water-erp/shared';
 import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, Gavel, MessageSquare } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
-import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 
 type Step = 'verify' | 'documents' | 'assist' | 'scoring' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
@@ -526,52 +525,79 @@ export default function ExpertEvaluatePage() {
         </div>
       )}
 
-      {/* 步骤指示器 · P2: step gating — locked steps show lock icon, completed show checkmark */}
-      <div className="glass-card glass-card-blue rounded-xl p-4 mb-4 flex-shrink-0">
-        <div className="flex items-center">
-          {STEPS.map((s, i) => {
-            const accessible = stepAccessible(s.key);
-            const completed = stepCompleted(s.key);
-            const isCurrent = step === s.key;
-            return (
-              <div key={s.key} className="flex items-center flex-1">
-                <button onClick={() => { if (accessible) setStep(s.key); }}
-                  disabled={!accessible}
-                  aria-current={isCurrent ? 'step' : undefined}
-                  aria-label={!accessible && !completed ? `${s.label}（需先完成前置步骤）` : s.label}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-semibold ${
-                    isCurrent ? 'bg-[#064ea2] text-white shadow-md'
-                    : completed ? 'text-[#11a874] bg-emerald-50 border border-emerald-100'
-                    : accessible ? 'text-[oklch(0.55_0.01_264)] hover:bg-blue-50'
-                    : 'text-[oklch(0.72_0.008_264)] cursor-not-allowed'
-                  }`}>
-                  {completed ? <CheckCircle size={14} strokeWidth={1.5} className="text-[#11a874]" aria-hidden="true" />
-                   : !accessible ? <Lock size={12} strokeWidth={1.5} aria-hidden="true" />
-                   : <s.Icon size={16} strokeWidth={1.5} aria-hidden="true" />}
-                  {s.label}
-                </button>
-                {i < STEPS.length - 1 && <div className="flex-1 h-px bg-white/30 mx-2" />}
+      {/* 步骤指示器 + 供应商选择（同行） */}
+      <div className="glass-card glass-card-blue rounded-xl flex-shrink-0 mb-4 overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2">
+          {/* 左侧：步骤导航 */}
+          <div className="flex items-center shrink-0">
+            {STEPS.map((s, i) => {
+              const accessible = stepAccessible(s.key);
+              const completed = stepCompleted(s.key);
+              const isCurrent = step === s.key;
+              return (
+                <div key={s.key} className="flex items-center">
+                  <button onClick={() => { if (accessible) setStep(s.key); }}
+                    disabled={!accessible}
+                    aria-current={isCurrent ? 'step' : undefined}
+                    aria-label={!accessible && !completed ? `${s.label}（需先完成前置步骤）` : s.label}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-xs font-semibold whitespace-nowrap ${
+                      isCurrent ? 'bg-[#064ea2] text-white shadow-md'
+                      : completed ? 'text-[#11a874] bg-emerald-50 border border-emerald-100'
+                      : accessible ? 'text-[oklch(0.55_0.01_264)] hover:bg-blue-50'
+                      : 'text-[oklch(0.72_0.008_264)] cursor-not-allowed'
+                    }`}>
+                    {completed ? <CheckCircle size={12} strokeWidth={1.5} className="text-[#11a874]" aria-hidden="true" />
+                     : !accessible ? <Lock size={10} strokeWidth={1.5} aria-hidden="true" />
+                     : <s.Icon size={14} strokeWidth={1.5} aria-hidden="true" />}
+                    {s.label}
+                  </button>
+                  {i < STEPS.length - 1 && <div className="w-4 h-px bg-[oklch(0.91_0.006_264)] mx-1" />}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 右侧：供应商 pills（仅在需要时显示） */}
+          {step !== 'verify' && step !== 'report' && (
+            <>
+              <span className="w-px h-5 bg-[oklch(0.91_0.006_264)] shrink-0" />
+              <div className="flex items-center gap-1.5 overflow-x-auto flex-1 min-w-0" role="tablist">
+                {project.suppliers.map((s) => {
+                  const isActive = s.id === activeSupplier;
+                  const isConflicted = conflictedSupplierIds.has(s.id);
+                  const statusColor =
+                    s.decryptStatus === 'SUCCESS' ? 'bg-[#11a874]'
+                    : s.decryptStatus === 'DANGER' ? 'bg-[#e74c3c]'
+                    : 'bg-[#f5a623]';
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => { setActiveSupplier(s.id); setMissingReasons(new Set()); }}
+                      role="tab"
+                      aria-selected={isActive}
+                      className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-all ${
+                        isActive
+                          ? 'bg-blue-50 border border-[#bfdbfe] shadow-sm text-[var(--color-primary)] font-bold'
+                          : 'text-[var(--color-text-secondary)] hover:bg-[oklch(0.992_0.003_264)] border border-transparent'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusColor}`} />
+                      <span className="truncate max-w-[100px]">{s.supplierName}</span>
+                      {isConflicted && (
+                        <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1 py-0 rounded shrink-0">已回避</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-            );
-          })}
+            </>
+          )}
         </div>
       </div>
 
       {/* 主内容区 */}
-      <div className="flex-1 flex flex-col gap-3 overflow-hidden min-h-0">
-        {/* 供应商横向选择条 — 仅在需要供应商选择的步骤显示 */}
-        {step !== 'verify' && step !== 'report' && (
-          <SupplierTabBar
-            suppliers={project.suppliers}
-            activeSupplier={activeSupplier}
-            onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); }}
-            conflictedSupplierIds={conflictedSupplierIds}
-            decryptLabel={decryptLabel}
-          />
-        )}
-
-        {/* 主内容 */}
-        <div className="flex-1 glass-card glass-card-blue rounded-xl !overflow-y-auto">
+      <div className="flex-1 overflow-hidden min-h-0">
+        <div className="flex-1 glass-card glass-card-blue rounded-xl !overflow-y-auto h-full">
           {/* ====== 身份核验 ====== */}
           {step === 'verify' && (
             <div className="p-6 max-w-3xl mx-auto">
