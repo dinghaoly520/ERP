@@ -53,7 +53,7 @@ export class OcrService {
    * 关键改进：使用 page_range 参数让 OCR 服务只处理指定页面范围
    * 这样避免了每次都处理整个 PDF 文件
    */
-  async ocrPdf(buffer: Buffer, maxPages = 200, dpi = 300): Promise<OcrResult> {
+  async ocrPdf(buffer: Buffer, maxPages = 200, dpi = 150): Promise<OcrResult> {
     const fileSizeMB = buffer.length / (1024 * 1024);
 
     if (fileSizeMB <= this.LARGE_FILE_THRESHOLD_MB) {

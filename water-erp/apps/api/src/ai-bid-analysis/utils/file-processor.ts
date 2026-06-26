@@ -21,7 +21,7 @@ export async function processFile(
   }
 
   // PDF / images — use RapidOCR via OCR service
-  const ocrResult = await ocrService.ocrPdf(buffer, maxPages, 300);
+  const ocrResult = await ocrService.ocrPdf(buffer, maxPages, 150);
   return {
     text: ocrResult.text,
     pages: ocrResult.pages?.length
