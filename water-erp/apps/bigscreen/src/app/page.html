@@ -761,33 +761,56 @@
     box-shadow:0 0 6px #34d399;animation:aiStatusBeat 1.2s ease-in-out infinite}
   @keyframes aiStatusBeat{50%{transform:scale(1.6);opacity:.5}}
 
-  /* ═══ RIGHT: Analysis Feed ═══ */
-  .ai-right{flex:1;min-width:0;display:flex;flex-direction:column;padding:10px 14px 4px;
-    gap:0;position:relative;overflow:hidden}
-  /* Feed item — one dense line */
-  .ai-item{display:flex;align-items:baseline;gap:8px;padding:5px 0;font-size:10.5px;
-    line-height:1.35;border-bottom:1px solid rgba(28,219,255,.05);
-    color:#c0d4e4;transition:background .25s;cursor:default}
-  .ai-item:last-child{border-bottom:none}
-  .ai-item:hover{background:rgba(32,200,230,.04)}
-  /* Category tag pill */
-  .ai-item-tag{flex-shrink:0;font-size:8px;font-weight:700;letter-spacing:1px;
-    padding:1px 6px;border-radius:2px;min-width:28px;text-align:center}
-  .ai-item-tag.t-insight{color:#34d399;background:rgba(52,211,153,.10);border:1px solid rgba(52,211,153,.15)}
-  .ai-item-tag.t-alert{color:#fbbf24;background:rgba(251,191,36,.10);border:1px solid rgba(251,191,36,.15)}
-  .ai-item-tag.t-trend{color:#38bdf8;background:rgba(56,189,248,.10);border:1px solid rgba(56,189,248,.15)}
-  .ai-item-tag.t-action{color:#a78bfa;background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.15)}
-  .ai-item-tag.t-watch{color:#f87171;background:rgba(248,113,113,.10);border:1px solid rgba(248,113,113,.15)}
-  /* Data highlight */
-  .ai-item em{font-style:normal;font-weight:800;color:#e8f4ff;
-    font-variant-numeric:tabular-nums}
-  .ai-item b{font-weight:700;color:#d0e0f0}
-  /* New-item flash */
-  .ai-item.ai-flash{animation:aiItemFlash .8s ease-out}
-  @keyframes aiItemFlash{0%{background:rgba(36,234,255,.10);color:#fff}100%{background:transparent}}
-  /* Feed entrance */
-  .ai-item.ai-enter{animation:aiItemIn .5s ease-out both}
-  @keyframes aiItemIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+  /* ═══ RIGHT: 3×2 Dense Grid ═══ */
+  .ai-right{flex:1;min-width:0;display:grid;
+    grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);
+    gap:6px;padding:8px 14px 8px 10px;position:relative;overflow:hidden}
+  /* ── Grid cell — compact card ── */
+  .ai-cell{position:relative;border:1px solid rgba(42,120,180,.08);border-radius:4px;
+    background:rgba(12,32,60,.20);padding:5px 10px 4px;
+    display:flex;flex-direction:column;gap:3px;
+    cursor:pointer;overflow:hidden;
+    transition:all .3s ease}
+  .ai-cell:hover{background:rgba(22,48,82,.38);border-color:rgba(42,200,230,.22)}
+  /* ── Top accent line (1px only, not >1px side-stripe) ── */
+  .ai-cell:before{content:"";position:absolute;left:8px;right:8px;top:0;height:1px;pointer-events:none}
+  .ai-c1:before{background:linear-gradient(90deg,transparent,rgba(52,211,153,.35),transparent)}
+  .ai-c2:before{background:linear-gradient(90deg,transparent,rgba(251,191,36,.30),transparent)}
+  .ai-c3:before{background:linear-gradient(90deg,transparent,rgba(56,189,248,.30),transparent)}
+  .ai-c4:before{background:linear-gradient(90deg,transparent,rgba(167,139,250,.30),transparent)}
+  .ai-c5:before{background:linear-gradient(90deg,transparent,rgba(248,113,113,.25),transparent)}
+  .ai-c6:before{background:linear-gradient(90deg,transparent,rgba(52,211,153,.30),transparent)}
+  /* ── Hover glow per cell color ── */
+  .ai-c1:hover{box-shadow:0 0 16px rgba(52,211,153,.15);border-color:rgba(52,211,153,.35)}
+  .ai-c2:hover{box-shadow:0 0 16px rgba(251,191,36,.15);border-color:rgba(251,191,36,.35)}
+  .ai-c3:hover{box-shadow:0 0 16px rgba(56,189,248,.15);border-color:rgba(56,189,248,.35)}
+  .ai-c4:hover{box-shadow:0 0 16px rgba(167,139,250,.15);border-color:rgba(167,139,250,.35)}
+  .ai-c5:hover{box-shadow:0 0 16px rgba(248,113,113,.12);border-color:rgba(248,113,113,.28)}
+  .ai-c6:hover{box-shadow:0 0 16px rgba(52,211,153,.12);border-color:rgba(52,211,153,.28)}
+  /* ── Cell header: dot + tag ── */
+  .ai-c-hd{display:flex;align-items:center;gap:5px;font-size:9px;font-weight:700;letter-spacing:1.5px}
+  .ai-c-dot{width:4px;height:4px;border-radius:50%;flex-shrink:0}
+  .ai-c1 .ai-c-dot{background:#34d399;box-shadow:0 0 4px #34d399}.ai-c1 .ai-c-hd{color:#5eead4}
+  .ai-c2 .ai-c-dot{background:#fbbf24;box-shadow:0 0 4px #fbbf24}.ai-c2 .ai-c-hd{color:#fde68a}
+  .ai-c3 .ai-c-dot{background:#38bdf8;box-shadow:0 0 4px #38bdf8}.ai-c3 .ai-c-hd{color:#7dd3fc}
+  .ai-c4 .ai-c-dot{background:#a78bfa;box-shadow:0 0 4px #a78bfa}.ai-c4 .ai-c-hd{color:#c4b5fd}
+  .ai-c5 .ai-c-dot{background:#f87171;box-shadow:0 0 4px #f87171}.ai-c5 .ai-c-hd{color:#fca5a5}
+  .ai-c6 .ai-c-dot{background:#34d399;box-shadow:0 0 4px #34d399}.ai-c6 .ai-c-hd{color:#5eead4}
+  /* ── Cell data lines ── */
+  .ai-c-data{font-size:9.5px;color:#b4cce0;line-height:1.45}
+  .ai-c-data em{font-style:normal;font-weight:800;color:#e4f0fa;font-variant-numeric:tabular-nums}
+  .ai-c-data b{font-weight:700;color:#c8dce8}
+  /* ── Cell stagger entrance ── */
+  .ai-cell.ai-enter{animation:aiCellIn .45s ease-out both}
+  .ai-cell:nth-child(2).ai-enter{animation-delay:.08s}
+  .ai-cell:nth-child(3).ai-enter{animation-delay:.16s}
+  .ai-cell:nth-child(4).ai-enter{animation-delay:.24s}
+  .ai-cell:nth-child(5).ai-enter{animation-delay:.32s}
+  .ai-cell:nth-child(6).ai-enter{animation-delay:.40s}
+  @keyframes aiCellIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+  /* ── Cell flash (js-driven) ── */
+  .ai-cell.ai-flash{animation:aiCellFlash .7s ease-out}
+  @keyframes aiCellFlash{0%{background:rgba(36,234,255,.12)}100%{background:rgba(12,32,60,.20)}}
 
   /* ═══ Bottom Ticker ═══ */
   .ai-ticker{position:absolute;left:0;right:0;bottom:0;height:24px;
@@ -1219,31 +1242,39 @@
           <div class="ai-core-status"></div>
         </div>
       </div>
-      <!-- Right: Live Analysis Feed -->
+      <!-- Right: 3×2 Dense Grid -->
       <div class="ai-right" id="aiFeed">
-        <div class="ai-item ai-enter" data-delay="0">
-          <span class="ai-item-tag t-insight">洞察</span>
-          <span>预算 <em>¥2.38亿</em> · 签约 <em>¥1.85亿</em> · 节资率 <em>22.3%</em> · 英雄项目领跑 <b>31.5%</b></span>
+        <!-- Row 1 -->
+        <div class="ai-cell ai-c1 ai-enter">
+          <div class="ai-c-hd"><span class="ai-c-dot"></span>洞察</div>
+          <div class="ai-c-data">预算 <em>¥2.38亿</em> · 签约 <em>¥1.85亿</em> · 节资率 <em>22.3%</em></div>
+          <div class="ai-c-data">英雄项目节资领跑 <b>31.5%</b></div>
         </div>
-        <div class="ai-item ai-enter" data-delay="1">
-          <span class="ai-item-tag t-alert">预警</span>
-          <span>供应商资质临期 <em>3 家</em> · 专家未签到 <em>1 人</em> · 项目进度滞后 <em>1 项</em></span>
+        <div class="ai-cell ai-c2 ai-enter">
+          <div class="ai-c-hd"><span class="ai-c-dot"></span>预警</div>
+          <div class="ai-c-data">供应商资质临期 <em>3 家</em> · 未签到 <em>1 人</em></div>
+          <div class="ai-c-data">项目进度滞后 <em>1 项</em></div>
         </div>
-        <div class="ai-item ai-enter" data-delay="2">
-          <span class="ai-item-tag t-trend">趋势</span>
-          <span>全年节资率预测 <em>24.5%</em> · 商城均价<b style="color:#34d399">↓2.3%</b> · <b>3</b> 项目完整归档</span>
+        <div class="ai-cell ai-c3 ai-enter">
+          <div class="ai-c-hd"><span class="ai-c-dot"></span>趋势</div>
+          <div class="ai-c-data">全年节资率预测 <em>24.5%</em> · 均价<b style="color:#34d399">↓2.3%</b></div>
+          <div class="ai-c-data"><b>3</b> 项目完整归档</div>
         </div>
-        <div class="ai-item ai-enter" data-delay="3">
-          <span class="ai-item-tag t-action">建议</span>
-          <span>协调 <b>5</b> 个开标项目专家资源 · 催办临期供应商资质 · 推进线上评标出结果</span>
+        <!-- Row 2 -->
+        <div class="ai-cell ai-c4 ai-enter">
+          <div class="ai-c-hd"><span class="ai-c-dot"></span>建议</div>
+          <div class="ai-c-data">协调 <b>5</b> 个开标项目专家资源</div>
+          <div class="ai-c-data">催办临期资质 · 推进线上评标出结果</div>
         </div>
-        <div class="ai-item ai-enter" data-delay="4">
-          <span class="ai-item-tag t-watch">关注</span>
-          <span>英雄项目 专家未签到 · 水泥采购 专家到位率<b style="color:#fbbf24">低</b> · 材料采购 供应商解密中</span>
+        <div class="ai-cell ai-c5 ai-enter">
+          <div class="ai-c-hd"><span class="ai-c-dot"></span>关注</div>
+          <div class="ai-c-data">英雄项目 专家未签到 · 水泥采购 到位率<b style="color:#fbbf24">低</b></div>
+          <div class="ai-c-data">材料采购 供应商解密进行中</div>
         </div>
-        <div class="ai-item ai-enter" data-delay="5">
-          <span class="ai-item-tag t-insight">归档</span>
-          <span><b>3</b> 项目完整归档 · 哈希链验证<b style="color:#34d399">通过</b> · 档案包已导出</span>
+        <div class="ai-cell ai-c6 ai-enter">
+          <div class="ai-c-hd"><span class="ai-c-dot"></span>归档</div>
+          <div class="ai-c-data"><b>3</b> 项目完整归档 · 哈希链验证<b style="color:#34d399">通过</b></div>
+          <div class="ai-c-data">档案包已导出 · 审计追溯完备</div>
         </div>
       </div>
     </div>
@@ -2038,89 +2069,75 @@
     }
   })();
 
-  // === AI BAR: 神经核心粒子流 + 分析流 + 行情条 ──
+  // === AI BAR: 神经核心粒子流 + 3×2网格联动 + 行情条 ──
   (function(){
     var coreIcon = document.querySelector('.ai-core-icon');
-    var coreRing = document.querySelector('.ai-core-ring');
     var feed = document.getElementById('aiFeed');
     if (!coreIcon || !feed) return;
 
-    // ── 1. Data particles flowing from core → feed ──
+    // ── 1. Data particles flowing from core → grid ──
     var coreEl = document.querySelector('.ai-left');
-    var particles = [];
     var particleContainer = document.getElementById('aiMain');
+    var particles = [];
     for (var p = 0; p < 12; p++) {
       var dot = document.createElement('div');
       dot.className = 'ai-particle';
       dot.style.cssText = 'position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;pointer-events:none;z-index:1;opacity:0;box-shadow:0 0 4px #7dd3fc';
       particleContainer.appendChild(dot);
-      particles.push({ el: dot, progress: Math.random(), speed: 0.003 + Math.random() * 0.006, yOff: 20 + Math.random() * 120, delay: Math.random() * 4 });
+      particles.push({ el: dot, speed: 0.003 + Math.random() * 0.006, yOff: 24 + Math.random() * 110, delay: Math.random() * 4 });
     }
     function animateParticles(ts) {
       var coreRect = coreEl.getBoundingClientRect();
       var feedRect = feed.getBoundingClientRect();
-      var cx = coreRect.right - 6;
       var startX = coreRect.right - 4;
-      var endX = feedRect.left + 10;
+      var endX = feedRect.right - 20;
       var sectionTop = coreRect.top;
       for (var i = 0; i < particles.length; i++) {
         var pt = particles[i];
-        var prog = (Math.sin((ts * 0.001 * pt.speed * 60) + pt.delay) + 1) / 2; // 0..1 oscillation
+        var prog = (Math.sin((ts * 0.001 * pt.speed * 60) + pt.delay) + 1) / 2;
         var x = startX + (endX - startX) * prog;
-        var y = sectionTop + pt.yOff + Math.sin(ts * 0.002 + pt.delay) * 12;
+        var y = sectionTop + pt.yOff + Math.sin(ts * 0.002 + pt.delay) * 10;
         pt.el.style.left = x + 'px';
         pt.el.style.top = y + 'px';
-        pt.el.style.opacity = prog < 0.1 || prog > 0.9 ? '0' : (prog < 0.3 ? ((prog - 0.1) / 0.2 * 0.7) : (prog > 0.7 ? ((0.9 - prog) / 0.2 * 0.7) : '0.7'));
+        pt.el.style.opacity = prog < 0.08 || prog > 0.92 ? '0' : (prog < 0.25 ? ((prog - 0.08) / 0.17 * 0.65) : (prog > 0.75 ? ((0.92 - prog) / 0.17 * 0.65) : '0.65'));
       }
       requestAnimationFrame(animateParticles);
     }
     requestAnimationFrame(animateParticles);
 
-    // ── 2. Feed item hover → core color transfer ──
-    var tagColors = {
-      't-insight': 'rgba(52,211,153,.45)',
-      't-alert': 'rgba(251,191,36,.45)',
-      't-trend': 'rgba(56,189,248,.45)',
-      't-action': 'rgba(167,139,250,.45)',
-      't-watch': 'rgba(248,113,113,.45)'
+    // ── 2. Cell hover → core color transfer ──
+    var glowColors = {
+      'ai-c1': 'rgba(52,211,153,.40)',
+      'ai-c2': 'rgba(251,191,36,.40)',
+      'ai-c3': 'rgba(56,189,248,.40)',
+      'ai-c4': 'rgba(167,139,250,.40)',
+      'ai-c5': 'rgba(248,113,113,.35)',
+      'ai-c6': 'rgba(52,211,153,.35)'
     };
-    var items = feed.querySelectorAll('.ai-item');
-    items.forEach(function(item){
-      item.addEventListener('mouseenter', function(){
-        var tag = item.querySelector('.ai-item-tag');
-        if (!tag) return;
-        var cls = tag.classList[1]; // t-insight, t-alert, etc.
-        var c = tagColors[cls];
+    var cells = feed.querySelectorAll('.ai-cell');
+    cells.forEach(function(cell){
+      cell.addEventListener('mouseenter', function(){
+        var cls = cell.classList[1]; // ai-c1 ... ai-c6
+        var c = glowColors[cls];
         if (coreIcon && c) {
           coreIcon.style.boxShadow = '0 0 26px ' + c + ', inset 0 0 18px rgba(32,200,230,.08)';
-          coreIcon.style.borderColor = c.replace('.45','.55');
+          coreIcon.style.borderColor = c.replace('.40','.50').replace('.35','.45');
         }
       });
-      item.addEventListener('mouseleave', function(){
+      cell.addEventListener('mouseleave', function(){
         if (coreIcon) { coreIcon.style.boxShadow = ''; coreIcon.style.borderColor = ''; }
       });
     });
 
-    // ── 3. Feed item stagger entrance ──
-    setTimeout(function(){
-      items.forEach(function(item){
-        var d = parseInt(item.getAttribute('data-delay')) || 0;
-        item.style.animationDelay = (d * 0.1) + 's';
-      });
-    }, 200);
-
-    // ── 4. Periodic item flash (simulate "new insight" arriving) ──
+    // ── 3. Periodic cell flash ──
     setInterval(function(){
-      var candidates = [];
-      items.forEach(function(item){ candidates.push(item); });
-      if (!candidates.length) return;
-      var idx = Math.floor(Math.random() * candidates.length);
-      var target = candidates[idx];
-      target.classList.add('ai-flash');
-      setTimeout(function(){ target.classList.remove('ai-flash'); }, 800);
-    }, 8000);
+      if (!cells.length) return;
+      var idx = Math.floor(Math.random() * cells.length);
+      cells[idx].classList.add('ai-flash');
+      setTimeout(function(){ cells[idx].classList.remove('ai-flash'); }, 700);
+    }, 9000);
 
-    // ── 5. Ticker pause on hover ──
+    // ── 4. Ticker pause on hover ──
     var tickerTrack = document.querySelector('.ai-ticker-track');
     if (tickerTrack) {
       tickerTrack.addEventListener('mouseenter', function(){ tickerTrack.style.animationPlayState = 'paused'; });
