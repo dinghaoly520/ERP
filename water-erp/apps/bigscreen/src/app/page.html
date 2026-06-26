@@ -637,22 +637,110 @@
 
   .risk-dot{display:inline-block;width:8px;height:8px;border-radius:50%;box-shadow:0 0 4px currentColor}.table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}.table th{color:#7ed6ff;text-align:left;font-weight:600}.table td{padding:4px 2px;border-top:1px solid rgba(88,186,255,.08)}
 
-  /* === AI FLOW BAR === */
-  #aiMain{position:absolute;left:16px;right:16px;top:872px;width:1888px;height:198px;overflow:hidden;background:rgba(4,28,64,.55)!important;border-color:rgba(28,219,255,.20)!important}
-  .ai-flow{display:flex;align-items:stretch;gap:0;height:100%;padding:8px 0}
-  .ai-chip{display:grid;place-items:center;padding:0 18px;border-right:1px solid rgba(28,219,255,.15)}
-  .ai-chip-icon{width:62px;height:62px;border:1.5px solid rgba(36,234,255,.35);border-radius:10px;display:grid;place-items:center;font-size:26px;font-weight:900;color:#bae6fd;box-shadow:0 0 14px rgba(32,200,230,.20),inset 0 0 14px rgba(32,200,230,.12);animation:chipPulse 3s ease-in-out infinite}
-  @keyframes chipPulse{50%{transform:scale(1.05);filter:brightness(1.2)}}
-  .ai-col{flex:1;display:flex;flex-direction:column;justify-content:center;gap:5px;padding:0 14px;border-right:1px solid rgba(28,219,255,.10)}
-  .ai-col:last-child{border-right:none}
-  .ai-tag{font-size:9px;font-weight:700;letter-spacing:1px;color:#5a7d9a;background:rgba(28,60,100,.20);border:1px solid rgba(42,120,180,.10);padding:1px 8px;border-radius:3px;align-self:flex-start;margin-bottom:2px}
-  .ai-tag.ok{color:#34d399;border-color:rgba(52,211,153,.25);background:rgba(52,211,153,.08)}
-  .ai-tag.warn{color:#fbbf24;border-color:rgba(251,191,36,.25);background:rgba(251,191,36,.08)}
-  .ai-tag.good{color:#38bdf8;border-color:rgba(56,189,248,.25);background:rgba(56,189,248,.08)}
-  .ai-tag.act{color:#a78bfa;border-color:rgba(167,139,250,.25);background:rgba(167,139,250,.08)}
-  .ai-line{font-size:10px;color:#c0d4e4;line-height:1.5}
-  .ai-line em{font-style:normal;font-weight:700;color:#e8f4ff;margin:0 2px}
-  .ai-line b{color:#c8e4f4;font-weight:700}
+  /* ═══════════════════════════════════════════
+     AI COMMAND BAR — 水叮当智能指挥台
+     Left/right column → quadrants · center core · bottom ticker
+     ═══════════════════════════════════════════ */
+  #aiMain{position:absolute;left:16px;right:16px;top:872px;width:1888px;height:198px;
+    overflow:hidden;background:rgba(4,28,64,.55)!important;border-color:rgba(28,219,255,.20)!important}
+
+  /* ── Main flex row: left-column | center-core | right-column ── */
+  .ai-row{display:flex;align-items:stretch;height:calc(100% - 28px);
+    padding:10px 14px 4px;position:relative;z-index:2;gap:0}
+
+  /* ── Side columns (stacks 2 quadrants vertically) ── */
+  .ai-side{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
+
+  /* ── Center core slot (reserved width, flex-shrink:0 keeps shape) ── */
+  .ai-center{width:90px;flex-shrink:0;position:relative;
+    display:flex;align-items:center;justify-content:center}
+
+  /* ── Quadrant card ── */
+  .ai-q{position:relative;flex:1;border:1px solid rgba(42,120,180,.08);border-radius:6px;
+    background:rgba(18,40,70,.25);padding:8px 12px 6px;
+    display:flex;flex-direction:column;gap:3px;
+    cursor:pointer;overflow:hidden;
+    transition:all .35s cubic-bezier(.4,0,.2,1)}
+  .ai-q:hover{background:rgba(28,60,100,.40);border-color:rgba(42,200,230,.30);
+    transform:translateY(-2px)}
+  .ai-q:before{content:"";position:absolute;left:0;right:0;top:0;height:2px;
+    border-radius:6px 6px 0 0;pointer-events:none}
+  .ai-q1:before{background:linear-gradient(90deg,#34d399,transparent 70%)}
+  .ai-q2:before{background:linear-gradient(90deg,#fbbf24,transparent 70%)}
+  .ai-q3:before{background:linear-gradient(90deg,#38bdf8,transparent 70%)}
+  .ai-q4:before{background:linear-gradient(90deg,#a78bfa,transparent 70%)}
+  .ai-q1:hover{box-shadow:0 0 22px rgba(52,211,153,.25);border-color:rgba(52,211,153,.45)}
+  .ai-q2:hover{box-shadow:0 0 22px rgba(251,191,36,.25);border-color:rgba(251,191,36,.45)}
+  .ai-q3:hover{box-shadow:0 0 22px rgba(56,189,248,.25);border-color:rgba(56,189,248,.45)}
+  .ai-q4:hover{box-shadow:0 0 22px rgba(167,139,250,.25);border-color:rgba(167,139,250,.45)}
+
+  /* ── Quadrant tag + dot ── */
+  .ai-q-tag{display:inline-flex;align-items:center;gap:5px;font-size:9px;
+    font-weight:700;letter-spacing:1.5px;align-self:flex-start}
+  .ai-q-dot{display:inline-block;width:5px;height:5px;border-radius:50%;flex-shrink:0}
+  .ai-q1 .ai-q-dot{background:#34d399;box-shadow:0 0 6px #34d399}
+  .ai-q2 .ai-q-dot{background:#fbbf24;box-shadow:0 0 6px #fbbf24}
+  .ai-q3 .ai-q-dot{background:#38bdf8;box-shadow:0 0 6px #38bdf8}
+  .ai-q4 .ai-q-dot{background:#a78bfa;box-shadow:0 0 6px #a78bfa}
+  .ai-q1 .ai-q-tag{color:#5eead4}.ai-q2 .ai-q-tag{color:#fde68a}
+  .ai-q3 .ai-q-tag{color:#7dd3fc}.ai-q4 .ai-q-tag{color:#c4b5fd}
+
+  /* ── Quadrant data text ── */
+  .ai-q-data{font-size:10px;color:#c0d4e4;line-height:1.5}
+  .ai-q-data em{font-style:normal;font-weight:800;color:#e8f4ff;margin:0 1px;
+    font-variant-numeric:tabular-nums}
+  .ai-q-data b{font-weight:700;color:#d0e0f0}
+
+  /* ── Quadrant entrance stagger ── */
+  .ai-q.ai-enter{animation:aiQFade .6s ease-out both}
+  .ai-q2.ai-enter{animation-delay:.12s}.ai-q3.ai-enter{animation-delay:.24s}
+  .ai-q4.ai-enter{animation-delay:.36s}
+  @keyframes aiQFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+  /* ── CENTRAL AI CORE ── */
+  .ai-core{display:flex;flex-direction:column;align-items:center;gap:6px;z-index:5}
+  .ai-core-ring{position:relative;width:60px;height:60px}
+  .ai-core-icon{position:absolute;inset:6px;border-radius:12px;
+    border:1.5px solid rgba(36,234,255,.40);
+    background:radial-gradient(ellipse at 35% 30%,rgba(32,200,230,.20),rgba(4,28,64,.70));
+    display:grid;place-items:center;font-size:20px;font-weight:900;color:#bae6fd;
+    box-shadow:0 0 18px rgba(32,200,230,.22),inset 0 0 14px rgba(32,200,230,.07);
+    z-index:2}
+  .ai-core-ring:before,.ai-core-ring:after{content:"";position:absolute;
+    border-radius:50%;border:1px solid rgba(36,234,255,.16);pointer-events:none}
+  .ai-core-ring:before{inset:-5px;animation:aiRing1 3s linear infinite}
+  .ai-core-ring:after{inset:-12px;border-color:rgba(167,139,250,.10);
+    animation:aiRing2 5s linear infinite}
+  @keyframes aiRing1{to{transform:rotate(360deg)}}
+  @keyframes aiRing2{to{transform:rotate(-360deg)}}
+  /* burst */
+  .ai-core-burst{position:absolute;inset:-3px;border-radius:50%;
+    border:1px solid rgba(36,234,255,.25);pointer-events:none;z-index:1;
+    animation:aiBurst 2s ease-out infinite}
+  @keyframes aiBurst{0%{transform:scale(.8);opacity:.6}100%{transform:scale(1.5);opacity:0}}
+  .ai-core-burst:nth-child(2){animation-delay:1s}
+  /* label */
+  .ai-core-label{font-size:9px;font-weight:700;letter-spacing:4px;
+    color:rgba(186,230,253,.60);text-align:center}
+
+  /* ── Bottom ticker ── */
+  .ai-ticker{position:absolute;left:0;right:0;bottom:0;height:24px;
+    border-top:1px solid rgba(28,219,255,.08);
+    background:rgba(2,13,31,.35);z-index:4;
+    display:flex;align-items:center;overflow:hidden}
+  .ai-ticker-track{display:flex;align-items:center;gap:36px;
+    animation:aiScroll 28s linear infinite;white-space:nowrap}
+  @keyframes aiScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+  .ai-ticker-item{font-size:9px;color:#7ea8c4;display:flex;align-items:center;gap:5px;flex-shrink:0}
+  .ai-ticker-item b{color:#c0d8e8;font-weight:700}
+  .ai-ticker-item .ok{color:#34d399}.ai-ticker-item .warn{color:#fbbf24}
+  .ai-ticker-sep{width:1px;height:9px;background:rgba(80,180,220,.12);flex-shrink:0}
+  .ai-ticker-dot{width:4px;height:4px;border-radius:50%;flex-shrink:0}
+  .ai-ticker-dot.live{background:#34d399;box-shadow:0 0 5px #34d399;
+    animation:tkDotPulse 1s ease-in-out infinite}
+  .ai-ticker-dot.alert{background:#fbbf24;box-shadow:0 0 5px #fbbf24;
+    animation:tkDotPulse 1.2s ease-in-out infinite .4s}
+  @keyframes tkDotPulse{50%{transform:scale(1.8);opacity:.4}}
   @media(prefers-reduced-motion:reduce){*,:before,:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -1003,33 +1091,69 @@
   </section>
 
   <section id="aiMain" class="panel">
-    <div class="ai-flow">
-      <div class="ai-chip"><div class="ai-chip-icon">AI</div></div>
-      <div class="ai-col">
-        <div class="ai-tag ok">洞察</div>
-        <div class="ai-line">预算 ¥2.38亿 · 签约 ¥1.85亿</div>
-        <div class="ai-line">节资率 22.3%，英雄项目 31.5% 领跑</div>
+    <!-- Main row: left quads | core | right quads -->
+    <div class="ai-row">
+      <!-- Left column -->
+      <div class="ai-side">
+        <div class="ai-q ai-q1 ai-enter">
+          <div class="ai-q-tag"><span class="ai-q-dot"></span>洞察</div>
+          <div class="ai-q-data">预算 <em>¥2.38亿</em> · 签约 <em>¥1.85亿</em></div>
+          <div class="ai-q-data">节资率 <em>22.3%</em> · 英雄项目领跑 <b style="color:#34d399">31.5%</b></div>
+        </div>
+        <div class="ai-q ai-q2 ai-enter">
+          <div class="ai-q-tag"><span class="ai-q-dot"></span>预警</div>
+          <div class="ai-q-data">供应商资质临期 <em style="color:#fbbf24">3 家</em></div>
+          <div class="ai-q-data">专家未签到 <em style="color:#fbbf24">1 人</em> · 进度滞后 <em style="color:#fbbf24">1 项</em></div>
+        </div>
       </div>
-      <div class="ai-col">
-        <div class="ai-tag warn">预警</div>
-        <div class="ai-line">供应商资质临期 <em>3 家</em></div>
-        <div class="ai-line">专家未签到 <em>1 人</em> · 项目进度滞后 <em>1 个</em></div>
+      <!-- Center core -->
+      <div class="ai-center">
+        <div class="ai-core">
+          <div class="ai-core-ring">
+            <div class="ai-core-burst"></div>
+            <div class="ai-core-burst"></div>
+            <div class="ai-core-icon">AI</div>
+          </div>
+          <div class="ai-core-label">水 叮 当</div>
+        </div>
       </div>
-      <div class="ai-col">
-        <div class="ai-tag good">趋势</div>
-        <div class="ai-line">全年节资率预测 <em>24.5%</em></div>
-        <div class="ai-line">商城均价 ↓ 2.3% · 3项目完整归档</div>
+      <!-- Right column -->
+      <div class="ai-side">
+        <div class="ai-q ai-q3 ai-enter">
+          <div class="ai-q-tag"><span class="ai-q-dot"></span>趋势</div>
+          <div class="ai-q-data">全年节资率预测 <em>24.5%</em></div>
+          <div class="ai-q-data">商城均价 <b style="color:#34d399">↓2.3%</b> · <b>3</b> 项目完整归档</div>
+        </div>
+        <div class="ai-q ai-q4 ai-enter">
+          <div class="ai-q-tag"><span class="ai-q-dot"></span>建议</div>
+          <div class="ai-q-data">协调 <b>5</b> 个开标项目专家 · 催办临期资质</div>
+          <div class="ai-q-data">推进线上评标 · 关注材料采购解密</div>
+        </div>
       </div>
-      <div class="ai-col">
-        <div class="ai-tag act">建议</div>
-        <div class="ai-line">协调 5 个开标项目专家资源</div>
-        <div class="ai-line">催办临期供应商资质 + 推进评标出结果</div>
-      </div>
-      <div class="ai-col">
-        <div class="ai-tag">关注</div>
-        <div class="ai-line"><b>英雄项目</b> 专家未签到</div>
-        <div class="ai-line"><b>水泥采购</b> 专家到位率低</div>
-        <div class="ai-line"><b>材料采购</b> 供应商解密中</div>
+    </div>
+    <!-- Bottom ticker -->
+    <div class="ai-ticker">
+      <div class="ai-ticker-track">
+        <span class="ai-ticker-item"><span class="ai-ticker-dot live"></span>系统正常 · 数据同步 <b>实时</b></span>
+        <span class="ai-ticker-sep"></span>
+        <span class="ai-ticker-item">英雄项目 <b>评标中</b> · 5/7 专家已签到</span>
+        <span class="ai-ticker-sep"></span>
+        <span class="ai-ticker-item"><span class="ai-ticker-dot alert"></span>水泥采购 · 专家到位率 <b class="warn">低</b></span>
+        <span class="ai-ticker-sep"></span>
+        <span class="ai-ticker-item">材料采购 · 供应商 <b>解密中</b></span>
+        <span class="ai-ticker-sep"></span>
+        <span class="ai-ticker-item">亭子口引水 · 合同签署 <b class="ok">✓</b></span>
+        <!-- Duplicate for seamless loop -->
+        <span class="ai-ticker-sep"></span>
+        <span class="ai-ticker-item"><span class="ai-ticker-dot live"></span>系统正常 · 数据同步 <b>实时</b></span>
+        <span class="ai-ticker-sep"></span>
+        <span class="ai-ticker-item">英雄项目 <b>评标中</b> · 5/7 专家已签到</span>
+        <span class="ai-ticker-sep"></span>
+        <span class="ai-ticker-item"><span class="ai-ticker-dot alert"></span>水泥采购 · 专家到位率 <b class="warn">低</b></span>
+        <span class="ai-ticker-sep"></span>
+        <span class="ai-ticker-item">材料采购 · 供应商 <b>解密中</b></span>
+        <span class="ai-ticker-sep"></span>
+        <span class="ai-ticker-item">亭子口引水 · 合同签署 <b class="ok">✓</b></span>
       </div>
     </div>
   </section>
