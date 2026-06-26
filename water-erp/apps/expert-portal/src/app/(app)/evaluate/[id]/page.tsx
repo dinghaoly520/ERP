@@ -10,6 +10,7 @@ import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationRep
 import { isPassFailCategory } from '@water-erp/shared';
 import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, Gavel, MessageSquare } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
+import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 
 type Step = 'verify' | 'documents' | 'assist' | 'scoring' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
@@ -557,32 +558,19 @@ export default function ExpertEvaluatePage() {
       </div>
 
       {/* 主内容区 */}
-      <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
-        {/* 左侧供应商列表 */}
-        <div className="w-56 flex-shrink-0 glass-card glass-card-purple rounded-xl !overflow-y-auto">
-          <div className="p-4 border-b border-[oklch(0.91_0.006_264)]">
-            <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]">投标单位</h3>
-            <p className="text-xs text-[oklch(0.55_0.01_264)] mt-1">{project.suppliers.length} 家</p>
-          </div>
-          <div className="p-2">
-            {project.suppliers.map(s => (
-              <button key={s.id} onClick={() => { setActiveSupplier(s.id); setMissingReasons(new Set()); }}
-                disabled={conflictedSupplierIds.has(s.id) && step !== 'verify'}
-                className={`w-full text-left p-3 rounded-lg mb-1 text-sm transition-all ${activeSupplier === s.id ? 'bg-blue-50 border border-[#bfdbfe]' : 'hover:bg-[oklch(0.992_0.003_264)] border border-transparent'}`}>
-                <div className="font-semibold text-[oklch(0.18_0.012_265)] truncate">{s.supplierName}</div>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full ${s.decryptStatus === 'SUCCESS' ? 'bg-[#11a874]' : s.decryptStatus === 'DANGER' ? 'bg-[#e74c3c]' : 'bg-[#f5a623]'}`} />
-                  <span className="text-xs text-[oklch(0.55_0.01_264)]">{decryptLabel[s.decryptStatus] || s.decryptStatus}</span>
-                  {conflictedSupplierIds.has(s.id) && (
-                    <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">已回避</span>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+      <div className="flex-1 flex flex-col gap-3 overflow-hidden min-h-0">
+        {/* 供应商横向选择条 — 仅在需要供应商选择的步骤显示 */}
+        {step !== 'verify' && step !== 'report' && (
+          <SupplierTabBar
+            suppliers={project.suppliers}
+            activeSupplier={activeSupplier}
+            onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); }}
+            conflictedSupplierIds={conflictedSupplierIds}
+            decryptLabel={decryptLabel}
+          />
+        )}
 
-        {/* 右侧主内容 */}
+        {/* 主内容 */}
         <div className="flex-1 glass-card glass-card-blue rounded-xl !overflow-y-auto">
           {/* ====== 身份核验 ====== */}
           {step === 'verify' && (
@@ -895,7 +883,7 @@ export default function ExpertEvaluatePage() {
               ) : (
                 <div className="text-center py-12 text-[oklch(0.55_0.01_264)]">
                   <div className="mb-3"><FileText size={40} strokeWidth={1} className="text-[#cbd5e1]" /></div>
-                  <p>请先在左侧选择一个投标单位查看标书</p>
+                  <p>请先在上方选择一个投标单位查看标书</p>
                 </div>
               )}
             </div>
@@ -925,13 +913,9 @@ export default function ExpertEvaluatePage() {
                   <h2 className="text-xl font-bold text-[oklch(0.18_0.012_265)]">专家独立打分</h2>
                   <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">请根据您的专业判断进行客观评分</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <label className="text-sm text-[oklch(0.55_0.01_264)]">评分对象：</label>
-                  <select value={activeSupplier} onChange={e => { setActiveSupplier(e.target.value); setMissingReasons(new Set()); }}
-                    className="text-sm border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-2 bg-white/60 focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none">
-                    {project.suppliers.map(s => <option key={s.id} value={s.id}>{s.supplierName}</option>)}
-                  </select>
-                </div>
+                <span className="text-xs bg-blue-50 text-[#064ea2] px-3 py-1.5 rounded-lg font-semibold">
+                  当前：{project.suppliers.find(s => s.id === activeSupplier)?.supplierName || '请选择'}
+                </span>
               </div>
 
               {/* P0-3: draft recovery banner */}

@@ -221,7 +221,7 @@ export function AssistPanel({
               className="text-[oklch(0.75_0.008_264)] mx-auto"
             />
           </div>
-          <p className="text-[var(--color-text-secondary)]">请先在左侧选择一个投标单位</p>
+          <p className="text-[var(--color-text-secondary)]">请先在上方选择一个投标单位</p>
           <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
             AI 引擎将分析投标文件并生成辅助评估报告
           </p>
