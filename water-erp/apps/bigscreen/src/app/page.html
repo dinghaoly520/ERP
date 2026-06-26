@@ -166,12 +166,50 @@
   @keyframes growBar{from{width:0}to{width:var(--w)}}
   @keyframes barShimmer{0%,100%{transform:translateX(-100%)}50%{transform:translateX(100%)}}
 
-  /* map */
+  /* ═══════════════════════════════════════════
+     MAP PANEL — radar scan + city nodes
+     ═══════════════════════════════════════════ */
   .map-title{position:absolute;top:20px;left:0;right:0;text-align:center;font-size:22px;font-weight:900;color:#c4dce8;z-index:10}
   .map-bg-img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;opacity:1;z-index:1;pointer-events:none}
   .map-bg-img-wrap{position:absolute;inset:0;overflow:hidden;z-index:0}
   #mapPanel{background:transparent!important;border:none!important;box-shadow:none!important}
   #mapPanel:before,#mapPanel:after{display:none}
+  /* ── Map vignette ── */
+  .map-vignette{position:absolute;inset:0;z-index:2;pointer-events:none;
+    box-shadow:inset 0 0 80px 40px rgba(2,11,28,.55),inset 0 0 30px rgba(2,11,28,.35)}
+  /* ── Radar origin (Chengdu area) ── */
+  .map-radar{position:absolute;z-index:3;pointer-events:none;
+    left:38%;top:44%;width:8px;height:8px;transform:translate(-50%,-50%)}
+  .map-radar-dot{position:absolute;inset:-3px;border-radius:50%;
+    background:#fff;box-shadow:0 0 8px #fff,0 0 20px rgba(32,200,230,.6)}
+  .map-radar-ring{position:absolute;border-radius:50%;
+    border:1px solid rgba(32,200,230,.20);inset:-30px;
+    animation:radarPing 3s ease-out infinite}
+  .map-radar-ring:nth-child(2){animation-delay:1s}
+  .map-radar-ring:nth-child(3){animation-delay:2s}
+  @keyframes radarPing{0%{inset:-30px;opacity:.6}100%{inset:-220px;opacity:0}}
+  /* ── City node ── */
+  .map-node{position:absolute;z-index:4;pointer-events:none;
+    width:50px;height:50px;transform:translate(-50%,-50%)}
+  .map-node-dot{position:absolute;inset:20px;border-radius:50%;
+    background:#38bdf8;box-shadow:0 0 6px #38bdf8,0 0 14px rgba(56,189,248,.4);
+    animation:mapNodePulse 2.4s ease-in-out infinite}
+  .map-node-ring{position:absolute;inset:14px;border-radius:50%;
+    border:1px solid rgba(56,189,248,.25);
+    animation:mapNodeRing 2.4s ease-out infinite}
+  @keyframes mapNodePulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.5);opacity:1}}
+  @keyframes mapNodeRing{0%{inset:14px;opacity:.5}100%{inset:-6px;opacity:0}}
+  /* ── Node count badge ── */
+  .map-node-badge{position:absolute;top:-18px;left:50%;transform:translateX(-50%);
+    font-size:9px;font-weight:800;color:#bae6fd;white-space:nowrap;
+    text-shadow:0 0 6px rgba(56,189,248,.5);z-index:5}
+  /* ── Node stagger delays ── */
+  .map-node:nth-child(1) .map-node-dot{animation-delay:0s}
+  .map-node:nth-child(2) .map-node-dot{animation-delay:.3s}
+  .map-node:nth-child(3) .map-node-dot{animation-delay:.6s}
+  .map-node:nth-child(4) .map-node-dot{animation-delay:.9s}
+  .map-node:nth-child(5) .map-node-dot{animation-delay:1.2s}
+  .map-node:nth-child(6) .map-node-dot{animation-delay:1.5s}
 
   .zone-donut{width:110px;height:110px;flex-shrink:0;position:relative}
   .zone-donut svg{width:100%;height:100%;position:relative;z-index:1}
@@ -691,6 +729,21 @@
     font-variant-numeric:tabular-nums}
   .ai-q-data b{font-weight:700;color:#d0e0f0}
 
+  /* ── Quadrant click-highlight state ── */
+  .ai-q.ai-hi{transform:translateY(-4px)!important;z-index:6}
+  .ai-q1.ai-hi{box-shadow:0 0 26px rgba(52,211,153,.35),0 6px 18px rgba(0,0,0,.3)!important;
+    border-color:rgba(52,211,153,.55)!important}
+  .ai-q2.ai-hi{box-shadow:0 0 26px rgba(251,191,36,.35),0 6px 18px rgba(0,0,0,.3)!important;
+    border-color:rgba(251,191,36,.55)!important}
+  .ai-q3.ai-hi{box-shadow:0 0 26px rgba(56,189,248,.35),0 6px 18px rgba(0,0,0,.3)!important;
+    border-color:rgba(56,189,248,.55)!important}
+  .ai-q4.ai-hi{box-shadow:0 0 26px rgba(167,139,250,.35),0 6px 18px rgba(0,0,0,.3)!important;
+    border-color:rgba(167,139,250,.55)!important}
+  /* ── Core ring speed boost when quadrant active ── */
+  .ai-core-ring.ai-ring-boost:before{animation-duration:1s!important}
+  .ai-core-ring.ai-ring-boost:after{animation-duration:1.8s!important}
+  .ai-core-ring.ai-ring-boost .ai-core-burst{animation-duration:.8s!important}
+
   /* ── Quadrant entrance stagger ── */
   .ai-q.ai-enter{animation:aiQFade .6s ease-out both}
   .ai-q2.ai-enter{animation-delay:.12s}.ai-q3.ai-enter{animation-delay:.24s}
@@ -943,6 +996,39 @@
   <section id="mapPanel" class="panel">
     <div class="map-bg-img-wrap">
       <img src="/map-bg.png" class="map-bg-img" alt="" />
+    </div>
+    <div class="map-vignette"></div>
+    <!-- Radar origin -->
+    <div class="map-radar">
+      <div class="map-radar-dot"></div>
+      <div class="map-radar-ring"></div>
+      <div class="map-radar-ring"></div>
+      <div class="map-radar-ring"></div>
+    </div>
+    <!-- City nodes -->
+    <div class="map-node" style="left:42%;top:38%">
+      <div class="map-node-badge">成都 6项</div>
+      <div class="map-node-ring"></div><div class="map-node-dot"></div>
+    </div>
+    <div class="map-node" style="left:65%;top:32%">
+      <div class="map-node-badge">绵阳 3项</div>
+      <div class="map-node-ring"></div><div class="map-node-dot"></div>
+    </div>
+    <div class="map-node" style="left:27%;top:55%">
+      <div class="map-node-badge">雅安 2项</div>
+      <div class="map-node-ring"></div><div class="map-node-dot"></div>
+    </div>
+    <div class="map-node" style="left:58%;top:58%">
+      <div class="map-node-badge">宜宾 2项</div>
+      <div class="map-node-ring"></div><div class="map-node-dot"></div>
+    </div>
+    <div class="map-node" style="left:48%;top:24%">
+      <div class="map-node-badge">德阳 3项</div>
+      <div class="map-node-ring"></div><div class="map-node-dot"></div>
+    </div>
+    <div class="map-node" style="left:73%;top:52%">
+      <div class="map-node-badge">泸州 1项</div>
+      <div class="map-node-ring"></div><div class="map-node-dot"></div>
     </div>
   </section>
 
@@ -1903,6 +1989,95 @@
         setTimeout(function(){ coDetail.style.color = ''; }, 300);
       });
     }
+  })();
+
+  // === AI COMMAND BAR: 交互 + 核心联动 + 行情条 ──
+  (function(){
+    var quads = document.querySelectorAll('.ai-q');
+    var coreIcon = document.querySelector('.ai-core-icon');
+    var coreRing = document.querySelector('.ai-core-ring');
+    if (!quads.length) return;
+
+    // Color map per quadrant
+    var glowColors = {
+      q1: 'rgba(52,211,153,.5)',
+      q2: 'rgba(251,191,36,.5)',
+      q3: 'rgba(56,189,248,.5)',
+      q4: 'rgba(167,139,250,.5)'
+    };
+    var borderColors = {
+      q1: 'rgba(52,211,153,.55)',
+      q2: 'rgba(251,191,36,.55)',
+      q3: 'rgba(56,189,248,.55)',
+      q4: 'rgba(167,139,250,.55)'
+    };
+
+    // ── Hover: quadrant → core icon color transfer ──
+    quads.forEach(function(q){
+      q.addEventListener('mouseenter', function(){
+        if (q.classList.contains('ai-hi')) return;
+        var cls = q.classList[1]; // ai-q1, ai-q2, etc.
+        var c = glowColors[cls];
+        if (coreIcon && c) {
+          coreIcon.style.boxShadow = '0 0 24px ' + c + ', inset 0 0 18px rgba(32,200,230,.08)';
+          coreIcon.style.borderColor = c;
+        }
+      });
+      q.addEventListener('mouseleave', function(){
+        if (q.classList.contains('ai-hi')) return;
+        if (coreIcon) {
+          coreIcon.style.boxShadow = '';
+          coreIcon.style.borderColor = '';
+        }
+      });
+    });
+
+    // ── Click: toggle quadrant highlight + lock core color ──
+    var activeKey = null;
+    quads.forEach(function(q){
+      q.addEventListener('click', function(e){
+        e.stopPropagation();
+        var cls = q.classList[1]; // ai-q1 ... ai-q4
+        if (activeKey === cls) {
+          // Deselect
+          q.classList.remove('ai-hi');
+          activeKey = null;
+          if (coreIcon) { coreIcon.style.boxShadow = ''; coreIcon.style.borderColor = ''; }
+          if (coreRing) coreRing.classList.remove('ai-ring-boost');
+        } else {
+          // Select new
+          quads.forEach(function(x){ x.classList.remove('ai-hi'); });
+          q.classList.add('ai-hi');
+          activeKey = cls;
+          var c = glowColors[cls], bc = borderColors[cls];
+          if (coreIcon && c) {
+            coreIcon.style.boxShadow = '0 0 28px ' + c + ', 0 0 48px ' + c.replace('.5','.18') + ', inset 0 0 20px rgba(32,200,230,.10)';
+            coreIcon.style.borderColor = bc;
+          }
+          if (coreRing) coreRing.classList.add('ai-ring-boost');
+        }
+      });
+    });
+
+    // ── Ticker pause on hover ──
+    var tickerTrack = document.querySelector('.ai-ticker-track');
+    if (tickerTrack) {
+      tickerTrack.addEventListener('mouseenter', function(){
+        tickerTrack.style.animationPlayState = 'paused';
+      });
+      tickerTrack.addEventListener('mouseleave', function(){
+        tickerTrack.style.animationPlayState = '';
+      });
+    }
+
+    // ── Click document → deselect ──
+    document.addEventListener('click', function(){
+      if (!activeKey) return;
+      quads.forEach(function(x){ x.classList.remove('ai-hi'); });
+      activeKey = null;
+      if (coreIcon) { coreIcon.style.boxShadow = ''; coreIcon.style.borderColor = ''; }
+      if (coreRing) coreRing.classList.remove('ai-ring-boost');
+    });
   })();
 </script>
 </body>
