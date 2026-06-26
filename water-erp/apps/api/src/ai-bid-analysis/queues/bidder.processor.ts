@@ -301,6 +301,16 @@ export class BidderProcessor extends WorkerHost {
 
     if (pending.length > 0) return;
 
+    // ★ 价格重算：首轮 per-item 评分时 bidder 并发处理，collectAllPrices 可能返回空数组
+    //   此时所有 bidder 的 keyInfo 已保存，重新用公式计算 PRICE 项
+    if (completed.length >= 2) {
+      try {
+        await this.recalculatePrices(taskId);
+      } catch (e) {
+        this.logger.warn(`Task ${taskId}: price recalculation failed: ${e}`);
+      }
+    }
+
     // ≥2 COMPLETED → 横向对比评分
     if (completed.length >= 2) {
       try {
@@ -428,6 +438,77 @@ export class BidderProcessor extends WorkerHost {
     return results
       .map((r) => (r.keyInfo as any)?.quotePrice as number | undefined)
       .filter((p): p is number => typeof p === 'number' && p > 0);
+  }
+
+  /**
+   * 价格重算：所有 bidder 终态后，用完整报价集合按公式重算 PRICE 项得分
+   * 解决 bidder 并发处理时 collectAllPrices 返回空数组导致首轮 PRICE=0 的问题
+   */
+  private async recalculatePrices(taskId: string): Promise<void> {
+    const allPrices = await this.collectAllPrices(taskId);
+    if (allPrices.length < 2) {
+      this.logger.log(`Task ${taskId}: only ${allPrices.length} prices, skip price recalculation`);
+      return;
+    }
+
+    const benchmark = allPrices.reduce((a, b) => a + b, 0) / allPrices.length;
+    this.logger.log(
+      `Task ${taskId}: recalculating prices (${allPrices.length} bidders, benchmark=${benchmark.toFixed(2)})`,
+    );
+
+    const bidders = await this.prisma.aiBidderResult.findMany({
+      where: { taskId, status: 'COMPLETED' },
+      select: { id: true, keyInfo: true, scoreItems: true, categoryTotals: true },
+    });
+
+    for (const bidder of bidders) {
+      const price = (bidder.keyInfo as any)?.quotePrice as number | undefined;
+      if (price == null) continue;
+
+      const scoreItems = (bidder.scoreItems ?? []) as any[];
+      const categoryTotals = (bidder.categoryTotals ?? {}) as Record<string, { score: number; max: number }>;
+
+      // 找到 PRICE 项并重算
+      let updated = false;
+      const newItems = scoreItems.map((item: any) => {
+        if (item.category !== 'PRICE') return item;
+        const maxScore = Number(item.maxScore ?? 30);
+        const deviation = (price - benchmark) / benchmark;
+        const ratio = Math.max(0, 1 - Math.abs(deviation) * 2);
+        const newScore = Math.round(maxScore * ratio * 10) / 10;
+        updated = true;
+        return {
+          ...item,
+          score: newScore,
+          reason: `报价 ${price}万元，基准价 ${benchmark.toFixed(2)}万元，偏离 ${(deviation * 100).toFixed(1)}%`,
+          evidence: '公式计算（基准价法，全量报价重算）',
+          confidence: 0.95,
+        };
+      });
+
+      if (!updated) continue;
+
+      // 重算 categoryTotals.PRICE 和 totalScore
+      const priceMax = categoryTotals.PRICE?.max ?? 30;
+      const newPriceScore = newItems.find((i: any) => i.category === 'PRICE')?.score ?? 0;
+      const newTotals = { ...categoryTotals };
+      newTotals.PRICE = { score: newPriceScore, max: priceMax };
+
+      const newTotal = Object.values(newTotals).reduce((a, c: any) => a + (c?.score ?? 0), 0);
+
+      await this.prisma.aiBidderResult.update({
+        where: { id: bidder.id },
+        data: {
+          scoreItems: newItems as any,
+          categoryTotals: newTotals as any,
+          totalScore: Math.round(newTotal * 10) / 10,
+        },
+      });
+
+      this.logger.log(
+        `  ${bidder.id}: PRICE ${price} → ${newPriceScore}/${priceMax}（偏离 ${((price - benchmark) / benchmark * 100).toFixed(1)}%）`,
+      );
+    }
   }
 
   private async updateBidderStatus(bidderResultId: string, status: AiBidderStatus) {

@@ -22,28 +22,10 @@ export const COMPARATIVE_SCORING_PROMPT = `你是一名资深招投标评审专�
   "scores": [
     {
       "bidderName": "投标单位名称",
-      "technical": {
-        "totalScore": <0-50>,
-        "breakdown": {
-          "feasibility": { "score": <0-20>, "maxScore": 20, "reason": "50字以内的扣分/得分理由" },
-          "equipment":   { "score": <0-10>, "maxScore": 10, "reason": "扣分/得分理由" },
-          "personnel":   { "score": <0-10>, "maxScore": 10, "reason": "扣分/得分理由" },
-          "guarantee":   { "score": <0-10>, "maxScore": 10, "reason": "扣分/得分理由" }
-        }
-      },
-      "commercial": {
-        "totalScore": <0-30>,
-        "breakdown": {
-          "qualification": { "score": <0-10>, "maxScore": 10, "reason": "扣分/得分理由" },
-          "performance":   { "score": <0-10>, "maxScore": 10, "reason": "扣分/得分理由" },
-          "service":       { "score": <0-10>, "maxScore": 10, "reason": "扣分/得分理由" }
-        }
-      },
-      "price": {
-        "totalScore": <0-20>,
-        "maxScore": 20,
-        "reason": "扣分/得分理由"
-      }
+      "technical": <0-50>,
+      "commercial": <0-30>,
+      "price": <0-20>,
+      "reason": "50字以内的总分调整理由"
     }
   ]
-}`;
+}`
