@@ -330,8 +330,44 @@
   .eval-d span,.eval-d b{color:#fca5a5!important}
   .su-tags{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
   .su-tags span{padding:2px 10px;border-radius:3px;font-size:9px;font-weight:600;color:#90b8cc;background:rgba(28,60,100,.25);border:1px solid rgba(42,120,180,.10)}
+  /* === SUPPLIER PANEL: KPI 动效（镜像专家库）=== */
+  /* ── 左描边色（5 卡独立）── */
+  #supplier .su-kpi:nth-child(1){border-left:2px solid #38bdf8}
+  #supplier .su-kpi:nth-child(2){border-left:2px solid #34d399}
+  #supplier .su-kpi:nth-child(3){border-left:2px solid #f59e0b}
+  #supplier .su-kpi:nth-child(4){border-left:2px solid #f87171}
+  #supplier .su-kpi:nth-child(5){border-left:2px solid #94a3b8}
+  /* ── 卡外发光脉冲（2.4s 错峰，独立色）── */
+  #supplier .su-kpi:nth-child(1){animation:suGlow1 2.4s ease-in-out infinite}
+  #supplier .su-kpi:nth-child(2){animation:suGlow2 2.4s ease-in-out infinite .3s}
+  #supplier .su-kpi:nth-child(3){animation:suGlow3 2.4s ease-in-out infinite .6s}
+  #supplier .su-kpi:nth-child(4){animation:suGlow4 2.4s ease-in-out infinite .9s}
+  #supplier .su-kpi:nth-child(5){animation:suGlow5 2.4s ease-in-out infinite 1.2s}
+  @keyframes suGlow1{0%,100%{box-shadow:0 0 4px rgba(56,189,248,.15)}50%{box-shadow:0 0 16px rgba(56,189,248,.55),0 0 32px rgba(56,189,248,.15)}}
+  @keyframes suGlow2{0%,100%{box-shadow:0 0 4px rgba(52,211,153,.15)}50%{box-shadow:0 0 16px rgba(52,211,153,.55),0 0 32px rgba(52,211,153,.15)}}
+  @keyframes suGlow3{0%,100%{box-shadow:0 0 4px rgba(245,158,11,.15)}50%{box-shadow:0 0 16px rgba(245,158,11,.50),0 0 28px rgba(245,158,11,.12)}}
+  @keyframes suGlow4{0%,100%{box-shadow:0 0 3px rgba(248,113,113,.10)}50%{box-shadow:0 0 12px rgba(248,113,113,.40),0 0 22px rgba(248,113,113,.12)}}
+  @keyframes suGlow5{0%,100%{box-shadow:0 0 3px rgba(148,163,184,.08)}50%{box-shadow:0 0 10px rgba(148,163,184,.30),0 0 18px rgba(148,163,184,.08)}}
+  /* ── 数值色 + 文字发光脉冲 ── */
+  #supplier .su-kpi:nth-child(1) b{color:#bae6fd;animation:suVal1 2.4s ease-in-out infinite}
+  #supplier .su-kpi:nth-child(2) b{animation:suVal2 2.4s ease-in-out infinite .3s}
+  #supplier .su-kpi:nth-child(3) b{animation:suVal3 2.4s ease-in-out infinite .6s}
+  #supplier .su-kpi:nth-child(4) b{animation:suVal4 2.4s ease-in-out infinite .9s}
+  #supplier .su-kpi:nth-child(5) b{animation:suVal5 2.4s ease-in-out infinite 1.2s}
+  @keyframes suVal1{0%,100%{text-shadow:0 0 2px rgba(56,189,248,.2)}50%{text-shadow:0 0 14px rgba(56,189,248,.7),0 0 24px rgba(56,189,248,.25)}}
+  @keyframes suVal2{0%,100%{text-shadow:0 0 2px rgba(52,211,153,.2)}50%{text-shadow:0 0 14px rgba(52,211,153,.7),0 0 24px rgba(52,211,153,.25)}}
+  @keyframes suVal3{0%,100%{text-shadow:0 0 2px rgba(245,158,11,.15)}50%{text-shadow:0 0 12px rgba(245,158,11,.60),0 0 20px rgba(245,158,11,.20)}}
+  @keyframes suVal4{0%,100%{text-shadow:0 0 1px rgba(248,113,113,.10)}50%{text-shadow:0 0 8px rgba(248,113,113,.40),0 0 14px rgba(248,113,113,.15)}}
+  @keyframes suVal5{0%,100%{text-shadow:0 0 1px rgba(148,163,184,.08)}50%{text-shadow:0 0 6px rgba(148,163,184,.30),0 0 10px rgba(148,163,184,.10)}}
+  /* ── 悬停发光（叠在脉冲之上）── */
+  #supplier .su-kpi:nth-child(1):hover{box-shadow:0 0 22px rgba(56,189,248,.50)!important}
+  #supplier .su-kpi:nth-child(2):hover{box-shadow:0 0 22px rgba(52,211,153,.50)!important}
+  #supplier .su-kpi:nth-child(3):hover{box-shadow:0 0 22px rgba(245,158,11,.45)!important}
+  #supplier .su-kpi:nth-child(4):hover{box-shadow:0 0 16px rgba(248,113,113,.35)!important}
+  #supplier .su-kpi:nth-child(5):hover{box-shadow:0 0 16px rgba(148,163,184,.30)!important}
+  /* ── 选中态 + 通用过渡 ── */
   .su-kpi{transition:all .3s;cursor:pointer}
-  .su-kpi:hover{background:rgba(30,60,100,.45);border-color:rgba(42,120,180,.2);transform:translateY(-2px)}
+  .su-kpi:hover{background:rgba(30,60,100,.45);transform:translateY(-2px)}
   .su-kpi.sel{background:rgba(56,189,248,.18)!important;border-color:rgba(56,189,248,.55)!important;box-shadow:0 0 12px rgba(56,189,248,.20)}
   /* ═══════════════════════════════════════════
      Expert panel — rich color system
@@ -339,50 +375,48 @@
      ═══════════════════════════════════════════ */
 
   /* ── KPI left-border accents (5 cards, distinct hues) ── */
-  #expertKpiRow .su-kpi:nth-child(1){border-left:2px solid #38bdf8}  /* 总数：冰蓝 */
-  #expertKpiRow .su-kpi:nth-child(2){border-left:2px solid #34d399}  /* 可用：翡翠 */
-  #expertKpiRow .su-kpi:nth-child(3){border-left:2px solid #f59e0b}  /* 占用：琥珀 */
-  #expertKpiRow .su-kpi:nth-child(4){border-left:2px solid #94a3b8}  /* 停用：岩灰 */
-  #expertKpiRow .su-kpi:nth-child(5){border-left:2px solid #818cf8}  /* 可用率：靛紫 */
+  #expertKpiRow .su-kpi:nth-child(1){border-left:2px solid #38bdf8;animation:exGlow1 2.4s ease-in-out infinite}
+  #expertKpiRow .su-kpi:nth-child(2){border-left:2px solid #34d399;animation:exGlow2 2.4s ease-in-out infinite .3s}
+  #expertKpiRow .su-kpi:nth-child(3){border-left:2px solid #f59e0b;animation:exGlow3 2.4s ease-in-out infinite .6s}
+  #expertKpiRow .su-kpi:nth-child(4){border-left:2px solid #94a3b8;animation:exGlow4 2.4s ease-in-out infinite .9s}
+  #expertKpiRow .su-kpi:nth-child(5){border-left:2px solid #818cf8;animation:exGlow5 2.4s ease-in-out infinite 1.2s}
 
-  /* ── KPI border color pulse (2.8s cycle, staggered) ── */
-  #expertKpiRow .su-kpi:nth-child(1){animation:exKpiBdr1 2.8s ease-in-out infinite}
-  #expertKpiRow .su-kpi:nth-child(2){animation:exKpiBdr2 2.8s ease-in-out infinite .4s}
-  #expertKpiRow .su-kpi:nth-child(3){animation:exKpiBdr3 2.8s ease-in-out infinite .8s}
-  #expertKpiRow .su-kpi:nth-child(4){animation:exKpiBdr4 2.8s ease-in-out infinite 1.2s}
-  #expertKpiRow .su-kpi:nth-child(5){animation:exKpiBdr5 2.8s ease-in-out infinite 1.6s}
-  @keyframes exKpiBdr1{0%,100%{border-left-color:#38bdf8}50%{border-left-color:#7dd3fc}}
-  @keyframes exKpiBdr2{0%,100%{border-left-color:#34d399}50%{border-left-color:#6ee7b7}}
-  @keyframes exKpiBdr3{0%,100%{border-left-color:#f59e0b}50%{border-left-color:#fcd34d}}
-  @keyframes exKpiBdr4{0%,100%{border-left-color:#94a3b8}50%{border-left-color:#cbd5e1}}
-  @keyframes exKpiBdr5{0%,100%{border-left-color:#818cf8}50%{border-left-color:#c7d2fe}}
+  /* ── KPI card glow pulse (GPU-composited with will-change) ── */
+  #expertKpiRow .su-kpi{will-change:box-shadow}
+            @keyframes exGlow1{0%,100%{box-shadow:0 0 4px rgba(56,189,248,.15)} 50%{box-shadow:0 0 16px rgba(56,189,248,.55),0 0 32px rgba(56,189,248,.15)}}
+  @keyframes exGlow2{0%,100%{box-shadow:0 0 4px rgba(52,211,153,.15)} 50%{box-shadow:0 0 16px rgba(52,211,153,.55),0 0 32px rgba(52,211,153,.15)}}
+  @keyframes exGlow3{0%,100%{box-shadow:0 0 4px rgba(245,158,11,.15)} 50%{box-shadow:0 0 16px rgba(245,158,11,.50),0 0 28px rgba(245,158,11,.12)}}
+  @keyframes exGlow4{0%,100%{box-shadow:0 0 3px rgba(148,163,184,.08)} 50%{box-shadow:0 0 10px rgba(148,163,184,.30),0 0 18px rgba(148,163,184,.08)}}
+  @keyframes exGlow5{0%,100%{box-shadow:0 0 4px rgba(129,140,248,.15)} 50%{box-shadow:0 0 16px rgba(129,140,248,.55),0 0 32px rgba(129,140,248,.15)}}
 
-  /* ── KPI value tint colors ── */
-  #expertKpiRow .su-kpi:nth-child(1) b{color:#bae6fd;animation:exValBeat1 2.8s ease-in-out infinite}
-  #expertKpiRow .su-kpi:nth-child(2) b{animation:exValBeat2 2.8s ease-in-out infinite .4s}
-  #expertKpiRow .su-kpi:nth-child(3) b{animation:exValBeat3 2.8s ease-in-out infinite .8s}
-  #expertKpiRow .su-kpi:nth-child(4) b{animation:exValBeat4 2.8s ease-in-out infinite 1.2s}
-  #expertKpiRow .su-kpi:nth-child(5) b{color:#c7d2fe;animation:exValBeat5 2.8s ease-in-out infinite 1.6s}
-  @keyframes exValBeat1{0%,100%{text-shadow:0 0 0px rgba(186,230,253,0)}50%{text-shadow:0 0 10px rgba(56,189,248,.45)}}
-  @keyframes exValBeat2{0%,100%{text-shadow:0 0 0px rgba(52,211,153,0)}50%{text-shadow:0 0 10px rgba(52,211,153,.45)}}
-  @keyframes exValBeat3{0%,100%{text-shadow:0 0 0px rgba(245,158,11,0)}50%{text-shadow:0 0 10px rgba(245,158,11,.40)}}
-  @keyframes exValBeat4{0%,100%{text-shadow:0 0 0px rgba(148,163,184,0)}50%{text-shadow:0 0 6px rgba(148,163,184,.20)}}
-  @keyframes exValBeat5{0%,100%{text-shadow:0 0 0px rgba(199,210,254,0)}50%{text-shadow:0 0 10px rgba(129,140,248,.45)}}
+  /* ── KPI value colors + text-glow pulse ── */
+  #expertKpiRow .su-kpi:nth-child(1) b{color:#bae6fd;animation:exVal1 2.4s ease-in-out infinite}
+  #expertKpiRow .su-kpi:nth-child(2) b{animation:exVal2 2.4s ease-in-out infinite .3s}
+  #expertKpiRow .su-kpi:nth-child(3) b{animation:exVal3 2.4s ease-in-out infinite .6s}
+  #expertKpiRow .su-kpi:nth-child(4) b{animation:exVal4 2.4s ease-in-out infinite .9s}
+  #expertKpiRow .su-kpi:nth-child(5) b{color:#c7d2fe;animation:exVal5 2.4s ease-in-out infinite 1.2s}
+  @keyframes exVal1{0%,100%{text-shadow:0 0 2px rgba(56,189,248,.2)} 50%{text-shadow:0 0 14px rgba(56,189,248,.7),0 0 24px rgba(56,189,248,.25)}}
+  @keyframes exVal2{0%,100%{text-shadow:0 0 2px rgba(52,211,153,.2)} 50%{text-shadow:0 0 14px rgba(52,211,153,.7),0 0 24px rgba(52,211,153,.25)}}
+  @keyframes exVal3{0%,100%{text-shadow:0 0 2px rgba(245,158,11,.15)} 50%{text-shadow:0 0 12px rgba(245,158,11,.60),0 0 20px rgba(245,158,11,.20)}}
+  @keyframes exVal4{0%,100%{text-shadow:0 0 1px rgba(148,163,184,.08)} 50%{text-shadow:0 0 6px rgba(148,163,184,.30),0 0 10px rgba(148,163,184,.10)}}
+  @keyframes exVal5{0%,100%{text-shadow:0 0 2px rgba(129,140,248,.2)} 50%{text-shadow:0 0 14px rgba(129,140,248,.7),0 0 24px rgba(129,140,248,.25)}}
 
-  /* ── KPI hover glow per-card ── */
-  #expertKpiRow .su-kpi:nth-child(1):hover{box-shadow:0 0 18px rgba(56,189,248,.30)}
-  #expertKpiRow .su-kpi:nth-child(2):hover{box-shadow:0 0 18px rgba(52,211,153,.30)}
-  #expertKpiRow .su-kpi:nth-child(3):hover{box-shadow:0 0 18px rgba(245,158,11,.30)}
-  #expertKpiRow .su-kpi:nth-child(4):hover{box-shadow:0 0 18px rgba(148,163,184,.20)}
-  #expertKpiRow .su-kpi:nth-child(5):hover{box-shadow:0 0 18px rgba(129,140,248,.30)}
+  /* ── KPI hover glow (layers on top of pulse) ── */
+  #expertKpiRow .su-kpi:nth-child(1):hover{box-shadow:0 0 22px rgba(56,189,248,.50)!important}
+  #expertKpiRow .su-kpi:nth-child(2):hover{box-shadow:0 0 22px rgba(52,211,153,.50)!important}
+  #expertKpiRow .su-kpi:nth-child(3):hover{box-shadow:0 0 22px rgba(245,158,11,.45)!important}
+  #expertKpiRow .su-kpi:nth-child(4):hover{box-shadow:0 0 16px rgba(148,163,184,.30)!important}
+  #expertKpiRow .su-kpi:nth-child(5):hover{box-shadow:0 0 22px rgba(129,140,248,.50)!important}
 
-  /* ── Column headers — colored dot + label + pulse ── */
+  /* ── Column headers — colored dot + label + bold pulse ── */
   .ex-col-hd{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;margin-bottom:2px}
   .ex-col-hd i{display:inline-block;width:6px;height:6px;border-radius:50%;flex-shrink:0}
-  .ex-col-hd.ex-hd-spec{color:#7dd3fc} .ex-col-hd.ex-hd-spec i{background:#38bdf8;box-shadow:0 0 5px rgba(56,189,248,.5);animation:exDotBeat1 2s ease-in-out infinite}
-  .ex-col-hd.ex-hd-title{color:#c4b5fd} .ex-col-hd.ex-hd-title i{background:#a78bfa;box-shadow:0 0 5px rgba(167,139,250,.5);animation:exDotBeat2 2s ease-in-out infinite .6s}
-  @keyframes exDotBeat1{0%,100%{box-shadow:0 0 5px rgba(56,189,248,.5);transform:scale(1)}50%{box-shadow:0 0 12px rgba(56,189,248,.9);transform:scale(1.6)}}
-  @keyframes exDotBeat2{0%,100%{box-shadow:0 0 5px rgba(167,139,250,.5);transform:scale(1)}50%{box-shadow:0 0 12px rgba(167,139,250,.9);transform:scale(1.6)}}
+  .ex-col-hd.ex-hd-spec{color:#7dd3fc}
+  .ex-col-hd.ex-hd-spec i{background:#38bdf8;animation:exDot1 1.8s ease-in-out infinite}
+  .ex-col-hd.ex-hd-title{color:#c4b5fd}
+  .ex-col-hd.ex-hd-title i{background:#a78bfa;animation:exDot2 1.8s ease-in-out infinite .5s}
+  @keyframes exDot1{0%,100%{box-shadow:0 0 4px rgba(56,189,248,.5);transform:scale(1)} 50%{box-shadow:0 0 14px rgba(56,189,248,1),0 0 22px rgba(56,189,248,.4);transform:scale(1.7)}}
+  @keyframes exDot2{0%,100%{box-shadow:0 0 4px rgba(167,139,250,.5);transform:scale(1)} 50%{box-shadow:0 0 14px rgba(167,139,250,1),0 0 22px rgba(167,139,250,.4);transform:scale(1.7)}}
 
   /* ── Bar row hover — per-column tint ── */
   #expertSpecBars .su-bar-row{transition:background .25s,filter .2s;border-radius:3px;padding:1px 3px;margin:0 -3px;cursor:pointer}
@@ -395,11 +429,11 @@
   #expertTitleBars .su-bar-row:hover .su-bar i{filter:brightness(1.3) saturate(1.2);box-shadow:0 0 10px rgba(167,139,250,.4)}
   #expertTitleBars .su-bar-row:hover b{color:#ede9fe!important}
 
-  /* ── Top bar (dominant) color beat — JS adds .ex-beat after entrance ── */
-  #expertSpecBars .su-bar-row:first-child .su-bar i.ex-beat{animation:exBarBeatIce 3s ease-in-out infinite}
-  #expertTitleBars .su-bar-row:first-child .su-bar i.ex-beat{animation:exBarBeatViolet 3s ease-in-out infinite .8s}
-  @keyframes exBarBeatIce{0%,100%{filter:brightness(1)}50%{filter:brightness(1.2) drop-shadow(0 0 7px rgba(56,189,248,.55))}}
-  @keyframes exBarBeatViolet{0%,100%{filter:brightness(1)}50%{filter:brightness(1.2) drop-shadow(0 0 7px rgba(167,139,250,.55))}}
+  /* ── Top bar (dominant) glow beat — JS adds .ex-beat after entrance ── */
+  #expertSpecBars .su-bar-row:first-child .su-bar i.ex-beat{animation:exBar1 2.6s ease-in-out infinite}
+  #expertTitleBars .su-bar-row:first-child .su-bar i.ex-beat{animation:exBar2 2.6s ease-in-out infinite .7s}
+  @keyframes exBar1{0%,100%{box-shadow:0 0 4px rgba(56,189,248,.25)} 50%{box-shadow:0 0 14px rgba(56,189,248,.6),0 0 26px rgba(56,189,248,.18)}}
+  @keyframes exBar2{0%,100%{box-shadow:0 0 4px rgba(167,139,250,.25)} 50%{box-shadow:0 0 14px rgba(167,139,250,.6),0 0 26px rgba(167,139,250,.18)}}
 
   /* ── Staggered bar entrance (animation-delay via nth-child) ── */
   #expertSpecBars .ex-bar-enter .su-bar i,
@@ -446,7 +480,7 @@
   /* KPI number pop on load — JS adds .su-kpi-pop */
   #supplier .su-kpi b{transition:color .3s}
   #supplier .su-kpi-pop b{animation:suKpiPop .5s ease-out}
-  @keyframes suKpiPop{0%{transform:scale(1.35);color:#fff;text-shadow:0 0 14px rgba(200,230,255,.5)}100%{transform:scale(1);color:inherit;text-shadow:none}}
+  @keyframes suKpiPop{0%{transform:scale(1.5);color:#fff;text-shadow:0 0 20px rgba(200,230,255,.7),0 0 40px rgba(200,230,255,.3)}60%{transform:scale(.9)}100%{transform:scale(1);color:inherit;text-shadow:none}}
   /* Bar row hover — 左栏分类 + 右栏评价统一 */
   #supplierCols .su-bar-row{transition:background .25s,filter .2s;border-radius:3px;padding:1px 3px;margin:0 -3px;cursor:pointer}
   #supplierCols .su-bar-row:hover{background:rgba(56,189,248,.06);filter:brightness(1.12)}
@@ -454,16 +488,16 @@
   /* Cross-column hover sync — JS adds .su-row-hi */
   #supplierCols .su-row-hi{background:rgba(56,189,248,.07)!important;filter:brightness(1.1)!important}
   /* Bar glow pulse — 波浪式跳动 */
-  @keyframes suBarBeat{0%,100%{box-shadow:inset 0 0 3px rgba(255,255,255,.06)}50%{box-shadow:inset 0 0 14px rgba(255,255,255,.20),0 0 16px rgba(255,255,255,.08)}}
-  #supplierCols .su-bar{animation:suBarBeat 4.8s ease-in-out infinite}
+  @keyframes suBarBeat{0%,100%{box-shadow:inset 0 0 4px rgba(255,255,255,.04);filter:brightness(1)}50%{box-shadow:inset 0 0 20px rgba(255,255,255,.35);filter:brightness(1.5)}}
+  #supplierCols .su-bar{animation:suBarBeat 3s ease-in-out infinite}
   #supplierEvalBars .su-bar-row:nth-child(1) .su-bar{animation-delay:0s}
-  #supplierEvalBars .su-bar-row:nth-child(2) .su-bar{animation-delay:0.6s}
-  #supplierEvalBars .su-bar-row:nth-child(3) .su-bar{animation-delay:1.2s}
-  #supplierEvalBars .su-bar-row:nth-child(4) .su-bar{animation-delay:1.8s}
-  #supplierCatBars .su-bar-row:nth-child(1) .su-bar{animation-delay:0.3s}
-  #supplierCatBars .su-bar-row:nth-child(2) .su-bar{animation-delay:0.9s}
-  #supplierCatBars .su-bar-row:nth-child(3) .su-bar{animation-delay:1.5s}
-  #supplierCatBars .su-bar-row:nth-child(4) .su-bar{animation-delay:2.1s}
+  #supplierEvalBars .su-bar-row:nth-child(2) .su-bar{animation-delay:0.4s}
+  #supplierEvalBars .su-bar-row:nth-child(3) .su-bar{animation-delay:0.8s}
+  #supplierEvalBars .su-bar-row:nth-child(4) .su-bar{animation-delay:1.2s}
+  #supplierCatBars .su-bar-row:nth-child(1) .su-bar{animation-delay:0.2s}
+  #supplierCatBars .su-bar-row:nth-child(2) .su-bar{animation-delay:0.6s}
+  #supplierCatBars .su-bar-row:nth-child(3) .su-bar{animation-delay:1.0s}
+  #supplierCatBars .su-bar-row:nth-child(4) .su-bar{animation-delay:1.4s}
   /* Summary row fade-in */
   #supplier .su-fade-in{animation:suFadeIn .8s ease-out both}
   @keyframes suFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
@@ -1539,7 +1573,6 @@
             '<span>均分 <b style="color:#e8f4ff">' + ev.avgScore + '</b></span>' +
             '<span>偏离 <b style="color:#a78bfa">' + sign + ev.avgScoreDeviation + '</b></span>' +
           '</div>';
-      }
       }
 
       // ── Dominant bar color beat (delayed — starts after entrance finishes) ──
