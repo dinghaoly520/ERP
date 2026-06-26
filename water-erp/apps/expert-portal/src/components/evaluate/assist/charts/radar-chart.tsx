@@ -98,7 +98,7 @@ export function RadarChart({ axes, bidders, size = 380 }: RadarChartProps) {
           const points = axes
             .map((axis, i) => {
               const val = bidder.scores[axis.key] ?? 0;
-              const ratio = Math.min(val / axis.max, 1);
+              const ratio = axis.max > 0 ? Math.min(val / axis.max, 1) : 0;
               return `${cx + r * ratio * Math.cos(angles[i])},${cy + r * ratio * Math.sin(angles[i])}`;
             })
             .join(' ');
@@ -119,7 +119,7 @@ export function RadarChart({ axes, bidders, size = 380 }: RadarChartProps) {
         {bidders.map((bidder, bi) =>
           axes.map((axis, i) => {
             const val = bidder.scores[axis.key] ?? 0;
-            const ratio = Math.min(val / axis.max, 1);
+            const ratio = axis.max > 0 ? Math.min(val / axis.max, 1) : 0;
             return (
               <circle
                 key={`${bi}-${i}`}

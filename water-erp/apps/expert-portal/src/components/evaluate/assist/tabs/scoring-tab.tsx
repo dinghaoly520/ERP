@@ -26,7 +26,7 @@ function buildRadarAxes(
   if (!categoryTotals) return [];
   const order = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'];
   return order
-    .filter((k) => categoryTotals[k])
+    .filter((k) => categoryTotals[k] && categoryTotals[k].max > 0)
     .map((k) => ({
       key: k,
       label: CATEGORY_LABEL[k] ?? k,
