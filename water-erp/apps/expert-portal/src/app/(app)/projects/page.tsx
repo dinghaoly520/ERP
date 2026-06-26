@@ -48,7 +48,7 @@ export default function ExpertProjectsPage() {
     setLoading(true);
     api.get<ExpertProject[]>('/expert/projects')
       .then(setProjects)
-      .catch(() => toast.error('加载项目列表失败'))
+      .catch((e) => toast.error(`加载项目列表失败: ${e.message}`))
       .finally(() => setLoading(false));
   }, []);
 

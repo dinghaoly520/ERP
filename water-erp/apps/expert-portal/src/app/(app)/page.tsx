@@ -18,8 +18,8 @@ export default function ExpertDashboardPage() {
   useEffect(() => {
     Promise.allSettled([
       fetch('/api/auth/me', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then(setUser),
-      api.get<ExpertStatistics>('/expert/statistics').then(setStats).catch(() => toast.error('加载统计数据失败')),
-      api.get<ExpertProject[]>('/expert/projects').then(setProjects).catch(() => toast.error('加载项目列表失败')),
+      api.get<ExpertStatistics>('/expert/statistics').then(setStats).catch((e) => toast.error(`加载统计数据失败: ${e.message}`)),
+      api.get<ExpertProject[]>('/expert/projects').then(setProjects).catch((e) => toast.error(`加载项目列表失败: ${e.message}`)),
     ]).finally(() => setLoading(false));
   }, []);
 
