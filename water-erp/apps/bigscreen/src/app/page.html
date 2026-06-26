@@ -319,6 +319,7 @@
   .su-bar-row b{font-size:11px;font-weight:700;color:#b0c8d8;min-width:24px;text-align:right}
   #expertCols .su-bar-row span{width:56px;font-size:10px} /* 5汉字=~50px */
   #supplierCols .su-bar-row span{width:50px;font-size:9px;text-align:left}
+  #supplierCols .su-bar-row{gap:3px}
   .eval-a .su-bar i{background:linear-gradient(90deg,rgba(52,211,153,.55),rgba(52,211,153,.30));box-shadow:0 0 6px rgba(52,211,153,.25)}
   .eval-a span,.eval-a b{color:#5eead4!important}
   .eval-b .su-bar i{background:linear-gradient(90deg,rgba(56,189,248,.55),rgba(56,189,248,.30));box-shadow:0 0 6px rgba(56,189,248,.25)}
@@ -331,6 +332,7 @@
   .su-tags span{padding:2px 10px;border-radius:3px;font-size:9px;font-weight:600;color:#90b8cc;background:rgba(28,60,100,.25);border:1px solid rgba(42,120,180,.10)}
   .su-kpi{transition:all .3s;cursor:pointer}
   .su-kpi:hover{background:rgba(30,60,100,.45);border-color:rgba(42,120,180,.2);transform:translateY(-2px)}
+  .su-kpi.sel{background:rgba(56,189,248,.18)!important;border-color:rgba(56,189,248,.55)!important;box-shadow:0 0 12px rgba(56,189,248,.20)}
   /* ═══════════════════════════════════════════
      Expert panel — rich color system
      Palette: ice-cyan · sapphire · violet · teal · amber · rose
@@ -343,9 +345,29 @@
   #expertKpiRow .su-kpi:nth-child(4){border-left:2px solid #94a3b8}  /* 停用：岩灰 */
   #expertKpiRow .su-kpi:nth-child(5){border-left:2px solid #818cf8}  /* 可用率：靛紫 */
 
+  /* ── KPI border color pulse (2.8s cycle, staggered) ── */
+  #expertKpiRow .su-kpi:nth-child(1){animation:exKpiBdr1 2.8s ease-in-out infinite}
+  #expertKpiRow .su-kpi:nth-child(2){animation:exKpiBdr2 2.8s ease-in-out infinite .4s}
+  #expertKpiRow .su-kpi:nth-child(3){animation:exKpiBdr3 2.8s ease-in-out infinite .8s}
+  #expertKpiRow .su-kpi:nth-child(4){animation:exKpiBdr4 2.8s ease-in-out infinite 1.2s}
+  #expertKpiRow .su-kpi:nth-child(5){animation:exKpiBdr5 2.8s ease-in-out infinite 1.6s}
+  @keyframes exKpiBdr1{0%,100%{border-left-color:#38bdf8}50%{border-left-color:#7dd3fc}}
+  @keyframes exKpiBdr2{0%,100%{border-left-color:#34d399}50%{border-left-color:#6ee7b7}}
+  @keyframes exKpiBdr3{0%,100%{border-left-color:#f59e0b}50%{border-left-color:#fcd34d}}
+  @keyframes exKpiBdr4{0%,100%{border-left-color:#94a3b8}50%{border-left-color:#cbd5e1}}
+  @keyframes exKpiBdr5{0%,100%{border-left-color:#818cf8}50%{border-left-color:#c7d2fe}}
+
   /* ── KPI value tint colors ── */
-  #expertKpiRow .su-kpi:nth-child(1) b{color:#bae6fd}
-  #expertKpiRow .su-kpi:nth-child(5) b{color:#c7d2fe}
+  #expertKpiRow .su-kpi:nth-child(1) b{color:#bae6fd;animation:exValBeat1 2.8s ease-in-out infinite}
+  #expertKpiRow .su-kpi:nth-child(2) b{animation:exValBeat2 2.8s ease-in-out infinite .4s}
+  #expertKpiRow .su-kpi:nth-child(3) b{animation:exValBeat3 2.8s ease-in-out infinite .8s}
+  #expertKpiRow .su-kpi:nth-child(4) b{animation:exValBeat4 2.8s ease-in-out infinite 1.2s}
+  #expertKpiRow .su-kpi:nth-child(5) b{color:#c7d2fe;animation:exValBeat5 2.8s ease-in-out infinite 1.6s}
+  @keyframes exValBeat1{0%,100%{text-shadow:0 0 0px rgba(186,230,253,0)}50%{text-shadow:0 0 10px rgba(56,189,248,.45)}}
+  @keyframes exValBeat2{0%,100%{text-shadow:0 0 0px rgba(52,211,153,0)}50%{text-shadow:0 0 10px rgba(52,211,153,.45)}}
+  @keyframes exValBeat3{0%,100%{text-shadow:0 0 0px rgba(245,158,11,0)}50%{text-shadow:0 0 10px rgba(245,158,11,.40)}}
+  @keyframes exValBeat4{0%,100%{text-shadow:0 0 0px rgba(148,163,184,0)}50%{text-shadow:0 0 6px rgba(148,163,184,.20)}}
+  @keyframes exValBeat5{0%,100%{text-shadow:0 0 0px rgba(199,210,254,0)}50%{text-shadow:0 0 10px rgba(129,140,248,.45)}}
 
   /* ── KPI hover glow per-card ── */
   #expertKpiRow .su-kpi:nth-child(1):hover{box-shadow:0 0 18px rgba(56,189,248,.30)}
@@ -354,11 +376,13 @@
   #expertKpiRow .su-kpi:nth-child(4):hover{box-shadow:0 0 18px rgba(148,163,184,.20)}
   #expertKpiRow .su-kpi:nth-child(5):hover{box-shadow:0 0 18px rgba(129,140,248,.30)}
 
-  /* ── Column headers — colored dot + label ── */
+  /* ── Column headers — colored dot + label + pulse ── */
   .ex-col-hd{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;margin-bottom:2px}
   .ex-col-hd i{display:inline-block;width:6px;height:6px;border-radius:50%;flex-shrink:0}
-  .ex-col-hd.ex-hd-spec{color:#7dd3fc} .ex-col-hd.ex-hd-spec i{background:#38bdf8;box-shadow:0 0 5px rgba(56,189,248,.5)}
-  .ex-col-hd.ex-hd-title{color:#c4b5fd} .ex-col-hd.ex-hd-title i{background:#a78bfa;box-shadow:0 0 5px rgba(167,139,250,.5)}
+  .ex-col-hd.ex-hd-spec{color:#7dd3fc} .ex-col-hd.ex-hd-spec i{background:#38bdf8;box-shadow:0 0 5px rgba(56,189,248,.5);animation:exDotBeat1 2s ease-in-out infinite}
+  .ex-col-hd.ex-hd-title{color:#c4b5fd} .ex-col-hd.ex-hd-title i{background:#a78bfa;box-shadow:0 0 5px rgba(167,139,250,.5);animation:exDotBeat2 2s ease-in-out infinite .6s}
+  @keyframes exDotBeat1{0%,100%{box-shadow:0 0 5px rgba(56,189,248,.5);transform:scale(1)}50%{box-shadow:0 0 12px rgba(56,189,248,.9);transform:scale(1.6)}}
+  @keyframes exDotBeat2{0%,100%{box-shadow:0 0 5px rgba(167,139,250,.5);transform:scale(1)}50%{box-shadow:0 0 12px rgba(167,139,250,.9);transform:scale(1.6)}}
 
   /* ── Bar row hover — per-column tint ── */
   #expertSpecBars .su-bar-row{transition:background .25s,filter .2s;border-radius:3px;padding:1px 3px;margin:0 -3px;cursor:pointer}
@@ -370,6 +394,12 @@
   #expertTitleBars .su-bar-row:hover{background:rgba(167,139,250,.07);filter:brightness(1.1)}
   #expertTitleBars .su-bar-row:hover .su-bar i{filter:brightness(1.3) saturate(1.2);box-shadow:0 0 10px rgba(167,139,250,.4)}
   #expertTitleBars .su-bar-row:hover b{color:#ede9fe!important}
+
+  /* ── Top bar (dominant) color beat — JS adds .ex-beat after entrance ── */
+  #expertSpecBars .su-bar-row:first-child .su-bar i.ex-beat{animation:exBarBeatIce 3s ease-in-out infinite}
+  #expertTitleBars .su-bar-row:first-child .su-bar i.ex-beat{animation:exBarBeatViolet 3s ease-in-out infinite .8s}
+  @keyframes exBarBeatIce{0%,100%{filter:brightness(1)}50%{filter:brightness(1.2) drop-shadow(0 0 7px rgba(56,189,248,.55))}}
+  @keyframes exBarBeatViolet{0%,100%{filter:brightness(1)}50%{filter:brightness(1.2) drop-shadow(0 0 7px rgba(167,139,250,.55))}}
 
   /* ── Staggered bar entrance (animation-delay via nth-child) ── */
   #expertSpecBars .ex-bar-enter .su-bar i,
@@ -423,6 +453,17 @@
   #supplierCols .su-bar-row:hover .su-bar i{filter:brightness(1.25)}
   /* Cross-column hover sync — JS adds .su-row-hi */
   #supplierCols .su-row-hi{background:rgba(56,189,248,.07)!important;filter:brightness(1.1)!important}
+  /* Bar glow pulse — 波浪式跳动 */
+  @keyframes suBarBeat{0%,100%{box-shadow:inset 0 0 3px rgba(255,255,255,.06)}50%{box-shadow:inset 0 0 14px rgba(255,255,255,.20),0 0 16px rgba(255,255,255,.08)}}
+  #supplierCols .su-bar{animation:suBarBeat 4.8s ease-in-out infinite}
+  #supplierEvalBars .su-bar-row:nth-child(1) .su-bar{animation-delay:0s}
+  #supplierEvalBars .su-bar-row:nth-child(2) .su-bar{animation-delay:0.6s}
+  #supplierEvalBars .su-bar-row:nth-child(3) .su-bar{animation-delay:1.2s}
+  #supplierEvalBars .su-bar-row:nth-child(4) .su-bar{animation-delay:1.8s}
+  #supplierCatBars .su-bar-row:nth-child(1) .su-bar{animation-delay:0.3s}
+  #supplierCatBars .su-bar-row:nth-child(2) .su-bar{animation-delay:0.9s}
+  #supplierCatBars .su-bar-row:nth-child(3) .su-bar{animation-delay:1.5s}
+  #supplierCatBars .su-bar-row:nth-child(4) .su-bar{animation-delay:2.1s}
   /* Summary row fade-in */
   #supplier .su-fade-in{animation:suFadeIn .8s ease-out both}
   @keyframes suFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
@@ -1224,17 +1265,14 @@
     // ── Staggered color highlight pulse — "气泡高亮跳动" ──
     const bubbles = wrap.querySelectorAll('.ct-bubble');
     if (bubbles.length) {
-      const PULSE_GAP = 7000;          // full cycle per bubble
-      const STAGGER = PULSE_GAP / bubbles.length; // evenly spaced stagger
-      let round = 0;
+      const INTERVAL = 7000; // full cycle per bubble in ms
+      const STAGGER = INTERVAL / bubbles.length; // stagger offset between adjacent bubbles
 
       function triggerPulse(el) {
         el.classList.add('ct-glow');
         requestAnimationFrame(() => {
           el.classList.add('ct-pop');
-          // pop peaks at 150ms, then settle
           setTimeout(() => el.classList.remove('ct-pop'), 180);
-          // glow fades out after pop settles
           setTimeout(() => el.classList.remove('ct-glow'), 700);
         });
       }
@@ -1246,23 +1284,13 @@
         });
       }, 1200);
 
-      // Staggered infinite loop
-      function scheduleNext(b, idx) {
-        const baseDelay = idx * STAGGER + round * PULSE_GAP;
-        const now = performance.now();
-        // Fire this bubble's pulse
-        setTimeout(() => {
-          triggerPulse(b);
-          // Schedule next round
-          if (idx === bubbles.length - 1) round++;
-          scheduleNext(b, idx);
-        }, Math.max(0, baseDelay - (performance.now() - now)));
-      }
-
-      // Kick off the stagger loop after entrance wave
-      setTimeout(() => {
-        bubbles.forEach((b, i) => scheduleNext(b, i));
-      }, 1200 + bubbles.length * 120 + 600);
+      // Single setInterval — advances one step per tick in round-robin
+      let cursor = 0;
+      const staggerTimer = setInterval(() => {
+        const idx = cursor % bubbles.length;
+        triggerPulse(bubbles[idx]);
+        cursor++;
+      }, STAGGER);
     }
   })();
 
@@ -1287,114 +1315,125 @@
       if(ring[idx]){ ring[idx].style.opacity='0.72';ring[idx].style.filter='brightness(0.9)'; }
     });
   });
-  // === SUPPLIER PANEL: fetch real data from API ===
-  (async function(){
+  // === SUPPLIER PANEL: fetch + status filter ===
+  (function(){
     var $id = function(s){ return document.getElementById(s); };
-    try {
-      var res = await fetch('/api/supplier/bigscreen');
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      var d = await res.json();
+    var STATUS_MAP = ['','APPROVED','PENDING','DISABLED','BLACKLIST']; // 总数/已批准/待审核/退回/停用
+    var activeFilter = '';
 
+    function shortName(raw){
+      if (raw.length <= 5) return raw;
+      var idx = raw.indexOf('与'); if (idx > 0 && idx <= 5) return raw.substring(0, idx);
+      idx = raw.indexOf('、'); if (idx > 0 && idx <= 5) return raw.substring(0, idx);
+      return raw.replace(/（.*）$/,'').replace(/类$/,'').substring(0,5);
+    }
+
+    var pal = [
+      ['rgba(56,189,248,.55)','rgba(56,189,248,.30)','#7dd3fc'],
+      ['rgba(167,139,250,.55)','rgba(167,139,250,.30)','#c4b5fd'],
+      ['rgba(52,211,153,.55)','rgba(52,211,153,.30)','#5eead4'],
+      ['rgba(251,191,36,.55)','rgba(251,191,36,.30)','#fde68a']
+    ];
+
+    function render(d, animate){
       // Title badge
       var titleEl = document.querySelector('#supplier .unit');
-      if (titleEl && d.total) titleEl.textContent = '（' + d.total + ' 家）';
+      if (titleEl && d.total != null) titleEl.textContent = '（' + d.total + ' 家）';
 
       // KPI
       var kpiBs = document.querySelectorAll('#supplier .su-kpi b');
-      if (kpiBs.length >= 5) {
-        kpiBs[0].textContent = d.total;
-        kpiBs[1].textContent = d.approved;
-        kpiBs[2].textContent = d.pending;
-        kpiBs[3].textContent = d.disabled;
-        kpiBs[4].textContent = d.blacklist;
-      }
+      [d.total,d.approved,d.pending,d.disabled,d.blacklist].forEach(function(v,i){
+        if (kpiBs[i]) kpiBs[i].textContent = v;
+      });
 
       // Evaluation bars
       var lc = d.levelCounts || {A:0,B:0,C:0,D:0};
       var tot = d.evalTotal || 0;
-      if (tot > 0) {
-        $id('evalABar').style.setProperty('--w',(lc.A/tot*100).toFixed(1)+'%');
-        $id('evalBBar').style.setProperty('--w',(lc.B/tot*100).toFixed(1)+'%');
-        $id('evalCBar').style.setProperty('--w',(lc.C/tot*100).toFixed(1)+'%');
-        $id('evalDBar').style.setProperty('--w',(lc.D/tot*100).toFixed(1)+'%');
-        $id('evalACnt').textContent=lc.A;$id('evalBCnt').textContent=lc.B;
-        $id('evalCCnt').textContent=lc.C;$id('evalDCnt').textContent=lc.D;
-        $id('evalTotal').textContent=tot;$id('evalAvg').textContent=d.avgScore;
-        $id('evalAB').textContent=((lc.A+lc.B)/tot*100).toFixed(0)+'%';
-        var tm={improving:'↑改善',stable:'→稳定',declining:'↓下滑'};
-        $id('evalTrend').textContent=tm[d.trend]||'';
-      }
+      ['A','B','C','D'].forEach(function(g){
+        var pct = tot > 0 ? (lc[g]/tot*100).toFixed(1) : '0';
+        var barEl = $id('eval'+g+'Bar'); if (barEl) barEl.style.setProperty('--w', pct+'%');
+        var cntEl = $id('eval'+g+'Cnt'); if (cntEl) cntEl.textContent = lc[g]||0;
+      });
+      $id('evalTotal').textContent = tot;
+      $id('evalAvg').textContent = d.avgScore || 0;
+      $id('evalAB').textContent = tot > 0 ? ((lc.A+lc.B)/tot*100).toFixed(0)+'%' : '0%';
+      var tm={improving:'↑改善',stable:'→稳定',declining:'↓下滑'};
+      $id('evalTrend').textContent = tm[d.trend]||'';
 
-      // Classification bars — 分类分布（最多4个，智能缩名≤5字）
-      function shortName(raw){
-        if (raw.length <= 5) return raw;
-        // 含"与"则取前半段（如"勘测设计与测绘"→"勘测设计"）
-        var idx = raw.indexOf('与');
-        if (idx > 0 && idx <= 5) return raw.substring(0, idx);
-        // 含"、"同理
-        idx = raw.indexOf('、');
-        if (idx > 0 && idx <= 5) return raw.substring(0, idx);
-        // 兜底：常见服务/采购/工程类后缀裁剪
-        return raw.replace(/（.*）$/,'').replace(/类$/,'').substring(0,5);
-      }
+      // Classification bars
       var cats = (d.cats||[]).filter(function(c){return c.count > 0;});
+      var barsHtml = '';
       if (cats.length) {
         var maxCount = cats[0].count;
-        var barsHtml = '';
         cats.slice(0,4).forEach(function(c, i){
-          var name = shortName(c.name);
           var pct = (c.count/maxCount*100).toFixed(1);
-          var pal = [
-            ['rgba(56,189,248,.55)','rgba(56,189,248,.30)','#7dd3fc'],
-            ['rgba(167,139,250,.55)','rgba(167,139,250,.30)','#c4b5fd'],
-            ['rgba(52,211,153,.55)','rgba(52,211,153,.30)','#5eead4'],
-            ['rgba(251,191,36,.55)','rgba(251,191,36,.30)','#fde68a']
-          ][i] || pal[0];
-          barsHtml += '<div class="su-bar-row"><span style="color:'+pal[2]+'">'+name+'</span><div class="su-bar"><i style="--w:'+pct+'%;background:linear-gradient(90deg,'+pal[0]+','+pal[1]+');box-shadow:0 0 6px '+pal[0]+'"></i></div><b style="color:'+pal[2]+'">'+c.count+'</b></div>';
-        });
-        $id('supplierCatBars').innerHTML = barsHtml;
-      }
-
-      // ── 动效触发 ──
-      function triggerAnimations(){
-        // 1. 双栏 bars 错峰入场
-        var allRows = document.querySelectorAll('#supplierCols .su-bar-row');
-        allRows.forEach(function(row, i){
-          row.classList.add('su-bar-enter');
-          row.style.animationDelay = (i * 0.08) + 's';
-        });
-        // 2. 底部汇总淡入
-        var summary = document.querySelector('#supplier div[style*="border-top"]');
-        if (summary) summary.classList.add('su-fade-in');
-        // 3. KPI 数字弹跳
-        document.querySelectorAll('#supplier .su-kpi b').forEach(function(el, i){
-          setTimeout(function(){ el.parentElement.classList.add('su-kpi-pop'); }, 100 + i * 80);
-        });
-        // 4. 双栏交互联动 — hover 左栏分类 ↔ 右栏评价对应行
-        var catRows = document.querySelectorAll('#supplierCatBars .su-bar-row');
-        var evalRows = document.querySelectorAll('#supplierEvalBars .su-bar-row');
-        function syncHover(idx, on){
-          [catRows[idx], evalRows[idx]].forEach(function(r){
-            if (r) r.classList.toggle('su-row-hi', on);
-          });
-        }
-        catRows.forEach(function(row, i){
-          row.addEventListener('mouseenter', function(){ syncHover(i, true); });
-          row.addEventListener('mouseleave', function(){ syncHover(i, false); });
-        });
-        evalRows.forEach(function(row, i){
-          row.addEventListener('mouseenter', function(){ syncHover(i, true); });
-          row.addEventListener('mouseleave', function(){ syncHover(i, false); });
+          var p = pal[i] || pal[0];
+          barsHtml += '<div class="su-bar-row"><span style="color:'+p[2]+'">'+shortName(c.name)+'</span><div class="su-bar"><i style="--w:'+pct+'%;background:linear-gradient(90deg,'+p[0]+','+p[1]+');box-shadow:0 0 6px '+p[0]+'"></i></div><b style="color:'+p[2]+'">'+c.count+'</b></div>';
         });
       }
-      // 等分类 bars 渲染完再触发（innerHTML 是同步的，但需要一帧让浏览器布局）
-      requestAnimationFrame(function(){
-        requestAnimationFrame(triggerAnimations);
-      });
+      $id('supplierCatBars').innerHTML = barsHtml;
 
-    } catch(e) {
-      console.log('大屏供应商面板：API未连接，使用静态演示数据');
+      if (animate) triggerAnimations();
     }
+
+    function triggerAnimations(){
+      var allRows = document.querySelectorAll('#supplierCols .su-bar-row');
+      allRows.forEach(function(row, i){
+        row.classList.add('su-bar-enter');
+        row.style.animationDelay = (i * 0.08) + 's';
+      });
+      var summary = document.querySelector('#supplier div[style*="border-top"]');
+      if (summary) summary.classList.add('su-fade-in');
+      document.querySelectorAll('#supplier .su-kpi b').forEach(function(el, i){
+        setTimeout(function(){ el.parentElement.classList.add('su-kpi-pop'); }, 100 + i * 80);
+      });
+      // Hover sync
+      var catRows = document.querySelectorAll('#supplierCatBars .su-bar-row');
+      var evalRows = document.querySelectorAll('#supplierEvalBars .su-bar-row');
+      function syncHover(idx, on){
+        if (catRows[idx]) catRows[idx].classList.toggle('su-row-hi', on);
+        if (evalRows[idx]) evalRows[idx].classList.toggle('su-row-hi', on);
+      }
+      catRows.forEach(function(row, i){
+        row.addEventListener('mouseenter', function(){ syncHover(i, true); });
+        row.addEventListener('mouseleave', function(){ syncHover(i, false); });
+      });
+      evalRows.forEach(function(row, i){
+        row.addEventListener('mouseenter', function(){ syncHover(i, true); });
+        row.addEventListener('mouseleave', function(){ syncHover(i, false); });
+      });
+    }
+
+    async function loadData(status){
+      var url = '/api/supplier/bigscreen';
+      if (status) url += '?status=' + encodeURIComponent(status);
+      try {
+        var res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP '+res.status);
+        var d = await res.json();
+        render(d, true);
+      } catch(e) { console.log('大屏供应商面板：API未连接', e); }
+    }
+
+    // Initial load
+    loadData('');
+
+    // KPI click → 状态筛选
+    var kpiCards = document.querySelectorAll('#supplier .su-kpi');
+    kpiCards.forEach(function(card, i){
+      card.addEventListener('click', function(){
+        if (activeFilter === STATUS_MAP[i]) {
+          // 取消选中，回到全量
+          activeFilter = '';
+          kpiCards.forEach(function(c){ c.classList.remove('sel'); });
+        } else {
+          kpiCards.forEach(function(c){ c.classList.remove('sel'); });
+          card.classList.add('sel');
+          activeFilter = STATUS_MAP[i];
+        }
+        loadData(activeFilter);
+      });
+    });
   })();
   // === EXPERT PANEL: fetch real data + interactive effects ===
   (async function(){
@@ -1501,6 +1540,17 @@
             '<span>偏离 <b style="color:#a78bfa">' + sign + ev.avgScoreDeviation + '</b></span>' +
           '</div>';
       }
+      }
+
+      // ── Dominant bar color beat (delayed — starts after entrance finishes) ──
+      setTimeout(function(){
+        var topSpec = document.querySelector('#expertSpecBars .su-bar-row:first-child .su-bar i');
+        var topTitle = document.querySelector('#expertTitleBars .su-bar-row:first-child .su-bar i');
+        if (topSpec) topSpec.classList.add('ex-beat');
+        if (topTitle) topTitle.classList.add('ex-beat');
+      }, 1200);
+
+    
     } catch(e) {
       console.log('大屏专家面板：API未连接，使用静态演示数据');
     }
