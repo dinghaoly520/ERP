@@ -207,28 +207,6 @@
   .map-radar-ring:nth-child(2){animation-delay:1s}
   .map-radar-ring:nth-child(3){animation-delay:2s}
   @keyframes radarPing{0%{inset:-30px;opacity:.6}100%{inset:-220px;opacity:0}}
-  /* ── City node ── */
-  .map-node{position:absolute;z-index:4;pointer-events:none;
-    width:50px;height:50px;transform:translate(-50%,-50%)}
-  .map-node-dot{position:absolute;inset:20px;border-radius:50%;
-    background:#38bdf8;box-shadow:0 0 6px #38bdf8,0 0 14px rgba(56,189,248,.4);
-    animation:mapNodePulse 2.4s ease-in-out infinite}
-  .map-node-ring{position:absolute;inset:14px;border-radius:50%;
-    border:1px solid rgba(56,189,248,.25);
-    animation:mapNodeRing 2.4s ease-out infinite}
-  @keyframes mapNodePulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.5);opacity:1}}
-  @keyframes mapNodeRing{0%{inset:14px;opacity:.5}100%{inset:-6px;opacity:0}}
-  /* ── Node count badge ── */
-  .map-node-badge{position:absolute;top:-18px;left:50%;transform:translateX(-50%);
-    font-size:9px;font-weight:800;color:#bae6fd;white-space:nowrap;
-    text-shadow:0 0 6px rgba(56,189,248,.5);z-index:5}
-  /* ── Node stagger delays ── */
-  .map-node:nth-child(1) .map-node-dot{animation-delay:0s}
-  .map-node:nth-child(2) .map-node-dot{animation-delay:.3s}
-  .map-node:nth-child(3) .map-node-dot{animation-delay:.6s}
-  .map-node:nth-child(4) .map-node-dot{animation-delay:.9s}
-  .map-node:nth-child(5) .map-node-dot{animation-delay:1.2s}
-  .map-node:nth-child(6) .map-node-dot{animation-delay:1.5s}
 
   .zone-donut{width:110px;height:110px;flex-shrink:0;position:relative}
   .zone-donut svg{width:100%;height:100%;position:relative;z-index:1}
@@ -1046,31 +1024,6 @@
       <div class="map-radar-ring"></div>
       <div class="map-radar-ring"></div>
       <div class="map-radar-ring"></div>
-    </div>
-    <!-- City nodes -->
-    <div class="map-node" style="left:42%;top:38%">
-      <div class="map-node-badge">成都 6项</div>
-      <div class="map-node-ring"></div><div class="map-node-dot"></div>
-    </div>
-    <div class="map-node" style="left:65%;top:32%">
-      <div class="map-node-badge">绵阳 3项</div>
-      <div class="map-node-ring"></div><div class="map-node-dot"></div>
-    </div>
-    <div class="map-node" style="left:27%;top:55%">
-      <div class="map-node-badge">雅安 2项</div>
-      <div class="map-node-ring"></div><div class="map-node-dot"></div>
-    </div>
-    <div class="map-node" style="left:58%;top:58%">
-      <div class="map-node-badge">宜宾 2项</div>
-      <div class="map-node-ring"></div><div class="map-node-dot"></div>
-    </div>
-    <div class="map-node" style="left:48%;top:24%">
-      <div class="map-node-badge">德阳 3项</div>
-      <div class="map-node-ring"></div><div class="map-node-dot"></div>
-    </div>
-    <div class="map-node" style="left:73%;top:52%">
-      <div class="map-node-badge">泸州 1项</div>
-      <div class="map-node-ring"></div><div class="map-node-dot"></div>
     </div>
   </section>
 
