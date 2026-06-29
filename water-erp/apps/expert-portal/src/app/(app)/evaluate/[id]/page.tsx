@@ -10,6 +10,8 @@ import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationRep
 import { isPassFailCategory } from '@water-erp/shared';
 import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, Gavel, MessageSquare } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
+import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
+import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 
 type Step = 'verify' | 'documents' | 'assist' | 'scoring' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
@@ -105,7 +107,7 @@ export default function ExpertEvaluatePage() {
     },
   });
 
-  const [documents, setDocuments] = useState<DecryptedDocuments | null>(null);
+  const [documents, setDocuments] = useState<Record<string, DecryptedDocuments | null>>({});
   const [assistData, setAssistData] = useState<AssistData | null>(null);
   const [assistLoading, setAssistLoading] = useState(false);
   // P0-1: scores keyed by `${supplierId}:${scoreItemId}` (composite) — never flat by scoreItemId.
@@ -316,13 +318,20 @@ export default function ExpertEvaluatePage() {
     setAvoiding(false);
   };
 
-  const loadDocuments = async (sid: string) => {
-    const seq = ++docSeqRef.current;
+  const loadDocuments = async (sid: string, sharedSeq?: number) => {
+    const seq = sharedSeq ?? ++docSeqRef.current;
     try {
       const data = await api.get<DecryptedDocuments>(`/expert/projects/${projectId}/documents/${sid}`);
-      if (seq === docSeqRef.current) setDocuments(data);
+      if (seq === docSeqRef.current || sharedSeq !== undefined) setDocuments(prev => ({ ...prev, [sid]: data }));
     }
-    catch (e: any) { if (seq === docSeqRef.current) toast.error(e.message || '加载标书失败'); }
+    catch (e: any) { if (seq === docSeqRef.current || sharedSeq !== undefined) toast.error(e.message || '加载标书失败'); }
+  };
+
+  const loadAllDocuments = async () => {
+    if (!project) return;
+    const batchSeq = ++docSeqRef.current;
+    setDocuments({});
+    await Promise.all(project.suppliers.map(s => loadDocuments(s.id, batchSeq)));
   };
 
   const loadClarifications = async () => {
@@ -350,9 +359,9 @@ export default function ExpertEvaluatePage() {
   };
 
   useEffect(() => {
-    if (step === 'documents' && activeSupplier) loadDocuments(activeSupplier);
+    if (step === 'documents' && project) loadAllDocuments();
     if (step === 'assist' && activeSupplier) loadAssist(activeSupplier);
-  }, [step, activeSupplier]);
+  }, [step, activeSupplier, project]);
 
   const handleSubmitScores = async () => {
     if (!project || !activeSupplier) return;
@@ -525,79 +534,90 @@ export default function ExpertEvaluatePage() {
         </div>
       )}
 
-      {/* 步骤指示器 + 供应商选择（同行） */}
-      <div className="glass-card glass-card-blue rounded-xl flex-shrink-0 mb-4 overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2">
-          {/* 左侧：步骤导航 */}
-          <div className="flex items-center shrink-0">
-            {STEPS.map((s, i) => {
-              const accessible = stepAccessible(s.key);
-              const completed = stepCompleted(s.key);
-              const isCurrent = step === s.key;
-              return (
-                <div key={s.key} className="flex items-center">
-                  <button onClick={() => { if (accessible) setStep(s.key); }}
-                    disabled={!accessible}
-                    aria-current={isCurrent ? 'step' : undefined}
-                    aria-label={!accessible && !completed ? `${s.label}（需先完成前置步骤）` : s.label}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-xs font-semibold whitespace-nowrap ${
-                      isCurrent ? 'bg-[#064ea2] text-white shadow-md'
-                      : completed ? 'text-[#11a874] bg-emerald-50 border border-emerald-100'
-                      : accessible ? 'text-[oklch(0.55_0.01_264)] hover:bg-blue-50'
-                      : 'text-[oklch(0.72_0.008_264)] cursor-not-allowed'
-                    }`}>
-                    {completed ? <CheckCircle size={12} strokeWidth={1.5} className="text-[#11a874]" aria-hidden="true" />
-                     : !accessible ? <Lock size={10} strokeWidth={1.5} aria-hidden="true" />
-                     : <s.Icon size={14} strokeWidth={1.5} aria-hidden="true" />}
-                    {s.label}
-                  </button>
-                  {i < STEPS.length - 1 && <div className="w-4 h-px bg-[oklch(0.91_0.006_264)] mx-1" />}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* 右侧：供应商 pills（仅在需要时显示） */}
-          {step !== 'verify' && step !== 'report' && (
-            <>
-              <span className="w-px h-5 bg-[oklch(0.91_0.006_264)] shrink-0" />
-              <div className="flex items-center gap-1.5 overflow-x-auto flex-1 min-w-0" role="tablist">
-                {project.suppliers.map((s) => {
-                  const isActive = s.id === activeSupplier;
-                  const isConflicted = conflictedSupplierIds.has(s.id);
-                  const statusColor =
-                    s.decryptStatus === 'SUCCESS' ? 'bg-[#11a874]'
-                    : s.decryptStatus === 'DANGER' ? 'bg-[#e74c3c]'
-                    : 'bg-[#f5a623]';
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => { setActiveSupplier(s.id); setMissingReasons(new Set()); }}
-                      role="tab"
-                      aria-selected={isActive}
-                      className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-all ${
-                        isActive
-                          ? 'bg-blue-50 border border-[#bfdbfe] shadow-sm text-[var(--color-primary)] font-bold'
-                          : 'text-[var(--color-text-secondary)] hover:bg-[oklch(0.992_0.003_264)] border border-transparent'
-                      }`}
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusColor}`} />
-                      <span className="truncate max-w-[100px]">{s.supplierName}</span>
-                      {isConflicted && (
-                        <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1 py-0 rounded shrink-0">已回避</span>
-                      )}
-                    </button>
-                  );
-                })}
+      {/* 步骤指示器 — 独立、干净，不与供应商选择混合 */}
+      <div className="flex-shrink-0 mb-3">
+        <div className="flex items-center gap-1 px-1">
+          {STEPS.map((s, i) => {
+            const accessible = stepAccessible(s.key);
+            const completed = stepCompleted(s.key);
+            const isCurrent = step === s.key;
+            return (
+              <div key={s.key} className="flex items-center">
+                <button
+                  onClick={() => { if (accessible) setStep(s.key); }}
+                  disabled={!accessible}
+                  aria-current={isCurrent ? 'step' : undefined}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all text-xs font-semibold whitespace-nowrap ${
+                    isCurrent
+                      ? 'bg-[#064ea2] text-white shadow-sm'
+                      : completed
+                        ? 'text-[#11a874]'
+                        : accessible
+                          ? 'text-[oklch(0.48_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]'
+                          : 'text-[oklch(0.65_0.008_264)] cursor-not-allowed'
+                  }`}
+                >
+                  <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
+                    isCurrent
+                      ? 'bg-white/20 text-white'
+                      : completed
+                        ? 'bg-emerald-100 text-[#11a874]'
+                        : accessible
+                          ? 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.48_0.01_264)]'
+                          : 'bg-[oklch(0.96_0.004_264)] text-[oklch(0.65_0.008_264)]'
+                  }`}>
+                    {completed ? <CheckCircle size={10} strokeWidth={2} /> : i + 1}
+                  </span>
+                  <s.Icon size={13} strokeWidth={1.5} />
+                  {s.label}
+                </button>
+                {i < STEPS.length - 1 && (
+                  <div className={`w-5 h-px mx-0.5 ${completed ? 'bg-[#11a874]/30' : 'bg-[oklch(0.91_0.006_264)]'}`} />
+                )}
               </div>
-            </>
-          )}
+            );
+          })}
         </div>
       </div>
 
-      {/* 主内容区 */}
-      <div className="flex-1 overflow-hidden min-h-0">
-        <div className="flex-1 glass-card glass-card-blue rounded-xl !overflow-y-auto h-full">
+      {/* 主内容区：供应商侧边栏 + 内容 */}
+      <div className="flex-1 flex overflow-hidden min-h-0 rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/60">
+        {/* 供应商侧边栏 — 仅在专家打分步骤显示 */}
+        {step === 'scoring' && (
+          <SupplierSidebar
+            suppliers={project.suppliers}
+            activeSupplier={activeSupplier}
+            onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); }}
+            conflictedSupplierIds={conflictedSupplierIds}
+            decryptLabel={decryptLabel}
+            scoringProgress={
+              step === 'scoring'
+                ? Object.fromEntries(
+                    project.suppliers.map((s) => {
+                      const supplierScoreItems = project.scoreItems.filter(
+                        () => true
+                      );
+                      const scored = project.scoreItems.filter(
+                        (si) => {
+                          const k = scoreKey(s.id, si.id);
+                          const entry = scores[k];
+                          if (isPassFailCategory(si.category)) {
+                            return typeof entry?.passed === 'boolean';
+                          }
+                          return (entry?.score ?? 0) > 0 || (entry?.reason || '').trim().length > 0;
+                        }
+                      ).length;
+                      return [s.id, { scored, total: project.scoreItems.length }];
+                    })
+                  )
+                : undefined
+            }
+          />
+        )}
+
+        {/* 内容面板 */}
+        <div className="flex-1 overflow-hidden min-h-0">
+          <div className="h-full overflow-y-auto">
           {/* ====== 身份核验 ====== */}
           {step === 'verify' && (
             <div className="p-6 max-w-3xl mx-auto">
@@ -859,57 +879,75 @@ export default function ExpertEvaluatePage() {
 
           {/* ====== 标书获取 ====== */}
           {step === 'documents' && (
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-xl font-bold text-[oklch(0.18_0.012_265)]">标书解密与获取</h2>
-                  <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">查看已解密的投标文件</p>
-                </div>
-                <span className="text-xs bg-blue-50 text-[#064ea2] px-3 py-1.5 rounded-lg font-semibold">
-                  当前：{project.suppliers.find(s => s.id === activeSupplier)?.supplierName || '请选择'}
-                </span>
-              </div>
+            <div className="p-6 pt-4">
 
-              {documents ? (
-                <>
-                  <div className={`flex items-center gap-3 p-4 rounded-xl mb-6 ${documents.canView ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
-                    <span className="text-xl">{documents.canView ? <Unlock size={20} strokeWidth={1.5} /> : <Lock size={20} strokeWidth={1.5} />}</span>
-                    <div>
-                      <h3 className={`font-bold ${documents.canView ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {documents.canView ? '标书已解密' : '标书尚未解密'}
-                      </h3>
-                      <p className="text-sm text-[oklch(0.55_0.01_264)]">{documents.canView ? '您可以查看该供应商的投标文件' : '请等待开标主持端完成解密'}</p>
-                    </div>
-                  </div>
-
-                  {documents.canView && (
-                    <div className="grid grid-cols-2 gap-4">
-                      {documents.documents.length === 0 ? (
-                        <div className="col-span-2 text-center py-10 text-[oklch(0.55_0.01_264)]">该供应商未提交可查看的投标文件</div>
-                      ) : documents.documents.map((doc, i) => (
-                        <div key={i} className="flex items-center gap-4 p-4 bg-blue-50 rounded-xl border border-blue-100 hover:shadow-md transition-all">
-                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0b63ce] flex items-center justify-center text-white text-[10px] font-bold uppercase">{doc.type.replace('application/', '').replace('image/', '')}</div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-[oklch(0.18_0.012_265)] truncate" title={doc.originalName}>{doc.originalName}</h4>
-                            <div className="flex items-center gap-3 mt-1">
-                              <span className="text-xs text-[oklch(0.55_0.01_264)]">{formatBytes(doc.size)}</span>
-                              <span className="text-xs text-emerald-600 font-semibold">{doc.status}</span>
-                            </div>
-                          </div>
-                          {doc.downloadUrl ? (
-                            <a href={doc.downloadUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-3 py-1.5 bg-[#064ea2] text-white text-xs rounded-lg hover:bg-[#054280] transition"><Download size={14} strokeWidth={1.5} /> 预览/下载</a>
-                          ) : (
-                            <span className="text-xs text-[oklch(0.62_0.008_264)] px-3 py-1.5">待解密</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
+              {Object.keys(documents).length === 0 ? (
                 <div className="text-center py-12 text-[oklch(0.55_0.01_264)]">
                   <div className="mb-3"><FileText size={40} strokeWidth={1} className="text-[#cbd5e1]" /></div>
-                  <p>请先在上方选择一个投标单位查看标书</p>
+                  <p>正在加载标书...</p>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {project.suppliers.map(sup => {
+                    const doc = documents[sup.id];
+                    if (!doc) return null;
+                    return (
+                      <div key={sup.id} className="border border-[oklch(0.91_0.006_264)] rounded-xl overflow-hidden">
+                        {/* 供应商头部 */}
+                        <div className="flex items-center justify-between px-4 py-3 bg-[oklch(0.97_0.005_264)] border-b border-[oklch(0.91_0.006_264)]">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`w-2 h-2 rounded-full ${
+                              sup.decryptStatus === 'SUCCESS' ? 'bg-[#11a874]'
+                              : sup.decryptStatus === 'DANGER' ? 'bg-[#e74c3c]' : 'bg-[#f5a623]'
+                            }`} />
+                            <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]">{sup.supplierName}</h3>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                              sup.decryptStatus === 'SUCCESS' ? 'bg-emerald-100 text-[#11a874]'
+                              : sup.decryptStatus === 'DANGER' ? 'bg-red-100 text-[#e74c3c]' : 'bg-amber-100 text-[#f5a623]'
+                            }`}>
+                              {decryptLabel[sup.decryptStatus] || sup.decryptStatus}
+                            </span>
+                          </div>
+                          {!doc.canView && (
+                            <span className="text-[11px] text-amber-600 font-medium">标书尚未解密</span>
+                          )}
+                        </div>
+
+                        {/* 文件列表 */}
+                        <div className="p-4">
+                          {!doc.canView ? (
+                            <p className="text-sm text-[oklch(0.55_0.01_264)]">请等待开标主持端完成解密</p>
+                          ) : doc.documents.length === 0 ? (
+                            <p className="text-sm text-[oklch(0.55_0.01_264)] text-center py-4">该供应商未提交可查看的投标文件</p>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-3">
+                              {doc.documents.map((d, i) => (
+                                <div key={i} className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100 hover:shadow-sm transition-all">
+                                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0b63ce] flex items-center justify-center text-white text-[9px] font-bold uppercase shrink-0">
+                                    {d.type.replace('application/', '').replace('image/', '').replace('vnd.', '').slice(0, 4)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-semibold text-xs text-[oklch(0.18_0.012_265)] truncate" title={d.originalName}>{d.originalName}</h4>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[10px] text-[oklch(0.55_0.01_264)]">{formatBytes(d.size)}</span>
+                                      <span className="text-[10px] text-emerald-600 font-semibold">{d.status}</span>
+                                    </div>
+                                  </div>
+                                  {d.downloadUrl ? (
+                                    <a href={d.downloadUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2.5 py-1.5 bg-[#064ea2] text-white text-[11px] rounded-lg hover:bg-[#054280] transition shrink-0">
+                                      <Download size={12} strokeWidth={1.5} /> 预览
+                                    </a>
+                                  ) : (
+                                    <span className="text-[10px] text-[oklch(0.62_0.008_264)] px-2 py-1 shrink-0">待解密</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -918,6 +956,15 @@ export default function ExpertEvaluatePage() {
           {/* ====== 辅助评标（AI引擎驱动） ====== */}
           {step === 'assist' && (
             <div>
+              <div className="px-5 pt-5">
+                <SupplierTabBar
+                  suppliers={project.suppliers}
+                  activeSupplier={activeSupplier}
+                  onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); }}
+                  conflictedSupplierIds={conflictedSupplierIds}
+                  decryptLabel={decryptLabel}
+                />
+              </div>
               <AssistPanel
                 assistData={assistData}
                 assistLoading={assistLoading}
@@ -934,14 +981,9 @@ export default function ExpertEvaluatePage() {
           {/* ====== 专家打分 ====== */}
           {step === 'scoring' && (
             <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-xl font-bold text-[oklch(0.18_0.012_265)]">专家独立打分</h2>
-                  <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">请根据您的专业判断进行客观评分</p>
-                </div>
-                <span className="text-xs bg-blue-50 text-[#064ea2] px-3 py-1.5 rounded-lg font-semibold">
-                  当前：{project.suppliers.find(s => s.id === activeSupplier)?.supplierName || '请选择'}
-                </span>
+              <div className="mb-6">
+                <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">专家独立打分</h2>
+                <p className="text-sm text-[oklch(0.55_0.01_264)] mt-0.5">请根据您的专业判断进行客观评分</p>
               </div>
 
               {/* P0-3: draft recovery banner */}
@@ -1185,8 +1227,9 @@ export default function ExpertEvaluatePage() {
               )}
             </div>
           )}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
   );
 }

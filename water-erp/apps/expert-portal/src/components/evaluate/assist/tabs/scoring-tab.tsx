@@ -13,9 +13,7 @@ import {
   ShieldCheck,
   ClipboardCheck,
   TrendingUp,
-  Target,
   AlertCircle,
-  Users,
   Lightbulb,
   MessageSquare,
   Medal,
@@ -27,7 +25,6 @@ import type { RadarAxis } from '../charts/radar-chart';
 import { ScoreBreakdownBars, CATEGORY_LABEL, CATEGORY_COLOR } from '../charts/score-breakdown-bars';
 import { ScoreBarChart } from '../charts/score-bar-chart';
 import type { ScoreBarChartData } from '../charts/score-bar-chart';
-import { AssistKpiCard } from '../charts/assist-kpi-card';
 
 // ── 类型 ──
 
@@ -388,23 +385,7 @@ export function ScoringTab({
   // ── 渲染 ──
   return (
     <div className="space-y-4">
-      {/* 1. KPI 摘要卡 */}
-      {sortedBidders.length > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <AssistKpiCard label="参评单位" value={bidderCount} icon={<Users size={16} strokeWidth={1.5} />} tone="blue" />
-          <AssistKpiCard label="最高得分" value={maxScore.toFixed(1)} icon={<TrendingUp size={16} strokeWidth={1.5} />} tone="green" />
-          <AssistKpiCard label="平均得分" value={avgScore.toFixed(1)} icon={<Target size={16} strokeWidth={1.5} />} tone="slate" />
-          <AssistKpiCard
-            label="风险预警"
-            value={highRiskCount}
-            hint={highRiskCount > 0 ? `${highRiskCount} 家高风险` : '无高风险'}
-            icon={<AlertCircle size={16} strokeWidth={1.5} />}
-            tone={highRiskCount > 0 ? 'red' : 'green'}
-          />
-        </div>
-      )}
-
-      {/* 2. 主布局：左列（排名 + 图表） / 右列（详情面板） */}
+      {/* 主布局：左列（排名 + 图表） / 右列（详情面板） */}
       <div
         className={`grid gap-4 ${
           sortedBidders.length >= 2
