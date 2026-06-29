@@ -382,7 +382,7 @@ function StatusBar({ assistData }: { assistData: AssistData }) {
     concordanceStatus === 'consistent' ? 'text-[#11a874]' : concordanceStatus === 'conflict' ? 'text-[#e74c3c]' : 'text-[#f5a623]';
 
   return (
-    <div className="grid gap-x-14 gap-y-3 mb-3" style={{ gridTemplateColumns: '1fr auto', gridTemplateRows: 'auto auto', alignItems: 'end' }}>
+    <div className="grid gap-x-14 gap-y-3 mb-3 px-6 py-4 bg-white/60 rounded-xl border border-[oklch(0.91_0.006_264)]" style={{ gridTemplateColumns: '1fr auto', gridTemplateRows: 'auto auto', alignItems: 'end' }}>
       {/* 左列：AI 评分 hero（跨两行） */}
       <div className="flex flex-col gap-1" style={{ gridRow: '1 / 3' }}>
         <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.48_0.01_264)] select-none">
