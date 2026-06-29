@@ -1,6 +1,7 @@
 'use client';
 
-// ── 分组柱状图 — 多供应商维度对比（仅显示评分维度：BUSINESS/TECHNICAL/PRICE）──
+// ── 分组柱状图 — 按维度分组，每组内多家供应商对比 ──
+// X 轴 = 维度（商务/技术/价格），每组内 = 各供应商柱子并排
 
 import { CATEGORY_LABEL, CATEGORY_COLOR } from './score-breakdown-bars';
 
@@ -15,8 +16,16 @@ interface ScoreBarChartProps {
   categoryMaxes: Record<string, number>;
 }
 
-// 可显示柱状图的评分维度（排除 pass/fail 类型）
 const SCORE_CATEGORIES = ['BUSINESS', 'TECHNICAL', 'PRICE'];
+
+// 供应商配色（与雷达图一致）
+const SUPPLIER_COLORS = [
+  'oklch(0.48 0.18 264)',
+  'oklch(0.52 0.14 180)',
+  'oklch(0.55 0.16 60)',
+  'oklch(0.50 0.16 20)',
+  'oklch(0.50 0.14 310)',
+];
 
 export function ScoreBarChart({ data, categoryMaxes }: ScoreBarChartProps) {
   const activeCategories = SCORE_CATEGORIES.filter(
@@ -24,20 +33,25 @@ export function ScoreBarChart({ data, categoryMaxes }: ScoreBarChartProps) {
   );
   if (activeCategories.length === 0 || data.length === 0) return null;
 
-  const yMax = 100;
-  const barWidth = 36;
-  const gap = 8;
-  const groupWidth = barWidth * activeCategories.length + gap * (activeCategories.length - 1);
-  const groupGap = 64;
-  const padLeft = 56;
-  const padBottom = 64;
-  const padTop = 36;
-  const plotH = 260;
+  const barWidth = 28;
+  const barGap = 4;
+  const supplierGroupW = barWidth + barGap;
+  const groupInnerW = data.length * supplierGroupW - barGap;
+  const groupGap = 48;
+  const padLeft = 62;
+  const padBottom = 72;
+  const padTop = 32;
+  const plotH = 240;
   const chartH = plotH + padBottom + padTop;
-  const totalWidth = Math.max(520, data.length * groupWidth + (data.length - 1) * groupGap + padLeft + 60);
+  const totalWidth = Math.max(
+    480,
+    padLeft + activeCategories.length * groupInnerW + (activeCategories.length - 1) * groupGap + 40,
+  );
 
-  // Y 轴刻度
   const yTicks = [0, 20, 40, 60, 80, 100];
+
+  // 供应商名截断
+  const shortName = (name: string) => name.length > 5 ? name.slice(0, 5) + '…' : name;
 
   return (
     <div className="overflow-x-auto">
@@ -49,7 +63,7 @@ export function ScoreBarChart({ data, categoryMaxes }: ScoreBarChartProps) {
       >
         {/* Y 轴网格线 + 标签 */}
         {yTicks.map((tick) => {
-          const y = padTop + plotH - (tick / yMax) * plotH;
+          const y = padTop + plotH - (tick / 100) * plotH;
           return (
             <g key={tick}>
               <line
@@ -74,31 +88,32 @@ export function ScoreBarChart({ data, categoryMaxes }: ScoreBarChartProps) {
           );
         })}
 
-        {/* 柱状组 */}
-        {data.map((d, di) => {
-          const groupX = padLeft + di * (groupWidth + groupGap);
+        {/* 按维度分组：每组内供应商并排 */}
+        {activeCategories.map((cat, ci) => {
+          const catColor = CATEGORY_COLOR[cat] ?? '#0b63ce';
+          const maxScore = categoryMaxes[cat] ?? 0;
+          const groupX = padLeft + ci * (groupInnerW + groupGap);
+
           return (
-            <g key={di}>
-              {activeCategories.map((cat, ci) => {
+            <g key={cat}>
+              {/* 供应商柱子 */}
+              {data.map((d, di) => {
                 const score = d.categoryScores[cat] ?? 0;
-                const maxScore = categoryMaxes[cat] ?? 0;
                 const h = maxScore > 0 ? (score / maxScore) * plotH : 0;
-                const barX = groupX + ci * (barWidth + gap);
+                const barX = groupX + di * supplierGroupW;
                 const barY = padTop + plotH - h;
-                const color = CATEGORY_COLOR[cat] ?? '#0b63ce';
+                const color = SUPPLIER_COLORS[di % SUPPLIER_COLORS.length];
 
                 return (
-                  <g key={cat}>
-                    {/* 柱 */}
+                  <g key={di}>
                     <rect
                       x={barX}
                       y={barY}
                       width={barWidth}
-                      height={h}
+                      height={Math.max(h, 1)}
                       fill={color}
                       rx={2}
                     />
-                    {/* 分数标签 */}
                     <text
                       x={barX + barWidth / 2}
                       y={barY - 6}
@@ -111,44 +126,58 @@ export function ScoreBarChart({ data, categoryMaxes }: ScoreBarChartProps) {
                   </g>
                 );
               })}
-              {/* 供应商名（截断 8 字）*/}
+
+              {/* 维度名 */}
               <text
-                x={groupX + groupWidth / 2}
-                y={padTop + plotH + 20}
+                x={groupX + groupInnerW / 2}
+                y={padTop + plotH + 16}
                 textAnchor="middle"
-                className="text-[11px] font-medium"
-                fill="oklch(0.45 0.01 264)"
+                className="text-[11px] font-bold"
+                fill="oklch(0.35 0.01 264)"
               >
-                {d.name.length > 8 ? d.name.slice(0, 8) + '…' : d.name}
+                {CATEGORY_LABEL[cat] ?? cat}
               </text>
-              {/* 总分 */}
+              {/* 满分 */}
               <text
-                x={groupX + groupWidth / 2}
-                y={padTop + plotH + 36}
+                x={groupX + groupInnerW / 2}
+                y={padTop + plotH + 30}
                 textAnchor="middle"
-                className="text-[10px] font-semibold tabular-nums"
+                className="text-[10px]"
                 fill="oklch(0.55 0.008 264)"
               >
-                {d.totalScore.toFixed(1)}分
+                满分 {maxScore}
               </text>
+
+              {/* 维度分隔线（除最后一组）*/}
+              {ci < activeCategories.length - 1 && (
+                <line
+                  x1={groupX + groupInnerW + groupGap / 2}
+                  y1={padTop}
+                  x2={groupX + groupInnerW + groupGap / 2}
+                  y2={padTop + plotH}
+                  stroke="oklch(0.93 0.004 264)"
+                  strokeWidth={1}
+                  strokeDasharray="2 4"
+                />
+              )}
             </g>
           );
         })}
 
-        {/* 图例 */}
-        <g transform={`translate(${padLeft}, ${padTop - 20})`}>
-          {activeCategories.map((cat, i) => (
-            <g key={cat} transform={`translate(${i * 80}, 0)`}>
+        {/* 图例：供应商名 × 色块 */}
+        <g transform={`translate(${padLeft}, ${chartH - 6})`}>
+          {data.map((d, di) => (
+            <g key={di} transform={`translate(${di * 130}, 0)`}>
               <rect
                 x={0}
                 y={0}
                 width={10}
                 height={10}
                 rx={2}
-                fill={CATEGORY_COLOR[cat] ?? '#0b63ce'}
+                fill={SUPPLIER_COLORS[di % SUPPLIER_COLORS.length]}
               />
-              <text x={14} y={9} className="text-[10px]" fill="oklch(0.5 0.008 264)">
-                {CATEGORY_LABEL[cat] ?? cat}
+              <text x={14} y={9} className="text-[10px] font-medium" fill="oklch(0.40 0.01 264)">
+                {shortName(d.name)}
               </text>
             </g>
           ))}
