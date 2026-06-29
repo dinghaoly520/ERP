@@ -11,7 +11,6 @@ import { isPassFailCategory } from '@water-erp/shared';
 import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, Gavel, MessageSquare } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
-import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 
 type Step = 'verify' | 'documents' | 'assist' | 'scoring' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
@@ -582,8 +581,8 @@ export default function ExpertEvaluatePage() {
 
       {/* 主内容区：供应商侧边栏 + 内容 */}
       <div className="flex-1 flex overflow-hidden min-h-0 rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/60">
-        {/* 供应商侧边栏 — 仅在专家打分步骤显示 */}
-        {step === 'scoring' && (
+        {/* 供应商侧边栏 — 辅助评标 + 专家打分步骤显示 */}
+        {(step === 'assist' || step === 'scoring') && (
           <SupplierSidebar
             suppliers={project.suppliers}
             activeSupplier={activeSupplier}
@@ -956,15 +955,6 @@ export default function ExpertEvaluatePage() {
           {/* ====== 辅助评标（AI引擎驱动） ====== */}
           {step === 'assist' && (
             <div>
-              <div className="px-5 pt-5">
-                <SupplierTabBar
-                  suppliers={project.suppliers}
-                  activeSupplier={activeSupplier}
-                  onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); }}
-                  conflictedSupplierIds={conflictedSupplierIds}
-                  decryptLabel={decryptLabel}
-                />
-              </div>
               <AssistPanel
                 assistData={assistData}
                 assistLoading={assistLoading}

@@ -44,73 +44,6 @@ interface AssistPanelProps {
   onRetry: () => void;
 }
 
-// ── 子组件：摘要头卡 ──
-
-function SummaryHeader({ assistData }: { assistData: AssistData }) {
-  const isAiResult = assistData.source === 'ai_bidder_result';
-
-  const riskLabel = assistData.riskLevel === 'low' ? '低' : assistData.riskLevel === 'medium' ? '中' : '高';
-  const riskStyle =
-    assistData.riskLevel === 'low'
-      ? 'text-[#11a874] bg-[#11a874]/10'
-      : assistData.riskLevel === 'medium'
-        ? 'text-[#f5a623] bg-[#f5a623]/10'
-        : 'text-[#e74c3c] bg-[#e74c3c]/10';
-
-  return (
-    <div className="rounded-xl bg-gradient-to-r from-[#054280] to-[#064ea2] p-4">
-      {/* 第一行：总分 + 徽章 */}
-      <div className="flex flex-wrap items-center gap-3 mb-2">
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[32px] font-extrabold tabular-nums text-white leading-none">
-            {Number(assistData.totalScore ?? 0).toFixed(1)}
-          </span>
-          <span className="text-white/40 text-xs font-medium">/ 总分</span>
-        </div>
-
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-          assistData.qualificationStatus === '通过'
-            ? 'bg-emerald-400/25 text-emerald-200'
-            : assistData.qualificationStatus === '不通过'
-              ? 'bg-red-400/25 text-red-200'
-              : 'bg-amber-400/25 text-amber-200'
-        }`}>
-          资格：{assistData.qualificationStatus ?? '待审查'}
-        </span>
-
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${riskStyle} bg-white/15`}>
-          风险：{riskLabel}
-        </span>
-
-        <span className="text-[10px] bg-white/15 text-white/60 px-2 py-0.5 rounded-full font-medium">
-          {isAiResult ? 'LLM + OCR' : '规则降级'}
-        </span>
-      </div>
-
-      {/* 第二行：元数据 */}
-      <div className="flex flex-wrap items-center gap-3 text-[10px] text-white/40">
-        {assistData.concordanceStatus && (
-          <span className={`font-semibold ${
-            assistData.concordanceStatus === 'consistent'
-              ? 'text-emerald-300'
-              : assistData.concordanceStatus === 'conflict'
-                ? 'text-red-300'
-                : 'text-amber-300'
-          }`}>
-            {assistData.concordanceStatus === 'consistent' ? '数据一致' :
-             assistData.concordanceStatus === 'conflict' ? '⚠ 数据冲突' :
-             assistData.concordanceStatus === 'minor_diff' ? '⚠ 轻微差异' : '数据不足'}
-          </span>
-        )}
-        {assistData.model && <span>模型 {assistData.model}</span>}
-        {assistData.generatedAt && (
-          <span>{new Date(assistData.generatedAt).toLocaleString('zh-CN')}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── 主组件 ──
 
 export function AssistPanel({
@@ -181,12 +114,7 @@ export function AssistPanel({
   // ── 正常态 ──
   return (
     <div className="p-5">
-      {/* 摘要头卡 */}
-      <div className="mb-4">
-        <SummaryHeader assistData={assistData} />
-      </div>
-
-      {/* Tab 导航 — 胶囊式切换，更清晰的视觉层级 */}
+      {/* Tab 导航 — 胶囊式切换 */}
       <div className="flex items-center gap-1 mb-4 bg-[oklch(0.96_0.005_264)] rounded-lg p-1">
         {TABS.map((tab) => (
           <button
