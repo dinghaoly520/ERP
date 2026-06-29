@@ -393,11 +393,6 @@ function StatusBar({ assistData }: { assistData: AssistData }) {
         </span>
       </div>
 
-      {/* 右上：模型来源 */}
-      <div className="text-[10px] text-[oklch(0.60_0.008_264)] tracking-[0.05em] text-right select-none">
-        {assistData.model ?? '大模型 + 文档识别'}
-      </div>
-
       {/* 右下：三个状态指标横排 */}
       <div className="flex gap-10">
         <div className="flex flex-col gap-1">
