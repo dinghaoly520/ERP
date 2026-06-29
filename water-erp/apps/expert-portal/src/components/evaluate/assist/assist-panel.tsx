@@ -386,7 +386,7 @@ function StatusBar({ assistData }: { assistData: AssistData }) {
       {/* 左列：AI 评分 hero（跨两行） */}
       <div className="flex flex-col gap-1" style={{ gridRow: '1 / 3' }}>
         <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.48_0.01_264)] select-none">
-          AI 评估
+          AI 评估分
         </span>
         <span className="text-[44px] font-bold leading-none text-[var(--color-primary)] tabular-nums">
           {score}
@@ -395,7 +395,7 @@ function StatusBar({ assistData }: { assistData: AssistData }) {
 
       {/* 右上：模型来源 */}
       <div className="text-[10px] text-[oklch(0.60_0.008_264)] tracking-[0.05em] text-right select-none">
-        {assistData.model ?? 'LLM + OCR'}
+        {assistData.model ?? '大模型 + 文档识别'}
       </div>
 
       {/* 右下：三个状态指标横排 */}
@@ -1237,7 +1237,7 @@ export function AssistPanel({
           </button>
         </div>
         <div className="text-xs text-[var(--color-text-tertiary)] text-center mt-4 pt-3 border-t border-[oklch(0.91_0.006_264)]">
-          以上结果由 AI（LLM + OCR）辅助生成，仅供参考，以专家独立评分为准。
+          以上结果由 AI（大模型 + 文档识别）辅助生成，仅供参考，以专家独立评分为准。
         </div>
       </div>
     );
@@ -1319,7 +1319,7 @@ export function AssistPanel({
 
       {/* 页脚声明 */}
       <div className="text-xs text-[var(--color-text-tertiary)] text-center pt-2 border-t border-[oklch(0.91_0.006_264)]">
-        以上结果由 AI（LLM + OCR）辅助生成，仅供参考，以专家独立评分为准。
+        以上结果由 AI（大模型 + 文档识别）辅助生成，仅供参考，以专家独立评分为准。
       </div>
     </div>
   );
