@@ -39,7 +39,7 @@ export function ScoreBarChart({ data, categoryMaxes }: ScoreBarChartProps) {
   const groupInnerW = data.length * supplierGroupW - barGap;
   const groupGap = 48;
   const padLeft = 62;
-  const padBottom = 72;
+  const padBottom = 82;
   const padTop = 32;
   const plotH = 240;
   const chartH = plotH + padBottom + padTop;
@@ -165,7 +165,7 @@ export function ScoreBarChart({ data, categoryMaxes }: ScoreBarChartProps) {
         })}
 
         {/* 图例：供应商名 × 色块 */}
-        <g transform={`translate(${padLeft}, ${chartH - 6})`}>
+        <g transform={`translate(${padLeft}, ${padTop + plotH + padBottom - 18})`}>
           {data.map((d, di) => (
             <g key={di} transform={`translate(${di * 130}, 0)`}>
               <rect
