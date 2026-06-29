@@ -4,6 +4,9 @@ import { ExpertService } from './expert.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ExpertConflictService } from './expert-conflict.service';
+import { encryptBuffer } from '../announcement/bid-document.crypto';
+import { wrapKey } from '../common/crypto/envelope-crypto';
+import { minioClient } from '../upload/minio.client';
 
 describe('ExpertService', () => {
   let service: ExpertService;
@@ -424,6 +427,158 @@ describe('ExpertService', () => {
       const report = await service.getReport('u1', 'p1');
       const item = report.supplierScores[0].categoryScores['QUALIFICATION'].items[0];
       expect(item.passed).toBe(false);
+    });
+  });
+
+  describe('getTenderDocument — 招标文件元信息', () => {
+    const signedExpert = { ...mockExpert, id: 'exp-1', expertName: '王建国', signedIn: true, avoidanceConfirmed: true };
+
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
+      prisma.bidDocument = { findFirst: jest.fn() };
+    });
+
+    it('有招标文件 → 返回元信息与下载地址', async () => {
+      prisma.bidDocument.findFirst.mockResolvedValue({
+        id: 'bd-1', title: '招标文件', decryptKey: 'xxx',
+        fileAsset: { id: 'fa-1', originalName: 'tender.pdf', size: 4979 },
+      });
+
+      const result = await service.getTenderDocument('user-1', 'proj-1');
+
+      expect(result).toEqual({
+        title: '招标文件',
+        fileName: 'tender.pdf',
+        fileSize: 4979,
+        downloadUrl: '/api/expert/projects/proj-1/tender-document/download',
+      });
+      expect(prisma.bidDocument.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { bidProjectId: 'proj-1' } }),
+      );
+    });
+
+    it('无招标文件 → 返回 null', async () => {
+      prisma.bidDocument.findFirst.mockResolvedValue(null);
+
+      const result = await service.getTenderDocument('user-1', 'proj-1');
+
+      expect(result).toBeNull();
+    });
+
+    it('非本项目专家 → 403 NOT_PROJECT_EXPERT', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+
+      await expect(service.getTenderDocument('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'NOT_PROJECT_EXPERT' } });
+    });
+
+    it('未完成签到/回避 → 403 VERIFICATION_REQUIRED', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, signedIn: false, avoidanceConfirmed: false });
+
+      await expect(service.getTenderDocument('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'VERIFICATION_REQUIRED' } });
+    });
+
+    it('项目阶段不在 OPENING/EVALUATING → 403 PROJECT_NOT_ACTIVE', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
+
+      await expect(service.getTenderDocument('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_ACTIVE' } });
+    });
+  });
+
+  describe('downloadTenderDocument — 招标文件解密下载', () => {
+    const signedExpert = { ...mockExpert, id: 'exp-1', expertName: '王建国', signedIn: true, avoidanceConfirmed: true };
+    const origKms = process.env.KMS_SECRET;
+
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
+      prisma.bidDocument = { findFirst: jest.fn() };
+      process.env.KMS_SECRET = 'test-kms-secret';
+    });
+
+    afterEach(() => {
+      process.env.KMS_SECRET = origKms;
+      jest.restoreAllMocks();
+    });
+
+    it('无招标文件 → 404 NOT_FOUND', async () => {
+      prisma.bidDocument.findFirst.mockResolvedValue(null);
+
+      await expect(service.downloadTenderDocument('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+    });
+
+    it('成功解密明文 PDF 并写入访问日志（wrapped key）', async () => {
+      const plaintext = Buffer.from('%PDF-1.4 fake tender content');
+      const { ciphertext, decryptKey } = encryptBuffer(plaintext);
+      const wrapped = wrapKey(decryptKey, process.env.KMS_SECRET!);
+      prisma.bidDocument.findFirst.mockResolvedValue({
+        id: 'bd-1', title: '招标文件', decryptKey: wrapped,
+        fileAsset: { id: 'fa-1', key: 'seed/hero/tender.pdf', originalName: 'tender.pdf' },
+      });
+      jest.spyOn(minioClient, 'getObject').mockResolvedValue({
+        async *[Symbol.asyncIterator]() { yield ciphertext; },
+      } as any);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.downloadTenderDocument('user-1', 'proj-1');
+
+      expect(result.buffer.equals(plaintext)).toBe(true);
+      expect(result.fileName).toBe('tender.pdf');
+      expect(result.mimeType).toBe('application/pdf');
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          projectId: 'proj-1',
+          role: '评审专家',
+          target: '王建国',
+          action: '访问招标文件',
+          riskFlag: '无',
+        }),
+      }));
+    });
+  });
+
+  describe('getProject — 附带招标文件元信息', () => {
+    beforeEach(() => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp-1', userId: 'user-1', phoneVerified: true, expertName: '王建国',
+        user: { expertProfile: { phone: '13800001111' } },
+      });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'proj-1', stage: 'EVALUATING', projectCode: 'BID-1', name: '项目',
+        suppliers: [], openingSession: null, openingRecords: [], experts: [],
+        scoreItems: [], clarifications: [], supervisionLogs: [],
+      });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      prisma.bidDocument = { findFirst: jest.fn() };
+    });
+
+    it('active 项目附带 tenderDocument 元信息', async () => {
+      prisma.bidDocument.findFirst.mockResolvedValue({
+        title: '招标文件', fileAsset: { originalName: 'tender.pdf', size: 4979 },
+      });
+
+      const result = await service.getProject('user-1', 'proj-1');
+
+      expect(result.restricted).toBe(false);
+      expect(result.tenderDocument).toEqual({
+        title: '招标文件',
+        fileName: 'tender.pdf',
+        fileSize: 4979,
+        downloadUrl: '/api/expert/projects/proj-1/tender-document/download',
+      });
+    });
+
+    it('无招标文件 → tenderDocument 为 null（仍 active）', async () => {
+      prisma.bidDocument.findFirst.mockResolvedValue(null);
+
+      const result = await service.getProject('user-1', 'proj-1');
+
+      expect(result.restricted).toBe(false);
+      expect(result.tenderDocument).toBeNull();
     });
   });
 });

@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -62,6 +63,27 @@ export class ExpertController {
     @Param('supplierId') supplierId: string,
   ) {
     return this.expertService.getDecryptedDocuments(userId, projectId, supplierId);
+  }
+
+  /* ── 招标文件预览（专家独立核对原文）── */
+
+  @ApiOperation({ summary: '招标文件元信息（专家核对原文，无则 null）' })
+  @Get('projects/:projectId/tender-document')
+  getTenderDocument(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.expertService.getTenderDocument(userId, projectId);
+  }
+
+  @ApiOperation({ summary: '解密下载招标文件 PDF（inline 预览）' })
+  @Get('projects/:projectId/tender-document/download')
+  async downloadTenderDocument(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, fileName, mimeType } = await this.expertService.downloadTenderDocument(userId, projectId);
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    res.send(buffer);
   }
 
   /* ── 辅助评标 ── */

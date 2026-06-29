@@ -6,6 +6,9 @@ import { BidGateway } from '../bid/bid.gateway';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
+import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
+import { decryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
+import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 
 @Injectable()
 export class ExpertService {
@@ -190,6 +193,7 @@ export class ExpertService {
         supervisionLogs: [] as any[],
         myExpertRecord,
         myScores: [] as any[],
+        tenderDocument: null,
         restricted: true,
       };
     }
@@ -200,7 +204,18 @@ export class ExpertService {
       include: { scoreItem: true },
     });
 
-    return { ...project, myExpertRecord, myScores, restricted: false };
+    // 招标文件元信息：仅 active 项目附带（门控要求 OPENING/EVALUATING），restricted 分支不带
+    const tenderDoc = await this.prisma.bidDocument.findFirst({
+      where: { bidProjectId: projectId },
+      include: { fileAsset: true },
+    });
+    return {
+      ...project,
+      myExpertRecord,
+      myScores,
+      restricted: false,
+      tenderDocument: this.buildTenderDocumentMeta(tenderDoc, projectId),
+    };
   }
 
   /* ── 身份核验 ── */
@@ -326,6 +341,78 @@ export class ExpertService {
       documents,
       canView,
     };
+  }
+
+  /* ── 招标文件预览（专家独立核对原文）── */
+
+  /** 门控：项目阶段 ∈ {OPENING, EVALUATING} + 调用者是该项目已签到 + 回避确认的专家。 */
+  private async assertExpertActiveForProject(userId: string, projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可获取文件阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed) {
+      throw new ForbiddenException({ error: '请先完成身份核验和回避确认', code: 'VERIFICATION_REQUIRED' });
+    }
+    return expert;
+  }
+
+  /** 招标文件元信息（供前端「招标文件」卡片展示），无则 null。 */
+  async getTenderDocument(userId: string, projectId: string) {
+    await this.assertExpertActiveForProject(userId, projectId);
+    const doc = await this.prisma.bidDocument.findFirst({
+      where: { bidProjectId: projectId },
+      include: { fileAsset: true },
+    });
+    return this.buildTenderDocumentMeta(doc, projectId);
+  }
+
+  /** 把 BidDocument 行塑形为前端「招标文件」卡片所需的元信息；doc 为空返回 null。 */
+  private buildTenderDocumentMeta(
+    doc: { title: string; fileAsset: { originalName: string; size: number } } | null,
+    projectId: string,
+  ) {
+    if (!doc) return null;
+    return {
+      title: doc.title,
+      fileName: doc.fileAsset.originalName,
+      fileSize: doc.fileAsset.size,
+      downloadUrl: `/api/expert/projects/${projectId}/tender-document/download`,
+    };
+  }
+
+  /** 解密下载招标文件明文 PDF，并写一条访问审计日志（不递增 downloadCount）。 */
+  async downloadTenderDocument(userId: string, projectId: string): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
+    const expert = await this.assertExpertActiveForProject(userId, projectId);
+    const doc = await this.prisma.bidDocument.findFirst({
+      where: { bidProjectId: projectId },
+      include: { fileAsset: true },
+    });
+    if (!doc?.fileAsset) throw new NotFoundException({ error: '招标文件不存在', code: 'NOT_FOUND' });
+
+    // 与 BidDocumentService.downloadForSupplier 同款：全量 buffer 解密，兼容未被包裹的旧 key
+    const objStream = await minioClient.getObject(MINIO_BUCKET, doc.fileAsset.key);
+    const ciphertext = await streamToBuffer(objStream);
+    const rawKey = isWrappedKey(doc.decryptKey)
+      ? unwrapKey(doc.decryptKey, process.env.KMS_SECRET!)
+      : doc.decryptKey;
+    const plaintext = decryptBuffer(ciphertext, rawKey);
+
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId,
+        time: new Date(),
+        role: '评审专家',
+        target: expert.expertName,
+        action: '访问招标文件',
+        result: doc.fileAsset.originalName,
+        riskFlag: '无',
+      },
+    });
+
+    return { buffer: plaintext, fileName: doc.fileAsset.originalName, mimeType: 'application/pdf' };
   }
 
   /* ── 辅助评标（AI引擎驱动） ── */

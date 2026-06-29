@@ -25,6 +25,8 @@ import { hashSync } from 'bcryptjs';
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { minioClient, MINIO_BUCKET } from '../src/upload/minio.client';
+import { encryptBuffer } from '../src/announcement/bid-document.crypto';
+import { wrapKey } from '../src/common/crypto/envelope-crypto';
 
 const prisma = new PrismaClient();
 const dataDir = join(__dirname, 'seed-data');
@@ -138,6 +140,39 @@ async function ensureBidFiles() {
   console.log(`    投标文件就绪：${uploaded}/${mapping.length}`);
 }
 
+/**
+ * 生成 cmqhero-bid-proj01 招标文件 PDF（reportlab，含★号实质性条款）→ AES-256-GCM 加密
+ * → 上传 MinIO（复用 fileAsset.key）→ wrapKey 包裹 DEK 回填 BidDocument.decryptKey，
+ * 让专家端「招标文件」预览端到端可解密（见 expert-tender-document-preview-design.md 验证前置）。
+ * 幂等：seed 重跑覆盖上传 + 重新加密 + 回填。python3/reportlab 不可用时跳过（不阻塞 seed）。
+ */
+async function ensureTenderFiles() {
+  console.log('▶ 生成招标文件 PDF + 加密 + 上传 MinIO + 回填 decryptKey（cmqhero-bid-proj01 招标文件）');
+  const script = join(__dirname, 'scripts', 'gen-tender-pdf.py');
+  try {
+    execSync(`python3 ${script}`, { stdio: 'pipe' });
+  } catch {
+    console.warn('  ⚠ python3 gen-tender-pdf.py 失败（缺 reportlab？），跳过招标文件上传；专家端预览将无法解密');
+    return;
+  }
+  const docId = 'cmqhero-bd01';
+  const doc = await prisma.bidDocument.findUnique({ where: { id: docId }, include: { fileAsset: true } });
+  if (!doc?.fileAsset) {
+    console.warn(`  ⚠ 招标文件 ${docId} 或其 fileAsset 不存在，跳过`);
+    return;
+  }
+  const plaintext = readFileSync('/tmp/seed-pdf/tender-hero.pdf');
+  const { ciphertext, decryptKey } = encryptBuffer(plaintext);
+  await minioClient.putObject(MINIO_BUCKET, doc.fileAsset.key, ciphertext, ciphertext.length, {
+    'Content-Type': 'application/pdf',
+  });
+  const wrapped = wrapKey(decryptKey, process.env.KMS_SECRET!);
+  await prisma.bidDocument.update({ where: { id: docId }, data: { decryptKey: wrapped } });
+  const sha = createHash('sha256').update(plaintext).digest('hex');
+  await prisma.fileAsset.update({ where: { id: doc.fileAsset.id }, data: { sha256: sha, size: plaintext.length } });
+  console.log(`    ${docId} → ${doc.fileAsset.key}（明文 ${plaintext.length}B → 密文 ${ciphertext.length}B，decryptKey 已包裹回填）`);
+}
+
 async function main() {
   console.log('▶ 清空业务表（TRUNCATE … RESTART IDENTITY CASCADE）');
   const tableList = ALL_TABLES.map((t) => `"${t}"`).join(', ');
@@ -186,6 +221,9 @@ async function main() {
 
   // ═══ 投标文件持久化（让端到端 AI 分析可重现）═══
   await ensureBidFiles();
+
+  // ═══ 招标文件持久化（让专家端「招标文件」预览端到端可解密）═══
+  await ensureTenderFiles();
 
   const counts = {
     用户: await prisma.user.count(),
