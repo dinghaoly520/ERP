@@ -933,7 +933,7 @@ export default function ExpertEvaluatePage() {
                                     </div>
                                   </div>
                                   {d.downloadUrl ? (
-                                    <a href={d.downloadUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2.5 py-1.5 bg-[#064ea2] text-white text-[11px] rounded-lg hover:bg-[#054280] transition shrink-0">
+                                    <a href={d.downloadUrl} target="_blank" rel="noopener" className="flex items-center gap-1 px-2.5 py-1.5 bg-[#064ea2] text-white text-[11px] rounded-lg hover:bg-[#054280] transition shrink-0">
                                       <Download size={12} strokeWidth={1.5} /> 预览
                                     </a>
                                   ) : (

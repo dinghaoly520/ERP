@@ -713,7 +713,7 @@ export default function BidOpenPage() {
                   {BOND_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
                 {bidBondAssetId && (
-                  <a href={`/api/upload/files/${bidBondAssetId}`} target="_blank" rel="noreferrer"
+                  <a href={`/api/upload/files/${bidBondAssetId}`} target="_blank" rel="noopener"
                      className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-[#064ea2] hover:underline">
                     <FileText size={12} strokeWidth={1.5} /> 查看保证金凭证
                   </a>
