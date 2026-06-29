@@ -1150,10 +1150,31 @@ function RankingSection({
 
 // ── 分区标题 ──
 
-function SectionHeader({ number, title, subtitle }: { number: string; title: string; subtitle?: string }) {
+// ── 实心编号圆 ──
+
+function SectionNumber({ n }: { n: number }) {
   return (
-    <div className="flex items-center gap-3 pt-2 pb-1">
-      <span className="text-[11px] font-bold text-[var(--color-text-tertiary)] tabular-nums w-4">{number}</span>
+    <svg width={18} height={18} viewBox="0 0 18 18" className="shrink-0">
+      <circle cx={9} cy={9} r={9} fill="var(--color-primary)" />
+      <text
+        x={9}
+        y={12}
+        textAnchor="middle"
+        fill="#fff"
+        fontSize={10}
+        fontWeight={700}
+        fontFamily="system-ui, sans-serif"
+      >
+        {n}
+      </text>
+    </svg>
+  );
+}
+
+function SectionHeader({ number, title, subtitle }: { number: number; title: string; subtitle?: string }) {
+  return (
+    <div className="flex items-center gap-2.5 pt-2 pb-1">
+      <SectionNumber n={number} />
       <h3 className="font-bold text-sm text-[var(--color-text)]">{title}</h3>
       {subtitle && <span className="text-[11px] text-[var(--color-text-tertiary)]">{subtitle}</span>}
       <span className="flex-1 h-px bg-[oklch(0.91_0.006_264)] ml-2" />
@@ -1250,7 +1271,7 @@ export function AssistPanel({
 
       {/* ① 评分分析 */}
       <section>
-        <SectionHeader number="①" title="评分分析" subtitle={`· ${supplierName}`} />
+        <SectionHeader number={1} title="评分分析" subtitle={`· ${supplierName}`} />
         <div className="mt-3">
           <ScoringSection
             scoreItems={assistData.scoreItems}
@@ -1272,7 +1293,7 @@ export function AssistPanel({
 
       {/* ② 关键信息 */}
       <section>
-        <SectionHeader number="②" title="关键信息" subtitle="· OCR 提取的结构化数据" />
+        <SectionHeader number={2} title="关键信息" subtitle="· OCR 提取的结构化数据" />
         <div className="mt-3">
           <KeyInfoSection keyInfo={assistData.keyInfo} supplierName={supplierName} />
         </div>
@@ -1285,7 +1306,10 @@ export function AssistPanel({
           <div className="glass-card rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
               <AlertCircle size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-              <h4 className="font-bold text-sm text-[var(--color-text)]">③ 数据一致性</h4>
+              <div className="flex items-center gap-2">
+                <SectionNumber n={3} />
+                <h4 className="font-bold text-sm text-[var(--color-text)]">数据一致性</h4>
+              </div>
               <span className="text-[10px] text-[var(--color-text-tertiary)]">系统 vs OCR</span>
             </div>
             <ConcordanceSection
@@ -1298,7 +1322,8 @@ export function AssistPanel({
           <div className="glass-card rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
               <ShieldAlert size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-              <h4 className="font-bold text-sm text-[var(--color-text)]">④ 串通检测</h4>
+              <SectionNumber n={4} />
+              <h4 className="font-bold text-sm text-[var(--color-text)]">串通检测</h4>
             </div>
             <FraudSection
               fraudSummary={(assistData as any).fraudSummary ?? null}
@@ -1310,7 +1335,7 @@ export function AssistPanel({
 
       {/* ⑤ 综合排名 */}
       <section>
-        <SectionHeader number="⑤" title="综合排名" subtitle="· 跨供应商对比" />
+        <SectionHeader number={5} title="综合排名" subtitle="· 跨供应商对比" />
         <div className="mt-3">
           <RankingSection projectId={projectId} activeSupplier={activeSupplier} />
         </div>
