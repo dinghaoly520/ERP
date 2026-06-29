@@ -8,7 +8,7 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory } from '@water-erp/shared';
-import { ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, Gavel, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
 
@@ -453,7 +453,7 @@ export default function ExpertEvaluatePage() {
         <div className={`mb-3 px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-between flex-shrink-0 ${
           _wsConn === 'reconnecting' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-red-50 text-red-600 border border-red-200'
         }`}>
-          <span>⚠ {_wsConn === 'reconnecting' ? '实时连接中断，正在重连…' : '实时连接已断开，数据可能不是最新'}</span>
+          <span className="inline-flex items-center gap-1.5"><AlertTriangle size={13} strokeWidth={1.5} />{_wsConn === 'reconnecting' ? '实时连接中断，正在重连…' : '实时连接已断开，数据可能不是最新'}</span>
           <button onClick={_wsReconnect} className="underline hover:no-underline">重试</button>
         </div>
       )}
@@ -461,7 +461,7 @@ export default function ExpertEvaluatePage() {
       {/* 顶部导航 */}
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/projects')} className="text-[oklch(0.55_0.01_264)] hover:text-[#064ea2] transition">← 返回</button>
+          <button onClick={() => router.push('/projects')} className="inline-flex items-center gap-1 text-[oklch(0.55_0.01_264)] hover:text-[#064ea2] transition"><ArrowLeft size={14} strokeWidth={1.5} /> 返回</button>
           <div className="w-px h-6 bg-white/30" />
           <h1 className="text-xl font-bold text-[oklch(0.18_0.012_265)]">{project.name}</h1>
           <span className="text-sm text-[oklch(0.55_0.01_264)]">{project.projectCode}</span>
@@ -483,7 +483,7 @@ export default function ExpertEvaluatePage() {
         <div className="glass-card glass-card-purple rounded-xl p-5 mb-4 flex-shrink-0 space-y-3 max-h-[300px] !overflow-y-auto">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]"><MessageSquare size={14} strokeWidth={1.5} className="inline mr-1" />澄清与答疑</h3>
-            <button onClick={() => setShowClarifications(false)} className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.18_0.012_265)]">✕</button>
+            <button onClick={() => setShowClarifications(false)} className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.18_0.012_265)]"><X size={14} strokeWidth={1.5} /></button>
           </div>
           {clarifications.length === 0 ? (
             <p className="text-xs text-[oklch(0.62_0.008_264)] text-center py-4">暂无澄清记录</p>
@@ -627,7 +627,7 @@ export default function ExpertEvaluatePage() {
                 <div>
                   <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${expert?.signedIn ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-[oklch(0.91_0.006_264)]'}`}>
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${expert?.signedIn ? 'bg-emerald-500 text-white' : 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'}`}>
-                      {expert?.signedIn ? '✓' : '1'}
+                      {expert?.signedIn ? <Check size={18} strokeWidth={2.5} /> : '1'}
                     </div>
                     <div className="flex-1">
                       <h3 className={`font-bold ${expert?.signedIn ? 'text-emerald-600' : 'text-[oklch(0.18_0.012_265)]'}`}>身份核验</h3>
@@ -646,7 +646,7 @@ export default function ExpertEvaluatePage() {
                         </div>
                       ) : phoneVerified ? (
                         <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                          <span className="text-lg">✅</span>
+                          <CheckCircle size={20} strokeWidth={1.5} className="text-emerald-500" />
                           <div>
                             <p className="text-sm font-semibold text-emerald-600">手机验证通过</p>
                             <p className="text-xs text-emerald-500">{phoneMasked}</p>
@@ -654,7 +654,7 @@ export default function ExpertEvaluatePage() {
                         </div>
                       ) : (
                         <>
-                          <p className="text-sm font-semibold text-[oklch(0.18_0.012_265)] mb-1">📱 手机验证</p>
+                          <p className="text-sm font-semibold text-[oklch(0.18_0.012_265)] mb-1 flex items-center gap-1.5"><Phone size={14} strokeWidth={1.5} className="text-[#064ea2]" />手机验证</p>
                           <p className="text-xs text-[oklch(0.55_0.01_264)] mb-3">
                             验证码将发送至 {phoneMasked || '注册手机号'}
                           </p>
@@ -720,7 +720,7 @@ export default function ExpertEvaluatePage() {
                       : expert?.signedIn ? 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'
                       : 'bg-gray-200 text-gray-400'
                     }`}>
-                      {confidentialityAgreed ? '✓' : expert?.signedIn ? '2' : <Lock size={16} strokeWidth={1.5} />}
+                      {confidentialityAgreed ? <Check size={18} strokeWidth={2.5} /> : expert?.signedIn ? '2' : <Lock size={16} strokeWidth={1.5} />}
                     </div>
                     <div className="flex-1">
                       <h3 className={`font-bold ${
@@ -774,7 +774,7 @@ export default function ExpertEvaluatePage() {
                       : confidentialityAgreed ? 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'
                       : 'bg-gray-200 text-gray-400'
                     }`}>
-                      {disciplineAgreed ? '✓' : confidentialityAgreed ? '3' : <Lock size={16} strokeWidth={1.5} />}
+                      {disciplineAgreed ? <Check size={18} strokeWidth={2.5} /> : confidentialityAgreed ? '3' : <Lock size={16} strokeWidth={1.5} />}
                     </div>
                     <div className="flex-1">
                       <h3 className={`font-bold ${
@@ -862,7 +862,7 @@ export default function ExpertEvaluatePage() {
 
               {confidentialityAgreed && disciplineAgreed && expert?.signedIn && expert?.avoidanceConfirmed && (
                 <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-3">
-                  <span className="text-2xl"><CheckCircle size={14} strokeWidth={1.5} /></span>
+                  <CheckCircle size={20} strokeWidth={1.5} className="text-emerald-500" />
                   <div>
                     <h3 className="font-bold text-emerald-600">核验完成</h3>
                     <p className="text-sm text-[oklch(0.55_0.01_264)]">您已完成身份核验，可以开始评审工作</p>
@@ -979,7 +979,7 @@ export default function ExpertEvaluatePage() {
               {/* P0-3: draft recovery banner */}
               {draftAvailable && !draftDismissed && (
                 <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 flex items-center gap-3">
-                  <span className="text-lg">📝</span>
+                  <ClipboardList size={20} strokeWidth={1.5} className="text-amber-500" />
                   <div className="flex-1">
                     <p className="text-sm font-bold text-amber-700">检测到未提交的评分草稿</p>
                     <p className="text-xs text-amber-600 mt-0.5">
@@ -1058,7 +1058,7 @@ export default function ExpertEvaluatePage() {
                                         className={`w-full rounded-lg px-3 py-2 text-sm text-[oklch(0.18_0.012_265)] resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
                                         aria-label={`${item.name} 不通过理由`} />
                                     )}
-                                    {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold">⚠ 请选择「通过 / 不通过」，不通过需填理由</p>}
+                                    {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold flex items-center gap-1"><AlertTriangle size={12} strokeWidth={1.5} />请选择「通过 / 不通过」，不通过需填理由</p>}
                                   </div>
                                 );
                               }
@@ -1092,7 +1092,7 @@ export default function ExpertEvaluatePage() {
                                     }}
                                     className={`w-full rounded-lg px-3 py-2 text-sm resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
                                     aria-label={`${item.name} 评分理由`} tabIndex={0} />
-                                  {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold">⚠ 该项得分低于满分，请填写评分理由</p>}
+                                  {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold flex items-center gap-1"><AlertTriangle size={12} strokeWidth={1.5} />该项得分低于满分，请填写评分理由</p>}
                                 </div>
                               );
                             })}
@@ -1156,14 +1156,14 @@ export default function ExpertEvaluatePage() {
                 {report?.canConfirm && (
                   <button onClick={handleConfirmReport} disabled={busy}
                     className="px-6 py-2.5 bg-emerald-500 text-white rounded-lg font-semibold hover:bg-emerald-600 transition disabled:opacity-50">
-                    {busy ? '确认中...' : '✓ 确认评审报告'}
+                    {busy ? '确认中...' : <span className="inline-flex items-center gap-1.5"><Check size={14} strokeWidth={2.5} />确认评审报告</span>}
                   </button>
                 )}
               </div>
 
               {report ? (
                 <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-[#054280] to-[#064ea2] text-white rounded-xl p-6">
+                  <div className="bg-[#064ea2] text-white rounded-xl p-6">
                     <h3 className="text-xl font-bold mb-2">{report.projectName}</h3>
                     <div className="flex items-center gap-6 text-sm text-white/80">
                       <span>项目编号：{report.projectCode}</span>

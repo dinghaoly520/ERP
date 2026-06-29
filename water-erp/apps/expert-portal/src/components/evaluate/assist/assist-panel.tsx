@@ -29,6 +29,8 @@ import {
   MapPin,
   Briefcase,
   Clock,
+  Banknote,
+  Minus,
 } from 'lucide-react';
 import type { AssistData, BidScoreItem, AiScoreItem } from '@water-erp/shared';
 import { api } from '@/lib/api';
@@ -512,8 +514,8 @@ function ScoringSection({
       {/* 置信度低警告 */}
       {hasScoreItems &&
         scoreItems.filter((si) => si.confidence != null && si.confidence < 0.6).length > 0 && (
-          <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-700">
-            ⚠ 有 {scoreItems.filter((si) => si.confidence != null && si.confidence < 0.6).length}{' '}
+          <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-700 flex items-start gap-1.5">
+            <AlertCircle size={13} strokeWidth={1.5} className="mt-px shrink-0" />有 {scoreItems.filter((si) => si.confidence != null && si.confidence < 0.6).length}{' '}
             项评分置信度较低（&lt;60%），建议人工重点复核。
           </div>
         )}
@@ -648,7 +650,7 @@ function KeyInfoSection({
             <h4 className="font-bold text-sm text-[var(--color-text)]">投标信息</h4>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <FieldCard icon={<span className="text-xs">💵</span>} label="投标报价" value={info.quotePriceYuan} />
+            <FieldCard icon={<Banknote size={12} strokeWidth={1.5} />} label="投标报价" value={info.quotePriceYuan} />
             <FieldCard icon={<Clock size={12} />} label="工期" value={info.constructionPeriod} />
             <FieldCard icon={<Clock size={12} />} label="质保期" value={info.warrantyPeriod} />
             <FieldCard icon={<Clock size={12} />} label="报价有效期" value={info.priceValidity ? `${info.priceValidity}天` : undefined} />
@@ -793,7 +795,7 @@ function ConcordanceSection({ concordance, concordanceStatus }: { concordance: a
         </span>
         {concordanceStatus && (
           <span className="text-[var(--color-text-tertiary)] ml-auto">
-            {concordanceStatus === 'consistent' ? '✓ 一致' : concordanceStatus === 'conflict' ? '✗ 冲突' : '~ 差异'}
+            {concordanceStatus === 'consistent' ? <span className="inline-flex items-center gap-1"><CheckCircle size={12} strokeWidth={1.5} />一致</span> : concordanceStatus === 'conflict' ? <span className="inline-flex items-center gap-1"><XCircle size={12} strokeWidth={1.5} />冲突</span> : <span className="inline-flex items-center gap-1"><Minus size={12} strokeWidth={1.5} />差异</span>}
           </span>
         )}
       </div>
