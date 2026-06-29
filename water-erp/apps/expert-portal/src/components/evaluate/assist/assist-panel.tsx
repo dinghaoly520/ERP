@@ -1074,65 +1074,69 @@ function RankingSection({
         </table>
       </div>
 
-      {/* 图表对比 */}
+      {/* 维度对比 + 投标报价对比（合并卡片）*/}
       {sorted.length >= 2 && (
-        <div className="glass-card rounded-xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="font-bold text-sm text-[var(--color-text)] flex items-center gap-2">
-              <BarChart3 size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-              维度对比
-            </h4>
-            <div className="flex gap-0.5 bg-[oklch(0.93_0.005_264)] rounded-lg p-0.5">
-              <button
-                onClick={() => setChartType('radar')}
-                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ${
-                  chartType === 'radar'
-                    ? 'bg-white text-[var(--color-primary)] shadow-sm'
-                    : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
-                }`}
-              >
-                雷达图
-              </button>
-              <button
-                onClick={() => setChartType('bar')}
-                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ${
-                  chartType === 'bar'
-                    ? 'bg-white text-[var(--color-primary)] shadow-sm'
-                    : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
-                }`}
-              >
-                柱状图
-              </button>
+        <div className="glass-card rounded-xl p-4 space-y-4">
+          {/* 上半：雷达/柱状图 + 切换 */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-bold text-sm text-[var(--color-text)] flex items-center gap-2">
+                <BarChart3 size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
+                维度对比
+              </h4>
+              <div className="flex gap-0.5 bg-[oklch(0.93_0.005_264)] rounded-lg p-0.5">
+                <button
+                  onClick={() => setChartType('radar')}
+                  className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ${
+                    chartType === 'radar'
+                      ? 'bg-white text-[var(--color-primary)] shadow-sm'
+                      : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+                  }`}
+                >
+                  雷达图
+                </button>
+                <button
+                  onClick={() => setChartType('bar')}
+                  className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ${
+                    chartType === 'bar'
+                      ? 'bg-white text-[var(--color-primary)] shadow-sm'
+                      : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+                  }`}
+                >
+                  柱状图
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-center min-h-[200px]">
+              {chartType === 'radar' ? (
+                radarAxes.length >= 3 && radarBidders.length >= 2 ? (
+                  <RadarChart axes={radarAxes} bidders={radarBidders} size={320} />
+                ) : (
+                  <p className="text-xs text-[var(--color-text-tertiary)]">需要至少 3 个评分维度</p>
+                )
+              ) : barChartData.length >= 1 ? (
+                <div className="w-full overflow-x-auto flex justify-center">
+                  <ScoreBarChart data={barChartData} categoryMaxes={barCategoryMaxes} />
+                </div>
+              ) : null}
             </div>
           </div>
-          <div className="flex items-center justify-center min-h-[200px]">
-            {chartType === 'radar' ? (
-              radarAxes.length >= 3 && radarBidders.length >= 2 ? (
-                <RadarChart axes={radarAxes} bidders={radarBidders} size={320} />
-              ) : (
-                <p className="text-xs text-[var(--color-text-tertiary)]">需要至少 3 个评分维度</p>
-              )
-            ) : barChartData.length >= 1 ? (
-              <div className="w-full overflow-x-auto flex justify-center">
-                <ScoreBarChart data={barChartData} categoryMaxes={barCategoryMaxes} />
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
 
-      {/* 报价对比图 */}
-      {sorted.length >= 2 && (
-        <div className="glass-card rounded-xl p-4">
-          <h4 className="font-bold text-sm text-[var(--color-text)] mb-3">投标报价对比</h4>
-          <PriceComparisonChart
-            data={sorted.map((b) => ({
-              name: b.supplierName,
-              price: b.totalScore,
-            }))}
-            highlightName={sorted.find((b) => b.supplierId === activeSupplier)?.supplierName}
-            unit="分"
-          />
+          {/* 分隔线 */}
+          <div className="border-t border-[oklch(0.91_0.006_264)]" />
+
+          {/* 下半：投标报价对比 */}
+          <div>
+            <h4 className="font-bold text-sm text-[var(--color-text)] mb-3">投标报价对比</h4>
+            <PriceComparisonChart
+              data={sorted.map((b) => ({
+                name: b.supplierName,
+                price: b.totalScore,
+              }))}
+              highlightName={sorted.find((b) => b.supplierId === activeSupplier)?.supplierName}
+              unit="分"
+            />
+          </div>
         </div>
       )}
 
