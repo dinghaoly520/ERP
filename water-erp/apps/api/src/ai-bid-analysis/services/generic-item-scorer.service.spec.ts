@@ -3,12 +3,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { GenericItemScorerService } from './generic-item-scorer.service';
 import { LlmService } from '../../local-ai/llm.service';
+import { PriceAnalyzerService } from './price-analyzer.service';
 import type { BidScoreItem } from '@prisma/client';
 import type { AiScoreItem, TenderRequirements } from '../types';
 
 describe('GenericItemScorerService — per-item 评分测试 (C13)', () => {
   let service: GenericItemScorerService;
   let mockLlm: any;
+  let mockPriceAnalyzer: any;
 
   const makeScoreItem = (over: any): any =>
     ({
@@ -29,11 +31,26 @@ describe('GenericItemScorerService — per-item 评分测试 (C13)', () => {
 
   beforeEach(async () => {
     mockLlm = { chatJson: jest.fn() };
+    // 默认空 PriceScore，使现有 PRICE 测试走 fallback 不受影响；新测试用 mockResolvedValueOnce 覆盖
+    mockPriceAnalyzer = {
+      analyze: jest.fn().mockResolvedValue({
+        totalScore: 0, price: 0, priceRatio: '', benchmarkPrice: 0, deviation: '',
+        priceBreakdown: {
+          labor: { ratio: 0, assessment: '' }, material: { ratio: 0, assessment: '' },
+          equipment: { ratio: 0, assessment: '' }, management: { ratio: 0, assessment: '' },
+          profit: { ratio: 0, assessment: '' },
+        },
+        marketComparison: { estimatedMarketPrice: 0, deviationFromMarket: '', assessment: '' },
+        strategyAssessment: { type: '', confidence: 0, reasoning: '' },
+        riskWarning: '', analysis: '',
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GenericItemScorerService,
         { provide: LlmService, useValue: mockLlm },
+        { provide: PriceAnalyzerService, useValue: mockPriceAnalyzer },
       ],
     }).compile();
 
@@ -194,6 +211,112 @@ describe('GenericItemScorerService — per-item 评分测试 (C13)', () => {
 
       expect(mockLlm.chatJson).not.toHaveBeenCalled();
       expect(result.totalScore).toBe(30);
+    });
+
+    // ── 方案1：深度评分内核透传（strengths / weaknesses / starredResponse）──
+    it('透传每项 strengths/weaknesses 与顶层 starredResponse（复用 procurement 深度评分内核）', async () => {
+      mockLlm.chatJson.mockResolvedValue({
+        items: [
+          {
+            scoreItemId: 'si-1',
+            score: 16,
+            reason: '方案引用了具体施工工艺与设备配置',
+            evidence: '技术方案第3章',
+            confidence: 0.85,
+            strengths: ['文件列明针对复杂地质条件的专项施工方案'],
+            weaknesses: ['对极端地质条件的应急预案不够详细'],
+          },
+        ],
+        starredResponse: { allMet: false, unmet: ['★号条款：安全生产许可证'] },
+        overallComment: '技术方案整体响应较好，应急预案需补充。',
+      });
+
+      const items = [makeScoreItem({ id: 'si-1', maxScore: 20 })];
+      const result = await service.score(items, {}, null, 'task-1', 'bs-1', []);
+
+      // 每项透传「正向事实 / 需关注项」
+      expect(result.scoreItems[0].strengths).toEqual([
+        '文件列明针对复杂地质条件的专项施工方案',
+      ]);
+      expect(result.scoreItems[0].weaknesses).toEqual([
+        '对极端地质条件的应急预案不够详细',
+      ]);
+      // 顶层透传「★号实质性条款响应核查」
+      expect(result.starredResponse).toEqual({
+        allMet: false,
+        unmet: ['★号条款：安全生产许可证'],
+      });
+    });
+  });
+
+  // ── 方案2：价格 LLM 分析层（公式分 + procurement price.prompt 分析）──
+  describe('scorePriceWithAnalysis（方案2：公式分 + LLM 分析层）', () => {
+    const fakeAnalysis = {
+      totalScore: 18,
+      price: 100,
+      priceRatio: '100/100',
+      benchmarkPrice: 100,
+      deviation: '+0%',
+      priceBreakdown: {
+        labor: { ratio: 30, assessment: '人工费占比合理' },
+        material: { ratio: 25, assessment: '材料费占比合理' },
+        equipment: { ratio: 20, assessment: '设备费占比合理' },
+        management: { ratio: 15, assessment: '管理费合理' },
+        profit: { ratio: 10, assessment: '利润率合理' },
+      },
+      marketComparison: {
+        estimatedMarketPrice: 0,
+        deviationFromMarket: '未提供市场价依据',
+        assessment: '未提供市场价依据',
+      },
+      strategyAssessment: { type: '合理报价', confidence: 0.85, reasoning: '报价与基准价持平，分项构成合理' },
+      riskWarning: '无明显价格风险',
+      analysis: '报价 100 万元与基准价持平，分项构成合理，策略为合理报价。',
+    };
+
+    it('PRICE 项叠加 LLM 分析：reason=综合分析，priceAnalysis 含分项/策略/风险', async () => {
+      mockPriceAnalyzer.analyze.mockResolvedValueOnce(fakeAnalysis);
+
+      const item = makePriceItem({ id: 'si-price', maxScore: 30 });
+      const result = await (service as any).scorePriceWithAnalysis(
+        item,
+        { quotePrice: 100 },
+        null,
+        [100, 100, 100],
+        'task-1',
+        'bs-1',
+      );
+
+      expect(result.score).toBe(30); // 公式客观分（偏离 0%）不变
+      expect(result.reason).toBe(fakeAnalysis.analysis); // LLM 综合分析替换公式 reason
+      expect(result.evidence).toContain('合理报价'); // 策略写入 evidence
+      expect(result.priceAnalysis?.strategyAssessment?.type).toBe('合理报价');
+      expect(result.priceAnalysis?.priceBreakdown?.labor.ratio).toBe(30);
+      expect(result.priceAnalysis?.riskWarning).toBe('无明显价格风险');
+      expect(mockPriceAnalyzer.analyze).toHaveBeenCalledWith(
+        { quotePrice: 100 },
+        null,
+        'task-1',
+        'bs-1',
+      );
+    });
+
+    it('LLM 分析失败 → fallback 公式 reason，不阻塞评分', async () => {
+      mockPriceAnalyzer.analyze.mockRejectedValueOnce(new Error('LLM down'));
+
+      const item = makePriceItem({ id: 'si-price', maxScore: 30 });
+      const result = await (service as any).scorePriceWithAnalysis(
+        item,
+        { quotePrice: 100 },
+        null,
+        [100, 100, 100],
+        'task-1',
+        'bs-1',
+      );
+
+      expect(result.score).toBe(30); // 公式分仍正确
+      expect(result.reason).toContain('基准价'); // fallback 公式 reason
+      expect(result.priceAnalysis).toBeUndefined(); // 无 LLM 详情
     });
   });
 });

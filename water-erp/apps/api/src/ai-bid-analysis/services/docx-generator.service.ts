@@ -106,10 +106,123 @@ export class DocxGeneratorService {
     }
     children.push(new Paragraph({ text: '' }));
 
-    // 三、关键信息对比
+    // 三、逐项评分明细（方案4：per-item reason/strengths/weaknesses/priceAnalysis）
     children.push(
       new Paragraph({
-        text: '三、关键信息对比',
+        text: '三、逐项评分明细',
+        heading: HeadingLevel.HEADING_1,
+      }),
+    );
+    if (report.scoreItemsDetail && (report.scoreItemsDetail as any[]).length > 0) {
+      for (const bidder of report.scoreItemsDetail as any[]) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `${bidder.bidderName}（总分 ${bidder.totalScore ?? '-'}）`,
+                bold: true,
+              }),
+            ],
+            heading: HeadingLevel.HEADING_2,
+          }),
+        );
+        // ★号实质性条款响应核查（方案1收尾）
+        if (bidder.starredResponse) {
+          const sr = bidder.starredResponse as { allMet?: boolean; unmet?: string[] };
+          if (sr.allMet) {
+            children.push(new Paragraph({ text: '★ 实质性条款：全部响应满足' }));
+          } else if (sr.unmet && sr.unmet.length > 0) {
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `★ 实质性条款未完全响应（${sr.unmet.length} 项未满足）：`,
+                    bold: true,
+                  }),
+                ],
+              }),
+            );
+            for (const u of sr.unmet) {
+              children.push(new Paragraph({ text: `  ✗ ${u}` }));
+            }
+          }
+        }
+        for (const group of bidder.categoryGroups ?? []) {
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `${group.categoryName}（${group.score ?? 0}/${group.maxScore ?? 0}）`,
+                  bold: true,
+                }),
+              ],
+            }),
+          );
+          for (const item of group.items ?? []) {
+            const passTag =
+              item.pass === true ? '【通过】' : item.pass === false ? '【不通过】' : '';
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `${passTag}${item.name}：${item.score ?? 0}/${item.maxScore ?? 0}`,
+                    bold: true,
+                  }),
+                ],
+              }),
+            );
+            if (item.reason) {
+              children.push(
+                new Paragraph({
+                  text: `  理由：${this.neutralizeRecommendationText(item.reason)}`,
+                }),
+              );
+            }
+            if (item.evidence) {
+              children.push(new Paragraph({ text: `  证据：${item.evidence}` }));
+            }
+            // PRICE 项价格分析摘要（方案2）
+            if (item.priceAnalysis) {
+              const pa = item.priceAnalysis;
+              if (pa.strategyAssessment?.type) {
+                children.push(
+                  new Paragraph({
+                    text: `  报价策略：${pa.strategyAssessment.type}（置信度 ${Math.round(
+                      (pa.strategyAssessment.confidence ?? 0) * 100,
+                    )}%）`,
+                  }),
+                );
+              }
+              if (pa.deviation) {
+                children.push(new Paragraph({ text: `  偏离度：${pa.deviation}` }));
+              }
+              if (pa.riskWarning) {
+                children.push(new Paragraph({ text: `  价格风险：${pa.riskWarning}` }));
+              }
+            }
+            for (const s of item.strengths ?? []) {
+              children.push(
+                new Paragraph({ text: `  ✓ ${this.neutralizeRecommendationText(s)}` }),
+              );
+            }
+            for (const w of item.weaknesses ?? []) {
+              children.push(
+                new Paragraph({ text: `  ✗ ${this.neutralizeRecommendationText(w)}` }),
+              );
+            }
+          }
+        }
+        children.push(new Paragraph({ text: '' }));
+      }
+    } else {
+      children.push(new Paragraph({ text: '暂无逐项评分明细' }));
+    }
+    children.push(new Paragraph({ text: '' }));
+
+    // 四、关键信息对比
+    children.push(
+      new Paragraph({
+        text: '四、关键信息对比',
         heading: HeadingLevel.HEADING_1,
       }),
     );
@@ -127,7 +240,7 @@ export class DocxGeneratorService {
 
     // 四、报价分析
     children.push(
-      new Paragraph({ text: '四、报价分析', heading: HeadingLevel.HEADING_1 }),
+      new Paragraph({ text: '五、报价分析', heading: HeadingLevel.HEADING_1 }),
     );
     if (report.priceAnalysis) {
       const p = report.priceAnalysis as any;
@@ -155,7 +268,7 @@ export class DocxGeneratorService {
     // 五、正向依据与需关注事项
     children.push(
       new Paragraph({
-        text: '五、正向依据与需关注事项',
+        text: '六、正向依据与需关注事项',
         heading: HeadingLevel.HEADING_1,
       }),
     );
@@ -277,7 +390,7 @@ export class DocxGeneratorService {
     // 六、风险提示
     children.push(
       new Paragraph({
-        text: '六、风险提示与建议',
+        text: '七、风险提示与建议',
         heading: HeadingLevel.HEADING_1,
       }),
     );
@@ -337,7 +450,7 @@ export class DocxGeneratorService {
 
     // 七、综合结论
     children.push(
-      new Paragraph({ text: '七、综合结论', heading: HeadingLevel.HEADING_1 }),
+      new Paragraph({ text: '八、综合结论', heading: HeadingLevel.HEADING_1 }),
     );
     children.push(new Paragraph({ text: report.conclusion || '暂无结论' }));
 

@@ -149,6 +149,7 @@ model AiBidderResult {
   // per-item 评分（对齐 BidScoreItem，核心）
   scoreItems          Json? // [{scoreItemId, category, name, score, maxScore, reason, evidence, confidence}]
   categoryTotals      Json? // { QUALIFICATION:{score,max}, RESPONSIVE:{...}, ... }
+  starredResponse     Json? // ★ 方案1收尾：★号实质性条款响应核查 { allMet: boolean, unmet?: string[] }
   totalScore          Decimal?       @db.Decimal(5, 2)
   // 判定
   qualificationStatus String?        @default("pending") // 通过/不通过/待审查
@@ -202,6 +203,7 @@ model AiBidReport {
   priceAnalysis       Json?
   concordanceSummary  Json? // ★ per-item 版新增（方案第三章）
   strengthsWeaknesses Json?
+  scoreItemsDetail    Json? // ★ 方案4：per-item 评分明细（每家按 category 分组，含 reason/strengths/weaknesses/priceAnalysis）
   riskStats           Json?
   highRiskDetails     Json?
   fraudIndicators     Json? // 串通检测

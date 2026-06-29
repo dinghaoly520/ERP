@@ -248,6 +248,7 @@ export class BidderProcessor extends WorkerHost {
           systemInfo: systemData as any,
           scoreItems: scoreResult.scoreItems as any,
           categoryTotals: scoreResult.categoryTotals as any,
+          starredResponse: scoreResult.starredResponse as any,
           totalScore: scoreResult.totalScore,
           overallComment: neutralizeRecommendationText(competitiveComment),
           qualificationStatus,
@@ -477,13 +478,8 @@ export class BidderProcessor extends WorkerHost {
         const ratio = Math.max(0, 1 - Math.abs(deviation) * 2);
         const newScore = Math.round(maxScore * ratio * 10) / 10;
         updated = true;
-        return {
-          ...item,
-          score: newScore,
-          reason: `报价 ${price}万元，基准价 ${benchmark.toFixed(2)}万元，偏离 ${(deviation * 100).toFixed(1)}%`,
-          evidence: '公式计算（基准价法，全量报价重算）',
-          confidence: 0.95,
-        };
+        // 方案2：仅重算客观 score；保留 scorePriceWithAnalysis 的 LLM reason/evidence/priceAnalysis
+        return { ...item, score: newScore };
       });
 
       if (!updated) continue;

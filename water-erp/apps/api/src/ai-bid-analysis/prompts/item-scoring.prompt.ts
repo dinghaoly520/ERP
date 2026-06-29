@@ -1,35 +1,55 @@
 // apps/api/src/ai-bid-analysis/prompts/item-scoring.prompt.ts
-// per-item 评分 prompt（GenericItemScorerService 用，方案 6.3）
-// 替代 procurement 的固定 breakdown（technical/commercial/price）prompt
+// per-item 评分 prompt（GenericItemScorerService 用）
+// 方案 1 深度增强：注入 procurement technical.prompt 的深度评分内核——
+//   严格评分原则 + strengths/weaknesses（引用原文）+ ★号核查 + 中性可核验评语。
+// PRICE 项由 scorePriceByFormula 公式计算，已在此 prompt 剔除，不交 LLM 评分。
 
-export const ITEM_SCORING_PROMPT = `你是资深评标专家。请按评分标准对以下每个评分项独立评分。
+export const ITEM_SCORING_PROMPT = `你是资深评标专家。请按评分标准对以下每个评分项独立评分，并给出可核验的分析依据。
 
-## 评分项（逐项评分，对齐 BidScoreItem）
+## 评分项（逐项评分，对齐 BidScoreItem；价格项已剔除，由公式计算）
 {{SCORE_ITEMS}}
 
-## 投标单位信息（标书 LLM 提取）
+## 投标单位信息（标书 LLM 提取结果）
 {{BIDDER_INFO}}
 
 ## 招标要求
 {{REQUIREMENTS}}
 
-## 评分规则
-- 每项 score 不得超过对应的 maxScore
-- 基于 evidenceHint 与投标单位信息定位证据，给出评分理由
-- 符合性审查项（maxScore=0）输出 pass（true/false），score 填 0
-- confidence 为本次评分的可信度（0-1）
+## 评分规则（严格遵守）
+1. 严格评分，不得默认给予高分。只有明确满足评分要求且有具体文件依据的项目才给高分
+2. 明确不足之处必须扣分，宁可偏低不可虚高
+3. 不同质量的响应必须体现分差，严禁给出相同或极其接近的分数
+4. 每项 score 不得超过对应的 maxScore
+5. 符合性审查项（maxScore=0）只输出 pass（true/false），score 填 0
+6. 证据不足或投标文件未明确响应时，应扣分并降低 confidence，不得凭推断给分
 
-## 输出格式（严格 JSON）
+## 分析要求（深度评分内核，每项必填）
+- reason：80-150 字，必须引用投标文件中的具体内容作为评分依据（如施工工艺、设备型号与数量、人员资质与业绩指标等），明确指出得分与扣分原因；不得只写"方案合理""内容完整"等空泛结论
+- evidence：定位证据出处（章节/条款/页码/原文摘录）
+- strengths：该项的正向事实，每条须引用标书原文（示例："文件列明针对复杂地质条件的专项施工方案，采用 XX 工艺，配置 YY 设备"）
+- weaknesses：该项的需关注事项，每条须引用标书原文或明确指出缺失（示例："对极端工况的应急预案未列明具体处置流程与责任人"）
+- confidence：本次评分的可信度（0-1），证据越充分越高，证据不足或推断成分大时降低
+
+## ★号实质性条款核查
+若评分项或招标要求含★号（实质性要求）条款，须在 starredResponse 汇总响应情况：未响应或不满足的★号条款必须列入 unmet，全部满足时 allMet=true。
+
+## 输出格式（严格 JSON，不要 markdown 代码块）
 {
   "items": [
     {
       "scoreItemId": "评分项ID",
       "score": 数字,
       "pass": true或false（仅符合性项必填，其他可省）,
-      "reason": "评分理由",
-      "evidence": "标书中的证据定位",
-      "confidence": 0-1
+      "reason": "80-150字评分理由，引用标书具体内容",
+      "evidence": "证据定位（章节/页码/原文摘录）",
+      "strengths": ["正向事实（引用原文）"],
+      "weaknesses": ["需关注项（引用原文或缺失说明）"],
+      "confidence": 0到1
     }
   ],
-  "overallComment": "整体评价（一句话）"
+  "starredResponse": {
+    "allMet": true或false,
+    "unmet": ["未响应的★号实质性条款（无则空数组）"]
+  },
+  "overallComment": "100-200字的整体评价：综合各评分项给出中性、可核验的总结，避免使用优秀、突出、领先、成熟等带感情色彩的评价词"
 }`;

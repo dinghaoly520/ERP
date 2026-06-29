@@ -133,6 +133,17 @@ export interface PriceScore {
   analysis: string;
 }
 
+/** 价格项 LLM 分析详情（方案2：复用 procurement price.prompt 输出，公式分之外的深度分析） */
+export interface PriceAnalysisDetail {
+  deviation?: string;
+  benchmarkPrice?: number;
+  priceBreakdown?: PriceScore['priceBreakdown'];
+  marketComparison?: PriceScore['marketComparison'];
+  strategyAssessment?: PriceScore['strategyAssessment'];
+  riskWarning?: string;
+  analysis?: string;
+}
+
 export interface QualificationResult {
   status: 'qualified' | 'unqualified';
   items: Array<{
@@ -317,4 +328,10 @@ export interface AiScoreItem {
   confidence?: number;
   /** 符合性审查项（maxScore=0）用：通过/不通过 */
   pass?: boolean;
+  /** 正向事实（须引用投标文件原文，复用 procurement 深度评分内核） */
+  strengths?: string[];
+  /** 需关注项（须引用投标文件原文） */
+  weaknesses?: string[];
+  /** 价格项 LLM 分析详情（仅 PRICE 项，方案2） */
+  priceAnalysis?: PriceAnalysisDetail;
 }

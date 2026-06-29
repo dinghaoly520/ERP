@@ -4,6 +4,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { BidScoreItem } from '@prisma/client';
 import { LlmService } from '../../local-ai/llm.service';
+import { PriceAnalyzerService } from './price-analyzer.service';
 import { ITEM_SCORING_PROMPT } from '../prompts/item-scoring.prompt';
 import { deterministicSeed } from '../utils';
 import type { AiScoreItem, TenderRequirements } from '../types';
@@ -13,13 +14,18 @@ export interface ItemScoreResult {
   categoryTotals: Record<string, { score: number; max: number }>;
   totalScore: number;
   overallComment: string;
+  /** ★号实质性条款响应核查（复用 procurement technical.prompt 内核） */
+  starredResponse?: { allMet: boolean; unmet?: string[] };
 }
 
 @Injectable()
 export class GenericItemScorerService {
   private readonly logger = new Logger(GenericItemScorerService.name);
 
-  constructor(private llm: LlmService) {}
+  constructor(
+    private llm: LlmService,
+    private priceAnalyzer: PriceAnalyzerService,
+  ) {}
 
   /**
    * per-item 评分
@@ -44,6 +50,7 @@ export class GenericItemScorerService {
     // LLM 评分非价格项
     let llmResults: AiScoreItem[] = [];
     let overallComment = '';
+    let starredResponse: ItemScoreResult['starredResponse'];
     if (llmItems.length > 0) {
       const llmResult = await this.llm.chatJson<{
         items: Array<{
@@ -53,8 +60,11 @@ export class GenericItemScorerService {
           reason?: string;
           evidence?: string;
           confidence?: number;
+          strengths?: string[];
+          weaknesses?: string[];
         }>;
         overallComment?: string;
+        starredResponse?: { allMet: boolean; unmet?: string[] };
       }>(
         '你是评标专家。按评分标准对每个评分项独立评分。',
         ITEM_SCORING_PROMPT.replace(
@@ -78,6 +88,7 @@ export class GenericItemScorerService {
       );
 
       overallComment = llmResult.overallComment ?? '';
+      starredResponse = llmResult.starredResponse;
 
       // 合并 LLM 结果回 BidScoreItem 元信息（name/category/maxScore）
       llmResults = llmItems.map((si) => {
@@ -94,18 +105,30 @@ export class GenericItemScorerService {
           evidence: r?.evidence,
           confidence: r?.confidence,
           pass: r?.pass,
+          strengths: r?.strengths,
+          weaknesses: r?.weaknesses,
         };
       });
     }
 
-    // 价格项公式计算
-    const priceResults = priceItems.map((si) =>
-      this.scorePriceByFormula(si, extractedInfo, allBidderPrices),
+    // 价格项：公式客观分 + LLM 分析层（方案2，复用 procurement price.prompt）
+    const priceResults = await Promise.all(
+      priceItems.map((si) =>
+        this.scorePriceWithAnalysis(
+          si,
+          extractedInfo,
+          requirements,
+          allBidderPrices,
+          taskId,
+          bidSupplierId,
+        ),
+      ),
     );
 
     return this.mergeAndAggregate(
       [...llmResults, ...priceResults],
       overallComment,
+      starredResponse,
     );
   }
 
@@ -153,10 +176,58 @@ export class GenericItemScorerService {
     };
   }
 
+  /**
+   * 价格项：公式客观分 + LLM 分析层（方案2）
+   * - score 由 scorePriceByFormula 公式计算（保留客观性，解决并发基准价）
+   * - reason/evidence/priceAnalysis 由 PriceAnalyzerService（procurement price.prompt）生成
+   * - LLM 失败 → fallback 公式 reason，不阻塞评分
+   */
+  private async scorePriceWithAnalysis(
+    si: BidScoreItem,
+    extractedInfo: any,
+    requirements: TenderRequirements | null,
+    allPrices: number[],
+    taskId: string,
+    bidSupplierId: string,
+  ): Promise<AiScoreItem> {
+    const base = this.scorePriceByFormula(si, extractedInfo, allPrices);
+
+    try {
+      const a = await this.priceAnalyzer.analyze(
+        extractedInfo,
+        requirements,
+        taskId,
+        bidSupplierId,
+      );
+      const strategy = a.strategyAssessment;
+      return {
+        ...base,
+        reason: a.analysis || base.reason,
+        evidence: `策略：${strategy?.type ?? '未知'}（置信度 ${(strategy?.confidence ?? 0).toFixed(2)}）；偏离 ${a.deviation ?? '-'}；基准价 ${a.benchmarkPrice ?? '-'}`,
+        confidence: strategy?.confidence ?? base.confidence,
+        priceAnalysis: {
+          deviation: a.deviation,
+          benchmarkPrice: a.benchmarkPrice,
+          priceBreakdown: a.priceBreakdown,
+          marketComparison: a.marketComparison,
+          strategyAssessment: strategy,
+          riskWarning: a.riskWarning,
+          analysis: a.analysis,
+        },
+      };
+    } catch (err) {
+      this.logger.warn(
+        `Price LLM analysis failed for ${si.id}: ${String(err).slice(0, 150)}`,
+      );
+      return base;
+    }
+  }
+
   /** 合并 per-item 结果 + 按 category 聚合（供雷达图）+ 总分 */
   private mergeAndAggregate(
     items: AiScoreItem[],
     overallComment: string,
+    starredResponse?: { allMet: boolean; unmet?: string[] },
   ): ItemScoreResult {
     const categoryTotals: Record<string, { score: number; max: number }> = {};
     let totalScore = 0;
@@ -177,6 +248,7 @@ export class GenericItemScorerService {
       categoryTotals,
       totalScore,
       overallComment: overallComment || `总分 ${totalScore.toFixed(1)}/${totalMax}`,
+      starredResponse,
     };
   }
 }

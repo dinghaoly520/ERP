@@ -101,10 +101,10 @@ export class ComparativeScoringService {
           max: totals.TECHNICAL.max,
         };
       }
-      if (adj.commercial != null && totals.COMMERCIAL) {
-        newTotals.COMMERCIAL = {
-          score: this.clamp(adj.commercial, 0, totals.COMMERCIAL.max),
-          max: totals.COMMERCIAL.max,
+      if (adj.commercial != null && totals.BUSINESS) {
+        newTotals.BUSINESS = {
+          score: this.clamp(adj.commercial, 0, totals.BUSINESS.max),
+          max: totals.BUSINESS.max,
         };
       }
       if (adj.price != null && totals.PRICE) {
@@ -159,7 +159,7 @@ export class ComparativeScoringService {
       performanceCount: Number(keyInfo.performanceCount) || 0,
       firstRound: {
         technical: get('TECHNICAL'),
-        commercial: get('COMMERCIAL'),
+        commercial: get('BUSINESS'),
         price: get('PRICE'),
         qualification: get('QUALIFICATION'),
         responsive: get('RESPONSIVE'),

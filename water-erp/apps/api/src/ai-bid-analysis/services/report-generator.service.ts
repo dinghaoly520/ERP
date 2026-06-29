@@ -15,6 +15,15 @@ type BidderWithSupplier = AiBidderResult & {
 };
 type TaskWithProject = AiBidAnalysisTask & { project: { name: string } };
 
+/** 评分维度中文标签（对齐 ScoreCategory 枚举 schema:75-80） */
+const CATEGORY_LABELS: Record<string, string> = {
+  TECHNICAL: '技术',
+  BUSINESS: '商务',
+  PRICE: '报价',
+  QUALIFICATION: '资格',
+  RESPONSIVE: '响应',
+};
+
 @Injectable()
 export class ReportGeneratorService {
   private readonly logger = new Logger(ReportGeneratorService.name);
@@ -31,6 +40,7 @@ export class ReportGeneratorService {
     const keyInfoComparison = this.generateKeyInfoComparison(bidders);
     const priceAnalysis = this.generatePriceAnalysis(bidders);
     const strengthsWeaknesses = this.generateStrengthsWeaknesses(bidders);
+    const scoreItemsDetail = this.generateScoreItemsDetail(bidders);
     const riskStats = this.generateRiskStats(bidders, fraudIndicators);
     const conclusion = this.generateConclusion(task, bidders, fraudIndicators);
 
@@ -40,6 +50,7 @@ export class ReportGeneratorService {
       keyInfoComparison,
       priceAnalysis,
       strengthsWeaknesses,
+      scoreItemsDetail,
       riskStats,
       fraudIndicators: fraudIndicators
         ? JSON.parse(JSON.stringify(fraudIndicators))
@@ -47,6 +58,51 @@ export class ReportGeneratorService {
       conclusion,
       generatedAt: new Date(),
     };
+  }
+
+  /** 方案4：展平 per-item 评分明细（每家按 category 分组，含 reason/strengths/weaknesses/priceAnalysis） */
+  private generateScoreItemsDetail(bidders: BidderWithSupplier[]) {
+    return bidders
+      .filter((b) => b.status === 'COMPLETED' && Array.isArray(b.scoreItems))
+      .map((b) => {
+        const items = (b.scoreItems ?? []) as any[];
+        const totals = (b.categoryTotals ?? {}) as Record<string, { score?: number; max?: number }>;
+
+        // 按 category 分组（保留 scoreItems 原始顺序）
+        const groupMap = new Map<string, any[]>();
+        for (const it of items) {
+          const arr = groupMap.get(it.category) ?? [];
+          arr.push(it);
+          groupMap.set(it.category, arr);
+        }
+
+        const categoryGroups = [...groupMap.entries()].map(([category, groupItems]) => ({
+          category,
+          categoryName: CATEGORY_LABELS[category] ?? category,
+          score: totals[category]?.score ?? groupItems.reduce((a, i) => a + (i.score || 0), 0),
+          maxScore: totals[category]?.max ?? groupItems.reduce((a, i) => a + (i.maxScore || 0), 0),
+          items: groupItems.map((it) => ({
+            name: it.name,
+            score: it.score,
+            maxScore: it.maxScore,
+            pass: it.pass,
+            reason: it.reason,
+            evidence: it.evidence,
+            strengths: it.strengths,
+            weaknesses: it.weaknesses,
+            confidence: it.confidence,
+            priceAnalysis: it.priceAnalysis,
+          })),
+        }));
+
+        return {
+          bidderId: b.id,
+          bidderName: b.bidSupplier.supplierName,
+          totalScore: Number(b.totalScore),
+          starredResponse: b.starredResponse,
+          categoryGroups,
+        };
+      });
   }
 
   private generateSummary(task: TaskWithProject, bidders: BidderWithSupplier[]) {
@@ -78,7 +134,7 @@ export class ReportGeneratorService {
         bidderName: b.bidSupplier.supplierName,
         totalScore: Number(b.totalScore).toFixed(2),
         technicalScore: totals.TECHNICAL?.score ?? null,
-        commercialScore: totals.COMMERCIAL?.score ?? null,
+        commercialScore: totals.BUSINESS?.score ?? null,
         priceScore: totals.PRICE?.score ?? null,
         qualificationStatus: b.qualificationStatus,
         riskLevel: b.riskLevel,

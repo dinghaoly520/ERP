@@ -15,8 +15,6 @@ import { TenderExtractorService } from './services/tender-extractor.service';
 import { DocumentMetadataExtractorService } from './services/document-metadata-extractor.service';
 import { CacheService } from './services/cache.service';
 import { PriceAnalyzerService } from './services/price-analyzer.service';
-import { CommercialScorerService } from './services/commercial-scorer.service';
-import { TechnicalScorerService } from './services/technical-scorer.service';
 
 // per-item 核心新服务（Phase 3.2）
 import { ConcordanceVerifierService } from './services/concordance-verifier.service';
@@ -37,11 +35,8 @@ const SERVICES = [
   TenderExtractorService,
   DocumentMetadataExtractorService,
   CacheService,
-  PriceAnalyzerService,
-  CommercialScorerService,
-  TechnicalScorerService,
-  // per-item 新服务（注：TechnicalScorer/CommercialScorer/PriceAnalyzer 已被 GenericItemScorer 取代，
-  // 暂保留 provider 以兼容现有代码引用，后续清理）
+  PriceAnalyzerService, // 方案2：被 GenericItemScorer 复用（价格 LLM 分析层）
+  // per-item 核心新服务
   ConcordanceVerifierService,
   SystemDataAggregatorService,
   GenericItemScorerService,
