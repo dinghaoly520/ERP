@@ -1113,7 +1113,7 @@ function RankingSection({
                 <p className="text-xs text-[var(--color-text-tertiary)]">需要至少 3 个评分维度</p>
               )
             ) : barChartData.length >= 1 ? (
-              <div className="w-full overflow-x-auto">
+              <div className="w-full overflow-x-auto flex justify-center">
                 <ScoreBarChart data={barChartData} categoryMaxes={barCategoryMaxes} />
               </div>
             ) : null}
