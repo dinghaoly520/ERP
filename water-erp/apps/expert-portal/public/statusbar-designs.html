@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Status Bar · 四种设计方案</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: oklch(0.975 0.003 264);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    padding: 48px;
+    color: oklch(0.18 0.012 265);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1 {
+    font-size: 14px; font-weight: 800; letter-spacing: 0.08em;
+    text-transform: uppercase; color: oklch(0.30 0.02 264);
+    margin-bottom: 8px;
+  }
+  .subhead {
+    font-size: 12px; color: oklch(0.55 0.01 264);
+    margin-bottom: 40px; font-weight: 400;
+  }
+
+  /* ── 设计块共享 ── */
+  .design-set {
+    background: #fff;
+    border-radius: 16px;
+    padding: 36px 40px;
+    margin-bottom: 32px;
+    border: 1px solid oklch(0.92 0.005 264);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .design-set-header {
+    display: flex; align-items: baseline; gap: 10px;
+    margin-bottom: 28px; padding-bottom: 14px;
+    border-bottom: 1px solid oklch(0.93 0.004 264);
+  }
+  .design-set-header h2 {
+    font-size: 13px; font-weight: 800; letter-spacing: 0.04em;
+    color: oklch(0.25 0.02 264);
+  }
+  .design-set-header .tag {
+    font-size: 10px; font-weight: 500; color: oklch(0.55 0.01 264);
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Status Demo 共享 ── */
+  .demo-row {
+    display: flex; align-items: center;
+    padding: 12px 20px;
+    background: oklch(0.985 0.003 264);
+    border-radius: 12px;
+    border: 1px solid oklch(0.93 0.004 264);
+  }
+  .demo-label-inline {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.1em; color: oklch(0.55 0.01 264);
+    margin-right: 20px; white-space: nowrap; min-width: 70px;
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .status-dot.blue  { background: oklch(0.45 0.18 264); }
+  .status-dot.red   { background: #e74c3c; }
+  .status-dot.amber { background: #f5a623; }
+  .status-dot.green { background: #11a874; }
+
+  .text-red   { color: #e74c3c; }
+  .text-amber { color: #f5a623; }
+  .text-green { color: #11a874; }
+  .text-blue  { color: oklch(0.32 0.10 264); }
+  .text-muted { color: oklch(0.55 0.01 264); }
+
+  .mono { font-family: 'SF Mono', 'JetBrains Mono', 'Consolas', 'Menlo', monospace; }
+  .tnum { font-feature-settings: 'tnum'; font-variant-numeric: tabular-nums; }
+
+  .hairline { background: oklch(0.91 0.006 264); }
+
+  /* ══════════════════════════════════════════════════════════ */
+  /* 方案 A · Bloomberg 终端                                   */
+  /* ══════════════════════════════════════════════════════════ */
+  .bloomberg-bar {
+    display: flex; align-items: baseline; gap: 0;
+    font-family: 'SF Mono', 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 13px; line-height: 1.4; color: oklch(0.18 0.012 265);
+  }
+  .bloomberg-bar .bb-score { font-size: 22px; font-weight: 700; color: oklch(0.32 0.10 264); margin-right: 8px; }
+  .bloomberg-bar .bb-label { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.14em; color: oklch(0.50 0.010 264); margin-right: 14px; }
+  .bloomberg-bar .bb-sep  { margin: 0 13px; font-size: 13px; color: oklch(0.75 0.008 264); user-select: none; }
+  .bloomberg-bar .bb-item { display: flex; align-items: baseline; gap: 4px; }
+  .bloomberg-bar .bb-name { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.13em; color: oklch(0.50 0.010 264); }
+  .bloomberg-bar .bb-val  { font-size: 13px; font-weight: 700; }
+  .bloomberg-bar .bb-model { margin-left: auto; font-size: 10px; color: oklch(0.70 0.006 264); letter-spacing: 0.04em; }
+
+  /* ── Variants: 通过/中风险/差异 ── */
+  .bb-val.good-red { color: #e74c3c; }
+  .demo-vars .demo-row { margin-bottom: 10px; background: oklch(0.988 0.002 264); }
+
+  /* ══════════════════════════════════════════════════════════ */
+  /* 方案 B · 瑞士网格                                         */
+  /* ══════════════════════════════════════════════════════════ */
+  .swiss-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 18px 60px;
+    align-items: end;
+  }
+  .swiss-grid .sg-hero {
+    grid-row: 1 / 3;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .swiss-grid .sg-hero-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: oklch(0.48 0.01 264); }
+  .swiss-grid .sg-hero-value { font-size: 56px; font-weight: 700; line-height: 1; color: oklch(0.32 0.10 264); }
+  .swiss-grid .sg-meta { grid-column: 2; grid-row: 1; font-size: 10px; color: oklch(0.60 0.008 264); letter-spacing: 0.05em; text-align: right; }
+  .swiss-grid .sg-stats { grid-column: 2; grid-row: 2; display: flex; gap: 40px; }
+  .swiss-grid .sg-stat {}
+  .swiss-grid .sg-stat-label { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.50 0.010 264); margin-bottom: 4px; }
+  .swiss-grid .sg-stat-value { font-size: 17px; font-weight: 700; }
+
+  /* ══════════════════════════════════════════════════════════ */
+  /* 方案 C · 航电仪表                                         */
+  /* ══════════════════════════════════════════════════════════ */
+  .avionics-panel {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    border: 1px solid oklch(0.90 0.006 264); border-radius: 12px;
+    overflow: hidden;
+  }
+  .avionics-panel .av-cell {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 5px; padding: 20px 12px;
+    position: relative;
+  }
+  .avionics-panel .av-cell + .av-cell::before {
+    content: ''; position: absolute; left: 0; top: 14px; bottom: 14px;
+    width: 1px; background: oklch(0.91 0.006 264);
+  }
+  .avionics-panel .av-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .avionics-panel .av-short { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.50 0.010 264); }
+  .avionics-panel .av-value { font-size: 22px; font-weight: 700; line-height: 1; }
+  .avionics-panel .av-full  { font-size: 10px; color: oklch(0.60 0.008 264); letter-spacing: 0.03em; margin-top: 1px; }
+
+  /* ══════════════════════════════════════════════════════════ */
+  /* 方案 D · 状态芯片                                         */
+  /* ══════════════════════════════════════════════════════════ */
+  .chip-strip {
+    display: flex; align-items: center; gap: 0;
+  }
+  .chip-strip .chip {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 18px 0 0;
+  }
+  .chip-strip .chip + .chip {
+    padding-left: 18px;
+    border-left: 1px solid oklch(0.91 0.006 264);
+  }
+  .chip-strip .chip-body { display: flex; align-items: baseline; gap: 5px; }
+  .chip-strip .chip-label { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: oklch(0.50 0.010 264); }
+  .chip-strip .chip-value { font-size: 14px; font-weight: 700; }
+  .chip-strip .chip-value.big { font-size: 18px; }
+  .chip-strip .chip-model { margin-left: auto; font-size: 10px; color: oklch(0.65 0.006 264); letter-spacing: 0.03em; padding-right: 4px; }
+</style>
+</head>
+<body>
+
+<h1>辅助评标 · 状态条设计方案</h1>
+<p class="subhead">四套方向，匹配工业精密风格 · 浅色主题 · 信息密度优先</p>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- 方案 A -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="design-set">
+  <div class="design-set-header">
+    <h2>A · Bloomberg 终端</h2>
+    <span class="tag">纯数据密度 · 零装饰 · monospace · 极克制</span>
+  </div>
+
+  <div class="demo-row" style="margin-bottom:20px">
+    <span class="demo-label-inline">场景 1</span>
+    <div class="bloomberg-bar" style="flex:1">
+      <span class="bb-score tnum">92.7</span>
+      <span class="bb-label">AI 评估</span>
+      <span class="bb-sep">·</span>
+      <span class="bb-item"><span class="bb-name">资格</span><span class="bb-val text-red">不通过</span></span>
+      <span class="bb-sep">·</span>
+      <span class="bb-item"><span class="bb-name">风险</span><span class="bb-val text-red">高</span></span>
+      <span class="bb-sep">·</span>
+      <span class="bb-item"><span class="bb-name">数据</span><span class="bb-val text-red">冲突</span></span>
+      <span class="bb-model">deepseek-v4-flash</span>
+    </div>
+  </div>
+
+  <div class="demo-vars">
+    <div class="demo-row">
+      <span class="demo-label-inline">场景 2</span>
+      <div class="bloomberg-bar" style="flex:1">
+        <span class="bb-score tnum">97.9</span>
+        <span class="bb-label">AI 评估</span>
+        <span class="bb-sep">·</span>
+        <span class="bb-item"><span class="bb-name">资格</span><span class="bb-val text-green">通过</span></span>
+        <span class="bb-sep">·</span>
+        <span class="bb-item"><span class="bb-name">风险</span><span class="bb-val text-amber">中</span></span>
+        <span class="bb-sep">·</span>
+        <span class="bb-item"><span class="bb-name">数据</span><span class="bb-val text-amber">差异</span></span>
+        <span class="bb-model">deepseek-v4-flash</span>
+      </div>
+    </div>
+    <div class="demo-row">
+      <span class="demo-label-inline">场景 3</span>
+      <div class="bloomberg-bar" style="flex:1">
+        <span class="bb-score tnum">93.9</span>
+        <span class="bb-label">AI 评估</span>
+        <span class="bb-sep">·</span>
+        <span class="bb-item"><span class="bb-name">资格</span><span class="bb-val text-green">通过</span></span>
+        <span class="bb-sep">·</span>
+        <span class="bb-item"><span class="bb-name">风险</span><span class="bb-val text-red">高</span></span>
+        <span class="bb-sep">·</span>
+        <span class="bb-item"><span class="bb-name">数据</span><span class="bb-val text-red">冲突</span></span>
+        <span class="bb-model">deepseek-v4-flash</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- 方案 B -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="design-set">
+  <div class="design-set-header">
+    <h2>B · 瑞士网格</h2>
+    <span class="tag">字体排印驱动 · 不对称布局 · 留白 · AI 评分主角</span>
+  </div>
+
+  <div class="demo-row" style="margin-bottom:20px">
+    <span class="demo-label-inline">场景 1</span>
+    <div class="swiss-grid" style="flex:1">
+      <div class="sg-hero">
+        <div class="sg-hero-label">AI 评估</div>
+        <div class="sg-hero-value tnum">92.7</div>
+      </div>
+      <div class="sg-meta">LLM + OCR · deepseek-v4-flash</div>
+      <div class="sg-stats">
+        <div class="sg-stat"><div class="sg-stat-label">资格审查</div><div class="sg-stat-value text-red tnum">不通过</div></div>
+        <div class="sg-stat"><div class="sg-stat-label">风险等级</div><div class="sg-stat-value text-red tnum">高</div></div>
+        <div class="sg-stat"><div class="sg-stat-label">数据一致性</div><div class="sg-stat-value text-red tnum">冲突</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo-vars">
+    <div class="demo-row">
+      <span class="demo-label-inline">场景 2</span>
+      <div class="swiss-grid" style="flex:1">
+        <div class="sg-hero"><div class="sg-hero-label">AI 评估</div><div class="sg-hero-value tnum">97.9</div></div>
+        <div class="sg-meta">LLM + OCR · deepseek-v4-flash</div>
+        <div class="sg-stats">
+          <div class="sg-stat"><div class="sg-stat-label">资格审查</div><div class="sg-stat-value text-green tnum">通过</div></div>
+          <div class="sg-stat"><div class="sg-stat-label">风险等级</div><div class="sg-stat-value text-amber tnum">中</div></div>
+          <div class="sg-stat"><div class="sg-stat-label">数据一致性</div><div class="sg-stat-value text-amber tnum">差异</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="demo-row">
+      <span class="demo-label-inline">场景 3</span>
+      <div class="swiss-grid" style="flex:1">
+        <div class="sg-hero"><div class="sg-hero-label">AI 评估</div><div class="sg-hero-value tnum">93.9</div></div>
+        <div class="sg-meta">LLM + OCR · deepseek-v4-flash</div>
+        <div class="sg-stats">
+          <div class="sg-stat"><div class="sg-stat-label">资格审查</div><div class="sg-stat-value text-green tnum">通过</div></div>
+          <div class="sg-stat"><div class="sg-stat-label">风险等级</div><div class="sg-stat-value text-red tnum">高</div></div>
+          <div class="sg-stat"><div class="sg-stat-label">数据一致性</div><div class="sg-stat-value text-red tnum">冲突</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- 方案 C -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="design-set">
+  <div class="design-set-header">
+    <h2>C · 航电仪表</h2>
+    <span class="tag">四等分网格 · 仪表盘 · 结构化扫描 · 飞机面板</span>
+  </div>
+
+  <div class="demo-row" style="margin-bottom:20px">
+    <span class="demo-label-inline">场景 1</span>
+    <div class="avionics-panel" style="flex:1">
+      <div class="av-cell">
+        <div class="av-dot status-dot blue"></div>
+        <div class="av-short">评分</div>
+        <div class="av-value text-blue tnum">92.7</div>
+        <div class="av-full">AI 评估</div>
+      </div>
+      <div class="av-cell">
+        <div class="av-dot status-dot red"></div>
+        <div class="av-short">资格</div>
+        <div class="av-value text-red tnum">不通过</div>
+        <div class="av-full">资格审查</div>
+      </div>
+      <div class="av-cell">
+        <div class="av-dot status-dot red"></div>
+        <div class="av-short">风险</div>
+        <div class="av-value text-red tnum">高</div>
+        <div class="av-full">风险等级</div>
+      </div>
+      <div class="av-cell">
+        <div class="av-dot status-dot red"></div>
+        <div class="av-short">数据</div>
+        <div class="av-value text-red tnum">冲突</div>
+        <div class="av-full">数据一致性</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo-vars">
+    <div class="demo-row">
+      <span class="demo-label-inline">场景 2</span>
+      <div class="avionics-panel" style="flex:1">
+        <div class="av-cell"><div class="av-dot status-dot blue"></div><div class="av-short">评分</div><div class="av-value text-blue tnum">97.9</div><div class="av-full">AI 评估</div></div>
+        <div class="av-cell"><div class="av-dot status-dot green"></div><div class="av-short">资格</div><div class="av-value text-green tnum">通过</div><div class="av-full">资格审查</div></div>
+        <div class="av-cell"><div class="av-dot status-dot amber"></div><div class="av-short">风险</div><div class="av-value text-amber tnum">中</div><div class="av-full">风险等级</div></div>
+        <div class="av-cell"><div class="av-dot status-dot amber"></div><div class="av-short">数据</div><div class="av-value text-amber tnum">差异</div><div class="av-full">数据一致性</div></div>
+      </div>
+    </div>
+    <div class="demo-row">
+      <span class="demo-label-inline">场景 3</span>
+      <div class="avionics-panel" style="flex:1">
+        <div class="av-cell"><div class="av-dot status-dot blue"></div><div class="av-short">评分</div><div class="av-value text-blue tnum">93.9</div><div class="av-full">AI 评估</div></div>
+        <div class="av-cell"><div class="av-dot status-dot green"></div><div class="av-short">资格</div><div class="av-value text-green tnum">通过</div><div class="av-full">资格审查</div></div>
+        <div class="av-cell"><div class="av-dot status-dot red"></div><div class="av-short">风险</div><div class="av-value text-red tnum">高</div><div class="av-full">风险等级</div></div>
+        <div class="av-cell"><div class="av-dot status-dot red"></div><div class="av-short">数据</div><div class="av-value text-red tnum">冲突</div><div class="av-full">数据一致性</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- 方案 D -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="design-set">
+  <div class="design-set-header">
+    <h2>D · 状态芯片</h2>
+    <span class="tag">标签流式 · 轻量 · 无容器 · GitHub Label 风格</span>
+  </div>
+
+  <div class="demo-row" style="margin-bottom:20px">
+    <span class="demo-label-inline">场景 1</span>
+    <div class="chip-strip" style="flex:1">
+      <div class="chip">
+        <div class="status-dot blue"></div>
+        <div class="chip-body"><span class="chip-label">AI 评分</span><span class="chip-value text-blue big tnum">92.7</span></div>
+      </div>
+      <div class="chip">
+        <div class="status-dot red"></div>
+        <div class="chip-body"><span class="chip-label">资格</span><span class="chip-value text-red tnum">不通过</span></div>
+      </div>
+      <div class="chip">
+        <div class="status-dot red"></div>
+        <div class="chip-body"><span class="chip-label">风险</span><span class="chip-value text-red tnum">高</span></div>
+      </div>
+      <div class="chip">
+        <div class="status-dot red"></div>
+        <div class="chip-body"><span class="chip-label">数据</span><span class="chip-value text-red tnum">冲突</span></div>
+      </div>
+      <span class="chip-model">deepseek-v4-flash</span>
+    </div>
+  </div>
+
+  <div class="demo-vars">
+    <div class="demo-row">
+      <span class="demo-label-inline">场景 2</span>
+      <div class="chip-strip" style="flex:1">
+        <div class="chip"><div class="status-dot blue"></div><div class="chip-body"><span class="chip-label">AI 评分</span><span class="chip-value text-blue big tnum">97.9</span></div></div>
+        <div class="chip"><div class="status-dot green"></div><div class="chip-body"><span class="chip-label">资格</span><span class="chip-value text-green tnum">通过</span></div></div>
+        <div class="chip"><div class="status-dot amber"></div><div class="chip-body"><span class="chip-label">风险</span><span class="chip-value text-amber tnum">中</span></div></div>
+        <div class="chip"><div class="status-dot amber"></div><div class="chip-body"><span class="chip-label">数据</span><span class="chip-value text-amber tnum">差异</span></div></div>
+        <span class="chip-model">deepseek-v4-flash</span>
+      </div>
+    </div>
+    <div class="demo-row">
+      <span class="demo-label-inline">场景 3</span>
+      <div class="chip-strip" style="flex:1">
+        <div class="chip"><div class="status-dot blue"></div><div class="chip-body"><span class="chip-label">AI 评分</span><span class="chip-value text-blue big tnum">93.9</span></div></div>
+        <div class="chip"><div class="status-dot green"></div><div class="chip-body"><span class="chip-label">资格</span><span class="chip-value text-green tnum">通过</span></div></div>
+        <div class="chip"><div class="status-dot red"></div><div class="chip-body"><span class="chip-label">风险</span><span class="chip-value text-red tnum">高</span></div></div>
+        <div class="chip"><div class="status-dot red"></div><div class="chip-body"><span class="chip-label">数据</span><span class="chip-value text-red tnum">冲突</span></div></div>
+        <span class="chip-model">deepseek-v4-flash</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

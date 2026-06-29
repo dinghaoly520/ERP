@@ -358,97 +358,66 @@ function ExpertComparisonTable({
 // 区域组件
 // ═══════════════════════════════════════════════════════════════
 
-// ── 快速状态条 — 工业精密仪表板风格 ──
-
-const STATUS_DOT = {
-  green:  'bg-[#11a874]',
-  amber:  'bg-[#f5a623]',
-  red:    'bg-[#e74c3c]',
-  blue:   'bg-[var(--color-primary)]',
-  muted:  'bg-[oklch(0.75_0.008_264)]',
-} as const;
-
-function GaugeCell({
-  color,
-  icon,
-  label,
-  value,
-  valueClass = '',
-}: {
-  color: keyof typeof STATUS_DOT;
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  valueClass?: string;
-}) {
-  return (
-    <div className="flex items-center gap-2.5">
-      {/* 状态指示灯 + 图标 */}
-      <div className="relative flex items-center justify-center w-7 h-7">
-        <span className={`absolute inset-0 rounded-full opacity-10 ${STATUS_DOT[color]}`} />
-        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[color]}`} />
-      </div>
-      {/* 文字 */}
-      <div className="flex flex-col leading-none gap-0.5">
-        <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[oklch(0.50_0.010_264)] select-none">
-          {label}
-        </span>
-        <span className={`text-[13px] font-bold tabular-nums leading-tight ${valueClass || 'text-[oklch(0.20_0.012_265)]'}`}>
-          {value}
-        </span>
-      </div>
-    </div>
-  );
-}
+// ── 快速状态条 — 瑞士网格 · 字体排印驱动 ──
+// 不对称布局：AI 评分独占左列（大字 hero），三个状态指标右列横排
+// 模型来源标注于右上角，整体靠留白和字重层级传达信息
 
 function StatusBar({ assistData }: { assistData: AssistData }) {
   const score = assistData.totalScore != null ? Number(assistData.totalScore).toFixed(1) : '—';
 
   const qualStatus = assistData.qualificationStatus;
   const qualLabel = qualStatus === '通过' ? '通过' : qualStatus === '不通过' ? '不通过' : '—';
-  const qualColor: keyof typeof STATUS_DOT = qualStatus === '通过' ? 'green' : qualStatus === '不通过' ? 'red' : 'muted';
+  const qualColor =
+    qualStatus === '通过' ? 'text-[#11a874]' : qualStatus === '不通过' ? 'text-[#e74c3c]' : 'text-[oklch(0.50_0.010_264)]';
 
   const riskLevel = assistData.riskLevel ?? 'low';
-  const riskLabel = riskLevel === 'high' ? '高风险' : riskLevel === 'medium' ? '中风险' : '低风险';
-  const riskColor: keyof typeof STATUS_DOT = riskLevel === 'high' ? 'red' : riskLevel === 'medium' ? 'amber' : 'green';
+  const riskLabel = riskLevel === 'high' ? '高' : riskLevel === 'medium' ? '中' : '低';
+  const riskColor =
+    riskLevel === 'high' ? 'text-[#e74c3c]' : riskLevel === 'medium' ? 'text-[#f5a623]' : 'text-[#11a874]';
 
   const concordanceStatus = assistData.concordanceStatus;
   const concordLabel =
     concordanceStatus === 'consistent' ? '一致' : concordanceStatus === 'conflict' ? '冲突' : '差异';
-  const concordColor: keyof typeof STATUS_DOT =
-    concordanceStatus === 'consistent' ? 'green' : concordanceStatus === 'conflict' ? 'red' : 'amber';
+  const concordColor =
+    concordanceStatus === 'consistent' ? 'text-[#11a874]' : concordanceStatus === 'conflict' ? 'text-[#e74c3c]' : 'text-[#f5a623]';
 
   return (
-    <div className="flex items-center px-5 py-3 bg-white/70 rounded-xl border border-[oklch(0.91_0.006_264)]">
-      {/* AI 总分 — 左端强调位 */}
-      <GaugeCell
-        color="blue"
-        icon={null}
-        label="AI 评分"
-        value={score}
-        valueClass="text-[var(--color-primary)] text-base"
-      />
+    <div className="grid gap-x-14 gap-y-3 mb-3" style={{ gridTemplateColumns: '1fr auto', gridTemplateRows: 'auto auto', alignItems: 'end' }}>
+      {/* 左列：AI 评分 hero（跨两行） */}
+      <div className="flex flex-col gap-1" style={{ gridRow: '1 / 3' }}>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.48_0.01_264)] select-none">
+          AI 评估
+        </span>
+        <span className="text-[44px] font-bold leading-none text-[var(--color-primary)] tabular-nums">
+          {score}
+        </span>
+      </div>
 
-      <span className="w-px h-10 bg-[oklch(0.90_0.006_264)] mx-5" />
-
-      {/* 资格审查 */}
-      <GaugeCell color={qualColor} icon={null} label="资格审查" value={qualLabel} valueClass={qualStatus === '通过' ? 'text-[#11a874]' : qualStatus === '不通过' ? 'text-[#e74c3c]' : 'text-[oklch(0.50_0.010_264)]'} />
-
-      <span className="w-px h-10 bg-[oklch(0.90_0.006_264)] mx-5" />
-
-      {/* 风险等级 */}
-      <GaugeCell color={riskColor} icon={null} label="风险等级" value={riskLabel} valueClass={riskLevel === 'high' ? 'text-[#e74c3c]' : riskLevel === 'medium' ? 'text-[#f5a623]' : 'text-[#11a874]'} />
-
-      <span className="w-px h-10 bg-[oklch(0.90_0.006_264)] mx-5" />
-
-      {/* 数据一致性 */}
-      <GaugeCell color={concordColor} icon={null} label="数据一致性" value={concordLabel} valueClass={concordanceStatus === 'consistent' ? 'text-[#11a874]' : concordanceStatus === 'conflict' ? 'text-[#e74c3c]' : 'text-[#f5a623]'} />
-
-      <span className="flex-1" />
-
-      {/* 右端：模型来源水印 */}
-      <div className="text-[10px] text-[oklch(0.60_0.008_264)] font-medium tracking-[0.04em] select-none">
+      {/* 右上：模型来源 */}
+      <div className="text-[10px] text-[oklch(0.60_0.008_264)] tracking-[0.05em] text-right select-none">
         {assistData.model ?? 'LLM + OCR'}
+      </div>
+
+      {/* 右下：三个状态指标横排 */}
+      <div className="flex gap-10">
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-[oklch(0.50_0.010_264)] select-none">
+            资格审查
+          </span>
+          <span className={`text-base font-bold tabular-nums ${qualColor}`}>{qualLabel}</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-[oklch(0.50_0.010_264)] select-none">
+            风险等级
+          </span>
+          <span className={`text-base font-bold tabular-nums ${riskColor}`}>{riskLabel}</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-[oklch(0.50_0.010_264)] select-none">
+            数据一致性
+          </span>
+          <span className={`text-base font-bold tabular-nums ${concordColor}`}>{concordLabel}</span>
+        </div>
       </div>
     </div>
   );
