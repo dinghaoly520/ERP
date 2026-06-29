@@ -193,20 +193,6 @@
   .map-bg-img-wrap{position:absolute;inset:0;overflow:hidden;z-index:0}
   #mapPanel{background:transparent!important;border:none!important;box-shadow:none!important}
   #mapPanel:before,#mapPanel:after{display:none}
-  /* ── Map vignette ── */
-  .map-vignette{position:absolute;inset:0;z-index:2;pointer-events:none;
-    box-shadow:inset 0 0 80px 40px rgba(2,11,28,.55),inset 0 0 30px rgba(2,11,28,.35)}
-  /* ── Radar origin (Chengdu area) ── */
-  .map-radar{position:absolute;z-index:3;pointer-events:none;
-    left:38%;top:44%;width:8px;height:8px;transform:translate(-50%,-50%)}
-  .map-radar-dot{position:absolute;inset:-3px;border-radius:50%;
-    background:#fff;box-shadow:0 0 8px #fff,0 0 20px rgba(32,200,230,.6)}
-  .map-radar-ring{position:absolute;border-radius:50%;
-    border:1px solid rgba(32,200,230,.20);inset:-30px;
-    animation:radarPing 3s ease-out infinite}
-  .map-radar-ring:nth-child(2){animation-delay:1s}
-  .map-radar-ring:nth-child(3){animation-delay:2s}
-  @keyframes radarPing{0%{inset:-30px;opacity:.6}100%{inset:-220px;opacity:0}}
 
   .zone-donut{width:110px;height:110px;flex-shrink:0;position:relative}
   .zone-donut svg{width:100%;height:100%;position:relative;z-index:1}
@@ -1016,14 +1002,6 @@
   <section id="mapPanel" class="panel">
     <div class="map-bg-img-wrap">
       <img src="/map-bg.png" class="map-bg-img" alt="" />
-    </div>
-    <div class="map-vignette"></div>
-    <!-- Radar origin -->
-    <div class="map-radar">
-      <div class="map-radar-dot"></div>
-      <div class="map-radar-ring"></div>
-      <div class="map-radar-ring"></div>
-      <div class="map-radar-ring"></div>
     </div>
   </section>
 
