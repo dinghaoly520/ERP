@@ -11,12 +11,10 @@ import { deterministicSeed } from '../utils';
 /** categoryTotals 结构（per-item 5 维聚合） */
 type CategoryTotals = Record<string, { score: number; max: number }>;
 
-/** LLM 横向返回的单家校准项（按 category 给新分） */
+/** LLM 横向返回的单家校准项（scores: 各维度校准分，key=category，动态覆盖全部维度） */
 interface ComparativeAdjust {
   bidderName: string;
-  technical?: number;
-  commercial?: number;
-  price?: number;
+  scores?: Record<string, number>;
   reason?: string;
 }
 
@@ -61,7 +59,7 @@ export class ComparativeScoringService {
     let result: { scores: ComparativeAdjust[] };
     try {
       result = await this.llmService.chatJson<{ scores: ComparativeAdjust[] }>(
-        '你是一名资深招投标评审专家，基于各家横向对比，对技术/商务/报价三个维度做公平性校准。',
+        '你是一名资深招投标评审专家，基于各家横向对比，对各评分维度做公平性校准。',
         prompt,
         0,
         undefined,
@@ -93,25 +91,17 @@ export class ComparativeScoringService {
       const totals = (bidder.categoryTotals ?? {}) as CategoryTotals;
       const oldTotal = Number(bidder.totalScore ?? 0);
 
-      // 校准各维度（clamp 到 max 内），保留 max 不变
+      // 校准各维度（动态遍历 scores，clamp 到对应 max），保留 max 不变；未知维度 key 忽略
       const newTotals: CategoryTotals = { ...totals };
-      if (adj.technical != null && totals.TECHNICAL) {
-        newTotals.TECHNICAL = {
-          score: this.clamp(adj.technical, 0, totals.TECHNICAL.max),
-          max: totals.TECHNICAL.max,
-        };
-      }
-      if (adj.commercial != null && totals.BUSINESS) {
-        newTotals.BUSINESS = {
-          score: this.clamp(adj.commercial, 0, totals.BUSINESS.max),
-          max: totals.BUSINESS.max,
-        };
-      }
-      if (adj.price != null && totals.PRICE) {
-        newTotals.PRICE = {
-          score: this.clamp(adj.price, 0, totals.PRICE.max),
-          max: totals.PRICE.max,
-        };
+      if (adj.scores) {
+        for (const [cat, rawScore] of Object.entries(adj.scores)) {
+          if (totals[cat] && typeof rawScore === 'number') {
+            newTotals[cat] = {
+              score: this.clamp(rawScore, 0, totals[cat].max),
+              max: totals[cat].max,
+            };
+          }
+        }
       }
 
       // 重算总分（所有维度 score 之和）
@@ -149,7 +139,6 @@ export class ComparativeScoringService {
   }) {
     const keyInfo = bidder.keyInfo || {};
     const totals = (bidder.categoryTotals ?? {}) as CategoryTotals;
-    const get = (cat: string) => totals[cat]?.score ?? 0;
 
     return {
       id: bidder.id,
@@ -157,23 +146,21 @@ export class ComparativeScoringService {
       quotePrice: Number(keyInfo.quotePrice) || 0,
       qualificationLevel: keyInfo.qualificationLevel || '未知',
       performanceCount: Number(keyInfo.performanceCount) || 0,
-      firstRound: {
-        technical: get('TECHNICAL'),
-        commercial: get('BUSINESS'),
-        price: get('PRICE'),
-        qualification: get('QUALIFICATION'),
-        responsive: get('RESPONSIVE'),
-        total: Number(bidder.totalScore ?? 0),
-      },
+      categoryTotals: totals,
+      total: Number(bidder.totalScore ?? 0),
     };
   }
 
   private formatSummary(s: ReturnType<ComparativeScoringService['buildSummary']>): string {
+    const dims = Object.entries(s.categoryTotals)
+      .map(([cat, v]) => `${cat} ${v.score}/${v.max}`)
+      .join('、');
     return `【${s.name}】
 - 报价：${s.quotePrice}万元
 - 资质等级：${s.qualificationLevel}
 - 业绩数量：${s.performanceCount}个
-- 首轮评分：技术${s.firstRound.technical} / 商务${s.firstRound.commercial} / 报价${s.firstRound.price}，总分${s.firstRound.total}`;
+- 各维度首轮评分：${dims}
+- 总分：${s.total}`;
   }
 
   private clamp(v: number, min: number, max: number): number {
