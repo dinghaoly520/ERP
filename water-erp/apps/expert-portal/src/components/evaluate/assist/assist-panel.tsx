@@ -1305,11 +1305,8 @@ export function AssistPanel({
           {/* ③ 数据一致性 */}
           <div className="glass-card rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
-              <AlertCircle size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-              <div className="flex items-center gap-2">
-                <SectionNumber n={3} />
-                <h4 className="font-bold text-sm text-[var(--color-text)]">数据一致性</h4>
-              </div>
+              <SectionNumber n={3} />
+              <h4 className="font-bold text-sm text-[var(--color-text)]">数据一致性</h4>
               <span className="text-[10px] text-[var(--color-text-tertiary)]">系统 vs OCR</span>
             </div>
             <ConcordanceSection
@@ -1321,7 +1318,6 @@ export function AssistPanel({
           {/* ④ 串通检测 */}
           <div className="glass-card rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
-              <ShieldAlert size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
               <SectionNumber n={4} />
               <h4 className="font-bold text-sm text-[var(--color-text)]">串通检测</h4>
             </div>
