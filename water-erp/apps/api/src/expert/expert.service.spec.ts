@@ -605,4 +605,41 @@ describe('ExpertService', () => {
       expect(result.tenderDocument).toBeNull();
     });
   });
+
+  describe('requirement reviews', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', conflictedSupplierIds: [], signedIn: true, avoidanceConfirmed: true });
+      prisma.aiBidderResult.findFirst.mockResolvedValue({ id: 'br-1', status: 'COMPLETED' });
+      prisma.bidRequirementReview = { upsert: jest.fn(), findMany: jest.fn() };
+    });
+
+    it('upsert 写入本人标注（唯一约束 upsert）', async () => {
+      prisma.bidRequirementReview.upsert.mockResolvedValue({ id: 'rv-1' });
+      await service.upsertRequirementReview('u1', 'proj-1', 'sup-1', { requirementId: 'r1', category: 'technical', verdict: 'dispute', note: 'x' });
+      expect(prisma.bidRequirementReview.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { projectId_bidderResultId_expertId_requirementId: { projectId: 'proj-1', bidderResultId: 'br-1', expertId: 'exp-1', requirementId: 'r1' } },
+        create: expect.objectContaining({ verdict: 'dispute', expertId: 'exp-1' }),
+      }));
+    });
+
+    it('list 仅返回本人标注', async () => {
+      prisma.bidRequirementReview.findMany.mockResolvedValue([{ requirementId: 'r1' }]);
+      const out = await service.listRequirementReviews('u1', 'proj-1', 'sup-1');
+      expect(prisma.bidRequirementReview.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ expertId: 'exp-1' }) }));
+      expect(out).toHaveLength(1);
+    });
+
+    it('非本项目专家 → 403', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      await expect(service.upsertRequirementReview('u1', 'proj-1', 'sup-1', { requirementId: 'r1', category: 'technical', verdict: 'ack' }))
+        .rejects.toMatchObject({ response: { code: 'NOT_PROJECT_EXPERT' } });
+    });
+
+    it('回避名单中的供应商 → 403', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', conflictedSupplierIds: ['sup-1'] });
+      await expect(service.upsertRequirementReview('u1', 'proj-1', 'sup-1', { requirementId: 'r1', category: 'technical', verdict: 'ack' }))
+        .rejects.toMatchObject({ response: { code: 'CONFLICTED_SUPPLIER' } });
+    });
+  });
 });

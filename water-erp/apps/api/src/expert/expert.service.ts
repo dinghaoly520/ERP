@@ -6,6 +6,7 @@ import { BidGateway } from '../bid/bid.gateway';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
+import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { decryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
@@ -413,6 +414,58 @@ export class ExpertService {
     });
 
     return { buffer: plaintext, fileName: doc.fileAsset.originalName, mimeType: 'application/pdf' };
+  }
+
+  /* ── 招标条款标注（Task 9：本人 CRUD）── */
+
+  /** 门控：项目阶段 ∈ {OPENING, EVALUATING} + 本项目已签到/回避确认的专家 + 非回避名单供应商 + 投标人 AI 分析已 COMPLETED。
+   *  任一不满足即抛 403/404。返回解析后的 expert 与 bidderResult 供 upsert/list 复用。 */
+  private async resolveReviewContext(userId: string, projectId: string, supplierId: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可操作阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    // 回避名单检查先于签到/回避确认检查：回避名单本身即最终阻断信号，避免泄露后续状态细节
+    const conflictedIds: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    if (conflictedIds.includes(supplierId)) {
+      throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
+    }
+    if (!expert.signedIn || !expert.avoidanceConfirmed) {
+      throw new ForbiddenException({ error: '请先完成身份核验和回避确认', code: 'VERIFICATION_REQUIRED' });
+    }
+    const bidderResult = await this.prisma.aiBidderResult.findFirst({
+      where: { bidSupplierId: supplierId, status: 'COMPLETED' },
+      select: { id: true },
+    });
+    if (!bidderResult) throw new NotFoundException({ error: '该供应商 AI 分析尚未完成', code: 'NOT_FOUND' });
+    return { expert, bidderResult };
+  }
+
+  /** Upsert 本人针对某招标条款的标注。复合唯一键 projectId+bidderResultId+expertId+requirementId 保证幂等。 */
+  async upsertRequirementReview(userId: string, projectId: string, supplierId: string, dto: UpsertRequirementReviewDto) {
+    const { expert, bidderResult } = await this.resolveReviewContext(userId, projectId, supplierId);
+    return this.prisma.bidRequirementReview.upsert({
+      where: {
+        projectId_bidderResultId_expertId_requirementId: {
+          projectId, bidderResultId: bidderResult.id, expertId: expert.id, requirementId: dto.requirementId,
+        },
+      },
+      create: {
+        projectId, bidderResultId: bidderResult.id, expertId: expert.id,
+        requirementId: dto.requirementId, category: dto.category, verdict: dto.verdict, note: dto.note,
+      },
+      update: { verdict: dto.verdict, note: dto.note },
+    });
+  }
+
+  /** 列出本人针对该投标人的全部条款标注（reviews 本人-only）。 */
+  async listRequirementReviews(userId: string, projectId: string, supplierId: string) {
+    const { expert, bidderResult } = await this.resolveReviewContext(userId, projectId, supplierId);
+    return this.prisma.bidRequirementReview.findMany({
+      where: { bidderResultId: bidderResult.id, expertId: expert.id },
+    });
   }
 
   /* ── 辅助评标（AI引擎驱动） ── */
