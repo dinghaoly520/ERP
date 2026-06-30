@@ -33,25 +33,31 @@ export function RequirementComparePanel({
   const respBy = (id: string) => responses.find((r) => r.requirementId === id);
 
   const setVerdict = async (item: ReqItem, verdict: 'ack' | 'dispute' | 'doubt') => {
-    const prev = local[item.id];
-    const next = { ...prev, requirementId: item.id, category: item.category, verdict, note: prev?.note ?? '' };
-    setLocal({ ...local, [item.id]: next });
+    const prevReview = local[item.id];
+    const next = { ...prevReview, requirementId: item.id, category: item.category, verdict, note: prevReview?.note ?? '' };
+    setLocal((cur) => ({ ...cur, [item.id]: next }));
     try {
       await api.post(`/expert/projects/${projectId}/assist/${supplierId}/reviews`, {
         requirementId: item.id, category: item.category, verdict, note: next.note,
       });
-    } catch { /* toast 由全局拦截器处理 */ }
+    } catch {
+      // 回滚到点击前的 verdict —— 否则 UI 显示新值而 server 仍是旧值，专家以为标注成功实为数据丢失
+      setLocal((cur) => ({ ...cur, [item.id]: prevReview }));
+      /* toast 由全局拦截器处理 */
+    }
   };
   const setNote = (item: ReqItem, note: string) => {
     const verdict = local[item.id]?.verdict ?? 'doubt';
-    setLocal({ ...local, [item.id]: { requirementId: item.id, category: item.category, verdict, note } });
+    setLocal((cur) => ({ ...cur, [item.id]: { requirementId: item.id, category: item.category, verdict, note } }));
   };
   const saveNote = async (item: ReqItem) => {
     const r = local[item.id];
     if (!r) return;
-    await api.post(`/expert/projects/${projectId}/assist/${supplierId}/reviews`, {
-      requirementId: item.id, category: item.category, verdict: r.verdict, note: r.note,
-    });
+    try {
+      await api.post(`/expert/projects/${projectId}/assist/${supplierId}/reviews`, {
+        requirementId: item.id, category: item.category, verdict: r.verdict, note: r.note,
+      });
+    } catch { /* toast 由全局拦截器处理 */ }
   };
 
   if (!flat.length) {
