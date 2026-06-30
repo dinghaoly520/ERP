@@ -761,10 +761,25 @@ export class ExpertService {
       throw new ForbiddenException({ error: '请先完成身份核验和回避确认', code: 'VERIFICATION_REQUIRED' });
     }
 
-    return this.prisma.bidScoreRecord.findMany({
-      where: { expertId: expert.id },
-      include: { scoreItem: true },
-    });
+    const [records, disputes] = await Promise.all([
+      this.prisma.bidScoreRecord.findMany({
+        where: { expertId: expert.id },
+        include: { scoreItem: true },
+      }),
+      this.prisma.bidRequirementReview.findMany({
+        where: { projectId, expertId: expert.id, verdict: 'dispute' },
+        select: { category: true, verdict: true },
+      }),
+    ]);
+    const UPPER: Record<string, string> = {
+      qualification: 'QUALIFICATION',
+      technical: 'TECHNICAL',
+      commercial: 'BUSINESS',
+    };
+    const disputeCategories = [...new Set(
+      disputes.filter((d) => d.verdict === 'dispute').map((d) => UPPER[d.category]).filter(Boolean),
+    )];
+    return { records, disputeCategories };
   }
 
   /* ── 澄清答疑 ── */

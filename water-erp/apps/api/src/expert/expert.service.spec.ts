@@ -606,6 +606,21 @@ describe('ExpertService', () => {
     });
   });
 
+  describe('getMyScores', () => {
+    it('返回 records + disputeCategories（映射为大写）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', signedIn: true, avoidanceConfirmed: true });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      prisma.bidRequirementReview = { findMany: jest.fn().mockResolvedValue([
+        { category: 'technical', verdict: 'dispute' },
+        { category: 'commercial', verdict: 'dispute' },
+        { category: 'qualification', verdict: 'ack' }, // 非异议不计
+      ]) };
+      const out = await service.getMyScores('u1', 'proj-1');
+      expect(out.records).toEqual([]);
+      expect(out.disputeCategories).toEqual(['TECHNICAL', 'BUSINESS']);
+    });
+  });
+
   describe('requirement reviews', () => {
     beforeEach(() => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
