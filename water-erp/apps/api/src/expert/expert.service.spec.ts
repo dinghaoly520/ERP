@@ -654,17 +654,25 @@ describe('ExpertService', () => {
   });
 
   describe('getMyScores', () => {
-    it('返回 records + disputeCategories（映射为大写）', async () => {
+    it('返回 records + disputeCategoriesBySupplier（按 supplier 分组，per-supplier 去重）', async () => {
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', signedIn: true, avoidanceConfirmed: true });
       prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      // Fix 1: disputes 现在带 bidderResult.bidSupplier.id；前端按 activeSupplier 过滤，
+      // 无异议的供应商（如 s3）不应出现在结果里。
       prisma.bidRequirementReview = { findMany: jest.fn().mockResolvedValue([
-        { category: 'technical', verdict: 'dispute' },
-        { category: 'commercial', verdict: 'dispute' },
-        { category: 'qualification', verdict: 'ack' }, // 非异议不计
+        { category: 'technical', verdict: 'dispute', bidderResultId: 'br-1', bidderResult: { bidSupplier: { id: 's1' } } },
+        { category: 'commercial', verdict: 'dispute', bidderResultId: 'br-1', bidderResult: { bidSupplier: { id: 's1' } } },
+        { category: 'technical', verdict: 'dispute', bidderResultId: 'br-2', bidderResult: { bidSupplier: { id: 's2' } } },
+        { category: 'qualification', verdict: 'ack', bidderResultId: 'br-3', bidderResult: { bidSupplier: { id: 's3' } } }, // 非异议不计
       ]) };
       const out = await service.getMyScores('u1', 'proj-1');
       expect(out.records).toEqual([]);
-      expect(out.disputeCategories).toEqual(['TECHNICAL', 'BUSINESS']);
+      // disputeCategories 已下线（改为 per-supplier）；旧字段不应出现。
+      expect((out as any).disputeCategories).toBeUndefined();
+      expect(out.disputeCategoriesBySupplier).toEqual({
+        s1: ['TECHNICAL', 'BUSINESS'],
+        s2: ['TECHNICAL'],
+      });
     });
   });
 

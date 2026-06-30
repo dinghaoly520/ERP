@@ -141,8 +141,9 @@ export default function ExpertEvaluatePage() {
 
   // P0-2: reason validation — set of scoreItemIds whose reason is missing on submit attempt.
   const [missingReasons, setMissingReasons] = useState<Set<string>>(new Set());
-  // Task 15: dispute-categories联动 — disputeCategories 是项目级（本人所有 dispute），confirmedDispute 是 per-supplier UI 核对态。
-  const [disputeCategories, setDisputeCategories] = useState<Set<string>>(new Set());
+  // Fix 1: dispute-categories 改 per-supplier —— disputeCategoriesBySupplier 按 supplierId 分组，
+  // confirmedDispute 是 per-supplier UI 核对态（切供应商时重置）。无异议的供应商自然不 gate。
+  const [disputeCategoriesBySupplier, setDisputeCategoriesBySupplier] = useState<Record<string, string[]>>({});
   const [confirmedDispute, setConfirmedDispute] = useState<Record<string, boolean>>({});
   // P0-3: draft autosave to localStorage.
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
@@ -172,9 +173,9 @@ export default function ExpertEvaluatePage() {
         // P2: sync per-supplier conflicts from server
         const serverConflicts: string[] = p.myExpertRecord?.conflictedSupplierIds || [];
         if (serverConflicts.length > 0) setConflictedSupplierIds(new Set(serverConflicts));
-        // Task 15: fetch disputeCategories via the dedicated my-scores endpoint (project-level).
-        api.get<{ records: unknown[]; disputeCategories: string[] }>(`/expert/projects/${projectId}/my-scores`)
-          .then((d) => setDisputeCategories(new Set(d.disputeCategories || [])))
+        // Fix 1: fetch disputeCategoriesBySupplier (per-supplier) via my-scores endpoint.
+        api.get<{ records: unknown[]; disputeCategoriesBySupplier: Record<string, string[]> }>(`/expert/projects/${projectId}/my-scores`)
+          .then((d) => setDisputeCategoriesBySupplier(d.disputeCategoriesBySupplier ?? {}))
           .catch(() => { /* my-scores optional — ignore */ });
       })
       .catch((e: any) => toast.error(e?.message || '加载项目失败'))
@@ -402,8 +403,10 @@ export default function ExpertEvaluatePage() {
       return;
     }
     setMissingReasons(new Set()); // clear on valid submit
-    // Task 15: dispute-categories 软拦截 — 未核对本类异议条款则提示并 return（不改分、不阻断报告确认）。
-    const unconfirmed = [...disputeCategories].filter((c) => !confirmedDispute[c]);
+    // Fix 1: dispute-categories 软拦截 — 仅作用于当前 activeSupplier 的异议类别；无异议供应商不 gate。
+    // 不改分、不阻断报告确认。
+    const activeDisputes = new Set(disputeCategoriesBySupplier[activeSupplier] ?? []);
+    const unconfirmed = [...activeDisputes].filter((c) => !confirmedDispute[c]);
     if (unconfirmed.length > 0) {
       toast.warning(`以下类别有异议条款未核对：${unconfirmed.map((c) => CATEGORY_LABEL[c] || c).join('、')}`);
       return;
@@ -1054,7 +1057,9 @@ export default function ExpertEvaluatePage() {
                     {Object.entries(grouped).map(([category, items]) => {
                       const catTotal = items.reduce((s, i) => s + Number(i.maxScore), 0);
                       const catScored = items.reduce((s, i) => s + (scores[scoreKey(activeSupplier, i.id)]?.score ?? 0), 0);
-                      const disputed = disputeCategories.has(category);
+                      // Fix 1: 按当前 activeSupplier 过滤异议类别。
+                      const activeDisputes = new Set(disputeCategoriesBySupplier[activeSupplier] ?? []);
+                      const disputed = activeDisputes.has(category);
                       return (
                         <div key={category} className={`bg-blue-50 rounded-xl border overflow-hidden ${disputed ? 'border-amber-300 ring-1 ring-amber-200' : 'border-blue-100'}`}>
                           <div className="flex items-center justify-between p-4 border-b border-blue-100" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[category] || '#064ea2'}` }}>
