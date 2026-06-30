@@ -168,6 +168,7 @@ model AiBidderResult {
   task        AiBidAnalysisTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   bidSupplier BidSupplier          @relation(fields: [bidSupplierId], references: [id], onDelete: Cascade)
   concordance AiConcordanceResult?
+  reviews     BidRequirementReview[]
 
   @@unique([taskId, bidSupplierId])
   @@index([taskId])
@@ -249,6 +250,7 @@ model BidProject {
   supervisionAnnotations BidSupervisionAnnotation[]
   supplierSubmissions    SupplierBidSubmission[]
   procurementProject     ProcurementProject?
+  reviews                BidRequirementReview[]
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
 
@@ -334,6 +336,7 @@ model BidExpert {
   user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   project               BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scoreRecords          BidScoreRecord[]
+  reviews               BidRequirementReview[]
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
@@ -1139,6 +1142,10 @@ model BidRequirementReview {
   note           String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  project       BidProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bidderResult  AiBidderResult @relation(fields: [bidderResultId], references: [id], onDelete: Cascade)
+  expert        BidExpert      @relation(fields: [expertId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, bidderResultId, expertId, requirementId])
   @@map("bid_requirement_reviews")
