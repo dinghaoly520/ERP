@@ -319,16 +319,36 @@ return { buffer, fileId: assetId };
 ```
 同步返回类型签名：`Promise<{ buffer: Buffer; fileId: string } | null>`。
 
-- [ ] **Step 4: 更新调用方 bidder.processor（临时适配，Task 7 正式集成）**
+- [ ] **Step 4: 更新调用方 bidder.processor（biz 分支也改全，勿省略）**
 
-`bidder.processor.ts:76-80` 把 `const techBuffer = await ...fetchBidderPlaintext(...)` 改为解构：
+> 前置确认（#8）：`plaintextFetcher` 投标方法确切名（完整 Read 为 `fetchBidderPlaintext`，以完整 Read 为准）；grep 全仓确认无其他调用方（应仅 bidder.processor）。
+
+bidder.processor 顶部先声明外层变量（Task 7 matcher 要用 fileId + bizOcr.pages）：
+```ts
+let bizOcr: any = null;
+let techFileId: string | null = null;
+let bizFileId: string | null = null;
+```
+tech 分支（原 line 76-80）改为解构：
 ```ts
 const tech = await this.plaintextFetcher.fetchBidderPlaintext(bidSupplierId, 'technical');
 const techBuffer = tech?.buffer ?? Buffer.from('');
-const techFileId = tech?.fileId ?? null;
+techFileId = tech?.fileId ?? null;
 const techOcr = await processFile(this.ocrService, techBuffer, 'technical.pdf');
 ```
-biz 分支同理（`bizFileId`）。跑 `pnpm --filter api build` 确认编译。
+biz 分支（原 line 84-89 try 内）同样解构（**不要省略**）：
+```ts
+const biz = await this.plaintextFetcher.fetchBidderPlaintext(bidSupplierId, 'business');
+const bizBuffer = biz?.buffer ?? Buffer.from('');
+bizFileId = biz?.fileId ?? null;
+bizOcr = await processFile(this.ocrService, bizBuffer, 'business.pdf');
+businessText = bizOcr.text;
+```
+跑 `pnpm --filter api build` 确认编译。
+
+- [ ] **Step 4b: 同步更新现有 plaintext-fetcher.service.spec.ts（#2）**
+
+返回类型从 `Buffer` 改为 `{ buffer, fileId }`，现有断言会失败。把原 `expect(Buffer.isBuffer(result)).toBe(true)` 等改为 `expect(Buffer.isBuffer(result.buffer)).toBe(true)`；涉及 fileId 的用例补 `expect(result.fileId).toBe(...)`。跑 `pnpm --filter api test -- plaintext-fetcher` 全绿。
 
 - [ ] **Step 5: Run tests + commit**
 
@@ -351,10 +371,10 @@ git -C /home/asus/桌面/ERP commit -am "refactor(ai-bid): fetchBidderPlaintext 
 
 ```ts
 // requirement-matching.prompt.ts
-export const REQUIREMENT_MATCHING_PROMPT = `你是招投标响应核查专家。下面给出【招标要求条目】与【投标文件分页文本】。
+export const REQUIREMENT_MATCHING_PROMPT = `你是招投标响应核查专家。下面给出【招标要求条目】（每条带 seq 序号）与【投标文件分页文本】。
 对每条招标要求，在投标文件中定位其响应内容，判定响应状态并摘录证据。
 
-## 招标要求条目（JSON）
+## 招标要求条目（JSON，含 seq 序号）
 {{REQUIREMENTS}}
 
 ## 投标文件分页文本（每页含 file 标识与 page 页码）
@@ -362,7 +382,7 @@ export const REQUIREMENT_MATCHING_PROMPT = `你是招投标响应核查专家。
 
 ## 任务
 逐条输出 responses 数组，每项：
-- requirementId：对应招标要求条目的 id（原样回填）
+- seq：对应招标要求条目的 seq（原样回填小整数，勿臆造或改写）
 - status：met（满足）/ partial（部分满足）/ unmet（不满足）/ not_found（投标文件未提及）
 - excerpt：投标文件中支撑判定的原文摘录（≤120 字，not_found 时为空串）
 - file：摘录所在文件标识（technical/business，not_found 时为 null）
@@ -373,7 +393,8 @@ export const REQUIREMENT_MATCHING_PROMPT = `你是招投标响应核查专家。
 1. 仅依据投标文件文本判定，不得臆造。
 2. excerpt 必须是投标文件原文片段，不可改写。
 3. ★号实质性条款若未明确响应，判 unmet 或 not_found，不得默认 met。
-4. 输出严格 JSON：{ "responses": [ { requirementId, status, excerpt, file, page, confidence } ] }`;
+4. seq 必须原样回填输入条目的序号（小整数）。
+5. 输出严格 JSON：{ "responses": [ { seq, status, excerpt, file, page, confidence } ] }`;
 ```
 
 - [ ] **Step 2: 类型检查**
@@ -419,24 +440,27 @@ describe('RequirementMatcherService', () => {
     { file: 'technical', page: 1, text: '我司承诺工期 360 日历天完成全部施工。' },
   ];
 
-  it('逐条定位响应，回填 fileId 与页码', async () => {
+  it('LLM 回填 seq，matcher 映射回 stableId（prompt 不含 hash id）', async () => {
     const llm = { chatJson: jest.fn().mockResolvedValue({ responses: [
-      { requirementId: 'STABLE_T1', status: 'met', excerpt: '承诺工期 360 日历天', file: 'technical', page: 1, confidence: 0.9 },
+      { seq: 1, status: 'met', excerpt: '承诺工期 360 日历天', file: 'technical', page: 1, confidence: 0.9 },
     ] }) } as any;
     const svc = new RequirementMatcherService(llm);
     const out = await svc.match(req, pages, { technical: 'fa-tech', business: 'fa-biz' }, 'task-1');
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({
-      requirementId: 'STABLE_T1', status: 'met',
+      requirementId: 'STABLE_T1', status: 'met',   // seq=1 → stableId
       tenderContent: '工期不超过365日历天', isStarred: true,
       excerpt: '承诺工期 360 日历天',
       location: { fileId: 'fa-tech', page: 1 }, confidence: 0.9,
     });
+    const calledPrompt = llm.chatJson.mock.calls[0][1] as string;
+    expect(calledPrompt).not.toContain('STABLE_T1');   // hash id 不进 prompt
+    expect(calledPrompt).toContain('"seq": 1');
   });
 
   it('not_found 时 location 为 null', async () => {
     const llm = { chatJson: jest.fn().mockResolvedValue({ responses: [
-      { requirementId: 'STABLE_T1', status: 'not_found', excerpt: '', file: null, page: null, confidence: 0.3 },
+      { seq: 1, status: 'not_found', excerpt: '', file: null, page: null, confidence: 0.3 },
     ] }) } as any;
     const out = await svcMatch(llm);
     expect(out[0].location).toBeNull();
@@ -444,10 +468,18 @@ describe('RequirementMatcherService', () => {
 
   it('缺页号/文件时 location 降级 null', async () => {
     const llm = { chatJson: jest.fn().mockResolvedValue({ responses: [
-      { requirementId: 'STABLE_T1', status: 'partial', excerpt: 'x', file: 'business', page: null, confidence: 0.5 },
+      { seq: 1, status: 'partial', excerpt: 'x', file: 'business', page: null, confidence: 0.5 },
     ] }) } as any;
     const out = await svcMatch(llm);
     expect(out[0].location).toBeNull(); // page 缺
+  });
+
+  it('LLM 回填未知 seq（越界）→ 该条丢弃不崩', async () => {
+    const llm = { chatJson: jest.fn().mockResolvedValue({ responses: [
+      { seq: 99, status: 'met', excerpt: 'x', file: 'technical', page: 1, confidence: 0.9 },
+    ] }) } as any;
+    const out = await svcMatch(llm);
+    expect(out).toHaveLength(0);
   });
 
   async function svcMatch(llm: any) {
@@ -491,42 +523,48 @@ export class RequirementMatcherService {
   constructor(private llmService: LlmService) {}
 
   async match(req: TenderRequirements, pages: PageInput[], fileIds: FileIdMap, taskId?: string): Promise<RequirementResponse[]> {
-    const flat = this.flattenRequirements(req);
+    const flat = this.flattenRequirements(req); // [{ seq, requirementId(stable), category, tenderContent, isStarred }]
     if (flat.length === 0 || pages.length === 0) return [];
 
+    // prompt 只给 seq+content+isStarred（不暴露 hash id；LLM 回填小整数 seq 比 hash 可靠）
     const prompt = REQUIREMENT_MATCHING_PROMPT
-      .replace('{{REQUIREMENTS}}', JSON.stringify(flat.map((f) => ({ id: f.requirementId, content: f.tenderContent, isStarred: f.isStarred }))))
+      .replace('{{REQUIREMENTS}}', JSON.stringify(flat.map((f) => ({ seq: f.seq, content: f.tenderContent, isStarred: f.isStarred }))))
       .replace('{{PAGES}}', JSON.stringify(pages));
 
-    const result = await this.llmService.chatJson<{ responses: Array<{ requirementId: string; status: any; excerpt: string; file: string | null; page: number | null; confidence: number }> }>(
+    const result = await this.llmService.chatJson<{ responses: Array<{ seq: number; status: any; excerpt: string; file: string | null; page: number | null; confidence: number }> }>(
       '你是招投标响应核查专家。',
       prompt, 0, undefined,
       taskId ? deterministicSeed(taskId + ':req-match') : undefined,
     );
 
-    const byId = new Map(flat.map((f) => [f.requirementId, f]));
-    return (result.responses ?? []).map((r) => {
-      const meta = byId.get(r.requirementId);
-      const fileId = r.file ? (r.file === 'technical' ? fileIds.technical : r.file === 'business' ? fileIds.business : null) : null;
-      const location = fileId && typeof r.page === 'number' ? { fileId, page: r.page } : null;
-      return {
-        requirementId: r.requirementId,
-        category: meta?.category ?? 'technical',
-        tenderContent: meta?.tenderContent ?? '',
-        isStarred: meta?.isStarred ?? false,
-        status: r.status,
-        excerpt: r.excerpt ?? '',
-        location,
-        confidence: r.confidence ?? 0,
-      };
-    });
+    const bySeq = new Map(flat.map((f) => [f.seq, f]));
+    return (result.responses ?? [])
+      .map((r) => {
+        const meta = bySeq.get(r.seq);
+        if (!meta) return null; // LLM 回填未知 seq → 丢弃
+        const fileId = r.file ? (r.file === 'technical' ? fileIds.technical : r.file === 'business' ? fileIds.business : null) : null;
+        const location = fileId && typeof r.page === 'number' ? { fileId, page: r.page } : null;
+        return {
+          requirementId: meta.requirementId,
+          category: meta.category,
+          tenderContent: meta.tenderContent,
+          isStarred: meta.isStarred,
+          status: r.status,
+          excerpt: r.excerpt ?? '',
+          location,
+          confidence: r.confidence ?? 0,
+        };
+      })
+      .filter((x): x is RequirementResponse => x !== null);
   }
 
-  private flattenRequirements(req: TenderRequirements): Array<{ requirementId: string; category: any; tenderContent: string; isStarred: boolean }> {
+  private flattenRequirements(req: TenderRequirements): Array<{ seq: number; requirementId: string; category: any; tenderContent: string; isStarred: boolean }> {
+    let seq = 0;
+    const take = () => ++seq;
     return [
-      ...(req.qualificationRequirements ?? []).map((r) => ({ requirementId: r.id, category: 'qualification' as const, tenderContent: r.content, isStarred: false })),
-      ...(req.technicalRequirements ?? []).map((r) => ({ requirementId: r.id, category: 'technical' as const, tenderContent: r.content, isStarred: !!r.isStarred })),
-      ...(req.commercialRequirements ?? []).map((r) => ({ requirementId: r.id, category: 'commercial' as const, tenderContent: r.content, isStarred: false })),
+      ...(req.qualificationRequirements ?? []).map((r) => ({ seq: take(), requirementId: r.id, category: 'qualification' as const, tenderContent: r.content, isStarred: false })),
+      ...(req.technicalRequirements ?? []).map((r) => ({ seq: take(), requirementId: r.id, category: 'technical' as const, tenderContent: r.content, isStarred: !!r.isStarred })),
+      ...(req.commercialRequirements ?? []).map((r) => ({ seq: take(), requirementId: r.id, category: 'commercial' as const, tenderContent: r.content, isStarred: false })),
     ];
   }
 }
@@ -535,7 +573,7 @@ export class RequirementMatcherService {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter api test -- requirement-matcher`
-Expected: PASS（3 passed）
+Expected: PASS（4 passed）
 
 - [ ] **Step 5: Commit**
 
@@ -918,6 +956,8 @@ git -C /home/asus/桌面/ERP commit -am "feat(expert): getMyScores 返回异议 
 
 > 时序说明：异议在专家评标时产生，晚于 AI docx 报告（Task 7 已注明）。故异议入**专家评审报告**（confirmReport 时确认），不入 AI docx。
 
+> 前置（#5）：先 Read `expert.service.ts` 的 `getReport` 全文，确认现有返回结构（EvaluationReport 如何组装、supplierScores 来源）与 `expert.service.spec.ts` 的 getReport mock 框架。下方测试为骨架，按实际结构与 mock 框架调整（字段名/prisma mock 路径），切勿照抄。
+
 - [ ] **Step 1: Write failing test**
 
 ```ts
@@ -994,6 +1034,8 @@ git -C /home/asus/桌面/ERP commit -am "feat(expert): 评审报告披露本人�
 - Produces: `RequirementResponse`、`BidRequirementReview`；`AssistData` 增 `requirements`/`requirementResponses`/`reviews`；`EvaluationReport` 增 `myDisputedReviews`
 
 - [ ] **Step 1: 编辑 types.ts**
+
+> #3：下方 `RequirementResponse` 为权威定义。Task 6 service 内联的同名 interface 是 Phase 3 早于 shared 的临时定义；本 task build 后，回头把 `requirement-matcher.service.ts` 的内联 `RequirementResponse` 删掉，改 `import type { RequirementResponse } from '@water-erp/shared'`。
 
 在 `AiScoreItem` 后增：
 ```ts
@@ -1135,7 +1177,7 @@ export function RequirementComparePanel({
                         <p className="text-xs text-[var(--color-text)] leading-relaxed">{item.content}</p>
                       </div>
                       {(item.acceptanceCriteria || item.threshold) && (
-                        <p className="text-[10px] text-[oklch(0.55_0.01_264)] mt-1 ml-4.5">验收/阈值：{item.acceptanceCriteria || item.threshold}</p>
+                        <p className="text-[10px] text-[oklch(0.55_0.01_264)] mt-1 ml-5">验收/阈值：{item.acceptanceCriteria || item.threshold}</p>
                       )}
                     </div>
                     {/* AI 响应 */}
@@ -1223,6 +1265,7 @@ git -C /home/asus/桌面/ERP commit -m "feat(expert-portal): 条款响应对比�
         <SectionHeader number={2} title="条款响应对比" subtitle="· 招标条款 ↔ 投标响应" />
         <div className="mt-3">
           <RequirementComparePanel
+            key={activeSupplier}   // #4: 切换供应商强制 remount，刷新标注 state
             projectId={projectId}
             supplierId={activeSupplier}
             requirements={assistData.requirements}
@@ -1270,7 +1313,7 @@ git -C /home/asus/桌面/ERP commit -am "feat(expert-portal): AssistPanel 插入
 
 - [ ] **Step 1: 改造打分页**
 
-1. 加载已打分时取 disputeCategories：找到现有调用 `getMyScores` 处（填充 `scores` state），改为：
+1. 加载已打分时取 disputeCategories（#6）：先 grep `evaluate/[id]/page.tsx` 定位现有 `getMyScores` 调用处（填充 `scores` state 的确切代码），据实改为：
 ```ts
 const { records, disputeCategories } = await api.get<{ records: any[]; disputeCategories: string[] }>(`/expert/projects/${projectId}/my-scores`);
 setDisputeCategories(new Set(disputeCategories));   // 新 state：const [disputeCategories, setDisputeCategories] = useState<Set<string>>(new Set());
@@ -1309,6 +1352,8 @@ if (unconfirmed.length > 0) {
   return;
 }
 ```
+
+> 切换供应商重置核对状态（#6）：`disputeCategories` 是项目级（本人所有 dispute，不随供应商变），但 `confirmedDispute` 是 UI 核对态，须随供应商切换重置——在供应商侧边栏 `onSelect`（`setActiveSupplier` 处，约 page.tsx:589）补 `setConfirmedDispute({})`。
 
 - [ ] **Step 2: 类型检查 + 手验**
 
