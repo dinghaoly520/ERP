@@ -51,6 +51,7 @@ describe('ExpertService', () => {
       bidSupplierCount: jest.fn(),
       bidSupervisionLog: { create: jest.fn(), findMany: jest.fn() },
       bidClarification: { create: jest.fn() },
+      aiBidderResult: { findFirst: jest.fn() },
       $transaction: jest.fn(async (fn: any) => fn(prisma)),
     };
 
@@ -156,6 +157,8 @@ describe('ExpertService', () => {
     it('应调用 AI 引擎进行分析', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
+      // 4.5: AiBidderResult 未就绪 → 降级走规则引擎（ai.analyzeBid）
+      prisma.aiBidderResult.findFirst.mockResolvedValue(null);
       ai.analyzeBid.mockResolvedValue({ supplierName: '川水建设', keyPoints: [] });
 
       const result = await service.getAssistData('user-1', 'proj-1', 'sup-1');
