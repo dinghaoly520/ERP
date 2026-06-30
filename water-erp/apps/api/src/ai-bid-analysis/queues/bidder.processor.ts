@@ -70,22 +70,31 @@ export class BidderProcessor extends WorkerHost {
       const bidSupplierId = bidderResult.bidSupplierId;
       const task = bidderResult.task;
 
+      // Task 4: 外层声明 fileId / bizOcr，Task 7 matcher 将消费它们做跳转定位
+      let bizOcr: any = null;
+      let techFileId: string | null = null;
+      let bizFileId: string | null = null;
+
       // 1. fetchBidderPlaintext（technical + business）→ OCR
       await this.updateBidderStatus(bidderResultId, AiBidderStatus.OCR_PROCESSING);
 
-      const techBuffer = await this.plaintextFetcher.fetchBidderPlaintext(
+      const tech = await this.plaintextFetcher.fetchBidderPlaintext(
         bidSupplierId,
         'technical',
       );
+      const techBuffer = tech?.buffer ?? Buffer.from('');
+      techFileId = tech?.fileId ?? null;
       const techOcr = await processFile(this.ocrService, techBuffer, 'technical.pdf');
 
       let businessText: string | null = null;
       try {
-        const bizBuffer = await this.plaintextFetcher.fetchBidderPlaintext(
+        const biz = await this.plaintextFetcher.fetchBidderPlaintext(
           bidSupplierId,
           'business',
         );
-        const bizOcr = await processFile(this.ocrService, bizBuffer, 'business.pdf');
+        const bizBuffer = biz?.buffer ?? Buffer.from('');
+        bizFileId = biz?.fileId ?? null;
+        bizOcr = await processFile(this.ocrService, bizBuffer, 'business.pdf');
         businessText = bizOcr.text;
       } catch (e) {
         this.logger.warn(

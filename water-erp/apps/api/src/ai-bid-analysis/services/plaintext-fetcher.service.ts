@@ -22,7 +22,7 @@ export class PlaintextFetcherService {
   async fetchBidderPlaintext(
     bidSupplierId: string,
     which: BidderFileType,
-  ): Promise<Buffer> {
+  ): Promise<{ buffer: Buffer; fileId: string } | null> {
     const bs = await this.prisma.bidSupplier.findUnique({
       where: { id: bidSupplierId },
       select: { supplierId: true, projectId: true },
@@ -81,7 +81,8 @@ export class PlaintextFetcherService {
       throw new Error(`${which} 文件完整性校验失败：SHA-256 不匹配`);
     }
 
-    return buffer;
+    // Task 4: 同时返回 fileId（FileAsset.id，== assetId）供 matcher 跳转定位
+    return { buffer, fileId: assetId };
   }
 
   /**
