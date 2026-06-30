@@ -22,6 +22,22 @@ export interface AiScoreItem {
   confidence?: number;
   pass?: boolean;
 }
+export interface RequirementResponse {
+  requirementId: string;
+  category: 'qualification' | 'technical' | 'commercial';
+  tenderContent: string;
+  isStarred: boolean;
+  status: 'met' | 'partial' | 'unmet' | 'not_found';
+  excerpt: string;
+  location: { fileId: string; page: number } | null;
+  confidence: number;
+}
+export interface BidRequirementReview {
+  requirementId: string;
+  category: string;
+  verdict: 'ack' | 'dispute' | 'doubt';
+  note?: string | null;
+}
 export type AnnouncementType = 'BID_NOTICE' | 'WIN_NOTICE' | 'POLICY' | 'PLATFORM';
 export type AnnouncementStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 export type DecryptStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'DANGER';
@@ -225,6 +241,9 @@ export interface AssistData {
   riskAnalysis: { level: string; category: string; content: string; confidence?: number }[];
   scoreSuggestion: { category: string; name: string; suggestedScore: number; minScore?: number; maxScore: number; reason: string; confidence?: number }[];
   keyPoints: string[];
+  requirements?: any;
+  requirementResponses?: RequirementResponse[];
+  reviews?: BidRequirementReview[];
 }
 
 export interface EvaluationReport {
@@ -243,6 +262,7 @@ export interface EvaluationReport {
   scoreItems: BidScoreItem[];
   canConfirm: boolean;
   overallComplete: boolean;
+  myDisputedReviews?: Array<{ supplierId: string; supplierName: string; requirementId: string; category: string; tenderContent: string; note: string }>;
 }
 
 /* ── 供应商端 ── */

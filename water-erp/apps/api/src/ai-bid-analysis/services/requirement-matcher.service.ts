@@ -3,17 +3,7 @@ import { LlmService } from '../../local-ai/llm.service';
 import { REQUIREMENT_MATCHING_PROMPT } from '../prompts/requirement-matching.prompt';
 import { deterministicSeed } from '../utils';
 import type { TenderRequirements } from '../types';
-
-export interface RequirementResponse {
-  requirementId: string;
-  category: 'qualification' | 'technical' | 'commercial';
-  tenderContent: string;
-  isStarred: boolean;
-  status: 'met' | 'partial' | 'unmet' | 'not_found';
-  excerpt: string;
-  location: { fileId: string; page: number } | null;
-  confidence: number;
-}
+import type { RequirementResponse } from '@water-erp/shared';
 
 interface PageInput { file: string; page: number; text: string }
 interface FileIdMap { technical: string | null; business: string | null }
