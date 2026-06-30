@@ -14,6 +14,7 @@ import { ComparativeScoringService } from '../services/comparative-scoring.servi
 import { CompetitiveAnalysisService } from '../services/competitive-analysis.service';
 import { ReportGeneratorService } from '../services/report-generator.service';
 import { DocxGeneratorService } from '../services/docx-generator.service';
+import { RequirementMatcherService } from '../services/requirement-matcher.service';
 
 describe('BidderProcessor — recalculatePrices priceConflict 保护', () => {
   let service: BidderProcessor;
@@ -36,6 +37,7 @@ describe('BidderProcessor — recalculatePrices priceConflict 保护', () => {
         { provide: CompetitiveAnalysisService, useValue: {} },
         { provide: ReportGeneratorService, useValue: {} },
         { provide: DocxGeneratorService, useValue: {} },
+        { provide: RequirementMatcherService, useValue: { match: jest.fn() } },
       ],
     }).compile();
     service = module.get(BidderProcessor);
@@ -80,5 +82,132 @@ describe('BidderProcessor — recalculatePrices priceConflict 保护', () => {
     const updateCall = mockPrisma.aiBidderResult.update.mock.calls[0][0];
     const priceItem = updateCall.data.scoreItems.find((i: any) => i.category === 'PRICE');
     expect(priceItem.score).toBe(30); // 偏离 0% → 满分（重算）
+  });
+});
+
+// Task 7：matcher 步产出 requirementResponses 并写入 bidderResult
+describe('BidderProcessor — matcher 集成 requirementResponses', () => {
+  let processor: BidderProcessor;
+  let prisma: any;
+  let requirementMatcher: any;
+  let plaintextFetcher: any;
+  let ocrService: any;
+  let bidderExtractor: any;
+  let systemDataAggregator: any;
+  let concordanceVerifier: any;
+  let genericItemScorer: any;
+  let competitiveAnalysis: any;
+
+  beforeEach(async () => {
+    prisma = {
+      aiBidderResult: {
+        findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]), // checkTaskCompletion 无 pending
+        update: jest.fn().mockResolvedValue({}),
+      },
+      aiConcordanceResult: { upsert: jest.fn().mockResolvedValue({}) },
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) },
+      aiBidAnalysisTask: { update: jest.fn().mockResolvedValue({}) },
+      aiBidReport: { upsert: jest.fn().mockResolvedValue({}) },
+      fileAsset: { create: jest.fn() },
+    };
+    plaintextFetcher = {
+      fetchBidderPlaintext: jest.fn().mockImplementation((_id, kind) =>
+        Promise.resolve({
+          buffer: Buffer.from(''),
+          fileId: kind === 'technical' ? 'fa-tech' : 'fa-biz',
+        }),
+      ),
+    };
+    ocrService = {
+      // file-processor util calls ocrService.ocrPdf(buffer, maxPages, dpi)
+      ocrPdf: jest.fn().mockResolvedValue({ text: 'OCR 内容', pages: [{ page: 1, text: 'OCR 内容' }] }),
+    };
+    bidderExtractor = {
+      extract: jest.fn().mockResolvedValue({ keyInfo: {}, extractedInfo: {} }),
+    };
+    systemDataAggregator = { aggregate: jest.fn().mockResolvedValue({}) };
+    concordanceVerifier = {
+      verify: jest.fn().mockReturnValue({
+        overallStatus: 'pass',
+        conflictCount: 0,
+        warningCount: 0,
+        checks: [],
+      }),
+    };
+    genericItemScorer = {
+      score: jest.fn().mockResolvedValue({
+        scoreItems: [],
+        categoryTotals: {},
+        starredResponse: {},
+        totalScore: 0,
+        overallComment: 'ok',
+      }),
+    };
+    competitiveAnalysis = {
+      analyze: jest.fn().mockResolvedValue({
+        strengths: [], weaknesses: [], keyObservations: [], overallComment: '',
+      }),
+    };
+    requirementMatcher = { match: jest.fn() };
+
+    const module = await Test.createTestingModule({
+      providers: [
+        BidderProcessor,
+        { provide: PrismaService, useValue: prisma },
+        { provide: OcrService, useValue: ocrService },
+        { provide: BidderExtractorService, useValue: bidderExtractor },
+        { provide: PlaintextFetcherService, useValue: plaintextFetcher },
+        { provide: SystemDataAggregatorService, useValue: systemDataAggregator },
+        { provide: ConcordanceVerifierService, useValue: concordanceVerifier },
+        { provide: GenericItemScorerService, useValue: genericItemScorer },
+        { provide: FraudDetectorService, useValue: {} },
+        { provide: ComparativeScoringService, useValue: {} },
+        { provide: CompetitiveAnalysisService, useValue: competitiveAnalysis },
+        { provide: ReportGeneratorService, useValue: {} },
+        { provide: DocxGeneratorService, useValue: {} },
+        { provide: RequirementMatcherService, useValue: requirementMatcher },
+      ],
+    }).compile();
+    processor = module.get(BidderProcessor);
+  });
+
+  it('matcher 步产出 requirementResponses 并写入 bidderResult', async () => {
+    prisma.aiBidderResult.findUnique.mockResolvedValueOnce({
+      id: 'br-1',
+      bidSupplierId: 'bs-1',
+      bidSupplier: { id: 'bs-1', supplierName: '测试供应商' },
+      task: { id: 't-1', projectId: 'p-1', requirements: { items: [] } },
+    });
+    requirementMatcher.match.mockResolvedValue([
+      {
+        requirementId: 'r1',
+        category: 'technical',
+        tenderContent: '工期',
+        isStarred: true,
+        status: 'met',
+        excerpt: '360天',
+        location: { fileId: 'fa-tech', page: 1 },
+        confidence: 0.9,
+      },
+    ]);
+
+    await processor.process({ data: { bidderResultId: 'br-1', taskId: 't-1' } } as any);
+
+    expect(prisma.aiBidderResult.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'br-1' },
+        data: expect.objectContaining({ requirementResponses: expect.any(Array) }),
+      }),
+    );
+    expect(prisma.aiBidderResult.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          requirementResponses: expect.arrayContaining([
+            expect.objectContaining({ requirementId: 'r1' }),
+          ]),
+        }),
+      }),
+    );
   });
 });
