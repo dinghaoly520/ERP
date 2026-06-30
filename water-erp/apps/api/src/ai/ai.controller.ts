@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Param, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { AiService } from './ai.service';
 
 @ApiTags('AI辅助评标')
@@ -9,6 +10,13 @@ import { AiService } from './ai.service';
 
 export class AiController {
   constructor(private aiService: AiService) {}
+
+  @Public()
+  @Get('bigscreen-insight')
+  @ApiOperation({ summary: '大屏AI分析面板（公开，6格+跑马灯）' })
+  async getBigscreenInsight() {
+    return this.aiService.getBigscreenInsight();
+  }
 
   @Get('projects/:projectId/analyze/:supplierId')
   @ApiOperation({ summary: 'AI全方位分析供应商投标' })
