@@ -880,6 +880,43 @@ export default function ExpertEvaluatePage() {
           {step === 'documents' && (
             <div className="p-6 pt-4">
 
+              {/* 招标文件（项目级，专家独立核对原文 ★号实质性条款）*/}
+              <div className="mb-5 border border-[#064ea2]/30 rounded-xl overflow-hidden bg-gradient-to-br from-blue-50/60 to-white">
+                <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[#064ea2]/15">
+                  <div className="w-7 h-7 rounded-lg bg-[#064ea2] flex items-center justify-center text-white shrink-0">
+                    <FileText size={15} strokeWidth={1.5} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]">招标文件</h3>
+                    <p className="text-[10px] text-[oklch(0.55_0.01_264)]">评标依据原文 · 请独立核对 ★号实质性条款</p>
+                  </div>
+                </div>
+                <div className="p-4">
+                  {project.tenderDocument ? (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-[#064ea2]/15 hover:shadow-sm transition-all">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0b63ce] flex items-center justify-center text-white text-[9px] font-bold uppercase shrink-0">
+                        PDF
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-xs text-[oklch(0.18_0.012_265)] truncate" title={project.tenderDocument.fileName}>{project.tenderDocument.fileName}</h4>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-[oklch(0.55_0.01_264)]">{formatBytes(project.tenderDocument.fileSize)}</span>
+                          <span className="text-[10px] text-[#064ea2] font-semibold">可预览</span>
+                        </div>
+                      </div>
+                      <a href={project.tenderDocument.downloadUrl} target="_blank" rel="noopener" className="flex items-center gap-1 px-3 py-1.5 bg-[#064ea2] text-white text-[11px] rounded-lg hover:bg-[#054280] transition shrink-0">
+                        <Download size={12} strokeWidth={1.5} /> 预览
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="text-center py-5 text-[oklch(0.55_0.01_264)]">
+                      <FileText size={26} strokeWidth={1} className="text-[#cbd5e1] mx-auto mb-2" />
+                      <p className="text-xs">本项目暂无招标文件</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {Object.keys(documents).length === 0 ? (
                 <div className="text-center py-12 text-[oklch(0.55_0.01_264)]">
                   <div className="mb-3"><FileText size={40} strokeWidth={1} className="text-[#cbd5e1]" /></div>

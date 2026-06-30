@@ -184,6 +184,8 @@ export interface ExpertProject {
 export interface ExpertProjectDetail extends BidProjectDetail {
   myExpertRecord: BidExpert & { id: string };
   myScores: { id: string; expertId: string; supplierId: string; scoreItemId: string; score: number; passed?: boolean | null; reason?: string; scoreItem: BidScoreItem }[];
+  /** 招标文件元信息（仅 OPENING/EVALUATING active 项目附带，否则 null）；供专家独立核对原文 */
+  tenderDocument?: { title: string; fileName: string; fileSize: number; downloadUrl: string } | null;
 }
 
 export interface DecryptedDocuments {
