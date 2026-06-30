@@ -118,18 +118,44 @@ function stableReqId(category: string, content: string): string {
 - **评审报告**：`report-generator` / `docx-generator` 把**本人**的异议（verdict=dispute）条款加入报告——扩展现有「★ 号条款响应核查」段落，增"专家异议"小节。报告仍可确认（不阻断）。
 - **打分页**：因条款与评分项非一一对应，联动粒度为 **category 级**——含异议的 category 评分区高亮，并要求专家勾选一个 category 级「已核对异议」确认后才能提交该供应商评分。**打分仍 100% 专家定，系统不改分、不阻断确认**。
 
-### 前端（expert-portal，assist step）
+### 前端（expert-portal）
 
-新组件 `<RequirementComparePanel>`（在现有 AssistPanel 内，assist step）：
+**落点**：AssistPanel（assist step 主体，现有 5 个编号分区）新增「条款响应对比」分区，**插在 ①评分分析 之后**（成为新 ②，后续 ③–⑥ 顺延）。分区编号为 SVG 实心圆（`SectionNumber n={}`），改 prop 重编号，纯文案成本。
 
-- **左列**：招标条款（★ 标记 + category + acceptanceCriteria/threshold）
-- **右列**：AI 响应（status 徽标 met/partial/unmet/not_found + excerpt 摘录 +「跳转投标原文」`<a href="/api/upload/files/{fileId}#page={page}" target="_blank">`）
-- **行内标注**：认可/异议/存疑 单选 + 备注 textarea，失焦 upsert
-- 空状态/加载态
+**组件结构**：
 
-打分页（scoring step）：异议关联评分项高亮 + 二次确认 checkbox。
+```
+<section>
+  <SectionHeader number={2} title="条款响应对比" subtitle="· 招标条款 ↔ 投标响应" />
+  <RequirementComparePanel
+    requirements={assistData.requirements}
+    responses={assistData.requirementResponses}
+    reviews={assistData.reviews}
+    supplierName={supplierName}
+    onReview={(payload) => upsertReview(payload)} />
+</section>
+```
 
-类型：`packages/shared` 的 `AssistData` 增 `requirements` / `requirementResponses` / `reviews`；新增 `BidRequirementReview` 类型。
+内部按 `category`（qualification/technical/commercial）分组，每组复用现有 `CollapsibleSection`；组内每条 requirement 一行**横向卡片**，三列：
+
+- **招标条款**：★ 标记 + content + acceptanceCriteria/threshold
+- **AI 响应**：status 徽标（met/partial/unmet/not_found，复用 `CONCORDANCE_STATUS_CONFIG` 配色）+ excerpt 摘录 +「跳转投标原文」`<a href="/api/upload/files/{fileId}#page={page}" target="_blank" rel="noopener">`（投标文件明文，PDF `#page=N` 浏览器 viewer 原生支持）
+- **标注**：verdict 单选（ack/dispute/doubt）+ 备注 textarea；异议(dispute)行整行 amber 高亮（仿 `SwCard` `border-l-amber-400`）；失焦/变更触发 `POST .../reviews` upsert
+
+**打分页联动（scoring step）**：打分页已按 `category` 分组（`grouped[category]` + `CATEGORY_COLOR` 左边框），联动天然契合：
+
+- `getMyScores` 增返「本人异议条款所在 category 集合」
+- 命中 category 分组：加 amber 角标「⚠ 有异议条款待核对」+ 组内一个「已核对异议」checkbox
+- `submitScores` 前校验：命中 category 未勾选则 `toast.warning` 拦截（复用现有 `missingReasons` 拦截模式）
+- **不改分值、不阻断报告确认**，仅在提交瞬间要求看一眼
+
+**降级态**（复用现有模式）：`requirements` 空 → 仿「AI 正在分析…」占位；`requirementResponses` 空但 `starredResponse` 有 → 降级显示 unmet 清单（只读）；完全无数据 → 现有空态卡片。
+
+**视觉一致性**：卡片行、可折叠、status 徽标、category 分组高亮均复用现有积木，不引入新视觉范式，符合 `.impeccable.md` 设计系统。
+
+**类型**：`packages/shared` 的 `AssistData` 增 `requirements` / `requirementResponses` / `reviews`；新增 `RequirementResponse`、`BidRequirementReview` 类型；改完须 `pnpm --filter @water-erp/shared build`。
+
+**前端验证**：expert-portal 无单测设施，靠 `tsc --noEmit` 类型检查 + 浏览器手验（对比视图渲染、标注 upsert、打分页高亮拦截、`#page` 跳转）。
 
 ### 合规边界（硬约束）
 
