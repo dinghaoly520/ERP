@@ -141,6 +141,9 @@ export default function ExpertEvaluatePage() {
 
   // P0-2: reason validation — set of scoreItemIds whose reason is missing on submit attempt.
   const [missingReasons, setMissingReasons] = useState<Set<string>>(new Set());
+  // Task 15: dispute-categories联动 — disputeCategories 是项目级（本人所有 dispute），confirmedDispute 是 per-supplier UI 核对态。
+  const [disputeCategories, setDisputeCategories] = useState<Set<string>>(new Set());
+  const [confirmedDispute, setConfirmedDispute] = useState<Record<string, boolean>>({});
   // P0-3: draft autosave to localStorage.
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
   const [draftDismissed, setDraftDismissed] = useState(false);
@@ -169,6 +172,10 @@ export default function ExpertEvaluatePage() {
         // P2: sync per-supplier conflicts from server
         const serverConflicts: string[] = p.myExpertRecord?.conflictedSupplierIds || [];
         if (serverConflicts.length > 0) setConflictedSupplierIds(new Set(serverConflicts));
+        // Task 15: fetch disputeCategories via the dedicated my-scores endpoint (project-level).
+        api.get<{ records: unknown[]; disputeCategories: string[] }>(`/expert/projects/${projectId}/my-scores`)
+          .then((d) => setDisputeCategories(new Set(d.disputeCategories || [])))
+          .catch(() => { /* my-scores optional — ignore */ });
       })
       .catch((e: any) => toast.error(e?.message || '加载项目失败'))
       .finally(() => setLoading(false));
@@ -395,6 +402,12 @@ export default function ExpertEvaluatePage() {
       return;
     }
     setMissingReasons(new Set()); // clear on valid submit
+    // Task 15: dispute-categories 软拦截 — 未核对本类异议条款则提示并 return（不改分、不阻断报告确认）。
+    const unconfirmed = [...disputeCategories].filter((c) => !confirmedDispute[c]);
+    if (unconfirmed.length > 0) {
+      toast.warning(`以下类别有异议条款未核对：${unconfirmed.map((c) => CATEGORY_LABEL[c] || c).join('、')}`);
+      return;
+    }
     const scoresPayload = project.scoreItems.map(si => {
       const entry = scores[scoreKey(activeSupplier, si.id)];
       if (isPassFailCategory(si.category)) {
@@ -586,7 +599,7 @@ export default function ExpertEvaluatePage() {
           <SupplierSidebar
             suppliers={project.suppliers}
             activeSupplier={activeSupplier}
-            onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); }}
+            onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); setConfirmedDispute({}); }}
             conflictedSupplierIds={conflictedSupplierIds}
             decryptLabel={decryptLabel}
             scoringProgress={
@@ -1041,14 +1054,16 @@ export default function ExpertEvaluatePage() {
                     {Object.entries(grouped).map(([category, items]) => {
                       const catTotal = items.reduce((s, i) => s + Number(i.maxScore), 0);
                       const catScored = items.reduce((s, i) => s + (scores[scoreKey(activeSupplier, i.id)]?.score ?? 0), 0);
+                      const disputed = disputeCategories.has(category);
                       return (
-                        <div key={category} className="bg-blue-50 rounded-xl border border-blue-100 overflow-hidden">
+                        <div key={category} className={`bg-blue-50 rounded-xl border overflow-hidden ${disputed ? 'border-amber-300 ring-1 ring-amber-200' : 'border-blue-100'}`}>
                           <div className="flex items-center justify-between p-4 border-b border-blue-100" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[category] || '#064ea2'}` }}>
                             <div className="flex items-center gap-3">
                               <span className="text-sm font-bold px-3 py-1 rounded-lg" style={{ color: CATEGORY_COLOR[category] || '#064ea2', backgroundColor: (CATEGORY_COLOR[category] || '#064ea2') + '18' }}>
                                 {CATEGORY_LABEL[category] || category}
                               </span>
                               <span className="text-sm text-[oklch(0.55_0.01_264)]">{items.length} 项</span>
+                              {disputed && <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⚠ 有异议条款待核对</span>}
                             </div>
                             <div className="flex items-center gap-3">
                               {isPassFailCategory(category) ? (
@@ -1134,6 +1149,17 @@ export default function ExpertEvaluatePage() {
                               );
                             })}
                           </div>
+                          {disputed && (
+                            <label className="flex items-center gap-2 px-4 py-2 bg-amber-50/60 border-t border-amber-200 text-xs text-amber-800 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="accent-amber-600"
+                                checked={!!confirmedDispute[category]}
+                                onChange={(e) => setConfirmedDispute({ ...confirmedDispute, [category]: e.target.checked })}
+                              />
+                              已核对本类异议条款
+                            </label>
+                          )}
                         </div>
                       );
                     })}
