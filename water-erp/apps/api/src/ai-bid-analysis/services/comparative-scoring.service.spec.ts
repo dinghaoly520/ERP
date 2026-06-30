@@ -103,4 +103,20 @@ describe('ComparativeScoringService — 横向校准（方案3增强：全维度
     expect(updateCall.data.categoryTotals.TECHNICAL.score).toBe(40);
     expect(updateCall.data.categoryTotals.UNKNOWN_DIM).toBeUndefined(); // 未知维度不写入
   });
+
+  it('PRICE 维度不被横向校准（客观分，保持公式/priceConflict 值）', async () => {
+    mockPrisma.aiBidderResult.findMany.mockResolvedValue([
+      { id: 'br-1', keyInfo: { quotePrice: 100 }, categoryTotals: { TECHNICAL: { score: 30, max: 50 }, PRICE: { score: 20, max: 30 } }, totalScore: 50, bidSupplier: { supplierName: 'A' } },
+      { id: 'br-2', keyInfo: { quotePrice: 110 }, categoryTotals: { TECHNICAL: { score: 25, max: 50 }, PRICE: { score: 18, max: 30 } }, totalScore: 43, bidSupplier: { supplierName: 'B' } },
+    ]);
+    mockLlm.chatJson.mockResolvedValue({
+      scores: [{ bidderName: 'A', scores: { TECHNICAL: 40, PRICE: 999 } }], // LLM 试图校准 PRICE
+    });
+
+    await service.score('task-1');
+
+    const updateCall = mockPrisma.aiBidderResult.update.mock.calls[0][0];
+    expect(updateCall.data.categoryTotals.TECHNICAL.score).toBe(40); // TECHNICAL 被校准
+    expect(updateCall.data.categoryTotals.PRICE.score).toBe(20); // PRICE 保持原值（不校准）
+  });
 });

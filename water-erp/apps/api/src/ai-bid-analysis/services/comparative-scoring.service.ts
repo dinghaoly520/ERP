@@ -95,6 +95,8 @@ export class ComparativeScoringService {
       const newTotals: CategoryTotals = { ...totals };
       if (adj.scores) {
         for (const [cat, rawScore] of Object.entries(adj.scores)) {
+          // PRICE 由公式/priceConflict 决定（客观分），不参与 LLM 横向校准
+          if (cat === 'PRICE') continue;
           if (totals[cat] && typeof rawScore === 'number') {
             newTotals[cat] = {
               score: this.clamp(rawScore, 0, totals[cat].max),
