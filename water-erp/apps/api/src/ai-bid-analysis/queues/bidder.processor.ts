@@ -473,6 +473,8 @@ export class BidderProcessor extends WorkerHost {
       let updated = false;
       const newItems = scoreItems.map((item: any) => {
         if (item.category !== 'PRICE') return item;
+        // priceConflict 已置 0（bidder.processor 方案7.3，reason 含"报价一致性冲突"）：保持 0 分，不重算
+        if (typeof item.reason === 'string' && item.reason.includes('报价一致性冲突')) return item;
         const maxScore = Number(item.maxScore ?? 30);
         const deviation = (price - benchmark) / benchmark;
         const ratio = Math.max(0, 1 - Math.abs(deviation) * 2);
