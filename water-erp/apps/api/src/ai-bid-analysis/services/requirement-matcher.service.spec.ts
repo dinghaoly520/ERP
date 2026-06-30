@@ -57,6 +57,25 @@ describe('RequirementMatcherService', () => {
     expect(out).toHaveLength(0);
   });
 
+  it('LLM 返回 seq 为字符串时被强制为数字（不丢弃）', async () => {
+    const llm = { chatJson: jest.fn().mockResolvedValue({ responses: [
+      { seq: '1', status: 'met', excerpt: '承诺工期 360 日历天', file: 'technical', page: 1, confidence: 0.9 },
+    ] }) } as any;
+    const out = await svcMatch(llm);
+    expect(out).toHaveLength(1);                              // 被强制，不是丢弃
+    expect(out[0].requirementId).toBe('STABLE_T1');          // 正确映射回 stableId
+  });
+
+  it('LLM 返回重复 seq → 按 requirementId 去重（保留首条）', async () => {
+    const llm = { chatJson: jest.fn().mockResolvedValue({ responses: [
+      { seq: 1, status: 'met', excerpt: 'first', file: 'technical', page: 1, confidence: 0.9 },
+      { seq: 1, status: 'partial', excerpt: 'dup', file: 'technical', page: 2, confidence: 0.5 },
+    ] }) } as any;
+    const out = await svcMatch(llm);
+    expect(out).toHaveLength(1);                              // 去重：只一条
+    expect(out[0].excerpt).toBe('first');                    // 保留首条
+  });
+
   async function svcMatch(llm: any) {
     return new RequirementMatcherService(llm).match(req, pages, { technical: 'fa-tech', business: 'fa-biz' }, 'task-1');
   }

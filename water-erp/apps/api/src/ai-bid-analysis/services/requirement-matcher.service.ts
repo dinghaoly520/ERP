@@ -29,9 +29,16 @@ export class RequirementMatcherService {
     );
 
     const bySeq = new Map(flat.map((f) => [f.seq, f]));
+    const seenIds = new Set<string>(); // Fix 5: requirementId 去重
     return (result.responses ?? [])
-      .map((r) => {
-        const meta = bySeq.get(r.seq);
+      .map((r): RequirementResponse | null => {
+        // Fix 4: 强制 seq 为整数；LLM 偶发返回字符串 seq（如 "3"），Map key 是 number 会导致静默丢失
+        const seqNum = Number(r.seq);
+        if (!Number.isInteger(seqNum)) {
+          this.logger.warn(`matcher: dropped response, non-integer seq=${JSON.stringify(r.seq)}`);
+          return null;
+        }
+        const meta = bySeq.get(seqNum);
         if (!meta) return null; // LLM 回填未知 seq → 丢弃
         const fileId = r.file ? (r.file === 'technical' ? fileIds.technical : r.file === 'business' ? fileIds.business : null) : null;
         const location = fileId && typeof r.page === 'number' ? { fileId, page: r.page } : null;
@@ -46,7 +53,12 @@ export class RequirementMatcherService {
           confidence: r.confidence ?? 0,
         };
       })
-      .filter((x): x is RequirementResponse => x !== null);
+      // Fix 5: 按 requirementId 去重（LLM 返回两条同 seq 会产生重复 requirementId 行）
+      .filter((x): x is RequirementResponse => {
+        if (!x || seenIds.has(x.requirementId)) return false;
+        seenIds.add(x.requirementId);
+        return true;
+      });
   }
 
   private flattenRequirements(req: TenderRequirements): Array<{ seq: number; requirementId: string; category: any; tenderContent: string; isStarred: boolean }> {
