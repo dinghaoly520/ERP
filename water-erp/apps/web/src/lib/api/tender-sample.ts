@@ -1,0 +1,110 @@
+import type { TenderFieldKey } from '@/lib/types/tender-write';
+
+const API_BASE = '/api';
+
+export type TenderFieldSample = {
+  id: string;
+  fieldKey: string;
+  content: string;
+  isFavorite: boolean;
+  sourceType: 'manual' | 'ai_generated';
+  context: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function fetchFieldSamples(
+  fieldKey: string,
+  isFavorite?: boolean,
+): Promise<TenderFieldSample[]> {
+  const params = new URLSearchParams({ fieldKey });
+  if (isFavorite !== undefined) {
+    params.append('isFavorite', String(isFavorite));
+  }
+
+  const response = await fetch(`${API_BASE}/tender-sample?${params}`, { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error('Failed to fetch field samples');
+  }
+  return response.json();
+}
+
+export async function createFieldSample(payload: {
+  fieldKey: TenderFieldKey;
+  content: string;
+  isFavorite?: boolean;
+  sourceType?: 'manual' | 'ai_generated';
+  context?: Record<string, unknown>;
+}): Promise<TenderFieldSample> {
+  const response = await fetch(`${API_BASE}/tender-sample`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to create field sample');
+  }
+  return response.json();
+}
+
+export async function updateFieldSample(
+  id: string,
+  payload: { content?: string; isFavorite?: boolean },
+): Promise<TenderFieldSample> {
+  const response = await fetch(`${API_BASE}/tender-sample/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to update field sample');
+  }
+  return response.json();
+}
+
+export async function toggleFieldSampleFavorite(
+  id: string,
+): Promise<TenderFieldSample> {
+  const response = await fetch(
+    `${API_BASE}/tender-sample/${id}/toggle-favorite`,
+    {
+      method: 'PATCH',
+      credentials: 'include',
+    },
+  );
+  if (!response.ok) {
+    throw new Error('Failed to toggle favorite');
+  }
+  return response.json();
+}
+
+export async function deleteFieldSample(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/tender-sample/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to delete field sample');
+  }
+}
+
+export async function generateFieldContent(payload: {
+  fieldKey: string;
+  fieldLabel: string;
+  currentValue: string;
+  aiPrompt?: string;
+  context: Record<string, string>;
+}): Promise<{ content: string }> {
+  const response = await fetch(`${API_BASE}/ai/tender-field-generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to generate field content');
+  }
+  return response.json();
+}

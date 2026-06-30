@@ -32,6 +32,7 @@
     "@nestjs/swagger": "^11.2.6",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.1.26",
+    "@paralleldrive/cuid2": "^3.3.0",
     "@prisma/client": "^6.6.0",
     "@water-erp/config": "workspace:*",
     "@water-erp/shared": "workspace:*",
@@ -53,7 +54,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sm-crypto": "^0.4.0",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",

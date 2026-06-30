@@ -6,7 +6,6 @@
     "amount": "420万元",
     "period": "180天",
     "qualityTarget": "合格",
-    "bondStatus": "已缴纳",
     "decryptResult": "解密成功",
     "confirmStatus": "供应商已确认",
     "bidSupplierId": "cmqgedbpu000vvkr4dicd8rtv",
@@ -15,7 +14,8 @@
     "handledAt": null,
     "handledBy": null,
     "handleResult": null,
-    "createdAt": "2026-06-16T08:47:32.792Z"
+    "createdAt": "2026-06-16T08:47:32.792Z",
+    "bondStatus": "已缴纳"
   },
   {
     "id": "cmqgefm4z001qvkr47nzablle",
@@ -24,7 +24,6 @@
     "amount": "398万元",
     "period": "150天",
     "qualityTarget": "合格",
-    "bondStatus": "已缴纳",
     "decryptResult": "解密成功",
     "confirmStatus": "供应商已确认",
     "bidSupplierId": "cmqgedbr3000zvkr46arzzmi9",
@@ -33,7 +32,8 @@
     "handledAt": null,
     "handledBy": null,
     "handleResult": null,
-    "createdAt": "2026-06-16T08:47:32.820Z"
+    "createdAt": "2026-06-16T08:47:32.820Z",
+    "bondStatus": "已缴纳"
   },
   {
     "id": "cmqseed-open-or01",
@@ -42,7 +42,6 @@
     "amount": "780万元",
     "period": "360天",
     "qualityTarget": "合格",
-    "bondStatus": "已缴纳",
     "decryptResult": "解密成功",
     "confirmStatus": "供应商已确认",
     "bidSupplierId": "cmqseed-open-bs01",
@@ -51,7 +50,8 @@
     "handledAt": null,
     "handledBy": null,
     "handleResult": null,
-    "createdAt": "2026-06-17T02:40:00.000Z"
+    "createdAt": "2026-06-17T02:40:00.000Z",
+    "bondStatus": "已缴纳"
   },
   {
     "id": "cmqseed-open-or02",
@@ -60,7 +60,6 @@
     "amount": "820万元",
     "period": "330天",
     "qualityTarget": "优良",
-    "bondStatus": "待确认",
     "decryptResult": "解密失败",
     "confirmStatus": "待供应商确认",
     "bidSupplierId": "cmqseed-open-bs02",
@@ -69,7 +68,8 @@
     "handledAt": null,
     "handledBy": null,
     "handleResult": null,
-    "createdAt": "2026-06-17T02:40:00.000Z"
+    "createdAt": "2026-06-17T02:40:00.000Z",
+    "bondStatus": "已缴纳"
   },
   {
     "id": "cmqhero-or01",
@@ -78,7 +78,6 @@
     "amount": "1080万元",
     "period": "365天",
     "qualityTarget": "合格",
-    "bondStatus": "已缴纳",
     "decryptResult": "解密成功",
     "confirmStatus": "供应商已确认",
     "bidSupplierId": "cmqhero-bs01",
@@ -87,7 +86,8 @@
     "handledAt": null,
     "handledBy": null,
     "handleResult": null,
-    "createdAt": "2026-07-01T03:00:00.000Z"
+    "createdAt": "2026-07-01T03:00:00.000Z",
+    "bondStatus": "已缴纳"
   },
   {
     "id": "cmqhero-or02",
@@ -96,7 +96,6 @@
     "amount": "1150万元",
     "period": "330天",
     "qualityTarget": "优良",
-    "bondStatus": "已缴纳",
     "decryptResult": "解密成功",
     "confirmStatus": "供应商已确认",
     "bidSupplierId": "cmqhero-bs02",
@@ -105,7 +104,8 @@
     "handledAt": null,
     "handledBy": null,
     "handleResult": null,
-    "createdAt": "2026-07-01T03:05:00.000Z"
+    "createdAt": "2026-07-01T03:05:00.000Z",
+    "bondStatus": "已缴纳"
   },
   {
     "id": "cmqhero-or03",
@@ -114,7 +114,6 @@
     "amount": "1198万元",
     "period": "300天",
     "qualityTarget": "合格",
-    "bondStatus": "待确认",
     "decryptResult": "解密失败",
     "confirmStatus": "待供应商确认",
     "bidSupplierId": "cmqhero-bs03",
@@ -123,7 +122,8 @@
     "handledAt": null,
     "handledBy": null,
     "handleResult": null,
-    "createdAt": "2026-07-01T03:10:00.000Z"
+    "createdAt": "2026-07-01T03:10:00.000Z",
+    "bondStatus": "已缴纳"
   },
   {
     "id": "cmqf0618-open-or01",
@@ -132,7 +132,6 @@
     "amount": "628万元",
     "period": "180天",
     "qualityTarget": "优良",
-    "bondStatus": "合格",
     "decryptResult": "解密成功",
     "confirmStatus": "供应商已确认",
     "bidSupplierId": "cmqhf0kkd0007vk18ikuf9mwu",
@@ -141,7 +140,8 @@
     "handledAt": null,
     "handledBy": null,
     "handleResult": null,
-    "createdAt": "2026-06-18T09:05:00.000Z"
+    "createdAt": "2026-06-18T09:05:00.000Z",
+    "bondStatus": "已缴纳"
   },
   {
     "id": "cmqf0618-open-or02",
@@ -150,7 +150,6 @@
     "amount": "650万元",
     "period": "200天",
     "qualityTarget": "合格",
-    "bondStatus": "合格",
     "decryptResult": "解密成功",
     "confirmStatus": "供应商已确认",
     "bidSupplierId": "cmqhf0kkh0009vk18sblw0e1k",
@@ -159,6 +158,7 @@
     "handledAt": null,
     "handledBy": null,
     "handleResult": null,
-    "createdAt": "2026-06-18T09:10:00.000Z"
+    "createdAt": "2026-06-18T09:10:00.000Z",
+    "bondStatus": "已缴纳"
   }
 ]

@@ -1,0 +1,5055 @@
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { mkdir, readFile, unlink, writeFile, copyFile, access, stat } from 'node:fs/promises';
+import { basename, extname, join, resolve } from 'node:path';
+import { createReadStream } from 'node:fs';
+import { Response } from 'express';
+import { ResultStatus, SourceType } from '@prisma/client';
+import { AiService } from '../ai/ai.service';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import { DocumentParserService } from '../knowledge/services/document-parser.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { CompleteProjectDto } from './dto/complete-project.dto';
+import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
+import { QueryProjectManagementDto } from './dto/query-project-management.dto';
+import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
+import { LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './project-management.types';
+
+type ProjectManagementStatusValue = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED';
+type ProjectStageStatusValue = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+
+type StoredAttachment = {
+  fileName: string;
+  objectKey: string;
+  mimeType: string;
+  fileSize: number;
+  uploadedById?: string;
+};
+
+const PROJECT_MANAGEMENT_STATUS: Record<
+  ProjectManagementStatusValue,
+  ProjectManagementStatusValue
+> = {
+  ACTIVE: 'ACTIVE',
+  ARCHIVED: 'ARCHIVED',
+  RECYCLED: 'RECYCLED',
+};
+
+const PROJECT_STAGE_STATUS: Record<
+  ProjectStageStatusValue,
+  ProjectStageStatusValue
+> = {
+  NOT_STARTED: 'NOT_STARTED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+};
+
+const KNOWN_CATEGORIES = [
+  '生产技术类采购',
+  'EPC项目采购',
+  'EPC管理采购',
+  '公用集中采购',
+  '科技研发类采购',
+  '信息化采购',
+  '其他',
+];
+
+const KNOWN_METHODS = [
+  '公开招标',
+  '邀请招标',
+  '内部竞标/竞价',
+  '竞争性谈判',
+  '询价采购',
+  '单一来源采购',
+  '直接委托续约采购',
+  '框架协议采购',
+  '直接签订合同',
+];
+
+const KNOWN_ORGANIZATION_FORMS = ['自行招标', '委托招标'];
+
+// 本单位名称，不应被拾取为中标单位
+const SELF_COMPANY_NAMES = [
+  '四川水发勘测设计研究有限公司',
+  '四川省水利水电勘测设计研究院',
+  '四川水发勘测设计研究院',
+  '水发勘测设计研究有限公司',
+  '四川省水利科学研究院',
+];
+
+function isSelfCompany(name: string): boolean {
+  const normalized = name.replace(/[\s（）()\-—]/g, '');
+  return SELF_COMPANY_NAMES.some(
+    (self) => normalized === self || normalized.includes(self) || self.includes(normalized),
+  );
+}
+
+@Injectable()
+export class ProjectManagementService {
+  private readonly logger = new Logger(ProjectManagementService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly aiService: AiService,
+    private readonly documentParser: DocumentParserService,
+  ) {}
+
+  async list(query: QueryProjectManagementDto, user?: AuthenticatedUser) {
+    const where: Record<string, unknown> = {};
+
+    // 所有用户均可见全部项目
+
+    if (query.keyword) {
+      where.OR = [
+        { title: { contains: query.keyword, mode: 'insensitive' } },
+        { requesterName: { contains: query.keyword, mode: 'insensitive' } },
+        {
+          requesterDepartment: {
+            contains: query.keyword,
+            mode: 'insensitive',
+          },
+        },
+      ];
+    }
+
+    if (query.requesterDepartment) {
+      where.requesterDepartment = query.requesterDepartment;
+    }
+
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    if (query.currentStage) {
+      where.currentStage = query.currentStage;
+    }
+
+    const items = await this.prisma.projectManagementItem.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        stages: {
+          orderBy: { stageOrder: 'asc' },
+          include: { attachments: true },
+        },
+        createdBy: true,
+      },
+    });
+
+    return items.map((item) => ({
+      ...item,
+      budgetAmount: Number(item.budgetAmount),
+      createdByName: item.createdBy?.displayName || item.createdBy?.username || null,
+    }));
+  }
+
+  async createFromInitiation(dto: CreateProjectFromInitiationDto) {
+    await this.prisma.department.upsert({
+      where: { name: dto.requesterDepartment },
+      update: {},
+      create: { name: dto.requesterDepartment },
+    });
+
+    // Determine stages based on procurement method, then adjust for uploaded documents
+    const isSmallPurchase = dto.procurementMethod === '小额采购';
+    const hasDemand = !!(dto.hasProcurementDemand && dto.demandAttachment);
+    const hasInitiation = !!dto.initiationAttachment;
+
+    type StageKey = typeof PROJECT_WORKFLOW_STAGES[number]['key'];
+
+    // For small purchases, the first stage depends on which document was uploaded:
+    // - Only demand → 采购需求
+    // - Only initiation → 项目立项
+    // - Both → 采购需求 + 项目立项
+    const SMALL_PURCHASE_DEMAND_STAGE = { key: 'PROCUREMENT_DEMAND' as StageKey, label: '采购需求' };
+    const SMALL_PURCHASE_INITIATION_STAGE = { key: 'INITIATION' as StageKey, label: '项目立项' };
+    const CONTRACT_STAGE = { key: 'CONTRACT' as StageKey, label: '合同' };
+
+    // Build stages list
+    let stagesToCreate: Array<{ readonly key: StageKey; readonly label: string }>;
+    if (isSmallPurchase) {
+      const firstStages: Array<{ readonly key: StageKey; readonly label: string }> = [];
+      if (hasDemand) firstStages.push(SMALL_PURCHASE_DEMAND_STAGE);
+      if (hasInitiation) firstStages.push(SMALL_PURCHASE_INITIATION_STAGE);
+      if (firstStages.length === 0) firstStages.push(SMALL_PURCHASE_DEMAND_STAGE);
+      stagesToCreate = [...firstStages, CONTRACT_STAGE];
+    } else {
+      stagesToCreate = [...PROJECT_WORKFLOW_STAGES];
+      // Only initiation form → remove PROCUREMENT_DEMAND from stages
+      if (!hasDemand && hasInitiation) {
+        stagesToCreate = stagesToCreate.filter((s) => s.key !== 'PROCUREMENT_DEMAND');
+      }
+      // Only keep PUBLIC_ANNOUNCEMENT for methods that require it
+      const needsPublicAnnouncement = ['内部竞标竞价', '单源直接采购', '邀请招标'].includes(
+        dto.procurementMethod,
+      );
+      if (!needsPublicAnnouncement) {
+        stagesToCreate = stagesToCreate.filter((s) => s.key !== 'PUBLIC_ANNOUNCEMENT');
+      }
+    }
+
+    // Determine the first active stage based on which documents were uploaded
+    let firstActiveStage: StageKey;
+    if (hasDemand && !hasInitiation) {
+      // Only demand form → land on INITIATION (or CONTRACT for small purchases)
+      firstActiveStage = isSmallPurchase ? 'CONTRACT' : 'INITIATION';
+    } else {
+      // Only initiation form or both forms → land on TENDER_DOCUMENT (or CONTRACT for small purchases)
+      firstActiveStage = isSmallPurchase ? 'CONTRACT' : 'TENDER_DOCUMENT';
+    }
+
+    const createdProject = await this.prisma.$transaction(async (tx) => {
+      const project = await tx.projectManagementItem.create({
+        data: {
+          title: dto.procurementTitle,
+          requesterName: dto.requesterName,
+          requesterDepartment: dto.requesterDepartment,
+          procurementMethod: dto.procurementMethod,
+          procurementCategory: dto.procurementCategory,
+          procurementOrganizationForm: dto.procurementOrganizationForm,
+          budgetAmount: dto.budgetAmount,
+          isAnnualBudget: dto.isAnnualBudget,
+          projectReason: dto.projectReason,
+          supplierRequirements: dto.supplierRequirements,
+          initiationDate: dto.initiationDate ? new Date(dto.initiationDate) : null,
+          currentStage: firstActiveStage,
+          status: PROJECT_MANAGEMENT_STATUS.ACTIVE,
+          createdById: dto.createdById,
+          hasProcurementDemand: dto.hasProcurementDemand,
+          demandRequesterName: dto.demandFields?.requesterName ?? null,
+          demandDepartment: dto.demandFields?.requesterDepartment ?? null,
+          demandProcurementTitle: dto.demandFields?.procurementTitle ?? null,
+          demandProjectReason: dto.demandFields?.projectReason ?? null,
+          demandSupplierReqs: dto.demandFields?.supplierRequirements ?? null,
+          demandBudgetAmount: dto.demandFields?.budgetAmount ?? null,
+          demandProcurementCategory: dto.demandFields?.procurementCategory ?? null,
+          demandProcurementMethod: dto.demandFields?.procurementMethod ?? null,
+          demandProject: dto.demandFields?.demandProject ?? null,
+          demandContractNumber: dto.demandFields?.demandContractNumber ?? null,
+        },
+      });
+
+      // Create stages with status determined by uploaded documents
+      await tx.projectManagementStage.createMany({
+        data: stagesToCreate.map((stage, index) => {
+          let status: ProjectStageStatusValue = PROJECT_STAGE_STATUS.NOT_STARTED;
+
+          if (hasDemand && !hasInitiation) {
+            // Only demand form
+            if (stage.key === 'PROCUREMENT_DEMAND') {
+              status = PROJECT_STAGE_STATUS.COMPLETED;
+            } else if (stage.key === 'INITIATION' && !isSmallPurchase) {
+              status = PROJECT_STAGE_STATUS.IN_PROGRESS;
+            }
+          } else if (!hasDemand && hasInitiation) {
+            // Only initiation form
+            if (stage.key === 'INITIATION') {
+              status = PROJECT_STAGE_STATUS.COMPLETED;
+            }
+          } else if (hasDemand && hasInitiation) {
+            // Both forms
+            if (stage.key === 'PROCUREMENT_DEMAND' || stage.key === 'INITIATION') {
+              status = PROJECT_STAGE_STATUS.COMPLETED;
+            }
+          }
+
+          // Mark the first active stage as IN_PROGRESS
+          if (stage.key === firstActiveStage && status === PROJECT_STAGE_STATUS.NOT_STARTED) {
+            status = PROJECT_STAGE_STATUS.IN_PROGRESS;
+          }
+
+          if (LOCKED_STAGES.has(stage.key)) {
+            status = PROJECT_STAGE_STATUS.COMPLETED;
+          }
+
+          return {
+            projectManagementItemId: project.id,
+            stageKey: stage.key,
+            stageName: stage.label,
+            stageOrder: index + 1,
+            status,
+          };
+        }),
+      });
+
+      // Set completion time for PROCUREMENT_DEMAND if completed (demand form uploaded)
+      if (hasDemand) {
+        const demandStage = await tx.projectManagementStage.findFirst({
+          where: { projectManagementItemId: project.id, stageKey: 'PROCUREMENT_DEMAND' },
+        });
+        if (demandStage) {
+          await tx.projectManagementStage.update({
+            where: { id: demandStage.id },
+            data: { completedAt: new Date() },
+          });
+
+          // Save demand attachment
+          await tx.attachment.create({
+            data: {
+              projectManagementItemId: project.id,
+              projectManagementStageId: demandStage.id,
+              attachmentType: 'SUPPORTING_MATERIAL',
+              fileName: dto.demandAttachment!.fileName,
+              objectKey: dto.demandAttachment!.objectKey,
+              mimeType: dto.demandAttachment!.mimeType,
+              fileSize: dto.demandAttachment!.fileSize,
+              uploadedById: dto.demandAttachment!.uploadedById,
+            },
+          });
+        }
+      }
+
+      // Set completion time for INITIATION if completed (initiation form uploaded)
+      if (hasInitiation) {
+        const initiationStage = await tx.projectManagementStage.findFirst({
+          where: { projectManagementItemId: project.id, stageKey: 'INITIATION' },
+        });
+        if (initiationStage) {
+          await tx.projectManagementStage.update({
+            where: { id: initiationStage.id },
+            data: { completedAt: new Date() },
+          });
+
+          // Save initiation attachment
+          await tx.attachment.create({
+            data: {
+              projectManagementItemId: project.id,
+              projectManagementStageId: initiationStage.id,
+              attachmentType: 'SUPPORTING_MATERIAL',
+              fileName: dto.initiationAttachment!.fileName,
+              objectKey: dto.initiationAttachment!.objectKey,
+              mimeType: dto.initiationAttachment!.mimeType,
+              fileSize: dto.initiationAttachment!.fileSize,
+              uploadedById: dto.initiationAttachment!.uploadedById,
+            },
+          });
+        }
+      }
+
+      return project;
+    });
+
+    // Trigger analysis for the initiation stage (non-blocking)
+    try {
+      await this.refreshProjectAnalysis(createdProject.id);
+    } catch {
+      this.logger.warn(
+        `Project ${createdProject.id} created but analysis failed; it will be retried later.`,
+      );
+    }
+
+    return createdProject;
+  }
+
+  async extractInitiationFromUploadedFile(
+    file: Express.Multer.File,
+    uploadedById?: string,
+  ) {
+    if (!file.mimetype.includes('pdf')) {
+      throw new BadRequestException('请上传 PDF 文件。');
+    }
+
+    const { absolutePath, attachment } = await this.persistUploadedFile(
+      file,
+      'initiation',
+      uploadedById,
+    );
+
+    const extractedText = await this.extractFileText(
+      absolutePath,
+      file.mimetype,
+      file.originalname,
+    );
+
+    return {
+      fields: await this.extractInitiationFieldsFromText(extractedText),
+      attachment,
+      extractedText,
+    };
+  }
+
+  async extractInitiationFieldsFromPdf(filePath: string) {
+    const text = await this.extractFileText(filePath, 'application/pdf', 'initiation.pdf');
+    return this.extractInitiationFieldsFromText(text);
+  }
+
+  async addStageAttachment(
+    projectId: string,
+    stageKey: string,
+    file: Express.Multer.File,
+    uploadedById?: string,
+  ) {
+    const stage = await this.prisma.projectManagementStage.findFirst({
+      where: { projectManagementItemId: projectId, stageKey },
+      include: { attachments: true },
+    });
+
+    if (!stage) {
+      throw new NotFoundException('未找到对应的项目阶段。');
+    }
+
+    // Check if a file with the same name already exists in this stage
+    const decodedNewFileName = this.normalizeUploadedFileName(file.originalname);
+    const duplicate = stage.attachments.find(
+      (a) => a.fileName === decodedNewFileName,
+    );
+    if (duplicate) {
+      throw new BadRequestException(`该步骤已存在同名文件：${decodedNewFileName}`);
+    }
+
+    const { attachment, absolutePath } = await this.persistUploadedFile(
+      file,
+      `${projectId}-${stageKey.toLowerCase()}`,
+      uploadedById,
+    );
+
+    // Decode filename (Multer sends latin1-encoded UTF-8)
+    const decodedFileName = this.normalizeUploadedFileName(file.originalname).toLowerCase();
+
+    // For AWARD_DECISION and BID_EVALUATION stages, extract info from the document
+    if (stageKey === 'AWARD_DECISION' || stageKey === 'BID_EVALUATION') {
+      try {
+        const text = await this.extractFileText(absolutePath, file.mimetype, file.originalname);
+        const fileName = decodedFileName;
+
+        // Extract bidding units from 定标审批表 or 评标/开标相关文件
+        if (stageKey === 'AWARD_DECISION' || fileName.includes('评标') || fileName.includes('开标')) {
+          const biddingUnits = this.extractBiddingUnitsFromText(text);
+          this.logger.log(`[Extraction] biddingUnits: ${biddingUnits || '(empty)'}`);
+          if (biddingUnits) {
+            await this.prisma.projectManagementItem.update({
+              where: { id: projectId },
+              data: { biddingUnits },
+            });
+          }
+        }
+
+        // Extract awarded supplier from 定标审批表 (AWARD_DECISION only)
+        if (stageKey === 'AWARD_DECISION' && (fileName.includes('定标') || fileName.includes('审批表'))) {
+          const awardedSupplier = this.extractAwardedSupplierFromAwardTable(text);
+          if (awardedSupplier) {
+            await this.prisma.projectManagementItem.update({
+              where: { id: projectId },
+              data: { awardedSupplier },
+            });
+          }
+        }
+
+        // Extract awarded supplier from 中标通知书 (takes precedence)
+        if (fileName.includes('中标') || fileName.includes('通知书')) {
+          const awardedSupplier = this.extractAwardedSupplierFromText(text);
+          if (awardedSupplier) {
+            await this.prisma.projectManagementItem.update({
+              where: { id: projectId },
+              data: { awardedSupplier },
+            });
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to extract info from award decision document: ${err}`);
+        // Don't throw - attachment upload should succeed even if extraction fails
+      }
+    }
+
+    // For EXPERT_SELECTION stage, extract expert info from 抽取结果单
+    if (stageKey === 'EXPERT_SELECTION') {
+      try {
+        const text = await this.extractFileText(absolutePath, file.mimetype, file.originalname);
+        const fileName = decodedFileName;
+
+        // Extract expert info from 抽取结果单
+        if (fileName.includes('抽取结果单') || fileName.includes('抽取结果')) {
+          const expertInfo = this.extractExpertInfoFromText(text);
+          this.logger.log(`[Extraction] expertInfo: ${expertInfo || '(empty)'}`);
+          if (expertInfo) {
+            await this.prisma.projectManagementItem.update({
+              where: { id: projectId },
+              data: { expertInfo },
+            });
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to extract expert info from document: ${err}`);
+      }
+    }
+
+    // For CONTRACT stage, extract contract amount and awarded supplier from the document
+    if (stageKey === 'CONTRACT') {
+      try {
+        const text = await this.extractFileText(absolutePath, file.mimetype, file.originalname);
+        const fileName = decodedFileName;
+        this.logger.log(`[CONTRACT] Extracted ${text.length} chars from ${file.originalname}`);
+
+        // Guard: read current project to avoid overwriting existing values
+        const currentProject = await this.prisma.projectManagementItem.findUnique({
+          where: { id: projectId },
+          select: { contractAmount: true, awardedSupplier: true, contractNumber: true },
+        });
+
+        const contractAmount = currentProject?.contractAmount ? null : this.extractContractAmountFromText(text);
+        const contractNumber = currentProject?.contractNumber ? null : this.extractContractNumberFromText(text);
+        const awardedSupplier = fileName.includes('中标通知书') || fileName.includes('中标')
+          ? this.extractAwardedSupplierFromText(text)
+          : this.extractAwardedSupplierFromContract(text);
+
+        this.logger.log(
+          `[CONTRACT] Extracted — contractNumber=${contractNumber ?? '(none)'}, ` +
+          `contractAmount=${contractAmount ?? '(none)'}, ` +
+          `awardedSupplier=${awardedSupplier || '(none)'}` +
+          ` | currentProject had: contractNumber=${currentProject?.contractNumber || '(none)'}, ` +
+          `contractAmount=${currentProject?.contractAmount || '(none)'}`,
+        );
+
+        const updateData: { contractAmount?: number; contractNumber?: string | null; awardedSupplier?: string } = {};
+        if (contractAmount !== null) {
+          updateData.contractAmount = contractAmount;
+        }
+        if (contractNumber !== null) {
+          updateData.contractNumber = contractNumber;
+        }
+        if (awardedSupplier) {
+          updateData.awardedSupplier = awardedSupplier;
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await this.prisma.projectManagementItem.update({
+            where: { id: projectId },
+            data: updateData,
+          });
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to extract info from contract document: ${err}`);
+        // Don't throw - attachment upload should succeed even if extraction fails
+      }
+    }
+
+    const attachmentRecord = await this.prisma.attachment.create({
+      data: {
+        projectManagementItemId: projectId,
+        projectManagementStageId: stage.id,
+        attachmentType: 'SUPPORTING_MATERIAL',
+        fileName: attachment.fileName,
+        objectKey: attachment.objectKey,
+        mimeType: attachment.mimeType,
+        fileSize: attachment.fileSize,
+        uploadedById: attachment.uploadedById,
+      },
+    });
+
+    // Return updated extracted info so frontend can display immediately
+    const updatedItem = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: {
+        initiationDate: true,
+        evaluationMethod: true,
+        expertInfo: true,
+        biddingUnits: true,
+        awardedSupplier: true,
+        contractAmount: true,
+        contractNumber: true,
+      },
+    });
+
+    return {
+      ...attachmentRecord,
+      extractedInfo: updatedItem
+        ? {
+            initiationDate: updatedItem.initiationDate?.toISOString().split('T')[0] ?? null,
+            evaluationMethod: updatedItem.evaluationMethod,
+            expertInfo: updatedItem.expertInfo,
+            biddingUnits: updatedItem.biddingUnits,
+            awardedSupplier: updatedItem.awardedSupplier,
+            contractAmount: updatedItem.contractAmount ? Number(updatedItem.contractAmount) : null,
+            contractNumber: updatedItem.contractNumber ?? null,
+          }
+        : null,
+    };
+  }
+
+  async aiIdentifyField(dto: { fieldName: string; documentText: string; topK?: number }): Promise<Array<{ value: string; confidence: number; location?: string }>> {
+    const { fieldName, documentText, topK = 3 } = dto;
+
+    const systemPrompt = `你是一个专业的文档信息提取助手。请从用户提供的文档文本中识别指定字段的候选值。
+
+请提取所有可能值，并按置信度从高到低排序。每个候选值需要提供：
+1. value: 提取的值
+2. confidence: 置信度 (0.0-1.0)
+3. location: 在文档中的位置描述
+
+返回 JSON 数组格式，最多${topK}个候选：
+[{"value": "xxx", "confidence": 0.9, "location": "第X行"}]
+
+如果没有找到相关值，返回空数组 []`;
+
+    const userPrompt = `请从以下文档文本中识别"${fieldName}"字段的候选值：\n\n${documentText.slice(0, 4000)}`;
+
+    try {
+      const content = await this.aiService.chatJson(systemPrompt, userPrompt, 0.1);
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]).slice(0, topK);
+      }
+      return [];
+    } catch (error) {
+      this.logger.error('AI identify field failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Scan all uploaded files in a project and extract missing info.
+   * Called when project detail opens to handle files uploaded before extraction code existed.
+   */
+  async analyzeBudgetReference(dto: { procurementTitle: string; procurementCategory?: string; projectReason?: string; supplierRequirements?: string }) {
+    const normalizeForSimilarity = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[（(][^）)]*[）)]/g, '')
+        .replace(/[\s,，、.。:：;；\-_—\/\\]+/g, '')
+        .replace(/采购项目|采购事项|采购服务|采购|项目|服务|合同|技术服务|相关服务/g, '')
+        .trim();
+
+    const extractKeywords = (value: string) => {
+      const normalized = normalizeForSimilarity(value);
+      const tokens = new Set<string>();
+      const domainTerms = [
+        '人事', '档案', '数字化', '测绘', '无人机', '保险', '水库', '拱坝', '应力', '安全性',
+        '模型', '沙盘', '视频', '监测', '自动化', '设备', '租赁', '食材', '配送', '咨询',
+        '勘察', '设计', '地质', '评价', '系统', '软件', '硬件', '车辆', '钻杆', '材料',
+      ];
+      for (const term of domainTerms) {
+        if (normalized.includes(term)) tokens.add(term);
+      }
+      for (let i = 0; i < normalized.length - 1; i++) {
+        const token = normalized.slice(i, i + 2);
+        if (!['服务', '项目', '采购', '合同', '技术', '工程'].includes(token)) {
+          tokens.add(token);
+        }
+      }
+      return tokens;
+    };
+
+    const diceCoefficient = (a: string, b: string): number => {
+      if (!a || !b) return 0;
+      if (a === b) return 1;
+      if (a.includes(b) || b.includes(a)) {
+        return Math.min(a.length, b.length) / Math.max(a.length, b.length);
+      }
+      const grams = (s: string) => {
+        if (s.length <= 1) return [s];
+        const result: string[] = [];
+        for (let i = 0; i < s.length - 1; i++) result.push(s.slice(i, i + 2));
+        return result;
+      };
+      const aGrams = grams(a);
+      const bGrams = grams(b);
+      const bSet = new Set(bGrams);
+      const overlap = aGrams.filter((gram) => bSet.has(gram)).length;
+      return (2 * overlap) / (aGrams.length + bGrams.length);
+    };
+
+    const calculateSimilarity = (str1: string, str2: string): number => {
+      const s1 = normalizeForSimilarity(str1);
+      const s2 = normalizeForSimilarity(str2);
+      if (!s1 || !s2) return 0;
+      const charOverlap = [...new Set(s1)].filter((char) => s2.includes(char)).length / Math.max(new Set(s1).size, new Set(s2).size);
+      return Math.max(diceCoefficient(s1, s2), charOverlap * 0.65);
+    };
+
+    const currentText = [
+      dto.procurementTitle,
+      dto.procurementCategory,
+      dto.projectReason,
+      dto.supplierRequirements,
+    ].filter(Boolean).join(' ');
+    const currentKeywords = extractKeywords(currentText);
+
+    const calculateSemanticScore = (candidate: { title: string; category?: string | null }) => {
+      const candidateText = [candidate.title, candidate.category].filter(Boolean).join(' ');
+      const candidateKeywords = extractKeywords(candidateText);
+      if (currentKeywords.size === 0 || candidateKeywords.size === 0) return 0;
+      const overlap = [...currentKeywords].filter((keyword) => candidateKeywords.has(keyword));
+      return overlap.length / Math.max(currentKeywords.size, candidateKeywords.size);
+    };
+
+    const STRONG_TITLE_THRESHOLD = 0.30;
+    const MIN_SEMANTIC_SCORE = 0.10;
+
+    const procurementRounds = await this.prisma.procurementRound.findMany({
+      where: {
+        budgetAmount: { gt: 0 },
+      },
+      include: { project: { select: { name: true, businessCategory: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Category match bonus: if categories align, boost similarity
+    const categoryMatch = (candidateCategory?: string | null): number => {
+      if (!dto.procurementCategory || !candidateCategory) return 0;
+      if (dto.procurementCategory === candidateCategory) return 0.15;
+      // Partial category overlap (e.g. "生产技术类采购" shares "生产技术" with similar categories)
+      const normCat = (s: string) => s.replace(/类?采购$/g, '').trim();
+      const a = normCat(dto.procurementCategory);
+      const b = normCat(candidateCategory);
+      if (a && b && (a.includes(b) || b.includes(a))) return 0.08;
+      return 0;
+    };
+
+    const scoredRounds = procurementRounds
+      .map((round) => {
+        const titleScore = calculateSimilarity(dto.procurementTitle, round.project.name);
+        const semanticScore = calculateSemanticScore({ title: round.project.name, category: round.project.businessCategory });
+        const exactMatch = normalizeForSimilarity(dto.procurementTitle) === normalizeForSimilarity(round.project.name);
+        const catBonus = categoryMatch(round.project.businessCategory);
+        const similarity = exactMatch ? 2 : Math.max(titleScore, semanticScore) + catBonus;
+        return { round, similarity, titleScore, semanticScore, exactMatch, catBonus };
+      })
+      .sort((a, b) => b.similarity - a.similarity);
+
+    const similarProjects = await this.prisma.projectManagementItem.findMany({
+      where: {
+        OR: [
+          { budgetAmount: { gt: 0 } },
+          { contractAmount: { gt: 0 } },
+        ],
+        status: { in: ['ACTIVE', 'ARCHIVED'] },
+      },
+      select: {
+        title: true,
+        procurementCategory: true,
+        budgetAmount: true,
+        contractAmount: true,
+        createdAt: true,
+        procurementMethod: true,
+        status: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const scoredProjects = similarProjects
+      .map((project) => {
+        const titleScore = calculateSimilarity(dto.procurementTitle, project.title);
+        const semanticScore = calculateSemanticScore({ title: project.title, category: project.procurementCategory });
+        const exactMatch = normalizeForSimilarity(dto.procurementTitle) === normalizeForSimilarity(project.title);
+        const catBonus = categoryMatch(project.procurementCategory);
+        const similarity = exactMatch ? 2 : Math.max(titleScore, semanticScore) + catBonus;
+        return { project, similarity, titleScore, semanticScore, exactMatch, catBonus };
+      })
+      .sort((a, b) => b.similarity - a.similarity);
+
+    // Strong match filtering with lowered threshold
+    const isStrongMatch = (item: { exactMatch: boolean; titleScore: number; semanticScore: number; catBonus: number }) =>
+      item.exactMatch || item.titleScore >= STRONG_TITLE_THRESHOLD || item.semanticScore >= MIN_SEMANTIC_SCORE || item.catBonus >= 0.15;
+
+    let strongRoundMatches = scoredRounds.filter(isStrongMatch).map((item) => item.round);
+    let strongProjectMatches = scoredProjects.filter(isStrongMatch).map((item) => item.project);
+
+    // Fallback: if no strong matches, take top K by score as weak candidates for AI to evaluate
+    const WEAK_SCORE_THRESHOLD = 0.05;
+    const MAX_WEAK_CANDIDATES = 10;
+    if (strongRoundMatches.length + strongProjectMatches.length === 0) {
+      this.logger.log('[BudgetRef] No strong matches, falling back to top weak candidates');
+      strongRoundMatches = scoredRounds
+        .filter((item) => item.similarity >= WEAK_SCORE_THRESHOLD)
+        .slice(0, MAX_WEAK_CANDIDATES)
+        .map((item) => item.round);
+      strongProjectMatches = scoredProjects
+        .filter((item) => item.similarity >= WEAK_SCORE_THRESHOLD)
+        .slice(0, MAX_WEAK_CANDIDATES)
+        .map((item) => item.project);
+    }
+
+    const candidateReferences = [
+      ...strongRoundMatches.map(r => ({
+        title: r.project.name,
+        category: r.project.businessCategory,
+        amount: r.budgetAmount,
+        contractAmount: r.awardAmount,
+        date: r.createdAt,
+        method: r.procurementMethod,
+        source: '采购台账' as const,
+      })),
+      ...strongProjectMatches.map(p => ({
+        title: p.title,
+        category: p.procurementCategory,
+        amount: p.budgetAmount,
+        contractAmount: p.contractAmount,
+        date: p.createdAt,
+        method: p.procurementMethod,
+        source: '项目管理' as const,
+      })),
+    ];
+
+    let allReferences = candidateReferences;
+
+    if (candidateReferences.length > 0) {
+      const selectionPrompt = `你是采购历史项目匹配助手。请根据本次采购项目的信息，从候选历史项目中筛选真正可用于预算参考的项目。
+
+判断依据不是只看标题相似，而是综合：
+1. 采购事项名称/业务内容是否相近
+2. 采购类别是否相近
+3. 立项事由体现的需求背景是否相近
+4. 供方要求/服务内容/设备内容是否相近
+5. 采购方式可作为辅助参考，但不能单独决定
+
+请输出 JSON：
+{
+  "selectedIndexes": [候选项目序号],
+  "reason": "筛选理由，30-80字"
+}
+
+规则：
+- selectedIndexes 最多 8 个
+- 只选可用于预算参考的项目
+- 如果没有高度相关项目，可以选择业务类别最接近、价格可参考的项目，但不要返回空数组`;
+
+      const selectionInput = JSON.stringify({
+        currentProject: {
+          title: dto.procurementTitle,
+          category: dto.procurementCategory,
+          reason: dto.projectReason,
+          supplierRequirements: dto.supplierRequirements,
+        },
+        candidates: candidateReferences.map((item, index) => ({
+          index,
+          title: item.title,
+          category: item.category,
+          method: item.method,
+          budgetAmount: item.amount,
+          contractAmount: item.contractAmount,
+          source: item.source,
+        })),
+      }, null, 2);
+
+      try {
+        const content = await this.aiService.chatJson(selectionPrompt, selectionInput, 0.1);
+        const parsed = JSON.parse(content) as { selectedIndexes?: number[] };
+        const selected = (parsed.selectedIndexes || [])
+          .map((index) => candidateReferences[index])
+          .filter(Boolean);
+        const exactMatches = candidateReferences.filter((item) =>
+          normalizeForSimilarity(item.title) === normalizeForSimilarity(dto.procurementTitle),
+        );
+        const mergedSelected = [...exactMatches, ...selected].filter(
+          (item, index, arr) => arr.findIndex((other) => other.title === item.title && other.date === item.date && other.source === item.source) === index,
+        );
+        if (mergedSelected.length > 0) {
+          allReferences = mergedSelected;
+        }
+      } catch (error) {
+        this.logger.warn(`Budget reference AI selection failed, using heuristic candidates: ${error}`);
+      }
+    }
+
+    if (allReferences.length === 0) {
+      return {
+        hasReference: false,
+        message: '未找到相关的历史采购项目',
+        references: [],
+        suggestedBudget: null,
+        analysis: null,
+      };
+    }
+
+    const amounts = allReferences.map(r => r.amount ? Number(r.amount) : 0).filter(a => a > 0);
+    const avgAmount = amounts.reduce((a, b) => a + b, 0) / amounts.length;
+    const maxAmount = Math.max(...amounts);
+    const minAmount = Math.min(...amounts);
+
+    const contractAmounts = allReferences
+      .map(r => r.contractAmount ? Number(r.contractAmount) : null)
+      .filter((a: number | null): a is number => a !== null && a > 0);
+    const avgContractAmount = contractAmounts.length > 0
+      ? contractAmounts.reduce((a, b) => a + b, 0) / contractAmounts.length
+      : null;
+
+    const systemPrompt = `你是一个采购预算分析专家。根据历史采购项目的数据，分析并给出预算建议。
+
+请输出 JSON 格式：
+{
+  "analysis": "分析说明（50-100字，说明历史项目的价格范围、波动原因、建议预算）",
+  "suggestedBudget": 建议预算金额（数字）,
+  "confidence": 置信度（0-1之间的数字，数据越多越相近则越高）
+}
+
+重要规则：
+1. 建议预算金额不得超过历史预算金额的最大值（maxBudget）
+2. 若历史项目较少（<=2个），建议预算应在预算价与合同价之间选择，倾向于合同价
+3. 若有合同价参考，建议预算应接近合同价区间，而非预算价区间
+4. 分析要简洁专业，说明价格合理范围和选择依据
+5. 如果历史项目较少或差异较大，置信度要降低`;
+
+    const userPrompt = JSON.stringify({
+      currentProject: {
+        title: dto.procurementTitle,
+        category: dto.procurementCategory,
+        requirements: dto.supplierRequirements,
+      },
+      historicalData: allReferences.map(r => ({
+        title: r.title,
+        budgetAmount: r.amount,
+        contractAmount: r.contractAmount,
+        date: r.date,
+        source: r.source,
+      })),
+      statistics: {
+        avgBudget: avgAmount,
+        maxBudget: maxAmount,
+        minBudget: minAmount,
+        avgContract: avgContractAmount,
+        count: allReferences.length,
+      },
+    }, null, 2);
+
+    try {
+      const content = await this.aiService.chatJson(systemPrompt, userPrompt, 0.3);
+      const parsed = JSON.parse(content) as { analysis: string; suggestedBudget: number; confidence: number };
+
+      let finalBudget = parsed.suggestedBudget || Math.round(avgAmount);
+      if (finalBudget > maxAmount) {
+        finalBudget = avgContractAmount ? Math.round(avgContractAmount) : Math.round(avgAmount);
+      }
+
+      return {
+        hasReference: true,
+        message: `找到 ${allReferences.length} 个相关历史项目`,
+        references: allReferences.slice(0, 5),
+        suggestedBudget: finalBudget,
+        analysis: parsed.analysis,
+        confidence: parsed.confidence || 0.5,
+        statistics: {
+          average: Math.round(avgAmount),
+          max: maxAmount,
+          min: minAmount,
+          avgContract: avgContractAmount ? Math.round(avgContractAmount) : null,
+          count: allReferences.length,
+        },
+      };
+    } catch (error) {
+      this.logger.error('Budget reference analysis failed:', error);
+      const fallbackBudget = avgContractAmount ? Math.round(avgContractAmount) : Math.round(avgAmount);
+      return {
+        hasReference: true,
+        message: `找到 ${allReferences.length} 个相关历史项目`,
+        references: allReferences.slice(0, 5),
+        suggestedBudget: fallbackBudget,
+        analysis: `根据 ${allReferences.length} 个历史项目，预算范围 ${minAmount.toLocaleString()} - ${maxAmount.toLocaleString()} 元${avgContractAmount ? `，合同均价 ${Math.round(avgContractAmount).toLocaleString()} 元` : ''}。`,
+        confidence: 0.5,
+        statistics: {
+          average: Math.round(avgAmount),
+          max: maxAmount,
+          min: minAmount,
+          avgContract: avgContractAmount ? Math.round(avgContractAmount) : null,
+          count: allReferences.length,
+        },
+      };
+    }
+  }
+
+  async refreshExtractedInfo(projectId: string) {
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: {
+        initiationDate: true,
+        evaluationMethod: true,
+        expertInfo: true,
+        biddingUnits: true,
+        awardedSupplier: true,
+        contractAmount: true,
+        contractNumber: true,
+        demandContractNumber: true,
+        stages: {
+          orderBy: { stageOrder: 'asc' },
+          include: { attachments: true },
+        },
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    const updates: Record<string, unknown> = {};
+
+    for (const stage of project.stages) {
+      for (const attachment of stage.attachments) {
+        const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+        const fileName = attachment.fileName.toLowerCase();
+
+        try {
+          // AWARD_DECISION stage
+          if (stage.stageKey === 'AWARD_DECISION' && (fileName.includes('定标') || fileName.includes('审批表'))) {
+            const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
+            if (!project.biddingUnits && !updates.biddingUnits) {
+              const biddingUnits = this.extractBiddingUnitsFromText(text);
+              if (biddingUnits) updates.biddingUnits = biddingUnits;
+            }
+            if (!project.awardedSupplier && !updates.awardedSupplier) {
+              const awardedSupplier = this.extractAwardedSupplierFromAwardTable(text);
+              if (awardedSupplier) updates.awardedSupplier = awardedSupplier;
+            }
+          }
+
+          // BID_EVALUATION stage — also extract bidding units
+          if (stage.stageKey === 'BID_EVALUATION' && !project.biddingUnits && !updates.biddingUnits) {
+            const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
+            const biddingUnits = this.extractBiddingUnitsFromText(text);
+            if (biddingUnits) updates.biddingUnits = biddingUnits;
+          }
+
+          if (stage.stageKey === 'AWARD_DECISION' && (fileName.includes('中标') || fileName.includes('通知书'))) {
+            const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
+            if (!project.awardedSupplier && !updates.awardedSupplier) {
+              const awardedSupplier = this.extractAwardedSupplierFromText(text);
+              if (awardedSupplier) updates.awardedSupplier = awardedSupplier;
+            }
+          }
+
+          // CONTRACT stage
+          if (stage.stageKey === 'CONTRACT') {
+            const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
+            if (!project.contractAmount && !updates.contractAmount) {
+              const contractAmount = this.extractContractAmountFromText(text);
+              if (contractAmount !== null) updates.contractAmount = contractAmount;
+            }
+            if (!project.contractNumber && !updates.contractNumber) {
+              const contractNumber = this.extractContractNumberFromText(text);
+              if (contractNumber !== null) updates.contractNumber = contractNumber;
+            }
+            if (!project.awardedSupplier && !updates.awardedSupplier) {
+              const fileName = attachment.fileName;
+              const awardedSupplier = fileName.includes('中标通知书') || fileName.includes('中标')
+                ? this.extractAwardedSupplierFromText(text)
+                : this.extractAwardedSupplierFromContract(text);
+              if (awardedSupplier) updates.awardedSupplier = awardedSupplier;
+            }
+          }
+
+          // EXPERT_SELECTION stage
+          if (stage.stageKey === 'EXPERT_SELECTION' && (fileName.includes('抽取结果单') || fileName.includes('抽取结果'))) {
+            const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
+            if (!project.expertInfo && !updates.expertInfo) {
+              const expertInfo = this.extractExpertInfoFromText(text);
+              if (expertInfo) updates.expertInfo = expertInfo;
+            }
+          }
+        } catch {
+          // Skip files that can't be read
+        }
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await this.prisma.projectManagementItem.update({
+        where: { id: projectId },
+        data: updates,
+      });
+    }
+
+    // Return the latest extracted info
+    const updated = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: {
+        initiationDate: true,
+        evaluationMethod: true,
+        expertInfo: true,
+        biddingUnits: true,
+        awardedSupplier: true,
+        contractAmount: true,
+      },
+    });
+
+    return {
+      initiationDate: updated?.initiationDate?.toISOString().split('T')[0] ?? null,
+      evaluationMethod: updated?.evaluationMethod,
+      expertInfo: updated?.expertInfo,
+      biddingUnits: updated?.biddingUnits,
+      awardedSupplier: updated?.awardedSupplier,
+      contractAmount: updated?.contractAmount ? Number(updated.contractAmount) : null,
+    };
+  }
+
+  extractInitiationFieldsFromText(text: string) {
+    const normalizedText = this.normalizeInitiationText(text);
+    const lines = normalizedText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    // Find key positions in the document
+    const titleIndex = lines.findIndex(
+      (line) => line.includes('申请采购事项名称') || line.includes('申请采购'),
+    );
+    const projectReasonIndex = lines.findIndex(
+      (line) => line.includes('申请立项事由') || line.includes('申请立项'),
+    );
+    const supplierReqIndex = lines.findIndex(
+      (line) => line.includes('对供方的主要要求') || line.includes('对供方的'),
+    );
+    const budgetIndex = lines.findIndex(
+      (line) => line.includes('采购预算价格') || line.includes('采购预算'),
+    );
+    const categoryIndex = lines.findIndex((line) => line.includes('采购类别'));
+    const methodIndex = lines.findIndex(
+      (line) => line.includes('拟采购方式') || line.includes('拟采购方'),
+    );
+
+    // Extract requester name and department using "name + department" pair detection
+    // This is the most robust method for pdf-parse output where labels and values are interleaved
+    let requesterName = '';
+    let requesterDepartment = '';
+
+    // Strategy 0: Find name+department on same line (new format: "陈迎迎人力资源部")
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      // Match pattern: 2-4 Chinese chars followed by department keywords (without space)
+      // e.g., "陈迎迎人力资源部" -> name="陈迎迎", dept="人力资源部"
+      const nameDeptMatch = line.match(/^([一-龥]{2,4})(人力资源部|办公室|测绘分院|勘察分院|工程勘察院|造价咨询院|科技创新部|财务资产部|采购中心)$/);
+      if (nameDeptMatch) {
+        requesterName = nameDeptMatch[1];
+        requesterDepartment = nameDeptMatch[2];
+        break;
+      }
+      // Also match pattern like "张维刚工程勘察院/钻探室" - need more specific match to avoid partial matches
+      const nameDeptSlashMatch = line.match(/^([一-龥]{2,4})(工程勘察院\/[^/\s]+)$/);
+      if (nameDeptSlashMatch) {
+        requesterName = nameDeptSlashMatch[1];
+        requesterDepartment = nameDeptSlashMatch[2];
+        break;
+      }
+    }
+
+    // Strategy 1: Find the first "name + department" pair in the document (separate lines)
+    // Name: 2-4 pure Chinese characters
+    // Department: contains "/" (e.g., "测绘分院/测绘分院")
+    if (!requesterName) {
+      for (let i = 0; i < lines.length - 1; i++) {
+        const current = lines[i].trim();
+        const next = lines[i + 1]?.trim() || '';
+
+        // Check if current is a name (2-4 Chinese chars)
+        if (current.length >= 2 && current.length <= 4 && /^[一-龥]+$/.test(current)) {
+          // Check if next line is a department (contains "/")
+          if (next.match(/[^\/\s]+\/[^\/\s]+/)) {
+            requesterName = current;
+            // Check for sub-department on the following line
+            const subDept = lines[i + 2]?.trim() || '';
+            if (subDept.length >= 2 && subDept.length <= 10 &&
+                (subDept.includes('室') || subDept.includes('部')) &&
+                !subDept.includes('分院') && !subDept.match(/^\d/)) {
+              requesterDepartment = next + subDept;
+            } else {
+              requesterDepartment = next;
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // Fallback: try label-based extraction
+    if (!requesterName) {
+      for (const line of lines) {
+        const match = line.match(/需求申请人\s*[：:]?\s*([^\s]+)/);
+        if (match && match[1].length >= 2) {
+          requesterName = match[1].trim();
+          break;
+        }
+      }
+    }
+
+    if (!requesterDepartment) {
+      for (const line of lines) {
+        const matchFull = line.match(/([^\/\s]+\/[^\/\s]+)\s*需求部门\s*([^\s]+)/);
+        if (matchFull) {
+          requesterDepartment = `${matchFull[1]}${matchFull[2]}`;
+          break;
+        }
+        const matchSlash = line.match(/需求部门\s*[：:]?\s*([^\/\s]+\/[^\s]+)/);
+        if (matchSlash) {
+          requesterDepartment = matchSlash[1].trim();
+          break;
+        }
+        const match = line.match(/需求部门\s*[：:]?\s*([^\s]+)/);
+        if (match) {
+          requesterDepartment = match[1].trim();
+          break;
+        }
+      }
+    }
+
+    // Final fallback to layout-based extraction
+    if (!requesterName) {
+      requesterName = this.findRequesterNameFromLayout(lines);
+    }
+    if (!requesterDepartment) {
+      requesterDepartment = this.findRequesterDepartmentFromLayout(lines);
+    }
+
+    // Extract procurement title - try multiple patterns
+    let procurementTitle = '';
+    // Pattern 1: "申请采购 人工智能数据分析处理工作站 事项名称"
+    for (const line of lines) {
+      const match = line.match(/申请采购\s*([^\s]+(?:\s+[^\s]+)*?)\s*事项名称/);
+      if (match) {
+        let title = match[1].trim();
+        // Stop at "所属项目" or "合同及编号" if captured
+        const stopIdx = title.search(/所属项目|合同及编号|合同及编/);
+        if (stopIdx > 0) {
+          title = title.substring(0, stopIdx).trim();
+        }
+        procurementTitle = title;
+        break;
+      }
+      // Pattern 2: "申请采购事项名称 人工智能数据分析处理工作站"
+      const match2 = line.match(/申请采购事项名称\s*[：:]?\s*(.+)$/);
+      if (match2) {
+        let title = match2[1].trim();
+        // Stop at "所属项目" or "合同及编号" if captured
+        const stopIdx = title.search(/所属项目|合同及编号|合同及编/);
+        if (stopIdx > 0) {
+          title = title.substring(0, stopIdx).trim();
+        }
+        procurementTitle = title;
+        break;
+      }
+    }
+    // Pattern 3: For new format "采购立项申请表(新)" - title appears after "申请采购事项名称" label on separate line
+    if (!procurementTitle) {
+      const titleLabelIdx = lines.findIndex((line) => line.includes('申请采购事项名称'));
+      if (titleLabelIdx >= 0) {
+        // Check if the label line ends with "名称" and next line has content
+        for (let i = titleLabelIdx + 1; i < Math.min(lines.length, titleLabelIdx + 3); i++) {
+          const nextLine = lines[i].trim();
+          // Skip empty lines, labels, and short content
+          if (!nextLine || nextLine.includes('所属项目') || nextLine.includes('合同及编号') ||
+              nextLine.includes('申请立项') || nextLine.length < 3) {
+            continue;
+          }
+          // This should be the title
+          procurementTitle = nextLine;
+          break;
+        }
+      }
+    }
+    // Fallback to original logic
+    if (!procurementTitle && titleIndex >= 0) {
+      for (let i = titleIndex + 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (
+          line.includes('所属项目') ||
+          line.includes('合同及编号') ||
+          line.includes('申请立项')
+        ) {
+          break;
+        }
+        if (
+          line.length > 2 &&
+          !line.includes('申请采购') &&
+          !line.includes('事项名称') &&
+          !line.match(/^(需求|基本信息|日期)/)  // Skip label-like lines
+        ) {
+          procurementTitle = line;
+          break;
+        }
+      }
+    }
+
+    // Extract project reason - try multiple patterns
+    let projectReason = '';
+
+    // Pattern 0: For "采购立项申请表(新)" format - find "申请立项" label and get content from next line
+    const newFormReasonIdx = lines.findIndex((line) =>
+      line === '申请立项' || line === '申请立项事由' || line === '申请立项事由/情况说明');
+    if (newFormReasonIdx >= 0) {
+      const reasonLines: string[] = [];
+      for (let i = newFormReasonIdx + 1; i < Math.min(lines.length, newFormReasonIdx + 10); i++) {
+        const nextLine = lines[i].trim();
+        // Stop at markers
+        if (nextLine.includes('对供方') || nextLine.includes('主要要求') ||
+            nextLine.includes('采购预算') || nextLine.includes('采购类别') ||
+            nextLine.includes('所属项目') || nextLine.includes('合同及编号')) {
+          break;
+        }
+        // Skip short lines, labels, and dates
+        if (nextLine.length > 3 &&
+            !nextLine.match(/^(申请|需求|采购|拟采购|基本信息|日期)/) &&
+            !nextLine.match(/^\d{4}[./-]\d{1,2}[./-]\d{1,2}$/)) {
+          reasonLines.push(nextLine);
+        }
+      }
+      if (reasonLines.length > 0) {
+        projectReason = reasonLines.join('').trim();
+      }
+    }
+
+    // Pattern 1: Find the line that contains "申请立项" and "事由"
+    // The content is typically BEFORE these keywords in OCR output
+    if (!projectReason) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes('申请立项') && line.includes('事由')) {
+          // The reason content is before "申请立项" keyword
+          // Find the start of the reason (look for previous lines that contain content)
+          const reasonLines: string[] = [];
+
+          // First, check if there's content before "申请立项" on the same line
+          const beforeMatch = line.match(/(.+?)\s*申请立项/);
+          if (beforeMatch) {
+            let content = beforeMatch[1].trim();
+            // Remove any leading date or department info
+            content = content.replace(/^日期[^\s]+\s*/, '');
+            content = content.replace(/^[^/\s]+\/[^/\s]+\s*需求部门[^\s]*\s*/, '');
+            content = content.replace(/^需求部门[^\s]*\s*/, '');
+            if (content.length > 5) {
+              reasonLines.push(content);
+            }
+          }
+
+          // Part 2: Content BETWEEN "申请立项" and "事由"
+          const middleMatch = line.match(/申请立项\s*(.+?)\s*事由/);
+          if (middleMatch) {
+            const middleContent = middleMatch[1].trim();
+            if (middleContent.length > 2) {
+              reasonLines.push(middleContent);
+            }
+          }
+
+          // Content after "事由" on the same line
+          const afterMatch = line.match(/事由\s*(.+)$/);
+          if (afterMatch) {
+            let afterContent = afterMatch[1].trim();
+            const stopIdx = afterContent.search(/对供方|采购预算|采购类别/);
+            if (stopIdx > 0) {
+              afterContent = afterContent.substring(0, stopIdx).trim();
+            }
+            if (afterContent.length > 2) {
+              reasonLines.push(afterContent);
+            }
+          }
+
+          // Look for content in previous lines (for OCR format where content is before keywords)
+          // Only search backwards if inline content was found on this line (OCR format)
+          // In pdf-parse format, label is standalone with no inline content - skip backwards search
+          const hasInlineReasonContent = (beforeMatch && beforeMatch[1].trim().length > 5) ||
+            (middleMatch && middleMatch[1].trim().length > 2) ||
+            (afterMatch && afterMatch[1].trim().length > 2);
+
+          if (hasInlineReasonContent) {
+            for (let j = i - 1; j >= Math.max(0, i - 5); j--) {
+              const prevLine = lines[j];
+              // Skip lines that are just labels, dates, or short
+              if (prevLine.length > 10 &&
+                  !prevLine.includes('申请采购') &&
+                  !prevLine.includes('事项名称') &&
+                  !prevLine.includes('所属项目') &&
+                  !prevLine.includes('合同及编号') &&
+                  !prevLine.includes('合同及编') &&
+                  !prevLine.match(/^日期/) &&
+                  !prevLine.match(/^\d{4}[./-]/) && // Skip date lines
+                  !prevLine.match(/需求部门/) &&
+                  !prevLine.match(/[^/\s]+\/[^/\s]+/)) { // Skip department lines like "测绘分院/测绘分院"
+                reasonLines.unshift(prevLine);
+              }
+            }
+          }
+
+          // Collect subsequent lines until we hit a real stop marker (for pdf-parse format)
+          for (let j = i + 1; j < Math.min(lines.length, i + 10); j++) {
+            const nextLine = lines[j];
+            // Stop at real markers, not "项目名称" which is part of content
+            if (nextLine.includes('对供方') ||
+                nextLine.includes('主要要求') ||
+                nextLine.includes('采购预算') ||
+                nextLine.includes('采购类别') ||
+                nextLine.match(/^\d+\s*具有/)) {
+              break;
+            }
+            if (nextLine.length > 5) {
+              reasonLines.push(nextLine);
+            }
+          }
+
+          projectReason = reasonLines.join('').replace(/\s+/g, '').trim();
+          break;
+        }
+
+        // Pattern 2: "申请立项事由 为推进科研试验项目..."
+        const match2 = line.match(/申请立项事由\s*[：:]?\s*(.+)$/);
+        if (match2) {
+          projectReason = match2[1].trim();
+          break;
+        }
+      }
+    }
+
+    // Fallback to original logic
+    if (!projectReason && projectReasonIndex >= 0) {
+      const endIdx =
+        supplierReqIndex > projectReasonIndex ? supplierReqIndex : lines.length;
+      const reasonLines: string[] = [];
+      for (let i = projectReasonIndex + 1; i < endIdx; i++) {
+        const line = lines[i];
+        if (line.includes('对供方') || line.includes('主要要求')) break;
+        if (
+          !line.includes('申请立项') &&
+          !line.includes('事由') &&
+          line.length > 2
+        ) {
+          reasonLines.push(line);
+        }
+      }
+      projectReason = reasonLines.join('').replace(/\s+/g, '').trim();
+    }
+
+    // Extract supplier requirements
+    let supplierRequirements = '';
+
+    // Pattern 0: For new format - find "对供方的主要要求" label on separate line
+    const newFormSupplierIdx = lines.findIndex((line) =>
+      line === '对供方的主要要求' || line === '对供方' || line.includes('主要要求'));
+    if (newFormSupplierIdx >= 0 && !lines[newFormSupplierIdx].match(/\d+[.、]/)) {
+      // Label is on its own line, content follows
+      const reqLines: string[] = [];
+      for (let i = newFormSupplierIdx + 1; i < Math.min(lines.length, newFormSupplierIdx + 10); i++) {
+        const nextLine = lines[i].trim();
+        // Stop at markers
+        if (nextLine.includes('采购预算') || nextLine.includes('采购类别') ||
+            nextLine.includes('采购组织') || nextLine.includes('采购内容明细') ||
+            nextLine.includes('拟采购方')) {
+          break;
+        }
+        // Collect numbered requirements or substantial content
+        if (nextLine.match(/^\d+[.、:]/) || nextLine.startsWith('具有') ||
+            nextLine.startsWith('法律') || nextLine.startsWith('参加') ||
+            nextLine.length > 10) {
+          reqLines.push(nextLine);
+        }
+      }
+      if (reqLines.length > 0) {
+        supplierRequirements = reqLines.join(' ').trim();
+      }
+    }
+
+    // Pattern 1: Find the line that contains "对供方" (or OCR errors like "对供n的") and "主要要求"
+    // The requirements are typically BEFORE these keywords in OCR output
+    if (!supplierRequirements) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // Use loose matching for OCR errors: "对供方", "对供n的", "对供方的" etc.
+        const hasSupplierKeyword = line.match(/对供[方n]/) || line.includes('主要要求');
+
+        if (line.match(/对供[方n]/) && line.includes('主要要求')) {
+          // Both keywords on same line
+          const reqLines: string[] = [];
+
+          // Check content before "对供方" on the same line
+          const beforeMatch = line.match(/(.+?)\s*对供[方n]/);
+          if (beforeMatch) {
+            let content = beforeMatch[1].trim();
+            if (content.startsWith('具有') && !content.match(/^1[.、]/)) {
+              content = '1. ' + content;
+            }
+            reqLines.push(content);
+          }
+
+          // Extract content between "对供方" and "主要要求"
+          const middleMatch = line.match(/对供[方n][^\d]*(\d+[.、\s][^对]+?)主要要求/);
+          if (middleMatch) {
+            reqLines.push(middleMatch[1].trim());
+        }
+
+        // Content after "主要要求" on the same line
+        const afterMatch = line.match(/主要要求\s*(.+)$/);
+        if (afterMatch) {
+          const afterContent = afterMatch[1].trim();
+          if (afterContent.match(/^\d+[.、\s]/) || afterContent.startsWith('参加')) {
+            reqLines.push(afterContent);
+          }
+        }
+
+        // Only search backwards/forwards if content was found on the same line (OCR format)
+        // In pdf-parse format, label is standalone - skip to let fallback handle it
+        const hasInlineContent = (beforeMatch && beforeMatch[1].trim().length > 5) ||
+          middleMatch || (afterMatch && afterMatch[1].trim().length > 2);
+
+        if (hasInlineContent) {
+          // Look for numbered requirement items in previous lines (OCR format)
+          for (let j = i - 1; j >= Math.max(0, i - 5); j--) {
+            const prevLine = lines[j];
+            if (prevLine.match(/^\d+[.、\s]/) ||
+                prevLine.startsWith('具有') ||
+                prevLine.startsWith('参加') ||
+                prevLine.startsWith('法律') ||
+                prevLine.startsWith('对方')) {
+              let content = prevLine;
+              if (content.startsWith('具有') && !content.match(/^1[.、]/)) {
+                content = '1. ' + content;
+              }
+              reqLines.unshift(content);
+            }
+          }
+
+          // Collect subsequent numbered items
+          for (let j = i + 1; j < Math.min(lines.length, i + 5); j++) {
+            const nextLine = lines[j];
+            if (nextLine.includes('采购预算') || nextLine.includes('采购类别')) break;
+            if (nextLine.match(/^\d+[.、\s]/) ||
+                nextLine.startsWith('法律') ||
+                nextLine.startsWith('行政法规')) {
+              reqLines.push(nextLine);
+            }
+          }
+
+          supplierRequirements = reqLines.join(' ').trim();
+        }
+        break;
+      }
+
+      // Pattern for split "对供方" and "主要要求" across lines
+      // Format: "1.对方提供...快\n对供方的\n速，信号强，2.图形操作...3.\n主要要求\n能无网续测.4.售后完善。"
+      if (line.match(/对供[方n]/) && !line.includes('主要要求')) {
+        const reqLines: string[] = [];
+
+        // Look for content before "对供方" in previous lines
+        for (let j = i - 1; j >= Math.max(0, i - 3); j--) {
+          const prevLine = lines[j];
+          if (prevLine.match(/^\d+[.、\s]/) ||
+              prevLine.startsWith('对方') ||
+              prevLine.startsWith('具有') ||
+              prevLine.startsWith('参加')) {
+            reqLines.unshift(prevLine);
+          }
+        }
+
+        // Look for content between "对供方" line and "主要要求" line
+        for (let j = i + 1; j < Math.min(lines.length, i + 5); j++) {
+          const nextLine = lines[j];
+          if (nextLine.includes('主要要求')) {
+            // Check for content after "主要要求"
+            const afterMatch = nextLine.match(/主要要求\s*(.+)$/);
+            if (afterMatch) {
+              reqLines.push(afterMatch[1].trim());
+            }
+            // Continue collecting after "主要要求" line
+            for (let k = j + 1; k < Math.min(lines.length, j + 3); k++) {
+              const afterLine = lines[k];
+              if (afterLine.includes('采购预算') || afterLine.includes('采购类别')) break;
+              if (afterLine.match(/^\d+[.、\s]/) || afterLine.length > 5) {
+                reqLines.push(afterLine);
+              }
+            }
+            break;
+          }
+          if (nextLine.match(/^\d+[.、\s]/) || nextLine.length > 3) {
+            reqLines.push(nextLine);
+          }
+        }
+
+        if (reqLines.length > 0) {
+          supplierRequirements = reqLines.join('').replace(/\s+/g, '').trim();
+          break;
+        }
+      }
+
+      // Pattern 2: "对供方的主要要求 1.具有独立承担..."
+      const match2 = line.match(/对供[方n].*主要要求\s*[：:]?\s*(.+)$/);
+      if (match2) {
+        supplierRequirements = match2[1].trim();
+        // Collect subsequent numbered items
+        for (let j = i + 1; j < Math.min(lines.length, i + 5); j++) {
+          const nextLine = lines[j];
+          if (nextLine.includes('采购预算') || nextLine.includes('采购类别')) break;
+          if (nextLine.match(/^\d+[.、\s]/)) {
+            supplierRequirements += ' ' + nextLine;
+          }
+        }
+        break;
+      }
+    }
+    }
+
+    // Fallback to original method
+    if (!supplierRequirements) {
+      supplierRequirements = this.findSupplierRequirementsFromLayout(lines);
+    }
+
+    // Strategy for pdf-parse native text format:
+    // In pdf-parse output, "对供方的主要要求" value may not follow the label.
+    // Instead, the value appears after "拟采购方式" section with numbered items like "1.对方提供..."
+    if (!supplierRequirements) {
+      // Find the line "拟采购方" and look for numbered requirement items after it
+      const procurementMethodIdx = lines.findIndex(
+        (line) => line.includes('拟采购方'),
+      );
+      if (procurementMethodIdx >= 0) {
+        // Search for numbered content starting with "1." after procurement method
+        for (let i = procurementMethodIdx + 1; i < Math.min(lines.length, procurementMethodIdx + 15); i++) {
+          if (lines[i].match(/^1[.、:]/)) {
+            const reqLines: string[] = [];
+            for (let j = i; j < Math.min(lines.length, i + 5); j++) {
+              const currentLine = lines[j];
+              if (
+                currentLine.includes('公开招标') ||
+                currentLine.includes('邀请招标') ||
+                currentLine.includes('竞争性谈判') ||
+                currentLine === '其他' ||
+                currentLine.includes('采购组织形式') ||
+                currentLine.startsWith('2025/')
+              ) {
+                break;
+              }
+              reqLines.push(currentLine);
+            }
+            if (reqLines.length > 0) {
+              supplierRequirements = reqLines.join(' ').trim();
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // Extract budget amount - try multiple patterns
+    let budgetAmount = 0;
+    // Pattern 1: "采购预算价格(元) 250000.00"
+    for (const line of lines) {
+      const match = line.match(/采购预算[^0-9]*([0-9]+(?:\.[0-9]+)?)/);
+      if (match) {
+        budgetAmount = Number.parseFloat(match[1]);
+        break;
+      }
+    }
+    // Fallback to original logic
+    if (!budgetAmount && budgetIndex >= 0) {
+      for (
+        let i = budgetIndex;
+        i < Math.min(budgetIndex + 3, lines.length);
+        i++
+      ) {
+        const match = lines[i].match(/([0-9]+(?:\.[0-9]+)?)/);
+        if (match) {
+          budgetAmount = Number(match[1]);
+          break;
+        }
+      }
+    }
+
+    // Extract procurement category
+    let procurementCategory = '';
+    // Pattern 1: "采购类别 科技研发类采购"
+    for (const line of lines) {
+      const match = line.match(/采购类别\s*[：:]?\s*([^\s\[\(]+)/);
+      if (match) {
+        const potentialCat = match[1].trim();
+        if (KNOWN_CATEGORIES.includes(potentialCat)) {
+          procurementCategory = potentialCat;
+          break;
+        }
+      }
+      // Pattern 2: Look for known category at start of line after "采购类别"
+      if (line.includes('采购类别')) {
+        for (const cat of KNOWN_CATEGORIES) {
+          if (line.includes(cat) && line.indexOf(cat) < 30) {
+            procurementCategory = cat;
+            break;
+          }
+        }
+        if (procurementCategory) break;
+      }
+    }
+    // Fallback: find any known category in the document
+    if (!procurementCategory) {
+      procurementCategory =
+        lines.find((line) => KNOWN_CATEGORIES.includes(line)) || '';
+    }
+
+    // Extract procurement method
+    // Note: PDF text extraction merges all method options into one line,
+    // making it impossible to determine which one is selected.
+    // We leave it empty for user to select manually.
+    const procurementMethod = '';
+
+    // Extract procurement organization form
+    let procurementOrganizationForm = '';
+    // Pattern 1: "采购组织 自行招标 形式" (split across line)
+    for (const line of lines) {
+      if (line.includes('采购组织') && line.includes('形式')) {
+        // Extract the word between "采购组织" and "形式"
+        const match = line.match(/采购组织\s*[：:]?\s*(\S+)\s*形式/);
+        if (match && KNOWN_ORGANIZATION_FORMS.includes(match[1])) {
+          procurementOrganizationForm = match[1];
+          break;
+        }
+      }
+      // Pattern 2: "采购组织形式 自行招标"
+      const match2 = line.match(/采购组织形式\s*[：:]?\s*([^\s]+)/);
+      if (match2 && KNOWN_ORGANIZATION_FORMS.includes(match2[1])) {
+        procurementOrganizationForm = match2[1];
+        break;
+      }
+    }
+    // Pattern 3: pdf-parse format - look for organization form right after the label
+    if (!procurementOrganizationForm) {
+      const formIdx = lines.findIndex((l) => l.includes('采购组织形式'));
+      if (formIdx >= 0) {
+        // Search next few lines for known organization forms
+        for (let i = formIdx + 1; i < Math.min(lines.length, formIdx + 10); i++) {
+          const candidate = lines[i].trim();
+          if (KNOWN_ORGANIZATION_FORMS.includes(candidate)) {
+            procurementOrganizationForm = candidate;
+            break;
+          }
+          // Also check if it's part of a line (e.g., "自行招标附件")
+          for (const form of KNOWN_ORGANIZATION_FORMS) {
+            if (candidate.startsWith(form)) {
+              procurementOrganizationForm = form;
+              break;
+            }
+          }
+          if (procurementOrganizationForm) break;
+        }
+      }
+    }
+    // Fallback
+    if (!procurementOrganizationForm) {
+      procurementOrganizationForm =
+        this.findExactValueAfterAnchor(
+          lines,
+          '采购组织形式',
+          KNOWN_ORGANIZATION_FORMS,
+        ) ||
+        lines.find((line) => KNOWN_ORGANIZATION_FORMS.includes(line)) ||
+        '';
+    }
+
+    // Extract annual budget flag
+    // Pattern 1: "是否属于 是 年度预算"
+    let isAnnualBudget = false;
+    for (const line of lines) {
+      if (line.includes('是否属于') && line.includes('年度预算')) {
+        // Check if "是" appears between "是否属于" and "年度预算"
+        const match = line.match(/是否属于\s*(是)\s*年度预算/);
+        if (match) {
+          isAnnualBudget = true;
+          break;
+        }
+      }
+      if (line.includes('是否属于年度预算')) {
+        isAnnualBudget = line.includes('是');
+        break;
+      }
+    }
+    // Fallback
+    if (!isAnnualBudget) {
+      const annualBudgetSection = this.collectSection(lines, '是否属于年度预算', [
+        '三重一大佐证材料',
+        '采购内容明细',
+      ]);
+      isAnnualBudget =
+        this.extractInlineValue(normalizedText, '是否属于年度预算') === '是' ||
+        annualBudgetSection.some((line) => line === '是') ||
+        this.findAnnualBudgetFlag(lines);
+    }
+
+    // Extract initiation date (立项时间)
+    // Pattern: Look for "日期" or "基本信息日期" label, then extract date from next line or inline
+    let initiationDate = '';
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Pattern 1: "日期 2025-09-29" or "基本信息日期 2025-07-07"
+      const inlineMatch = line.match(/(?:基本信息)?日期\s*[：:]?\s*(\d{4}[./-]\d{1,2}[./-]\d{1,2})/);
+      if (inlineMatch) {
+        initiationDate = inlineMatch[1].replace(/[./]/g, '-');
+        break;
+      }
+      // Pattern 2: Label on one line, date on next line (pdf-parse format)
+      if (line === '日期' || line === '基本信息日期' || line.match(/^基本信息\s*日期$/)) {
+        const nextLine = lines[i + 1]?.trim() || '';
+        const dateMatch = nextLine.match(/^(\d{4}[./-]\d{1,2}[./-]\d{1,2})$/);
+        if (dateMatch) {
+          initiationDate = dateMatch[1].replace(/[./]/g, '-');
+          break;
+        }
+      }
+    }
+
+    // Clean up whitespace in all extracted text fields
+    const cleanText = (t: string) => t.replace(/\s+/g, ' ').trim();
+
+    return {
+      requesterName: cleanText(requesterName),
+      requesterDepartment: cleanText(requesterDepartment),
+      procurementTitle: cleanText(procurementTitle),
+      procurementMethod,
+      procurementCategory: cleanText(procurementCategory),
+      procurementOrganizationForm: cleanText(procurementOrganizationForm),
+      budgetAmount,
+      isAnnualBudget,
+      projectReason: cleanText(projectReason),
+      supplierRequirements: cleanText(supplierRequirements),
+      initiationDate,
+    };
+  }
+
+  async extractDemandFieldsFromText(text: string) {
+    const normalizedText = this.normalizeInitiationText(text);
+    const lines = normalizedText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    // 采购需求表PDF解析策略：
+    // PDF文本提取后，标签和值通常在同一行或相邻行
+    // 格式特征：
+    // - "申请采购事项名称" 后面紧跟事项名称
+    // - "采购预算价格(元)" 后面是金额
+    // - "需求申请人" 后面是申请人名字
+    // - "需求部门" 后面是部门
+    // - "申请立项事由/情况说明" 后面是事由（可能是多行）
+    // - "对供方的主要要求" 后面是要求（可能是多行）
+    // - "采购类别" 后面是类别
+
+    // 辅助函数：查找标签后的值
+    const findValueAfterLabel = (label: string, maxLines: number = 5): string => {
+      const labelIdx = lines.findIndex((line) => line.includes(label));
+      if (labelIdx < 0) return '';
+
+      // 情况1：标签和值在同一行（如 "需求申请人 张三"）
+      const sameLineMatch = lines[labelIdx].match(new RegExp(`${label}\\s*(.+)`));
+      if (sameLineMatch && sameLineMatch[1].trim().length > 0) {
+        return sameLineMatch[1].trim();
+      }
+
+      // 情况2：值在标签下一行
+      for (let i = labelIdx + 1; i < Math.min(lines.length, labelIdx + maxLines + 1); i++) {
+        const line = lines[i];
+        // 跳过空行和其他标签
+        if (line.length === 0 || line.includes('所属项目') || line.includes('合同及编号')) continue;
+        // 如果遇到另一个标签，停止
+        if (line.includes('采购预算') || line.includes('采购类别') || line.includes('附件') ||
+            line.includes('备注') || line.includes('序号')) break;
+        return line;
+      }
+      return '';
+    };
+
+    // 辅助函数：查找多行内容（用于事由和要求）
+    const findMultiLineContent = (label: string, endLabels: string[]): string => {
+      const labelIdx = lines.findIndex((line) => line.includes(label));
+      if (labelIdx < 0) return '';
+
+      const contentLines: string[] = [];
+
+      // 检查标签同行是否有内容
+      const sameLineMatch = lines[labelIdx].match(new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*(.+)'));
+      if (sameLineMatch && sameLineMatch[1].trim().length > 0) {
+        let inlineContent = sameLineMatch[1].trim();
+        // Strip residual label fragments like "/情况说明" after the main label
+        inlineContent = inlineContent.replace(/^[/／]\S+\s*/, '').trim();
+        // Known label remnants that should not be treated as real content
+        const labelRemnants = ['事由', '情况说明', '说明', '事由/情况说明', '主要要求', '/情况说明'];
+        if (!labelRemnants.includes(inlineContent) && inlineContent.length > 3) {
+          contentLines.push(inlineContent);
+        }
+      }
+
+      // 继续读取后续行直到遇到结束标签
+      for (let i = labelIdx + 1; i < lines.length; i++) {
+        const line = lines[i];
+        // 检查是否遇到结束标签
+        if (endLabels.some((end) => line.includes(end))) break;
+        // 跳过审批流程相关内容
+        if (line.includes('接收人') || line.includes('流转意见') ||
+            line.includes('[') || line.match(/^\d{4}-\d{2}-\d{2}/)) break;
+        // 跳过表格相关
+        if (line.match(/^序号$/) || line.includes('采购物品规格') ||
+            line.includes('预估单价') || line.includes('小计')) break;
+        // 跳过"是"和人员名字、部门等
+        if (line === '是' || (line.length >= 2 && line.length <= 4 && /^[一-龥]+$/.test(line))) break;
+        if (line.includes('/') && line.length < 20) break; // 跳过部门格式
+        if (line.length > 0) {
+          contentLines.push(line);
+        }
+      }
+
+      return contentLines.join(' ').trim();
+    };
+
+    // 辅助函数：从"合计"行后提取内容（需求表特有格式）
+    // 格式：合计金额后依次是：申请人、部门、事项名称、立项事由、对供方要求
+    // 当事项名称=立项事由时，会出现两段相同的文本，跳过第二段
+    const findContentAfterTotal = (): { requesterName: string; requesterDept: string; projectReason: string; supplierRequirements: string; firstSegment: string; contentStartIndex: number } => {
+      const totalIdx = lines.findIndex((line) => line.startsWith('合计') || (line.includes('合计') && /\d/.test(line)));
+      if (totalIdx < 0) return { requesterName: '', requesterDept: '', projectReason: '', supplierRequirements: '', firstSegment: '', contentStartIndex: -1 };
+
+      // 跳过金额行，找到申请人（2-4个汉字）
+      let nameIdx = -1;
+      for (let i = totalIdx + 1; i < Math.min(lines.length, totalIdx + 5); i++) {
+        const line = lines[i].trim();
+        if (line.length >= 2 && line.length <= 4 && /^[一-龥]+$/.test(line)) {
+          nameIdx = i;
+          break;
+        }
+      }
+      if (nameIdx < 0) return { requesterName: '', requesterDept: '', projectReason: '', supplierRequirements: '', firstSegment: '', contentStartIndex: -1 };
+
+      const requesterName = lines[nameIdx];
+      const requesterDept = lines[nameIdx + 1] || '';
+
+      // 从部门后收集文本段落
+      const segments: string[] = [];
+      let currentSegment = '';
+
+      let contentStartIndex = -1;
+      for (let i = nameIdx + 2; i < Math.min(lines.length, nameIdx + 20); i++) {
+        const line = lines[i].trim();
+
+        // 停止条件
+        if (KNOWN_CATEGORIES.includes(line)) break;
+        if (line.includes('.pdf') || line.includes('.docx') || line.match(/^\d+[\.\d]*[KM]$/)) break;
+        if (line.includes('接收人') || line.includes('来自') || line.match(/^\d{4}-\d{2}-\d{2}/)) break;
+        if (line.includes('|') || line.length < 2) continue;
+
+        if (contentStartIndex < 0) {
+          contentStartIndex = i;
+        }
+
+        // 合并被分割的行：如果当前段落未以句号结束，继续追加
+        const endsWithEndMark = /[。；！？]$/.test(line);
+
+        if (currentSegment.length > 0 && !endsWithEndMark) {
+          // 当前段落未结束，继续追加
+          currentSegment += line;
+        } else if (line.length > 3) {
+          // 新段落开始
+          if (currentSegment.length > 0) {
+            segments.push(currentSegment.trim());
+          }
+          currentSegment = line;
+        }
+      }
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment.trim());
+      }
+
+      // 分析段落：
+      // 格式：事项名称、立项事由、对供方要求
+      // 当事项名称=立项事由时，前两段相同，跳过第二段
+      let projectReason = '';
+      let supplierRequirements = '';
+      let firstSegment = '';
+
+      if (segments.length >= 1) {
+        const first = segments[0]; // 事项名称
+        firstSegment = first;
+
+        if (segments.length >= 2) {
+          const second = segments[1];
+
+          if (first === second || second.includes(first) || first.includes(second)) {
+            // 事项名称 = 立项事由，跳过第二段
+            projectReason = first;
+            // 第三段是对供方要求
+            if (segments.length >= 3) {
+              supplierRequirements = segments[2];
+            }
+          } else {
+            // 事项名称 != 立项事由
+            projectReason = second;
+            if (segments.length >= 3) {
+              supplierRequirements = segments[2];
+            }
+          }
+        } else {
+          // 只有一段，就是事项名称=立项事由，没有对供方要求
+          projectReason = first;
+        }
+      }
+
+      return { requesterName, requesterDept, projectReason, supplierRequirements, firstSegment, contentStartIndex };
+    };
+
+    // 辅助函数：查找"是"行后的名字+部门对
+    const demandLabelPatterns = ['需求申请人', '需求部门', '申请采购事项名称', '所属项目', '合同及编号', '申请立项事由', '情况说明', '对供方的主要要求', '采购预算价格', '采购类别', '附件', '备注', '序号'];
+    const isDemandLabel = (line: string) => demandLabelPatterns.some((l) => line === l || line.startsWith(l));
+    const findNameDeptAfterYes = (): { name: string; dept: string } => {
+      const yesIdx = lines.findIndex((line) => line === '是');
+      if (yesIdx >= 0) {
+        for (let i = yesIdx + 1; i < Math.min(lines.length, yesIdx + 15); i++) {
+          const line = lines[i];
+          if (isDemandLabel(line)) continue;
+          // 名字特征：2-4个纯汉字
+          if (line.length >= 2 && line.length <= 4 && /^[一-龥]+$/.test(line)) {
+            // 检查后续行是否是部门格式（跳过标签行）
+            for (let j = i + 1; j < Math.min(lines.length, i + 3); j++) {
+              const candidate = lines[j];
+              if (isDemandLabel(candidate)) continue;
+              if (candidate.includes('/') || candidate.includes('院') || candidate.includes('室') ||
+                  candidate.includes('部') || candidate.includes('中心')) {
+                return { name: line, dept: candidate };
+              }
+              break;
+            }
+          }
+        }
+      }
+      return { name: '', dept: '' };
+    };
+
+    // 1. 申请采购事项名称
+    let procurementTitle = findValueAfterLabel('申请采购事项名称', 3);
+    // 清理：移除可能的"所属项目/合同及编号"部分
+    if (procurementTitle.includes('所属项目')) {
+      procurementTitle = procurementTitle.split('所属项目')[0].trim();
+    }
+
+    // 2. 采购预算价格
+    let budgetAmount = 0;
+    const budgetLabelIdx = lines.findIndex((line) => line.includes('采购预算价格'));
+    if (budgetLabelIdx >= 0) {
+      // 检查同行
+      const sameLineMatch = lines[budgetLabelIdx].match(/采购预算价格[^0-9]*([0-9]+(?:\.[0-9]+)?)/);
+      if (sameLineMatch) {
+        budgetAmount = Number.parseFloat(sameLineMatch[1]);
+      } else {
+        // 检查下一行
+        for (let i = budgetLabelIdx + 1; i < Math.min(lines.length, budgetLabelIdx + 3); i++) {
+          const match = lines[i].match(/([0-9]+(?:\.[0-9]+)?)/);
+          if (match) {
+            budgetAmount = Number.parseFloat(match[1]);
+            break;
+          }
+        }
+      }
+    }
+
+    // 3. 需求申请人 - 使用多种策略
+    let requesterName = '';
+    let requesterDepartment = '';
+
+    // 策略1：查找"是"行后的名字+部门对（年度预算为"是"的情况，这是最常见的格式）
+    const nameDeptPair = findNameDeptAfterYes();
+    if (nameDeptPair.name) {
+      requesterName = nameDeptPair.name;
+      requesterDepartment = nameDeptPair.dept;
+    }
+
+    // 策略2：查找"合计"行后的名字+部门对（无年度预算的情况）
+    if (!requesterName) {
+      const totalIdx = lines.findIndex((line) => line.startsWith('合计') || (line.includes('合计') && /\d/.test(line)));
+      if (totalIdx >= 0) {
+        for (let i = totalIdx + 1; i < Math.min(lines.length, totalIdx + 15); i++) {
+          const line = lines[i];
+          // 名字特征：2-4个纯汉字，或者"人力资源部"这种部门名后面跟着名字
+          if (line.length >= 2 && line.length <= 10 && /^[一-龥]+$/.test(line)) {
+            // 检查是否是部门名（包含"部"、"室"、"中心"等）
+            if (line.includes('部') || line.includes('室') || line.includes('中心')) {
+              // 这可能是部门名，检查下一行是否是更具体的部门或事项
+              continue;
+            }
+            const nextLine = lines[i + 1] || '';
+            // 部门特征：包含"/"、"院"、"室"、"部"、"中心"，或者是"人力资源部"这种
+            if (nextLine.includes('/') || nextLine.includes('院') || nextLine.includes('室') ||
+                nextLine.includes('部') || nextLine.includes('中心') || nextLine.includes('人力资源')) {
+              requesterName = line;
+              requesterDepartment = nextLine;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // 策略3：直接查找标签后的值（标签和值在同一行的情况）
+    if (!requesterName) {
+      requesterName = findValueAfterLabel('需求申请人', 3);
+    }
+    if (!requesterDepartment) {
+      requesterDepartment = findValueAfterLabel('需求部门', 3);
+    }
+
+    // 策略4：如果只找到名字，在名字后找部门
+    if (requesterName && !requesterDepartment) {
+      const nameIdx = lines.lastIndexOf(requesterName);
+      if (nameIdx >= 0 && nameIdx + 1 < lines.length) {
+        const nextLine = lines[nameIdx + 1];
+        if (nextLine.includes('/') || nextLine.includes('院') || nextLine.includes('室') ||
+            nextLine.includes('部') || nextLine.includes('中心')) {
+          requesterDepartment = nextLine;
+        }
+      }
+    }
+    // 备用：直接查找标签
+    if (!requesterDepartment) {
+      requesterDepartment = findValueAfterLabel('需求部门', 3);
+    }
+
+    const findDemandNarrativeAfterRequester = (): { projectReason: string; supplierRequirements: string } => {
+      if (!requesterDepartment) {
+        return { projectReason: '', supplierRequirements: '' };
+      }
+
+      // Prefer the department occurrence after "合计" (the table data area),
+      // not the one in the approval flow at the bottom of the document.
+      let deptIdx = -1;
+      const totalIdx = lines.findIndex((line) => line.startsWith('合计') || (line.includes('合计') && /\d/.test(line)));
+      if (totalIdx >= 0) {
+        for (let i = totalIdx + 1; i < Math.min(lines.length, totalIdx + 10); i++) {
+          if (lines[i] === requesterDepartment) {
+            deptIdx = i;
+            break;
+          }
+        }
+      }
+      if (deptIdx < 0) {
+        deptIdx = lines.indexOf(requesterDepartment);
+      }
+      if (deptIdx < 0) {
+        return { projectReason: '', supplierRequirements: '' };
+      }
+
+      const stopPatterns = [
+        '接收人',
+        '来自',
+        '流转意见',
+        '采购需求申请表-',
+        '10.20.',
+      ];
+      const contentLines: string[] = [];
+      const normalizedTitle = procurementTitle.replace(/\s+/g, '');
+      const normalizedProjectLine = lines.find((line) => line.includes('所属项目/合同及编号')) ? lines[lines.findIndex((line) => line.includes('所属项目/合同及编号')) + 1]?.replace(/\s+/g, '') ?? '' : '';
+      let titleBuffer = '';
+      let skippingRepeatedTitle = normalizedTitle.length > 0;
+      let skippedRepeatedTitle = false;
+
+      for (let i = deptIdx + 1; i < Math.min(lines.length, deptIdx + 40); i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        if (KNOWN_CATEGORIES.includes(line)) break;
+        if (stopPatterns.some((pattern) => line.includes(pattern))) break;
+        if (line.includes('[') || line.match(/^\d{4}-\d{2}-\d{2}/) || line.match(/^\d{4}\/\d{1,2}\/\d{1,2}/)) break;
+        if (line.includes('.pdf') || line.includes('.docx') || line.match(/^\d+[\.\d]*[KM]$/)) continue;
+        if (line.includes('|') || line === requesterName || line === requesterDepartment) continue;
+
+        const normalizedLine = line.replace(/\s+/g, '');
+        if (normalizedProjectLine && normalizedLine === normalizedProjectLine) {
+          continue;
+        }
+        if (skippingRepeatedTitle) {
+          const candidate = titleBuffer + normalizedLine;
+          if (candidate.length > 0 && (normalizedTitle.includes(candidate) || candidate.includes(normalizedTitle))) {
+            titleBuffer = candidate;
+            skippedRepeatedTitle = true;
+            continue;
+          }
+          skippingRepeatedTitle = false;
+        }
+
+        contentLines.push(line);
+      }
+
+      if (contentLines.length === 0) {
+        return {
+          projectReason: skippedRepeatedTitle ? procurementTitle : '',
+          supplierRequirements: '',
+        };
+      }
+
+      const isStructuredRequirementLine = (line: string) =>
+        /^[（(]?\d+[）)]/.test(line) || /^\d+[、]/.test(line);
+
+      let splitByRequirementMarker = false;
+      const requirementStartIndex = contentLines.findIndex((line) => {
+        if (isStructuredRequirementLine(line)) {
+          splitByRequirementMarker = true;
+          return true;
+        }
+        if (/(资质要求|业绩要求|提交不少于|提交能够满足|具备.*资质|具备.*能力)/.test(line)) {
+          splitByRequirementMarker = true;
+          return true;
+        }
+        return false;
+      });
+
+      const joinWrappedLines = (segments: string[], preserveHardBreaks = false) => {
+        const paragraphs: string[] = [];
+        let current = '';
+
+        for (const segment of segments) {
+          const trimmed = segment.trim();
+          if (!trimmed) continue;
+
+          if (!current) {
+            current = trimmed;
+            continue;
+          }
+
+          const continuesSentence =
+            !preserveHardBreaks &&
+            !/[。；！？：:]$/.test(current) &&
+            !isStructuredRequirementLine(trimmed);
+
+          if (continuesSentence) {
+            current += trimmed;
+          } else {
+            paragraphs.push(current);
+            current = trimmed;
+          }
+        }
+
+        if (current) {
+          paragraphs.push(current);
+        }
+
+        return paragraphs.join(' ');
+      };
+
+      if (requirementStartIndex > 0) {
+        return {
+          projectReason: joinWrappedLines(contentLines.slice(0, requirementStartIndex)),
+          supplierRequirements: joinWrappedLines(
+            contentLines.slice(requirementStartIndex),
+            !splitByRequirementMarker,
+          ),
+        };
+      }
+
+      if (contentLines.length >= 2 && /(附件|要求)/.test(contentLines[1])) {
+        return {
+          projectReason: joinWrappedLines([contentLines[0]]),
+          supplierRequirements: joinWrappedLines(contentLines.slice(1)),
+        };
+      }
+
+      if (skippedRepeatedTitle) {
+        return {
+          projectReason: procurementTitle,
+          supplierRequirements: joinWrappedLines(contentLines),
+        };
+      }
+
+      if (contentLines.length >= 2) {
+        const requirementMarkerIndex = contentLines.findIndex((line, index) =>
+          index > 0 && (isStructuredRequirementLine(line) || /(资质要求|业绩要求|提交不少于|提交能够满足|提交能够|提交不少于1篇)/.test(line)),
+        );
+        if (requirementMarkerIndex > 0) {
+          return {
+            projectReason: joinWrappedLines(contentLines.slice(0, requirementMarkerIndex)),
+            supplierRequirements: joinWrappedLines(contentLines.slice(requirementMarkerIndex), true),
+          };
+        }
+      }
+
+      return {
+        projectReason: joinWrappedLines(contentLines),
+        supplierRequirements: '',
+      };
+    };
+
+    let projectReason = '';
+    let supplierRequirements = '';
+
+    // 策略1：优先使用标签精确提取，避免误吃审批流文本
+    // Use the full label "申请立项事由/情况说明" first (most specific), then shorter variants
+    projectReason = findMultiLineContent('申请立项事由/情况说明', ['对供方的主要要求', '采购预算价格', '采购类别', '附件', '备注', '序号']);
+    if (!projectReason) {
+      projectReason = findMultiLineContent('申请立项事由', ['对供方的主要要求', '采购预算价格', '采购类别', '附件', '备注', '序号']);
+    }
+    if (!projectReason) {
+      projectReason = findMultiLineContent('情况说明', ['对供方的主要要求', '采购预算价格', '采购类别', '附件']);
+    }
+    if (!projectReason) {
+      projectReason = findMultiLineContent('申请立项', ['对供方的主要要求', '采购预算价格', '采购类别']);
+    }
+
+    if (!supplierRequirements) {
+      supplierRequirements = findMultiLineContent('对供方的主要要求', ['采购预算价格', '采购类别', '附件', '备注', '序号']);
+    }
+
+    // 策略2：从申请人/部门后的正文区提取，适配多种版式
+    const demandNarrative = findDemandNarrativeAfterRequester();
+    if (!projectReason && demandNarrative.projectReason) {
+      projectReason = demandNarrative.projectReason;
+    }
+    if (!supplierRequirements && demandNarrative.supplierRequirements) {
+      supplierRequirements = demandNarrative.supplierRequirements;
+    }
+
+    // "资质"/"业绩"关键词 fallback（放在策略2之后，避免截断覆盖策略2的完整结果）
+    if (!supplierRequirements) {
+      for (const line of lines) {
+        if (line.includes('资质要求') || line.includes('业绩要求') ||
+            (line.includes('资质') && line.length > 10) ||
+            (line.includes('业绩') && line.length > 10)) {
+          supplierRequirements = line;
+          break;
+        }
+      }
+    }
+
+    // 策略3：从"合计"行后提取（历史版式兼容）
+    const contentAfterTotal = findContentAfterTotal();
+    if (!projectReason && contentAfterTotal.projectReason) {
+      projectReason = contentAfterTotal.projectReason;
+    }
+    if (!supplierRequirements && contentAfterTotal.supplierRequirements) {
+      supplierRequirements = contentAfterTotal.supplierRequirements;
+    }
+
+    const normalizedTitle = procurementTitle.replace(/\s+/g, '');
+    const findSupplierRequirementsAfterRepeatedTitle = (): string => {
+      if (contentAfterTotal.contentStartIndex < 0) {
+        return '';
+      }
+
+      const requirementLines: string[] = [];
+      let titleConsumed = false;
+
+      for (let i = contentAfterTotal.contentStartIndex; i < Math.min(lines.length, contentAfterTotal.contentStartIndex + 20); i++) {
+        const line = lines[i];
+
+        if (KNOWN_CATEGORIES.includes(line)) break;
+        if (line.includes('.pdf') || line.includes('.docx') || line.match(/^\d+[\.\d]*[KM]$/)) break;
+        if (line.includes('接收人') || line.includes('来自') || line.match(/^\d{4}-\d{2}-\d{2}/)) break;
+        if (line.includes('|') || line.length < 2) continue;
+
+        const normalizedLine = line.replace(/\s+/g, '');
+        if (!titleConsumed) {
+          if (normalizedTitle.includes(normalizedLine) || normalizedLine.includes(normalizedTitle)) {
+            titleConsumed = true;
+          }
+          continue;
+        }
+
+        requirementLines.push(line);
+      }
+
+      return requirementLines.join('');
+    };
+
+    const normalizedFirstSegment = contentAfterTotal.firstSegment.replace(/\s+/g, '');
+    const totalContentLooksLikeRepeatedTitle =
+      normalizedTitle.length > 0 &&
+      normalizedFirstSegment.length > 0 &&
+      (normalizedTitle === normalizedFirstSegment ||
+        normalizedTitle.includes(normalizedFirstSegment) ||
+        normalizedFirstSegment.includes(normalizedTitle));
+
+    if (totalContentLooksLikeRepeatedTitle) {
+      projectReason = procurementTitle;
+      if (!supplierRequirements && contentAfterTotal.projectReason) {
+        supplierRequirements = contentAfterTotal.projectReason;
+      }
+      const recoveredSupplierRequirements = findSupplierRequirementsAfterRepeatedTitle();
+      if (recoveredSupplierRequirements) {
+        supplierRequirements = recoveredSupplierRequirements;
+      }
+    }
+
+    // 策略4（最后备用）：从部门后查找，但需要区分事由和要求
+    // 只有当以上策略都失败时才使用此策略
+    if (!projectReason && !supplierRequirements && requesterDepartment) {
+      const deptIdx = lines.lastIndexOf(requesterDepartment);
+      if (deptIdx >= 0) {
+        // 收集部门后的所有长文本
+        const textSegments: string[] = [];
+        for (let i = deptIdx + 1; i < Math.min(lines.length, deptIdx + 20); i++) {
+          const line = lines[i];
+          // 跳过各种无关内容
+          if (line === procurementTitle || KNOWN_CATEGORIES.includes(line)) continue;
+          if (line.includes('.pdf') || line.includes('.docx') || line.match(/^\d+[\.\d]*[KM]$/)) continue;
+          if (line.includes('/') && !line.includes('院') && !line.includes('部') && !line.includes('室')) continue;
+          if (line === requesterName || line === requesterDepartment) continue;
+          if (line.includes('接收人') || line.includes('来自') || line.match(/^\d{4}-\d{2}-\d{2}/) ||
+              line.includes('[') || line.includes('|') || line.length < 5) continue;
+          if (/^[\d\s|]+$/.test(line)) continue;
+          if (line.length > 10) {
+            textSegments.push(line);
+          }
+        }
+        // 第一个长文本作为事由，第二个作为要求
+        if (textSegments.length >= 1) {
+          projectReason = textSegments[0];
+        }
+        if (textSegments.length >= 2) {
+          supplierRequirements = textSegments[1];
+        }
+      }
+    }
+
+
+    let procurementCategory = '';
+    // 策略1：查找标签后的值
+    const categoryLabelIdx = lines.findIndex((line) => line.includes('采购类别'));
+    if (categoryLabelIdx >= 0) {
+      // 检查同行
+      for (const cat of KNOWN_CATEGORIES) {
+        if (lines[categoryLabelIdx].includes(cat)) {
+          procurementCategory = cat;
+          break;
+        }
+      }
+      // 检查后续几行
+      if (!procurementCategory) {
+        for (let i = categoryLabelIdx + 1; i < Math.min(lines.length, categoryLabelIdx + 5); i++) {
+          if (KNOWN_CATEGORIES.includes(lines[i])) {
+            procurementCategory = lines[i];
+            break;
+          }
+        }
+      }
+    }
+    // 策略2：在整个文本中查找已知类别
+    if (!procurementCategory) {
+      for (const line of lines) {
+        if (KNOWN_CATEGORIES.includes(line)) {
+          procurementCategory = line;
+          break;
+        }
+      }
+    }
+
+    // 8. 采购方式（采购需求表通常没有此字段，但保留逻辑）
+    let procurementMethod = '';
+    for (const line of lines) {
+      for (const method of KNOWN_METHODS) {
+        if (line.includes(method)) {
+          procurementMethod = method;
+          break;
+        }
+      }
+      if (procurementMethod) break;
+    }
+
+    // 9. 所属项目/合同及编号
+    let 所属项目 = '';
+    let 合同及编号 = '';
+    const projectContractIdx = lines.findIndex((line) => line.includes('所属项目') && !line.includes('申请'));
+    if (projectContractIdx >= 0 && projectContractIdx + 1 < lines.length) {
+      const valueLine = lines[projectContractIdx + 1];
+      // 检查是否是下一个标签（申请立项事由等）
+      if (!valueLine.includes('申请') && !valueLine.includes('情况说明')) {
+        // 格式通常是 "项目名/合同编号"，如 "引大济岷/川水市场（2025）103号"
+        const parts = valueLine.split('/');
+        if (parts.length >= 2) {
+          所属项目 = parts[0].trim();
+          合同及编号 = parts.slice(1).join('/').trim();
+        } else {
+          // 如果没有"/"，整个作为项目名
+          所属项目 = valueLine.trim();
+        }
+      }
+    }
+
+    const cleanText = (t: string) => t.replace(/\s+/g, ' ').trim();
+
+    // 返回算法提取结果（暂时禁用AI复核）
+    return {
+      requesterName: cleanText(requesterName),
+      requesterDepartment: cleanText(requesterDepartment),
+      procurementTitle: cleanText(procurementTitle),
+      projectReason: cleanText(projectReason),
+      supplierRequirements: cleanText(supplierRequirements),
+      budgetAmount,
+      procurementCategory: cleanText(procurementCategory),
+      procurementMethod: cleanText(procurementMethod),
+ 所属项目: cleanText(所属项目),
+      合同及编号: cleanText(合同及编号),
+    };
+
+  }
+
+  private async verifyDemandFieldsWithAI(
+    originalText: string,
+    algorithmResult: {
+      requesterName: string;
+      requesterDepartment: string;
+      procurementTitle: string;
+      projectReason: string;
+      supplierRequirements: string;
+      budgetAmount: number;
+      procurementCategory: string;
+      procurementMethod: string;
+ 所属项目: string;
+      合同及编号: string;
+    },
+  ) {
+    const systemPrompt = `你是一个采购需求表信息提取助手。你的任务是复核算法提取的结果，并根据PDF原文内容进行修正和补充。
+
+请输出一个JSON对象，包含以下字段：
+{
+  "requesterName": "需求申请人姓名",
+  "requesterDepartment": "需求部门",
+  "procurementTitle": "申请采购事项名称",
+  "projectReason": "申请立项事由/情况说明",
+  "supplierRequirements": "对供方的主要要求",
+  "budgetAmount": 采购预算价格(数字),
+  "procurementCategory": "采购类别",
+  "procurementMethod": "采购方式",
+ 所属项目": "所属项目名称",
+  "合同及编号": "合同及编号"
+}
+
+规则：
+1. 如果算法提取的字段值正确，保持不变
+2. 如果算法提取的字段值为空或不正确，根据原文内容修正
+3. 特别注意"申请立项事由/情况说明"和"对供方的主要要求"这两个字段，它们通常是多行文本
+4. 所有字段都必须填写，如果原文中没有对应信息，填写空字符串
+5. 只输出JSON，不要输出其他内容`;
+
+    const userPrompt = `以下是采购需求表PDF的原文内容：
+
+${originalText}
+
+以下是算法提取的结果：
+${JSON.stringify(algorithmResult, null, 2)}
+
+请复核并修正上述结果，输出正确的JSON。`;
+
+    const response = await this.aiService.chatJson(systemPrompt, userPrompt, 0.3);
+
+    try {
+      const parsed = JSON.parse(response);
+      return {
+        requesterName: parsed.requesterName || algorithmResult.requesterName,
+        requesterDepartment: parsed.requesterDepartment || algorithmResult.requesterDepartment,
+        procurementTitle: parsed.procurementTitle || algorithmResult.procurementTitle,
+        projectReason: parsed.projectReason || algorithmResult.projectReason,
+        supplierRequirements: parsed.supplierRequirements || algorithmResult.supplierRequirements,
+        budgetAmount: typeof parsed.budgetAmount === 'number' ? parsed.budgetAmount : algorithmResult.budgetAmount,
+        procurementCategory: parsed.procurementCategory || algorithmResult.procurementCategory,
+        procurementMethod: parsed.procurementMethod || algorithmResult.procurementMethod,
+ 所属项目: parsed.所属项目 || algorithmResult.所属项目,
+        合同及编号: parsed.合同及编号 || algorithmResult.合同及编号,
+      };
+    } catch {
+      // JSON解析失败，返回算法结果
+      return algorithmResult;
+    }
+  }
+
+  async extractDemandFromUploadedFile(
+    file: Express.Multer.File,
+    uploadedById?: string,
+  ) {
+    if (!file.mimetype.includes('pdf')) {
+      throw new BadRequestException('请上传 PDF 文件。');
+    }
+
+    const { absolutePath, attachment } = await this.persistUploadedFile(
+      file,
+      'demand',
+      uploadedById,
+    );
+
+    const extractedText = await this.extractFileText(
+      absolutePath,
+      file.mimetype,
+      file.originalname,
+    );
+
+    return {
+      fields: await this.extractDemandFieldsFromText(extractedText),
+      attachment,
+      extractedText,
+    };
+  }
+
+  async updateStage(
+    projectId: string,
+    stageKey: string,
+    dto: UpdateProjectStageDto,
+  ) {
+    const stage = await this.prisma.projectManagementStage.findFirst({
+      where: { projectManagementItemId: projectId, stageKey },
+    });
+
+    if (!stage) {
+      throw new NotFoundException('未找到对应的项目阶段。');
+    }
+
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { currentStage: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    if (
+      dto.status === PROJECT_STAGE_STATUS.COMPLETED &&
+      project.currentStage !== stageKey
+    ) {
+      throw new BadRequestException('请先完成当前阶段后再推进下一阶段。');
+    }
+
+    const updatedStage = await this.prisma.projectManagementStage.update({
+      where: { id: stage.id },
+      data: {
+        status: dto.status,
+        note: dto.note?.trim() || null,
+        completedAt:
+          dto.status === PROJECT_STAGE_STATUS.COMPLETED ? new Date() : null,
+      },
+    });
+
+    if (dto.status === PROJECT_STAGE_STATUS.COMPLETED) {
+      const savedStages = await this.prisma.projectManagementStage.findMany({
+        where: { projectManagementItemId: projectId },
+        orderBy: { stageOrder: 'asc' },
+      });
+      const projectStages = Array.isArray(savedStages) && savedStages.length > 0
+        ? savedStages
+        : PROJECT_WORKFLOW_STAGES.map((stage, index) => ({
+            stageKey: stage.key,
+            stageOrder: index + 1,
+          }));
+      const currentIndex = projectStages.findIndex((item) => item.stageKey === stageKey);
+      let nextStage = currentIndex >= 0 ? projectStages[currentIndex + 1] ?? null : null;
+      while (nextStage && LOCKED_STAGES.has(nextStage.stageKey as typeof PROJECT_WORKFLOW_STAGES[number]['key'])) {
+        await this.prisma.projectManagementStage.updateMany({
+          where: { projectManagementItemId: projectId, stageKey: nextStage.stageKey },
+          data: { status: PROJECT_STAGE_STATUS.COMPLETED, completedAt: new Date() },
+        });
+        const nextIndex = projectStages.findIndex((item) => item.stageKey === nextStage!.stageKey);
+        nextStage = nextIndex >= 0 ? projectStages[nextIndex + 1] ?? null : null;
+      }
+
+      if (nextStage) {
+        await this.prisma.projectManagementStage.updateMany({
+          where: {
+            projectManagementItemId: projectId,
+            stageKey: nextStage.stageKey,
+            status: PROJECT_STAGE_STATUS.NOT_STARTED,
+          },
+          data: { status: PROJECT_STAGE_STATUS.IN_PROGRESS },
+        });
+        await this.prisma.projectManagementItem.update({
+          where: { id: projectId },
+          data: { currentStage: nextStage.stageKey },
+        });
+      }
+
+      await this.refreshProjectAnalysis(projectId);
+    }
+
+    return updatedStage;
+  }
+
+  async completeProject(projectId: string, dto: CompleteProjectDto, userId?: string) {
+    if (!dto.confirmedCompleted) {
+      throw new BadRequestException('请先确认项目已完成。');
+    }
+
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    if (project.currentStage !== 'CONTRACT') {
+      throw new BadRequestException('只有合同阶段完成后才允许归档。');
+    }
+
+    if (!project.departmentNumber || !project.departmentNumber.trim()) {
+      throw new BadRequestException('请先在项目基本信息中填写部门编号后再完成归档。');
+    }
+
+    const stages = await this.prisma.projectManagementStage.findMany({
+      where: { projectManagementItemId: projectId },
+      include: { attachments: true },
+      orderBy: { stageOrder: 'asc' },
+    });
+
+    const contractStage = stages.find((stage) => stage.stageKey === 'CONTRACT');
+    if (
+      !contractStage ||
+      contractStage.status !== PROJECT_STAGE_STATUS.COMPLETED
+    ) {
+      throw new BadRequestException('合同阶段尚未完成。');
+    }
+
+    const archivedAt = new Date();
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const department = await tx.department.upsert({
+        where: { name: project.requesterDepartment },
+        update: {},
+        create: { name: project.requesterDepartment },
+      });
+
+      const createdProject = await tx.project.create({
+        data: {
+          projectCode: `PM-${project.id}`,
+          name: project.title,
+          businessCategory: project.procurementCategory,
+          description: project.projectReason,
+          requestingDepartmentId: department.id,
+        },
+      });
+
+      const procurementRound = await tx.procurementRound.create({
+        data: {
+          projectId: createdProject.id,
+          roundNo: 1,
+          procurementMethod: project.procurementMethod,
+          departmentId: department.id,
+          budgetAmount: project.budgetAmount,
+          controlAmount: project.budgetAmount,
+          awardAmount: project.contractAmount,
+          resultStatus: ResultStatus.AWARDED,
+          resultText: '项目已完成并归档',
+          sourceType: SourceType.PROJECT_MANAGEMENT,
+          createdById: userId,
+          awardedSupplierName: project.awardedSupplier || null,
+          expertInfo: project.expertInfo || null,
+          biddingUnits: project.biddingUnits || null,
+        },
+      });
+
+      return tx.projectManagementItem.update({
+        where: { id: projectId },
+        data: {
+          status: PROJECT_MANAGEMENT_STATUS.ARCHIVED,
+          archivedProcurementRoundId: procurementRound.id,
+          archivedAt,
+        },
+      });
+    });
+
+    // Generate archive files in background with unique hook
+    const archiveHook = `ARCHIVE-${projectId}-${Date.now()}`;
+    this.generateArchiveFiles(project, stages, archivedAt, archiveHook).catch((err) => {
+      this.logger.error('Failed to generate archive files:', err);
+    });
+
+    await this.prisma.projectManagementItem.update({
+      where: { id: projectId },
+      data: { archiveHook },
+    });
+
+    return result;
+  }
+
+  async updateExtractedInfo(
+    projectId: string,
+    dto: {
+      initiationDate?: string;
+      evaluationMethod?: string;
+      expertInfo?: string;
+      biddingUnits?: string;
+      awardedSupplier?: string;
+      contractAmount?: number;
+      demandProject?: string;
+      demandContractNumber?: string;
+      contractNumber?: string;
+      departmentNumber?: string;
+    },
+  ) {
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    const updateData: Record<string, unknown> = {};
+
+    if (dto.initiationDate) {
+      const parsedDate = new Date(dto.initiationDate);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        updateData.initiationDate = parsedDate;
+      }
+    }
+
+    if (dto.evaluationMethod !== undefined) {
+      updateData.evaluationMethod = dto.evaluationMethod;
+    }
+
+    if (dto.expertInfo !== undefined) {
+      updateData.expertInfo = dto.expertInfo;
+    }
+
+    if (dto.biddingUnits !== undefined) {
+      updateData.biddingUnits = dto.biddingUnits;
+    }
+
+    if (dto.awardedSupplier !== undefined) {
+      updateData.awardedSupplier = dto.awardedSupplier;
+    }
+
+    if (dto.contractAmount !== undefined) {
+      updateData.contractAmount = dto.contractAmount;
+    }
+
+    if (dto.demandProject !== undefined) {
+      updateData.demandProject = dto.demandProject || null;
+    }
+
+    if (dto.demandContractNumber !== undefined) {
+      updateData.demandContractNumber = dto.demandContractNumber || null;
+    }
+
+    if (dto.contractNumber !== undefined) {
+      updateData.contractNumber = dto.contractNumber || null;
+    }
+
+    if (dto.departmentNumber !== undefined) {
+      updateData.departmentNumber = dto.departmentNumber || null;
+    }
+
+    return this.prisma.projectManagementItem.update({
+      where: { id: projectId },
+      data: updateData,
+    });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async generateArchiveFiles(project: any, stages: any[], archivedAt: Date, archiveHook: string) {
+    // Primary archive path: project local directory (uploads/archive)
+    const localArchiveBasePath = resolve(process.cwd(), 'uploads', 'archive');
+    // Backup path: NAS storage
+    const nasArchiveBasePath = process.env.NAS_PATH || '/home/swhi/nas_procurement';
+    const nasArchivePath = join(nasArchiveBasePath, 'ProcurementData');
+
+    const monthStr = `${archivedAt.getFullYear()}年${String(archivedAt.getMonth() + 1).padStart(2, '0')}月`;
+
+    // Archive to local first
+    const localMonthDir = join(localArchiveBasePath, monthStr);
+    const localProjectDir = await this.createUniqueProjectDir(localMonthDir, project.title);
+
+    // Archive to NAS backup (if available)
+    const nasMonthDir = join(nasArchivePath, monthStr);
+    let nasProjectDir: string | null = null;
+    try {
+      await access(nasArchiveBasePath);
+      nasProjectDir = await this.createUniqueProjectDir(nasMonthDir, project.title);
+    } catch {
+      this.logger.warn(`NAS path ${nasArchiveBasePath} not available, skipping backup`);
+    }
+
+    // Create directory structure in both locations
+    await mkdir(localProjectDir, { recursive: true });
+    if (nasProjectDir) {
+      await mkdir(nasProjectDir, { recursive: true });
+    }
+
+    // Load file analysis cache and project summary
+    const summaryCachePath = this.getProjectSummaryCachePath(project.id);
+    let summary = '';
+    try {
+      const cachedSummary = JSON.parse(await readFile(summaryCachePath, 'utf8')) as { summary?: string };
+      summary = cachedSummary.summary || '';
+    } catch {
+      // No summary available
+    }
+
+    const stageAnalysisMap = new Map<string, Array<{ fileName: string; contentSummary: string }>>();
+    for (const stage of stages) {
+      const cachePath = this.getStageAnalysisCachePath(project.id, stage.stageKey);
+      try {
+        const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
+          files?: Array<{ fileName: string; contentSummary: string }>;
+        };
+        if (Array.isArray(cached.files)) {
+          stageAnalysisMap.set(stage.stageKey, cached.files);
+        }
+      } catch {
+        // No cache
+      }
+    }
+
+    const statusLabel = (s: string) => {
+      if (s === 'COMPLETED') return '已完成';
+      if (s === 'IN_PROGRESS') return '进行中';
+      return '未开始';
+    };
+
+    const budgetStr = project.budgetAmount != null
+      ? Number(project.budgetAmount).toLocaleString('zh-CN') + ' 元'
+      : '暂缺';
+
+    const contractAmountStr = project.contractAmount
+      ? Number(project.contractAmount).toLocaleString('zh-CN') + ' 元'
+      : '暂缺';
+
+    // Copy files and build TXT content
+    const lines: string[] = [];
+    lines.push('═══════════════════════════════════════');
+    lines.push('          项目归档说明');
+    lines.push('═══════════════════════════════════════');
+    lines.push('');
+    lines.push('【项目基本信息】');
+    lines.push('');
+    lines.push(`  项目名称：${project.title}`);
+    lines.push(`  申  请  人：${project.requesterName}`);
+    lines.push(`  申请部门：${project.requesterDepartment}`);
+    lines.push(`  采购方式：${project.procurementMethod}`);
+    lines.push(`  采购类别：${project.procurementCategory}`);
+    lines.push(`  预算金额：${budgetStr}`);
+    lines.push(`  申请立项事由：${project.projectReason || '待补充'}`);
+    lines.push(`  对供方主要要求：${project.supplierRequirements || '无'}`);
+    lines.push('');
+    lines.push(`  立项时间：${project.initiationDate ? this.formatDate(project.initiationDate) : '暂缺'}`);
+    lines.push(`  所属项目：${project.demandProject || '其他'}`);
+    lines.push(`  合同编号：${project.contractNumber || project.demandContractNumber || '无'}`);
+    lines.push(`  部门编号：${project.departmentNumber || '暂缺'}`);
+
+    // 专家信息格式化：每行格式为 "姓名|部门|专业|职称"
+    if (project.expertInfo) {
+      const experts = project.expertInfo.split('\n').filter(Boolean);
+      lines.push(`  专家信息：共 ${experts.length} 位专家`);
+      for (const expert of experts) {
+        const parts = expert.split('|');
+        if (parts.length >= 4) {
+          lines.push(`    ${parts[0]} - ${parts[1]} / ${parts[2]} / ${parts[3]}`);
+        } else if (parts.length >= 1) {
+          lines.push(`    ${parts[0]}`);
+        }
+      }
+    } else {
+      lines.push(`  专家信息：暂缺`);
+    }
+
+    // 投标单位格式化：用顿号分隔的单位列表
+    if (project.biddingUnits) {
+      const units = project.biddingUnits.split(/[、,\n]/).filter((u: string) => u.trim());
+      lines.push(`  投标单位：共 ${units.length} 家单位`);
+      for (const unit of units) {
+        lines.push(`    ${unit.trim()}`);
+      }
+    } else {
+      lines.push(`  投标单位：暂缺`);
+    }
+
+    lines.push(`  中标单位：${project.awardedSupplier || '暂缺'}`);
+    lines.push(`  合同金额：${contractAmountStr}`);
+
+    for (let i = 0; i < stages.length; i++) {
+      const stage = stages[i];
+      const localStageDir = join(localProjectDir, `${i + 1}.${stage.stageName}`);
+      const nasStageDir = nasProjectDir ? join(nasProjectDir, `${i + 1}.${stage.stageName}`) : null;
+      const analysisFiles = stageAnalysisMap.get(stage.stageKey) || [];
+
+      lines.push('');
+      lines.push('───────────────────────────────────────');
+      lines.push('');
+      lines.push(`【${stage.stageName}】（步骤 ${i + 1}/${stages.length}）${statusLabel(stage.status)}`);
+      lines.push('');
+
+      if (stage.attachments.length > 0) {
+        // Create stage directory and copy files to both locations
+        await mkdir(localStageDir, { recursive: true });
+        if (nasStageDir) {
+          await mkdir(nasStageDir, { recursive: true });
+        }
+
+        for (let j = 0; j < stage.attachments.length; j++) {
+          const att = stage.attachments[j];
+          const analysisFile = analysisFiles[j];
+
+          if (j > 0) lines.push('');
+          lines.push(`  文件${stage.attachments.length > 1 ? (j + 1) : ''}：${att.fileName}`);
+
+          if (analysisFile) {
+            lines.push('');
+            lines.push('  文件分析：');
+            lines.push(`  ${analysisFile.contentSummary}`);
+          }
+
+          const srcPath = resolve(process.cwd(), 'uploads', att.objectKey);
+          // Copy to local archive
+          const localDstPath = join(localStageDir, att.fileName);
+          try { await copyFile(srcPath, localDstPath); } catch { /* skip if file missing */ }
+          // Copy to NAS backup
+          if (nasStageDir) {
+            const nasDstPath = join(nasStageDir, att.fileName);
+            try { await copyFile(srcPath, nasDstPath); } catch { /* skip if file missing */ }
+          }
+        }
+      } else {
+        lines.push('  文件：（无）');
+      }
+    }
+
+    lines.push('');
+    lines.push('═══════════════════════════════════════');
+    lines.push(`          归档时间：${this.formatDate(archivedAt)}`);
+    lines.push(`          归档标识：${archiveHook}`);
+    lines.push('═══════════════════════════════════════');
+    lines.push('');
+    lines.push('【项目简报】');
+    lines.push('');
+    lines.push(summary || '暂无项目简报。');
+    lines.push('');
+    lines.push('═══════════════════════════════════════');
+
+    // Write archive description to both locations
+    await writeFile(join(localProjectDir, '项目归档说明.txt'), lines.join('\n'), 'utf8');
+    if (nasProjectDir) {
+      await writeFile(join(nasProjectDir, '项目归档说明.txt'), lines.join('\n'), 'utf8');
+    }
+  }
+
+  private async createUniqueProjectDir(monthDir: string, projectTitle: string): Promise<string> {
+    let projectDir = join(monthDir, projectTitle);
+    let suffix = 1;
+    while (true) {
+      try {
+        await access(projectDir);
+        // Directory exists, try next suffix
+        suffix += 1;
+        projectDir = join(monthDir, `${projectTitle}（${suffix}）`);
+      } catch {
+        // Directory does not exist, use this path
+        break;
+      }
+    }
+    return projectDir;
+  }
+
+  private formatDate(date: Date | string): string {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  async refreshProjectAnalysis(projectId: string) {
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      include: {
+        stages: {
+          orderBy: { stageOrder: 'asc' },
+          include: { attachments: true },
+        },
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    const summaryCachePath = this.getProjectSummaryCachePath(projectId);
+
+    // Collect all attachments
+    const allAttachments = project.stages.flatMap((stage) =>
+      stage.attachments.map((attachment) => ({
+        fileName: attachment.fileName,
+        stageKey: stage.stageKey,
+      })),
+    );
+
+    if (allAttachments.length === 0) {
+      const emptySummary = '当前项目尚未上传可供分析的材料，暂无法生成项目简报。';
+      await mkdir(this.getUploadDir(), { recursive: true });
+      await writeFile(
+        summaryCachePath,
+        JSON.stringify({ summary: emptySummary }, null, 2),
+        'utf8',
+      );
+      return;
+    }
+
+    // Read existing file analysis results from cache, or generate if not cached
+    const fileAnalysisResults: Array<{ fileName: string; stageKey: string; contentSummary: string }> = [];
+    for (const stage of project.stages) {
+      if (stage.attachments.length === 0) continue;
+
+      const stageAnalysisCachePath = this.getStageAnalysisCachePath(projectId, stage.stageKey);
+      const fingerprint = this.buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
+
+      let cachedFiles: Array<{
+        objectKey: string;
+        fileName: string;
+        stageMatch: string;
+        contentSummary: string;
+      }> | null = null;
+
+      // Try to read from cache
+      try {
+        const cached = JSON.parse(await readFile(stageAnalysisCachePath, 'utf8')) as {
+          fingerprint?: string;
+          files?: Array<{
+            objectKey: string;
+            fileName: string;
+            stageMatch: string;
+            contentSummary: string;
+          }>;
+        };
+        if (cached.fingerprint === fingerprint && Array.isArray(cached.files)) {
+          cachedFiles = cached.files;
+        }
+      } catch {
+        // Cache doesn't exist or is invalid
+      }
+
+      // Generate analysis if no valid cache
+      if (!cachedFiles) {
+        const filesWithText = await Promise.all(
+          stage.attachments.map(async (attachment) => {
+            const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+            const extractedText = await this.extractFileTextWithOcr(
+              filePath, attachment.mimeType, attachment.fileName,
+            );
+            return {
+              objectKey: attachment.objectKey,
+              fileName: attachment.fileName,
+              mimeType: attachment.mimeType,
+              fileSize: attachment.fileSize,
+              createdAt: attachment.createdAt?.toISOString() ?? null,
+              extractedText,
+            };
+          }),
+        );
+
+        if (filesWithText.length > 0) {
+          const analysis = await this.aiService.analyzeProjectDetail({
+            project: {
+              id: project.id,
+              title: project.title,
+              requesterName: project.requesterName,
+              requesterDepartment: project.requesterDepartment,
+              procurementMethod: project.procurementMethod,
+              procurementCategory: project.procurementCategory,
+              currentStage: project.currentStage,
+              projectReason: project.projectReason,
+              supplierRequirements: project.supplierRequirements,
+            },
+            currentStage: {
+              stageKey: stage.stageKey,
+              stageName: stage.stageName,
+              status: stage.status,
+            },
+            files: filesWithText,
+          });
+
+          cachedFiles = analysis.fileAnalyses.map((file) => ({
+            objectKey: file.objectKey,
+            fileName: file.fileName,
+            stageMatch: this.normalizeStageMatchText(file.stageMatch),
+            contentSummary: file.contentSummary,
+          }));
+
+          // Cache the stage analysis
+          await mkdir(this.getUploadDir(), { recursive: true });
+          await writeFile(
+            stageAnalysisCachePath,
+            JSON.stringify({ fingerprint, files: cachedFiles }, null, 2),
+            'utf8',
+          );
+        }
+      }
+
+      if (cachedFiles) {
+        for (const file of cachedFiles) {
+          fileAnalysisResults.push({
+            fileName: file.fileName,
+            stageKey: stage.stageKey,
+            contentSummary: file.contentSummary,
+          });
+        }
+      }
+    }
+
+    // Check if all stages are completed (project is archived)
+    const contractStage = project.stages.find((s) => s.stageKey === 'CONTRACT');
+    const isCompleted = contractStage?.status === 'COMPLETED';
+
+    // Generate summary based on project info and file analysis results
+    const summary = await this.aiService.generateProjectSummary({
+      project: {
+        title: project.title,
+        requesterName: project.requesterName,
+        requesterDepartment: project.requesterDepartment,
+        procurementMethod: project.procurementMethod,
+        procurementCategory: project.procurementCategory,
+        currentStage: project.currentStage,
+        projectReason: project.projectReason,
+        supplierRequirements: project.supplierRequirements,
+      },
+      fileAnalysisResults,
+      isCompleted,
+    });
+
+    await mkdir(this.getUploadDir(), { recursive: true });
+    await writeFile(
+      summaryCachePath,
+      JSON.stringify({ summary }, null, 2),
+      'utf8',
+    );
+
+    return { summary };
+  }
+
+  async analyzeProject(projectId: string, stageKey?: string) {
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      include: {
+        stages: {
+          orderBy: { stageOrder: 'asc' },
+          include: { attachments: true },
+        },
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    // Load the project summary from cache (generated when stage is completed)
+    const summaryCachePath = this.getProjectSummaryCachePath(project.id);
+    let summary = '当前还没有生成项目简报。请在完成阶段推进后重新查看。';
+
+    try {
+      const cachedSummary = JSON.parse(
+        await readFile(summaryCachePath, 'utf8'),
+      ) as { summary?: string };
+      if (cachedSummary.summary?.trim()) {
+        summary = cachedSummary.summary;
+      }
+    } catch {
+      // fall back to default summary when no cache exists yet
+    }
+
+    // Collect file analyses from relevant stages
+    const allFileAnalyses: Array<{
+      objectKey: string;
+      fileName: string;
+      stageMatch: string;
+      contentSummary: string;
+    }> = [];
+
+    const stagesToAnalyze = stageKey
+      ? project.stages.filter((s) => s.stageKey === stageKey)
+      : project.stages;
+
+    for (const stage of stagesToAnalyze) {
+      if (stage.attachments.length === 0) continue;
+
+      const cachePath = this.getStageAnalysisCachePath(project.id, stage.stageKey);
+      const fingerprint = this.buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
+
+      let stageFiles: Array<{
+        objectKey: string;
+        fileName: string;
+        stageMatch: string;
+        contentSummary: string;
+      }> | null = null;
+
+      // Try cache first (exact fingerprint match)
+      let cachedByKey = new Map<string, { objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>();
+      try {
+        const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
+          fingerprint?: string;
+          files?: Array<{
+            objectKey: string;
+            fileName: string;
+            stageMatch: string;
+            contentSummary: string;
+          }>;
+        };
+        if (cached.fingerprint === fingerprint && Array.isArray(cached.files)) {
+          stageFiles = cached.files;
+        } else if (Array.isArray(cached.files)) {
+          // Fingerprint mismatch but cache exists — record existing analyses by objectKey
+          for (const f of cached.files) {
+            cachedByKey.set(f.objectKey, f);
+          }
+        }
+      } catch {
+        // No cache or invalid cache
+      }
+
+      // Generate if no valid cache
+      if (!stageFiles) {
+        // Only analyze files that aren't already in the cache (incremental)
+        const newAttachments = stage.attachments.filter((a) => !cachedByKey.has(a.objectKey));
+
+        let newFileAnalyses: Array<{ objectKey: string; fileName: string; stageMatch: string; contentSummary: string }> = [];
+        if (newAttachments.length > 0) {
+          const newFilesWithText = await Promise.all(
+            newAttachments.map(async (attachment) => {
+              const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+              const extractedText = await this.extractFileTextWithOcr(
+                filePath, attachment.mimeType, attachment.fileName,
+              );
+              return {
+                objectKey: attachment.objectKey,
+                fileName: attachment.fileName,
+                mimeType: attachment.mimeType,
+                fileSize: attachment.fileSize,
+                createdAt: attachment.createdAt?.toISOString() ?? null,
+                extractedText,
+              };
+            }),
+          );
+
+          if (newFilesWithText.length > 0) {
+            const analysis = await this.aiService.analyzeProjectDetail({
+              project: {
+                id: project.id,
+                title: project.title,
+                requesterName: project.requesterName,
+                requesterDepartment: project.requesterDepartment,
+                procurementMethod: project.procurementMethod,
+                procurementCategory: project.procurementCategory,
+                currentStage: project.currentStage,
+                projectReason: project.projectReason,
+                supplierRequirements: project.supplierRequirements,
+              },
+              currentStage: {
+                stageKey: stage.stageKey,
+                stageName: stage.stageName,
+                status: stage.status,
+              },
+              files: newFilesWithText,
+            });
+
+            newFileAnalyses = analysis.fileAnalyses.map((file) => ({
+              ...file,
+              stageMatch: this.normalizeStageMatchText(file.stageMatch),
+            }));
+          }
+        }
+
+        // Merge cached (still-existing) + new analyses, preserving attachment order
+        const newAnalysisByKey = new Map<string, typeof newFileAnalyses[number]>();
+        for (const f of newFileAnalyses) {
+          newAnalysisByKey.set(f.objectKey, f);
+        }
+
+        stageFiles = [];
+        for (const attachment of stage.attachments) {
+          const cached = cachedByKey.get(attachment.objectKey);
+          if (cached) {
+            stageFiles.push(cached);
+          } else {
+            const newAnalysis = newAnalysisByKey.get(attachment.objectKey);
+            if (newAnalysis) {
+              stageFiles.push(newAnalysis);
+            }
+          }
+        }
+
+        if (stageFiles.length > 0 || stage.attachments.length === 0) {
+          // Cache the stage analysis
+          await mkdir(this.getUploadDir(), { recursive: true });
+          await writeFile(cachePath, JSON.stringify({ fingerprint, files: stageFiles }, null, 2), 'utf8');
+        }
+      }
+
+      if (stageFiles) {
+        allFileAnalyses.push(...stageFiles.map((f) => ({
+          ...f,
+          stageMatch: this.normalizeStageMatchText(f.stageMatch),
+        })));
+      }
+    }
+
+    return {
+      summary: {
+        stageMatch: '项目简报',
+        contentSummary: summary,
+      },
+      fileAnalyses: allFileAnalyses,
+    };
+  }
+
+  async getProjectSummary(projectId: string) {
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    const summaryCachePath = this.getProjectSummaryCachePath(projectId);
+
+    try {
+      const cachedSummary = JSON.parse(
+        await readFile(summaryCachePath, 'utf8'),
+      ) as { summary?: string };
+      return { summary: cachedSummary.summary || '暂无项目简报信息。' };
+    } catch {
+      return { summary: '暂无项目简报信息。' };
+    }
+  }
+
+  /**
+   * Get archive detail for a procurement round (from archived project management item)
+   * Reads and parses the archived TXT file
+   */
+  async getArchiveDetail(procurementRoundId: string) {
+    // Find the project management item that was archived to this procurement round
+    const pmItem = await this.prisma.projectManagementItem.findFirst({
+      where: { archivedProcurementRoundId: procurementRoundId },
+      include: {
+        stages: {
+          orderBy: { stageOrder: 'asc' },
+          include: { attachments: true },
+        },
+      },
+    });
+
+    if (!pmItem) {
+      throw new NotFoundException('未找到对应的归档项目。');
+    }
+
+    // Find the archive TXT file
+    // Primary path: local archive (uploads/archive)
+    const localArchiveBasePath = resolve(process.cwd(), 'uploads', 'archive');
+    // Backup path: NAS storage
+    const nasArchiveBasePath = process.env.NAS_PATH || '/home/swhi/nas_procurement';
+    const nasArchivePath = join(nasArchiveBasePath, 'ProcurementData');
+
+    const archivedAt = pmItem.archivedAt;
+    if (!archivedAt) {
+      throw new NotFoundException('项目尚未归档。');
+    }
+
+    const monthStr = `${archivedAt.getFullYear()}年${String(archivedAt.getMonth() + 1).padStart(2, '0')}月`;
+    const localMonthDir = join(localArchiveBasePath, monthStr);
+    const nasMonthDir = join(nasArchivePath, monthStr);
+
+    // Use archiveHook to find the correct directory (unique identifier)
+    let txtPath: string | null = null;
+    let projectDir: string | null = null;
+
+    // Search for directory containing the archive hook in its TXT file
+    // This ensures we find the correct archive even with duplicate project names
+    const searchDirs = [pmItem.title];
+    for (let suffix = 1; suffix < 100; suffix++) {
+      searchDirs.push(`${pmItem.title}（${suffix}）`);
+    }
+
+    const archiveHook = pmItem.archiveHook;
+
+    // Try local first, then NAS
+    const searchLocations = [
+      { monthDir: localMonthDir, label: 'local' },
+      { monthDir: nasMonthDir, label: 'nas' },
+    ];
+
+    for (const location of searchLocations) {
+      for (const dirName of searchDirs) {
+        const candidateDir = join(location.monthDir, dirName);
+        const candidateTxt = join(candidateDir, '项目归档说明.txt');
+        try {
+          await access(candidateTxt);
+          const txtContent = await readFile(candidateTxt, 'utf8');
+          // If archiveHook exists, match by hook; otherwise fall back to name matching
+          if (archiveHook) {
+            if (txtContent.includes(`归档标识：${archiveHook}`)) {
+              txtPath = candidateTxt;
+              projectDir = candidateDir;
+              break;
+            }
+          } else {
+            // Legacy: no hook stored, use first matching directory by project name
+            txtPath = candidateTxt;
+            projectDir = candidateDir;
+            break;
+          }
+        } catch {
+          // Directory doesn't exist, continue searching
+        }
+      }
+      if (txtPath) break; // Found in this location, stop searching
+    }
+
+    if (!txtPath) {
+      throw new NotFoundException('未找到归档文件。');
+    }
+
+    // Read and parse the TXT file
+    const txtContent = await readFile(txtPath, 'utf8');
+
+    // Parse the TXT content into structured data
+    const parsed = this.parseArchiveTxt(txtContent);
+
+    // Build file list with paths for preview
+
+    // Create a map of parsed stage files by stage name
+    const parsedStageFilesMap = new Map<string, Array<{ fileName: string; analysis: string }>>();
+    for (const parsedStage of parsed.stages) {
+      parsedStageFilesMap.set(parsedStage.stageName, parsedStage.files);
+    }
+
+    const stagesWithFiles = pmItem.stages.map((stage, idx) => {
+      // Find matching parsed stage by name
+      const parsedFiles = parsedStageFilesMap.get(stage.stageName) || [];
+      const stageDir = `${idx + 1}.${stage.stageName}`;
+
+      return {
+        stageKey: stage.stageKey,
+        stageName: stage.stageName,
+        stageDirName: stageDir,
+        status: stage.status,
+        attachments: stage.attachments.map((att, index) => ({
+          id: att.id,
+          fileName: att.fileName,
+          mimeType: att.mimeType,
+          fileSize: att.fileSize,
+          filePath: projectDir ? join(projectDir, stageDir, att.fileName) : null,
+          // Get analysis from parsed data, matching by index or filename
+          analysis: parsedFiles[index]?.analysis || parsedFiles.find(f => f.fileName === att.fileName)?.analysis || '',
+        })),
+      };
+    });
+
+    // Inject department number from DB (not always in archive TXT)
+    if (pmItem.departmentNumber) {
+      parsed.basicInfo['部门编号'] = pmItem.departmentNumber;
+    }
+
+    return {
+      projectId: pmItem.id,
+      projectTitle: pmItem.title,
+      archivedAt: archivedAt.toISOString().split('T')[0],
+      archiveHook: parsed.archiveHook || pmItem.archiveHook || null,
+      archiveDir: projectDir,
+      basicInfo: parsed.basicInfo,
+      extractedInfo: parsed.extractedInfo,
+      stages: stagesWithFiles,
+      summary: parsed.summary,
+    };
+  }
+
+  /**
+   * Parse archive TXT content into structured data
+   */
+    private parseArchiveTxt(content: string) {
+    const lines = content.split('\n');
+    const basicInfo: Record<string, string> = {};
+    const extractedInfo: Record<string, string> = {};
+    const stages: Array<{
+      stageName: string;
+      status: string;
+      files: Array<{ fileName: string; analysis: string }>;
+    }> = [];
+    let summary = '';
+    let archiveHook = '';
+
+    let currentSection = '';
+    let currentStage: typeof stages[0] | null = null;
+    let currentExtractedKey: string | null = null;
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+
+      // Detect sections
+      if (trimmedLine.includes('【项目基本信息】')) {
+        currentSection = 'basicInfo';
+        continue;
+      }
+      if (trimmedLine.includes('【提取信息】')) {
+        currentSection = 'extractedInfo';
+        continue;
+      }
+      if (trimmedLine.startsWith('【') && trimmedLine.includes('】') && trimmedLine.includes('步骤')) {
+        // New stage section
+        if (currentStage) {
+          stages.push(currentStage);
+        }
+        const match = trimmedLine.match(/【(.+?)】.*（(.+?)）(.+)/);
+        if (match) {
+          currentStage = {
+            stageName: match[1],
+            status: match[3] || '',
+            files: [],
+          };
+        }
+        currentSection = 'stage';
+        continue;
+      }
+      if (trimmedLine.includes('【项目简报】')) {
+        if (currentStage) {
+          stages.push(currentStage);
+          currentStage = null;
+        }
+        currentSection = 'summary';
+        continue;
+      }
+
+      // Note: Don't reset currentExtractedKey here - it needs to persist for continuation lines
+
+      if (currentSection === 'basicInfo') {
+        // Parse "  项目名称：xxx" format
+        const match = trimmedLine.match(/^[　\s]*(.+?)[：:]\s*(.*)$/);
+        if (match && match[2]) {
+          const key = match[1].replace(/\s/g, '');
+          const value = match[2].trim();
+          // For multi-line fields like 专家信息/投标单位, skip count-only values like "共 5 位专家"
+          if (['专家信息', '投标单位'].includes(key)) {
+            if (/^共\s*\d+\s*(位专家|家单位)$/.test(value)) {
+              // Initialize as empty - actual content will come from continuation lines
+              basicInfo[key] = '';
+            } else {
+              basicInfo[key] = value;
+            }
+            currentExtractedKey = key;
+          } else {
+            basicInfo[key] = value;
+            currentExtractedKey = null; // Reset for non-multi-line fields
+          }
+        } else if (currentExtractedKey && trimmedLine && !trimmedLine.startsWith('─') && !trimmedLine.startsWith('═') && !trimmedLine.startsWith('【')) {
+          // This is a continuation line for 专家信息 or 投标单位
+          // Skip the count line like "共 5 位专家" or "共 3 家单位"
+          const isCountLine = /^共\s*\d+\s*(位专家|家单位)$/.test(trimmedLine);
+          if (!isCountLine) {
+            basicInfo[currentExtractedKey] += `${basicInfo[currentExtractedKey] ? '\n' : ''}${trimmedLine}`;
+          }
+        }
+      }
+
+      if (currentSection === 'extractedInfo') {
+        const match = trimmedLine.match(/^[　\s]*(.+?)[：:]\s*(.*)$/);
+        if (match) {
+          const key = match[1].replace(/\s/g, '');
+          const value = match[2].trim();
+          // For multi-line fields, skip count-only values
+          if (['专家信息', '投标单位'].includes(key)) {
+            if (/^共\s*\d+\s*(位专家|家单位)$/.test(value)) {
+              extractedInfo[key] = '';
+            } else {
+              extractedInfo[key] = value;
+            }
+            currentExtractedKey = key;
+          } else {
+            extractedInfo[key] = value;
+            currentExtractedKey = null;
+          }
+        } else if (currentExtractedKey && trimmedLine && !trimmedLine.startsWith('─') && !trimmedLine.startsWith('═') && !trimmedLine.startsWith('【')) {
+          const isCountLine = /^共\s*\d+\s*(位专家|家单位)$/.test(trimmedLine);
+          if (!isCountLine) {
+            extractedInfo[currentExtractedKey] += `${extractedInfo[currentExtractedKey] ? '\n' : ''}${trimmedLine}`;
+          }
+        }
+      }
+
+      // Reset currentExtractedKey when leaving basicInfo or extractedInfo sections
+      if (currentSection !== 'basicInfo' && currentSection !== 'extractedInfo') {
+        currentExtractedKey = null;
+      }
+
+      if (currentSection === 'stage' && currentStage) {
+        // Parse file info - handle both single file and multi-file formats
+        if (trimmedLine === '文件：' || trimmedLine === '文件:') {
+          // Multi-file format: files listed on subsequent lines
+          continue;
+        }
+
+        // Skip "文件分析：" marker line - it's not a file, just a section header
+        if (trimmedLine === '文件分析：' || trimmedLine === '文件分析:') {
+          continue;
+        }
+
+        // Check for file line format: "文件：xxx.pdf" or "文件1：xxx.pdf" or "文件2：xxx.pdf"
+        // But NOT "文件分析：" which is a different thing
+        if (trimmedLine.startsWith('文件') && (trimmedLine.includes('：') || trimmedLine.includes(':'))) {
+          const match = trimmedLine.match(/文件\d*[:：]\s*(.+)/);
+          if (match && match[1] && match[1].trim() !== '（无）') {
+            currentStage.files.push({
+              fileName: match[1].trim(),
+              analysis: '',
+            });
+          }
+        } else if (trimmedLine === '文件：（无）') {
+          // No files in this stage
+          continue;
+        } else if (trimmedLine && !trimmedLine.startsWith('─') && !trimmedLine.startsWith('═') && !trimmedLine.startsWith('【')) {
+          // This could be a file name (in multi-file format) or analysis content
+          // Check if it looks like a file name (contains .pdf, .doc, .xlsx etc)
+          const isFileName = /\.(pdf|doc|docx|xlsx|xls|txt|zip|rar)$/i.test(trimmedLine);
+
+          if (isFileName && currentStage) {
+            // This is a file name in multi-file format
+            currentStage.files.push({
+              fileName: trimmedLine,
+              analysis: '',
+            });
+          } else if (currentStage && currentStage.files.length > 0) {
+            // This is analysis content - append to the last file
+            const lastFile = currentStage.files[currentStage.files.length - 1];
+
+            // For multi-file case, try to split analysis by paragraphs
+            if (currentStage.files.length > 1) {
+              // Check if this line starts a new analysis paragraph (starts with "该文件为")
+              if (trimmedLine.startsWith('该文件为') && lastFile.analysis) {
+                // This is a new file's analysis, find which file doesn't have analysis yet
+                const fileWithoutAnalysis = currentStage.files.find(f => !f.analysis);
+                if (fileWithoutAnalysis) {
+                  fileWithoutAnalysis.analysis = trimmedLine;
+                } else {
+                  lastFile.analysis += '\n' + trimmedLine;
+                }
+              } else {
+                lastFile.analysis += (lastFile.analysis ? '\n' : '') + trimmedLine;
+              }
+            } else {
+              // Single file - just append
+              lastFile.analysis += (lastFile.analysis ? '\n' : '') + trimmedLine;
+            }
+          }
+        }
+      }
+
+      if (currentSection === 'summary') {
+        if (trimmedLine && !trimmedLine.startsWith('═') && !trimmedLine.startsWith('归档时间')) {
+          summary += (summary ? '\n' : '') + trimmedLine;
+        }
+      }
+
+      // Extract archive hook from line like "归档标识：ARCHIVE-xxx"
+      if (trimmedLine.startsWith('归档标识：')) {
+        archiveHook = trimmedLine.replace('归档标识：', '').trim();
+      }
+    }
+
+    // Map extracted info fields from basicInfo for frontend compatibility
+    // Frontend expects these fields in extractedInfo
+    const extractedInfoFields = ['立项时间', '专家信息', '投标单位', '中标单位', '合同金额'];
+    for (const field of extractedInfoFields) {
+      if (basicInfo[field]) {
+        extractedInfo[field] = basicInfo[field];
+      }
+    }
+
+    return {
+      basicInfo,
+      extractedInfo,
+      stages,
+      summary,
+      archiveHook,
+    };
+  }
+
+  /**
+   * Serve archive file for preview/download
+   */
+  async serveArchiveFile(
+    procurementRoundId: string,
+    stageKey: string,
+    fileIndex: number,
+    res: Response,
+  ) {
+    // Find the project management item
+    const pmItem = await this.prisma.projectManagementItem.findFirst({
+      where: { archivedProcurementRoundId: procurementRoundId },
+      include: {
+        stages: {
+          where: { stageKey },
+          include: { attachments: true },
+        },
+      },
+    });
+
+    if (!pmItem) {
+      throw new NotFoundException('未找到对应的归档项目。');
+    }
+
+    const stage = pmItem.stages[0];
+    if (!stage || !stage.attachments[fileIndex]) {
+      throw new NotFoundException('未找到对应的文件。');
+    }
+
+    const attachment = stage.attachments[fileIndex];
+    const archivedAt = pmItem.archivedAt;
+    if (!archivedAt) {
+      throw new NotFoundException('项目尚未归档。');
+    }
+
+    // Build file path
+    // Primary path: local archive (uploads/archive)
+    const localArchiveBasePath = resolve(process.cwd(), 'uploads', 'archive');
+    // Backup path: NAS storage
+    const nasArchiveBasePath = process.env.NAS_PATH || '/home/swhi/nas_procurement';
+    const nasArchivePath = join(nasArchiveBasePath, 'ProcurementData');
+
+    const monthStr = `${archivedAt.getFullYear()}年${String(archivedAt.getMonth() + 1).padStart(2, '0')}月`;
+    const localMonthDir = join(localArchiveBasePath, monthStr);
+    const nasMonthDir = join(nasArchivePath, monthStr);
+
+    // Try to find the project directory - local first, then NAS
+    let projectDir: string | null = null;
+
+    for (const monthDir of [localMonthDir, nasMonthDir]) {
+      const exactDir = join(monthDir, pmItem.title);
+      try {
+        await access(exactDir);
+        projectDir = exactDir;
+        break;
+      } catch {
+        let suffix = 1;
+        while (suffix < 100) {
+          const suffixedDir = join(monthDir, `${pmItem.title}（${suffix}）`);
+          try {
+            await access(suffixedDir);
+            projectDir = suffixedDir;
+            break;
+          } catch {
+            suffix++;
+          }
+        }
+        if (projectDir) break; // Found in this location
+      }
+    }
+
+    if (!projectDir) {
+      throw new NotFoundException('未找到归档目录。');
+    }
+
+    const filePath = join(projectDir, `${stage.stageOrder}.${stage.stageName}`, attachment.fileName);
+
+    try {
+      await access(filePath);
+    } catch {
+      throw new NotFoundException('未找到归档文件。');
+    }
+
+    // Set response headers
+    const ext = extname(attachment.fileName).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.pdf': 'application/pdf',
+      '.doc': 'application/msword',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xls': 'application/vnd.ms-excel',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.txt': 'text/plain',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+    };
+
+    const mimeType = mimeTypes[ext] || 'application/octet-stream';
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(attachment.fileName)}"`);
+
+    // Stream the file
+    const fileStream = createReadStream(filePath);
+    fileStream.pipe(res);
+  }
+
+  async moveToRecycleBin(projectId: string, user?: AuthenticatedUser) {
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { id: true, status: true, createdById: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    // Only the creator or admin can move a project to recycle bin
+    if (user && user.role !== 'admin' && project.createdById !== user.sub) {
+      throw new ForbiddenException('只能将本人创建的项目移至回收站。');
+    }
+
+    if (project.status === PROJECT_MANAGEMENT_STATUS.RECYCLED) {
+      return project;
+    }
+
+    return this.prisma.projectManagementItem.update({
+      where: { id: projectId },
+      data: { status: PROJECT_MANAGEMENT_STATUS.RECYCLED },
+    });
+  }
+
+  async restoreFromRecycleBin(projectId: string, user?: AuthenticatedUser) {
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { id: true, status: true, createdById: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    // Only the creator or admin can restore a project
+    if (user && user.role !== 'admin' && project.createdById !== user.sub) {
+      throw new ForbiddenException('只能恢复本人创建的项目。');
+    }
+
+    if (project.status !== PROJECT_MANAGEMENT_STATUS.RECYCLED) {
+      throw new BadRequestException('只有回收站中的项目可以恢复。');
+    }
+
+    return this.prisma.projectManagementItem.update({
+      where: { id: projectId },
+      data: { status: PROJECT_MANAGEMENT_STATUS.ACTIVE },
+    });
+  }
+
+  async deletePermanently(projectId: string, user?: AuthenticatedUser) {
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { id: true, status: true, createdById: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    // Only the creator or admin can permanently delete a project
+    if (user && user.role !== 'admin' && project.createdById !== user.sub) {
+      throw new ForbiddenException('只能彻底删除本人创建的项目。');
+    }
+
+    if (project.status !== PROJECT_MANAGEMENT_STATUS.RECYCLED) {
+      throw new BadRequestException('请先将项目移入回收站后再彻底删除。');
+    }
+
+    await this.prisma.projectManagementItem.delete({
+      where: { id: projectId },
+    });
+
+    return { success: true };
+  }
+
+  async deleteAttachment(projectId: string, attachmentId: string) {
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      select: {
+        id: true,
+        projectManagementItemId: true,
+        objectKey: true,
+        projectManagementStageId: true,
+      },
+    });
+
+    if (!attachment) {
+      throw new NotFoundException('未找到对应的附件。');
+    }
+
+    if (attachment.projectManagementItemId !== projectId) {
+      throw new BadRequestException('该附件不属于当前项目。');
+    }
+
+    // Delete the file from filesystem
+    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    try {
+      await unlink(filePath);
+    } catch {
+      // File may not exist, continue with database deletion
+    }
+
+    // Delete the attachment record
+    await this.prisma.attachment.delete({
+      where: { id: attachmentId },
+    });
+
+    // Rebuild stage analysis cache — remove only the deleted file's entry
+    if (attachment.projectManagementStageId) {
+      const stage = await this.prisma.projectManagementStage.findUnique({
+        where: { id: attachment.projectManagementStageId },
+        select: { stageKey: true, id: true },
+      });
+      if (stage) {
+        const cachePath = this.getStageAnalysisCachePath(projectId, stage.stageKey);
+        try {
+          const cachedRaw = await readFile(cachePath, 'utf8');
+          const cached = JSON.parse(cachedRaw) as {
+            fingerprint?: string;
+            files?: Array<{
+              objectKey: string;
+              fileName: string;
+              stageMatch: string;
+              contentSummary: string;
+            }>;
+          };
+          if (Array.isArray(cached.files)) {
+            // Remove the deleted file's entry
+            const remainingFiles = cached.files.filter(
+              (f) => f.objectKey !== attachment.objectKey,
+            );
+            if (remainingFiles.length > 0) {
+              // Rebuild fingerprint from remaining stage attachments
+              const remainingAttachments = await this.prisma.attachment.findMany({
+                where: {
+                  projectManagementStageId: stage.id,
+                  id: { not: attachmentId },
+                },
+                select: { objectKey: true, fileSize: true, createdAt: true },
+              });
+              const newFingerprint = this.buildStageAnalysisFingerprint(
+                stage.stageKey,
+                remainingAttachments,
+              );
+              await writeFile(
+                cachePath,
+                JSON.stringify({ fingerprint: newFingerprint, files: remainingFiles }, null, 2),
+                'utf8',
+              );
+            } else {
+              // No files left — delete the cache entirely
+              await unlink(cachePath);
+            }
+          }
+        } catch {
+          // Cache doesn't exist or is invalid — nothing to rebuild
+        }
+
+        // Clear extracted info fields based on stage
+        const clearData: Record<string, null> = {};
+        if (stage.stageKey === 'INITIATION') {
+          clearData.initiationDate = null;
+        } else if (stage.stageKey === 'TENDER_DOCUMENT') {
+          clearData.evaluationMethod = null;
+        } else if (stage.stageKey === 'AWARD_DECISION') {
+          clearData.biddingUnits = null;
+          clearData.awardedSupplier = null;
+        } else if (stage.stageKey === 'CONTRACT') {
+          clearData.contractAmount = null;
+          // Only clear awardedSupplier if no award_decision stage has it
+          const awardStage = await this.prisma.projectManagementStage.findFirst({
+            where: { projectManagementItemId: projectId, stageKey: 'AWARD_DECISION' },
+            include: { attachments: true },
+          });
+          if (!awardStage || awardStage.attachments.length === 0) {
+            clearData.awardedSupplier = null;
+          }
+        }
+
+        if (Object.keys(clearData).length > 0) {
+          await this.prisma.projectManagementItem.update({
+            where: { id: projectId },
+            data: clearData,
+          });
+        }
+      }
+    }
+
+    return { success: true };
+  }
+
+  private async extractFileText(
+    filePath: string,
+    mimeType: string,
+    fileName: string,
+  ): Promise<string> {
+    try {
+      const buffer = await readFile(filePath);
+      const text = await this.documentParser.parse(buffer, mimeType, fileName);
+      // If text extraction yielded meaningful content, return it
+      if (text.trim().length > 50) {
+        return text.slice(0, 8000);
+      }
+      // Text too sparse — likely a scanned document, fall back to OCR
+      this.logger.log(`Text too sparse from ${fileName} (${text.trim().length} chars), trying OCR fallback`);
+      const ocrText = await this.documentParser.parseWithOcr(buffer, mimeType, fileName);
+      if (ocrText.trim().length > text.trim().length) {
+        return ocrText.slice(0, 8000);
+      }
+      return text.slice(0, 8000);
+    } catch (error) {
+      this.logger.error(`Failed to extract text from ${fileName}:`, error);
+      // Last resort: try OCR even on parse failure
+      try {
+        const buffer = await readFile(filePath);
+        const ocrText = await this.documentParser.parseWithOcr(buffer, mimeType, fileName);
+        return ocrText.slice(0, 8000);
+      } catch {
+        return '';
+      }
+    }
+  }
+
+  private async extractFileTextWithOcr(
+    filePath: string,
+    mimeType: string,
+    fileName: string,
+  ): Promise<string> {
+    try {
+      const buffer = await readFile(filePath);
+      const text = await this.documentParser.parseWithOcr(buffer, mimeType, fileName);
+      return text.slice(0, 8000);
+    } catch (error) {
+      this.logger.error(`Failed to extract text with OCR from ${fileName}:`, error);
+      return '';
+    }
+  }
+
+  private normalizeInitiationText(text: string) {
+    return text
+      .replace(/\r/g, '\n')
+      .replace(/需求申请\s*人/g, '需求申请人')
+      .replace(/申请采购\s*事项名称/g, '申请采购事项名称')
+      .replace(/申请立项\s*事由/g, '申请立项事由')
+      .replace(/对供方的\s*主要要求/g, '对供方的主要要求')
+      .replace(/采购预算\s*价格\(元\)/g, '采购预算价格(元)')
+      .replace(/拟采购方\s*式/g, '拟采购方式')
+      .replace(/采购组织\s*形式/g, '采购组织形式')
+      .replace(/是否属于\s*年度预算/g, '是否属于年度预算');
+  }
+
+  private collectSection(lines: string[], label: string, stopLabels: string[]) {
+    const startIndex = lines.findIndex((line) => line.includes(label));
+    if (startIndex < 0) {
+      return [];
+    }
+
+    const values: string[] = [];
+    for (let index = startIndex + 1; index < lines.length; index += 1) {
+      const line = lines[index];
+      if (stopLabels.some((stopLabel) => line.includes(stopLabel))) {
+        break;
+      }
+      values.push(line);
+    }
+    return values;
+  }
+
+  private extractInlineValue(text: string, label: string) {
+    const match = text.match(new RegExp(`${label}[：:]\\s*([^\n]+)`));
+    return match?.[1]?.trim() ?? '';
+  }
+
+  private findFollowingValue(
+    lines: string[],
+    label: string,
+    stopLabels: string[],
+  ) {
+    const section = this.collectSection(lines, label, stopLabels);
+    return section.find((line) => !this.isLabelLine(line)) ?? '';
+  }
+
+  private findRequesterNameFromLayout(lines: string[]) {
+    // Look for pattern: short name (2-4 chars) followed by department line
+    for (let i = 0; i < lines.length - 1; i++) {
+      const currentLine = lines[i];
+      const nextLine = lines[i + 1];
+      // Skip if current line is a label
+      if (
+        currentLine.includes('需求申请') ||
+        currentLine.includes('申请人') ||
+        currentLine.includes('采购') ||
+        currentLine.includes('审核') ||
+        currentLine.includes('其他') ||
+        currentLine.includes('意见')
+      ) {
+        continue;
+      }
+      // Name is typically 2-4 Chinese characters, followed by a department line
+      if (
+        currentLine.length >= 2 &&
+        currentLine.length <= 10 &&
+        /^[一-龥]+$/.test(currentLine) &&
+        (nextLine.includes('分院') ||
+          nextLine.includes('部门') ||
+          nextLine.includes('公司'))
+      ) {
+        return currentLine;
+      }
+    }
+    return '';
+  }
+
+  private findRequesterDepartmentFromLayout(lines: string[]) {
+    // Find requester name first, then get department from next line
+    for (let i = 0; i < lines.length - 1; i++) {
+      const currentLine = lines[i];
+      const nextLine = lines[i + 1];
+      // Skip if current line is a label
+      if (
+        currentLine.includes('需求申请') ||
+        currentLine.includes('申请人') ||
+        currentLine.includes('采购') ||
+        currentLine.includes('审核') ||
+        currentLine.includes('其他') ||
+        currentLine.includes('意见')
+      ) {
+        continue;
+      }
+      // Name is typically 2-4 Chinese characters, followed by a department line
+      if (
+        currentLine.length >= 2 &&
+        currentLine.length <= 10 &&
+        /^[一-龥]+$/.test(currentLine) &&
+        (nextLine.includes('分院') ||
+          nextLine.includes('部门') ||
+          nextLine.includes('公司'))
+      ) {
+        const deptLine = nextLine;
+        const subDeptLine = lines[i + 2] || '';
+        // Check if next line is a sub-department like "综合室" or "地质室"
+        if (
+          subDeptLine.length <= 10 &&
+          subDeptLine.length >= 2 &&
+          (subDeptLine.includes('室') || subDeptLine.includes('部')) &&
+          !subDeptLine.includes('分院') &&
+          !subDeptLine.includes('采购') &&
+          !/^1[.、]/.test(subDeptLine)
+        ) {
+          return deptLine + ' ' + subDeptLine;
+        }
+        return deptLine;
+      }
+    }
+    return '';
+  }
+
+  private findValueAfterAnchor(
+    lines: string[],
+    anchor: string,
+    candidates: string[],
+  ) {
+    const startIndex = lines.findIndex((line) => line.includes(anchor));
+    if (startIndex < 0) {
+      return '';
+    }
+
+    for (let index = startIndex + 1; index < lines.length; index += 1) {
+      const candidate = candidates.find((item) => lines[index].includes(item));
+      if (candidate) {
+        return candidate;
+      }
+    }
+
+    return '';
+  }
+
+  private findConfirmedValueAfterAnchor(
+    lines: string[],
+    anchor: string,
+    candidates: string[],
+  ) {
+    const startIndex = lines.findIndex((line) => line.includes(anchor));
+    if (startIndex < 0) {
+      return '';
+    }
+
+    const matches: string[] = [];
+    for (let index = startIndex + 1; index < lines.length; index += 1) {
+      const candidate = candidates.find((item) => lines[index].includes(item));
+      if (candidate && !matches.includes(candidate)) {
+        matches.push(candidate);
+      }
+      if (matches.length > 1) {
+        return '';
+      }
+    }
+
+    return matches[0] ?? '';
+  }
+
+  private findAnnualBudgetFlag(lines: string[]) {
+    const startIndex = lines.findIndex((line) =>
+      line.includes('是否属于年度预算'),
+    );
+    if (startIndex < 0) {
+      return false;
+    }
+
+    const endIndex = lines.findIndex(
+      (line, index) => index > startIndex && line.includes('流转意见'),
+    );
+    const section = lines.slice(
+      startIndex + 1,
+      endIndex > startIndex ? endIndex : startIndex + 35,
+    );
+    return section.includes('是');
+  }
+
+  private findExactValueAfterAnchor(
+    lines: string[],
+    anchor: string,
+    candidates: string[],
+  ) {
+    const startIndex = lines.findIndex((line) => line.includes(anchor));
+    if (startIndex < 0) {
+      return '';
+    }
+
+    for (let index = startIndex + 1; index < lines.length; index += 1) {
+      if (candidates.includes(lines[index])) {
+        return lines[index];
+      }
+    }
+
+    return '';
+  }
+
+  private findSupplierRequirementsFromLayout(lines: string[]) {
+    // Strategy 1: Look for supplier requirements after requester info
+    // Find requester info pattern: name followed by department (e.g., "戴金旅" then "测绘分院/测绘分院")
+    let requesterInfoEndIndex = -1;
+    for (let i = 0; i < lines.length - 2; i++) {
+      const currentLine = lines[i];
+      const nextLine = lines[i + 1];
+      // Skip if current line is a label
+      if (
+        currentLine.includes('需求申请') ||
+        currentLine.includes('申请人') ||
+        currentLine.includes('采购') ||
+        currentLine.includes('审核') ||
+        currentLine.includes('其他') ||
+        currentLine.includes('意见')
+      ) {
+        continue;
+      }
+      // Name is typically 2-4 Chinese characters, followed by a department line
+      if (
+        currentLine.length >= 2 &&
+        currentLine.length <= 10 &&
+        /^[一-龥]+$/.test(currentLine) &&
+        (nextLine.includes('分院') ||
+          nextLine.includes('部门') ||
+          nextLine.includes('公司'))
+      ) {
+        requesterInfoEndIndex = i + 2; // After name and department
+        // Check if there's a third line like "综合室" or "地质室"
+        const thirdLine = lines[i + 2] || '';
+        if (
+          thirdLine.length <= 10 &&
+          thirdLine.length >= 2 &&
+          (thirdLine.includes('室') || thirdLine.includes('部')) &&
+          !thirdLine.includes('分院') &&
+          !thirdLine.includes('采购') &&
+          !/^1[.、]/.test(thirdLine)
+        ) {
+          requesterInfoEndIndex = i + 3;
+        }
+        break;
+      }
+    }
+
+    if (requesterInfoEndIndex >= 0) {
+      // Look for requirement content starting with "1." or "1、" after requester info
+      const searchEndIndex = lines.findIndex(
+        (line, index) =>
+          index > requesterInfoEndIndex && KNOWN_CATEGORIES.includes(line),
+      );
+      const endIdx =
+        searchEndIndex > requesterInfoEndIndex ? searchEndIndex : lines.length;
+
+      for (let i = requesterInfoEndIndex; i < endIdx; i++) {
+        const line = lines[i].trim();
+        if (/^1[.、]/.test(line)) {
+          const requirementLines: string[] = [];
+          for (let j = i; j < endIdx; j++) {
+            const currentLine = lines[j].trim();
+            if (
+              KNOWN_CATEGORIES.includes(currentLine) ||
+              currentLine.startsWith('2025/') ||
+              currentLine.includes('采购立项申请表')
+            ) {
+              break;
+            }
+            requirementLines.push(currentLine);
+          }
+          if (requirementLines.length > 0) {
+            return requirementLines.join('\n').trim();
+          }
+          break;
+        }
+      }
+    }
+
+    // Strategy 2: Look for requirements after "拟采购方式" section (fallback for first PDF pattern)
+    const procurementMethodIndex = lines.findIndex(
+      (line) => line.includes('拟采购方') || line.includes('采购方式'),
+    );
+
+    if (procurementMethodIndex >= 0) {
+      const methodOptionsIndex = lines.findIndex(
+        (line, index) =>
+          index > procurementMethodIndex &&
+          (line.includes('公开招标') ||
+            line.includes('邀请招标') ||
+            line.includes('竞争性谈判')),
+      );
+
+      const searchEnd =
+        methodOptionsIndex > 0 ? methodOptionsIndex : lines.length;
+
+      for (let i = procurementMethodIndex + 1; i < searchEnd; i++) {
+        const line = lines[i];
+        if (/^1[.、]/.test(line.trim())) {
+          const requirementLines: string[] = [];
+          for (let j = i; j < searchEnd; j++) {
+            const currentLine = lines[j].trim();
+            if (
+              currentLine.includes('公开招标') ||
+              currentLine === '其他' ||
+              currentLine.startsWith('2025/') ||
+              currentLine.includes('采购组织形式')
+            ) {
+              break;
+            }
+            requirementLines.push(currentLine);
+          }
+          if (requirementLines.length > 0) {
+            return requirementLines.join('\n').trim();
+          }
+          break;
+        }
+      }
+    }
+
+    return '';
+  }
+
+  /**
+   * Extract bidding units from award decision document text
+   * Looks for company names in the "投标情况" section
+   */
+  private extractBiddingUnitsFromText(text: string): string {
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+
+    // --- Phase 1: Locate the bidding section ---
+    const sectionStartKeywords = ['投标情况', '投标人名称', '投标单位', '投标方', '供应商名称', '投标人'];
+    let sectionStartIndex = -1;
+    for (const kw of sectionStartKeywords) {
+      const idx = lines.findIndex((l) => l.includes(kw));
+      if (idx >= 0) { sectionStartIndex = idx; break; }
+    }
+    if (sectionStartIndex < 0) return '';
+
+    // --- Phase 2: Find section end ---
+    const endMarkers = [
+      '评标委员会意见', '评标小组意见', '推荐中标', '推荐成交',
+      '中标候选人', '定标意见', '附件', '备注', '流转意见',
+      '评审意见', '评审结论', '签章', '审批意见',
+    ];
+    let endSectionIndex = -1;
+    for (let i = sectionStartIndex + 1; i < lines.length; i++) {
+      if (endMarkers.some((m) => lines[i].includes(m))) {
+        endSectionIndex = i;
+        break;
+      }
+    }
+
+    const sectionLines = endSectionIndex > 0
+      ? lines.slice(sectionStartIndex + 1, endSectionIndex)
+      : lines.slice(sectionStartIndex + 1, sectionStartIndex + 40);
+
+    // --- Phase 3: Extract company names ---
+    const companySuffixes = '有限责任公司|有限公司|股份有限公司|公司|集团|企业|研究所|事务所|中心|院|合伙|工作室|工程处|项目部|经营部|营业部|经销部|服务部|事务所|事务所';
+    const companySuffixRegex = new RegExp(companySuffixes);
+    const hasSuffix = (s: string) => companySuffixRegex.test(s);
+
+    // Match a company name: Chinese chars + optional suffix
+    const extractName = (raw: string): string => {
+      // Strip leading sequence number: "1", "1.", "1、", "1）", "1)"
+      let cleaned = raw.replace(/^\d+[.、）)\s]*/, '');
+      // Split at column boundaries (numbers like prices, scores)
+      const beforeNumbers = cleaned.split(/\s+[\d,.]/)[0] ?? cleaned;
+      cleaned = beforeNumbers.replace(/[|｜\t]/g, '').trim();
+      // Remove trailing punctuation
+      cleaned = cleaned.replace(/[，,。.、:：;；]+$/, '');
+
+      // Try to match a company-like name with a known suffix
+      const match = cleaned.match(/([一-鿿A-Za-z（）()·\s]+?(?:有限责任公司|有限公司|股份有限公司|公司|集团|企业|研究所|事务所|中心))/);
+      if (match) return match[1].replace(/\s+/g, '').trim();
+
+      // If it has any suffix indicator, return the cleaned text
+      if (hasSuffix(cleaned)) return cleaned.replace(/\s+/g, '').trim();
+
+      // Otherwise, if it's pure Chinese text and reasonably long, return as-is
+      if (/^[一-鿿A-Za-z（）()]+$/.test(cleaned) && cleaned.length >= 3) {
+        return cleaned;
+      }
+      return '';
+    };
+
+    const companies: string[] = [];
+    let currentCompany = '';
+
+    const saveCurrentCompany = () => {
+      if (!currentCompany) return;
+      const name = extractName(currentCompany);
+      if (name.length >= 3) companies.push(name);
+      currentCompany = '';
+    };
+
+    const isSkippable = (line: string) => {
+      // Skip table headers
+      if (line.includes('序号') && (line.includes('投标') || line.includes('名称'))) return true;
+      if (line.includes('投标报价') || line.includes('评审报价') || line.includes('综合得分')) return true;
+      // Skip standalone numbers
+      if (/^\d+$/.test(line)) return true;
+      // Skip price lines "63800.00" or "63800.00 63800.00"
+      if (/^[\d,.]+(\s+[\d,.]+)?$/.test(line)) return true;
+      // Skip short numeric lines
+      if (/^\d+[.、）)]$/.test(line)) return true;
+      return false;
+    };
+
+    for (const line of sectionLines) {
+      if (isSkippable(line)) {
+        if (/^\d+$/.test(line) || /^\d+[.、）)]$/.test(line)) saveCurrentCompany();
+        continue;
+      }
+
+      // Pattern: "1 四川雏雁档案馆服务有限责任公司 140120.00 136400.00"
+      const inlineMatch = line.match(/^\d+[.、）)\s]+(.+)/);
+      if (inlineMatch) {
+        saveCurrentCompany();
+        const name = extractName(inlineMatch[1]);
+        if (name.length >= 3) companies.push(name);
+        continue;
+      }
+
+      // Pattern: company name on its own line (possibly split across lines)
+      if (line.length >= 2) {
+        if (hasSuffix(line) || /[一-鿿]{2,}/.test(line)) {
+          // Could be a standalone company or the suffix portion
+          if (currentCompany) {
+            currentCompany += line;
+            const name = extractName(currentCompany);
+            if (name.length >= 3) {
+              companies.push(name);
+              currentCompany = '';
+            }
+          } else {
+            const name = extractName(line);
+            if (name.length >= 3 && hasSuffix(name)) {
+              companies.push(name);
+              currentCompany = '';
+            } else if (name.length >= 2) {
+              currentCompany = line;
+            }
+          }
+        } else if (currentCompany) {
+          // Append to current company (might be suffix on next line)
+          currentCompany += line;
+          const name = extractName(currentCompany);
+          if (name.length >= 3 && hasSuffix(name)) {
+            companies.push(name);
+            currentCompany = '';
+          }
+        }
+      }
+    }
+
+    saveCurrentCompany();
+
+    return [...new Set(companies.filter((c) => c.length >= 3))].join('、');
+  }
+
+  /**
+   * Extract awarded supplier from award notification document text
+   * Looks for company name after "中标通知书" heading
+   */
+  private extractAwardedSupplierFromText(text: string): string {
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+
+    // Find "中标通知书" line
+    const noticeIndex = lines.findIndex((l) => l.includes('中标通知书'));
+    if (noticeIndex < 0) {
+      return '';
+    }
+
+    // The awarded supplier is typically on the next line, ending with "："
+    for (let i = noticeIndex + 1; i < Math.min(lines.length, noticeIndex + 5); i++) {
+      const line = lines[i];
+      // Match company name ending with colon
+      const match = line.match(/^(.+(?:公司|企业|单位|中心|院|所|局|部|办|处|室|队|组))：?$/);
+      if (match) {
+        const name = match[1].replace(/：$/, '').trim();
+        if (!isSelfCompany(name)) return name;
+      }
+    }
+
+    return '';
+  }
+
+  /**
+   * Extract contract amount from contract approval document text.
+   * Handles:
+   *   "合同金额(元)\n63000.00元"        — label + value on adjacent lines (most common)
+   *   "合同金额(元) 63000.00元"         — label + value on same line
+   *   "合同金额 750,000.00元"           — comma-separated numbers
+   *   "合同金额为人民币：132680.00 元"   — prose-style label
+   *   "¥ 229000元"                      — yuan symbol prefix
+   *
+   * Strategy: scan for "合同金额" label, then search nearby lines for a
+   * monetary value. Candidates are scored by proximity to the label, not
+   * by magnitude — this prevents distant large numbers (e.g. budget
+   * figures elsewhere in the document) from winning.
+   */
+  private extractContractAmountFromText(text: string): number | null {
+    const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+
+    // Strip commas and Chinese commas from a numeric string before parsing
+    const clean = (s: string) => s.replace(/[,，、\s　]/g, '');
+
+    // A monetary amount: optional ¥/￥ prefix, digits + optional commas + optional .dd suffix, optional 元 suffix
+    const AMOUNT_RE = /(?:[¥￥]\s*)?([\d,，]+(?:\.\d{1,2})?)\s*(?:元|$)/;
+
+    // A "合同金额" label line — matches the various forms we see
+    const isContractLabel = (s: string) =>
+      /^合同金额/.test(s) || s.includes('合同金额');
+
+    // Score-and-value tuple — higher score = more likely correct
+    const candidates: Array<{ value: number; score: number }> = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!isContractLabel(line)) continue;
+
+      // ── Same-line match ──────────────────────────────────────────
+      // "合同金额(元) 63000.00元"  or  "合同金额为人民币：132680.00 元"
+      const sameLine = line.match(AMOUNT_RE);
+      if (sameLine) {
+        const val = parseFloat(clean(sameLine[1]));
+        if (!Number.isNaN(val) && val > 0) {
+          candidates.push({ value: val, score: 100 });
+        }
+      }
+
+      // ── Adjacent-line scan (up to 3 lines below the label) ──────
+      // "合同金额(元)\n63000.00元" — but OCR may insert an empty or
+      // header line between the label and the value.
+      for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) {
+        const nextLine = lines[j];
+
+        // Stop if we hit another form-section label
+        if (/^(合同|需求|经办|附件|相关|采购|中标|预算|相对方)/.test(nextLine)) break;
+
+        const m = nextLine.match(AMOUNT_RE);
+        if (m) {
+          const val = parseFloat(clean(m[1]));
+          if (!Number.isNaN(val) && val > 0) {
+            // Closer lines get higher scores
+            candidates.push({ value: val, score: 90 - (j - i - 1) * 25 });
+            break; // found the value, stop scanning for this label
+          }
+        }
+      }
+
+      // Bail early: the first "合同金额" label in the document header
+      // is essentially always the correct one. Subsequent mentions (in
+      // contract body text) are downstream payment milestones etc.
+      if (candidates.length > 0 && candidates[0].score >= 90) break;
+    }
+
+    // ── Fallback: "中标金额" label (award notification, not contract table) ──
+    if (candidates.length === 0) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.includes('中标金额')) continue;
+        const sameLine = line.match(AMOUNT_RE);
+        if (sameLine) {
+          const val = parseFloat(clean(sameLine[1]));
+          if (!Number.isNaN(val) && val > 0) {
+            candidates.push({ value: val, score: 80 });
+          }
+        }
+        for (let j = i + 1; j < Math.min(lines.length, i + 3); j++) {
+          const nextLine = lines[j];
+          if (/^(合同|需求|经办|中标单位)/.test(nextLine)) break;
+          const m = nextLine.match(AMOUNT_RE);
+          if (m) {
+            const val = parseFloat(clean(m[1]));
+            if (!Number.isNaN(val) && val > 0) {
+              candidates.push({ value: val, score: 70 - (j - i - 1) * 25 });
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (candidates.length === 0) return null;
+
+    // Pick the highest-scored candidate (ties broken by larger value —
+    // the contract amount is rarely the smallest number on the page)
+    candidates.sort((a, b) => b.score - a.score || b.value - a.value);
+    return candidates[0].value;
+  }
+
+  /**
+   * Extract awarded supplier from award decision table (定标审批表)
+   * Looks for the first recommended candidate in "评标委员会意见" section
+   */
+  private extractAwardedSupplierFromAwardTable(text: string): string {
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+
+    // Find "评标委员会意见" section
+    const committeeIndex = lines.findIndex((l) => l.includes('评标委员会意见'));
+    if (committeeIndex < 0) {
+      return '';
+    }
+
+    // Find the first company name after sequence number "1"
+    let foundFirstCandidate = false;
+    for (let i = committeeIndex + 1; i < Math.min(lines.length, committeeIndex + 15); i++) {
+      const line = lines[i];
+
+      // Skip sequence number "1"
+      if (line === '1') {
+        foundFirstCandidate = true;
+        continue;
+      }
+
+      // Skip header lines
+      if (line.includes('序号') || line.includes('推荐中标候选人') || line.includes('综合得分') || line.includes('评审报价')) {
+        continue;
+      }
+
+      // Skip price lines
+      if (/^[\d,.]+$/.test(line)) {
+        continue;
+      }
+
+      // Found company name (first candidate after "1")
+      if (foundFirstCandidate && line.length > 2) {
+        // Build company name - check next lines for continuation
+        let companyName = line;
+
+        // Check next line for company suffix like "有限公司"
+        for (let j = i + 1; j < Math.min(lines.length, i + 3); j++) {
+          const nextLine = lines[j]?.trim() || '';
+          // If next line is a price or number, stop
+          if (/^[\d,.]+$/.test(nextLine)) break;
+          // If next line contains company keywords, append it
+          if (nextLine.includes('公司') || nextLine.includes('有限') || nextLine.includes('责任')) {
+            companyName += nextLine;
+            break;
+          }
+          // If next line is short continuation, append it
+          if (nextLine.length > 0 && nextLine.length < 6) {
+            companyName += nextLine;
+          }
+        }
+        if (!isSelfCompany(companyName)) return companyName;
+        // Self company matched, skip to look for next candidate
+        foundFirstCandidate = false;
+        continue;
+      }
+    }
+
+    return '';
+  }
+
+  /**
+   * Extract awarded supplier from contract approval document (合同审批表)
+   * Looks for "相对方名称" field
+   */
+  private extractAwardedSupplierFromContract(text: string): string {
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      if (line.includes('相对方名称') || line.includes('合同相对方名称')) {
+        const inlineMatch = line.match(/(?:合同)?相对方名称\s*(.+(?:公司|企业|单位|中心|院|所|局|部|办|处|室|队|组))/);
+        if (inlineMatch) {
+          const name = inlineMatch[1].trim();
+          if (!isSelfCompany(name)) return name;
+        }
+
+        const nextLine = lines[i + 1]?.trim() || '';
+        if (nextLine.length > 2 && (nextLine.includes('公司') || nextLine.includes('有限') || nextLine.includes('责任'))) {
+          if (!isSelfCompany(nextLine)) return nextLine;
+        }
+      }
+    }
+
+    return '';
+  }
+
+  /**
+   * Extract contract number from contract approval document (合同审批表) text.
+   * Looks for "合同编号：" pattern: letter prefix + digits (e.g., E202509012).
+   */
+  private extractContractNumberFromText(text: string): string | null {
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Pattern: "合同编号E202605002" / "合同编号：E202605002" / "合同编号: HT-2025-001"
+      // Colon/space separators are optional after "合同编号"
+      const match = line.match(/合同编号[：:\s]*([A-Za-z0-9][-A-Za-z0-9\/\.]{2,})/);
+      if (match) {
+        return match[1].trim();
+      }
+      // "合同编号" may appear alone on a line, with the actual number on the next line
+      if (line === '合同编号' && i + 1 < lines.length) {
+        const nextLine = lines[i + 1];
+        const nextMatch = nextLine.match(/^([A-Za-z0-9][-A-Za-z0-9\/\.]{2,})$/);
+        if (nextMatch) {
+          return nextMatch[1].trim();
+        }
+      }
+    }
+
+    // Broader fallback: search the full text (handles PDF table extraction where
+    // "合同编号" and its value may be separated by whitespace or line breaks)
+    const fullMatch = text.replace(/\s+/g, ' ').match(/合同编号[：:\s]*([A-Za-z0-9][-A-Za-z0-9\/\.]{2,})/);
+    if (fullMatch) {
+      return fullMatch[1].trim();
+    }
+
+    // Fallback 2: search for lines that look like contract numbers near "合同编号" context
+    // (handles OCR output where "合同编号" and the value get concatenated without space)
+    const cnMatch = text.match(/合同编号\s*([A-Za-z0-9]+[A-Za-z0-9]?)/);
+    if (cnMatch && cnMatch[1].length >= 3) {
+      return cnMatch[1].trim();
+    }
+
+    return null;
+  }
+
+  /**
+   * Extract expert info from 抽取结果单 text.
+   * Output format: "姓名|部门|专业|职称" per line (matches ExpertInfoField display component).
+   */
+  private extractExpertInfoFromText(text: string): string | null {
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    const experts: Array<{ name: string; department: string; specialty: string; title: string }> = [];
+    const seen = new Set<string>();
+
+    const addExpert = (name: string, department: string, specialty: string, title: string) => {
+      const cleanName = name.trim().replace(/[\s,，、　]/g, '');
+      if (cleanName.length < 2 || cleanName.length > 4) return;
+      if (!/^[一-鿿·]+$/.test(cleanName)) return;
+      if (seen.has(cleanName)) return;
+      seen.add(cleanName);
+      experts.push({ name: cleanName, department: department.trim(), specialty: specialty.trim(), title: title.trim() });
+    };
+
+    // Track the current expert category from "XXX专业专家N人：" lines
+    let currentSpecialty = '';
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Detect category line: "测绘专业专家1人：" or "职工代表专业专家1人："
+      const categoryMatch = line.match(/^(.+?专业|职工代表.{0,4})专家\d+人[：:]/);
+      if (categoryMatch) {
+        currentSpecialty = categoryMatch[1].replace(/专业$/, '').trim();
+        continue;
+      }
+
+      // Pattern 1 (most common): "黄伟 数字信息化院 测绘 高级工程师;"
+      // Structure: 姓名 部门 专业 职称;
+      if (line.match(/^[一-鿿]/) && line.includes(' ')) {
+        const cleanLine = line.replace(/[;；，,]$/, '').trim();
+        const parts = cleanLine.split(/\s+/).filter(Boolean);
+
+        if (parts.length >= 2 && parts[0].length >= 2 && parts[0].length <= 4) {
+          const name = parts[0];
+          const skip = ['系统', '抽取', '结果', '备注', '注', '采购', '专家', '需求', '经办', '开标', '预算', '合同'];
+          if (/^[一-鿿·]+$/.test(name) && !skip.includes(name)) {
+            // parts: [姓名, 部门, 专业, 职称]
+            const department = parts[1] || '';
+            const specialty = parts.length >= 3 ? parts[2] : currentSpecialty;
+            const title = parts.length >= 4 ? parts.slice(3).join('') : (parts.length >= 3 ? parts[parts.length - 1] : '');
+            addExpert(name, department, specialty || currentSpecialty, title);
+            continue;
+          }
+        }
+      }
+
+      // Pattern 2: "姓名：张三" key-value style
+      const nameMatch = line.match(/(?:专家)?姓名[：:]\s*([一-鿿·]{2,4})/);
+      if (nameMatch) {
+        const name = nameMatch[1];
+        let department = '', specialty = currentSpecialty, title = '';
+        const deptMatch = line.match(/(?:单位|部门|院)[：:]\s*(.+)/);
+        if (deptMatch) department = deptMatch[1].trim();
+        const titleMatch = line.match(/(?:职称|职务)[：:]\s*(.+)/);
+        if (titleMatch) title = titleMatch[1].trim();
+        addExpert(name, department, specialty, title);
+        continue;
+      }
+
+      // Pattern 3: Numbered table rows "1. 张三 教授"
+      if (line.match(/^\d+[.\s\t、）)]/)) {
+        const parts = line.split(/[\s\t|]+/).filter(Boolean);
+        if (parts.length >= 2) {
+          const name = parts[1].replace(/[,，、]/g, '');
+          const specialty = parts.length >= 3 ? parts.slice(2, -1).join(' ') || currentSpecialty : currentSpecialty;
+          const title = parts.length >= 3 ? parts[parts.length - 1] : '';
+          addExpert(name, '', specialty, title);
+          continue;
+        }
+      }
+
+      // Pattern 4: "评审专家：张三、李四"
+      const multiMatch = line.match(/(?:评审)?专家[：:]\s*(.+)/);
+      if (multiMatch && !line.includes('抽取') && !line.includes('系统') && !line.includes('人数')) {
+        const names = multiMatch[1].split(/[,，、\s]+/).filter(Boolean);
+        for (const n of names) {
+          const parenM = n.match(/([一-鿿·]{2,4})[（(]([^）)]+)[）)]/);
+          if (parenM) {
+            addExpert(parenM[1], '', parenM[2], '');
+          } else {
+            addExpert(n, '', currentSpecialty, '');
+          }
+        }
+        continue;
+      }
+    }
+
+    if (experts.length === 0) return null;
+
+    // Output format: "姓名|部门|专业|职称" per line
+    return experts.map(e => `${e.name}|${e.department}|${e.specialty}|${e.title}`).join('\n');
+  }
+
+  private isLabelLine(line: string) {
+    return [
+      '需求申请人',
+      '需求部门',
+      '申请采购事项名称',
+      '采购方式',
+      '采购类别',
+      '采购组织形式',
+      '是否属于年度预算',
+      '申请立项事由',
+      '对供方的主要要求',
+      '所属项目/合同及编号',
+    ].includes(line);
+  }
+
+  private normalizeStageMatchText(stageMatch: string) {
+    return stageMatch
+      .replace(/INITIATION/g, '项目立项')
+      .replace(/TENDER_DOCUMENT/g, '采购文件')
+      .replace(/PUBLIC_ANNOUNCEMENT/g, '采购公示')
+      .replace(/EXPERT_SELECTION/g, '专家抽取')
+      .replace(/BID_EVALUATION/g, '评标过程')
+      .replace(/AWARD_DECISION/g, '定标')
+      .replace(/CONTRACT/g, '合同');
+  }
+
+  private getUploadDir() {
+    return resolve(process.cwd(), 'uploads', 'project-management');
+  }
+
+  private getProjectSummaryCachePath(projectId: string) {
+    return resolve(
+      process.cwd(),
+      'uploads',
+      'project-management',
+      `summary-${projectId}.json`,
+    );
+  }
+
+  private getStageAnalysisCachePath(projectId: string, stageKey: string) {
+    return resolve(
+      process.cwd(),
+      'uploads',
+      'project-management',
+      `analysis-${projectId}-${stageKey.toLowerCase()}.json`,
+    );
+  }
+
+  private buildStageAnalysisFingerprint(
+    stageKey: string,
+    attachments: Array<{
+      objectKey: string;
+      createdAt?: Date | null;
+      fileSize: number;
+    }>,
+  ) {
+    const fileSignature = attachments
+      .map((attachment) =>
+        [attachment.objectKey, attachment.fileSize].join('@'),
+      )
+      .sort()
+      .join('|');
+
+    return `${stageKey}:${fileSignature}`;
+  }
+
+  private sanitizeFileName(fileName: string) {
+    const normalizedFileName = this.normalizeUploadedFileName(fileName);
+    const base = basename(normalizedFileName, extname(normalizedFileName));
+    const extension = extname(normalizedFileName) || '.bin';
+    const safeBase = base.replace(/[^a-zA-Z0-9一-龥_-]+/g, '-');
+    return `${safeBase}${extension}`;
+  }
+
+  private normalizeUploadedFileName(fileName: string) {
+    if (/[ -]*[一-龥]/.test(fileName)) {
+      return fileName;
+    }
+
+    const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
+    return decoded.includes('�') ? fileName : decoded;
+  }
+
+  private async persistUploadedFile(
+    file: Express.Multer.File,
+    prefix: string,
+    uploadedById?: string,
+  ) {
+    const uploadDir = this.getUploadDir();
+    await mkdir(uploadDir, { recursive: true });
+
+    const normalizedFileName = this.normalizeUploadedFileName(
+      file.originalname,
+    );
+    const storedFileName = `${Date.now()}-${prefix}-${this.sanitizeFileName(normalizedFileName)}`;
+    const absolutePath = resolve(uploadDir, storedFileName);
+
+    await writeFile(absolutePath, file.buffer);
+
+    return {
+      absolutePath,
+      attachment: {
+        fileName: normalizedFileName,
+        objectKey: `project-management/${storedFileName}`,
+        mimeType: file.mimetype,
+        fileSize: file.size,
+        uploadedById,
+      } satisfies StoredAttachment,
+    };
+  }
+
+  async getProjectAttributions() {
+    // 1. 查询所有已归档项目
+    const archivedProjects = await this.prisma.projectManagementItem.findMany({
+      where: {
+        status: 'ARCHIVED',
+        demandProject: { not: null },
+      },
+      select: {
+        demandProject: true,
+        demandContractNumber: true,
+        contractNumber: true,
+      },
+    });
+
+    // 2. 聚合统计：按项目归属分组，计算使用次数，取最常用的合同编号
+    const attributionMap = new Map<string, { count: number; contractNumber: string | null }>();
+
+    for (const project of archivedProjects) {
+      if (!project.demandProject) continue;
+      const effectiveContractNumber = project.contractNumber || project.demandContractNumber;
+      const existing = attributionMap.get(project.demandProject);
+      if (existing) {
+        existing.count++;
+        // 保留非空的合同编号
+        if (!existing.contractNumber && effectiveContractNumber) {
+          existing.contractNumber = effectiveContractNumber;
+        }
+      } else {
+        attributionMap.set(project.demandProject, {
+          count: 1,
+          contractNumber: effectiveContractNumber,
+        });
+      }
+    }
+
+    // 3. 转换为数组并按使用次数降序排序
+    const result = Array.from(attributionMap.entries())
+      .map(([name, data]) => ({
+        name,
+        contractNumber: data.contractNumber,
+        usageCount: data.count,
+      }))
+      .sort((a, b) => b.usageCount - a.usageCount);
+
+    return result;
+  }
+}

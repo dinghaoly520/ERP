@@ -1,215 +1,319 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import type { User } from '@/lib/types';
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import {
-  LayoutDashboard, Building2, Megaphone, UsersRound,
-  PanelLeftClose, PanelLeft, ChevronDown, ShoppingCart,
-} from 'lucide-react';
-import { NotificationCenter } from '@/components/workbench/notification-center';
-import { CommandPalette } from '@/components/workbench/command-palette';
-import { useNotifications } from '@/lib/hooks/use-notifications';
+  CalendarCheck2,
+  FolderKanban,
+  LayoutDashboard,
+  FileEdit,
+  FileSearch,
+  FileBarChart,
+  Sparkles,
+  FolderOpen,
+  KeyRound,
+  TrendingUp,
+  UserRound,
+  Building2,
+  Users,
+  Megaphone,
+  ShoppingBag,
+  Bell,
+  ChevronDown,
+} from "lucide-react";
+import { AppUserActions } from "@/components/app-user-actions";
+import { fetchCurrentUser, type AuthRole, type AuthUser } from "@/lib/api/auth";
 
-interface NavChild {
+type NavItem = {
+  key: string;
   label: string;
-  path: string;
-  badgeKey?: string;
-}
-interface NavItem {
-  label: string;
-  caption?: string;
-  path?: string;
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  children?: NavChild[];
-}
+  href: string;
+  icon: typeof LayoutDashboard;
+  meta?: string;
+  roles?: AuthRole[];
+};
 
-const navItems: NavItem[] = [
-  { label: '首页驾驶舱', caption: '运营总览', path: '/dashboard', icon: LayoutDashboard },
-  { label: '信息发布中心', caption: '公告 / 公示 / 政策', path: '/notice', icon: Megaphone },
+type NavGroup = {
+  key: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  items: NavItem[];
+  roles?: AuthRole[];
+};
+
+const navGroups: NavGroup[] = [
   {
-    label: '供应商管理中心', caption: '审批 / 库 / 评价', path: '/supplier', icon: Building2,
-    children: [
-      { label: '供应商审批', path: '/supplier/approval', badgeKey: 'supplierPending' },
-      { label: '供应商库', path: '/supplier/repository' },
-      { label: '供应商选取', path: '/supplier/selection' },
-      { label: '供应商评价', path: '/supplier/evaluation' },
+    key: "overview",
+    label: "工作总览",
+    icon: LayoutDashboard,
+    items: [
+      { key: "dashboard", label: "首页驾驶舱", href: "/dashboard", icon: LayoutDashboard, meta: "运营总览" },
+      { key: "progress", label: "采购进度", href: "/progress", icon: TrendingUp, meta: "项目进度统计", roles: ["admin", "leader"] },
+      { key: "work-arrangements", label: "个人中心", href: "/work-arrangements", icon: UserRound, meta: "工作安排" },
     ],
   },
   {
-    label: '专家管理中心', caption: '录入 / 抽取 / 履职', path: '/expert', icon: UsersRound,
-    children: [
-      { label: '专家录入', path: '/expert/entry' },
-      { label: '专家库', path: '/expert/repository' },
-      { label: '专家抽取', path: '/expert/extract' },
-      { label: '专家评价', path: '/expert/evaluation' },
+    key: "procurement",
+    label: "采购业务",
+    icon: FolderKanban,
+    items: [
+      { key: "procurements", label: "采购台账", href: "/procurements", icon: FolderKanban, meta: "事项追踪" },
+      { key: "projects", label: "项目管理", href: "/projects", icon: FolderOpen, meta: "项目全生命周期" },
+      { key: "tender-write", label: "招标文件编写", href: "/tender-write", icon: FileEdit, meta: "AI辅助编写" },
+      { key: "tender-review", label: "招标文件审查", href: "/tender-review", icon: FileSearch, meta: "合规性审查" },
+      { key: "bid-analysis", label: "投标文件分析", href: "/bid-analysis", icon: FileBarChart, meta: "智能评分分析" },
     ],
   },
   {
-    label: '电子商城管理', caption: '价格 / 目录 / 日志', path: '/mall-management', icon: ShoppingCart,
-    children: [
-      { label: '价格审批', path: '/mall-management/approval', badgeKey: 'mallReview' },
-      { label: '价格录入', path: '/mall-management/price-entry' },
-      { label: '集中采购目录管理', path: '/mall-management/catalog' },
-      { label: '同步与操作日志', path: '/mall-management/logs' },
+    key: "supplier-mgmt",
+    label: "供应商管理",
+    icon: Building2,
+    items: [
+      { key: "supplier-approval", label: "供应商审批", href: "/supplier/approval", icon: Building2, meta: "入库审核" },
+      { key: "supplier-repo", label: "供应商库", href: "/supplier/repository", icon: Building2, meta: "资源池管理" },
+      { key: "supplier-select", label: "供应商选取", href: "/supplier/selection", icon: Building2, meta: "智能匹配" },
+      { key: "supplier-eval", label: "供应商评价", href: "/supplier/evaluation", icon: Building2, meta: "绩效管理" },
     ],
+  },
+  {
+    key: "expert-mgmt",
+    label: "专家管理",
+    icon: Users,
+    items: [
+      { key: "expert-entry", label: "专家录入", href: "/expert/entry", icon: Users, meta: "新建专家" },
+      { key: "expert-repo", label: "专家库", href: "/expert/repository", icon: Users, meta: "专家资源" },
+      { key: "expert-extract", label: "专家抽取", href: "/expert/extract", icon: Users, meta: "随机/手动" },
+      { key: "expert-eval", label: "专家评价", href: "/expert/evaluation", icon: Users, meta: "履职考核" },
+    ],
+  },
+  {
+    key: "notice-mgmt",
+    label: "信息发布",
+    icon: Megaphone,
+    items: [
+      { key: "notice", label: "信息发布中心", href: "/notice", icon: Megaphone, meta: "公告/公示/政策" },
+      { key: "notifications", label: "通知中心", href: "/notifications", icon: Bell, meta: "消息提醒" },
+    ],
+  },
+  {
+    key: "mall-mgmt",
+    label: "电子商城管理",
+    icon: ShoppingBag,
+    items: [
+      { key: "mall-approval", label: "价格审批", href: "/mall-management/approval", icon: ShoppingBag, meta: "供货审核" },
+      { key: "mall-price", label: "价格录入", href: "/mall-management/price-entry", icon: ShoppingBag, meta: "手动/导入" },
+      { key: "mall-catalog", label: "目录管理", href: "/mall-management/catalog", icon: ShoppingBag, meta: "采购目录" },
+      { key: "mall-logs", label: "操作日志", href: "/mall-management/logs", icon: ShoppingBag, meta: "同步记录" },
+    ],
+  },
+  {
+    key: "admin",
+    label: "系统管理",
+    icon: KeyRound,
+    items: [
+      { key: "password-requests", label: "密码审批", href: "/admin/password-requests", icon: KeyRound, meta: "账号安全", roles: ["admin"] },
+    ],
+    roles: ["admin"],
   },
 ];
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+const SWDG_USERNAME = "SWDG-01";
+const SWDG_NAV_KEYS = new Set(["tender-write", "tender-review", "bid-analysis"]);
+
+const CHAIRMAN_USERNAME = "Swhi-CGZX-00";
+const CHAIRMAN_NAV_KEYS = new Set(["work-arrangements", "dashboard", "progress", "procurements", "projects"]);
+
+type AppShellProps = {
+  activeKey: string;
+  title?: string;
+  description?: string;
+  autoHideHeader?: boolean;
+  currentUserRole?: AuthRole;
+  headerActions?: ReactNode;
+  bodyScrollMode?: "shell" | "children";
+  children: ReactNode;
+};
+
+export function AppShell({
+  activeKey,
+  title,
+  description,
+  autoHideHeader,
+  currentUserRole,
+  headerActions,
+  bodyScrollMode = "shell",
+  children,
+}: AppShellProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
-  const { derivedTodo } = useNotifications();
-  const badges: Record<string, number> = { supplierPending: derivedTodo.supplierPending, mallReview: derivedTodo.priceReview };
-
-  const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
-
-  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
-    const s = new Set<string>();
-    for (const item of navItems) {
-      if (item.children && item.path && pathname.startsWith(item.path + '/')) s.add(item.path);
-    }
-    return s;
-  });
+  const hasPageHeader = Boolean(title || description);
+  const [resolvedUser, setResolvedUser] = useState<AuthUser | null | undefined>(undefined);
+  const [headerVisible, setHeaderVisible] = useState(true);
+  const effectiveRole = currentUserRole ?? resolvedUser?.role;
+  const isUserLoading = currentUserRole === undefined && resolvedUser === undefined;
+  const effectiveUsername = resolvedUser?.username;
 
   useEffect(() => {
-    for (const item of navItems) {
-      if (item.children && item.path && pathname.startsWith(item.path + '/') && !openGroups.has(item.path)) {
-        setOpenGroups(prev => new Set(prev).add(item.path!));
+    if (currentUserRole !== undefined) {
+      return;
+    }
+
+    let active = true;
+
+    const loadCurrentUser = async () => {
+      try {
+        const user = await fetchCurrentUser();
+        if (active) {
+          setResolvedUser(user);
+        }
+      } catch {
+        if (active) {
+          setResolvedUser(null);
+        }
       }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+    };
+
+    void loadCurrentUser();
+
+    return () => {
+      active = false;
+    };
+  }, [currentUserRole]);
 
   useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(u => { if (!u) window.location.href = '/login'; else setUser(u); })
-      .catch(() => { window.location.href = '/login'; });
-  }, []);
+    if (!autoHideHeader) {
+      return;
+    }
 
-  const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    router.push('/login');
+    const timer = window.setTimeout(() => setHeaderVisible(false), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [autoHideHeader]);
+
+
+  // 过滤+展开分组为扁平列表（带 group key 标记），含角色过滤 + 特殊用户过滤
+  const visibleGroups = isUserLoading
+    ? []
+    : navGroups
+        .filter((group) => {
+          if (!group.roles) return true;
+          return !!effectiveRole && group.roles.includes(effectiveRole);
+        })
+        .map((group) => ({
+          ...group,
+          items: group.items.filter((item) => {
+            if (effectiveUsername === SWDG_USERNAME && !SWDG_NAV_KEYS.has(item.key)) return false;
+            if (effectiveUsername === CHAIRMAN_USERNAME && !CHAIRMAN_NAV_KEYS.has(item.key)) return false;
+            if (!item.roles) return true;
+            return !!effectiveRole && item.roles.includes(effectiveRole);
+          }),
+        }))
+        .filter((group) => group.items.length > 0);
+
+  // 默认展开含有当前 activeKey 的分组
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (groupKey: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
+      return next;
+    });
   };
 
-  const registeredName = user?.displayName?.trim() || user?.username || '未登录';
-  const userInitial = registeredName.slice(0, 1);
-
   return (
-    <div className="flex h-screen flex-col workbench-page-bg text-[#18243a]">
-      <header className="sticky top-0 z-50 flex-shrink-0 border-b border-white/30 bg-white/78 backdrop-blur-xl">
-        <div className="flex h-[68px] items-center justify-between px-6">
-          <button onClick={() => router.push('/dashboard')} className="flex items-center gap-3 text-left">
-            <img src="/assets/logo.png" alt="智慧水发 · 蜀水云采" className="h-10 w-auto object-contain" />
-            <div>
-              <strong
-                className="block text-lg font-black tracking-[0.10em]"
-                style={{
-                  fontFamily: '"SimHei","黑体",sans-serif',
-                  background: 'linear-gradient(to right, #1a2332, #2563EB, #0891b2, #18a56c, #1a2332)',
-                  backgroundSize: '200% auto',
-                  WebkitBackgroundClip: 'text',
-                  backgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  animation: 'brandShift 6s ease infinite',
-                }}
-              >
-                智慧水发 · 蜀水云采
-              </strong>
-            </div>
-          </button>
+    <div className="ambient-grid h-full overflow-hidden px-2.5 py-2.5 sm:px-3.5 lg:px-4">
+      <div className="mx-auto flex h-full w-full gap-4 overflow-hidden">
+        <aside className="sidebar-sheen panel-surface chromatic-glass glass-calm glass-float hidden h-full w-[256px] shrink-0 flex-col rounded-[24px] p-2 lg:flex">
+          <div className="glass-spectrum glass-spectrum-soft rounded-[18px] border border-white/60 bg-white/72 p-3">
+            <div className="flex items-center gap-3">
+              <div className="command-orb flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[14px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(241,245,251,0.88))] shadow-[0_10px_18px_rgba(63,96,156,0.08)]">
+                <Image
+                  src="/procurement-brand-logo.png"
+                  alt="智慧水发·蜀水云采"
+                  width={36}
+                  height={36}
+                  className="rounded-[10px] object-cover"
+                  priority
+                />
+              </div>
 
-          <div className="flex items-center gap-3">
-            <NotificationCenter />
-            <div className="flex items-center gap-2 rounded-xl border border-[#e5ecf4] bg-white px-3 py-1.5 shadow-sm">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-[11px] font-black text-white">
-                {userInitial}
-              </span>
-              <div className="hidden leading-tight sm:block">
-                <div className="text-[13px] font-black text-[#18243a]">{registeredName}</div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[0.96rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
+                  智慧水发·采购中心
+                </div>
               </div>
             </div>
-            <button
-              onClick={logout}
-              className="rounded-xl border border-[#d5e0ef] bg-white px-3 py-1.5 text-[13px] font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c]"
-            >
-              退出登录
-            </button>
           </div>
-        </div>
-      </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <aside className={`${collapsed ? 'w-[68px]' : 'w-[272px]'} glass-card glass-card-purple m-3 mr-0 flex flex-shrink-0 flex-col overflow-hidden rounded-[24px] transition-all duration-200`}>
-          <nav className="flex-1 overflow-y-auto px-2 py-3">
-            {navItems.map(item => {
-              const hasChildren = !!item.children?.length;
-              const groupActive = hasChildren && item.path !== undefined && isActive(item.path);
-              const groupOpen = hasChildren && item.path !== undefined && openGroups.has(item.path);
-
-              const onGroupClick = () => {
-                if (collapsed || !item.children?.length) {
-                  router.push(item.children![0].path);
-                  return;
-                }
-                setOpenGroups(prev => {
-                  const next = new Set(prev);
-                  if (next.has(item.path!)) next.delete(item.path!);
-                  else next.add(item.path!);
-                  return next;
-                });
-              };
+          <nav className="glass-spectrum glass-spectrum-soft mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto rounded-[18px] border border-white/50 bg-white/46 p-1.5">
+            {visibleGroups.map((group) => {
+              const GroupIcon = group.icon;
+              const isCollapsed = collapsedGroups.has(group.key);
+              const hasActiveItem = group.items.some((item) => item.key === activeKey);
 
               return (
-                <div key={item.path} className="mb-1.5">
+                <div key={group.key} className="mb-0.5">
+                  {/* 分组标题 — 可点击折叠 */}
                   <button
-                    onClick={hasChildren ? onGroupClick : () => router.push(item.path!)}
-                    className={`relative flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-all ${
-                      (hasChildren ? groupActive : isActive(item.path!))
-                        ? 'bg-gradient-to-r from-[#064ea2] to-[#0b63ce] text-white shadow-[0_12px_28px_rgba(6,78,162,0.24)]'
-                        : 'text-[#5a6d8a] hover:bg-[#eff6ff] hover:text-[#064ea2]'
-                    }`}
+                    type="button"
+                    onClick={() => toggleGroup(group.key)}
+                    className="flex w-full items-center gap-2 rounded-[12px] px-2 py-1.5 text-left transition-colors hover:bg-white/50"
                   >
-                    {isActive(item.path!) && <div className="absolute left-0 h-6 w-[3px] rounded-r bg-[#67e8f9]" />}
-                    <div className="flex-shrink-0"><item.icon size={collapsed ? 20 : 18} strokeWidth={1.7} /></div>
-                    {!collapsed && (
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-black tracking-tight">{item.label}</span>
-                        {item.caption && <span className="mt-0.5 block truncate text-[11px] opacity-70">{item.caption}</span>}
-                      </span>
-                    )}
-                    {hasChildren && !collapsed && (
-                      <ChevronDown size={14} strokeWidth={2} className={`flex-shrink-0 opacity-60 transition-transform ${groupOpen ? 'rotate-180' : ''}`} />
-                    )}
+                    <GroupIcon size={14} className="shrink-0 text-[color:var(--muted-foreground)]" />
+                    <span className="flex-1 text-xs font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
+                      {group.label}
+                    </span>
+                    <ChevronDown
+                      size={12}
+                      className={`shrink-0 text-[color:var(--muted-foreground)] transition-transform duration-200 ${
+                        isCollapsed ? "-rotate-90" : ""
+                      }`}
+                    />
                   </button>
 
-                  {hasChildren && !collapsed && groupOpen && (
-                    <div className="ml-5 mt-1.5 border-l border-[#dbeafe] pl-3">
-                      {item.children!.map(child => (
-                        <button
-                          key={child.path}
-                          onClick={() => router.push(child.path)}
-                          className={`my-0.5 flex w-full items-center rounded-xl px-3 py-2 text-left text-[12.5px] transition-colors ${
-                            pathname === child.path
-                              ? 'bg-[#eff6ff] font-bold text-[#064ea2]'
-                              : 'text-[#6b7c95] hover:bg-[#f8fbff] hover:text-[#064ea2]'
-                          }`}
-                        >
-                          <span className="flex-1">{child.label}</span>
-                          {child.badgeKey && badges[child.badgeKey] > 0 && (
-                            <span className={`ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-extrabold tabular-nums ${
-                              pathname === child.path
-                                ? 'bg-[#064ea2] text-white'
-                                : 'bg-[#e74c3c] text-white'
-                            }`}>
-                              {badges[child.badgeKey] > 99 ? '99+' : badges[child.badgeKey]}
+                  {/* 分组子项 */}
+                  {!isCollapsed && (
+                    <div className="ml-1 space-y-0.5 border-l border-white/40 pl-1.5">
+                      {group.items.map((item) => {
+                        const Icon = item.icon;
+                        const active = item.key === activeKey;
+
+                        return (
+                          <Link
+                            key={item.key}
+                            href={item.href}
+                            data-active={active}
+                            className={[
+                              "nav-glow hover-lift interactive-surface group relative flex items-center gap-2.5 overflow-hidden rounded-[12px] px-2.5 py-1.5 transition-all duration-300",
+                              active
+                                ? "bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(242,246,255,0.62))] text-[color:var(--foreground)] shadow-[0_8px_16px_rgba(54,84,140,0.06)]"
+                                : "text-[color:var(--muted-foreground)] hover:bg-white/72 hover:text-[color:var(--foreground)]",
+                            ].join(" ")}
+                          >
+                            {active ? (
+                              <span className="absolute bottom-auto left-[4px] top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-[rgba(72,120,235,0.92)]" />
+                            ) : null}
+
+                            <span
+                              className={[
+                                "flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border transition-all duration-300",
+                                active
+                                  ? "border-white/75 bg-[rgba(239,245,255,0.96)] text-[color:var(--accent)]"
+                                  : "border-white/45 bg-white/34 group-hover:border-white/70 group-hover:bg-white/70",
+                              ].join(" ")}
+                            >
+                              <Icon size={16} />
                             </span>
-                          )}
-                        </button>
-                      ))}
+
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs font-semibold">{item.label}</div>
+                            </div>
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -217,22 +321,97 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            aria-label={collapsed ? '展开侧边栏' : '折叠侧边栏'}
-            className="m-2 flex h-11 items-center justify-center rounded-2xl border border-[#e5ecf4] bg-[#f8fbff] text-[#5a6d8a] transition-colors hover:border-[#bfdbfe] hover:text-[#064ea2]"
-          >
-            {collapsed ? <PanelLeft size={16} strokeWidth={1.7} /> : <PanelLeftClose size={16} strokeWidth={1.7} />}
-          </button>
+          <div className="mt-2 hidden lg:block">
+            <AppUserActions layout="sidebar" />
+          </div>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <main className="flex-1 overflow-y-auto p-6">
-            {children}
+        <section className="min-h-0 flex flex-1 overflow-hidden">
+          <main className="panel-surface panel-lens chromatic-glass glass-calm glass-float relative z-10 h-full min-h-0 flex flex-1 flex-col overflow-hidden rounded-[24px] p-3.5 sm:p-4 lg:p-4">
+            <div className="pointer-events-none absolute bottom-6 left-[-18px] top-6 hidden w-[24px] lg:block">
+              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-[linear-gradient(180deg,rgba(137,164,214,0.14),rgba(137,164,214,0.46),rgba(137,164,214,0.12))]" />
+              <div className="absolute inset-y-8 left-1/2 w-[18px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(153,182,242,0.22),rgba(153,182,242,0.04)_58%,transparent_72%)] blur-md" />
+            </div>
+            <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,rgba(255,255,255,0.92),rgba(255,255,255,0))]" />
+
+            <div
+              data-app-shell-scroll="true"
+              className={[
+                "relative min-h-0 flex-1",
+                bodyScrollMode === "shell" ? "overflow-y-auto" : "flex flex-col overflow-hidden",
+              ].join(" ")}
+            >
+              <div className={bodyScrollMode === "children" ? "flex flex-1 min-h-0 flex-col" : "min-h-full"}>
+                {!hasPageHeader ? (
+                  <div className="mb-4 flex justify-end lg:hidden">
+                    <AppUserActions />
+                  </div>
+                ) : null}
+
+                <div className="mb-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+                  {visibleGroups.flatMap((group) => group.items).map((item) => {
+                    const Icon = item.icon;
+                    const active = item.key === activeKey;
+
+                    return (
+                      <Link
+                        key={item.key}
+                        href={item.href}
+                        className={[
+                          "interactive-surface inline-flex min-w-fit items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition-all duration-200",
+                          active
+                            ? "border-white/75 bg-[linear-gradient(145deg,rgba(255,255,255,0.8),rgba(236,242,255,0.72))] text-[color:var(--accent)] shadow-[0_12px_24px_rgba(57,88,142,0.08)]"
+                            : "border-white/45 bg-white/42 text-[color:var(--muted-foreground)]",
+                        ].join(" ")}
+                      >
+                        <Icon size={16} />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+
+                {hasPageHeader ? (
+                  <header
+                    className={[
+                      "grid gap-2.5 overflow-hidden transition-all duration-500 2xl:grid-cols-[1.1fr_0.9fr] 2xl:items-end",
+                      headerVisible ? "max-h-[220px] opacity-100" : "max-h-0 pointer-events-none opacity-0",
+                    ].join(" ")}
+                  >
+                    <div className="max-w-4xl">
+                      {title ? (
+                        <h1 className="font-[family-name:var(--font-display)] text-[clamp(1.65rem,2.8vw,2.85rem)] font-semibold tracking-[-0.06em] text-[color:var(--foreground)]">
+                          {title}
+                        </h1>
+                      ) : null}
+                      {description ? (
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-[color:var(--muted-foreground)] sm:text-[15px]">
+                          {description}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-start gap-2 lg:hidden 2xl:justify-end">
+                      {headerActions ?? <AppUserActions />}
+                    </div>
+                  </header>
+                ) : null}
+
+                <div
+                  className={[
+                    hasPageHeader && headerVisible ? "mt-3.5" : "",
+                    bodyScrollMode === "children"
+                      ? "flex flex-1 min-h-0 flex-col"
+                      : "min-h-full",
+                  ].join(" ")}
+                >
+                  {children}
+                </div>
+              </div>
+            </div>
           </main>
-        </div>
+        </section>
       </div>
-      <CommandPalette />
     </div>
   );
 }

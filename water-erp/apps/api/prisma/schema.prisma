@@ -15,6 +15,8 @@ model Department {
   code                String?              @unique
   users               User[]
   procurementProjects ProcurementProject[]
+  procurementRounds   ProcurementRound[]   @relation("RoundDepartment")
+  requestedProjects   Project[]            @relation("ProjectRequestingDepartment")
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -44,6 +46,22 @@ model User {
   expertProfile       ExpertProfile?
   expertEvaluations   ExpertEvaluation[]   @relation("ExpertEvaluationsReceived")
   expertEvalsGiven    ExpertEvaluation[]   @relation("ExpertEvaluationsGiven")
+
+  // ── 采购中心（从 procurement 项目迁入）──
+  attachments                    Attachment[]              @relation("AttachmentUploadedBy")
+  settings                       UserSettings?
+  workArrangements               WorkArrangement[]
+  workArrangementTemplates       WorkArrangementTemplate[]
+  tenderDocumentHistories        TenderDocumentHistory[]
+  createdProjects                ProjectManagementItem[]   @relation("ProjectCreatedBy")
+  reviewTasks                    ReviewTask[]
+  importBatches                  ImportBatch[]             @relation("ImportBatchUploadedBy")
+  passwordChangeRequests         PasswordChangeRequest[]   @relation("PasswordChangeRequestUser")
+  approvedPasswordChangeRequests PasswordChangeRequest[]   @relation("PasswordChangeRequestApprovedBy")
+  passwordResetRequests          PasswordResetRequest[]    @relation("PasswordResetRequestUser")
+  reviewedPasswordResetRequests  PasswordResetRequest[]    @relation("PasswordResetRequestReviewedBy")
+  createdRounds                  ProcurementRound[]        @relation("RoundCreatedBy")
+  updatedRounds                  ProcurementRound[]        @relation("RoundUpdatedBy")
 
   @@unique([username, role])
 }
@@ -558,6 +576,10 @@ model Supplier {
   catalogSupplies     CatalogSupplier[]
   clarifications      BidClarification[]
 
+  // ── 采购中心关联 ──
+  awardedRounds  ProcurementRound[]  @relation("AwardedSupplier")
+  participations RoundParticipant[]
+
   @@index([status])
   @@index([creditCode])
 }
@@ -878,6 +900,7 @@ model ProcurementProject {
   department        Department?       @relation(fields: [departmentId], references: [id])
   creator           User?             @relation(fields: [creatorId], references: [id])
   budgetList        BudgetList?
+  rounds            ProcurementRound[] // 采购中心台账轮次
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
@@ -1123,6 +1146,562 @@ model AssistantActionLog {
   createdAt      DateTime  @default(now())
   confirmedAt    DateTime?
   executedAt     DateTime?
+
+  @@index([status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 采购中心模块（从 procurement 项目迁入）
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── 采购中心枚举 ──
+
+enum ResultStatus {
+  AWARDED
+  FAILED_REVIEW
+  FILE_REVISION_REQUIRED
+  INVALID_RESPONSE
+  PENDING
+  CANCELLED
+}
+
+enum SourceType {
+  EXCEL_IMPORT
+  MANUAL
+  PROJECT_MANAGEMENT
+}
+
+enum AttachmentType {
+  TENDER_DOCUMENT
+  REVIEW_COMMENT
+  BID_ANALYSIS
+  AWARD_NOTICE
+  CONTRACT
+  SUPPORTING_MATERIAL
+}
+
+enum PasswordChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ProjectManagementStatus {
+  ACTIVE
+  ARCHIVED
+  RECYCLED
+}
+
+enum ProjectStageStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum WorkArrangementStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+enum WorkArrangementType {
+  APPROVAL
+  FOLLOW_UP
+  WRITING
+  COMMUNICATION
+  REVIEW
+  ARCHIVE
+  RESEARCH
+  MEETING
+  OTHER
+}
+
+enum WorkArrangementUrgency {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum WorkArrangementRecurrence {
+  NONE
+  DAILY
+  WEEKDAYS
+  WEEKLY
+  MONTHLY
+}
+
+enum WorkArrangementNoteType {
+  PROGRESS
+  INSIGHT
+}
+
+// ── 用户设置 ──
+
+model UserSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  theme           String   @default("system")
+  defaultHomePage String   @default("dashboard")
+  compactMode     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ── 采购项目（台账容器）──
+
+model Project {
+  id                     String             @id @default(cuid())
+  projectCode            String?            @unique
+  name                   String
+  businessCategory       String?
+  description            String?
+  requestingDepartmentId String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  attachments            Attachment[]
+  procurementRounds      ProcurementRound[]
+  requestingDepartment   Department?        @relation("ProjectRequestingDepartment", fields: [requestingDepartmentId], references: [id])
+
+  @@index([name])
+}
+
+// ── 采购轮次（台账明细）──
+
+model ProcurementRound {
+  id                String             @id @default(cuid())
+  projectId         String
+  roundNo           Int
+  procurementDate   DateTime?
+  procurementMethod String
+  departmentId      String?
+  budgetAmount      Decimal?           @db.Decimal(14, 2)
+  controlAmount     Decimal?           @db.Decimal(14, 2)
+  awardedSupplierId String?
+  awardAmount       Decimal?           @db.Decimal(14, 2)
+  resultStatus      ResultStatus       @default(PENDING)
+  resultText        String?
+  sourceType        SourceType         @default(MANUAL)
+  supplierText      String?
+  importBatchId     String?
+  isRecycled        Boolean            @default(false)
+  createdById       String?
+  updatedById       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  awardedSupplierName String?
+  expertInfo        String?
+  biddingUnits      String?
+  // ERP 采购项目关联（可选，桥接两个采购模型）
+  procurementProjectId String?
+  attachments         Attachment[]
+  awardedSupplier   Supplier?          @relation("AwardedSupplier", fields: [awardedSupplierId], references: [id])
+  createdBy         User?              @relation("RoundCreatedBy", fields: [createdById], references: [id])
+  department        Department?        @relation("RoundDepartment", fields: [departmentId], references: [id])
+  importBatch       ImportBatch?       @relation(fields: [importBatchId], references: [id])
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  procurementProject ProcurementProject? @relation(fields: [procurementProjectId], references: [id], onDelete: SetNull)
+  updatedBy         User?              @relation("RoundUpdatedBy", fields: [updatedById], references: [id])
+  participants      RoundParticipant[]
+
+  @@unique([projectId, roundNo])
+  @@index([procurementDate])
+  @@index([procurementMethod])
+  @@index([resultStatus])
+  @@index([isRecycled])
+  @@index([procurementProjectId])
+}
+
+// ── 轮次参与供应商 ──
+
+model RoundParticipant {
+  id                 String           @id @default(cuid())
+  procurementRoundId String
+  supplierId         String
+  sequenceNo         Int?
+  participationRole  String?
+  procurementRound   ProcurementRound @relation(fields: [procurementRoundId], references: [id], onDelete: Cascade)
+  supplier           Supplier         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([procurementRoundId, supplierId])
+}
+
+// ── 附件（采购中心）──
+
+model Attachment {
+  id                       String                  @id @default(cuid())
+  projectId                String?
+  procurementRoundId       String?
+  attachmentType           AttachmentType
+  fileName                 String
+  objectKey                String                  @unique
+  mimeType                 String
+  fileSize                 Int
+  uploadedById             String?
+  createdAt                DateTime                @default(now())
+  projectManagementItemId  String?
+  projectManagementStageId String?
+  procurementRound         ProcurementRound?       @relation(fields: [procurementRoundId], references: [id])
+  project                  Project?                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectManagementItem    ProjectManagementItem?  @relation("ProjectManagementAttachments", fields: [projectManagementItemId], references: [id])
+  projectManagementStage   ProjectManagementStage? @relation("ProjectManagementStageAttachments", fields: [projectManagementStageId], references: [id])
+  uploadedBy               User?                   @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([attachmentType])
+  @@index([projectManagementItemId])
+  @@index([projectManagementStageId])
+}
+
+// ── 项目管理（全生命周期）──
+
+model ProjectManagementItem {
+  id                          String                   @id @default(cuid())
+  title                       String
+  requesterName               String
+  requesterDepartment         String
+  procurementMethod           String
+  procurementCategory         String
+  procurementOrganizationForm String
+  budgetAmount                Decimal                  @db.Decimal(14, 2)
+  isAnnualBudget              Boolean
+  projectReason               String
+  supplierRequirements        String
+  currentStage                String
+  status                      ProjectManagementStatus  @default(ACTIVE)
+  archivedProcurementRoundId  String?
+  createdAt                   DateTime                 @default(now())
+  updatedAt                   DateTime                 @updatedAt
+  analysisSummary             String?
+  analysisUpdatedAt           DateTime?
+  createdById                 String?
+  initiationDate              DateTime?
+  evaluationMethod            String?
+  expertInfo                  String?
+  biddingUnits                String?
+  awardedSupplier             String?
+  contractAmount              Decimal?                 @db.Decimal(14, 2)
+  archivedAt                  DateTime?
+  archiveHook                 String?
+  hasProcurementDemand        Boolean                  @default(false)
+  demandRequesterName         String?
+  demandDepartment            String?
+  demandProcurementTitle      String?
+  demandProjectReason         String?
+  demandSupplierReqs          String?
+  demandBudgetAmount          Decimal?                 @db.Decimal(14, 2)
+  demandProcurementCategory   String?
+  demandProcurementMethod     String?
+  demandProject               String?
+  demandContractNumber        String?
+  contractNumber              String?
+  departmentNumber            String?
+  attachments                 Attachment[]             @relation("ProjectManagementAttachments")
+  createdBy                   User?                    @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  stages                      ProjectManagementStage[]
+  workArrangements            WorkArrangement[]
+
+  @@index([status, currentStage])
+  @@index([title])
+  @@index([createdById])
+}
+
+model ProjectManagementStage {
+  id                      String                @id @default(cuid())
+  projectManagementItemId String
+  stageKey                String
+  stageName               String
+  stageOrder              Int
+  status                  ProjectStageStatus    @default(NOT_STARTED)
+  note                    String?
+  completedAt             DateTime?
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  attachments             Attachment[]          @relation("ProjectManagementStageAttachments")
+  projectManagementItem   ProjectManagementItem @relation(fields: [projectManagementItemId], references: [id], onDelete: Cascade)
+
+  @@unique([projectManagementItemId, stageKey])
+  @@index([projectManagementItemId, stageOrder])
+}
+
+// ── Excel 导入批次 ──
+
+model ImportBatch {
+  id                String             @id @default(cuid())
+  fileName          String
+  sourceMonth       String?
+  rowCount          Int                @default(0)
+  successCount      Int                @default(0)
+  warningCount      Int                @default(0)
+  errorCount        Int                @default(0)
+  uploadedById      String?
+  createdAt         DateTime           @default(now())
+  uploadedBy        User?              @relation("ImportBatchUploadedBy", fields: [uploadedById], references: [id])
+  procurementRounds ProcurementRound[]
+}
+
+// ── 工作安排（个人任务管理）──
+
+model WorkArrangement {
+  id                      String                      @id @default(cuid())
+  userId                  String
+  title                   String
+  description             String?
+  type                    WorkArrangementType
+  urgency                 WorkArrangementUrgency      @default(MEDIUM)
+  status                  WorkArrangementStatus       @default(TODO)
+  dueAt                   DateTime?
+  reminderAt              DateTime?
+  estimatedMinutes        Int?
+  isAllDay                Boolean                     @default(true)
+  customTags              Json?
+  recurrence              WorkArrangementRecurrence   @default(NONE)
+  projectManagementItemId String?
+  templateId              String?
+  completionSummary       String?
+  reflectionSummary       String?
+  completedAt             DateTime?
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+  projectManagementItem   ProjectManagementItem?      @relation(fields: [projectManagementItemId], references: [id])
+  template                WorkArrangementTemplate?    @relation(fields: [templateId], references: [id])
+  user                    User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dependents              WorkArrangementDependency[] @relation("WorkArrangementDependsOnTarget")
+  dependencies            WorkArrangementDependency[] @relation("WorkArrangementDependsOnSource")
+  notes                   WorkArrangementNote[]
+
+  @@index([userId, status, dueAt])
+  @@index([userId, urgency, dueAt])
+  @@index([projectManagementItemId, dueAt])
+}
+
+model WorkArrangementNote {
+  id                String                  @id @default(cuid())
+  workArrangementId String
+  type              WorkArrangementNoteType
+  content           String
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  workArrangement   WorkArrangement         @relation(fields: [workArrangementId], references: [id], onDelete: Cascade)
+
+  @@index([workArrangementId, createdAt])
+}
+
+model WorkArrangementTemplate {
+  id               String                    @id @default(cuid())
+  userId           String
+  name             String
+  title            String
+  description      String?
+  type             WorkArrangementType
+  urgency          WorkArrangementUrgency    @default(MEDIUM)
+  estimatedMinutes Int?
+  isAllDay         Boolean                   @default(true)
+  customTags       Json?
+  recurrence       WorkArrangementRecurrence @default(NONE)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  workArrangements WorkArrangement[]
+  user             User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+}
+
+model WorkArrangementDependency {
+  workArrangementId String
+  dependsOnId       String
+  createdAt         DateTime        @default(now())
+  dependsOn         WorkArrangement @relation("WorkArrangementDependsOnTarget", fields: [dependsOnId], references: [id], onDelete: Cascade)
+  workArrangement   WorkArrangement @relation("WorkArrangementDependsOnSource", fields: [workArrangementId], references: [id], onDelete: Cascade)
+
+  @@id([workArrangementId, dependsOnId])
+  @@index([dependsOnId])
+}
+
+// ── 密码管理 ──
+
+model PasswordChangeRequest {
+  id                    String                      @id @default(cuid())
+  userId                String
+  requestedPasswordHash String
+  status                PasswordChangeRequestStatus @default(PENDING)
+  decisionNote          String?
+  requestedAt           DateTime                    @default(now())
+  reviewedAt            DateTime?
+  approvedById          String?
+  approvedBy            User?                       @relation("PasswordChangeRequestApprovedBy", fields: [approvedById], references: [id])
+  user                  User                        @relation("PasswordChangeRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, requestedAt])
+}
+
+model PasswordResetRequest {
+  id                String                      @id @default(cuid())
+  requestedUsername String
+  applicantName     String
+  applicantContact  String
+  matchedUserId     String?
+  status            PasswordChangeRequestStatus @default(PENDING)
+  decisionNote      String?
+  requestedAt       DateTime                    @default(now())
+  reviewedAt        DateTime?
+  reviewedById      String?
+  matchedUser       User?                       @relation("PasswordResetRequestUser", fields: [matchedUserId], references: [id])
+  reviewedBy        User?                       @relation("PasswordResetRequestReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([requestedUsername, status])
+  @@index([matchedUserId, status])
+  @@index([status, requestedAt])
+}
+
+// ── 知识库（RAG）──
+
+model KnowledgeBase {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  rules       ComplianceRule[]
+  files       KnowledgeFile[]
+  reviewTasks ReviewTask[]
+}
+
+model KnowledgeFile {
+  id              String        @id @default(cuid())
+  knowledgeBaseId String
+  fileName        String
+  objectKey       String
+  mimeType        String
+  fileSize        Int
+  content         String?
+  chunkCount      Int           @default(0)
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@index([knowledgeBaseId])
+}
+
+model DocumentChunk {
+  id             String   @id @default(cuid())
+  collectionName String
+  fileId         String
+  content        String
+  metadata       Json     @default("{}")
+  // embedding  Unsupported("vector")? — 待 pgvector 镜像就绪后恢复
+  createdAt      DateTime @default(now())
+
+  @@index([collectionName])
+}
+
+model ComplianceRule {
+  id              String        @id @default(cuid())
+  knowledgeBaseId String
+  source          String
+  name            String
+  ruleType        String
+  checkTarget     String
+  logicExpression Json
+  severity        String
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@index([knowledgeBaseId])
+  @@index([ruleType])
+}
+
+// ── 招标文件审查 ──
+
+model ReviewTask {
+  id                      String         @id @default(cuid())
+  documentName            String
+  objectKey               String
+  documentContent         String?
+  knowledgeBaseId         String?
+  reviewMode              String
+  status                  String         @default("pending")
+  totalChecks             Int            @default(0)
+  passedCount             Int            @default(0)
+  failedCount             Int            @default(0)
+  warningCount            Int            @default(0)
+  results                 Json?
+  createdAt               DateTime       @default(now())
+  completedAt             DateTime?
+  modifiedDocumentContent String?
+  userId                  String?
+  knowledgeBase           KnowledgeBase? @relation(fields: [knowledgeBaseId], references: [id])
+  user                    User?          @relation(fields: [userId], references: [id])
+
+  @@index([knowledgeBaseId])
+  @@index([status])
+  @@index([userId])
+}
+
+// ── 标书字段样本 ──
+
+model TenderFieldSample {
+  id         String   @id @default(cuid())
+  fieldKey   String
+  content    String
+  isFavorite Boolean  @default(false)
+  sourceType String   @default("manual")
+  context    Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([fieldKey, isFavorite])
+  @@index([fieldKey, createdAt])
+}
+
+// ── 外部联系人 ──
+
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
+
+// ── 标书版本历史 ──
+
+model TenderDocumentHistory {
+  id           String   @id @default(cuid())
+  documentType String
+  title        String
+  draftData    Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  contentHash  String
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, documentType, contentHash])
+  @@index([documentType, createdAt])
+  @@index([userId, createdAt])
+}
+
+// ── 规则提取任务 ──
+
+model ExtractionTask {
+  id              String   @id @default(cuid())
+  knowledgeBaseId String?
+  status          String   @default("pending")
+  extractedCount  Int      @default(0)
+  processedFiles  Json     @default("[]")
+  error           String?
+  createdAt       DateTime @default(now())
 
   @@index([status])
 }

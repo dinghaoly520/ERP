@@ -182,3 +182,209 @@ export function uploadBidDocument(announcementId: string, file: File, config: {
   if (config.allowedSupplierIds?.length) fd.append('allowedSupplierIds', config.allowedSupplierIds.join(','));
   return api.postForm<BidDocumentManage>(`/announcements/${announcementId}/bid-document`, fd);
 }
+import type {
+  AnnouncementCategory,
+  AnnouncementDraft,
+} from "@/lib/types/announcement";
+import type { ReadyTenderDocumentType } from "@/lib/types/tender-write";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
+
+function parseErrorMessage(text: string) {
+  const trimmed = text.trim();
+  return trimmed || "导出失败，请稍后重试。";
+}
+
+function parseFileName(disposition: string | null) {
+  if (!disposition) return null;
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match) return decodeURIComponent(utf8Match[1]);
+  const basicMatch = disposition.match(/filename="?([^";]+)"?/i);
+  return basicMatch?.[1] ?? null;
+}
+
+export async function exportAnnouncementDocument(payload: {
+  tenderType: ReadyTenderDocumentType;
+  category: AnnouncementCategory;
+  draft: AnnouncementDraft;
+}) {
+  const response = await fetch(`${API_BASE}/tender-write/export-announcement`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.text()));
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName:
+      parseFileName(response.headers.get("content-disposition")) ??
+      "公告.docx",
+  };
+}
+
+export type WinningBidImporter = {
+  name: string;
+  price: string;
+};
+
+export async function importWinningBidFromPdf(file: File): Promise<
+  WinningBidImporter[]
+> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(
+    `${API_BASE}/tender-write/import-winning-bid`,
+    {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.text()));
+  }
+
+  return response.json();
+}
+
+// ─── 中标通知书 ───
+
+export type NotificationExtractedData = {
+  projectName: string;
+  winnerName: string;
+  winnerPrice: string;
+  department: string;
+  controlPrice: string;
+  extractedText: string;
+};
+
+export type NotificationLetterDraft = {
+  projectName: string;
+  winnerName: string;
+  winnerPrice: string;
+  winnerPriceChinese: string;
+  contactName: string;
+  contactPhone: string;
+  contactEmail: string;
+  signatureDate: string;
+  department: string;
+  controlPrice: string;
+  category: string;
+  project: string;
+  procurementMethod: string;
+  remark: string;
+};
+
+export async function extractNotificationData(
+  file: File,
+): Promise<NotificationExtractedData> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(
+    `${API_BASE}/tender-write/extract-notification-data`,
+    {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.text()));
+  }
+
+  return response.json();
+}
+
+export async function exportNotificationLetter(
+  draft: NotificationLetterDraft,
+) {
+  const response = await fetch(
+    `${API_BASE}/tender-write/export-notification`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(draft),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.text()));
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName:
+      parseFileName(response.headers.get("content-disposition")) ??
+      "中标通知书.docx",
+  };
+}
+
+export async function exportNotificationLedger(
+  draft: NotificationLetterDraft,
+) {
+  const response = await fetch(
+    `${API_BASE}/tender-write/export-notification-ledger`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(draft),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.text()));
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName:
+      parseFileName(response.headers.get("content-disposition")) ??
+      "中标通知书台账.xlsx",
+  };
+}
+
+// ─── 台账管理 ───
+
+export async function fetchNotificationLedger(): Promise<string[][]> {
+  const response = await fetch(`${API_BASE}/tender-write/notification-ledger`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.text()));
+  }
+
+  return response.json();
+}
+
+export async function updateNotificationLedger(rows: unknown[][]) {
+  const response = await fetch(`${API_BASE}/tender-write/notification-ledger`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rows }),
+  });
+
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.text()));
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName:
+      parseFileName(response.headers.get("content-disposition")) ??
+      "中标通知书台账.xlsx",
+  };
+}
