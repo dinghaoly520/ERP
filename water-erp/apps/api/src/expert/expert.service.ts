@@ -917,8 +917,10 @@ export class ExpertService {
         contentMap.set(`${br.id}:${r.requirementId}`, r.tenderContent ?? '');
       }
     }
+    // Fix 6: O(1) 查找替代 brs.find 的 O(N·M)（沿用 contentMap 同样的 Map 模式）
+    const brById = new Map(brs.map((b) => [b.id, b]));
     const myDisputedReviews = disputed.map((d) => {
-      const br = brs.find((b) => b.id === d.bidderResultId);
+      const br = brById.get(d.bidderResultId);
       return {
         supplierId: br?.bidSupplier?.id ?? '',
         supplierName: br?.bidSupplier?.supplierName ?? '',
