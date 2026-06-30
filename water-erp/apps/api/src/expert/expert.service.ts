@@ -447,10 +447,12 @@ export class ExpertService {
       // 15.4: 串通检测分层可见 — 专家端只看摘要（不暴露检测细节）
       const task = await this.prisma.aiBidAnalysisTask.findUnique({
         where: { projectId },
-        select: { id: true },
+        select: { id: true, requirements: true },
       });
       let fraudSummary: { riskLevel: string; indicatorCount: number } | null = null;
       let reportDocxId: string | null = null;
+      // 本人针对该投标人的条款标注（Task 3 BidRequirementReview）
+      let myReviews: any[] = [];
       if (task) {
         const report = await this.prisma.aiBidReport.findUnique({
           where: { taskId: task.id },
@@ -461,6 +463,9 @@ export class ExpertService {
           fraudSummary = { riskLevel: fi.riskLevel ?? 'low', indicatorCount: fi.summary?.totalCount ?? fi.indicators?.length ?? 0 };
         }
         reportDocxId = report?.docxFileId ?? null;
+        myReviews = await this.prisma.bidRequirementReview.findMany({
+          where: { bidderResultId: bidderResult.id, expertId: expert.id },
+        });
       }
       return {
         source: 'ai_bidder_result',
@@ -478,6 +483,9 @@ export class ExpertService {
         riskLevel: bidderResult.riskLevel,
         fraudSummary, // B5: 串通检测摘要（专家端仅看风险等级+数量）
         reportDocxUrl: reportDocxId ? `/api/upload/files/${reportDocxId}` : null, // B6: 综合报告 DOCX 下载
+        requirements: task?.requirements ?? null, // 招标条款（来自 AiBidAnalysisTask.requirements）
+        requirementResponses: bidderResult.requirementResponses ?? [], // AI 条款响应定位（Task 3/6/7）
+        reviews: myReviews, // 本人 BidRequirementReview 列表
       };
     }
     // 降级：规则引擎（LLM/OCR 不可用或 bidderResult 未就绪时）
