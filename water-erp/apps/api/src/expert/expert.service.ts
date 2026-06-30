@@ -887,6 +887,38 @@ export class ExpertService {
       };
     });
 
+    // Task 11：披露本人异议条款（评审报告维度，非 AI docx — 异议产生于专家评标阶段，晚于 AI 报告）
+    // 过滤 verdict='dispute'，跨 supplier；supplierName 来自 bidderResult.bidSupplier，
+    // tenderContent 来自 bidderResult.requirementResponses 反查（缺失 fallback 空串）
+    const disputed = await this.prisma.bidRequirementReview.findMany({
+      where: { projectId, expertId: expert.id, verdict: 'dispute' },
+    });
+    const brIds = [...new Set(disputed.map((d) => d.bidderResultId))];
+    const brs = brIds.length
+      ? await this.prisma.aiBidderResult.findMany({
+          where: { id: { in: brIds } },
+          include: { bidSupplier: { select: { id: true, supplierName: true } } },
+        })
+      : [];
+    // 内容映射：bidderResultId:requirementId → tenderContent（requirementResponses 反查）
+    const contentMap = new Map<string, string>();
+    for (const br of brs) {
+      for (const r of ((br.requirementResponses as any[]) ?? [])) {
+        contentMap.set(`${br.id}:${r.requirementId}`, r.tenderContent ?? '');
+      }
+    }
+    const myDisputedReviews = disputed.map((d) => {
+      const br = brs.find((b) => b.id === d.bidderResultId);
+      return {
+        supplierId: br?.bidSupplier?.id ?? '',
+        supplierName: br?.bidSupplier?.supplierName ?? '',
+        requirementId: d.requirementId,
+        category: d.category,
+        tenderContent: contentMap.get(`${d.bidderResultId}:${d.requirementId}`) ?? '',
+        note: d.note ?? '',
+      };
+    });
+
     return {
       projectName: project.name,
       projectCode: project.projectCode,
@@ -898,6 +930,7 @@ export class ExpertService {
       scoreItems: project.scoreItems,
       canConfirm: expert.progress >= 100,
       overallComplete: expert.progress >= 100,
+      myDisputedReviews,
     };
   }
 

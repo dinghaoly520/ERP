@@ -416,6 +416,9 @@ describe('ExpertService', () => {
       prisma.bidScoreRecord.findMany.mockResolvedValue([
         { supplierId: 's1', score: 8, scoreItem: { id: 'si1', category: 'TECHNICAL', name: '技术', maxScore: 10 } },
       ]);
+      // Task 11: getReport 增返 myDisputedReviews — 默认无异议
+      prisma.bidRequirementReview = { findMany: jest.fn().mockResolvedValue([]) };
+      prisma.aiBidderResult.findMany = jest.fn();
     });
 
     it('返回 perSupplierComplete（单供应商维度）与 overallComplete（整体）', async () => {
@@ -451,6 +454,50 @@ describe('ExpertService', () => {
       const report = await service.getReport('u1', 'p1');
       const item = report.supplierScores[0].categoryScores['QUALIFICATION'].items[0];
       expect(item.passed).toBe(false);
+    });
+
+    it('附带本人异议条款 myDisputedReviews（跨供应商，关联 supplierName + tenderContent）', async () => {
+      // Task 11: 本人 verdict=dispute 标注进入评审报告；supplierName 来自 bidSupplier，
+      // tenderContent 来自 aiBidderResult.requirementResponses 反查
+      prisma.bidRequirementReview = { findMany: jest.fn().mockResolvedValue([
+        { bidderResultId: 'br-1', requirementId: 'r1', category: 'technical', note: '工期存疑' },
+      ]) };
+      prisma.aiBidderResult.findMany = jest.fn().mockResolvedValue([
+        { id: 'br-1', bidSupplier: { id: 's1', supplierName: '甲' }, requirementResponses: [{ requirementId: 'r1', tenderContent: '工期365天' }] },
+      ]);
+
+      const report = await service.getReport('u1', 'p1');
+
+      expect(prisma.bidRequirementReview.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { projectId: 'p1', expertId: 'exp-1', verdict: 'dispute' } }),
+      );
+      expect(report.myDisputedReviews).toEqual([
+        expect.objectContaining({ supplierId: 's1', supplierName: '甲', requirementId: 'r1', category: 'technical', tenderContent: '工期365天', note: '工期存疑' }),
+      ]);
+    });
+
+    it('myDisputedReviews：tenderContent 缺失时 fallback 空串，supplierName 缺失时 fallback 空串', async () => {
+      prisma.bidRequirementReview = { findMany: jest.fn().mockResolvedValue([
+        { bidderResultId: 'br-9', requirementId: 'rx', category: 'commercial', note: '' },
+      ]) };
+      // 无匹配 bidderResult（数据漂移场景）
+      prisma.aiBidderResult.findMany = jest.fn().mockResolvedValue([]);
+
+      const report = await service.getReport('u1', 'p1');
+
+      expect(report.myDisputedReviews).toEqual([
+        expect.objectContaining({ supplierId: '', supplierName: '', requirementId: 'rx', tenderContent: '', note: '' }),
+      ]);
+    });
+
+    it('无本人异议时 myDisputedReviews 为空数组且不查 bidderResult', async () => {
+      prisma.bidRequirementReview = { findMany: jest.fn().mockResolvedValue([]) };
+      prisma.aiBidderResult.findMany = jest.fn();
+
+      const report = await service.getReport('u1', 'p1');
+
+      expect(report.myDisputedReviews).toEqual([]);
+      expect(prisma.aiBidderResult.findMany).not.toHaveBeenCalled();
     });
   });
 
