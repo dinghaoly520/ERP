@@ -189,6 +189,15 @@ TDD（Red-Green-Refactor），单测位于各 service 的 `.spec.ts`：
 - 不做条款级原文编辑/批注（仅状态标注 + 备注）。
 - 不做实时多人协同。
 
+## 实现修正（plan 阶段发现）
+
+写实现计划时核对代码发现两处需修正 spec 的实现假设：
+
+1. **fileId 来源**：matcher 的 `location.fileId` 需投标文件 `FileAsset.id`，但 `plaintextFetcher.fetchBidderPlaintext` 现状只返回 buffer（内部已查到 assetId 未暴露）。实现须扩展其返回 `{ buffer, fileId }`。
+2. **报告时序**：`docx-generator` 在 AI 分析完成时（`checkTaskCompletion`）生成，**早于**专家评审；专家异议（评标时产生）无法入该 docx。故异议改入**专家评审报告**（`getReport` 返回的 `EvaluationReport.myDisputedReviews`），随 `confirmReport` 确认——非 AI docx 报告。
+
+（已在实现计划 Global Constraints 与 Task 4 / Task 11 体现。）
+
 ## 风险与应对
 
 | 风险 | 应对 |
