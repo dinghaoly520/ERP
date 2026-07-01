@@ -87,6 +87,22 @@ export class ExpertController {
     res.send(buffer);
   }
 
+  /* ── 投标文件解密下载（专家预览投标人 PDF）── */
+  @ApiOperation({ summary: '解密下载投标文件 PDF（inline 预览）' })
+  @Get('projects/:projectId/suppliers/:supplierId/documents/:fileId/download')
+  async downloadBidDocument(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Param('supplierId') supplierId: string,
+    @Param('fileId') fileId: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, fileName, mimeType } = await this.expertService.downloadBidDocument(userId, projectId, supplierId, fileId);
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    res.send(buffer);
+  }
+
   /* ── 辅助评标 ── */
 
   /** 跨供应商对比概览 — 必须在 :supplierId 路由前注册，否则 "compare" 会被当作 supplierId */

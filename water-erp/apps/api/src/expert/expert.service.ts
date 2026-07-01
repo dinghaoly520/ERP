@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ExpertConflictService } from './expert-conflict.service';
 import { BidGateway } from '../bid/bid.gateway';
+import { PlaintextFetcherService, BidderFileType } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
@@ -17,6 +18,7 @@ export class ExpertService {
     private prisma: PrismaService,
     private aiService: AiService,
     private conflictService: ExpertConflictService,
+    private plaintextFetcher: PlaintextFetcherService,
     @Optional() private readonly gateway?: BidGateway,
   ) {}
 
@@ -332,7 +334,7 @@ export class ExpertService {
           type: asset?.mimeType ?? 'unknown',
           size: asset?.size ?? 0,
           status: canView ? '已解密' : '加密中',
-          downloadUrl: canView && asset ? `/api/upload/files/${asset.id}` : undefined,
+          downloadUrl: canView && asset ? `/api/expert/projects/${projectId}/suppliers/${supplierId}/documents/${asset.id}` : undefined,
           sha256: canView ? asset?.sha256 : undefined,
         };
       });
@@ -414,6 +416,68 @@ export class ExpertService {
     });
 
     return { buffer: plaintext, fileName: doc.fileAsset.originalName, mimeType: 'application/pdf' };
+  }
+
+  /* ── 投标文件解密下载（专家预览投标人 PDF）── */
+
+  /** 门控同 getDecryptedDocuments/resolveReviewContext：项目阶段 OPENING/EVALUATING + 本人专家 + 签到/回避确认 + 回避名单。
+   *  fileId 必须归属该 supplier 的某类投标文件（防越权），再委托 plaintextFetcher 解密。 */
+  async downloadBidDocument(
+    userId: string,
+    projectId: string,
+    supplierId: string,
+    fileId: string,
+  ): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
+    const expert = await this.assertExpertActiveForProject(userId, projectId);
+
+    // 回避名单检查：与 getAssistData/resolveReviewContext 一致
+    const conflictedIds: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    if (conflictedIds.includes(supplierId)) {
+      throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
+    }
+
+    // 确认 supplier 属于该项目，并拿到 supplierId（系统账户）查 submission
+    const supplier = await this.prisma.bidSupplier.findFirst({
+      where: { id: supplierId, projectId },
+    });
+    if (!supplier) throw new NotFoundException({ error: '供应商不存在', code: 'SUPPLIER_NOT_FOUND' });
+    if (!supplier.supplierId) {
+      throw new NotFoundException({ error: '供应商未关联账户', code: 'NOT_FOUND' });
+    }
+
+    const submission = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId: supplier.supplierId, projectId } },
+    });
+    if (!submission) throw new NotFoundException({ error: '投标文件不存在', code: 'NOT_FOUND' });
+
+    // fileId → which 映射（防越权：fileId 必须是三选一且归属本 supplier）
+    let which: BidderFileType | null = null;
+    if (submission.technicalFileAssetId === fileId) which = 'technical';
+    else if (submission.businessFileAssetId === fileId) which = 'business';
+    else if (submission.coverLetterAssetId === fileId) which = 'coverLetter';
+    if (!which) {
+      throw new NotFoundException({ error: '文件不属于该供应商', code: 'NOT_FOUND' });
+    }
+
+    const result = await this.plaintextFetcher.fetchBidderPlaintext(supplierId, which);
+    if (!result) throw new NotFoundException({ error: '投标文件不存在', code: 'NOT_FOUND' });
+
+    const asset = await this.prisma.fileAsset.findUnique({ where: { id: fileId } });
+    const fileName = asset?.originalName ?? `${which}.pdf`;
+
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId,
+        time: new Date(),
+        role: '评审专家',
+        target: expert.expertName,
+        action: `访问投标文件（${supplier.supplierName}）`,
+        result: fileName,
+        riskFlag: '无',
+      },
+    });
+
+    return { buffer: result.buffer, fileName, mimeType: 'application/pdf' };
   }
 
   /* ── 招标条款标注（Task 9：本人 CRUD）── */
