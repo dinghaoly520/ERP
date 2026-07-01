@@ -3,6 +3,8 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { fetchPublicAnnouncements, ANNOUNCEMENT_TABS, ANNOUNCEMENTS, type AnnouncementItem } from '@/lib/announcements';
+import { UnifiedHeader } from '@/components/unified-header';
+import { FlowBackdrop } from '@/components/flow-stage';
 
 function AnnouncementsContent() {
   const router = useRouter();
@@ -39,30 +41,20 @@ function AnnouncementsContent() {
   }, [type, search]);
 
   return (
-    <div className="min-h-screen bg-[#f7f9fc]" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
-      {/* ═══ Header — 统合顶栏 ═══ */}
-      <header className="sticky top-0 z-50 h-[88px] flex items-center bg-white border-b border-[#e5ecf4]">
-        <div className="w-full px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
-          <a href="/" className="flex items-center gap-3 shrink-0">
-            <img src="/assets/logo.png" alt="四川水发集团" className="h-14 w-auto object-contain" />
-            <div className="flex flex-col gap-0">
-              <strong className="text-[#123a6e] text-3xl tracking-[0.14em] leading-tight whitespace-nowrap" style={{ fontFamily: '"SimHei","黑体",sans-serif', fontWeight: 900 }}>四川水发集团</strong>
-              <small className="text-[7px] text-[#8a96aa] font-medium text-center whitespace-nowrap tracking-wide">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
-            </div>
-          </a>
-
-          <button onClick={() => router.push('/')}
-            className="h-10 px-5 border border-[#c5d3e8] text-[#064ea2] bg-white rounded-full text-[13px] font-semibold hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] hover:shadow-[0_2px_8px_rgba(6,78,162,.25)] active:scale-95 transition-all duration-200">
-            ← 返回首页
-          </button>
-        </div>
-      </header>
+    <div className="flow-page" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+      <FlowBackdrop />
+      {/* ═══ 统一顶栏 ═══ */}
+      <UnifiedHeader announcements={items} onLoginClick={() => {}} onRegisterClick={() => {}} />
 
       {/* ═══ 内容区 — 全宽与首页对齐 ═══ */}
-      <div className="px-[clamp(40px,4vw,72px)] py-10">
+      <div className="relative z-10 px-[clamp(40px,4vw,72px)] pt-3 pb-10">
+        <a href="/" className="flow-back inline-flex items-center gap-1.5 w-fit mb-8">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          返回首页
+        </a>
         {/* 标题 */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-black text-[#18243a] mb-1" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>信息公告</h1>
+        <div className="mb-[clamp(28px,3vw,40px)] text-center">
+          <h1 className="text-[clamp(28px,3vw,40px)] font-black text-[#18243a] mb-1.5" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>信息公告</h1>
           <p className="text-sm text-[#8a96aa]">招标公告 · 中标公示 · 政策法规 · 平台通知</p>
         </div>
 
@@ -94,12 +86,12 @@ function AnnouncementsContent() {
 
         {/* 列表 */}
         {loading ? (
-          <div className="bg-white rounded-2xl border border-[#e5ecf4] p-16 text-center">
+          <div className="glass rounded-2xl p-16 text-center">
             <div className="text-5xl mb-4">⏳</div>
             <p className="text-[#5a6d8a] font-semibold">正在加载公告...</p>
           </div>
         ) : items.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-[#e5ecf4] p-16 text-center">
+          <div className="glass rounded-2xl p-16 text-center">
             <div className="text-5xl mb-4">📢</div>
             <p className="text-[#5a6d8a] font-semibold mb-1">暂无相关公告</p>
             <p className="text-xs text-[#8a96aa]">试试切换分类或调整搜索关键词</p>
@@ -108,7 +100,7 @@ function AnnouncementsContent() {
           <div className="flex flex-col gap-3">
             {items.map(a => (
               <div key={a.id} onClick={() => router.push(`/announcements/${a.id}`)}
-                className="bg-white rounded-2xl border border-[#e5ecf4] p-5 hover:border-[#064ea240] hover:shadow-md transition-all cursor-pointer">
+                className="glass rounded-2xl p-5 hover:shadow-md transition-all cursor-pointer">
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ color: a.color, backgroundColor: a.color + '18' }}>{a.tag}</span>
                   {a.urgent && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded-full font-bold">重要</span>}
@@ -131,7 +123,7 @@ function AnnouncementsContent() {
 export default function AnnouncementsPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#f7f9fc] flex items-center justify-center">
+      <div className="flow-page flex items-center justify-center">
         <div className="text-[#5a6d8a] font-semibold">加载中...</div>
       </div>
     }>

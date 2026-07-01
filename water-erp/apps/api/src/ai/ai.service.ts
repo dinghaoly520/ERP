@@ -1259,6 +1259,13 @@ export class AiService {
         '你是智能工作助手。基于用户任务数据生成日计划报告。返回JSON: {headerGreeting, namePraise, dailyGreeting, riskSummary, aiSuggestion, overview, focusItems:[{id,title,reason}], timeBlocks:[{label,startTime,endTime,items}], riskAlerts:[{level,title,description}], completionAdvice}',
         `日期:${context.date} 当前时间:${context.currentTime||'未知'} 任务数:${totalItems}(待办${todoCount}) 任务:${JSON.stringify(items.slice(0,20))}`,
       );
+      const safeTimeBlocks = (result.timeBlocks || []).map((b: any) => ({
+        label: b.label || '时间段',
+        start: b.startTime || b.start || '',
+        end: b.endTime || b.end || '',
+        focus: b.focus || (b.items?.join('、') || ''),
+        taskIds: Array.isArray(b.taskIds) ? b.taskIds : Array.isArray(b.items) ? b.items : [],
+      }));
       return {
         date: context.date,
         headerGreeting: result.headerGreeting || '你好！',
@@ -1268,7 +1275,7 @@ export class AiService {
         aiSuggestion: result.aiSuggestion || '建议按优先级依次处理',
         overview: result.overview || `共${totalItems}项任务 | ${todoCount}待办`,
         focusItems: result.focusItems || [],
-        timeBlocks: result.timeBlocks || [],
+        timeBlocks: safeTimeBlocks,
         riskAlerts: result.riskAlerts || [],
         completionAdvice: result.completionAdvice || '完成所有待办后记得复盘',
       };
@@ -1304,6 +1311,84 @@ export class AiService {
         analysis: `项目"${context.title||''}"共${files.length}个文件`,
         fileAnalyses: files.map(f => ({ objectKey: f.objectKey||'', fileName: f.fileName||f.name||'', stageMatch: '待分析', contentSummary: '' })),
       };
+    }
+  }
+
+  /** 仪表盘 AI 分析（从 procurement 迁入） */
+  async analyzeDashboard(payload: any) {
+    const systemPrompt = [
+      '你是采购中心管理驾驶舱的专业分析师，服务于采购负责人、部门负责人和管理层决策。',
+      '从数据中提炼关键洞察，识别潜在风险和机会，给出可落地的管理建议。',
+      '只使用输入数据中明确存在的数值，禁止编造、推算或假设。',
+      '返回 JSON: {overview, highlights, concerns, suggestions}',
+    ].join('\n');
+
+    const userPrompt = JSON.stringify({
+      range: { label: payload.rangeLabel, startDate: payload.startDate, endDate: payload.endDate },
+      summary: payload.summary, trendSeries: payload.trendSeries,
+      departmentStats: payload.departmentStats, methodStats: payload.methodStats,
+      supplierStats: payload.supplierStats, resultStats: payload.resultStats,
+      nonAwardReasons: payload.nonAwardReasons, riskProjects: payload.riskProjects,
+      quickActions: payload.quickActions ?? [],
+    }, null, 2);
+
+    try {
+      const raw = await this.llm.chatJson<any>(systemPrompt, userPrompt, 0.3);
+      return {
+        overview: raw?.overview || '分析完成',
+        highlights: Array.isArray(raw?.highlights) ? raw.highlights : [],
+        concerns: Array.isArray(raw?.concerns) ? raw.concerns : [],
+        suggestions: Array.isArray(raw?.suggestions) ? raw.suggestions : [],
+      };
+    } catch {
+      return { overview: 'AI 分析暂不可用', highlights: [], concerns: [], suggestions: [] };
+    }
+  }
+
+  /** 采购台账 AI 分析 */
+  async analyzeProcurementLedger(payload: any) {
+    const systemPrompt = '你是采购数据分析师。基于采购台账数据进行分析，返回 JSON: {overview, highlights:[], concerns:[], suggestions:[]}';
+    try {
+      const raw = await this.llm.chatJson<any>(systemPrompt, JSON.stringify(payload, null, 2), 0.3);
+      return {
+        overview: raw?.overview || raw?.analysis || '分析完成',
+        highlights: Array.isArray(raw?.highlights) ? raw.highlights : Array.isArray(raw?.insights) ? raw.insights : [],
+        concerns: Array.isArray(raw?.concerns) ? raw.concerns : [],
+        suggestions: Array.isArray(raw?.suggestions) ? raw.suggestions : Array.isArray(raw?.recommendations) ? raw.recommendations : [],
+      };
+    } catch {
+      return { overview: '台账分析暂不可用', highlights: [], concerns: [], suggestions: [] };
+    }
+  }
+
+  /** 招标字段 AI 生成 */
+  async generateTenderFieldContent(payload: {
+    fieldKey: string; fieldLabel: string; currentValue: string;
+    aiPrompt?: string; context?: any;
+  }) {
+    const systemPrompt = `你是招标文件编写专家。为"${payload.fieldLabel}"字段生成内容。返回 JSON: {content}`;
+    try {
+      const result = await this.llm.chatJson<{ content: string }>(
+        systemPrompt,
+        `字段: ${payload.fieldKey}\n当前值: ${payload.currentValue}\n要求: ${payload.aiPrompt || '生成专业内容'}\n上下文: ${JSON.stringify(payload.context || {})}`,
+      );
+      return { content: result.content || payload.currentValue };
+    } catch {
+      return { content: payload.currentValue || '生成失败，请重试' };
+    }
+  }
+
+  /** 参考预算生成 */
+  async generateReferenceBudget(payload: {
+    projectTitle: string; procurementMethod?: string;
+    procurementCategory?: string; requesterDepartment?: string;
+    projectReason?: string; historicalProjects?: any[];
+  }) {
+    const systemPrompt = '你是造价分析师。基于历史项目数据为当前项目生成参考预算。返回 JSON: {referenceBudget, reasoning}';
+    try {
+      return await this.llm.chatJson<any>(systemPrompt, JSON.stringify(payload, null, 2));
+    } catch {
+      return { referenceBudget: 0, reasoning: '预算分析暂不可用' };
     }
   }
 

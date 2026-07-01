@@ -1,6 +1,5 @@
 import type { ProcurementsListResponse, LedgerSummary, ResultStatusKey } from '../types/procurement';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
+import { api } from '../api';
 
 export async function fetchProcurements(params: {
   page?: number;
@@ -16,7 +15,6 @@ export async function fetchProcurements(params: {
   sortOrder?: 'asc' | 'desc';
 }): Promise<ProcurementsListResponse> {
   const query = new URLSearchParams();
-
   if (params.page) query.set('page', String(params.page));
   if (params.pageSize) query.set('pageSize', String(params.pageSize));
   if (params.startDate) query.set('startDate', params.startDate);
@@ -28,40 +26,22 @@ export async function fetchProcurements(params: {
   if (params.recycleStatus) query.set('recycleStatus', params.recycleStatus);
   if (params.sortBy) query.set('sortBy', params.sortBy);
   if (params.sortOrder) query.set('sortOrder', params.sortOrder);
-
-  const response = await fetch(`${API_BASE}/procurements?${query.toString()}`, { credentials: 'include' });
-  if (!response.ok) {
-    throw new Error('Failed to fetch procurements');
-  }
-  return response.json();
+  return api.get<ProcurementsListResponse>(`/procurements?${query.toString()}`);
 }
 
 export async function fetchProcurementById(id: string) {
-  const response = await fetch(`${API_BASE}/procurements/${id}`, { credentials: 'include' });
-  if (!response.ok) {
-    throw new Error('Failed to fetch procurement');
-  }
-  return response.json();
+  return api.get(`/procurements/${id}`);
 }
 
 export async function fetchLedgerStats(startDate?: string, endDate?: string): Promise<LedgerSummary> {
   const query = new URLSearchParams();
   if (startDate) query.set('startDate', startDate);
   if (endDate) query.set('endDate', endDate);
-
-  const response = await fetch(`${API_BASE}/procurements/stats?${query.toString()}`, { credentials: 'include' });
-  if (!response.ok) {
-    throw new Error('Failed to fetch stats');
-  }
-  return response.json();
+  return api.get<LedgerSummary>(`/procurements/stats?${query.toString()}`);
 }
 
 export async function fetchProcurementMethods(): Promise<string[]> {
-  const response = await fetch(`${API_BASE}/procurements/methods`, { credentials: 'include' });
-  if (!response.ok) {
-    throw new Error('Failed to fetch methods');
-  }
-  return response.json();
+  return api.get<string[]>('/procurements/methods');
 }
 
 export async function createProcurement(data: {
@@ -77,16 +57,7 @@ export async function createProcurement(data: {
   resultStatus?: ResultStatusKey;
   resultText?: string;
 }) {
-  const response = await fetch(`${API_BASE}/procurements`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    throw new Error('Failed to create procurement');
-  }
-  return response.json();
+  return api.post('/procurements', data);
 }
 
 export async function updateProcurement(id: string, data: Partial<{
@@ -102,49 +73,19 @@ export async function updateProcurement(id: string, data: Partial<{
   resultStatus: ResultStatusKey;
   resultText: string;
 }>) {
-  const response = await fetch(`${API_BASE}/procurements/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    throw new Error('Failed to update procurement');
-  }
-  return response.json();
+  return api.put(`/procurements/${id}`, data);
 }
 
 export async function moveProcurementToRecycleBin(id: string) {
-  const response = await fetch(`${API_BASE}/procurements/${id}/recycle`, {
-    method: 'POST',
-    credentials: 'include',
-  });
-  if (!response.ok) {
-    throw new Error('Failed to move procurement to recycle bin');
-  }
-  return response.json();
+  return api.post(`/procurements/${id}/recycle`, {});
 }
 
 export async function restoreProcurementFromRecycleBin(id: string) {
-  const response = await fetch(`${API_BASE}/procurements/${id}/restore`, {
-    method: 'POST',
-    credentials: 'include',
-  });
-  if (!response.ok) {
-    throw new Error('Failed to restore procurement');
-  }
-  return response.json();
+  return api.post(`/procurements/${id}/restore`, {});
 }
 
 export async function deleteProcurementPermanently(id: string) {
-  const response = await fetch(`${API_BASE}/procurements/${id}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-  if (!response.ok) {
-    throw new Error('Failed to delete procurement');
-  }
-  return response.json();
+  return api.delete(`/procurements/${id}`);
 }
 
 export async function analyzeProcurementLedger(payload: {
@@ -171,15 +112,6 @@ export async function analyzeProcurementLedger(payload: {
     methodCounts: Record<string, number>;
     deptCounts: Record<string, number>;
   };
-}) {
-  const response = await fetch(`${API_BASE}/ai/procurement-analysis`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    throw new Error('Failed to analyze procurement ledger');
-  }
-  return response.json();
+}): Promise<{ overview: string; highlights: string[]; concerns: string[]; suggestions: string[] }> {
+  return api.post('/ai/procurement-analysis', payload);
 }

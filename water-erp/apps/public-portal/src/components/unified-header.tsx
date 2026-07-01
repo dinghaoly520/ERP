@@ -45,6 +45,17 @@ export function UnifiedHeader({
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const [placeholderKey, setPlaceholderKey] = useState(0);
 
+  // 导航菜单状态
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const menuTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleMenuEnter = (menu: string) => {
+    if (menuTimeout.current) { clearTimeout(menuTimeout.current); menuTimeout.current = null; }
+    setActiveMenu(menu);
+  };
+  const handleMenuLeave = () => {
+    menuTimeout.current = setTimeout(() => setActiveMenu(null), 160);
+  };
+
   // 最近搜索历史
   const [history, setHistory] = useState<string[]>([]);
   useEffect(() => {
@@ -165,9 +176,9 @@ export function UnifiedHeader({
   const placeholder = PLACEHOLDERS[placeholderIdx];
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#e5ecf4] bg-white" style={{ willChange: 'transform' }}>
+    <header className="sticky top-0 z-50 bg-[oklch(0.55,0.06,258)/0.92] backdrop-blur-[24px] saturate-[170%] shadow-[0_1px_0_oklch(1,0,0/0.15),0_4px_16px_oklch(0.45,0.1,258/0.14)]" style={{ willChange: 'transform', WebkitBackdropFilter: 'blur(24px) saturate(170%)' }}>
       <div className="relative">
-        <div className="absolute inset-0 bg-white" />
+        <div className="absolute inset-0 bg-transparent" />
         <FluidHeader />
         <div className="relative z-10 flex h-[68px] items-center px-[clamp(16px,4vw,48px)]">
         {/* ── 左侧：品牌 ── */}
@@ -176,12 +187,12 @@ export function UnifiedHeader({
             <img src="/assets/logo.png" alt="四川水发集团" className="h-[45px] w-auto object-contain" />
             <div className="flex flex-col gap-0">
               <strong
-                className="whitespace-nowrap text-[27px] font-black leading-tight tracking-[0.10em] text-[#123a6e]"
-                style={{ fontFamily: '"SimHei","黑体","Heiti SC","STHeiti",sans-serif', textShadow: '0 0 0.5px #123a6e' }}
+                className="whitespace-nowrap text-[27px] font-black leading-tight tracking-[0.10em] text-white"
+                style={{ fontFamily: '"SimHei","黑体","Heiti SC","STHeiti",sans-serif' }}
               >
                 四川水发集团
               </strong>
-              <small className="whitespace-nowrap text-[7px] font-medium tracking-wide text-[#8a96aa]">
+              <small className="whitespace-nowrap text-[7px] font-medium tracking-wide text-white/60">
                 SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.
               </small>
             </div>
@@ -206,7 +217,7 @@ export function UnifiedHeader({
             }}
           >
             {/* 内层：白色容器 */}
-            <div className={`flex items-center rounded-[7px] bg-white transition-colors duration-300 ${showDropdown ? '' : 'bg-[#fafbfc]'}`}>
+            <div className={`flex items-center rounded-[7px] transition-colors duration-300 ${showDropdown ? 'bg-[oklch(1,0,0/0.6)]' : 'bg-[oklch(1,0,0/0.35)]'}`}>
             {/* 搜索图标 — 始终呼吸，聚焦时加速 */}
             <span
               className={`shrink-0 pl-3.5 transition-all duration-300 ${
@@ -280,8 +291,8 @@ export function UnifiedHeader({
 
           {/* ── 下拉面板 ── */}
           {showDropdown && (
-            <div className="absolute left-4 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-lg border border-[#e5ecf4] bg-white shadow-[0_12px_40px_rgba(15,35,65,.10)] animate-[dropdown-slide-in_200ms_ease-out]">
-              <div className="flex items-center gap-2 border-b border-[#eef2f8] px-4 py-2">
+            <div className="absolute left-4 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-lg border border-white/[0.2] glass shadow-[0_12px_40px_rgba(15,35,65,.10)] animate-[dropdown-slide-in_200ms_ease-out]">
+              <div className="flex items-center gap-2 border-b border-white/[0.1] px-4 py-2">
                 <span className="text-[11px] font-semibold text-[#94a3b8]">{hasInput ? `搜索「${trimmed}」` : '最近搜索'}</span>
                 {hasInput && <span className="text-[11px] text-[#c0c9d4]">{results.length} 条结果</span>}
               </div>
@@ -330,8 +341,96 @@ export function UnifiedHeader({
           )}
         </div>
 
-        {/* 右侧占位：维持搜索栏居中布局（登录/注册入口已移除，各门户使用独立登录页） */}
-        <div className="flex flex-1" aria-hidden />
+        {/* 右侧：导航菜单 */}
+        <div className="flex flex-1 items-center justify-end">
+          {/* ── 集团简介 ── */}
+          <div
+            className="relative"
+            onMouseEnter={() => handleMenuEnter('about')}
+            onMouseLeave={handleMenuLeave}
+          >
+            <button
+              className="flex items-center gap-1 px-4 py-2 text-[14px] font-semibold tracking-wide text-white/80 hover:text-white transition-colors duration-200 whitespace-nowrap"
+              aria-expanded={activeMenu === 'about'}
+            >
+              集团简介
+              <svg
+                width="10" height="10" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                className={`mt-px transition-transform duration-300 ${activeMenu === 'about' ? 'rotate-180 text-[#064ea2]' : 'text-[#b0bcc9]'}`}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {/* 下拉面板 */}
+            <div
+              className={`absolute right-0 top-full mt-1 min-w-[160px] rounded-lg border border-white/[0.2] glass py-1.5 shadow-[0_12px_40px_rgba(15,35,65,.10)] transition-all duration-200 origin-top-right ${
+                activeMenu === 'about'
+                  ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
+                  : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
+              }`}
+            >
+              <div className="px-3 py-1.5 mb-1">
+                <span className="text-[10px] font-bold tracking-[0.16em] text-[#bcc6d4] uppercase">集团概况</span>
+              </div>
+              <a href="/about" target="_blank" rel="noopener noreferrer"
+                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#064ea2] transition-colors duration-150"
+              >
+                集团概况
+              </a>
+              <a href="https://www.scsfjt.com/" target="_blank" rel="noopener noreferrer"
+                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#064ea2] transition-colors duration-150"
+              >
+                集团官网
+              </a>
+            </div>
+          </div>
+
+          {/* ── 联系我们 ── */}
+          <div
+            className="relative"
+            onMouseEnter={() => handleMenuEnter('contact')}
+            onMouseLeave={handleMenuLeave}
+          >
+            <button
+              className="flex items-center gap-1 px-4 py-2 text-[14px] font-semibold tracking-wide text-white/80 hover:text-white transition-colors duration-200 whitespace-nowrap"
+              aria-expanded={activeMenu === 'contact'}
+            >
+              联系我们
+              <svg
+                width="10" height="10" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                className={`mt-px transition-transform duration-300 ${activeMenu === 'contact' ? 'rotate-180 text-[#064ea2]' : 'text-[#b0bcc9]'}`}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {/* 下拉面板 */}
+            <div
+              className={`absolute right-0 top-full mt-1 min-w-[200px] rounded-lg border border-white/[0.2] glass py-1.5 shadow-[0_12px_40px_rgba(15,35,65,.10)] transition-all duration-200 origin-top-right ${
+                activeMenu === 'contact'
+                  ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
+                  : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
+              }`}
+            >
+              <div className="px-3 py-1.5 mb-1">
+                <span className="text-[10px] font-bold tracking-[0.16em] text-[#bcc6d4] uppercase">联系方式</span>
+              </div>
+              <a href="/contact"
+                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#064ea2] transition-colors duration-150"
+              >
+                联系方式
+              </a>
+              <a href="/contact/visitor"
+                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#064ea2] transition-colors duration-150"
+              >
+                来访接待
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
       </div>
     </header>

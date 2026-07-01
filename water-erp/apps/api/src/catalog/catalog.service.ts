@@ -228,7 +228,7 @@ export class CatalogService {
     const data = this.catalogDataDto(dto);
     const created = await this.prisma.catalogItem.create({ data });
     await this.prisma.priceHistory.create({ data: { catalogItemId: created.id, price: data.referencePrice, recordedAt: new Date(), note: '手动新增' } });
-    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_CREATED', target: created.code, detail: { itemId: created.id, name: created.name } } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_CREATED', resourceType: created.code, details: { itemId: created.id, name: created.name } } });
     return serialize(created);
   }
 
@@ -248,8 +248,8 @@ export class CatalogService {
       data: {
         userId,
         action: priceChanged ? 'CATALOG_PRICE_CHANGED' : 'CATALOG_UPDATED',
-        target: updated.code,
-        detail: { itemId: id, oldPrice, newPrice, changedFields: Object.keys(data) },
+        resourceType: updated.code,
+        details: { itemId: id, oldPrice, newPrice, changedFields: Object.keys(data) },
       },
     });
     return serialize(updated);
@@ -263,8 +263,8 @@ export class CatalogService {
       data: {
         userId,
         action: 'CATALOG_STATUS_CHANGED',
-        target: updated.code,
-        detail: { itemId: id, from: existing.status, to: dto.status, reason: dto.reason || null },
+        resourceType: updated.code,
+        details: { itemId: id, from: existing.status, to: dto.status, reason: dto.reason || null },
       },
     });
     return serialize(updated);
@@ -281,8 +281,8 @@ export class CatalogService {
     return rows.map((r: any) => ({
       id: r.id,
       action: r.action,
-      target: r.target,
-      detail: r.detail,
+      resourceType: r.resourceType,
+      details: r.details,
       user: r.user,
       createdAt: r.createdAt.toISOString(),
     }));
@@ -303,7 +303,7 @@ export class CatalogService {
       备注: '示例行，导入前请删除',
     });
     ws.getRow(1).font = { bold: true };
-    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_TEMPLATE_DOWNLOADED', target: '电子商城导入模板', detail: {} } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_TEMPLATE_DOWNLOADED', resourceType: '电子商城导入模板', details: {} } });
     return Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
   }
 
@@ -333,7 +333,7 @@ export class CatalogService {
       }
     }
     const result = { totalRows: parsed.rows.length, created, updated, failed: failedRows.length, failedRows };
-    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_IMPORTED', target: file.originalname, detail: result } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_IMPORTED', resourceType: file.originalname, details: result } });
     return result;
   }
 
@@ -377,7 +377,7 @@ export class CatalogService {
     })));
     ws.getRow(1).font = { bold: true };
     ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEef3fb' } };
-    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_EXPORTED', target: '采购目录', detail: { filters: params, itemCount: items.length } } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_EXPORTED', resourceType: '采购目录', details: { filters: params, itemCount: items.length } } });
     return Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
   }
 
@@ -464,7 +464,7 @@ export class CatalogService {
         data: { status: 'REJECTED', reviewedBy: adminUserId, reviewedAt: now, rejectReason: body.reason.trim(), reviewerNote: body.reviewerNote?.trim() || null },
       });
       await this.notify(app.supplier.userId, '供货申请未通过', `您的供货申请（${this.appTitle(app)}）未通过审核：${body.reason.trim()}`, '/catalog-applications');
-      await this.prisma.auditLog.create({ data: { userId: adminUserId, action: 'CATALOG_APPLICATION_REJECTED', target: this.appTitle(app), detail: { applicationId, reason: body.reason.trim() } } });
+      await this.prisma.auditLog.create({ data: { userId: adminUserId, action: 'CATALOG_APPLICATION_REJECTED', resourceType: this.appTitle(app), details: { applicationId, reason: body.reason.trim() } } });
       return this.serializeApplication(updated);
     }
 
@@ -476,7 +476,7 @@ export class CatalogService {
         data: { status: 'RETURNED', reviewedBy: adminUserId, reviewedAt: now, rejectReason: body.reason.trim(), reviewerNote: body.reviewerNote?.trim() || null },
       });
       await this.notify(app.supplier.userId, '供货申请已退回补正', `您的供货申请（${this.appTitle(app)}）需补正：${body.reason.trim()}`, '/catalog-applications');
-      await this.prisma.auditLog.create({ data: { userId: adminUserId, action: 'CATALOG_APPLICATION_RETURNED', target: this.appTitle(app), detail: { applicationId, reason: body.reason.trim() } } });
+      await this.prisma.auditLog.create({ data: { userId: adminUserId, action: 'CATALOG_APPLICATION_RETURNED', resourceType: this.appTitle(app), details: { applicationId, reason: body.reason.trim() } } });
       return this.serializeApplication(updated);
     }
 
@@ -489,7 +489,7 @@ export class CatalogService {
         data: { status: 'COUNTERED', counterPrice: cp, counterNote: body.counterNote?.trim() || null, reviewedBy: adminUserId, reviewedAt: now, reviewerNote: body.reviewerNote?.trim() || null },
       });
       await this.notify(app.supplier.userId, '供货申请进入议价', `管理员对您的申请（${this.appTitle(app)}）提出反报价 ¥${cp}，请在门户确认或再报价。`, '/catalog-applications');
-      await this.prisma.auditLog.create({ data: { userId: adminUserId, action: 'CATALOG_APPLICATION_COUNTERED', target: this.appTitle(app), detail: { applicationId, counterPrice: cp } } });
+      await this.prisma.auditLog.create({ data: { userId: adminUserId, action: 'CATALOG_APPLICATION_COUNTERED', resourceType: this.appTitle(app), details: { applicationId, counterPrice: cp } } });
       return this.serializeApplication(updated);
     }
 
@@ -591,7 +591,7 @@ export class CatalogService {
     }).then(async (result) => {
       // 事务外发通知 + 审计
       await this.notify(app.supplier.userId, '供货申请已通过', `您的供货申请（${this.appTitle(app)}）已通过审核，最终报价 ¥${Number(result.quotedPrice)}。`, '/catalog-applications');
-      await this.prisma.auditLog.create({ data: { userId: adminUserId, action: 'CATALOG_APPLICATION_APPROVED', target: this.appTitle(app), detail: { applicationId, type: app.type, finalPrice: Number(result.quotedPrice) } } });
+      await this.prisma.auditLog.create({ data: { userId: adminUserId, action: 'CATALOG_APPLICATION_APPROVED', resourceType: this.appTitle(app), details: { applicationId, type: app.type, finalPrice: Number(result.quotedPrice) } } });
       return result;
     });
   }

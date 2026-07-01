@@ -51,7 +51,7 @@ const ALL_TABLES = [
   'User', 'Department', 'PriceHistory',
   'UserFavorite', 'AuditLog',
   'SupplierCatalogApplication', 'CatalogSupplier',
-  'AssistantConversation', 'AssistantMessage', 'AssistantActionLog',
+  'AssistantActionLog', 'assistant_conversations', 'assistant_messages', 'assistant_alerts',
   'BidEvaluationResult',
 ] as const;
 
@@ -78,7 +78,6 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['BidOpeningSession', 'bidOpeningSession'],
   ['BidArchiveItem', 'bidArchiveItem'],
   ['BudgetList', 'budgetList'],
-  ['AssistantConversation', 'assistantConversation'],
   // Level 2 —— 依赖 Level 1
   ['SupplierContact', 'supplierContact'],
   ['SupplierQualification', 'supplierQualification'],
@@ -97,10 +96,12 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['BidDocumentAccess', 'bidDocumentAccess'],
   ['UserFavorite', 'userFavorite'], // Level 2：依赖 User + CatalogItem
   ['AuditLog', 'auditLog'], // Level 2：依赖 User
+  ['assistant_conversations', 'assistantConversation'], // Level 2：依赖 User（可选 userId）
+  ['assistant_alerts', 'assistantAlert'], // Level 2：依赖 User
   ['SupplierCatalogApplication', 'supplierCatalogApplication'], // Level 2：依赖 Supplier + CatalogItem
   ['CatalogSupplier', 'catalogSupplier'], // Level 2：依赖 CatalogItem + Supplier
-  ['AssistantMessage', 'assistantMessage'], // Level 2：依赖 AssistantConversation
-  ['AssistantActionLog', 'assistantActionLog'], // Level 2：依赖 AssistantConversation（可选）
+  ['assistant_messages', 'assistantMessage'], // Level 2：依赖 assistant_conversations
+  ['AssistantActionLog', 'assistantActionLog'], // Level 2：依赖 assistant_conversations（可选）
   ['BidEvaluationResult', 'bidEvaluationResult'], // Level 2：依赖 BidProject
 ];
 

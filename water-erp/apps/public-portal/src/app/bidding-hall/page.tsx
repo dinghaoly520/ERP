@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { FlowHeader } from '@/components/flow-header';
+import { UnifiedHeader } from '@/components/unified-header';
 import { FlowTrack, FlowBackdrop, type StageData } from '@/components/flow-stage';
 
 const STAGES: StageData[] = [
@@ -21,8 +21,14 @@ export default function BiddingHallPage() {
   return (
     <div className="flow-page">
       <FlowBackdrop />
+      <UnifiedHeader announcements={[]} onLoginClick={() => {}} onRegisterClick={() => {}} />
 
-      <FlowHeader label="BIDDING · 供应商投标" />
+      <div className="px-[clamp(28px,4vw,72px)] pt-3">
+        <a href="/" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#c5d3e8] text-[13px] font-semibold text-[#5a6d8a] bg-white hover:text-[#064ea2] hover:border-[#064ea2] hover:bg-[#f0f5fb] transition-all duration-200 active:scale-[0.97] w-fit">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          返回首页
+        </a>
+      </div>
 
       <section className="flow-hero-brand">
         <div className="flow-hero-brand-left flow-rise-1" style={{ gridColumn: '1 / -1' }}>
@@ -38,7 +44,6 @@ export default function BiddingHallPage() {
         </div>
         <FlowTrack stages={STAGES} accent="water" />
       </div>
-
 
       <div className="flow-cta flow-rise-4">
         <div className="flex flex-wrap items-end justify-between gap-8">

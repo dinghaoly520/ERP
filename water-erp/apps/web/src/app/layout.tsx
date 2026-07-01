@@ -17,8 +17,8 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "采购中心办公管理系统",
-  description: "采购中心部门级办公系统起步版",
+  title: "采购管理中心-智慧水发·蜀水云采",
+  description: "智慧水发·蜀水云采 采购管理中心",
 };
 
 export default function RootLayout({

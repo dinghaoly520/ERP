@@ -49,7 +49,10 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-[oklch(0.982_0.003_264)] flex items-center justify-center">
       <div className="bg-white p-10 w-full max-w-lg border border-[oklch(0.91_0.006_264)]">
         <div className="text-center mb-6">
-          <a href="/" className="text-sm text-[oklch(0.55_0.01_264)] hover:text-[#064ea2]">← 返回首页</a>
+          <a href="/" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#c5d3e8] text-[13px] font-semibold text-[#5a6d8a] bg-white hover:text-[#064ea2] hover:border-[#064ea2] hover:bg-[#f0f5fb] transition-all duration-200 active:scale-[0.97]">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            返回首页
+          </a>
           <h1 className="text-2xl font-bold text-[oklch(0.18_0.012_265)] mt-2 mb-1">供应商注册</h1>
           <p className="text-sm text-[oklch(0.55_0.01_264)]">{step === 1 ? '填写账号信息' : '填写企业信息'}</p>
         </div>

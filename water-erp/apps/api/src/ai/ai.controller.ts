@@ -72,4 +72,32 @@ export class AiController {
   ) {
     return this.aiService.dashboardSummary(body);
   }
+
+  @Post('dashboard-analysis')
+  @ApiOperation({ summary: 'AI采购仪表盘深度分析（从procurement迁入）' })
+  @Roles('admin', 'procurement_staff')
+  async dashboardAnalysis(@Body() payload: any) {
+    return this.aiService.analyzeDashboard(payload);
+  }
+
+  @Post('procurement-analysis')
+  @ApiOperation({ summary: 'AI采购台账分析' })
+  @Roles('admin', 'procurement_staff')
+  async procurementAnalysis(@Body() payload: any) {
+    return this.aiService.analyzeProcurementLedger(payload);
+  }
+
+  @Post('tender-field-generate')
+  @ApiOperation({ summary: 'AI招标字段内容生成' })
+  @Roles('admin', 'procurement_staff', 'bid_host')
+  async tenderFieldGenerate(@Body() payload: any) {
+    return this.aiService.generateTenderFieldContent(payload);
+  }
+
+  @Post('reference-budget')
+  @ApiOperation({ summary: 'AI参考预算生成' })
+  @Roles('admin', 'procurement_staff')
+  async referenceBudget(@Body() payload: any) {
+    return this.aiService.generateReferenceBudget(payload);
+  }
 }

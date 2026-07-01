@@ -1,0 +1,10 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+python-multipart==0.0.20
+rapidocr_onnxruntime
+pdf2image==1.17.0
+Pillow>=11.0.0
+numpy
+opendataloader-pdf[hybrid]
+PyMuPDF
+python-dotenv

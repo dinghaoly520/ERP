@@ -2441,11 +2441,17 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
         const cached = localStorage.getItem(ANALYSIS_CACHE_KEY);
         if (cached) {
           const cache: AnalysisCache = JSON.parse(cached);
-          if (cache.dataHash === newHash && cache.result) {
+          const valid = cache.dataHash === newHash && cache.result
+            && Array.isArray(cache.result.highlights)
+            && Array.isArray(cache.result.concerns)
+            && Array.isArray(cache.result.suggestions);
+          if (valid) {
             setAnalysis(cache.result);
             setDataHash(newHash);
             return;
           }
+          // 缓存格式不对，清除
+          localStorage.removeItem(ANALYSIS_CACHE_KEY);
         }
       } catch {
         // 缓存解析失败，继续请求新分析

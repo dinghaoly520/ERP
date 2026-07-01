@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+import { api } from '../api';
 
 export type DashboardAnalysisPayload = {
   rangeLabel: string;
@@ -65,21 +65,7 @@ export type DashboardAnalysisResult = {
 export async function fetchDashboardAnalysis(
   payload: DashboardAnalysisPayload,
 ): Promise<DashboardAnalysisResult> {
-  const response = await fetch(`${API_BASE}/ai/dashboard-analysis`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch dashboard analysis: ${errorText}`);
-  }
-
-  return response.json();
+  return api.post<DashboardAnalysisResult>('/ai/dashboard-analysis', payload);
 }
 
 export type ReferenceBudgetPayload = {
@@ -106,19 +92,5 @@ export type ReferenceBudgetResult = {
 export async function fetchReferenceBudget(
   payload: ReferenceBudgetPayload,
 ): Promise<ReferenceBudgetResult> {
-  const response = await fetch(`${API_BASE}/ai/reference-budget`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch reference budget: ${errorText}`);
-  }
-
-  return response.json();
+  return api.post<ReferenceBudgetResult>('/ai/reference-budget', payload);
 }
