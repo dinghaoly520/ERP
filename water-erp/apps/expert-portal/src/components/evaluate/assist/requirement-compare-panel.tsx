@@ -307,7 +307,7 @@ export function RequirementComparePanel({
             <span className="font-bold text-sm text-[var(--color-text)]">响应与标注</span>
           </header>
           {selectedItem ? (
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            <div className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden p-3 space-y-3">
               {/* 选中条款全文 */}
               <div>
                 <div className="flex items-start gap-1.5">
