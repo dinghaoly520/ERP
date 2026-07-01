@@ -40,16 +40,22 @@ export function RequirementComparePanel({
   requirements,
   responses,
   reviews,
+  tenderDocUrl,
 }: {
   projectId: string;
   supplierId: string;
   requirements: any;
   responses: RequirementResponse[];
   reviews: BidRequirementReview[];
+  /** 招标文件解密下载 URL（模式 2 iframe src）；为空时隐藏「招标文件」tab */
+  tenderDocUrl?: string;
 }) {
   const [local, setLocal] = useState<Record<string, BidRequirementReview>>(
     () => Object.fromEntries(reviews.map((r) => [r.requirementId, r])),
   );
+
+  // ── 左栏双模式：「条款清单」（默认） / 「招标文件」（参考视图，不改中/右） ──
+  const [leftMode, setLeftMode] = useState<'list' | 'tender'>('list');
 
   const flat: ReqItem[] = useMemo(
     () => [
@@ -138,69 +144,109 @@ export function RequirementComparePanel({
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-12 gap-3" style={{ minHeight: '560px' }}>
-        {/* ━━━ 左栏 1/4：条款清单（按 category 分组，点击选中） ━━━ */}
+        {/* ━━━ 左栏 1/4：双模式（tab：条款清单 / 招标原文） ━━━ */}
         <aside className="col-span-3 glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col">
           <header className="px-3 py-2 border-b border-[oklch(0.91_0.006_264)] bg-white/50">
-            <span className="font-bold text-sm text-[var(--color-text)]">招标条款</span>
-            <span className="text-[10px] text-[oklch(0.55_0.01_264)] ml-1">· {flat.length} 条</span>
+            {/* tab 切换：招标文件缺失时隐藏「招标文件」tab */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setLeftMode('list')}
+                className={`text-sm font-bold transition-colors ${
+                  leftMode === 'list'
+                    ? 'text-[var(--color-primary)]'
+                    : 'text-[oklch(0.55_0.01_264)] hover:text-[var(--color-text)]'
+                }`}
+              >
+                条款清单
+              </button>
+              {tenderDocUrl && (
+                <button
+                  onClick={() => setLeftMode('tender')}
+                  className={`text-sm font-bold transition-colors ${
+                    leftMode === 'tender'
+                      ? 'text-[var(--color-primary)]'
+                      : 'text-[oklch(0.55_0.01_264)] hover:text-[var(--color-text)]'
+                  }`}
+                >
+                  招标文件
+                </button>
+              )}
+              <span className="ml-auto text-[10px] text-[oklch(0.55_0.01_264)]">
+                {leftMode === 'list' ? `· ${flat.length} 条` : '· 原文参考'}
+              </span>
+            </div>
           </header>
-          <div className="flex-1 overflow-y-auto divide-y divide-[oklch(0.94_0.004_264)]">
-            {grouped.map((cat) => {
-              const items = flat.filter((i) => i.category === cat);
-              if (!items.length) return null;
-              return (
-                <div key={cat}>
-                  <div className="sticky top-0 px-3 py-1.5 bg-[oklch(0.97_0.005_264)]/95 backdrop-blur-sm border-b border-[oklch(0.91_0.006_264)]">
-                    <span className="text-[11px] font-semibold text-[var(--color-text-secondary)]">
-                      {CAT_LABEL[cat]}
-                    </span>
-                    {cat === 'technical' && (
-                      <span className="text-[10px] text-amber-600 ml-1">★ 实质性</span>
-                    )}
-                  </div>
-                  {items.map((item) => {
-                    const isActive = item.id === effectiveSelectedId;
-                    const resp = respBy(item.id);
-                    const sc = resp ? STATUS_CFG[resp.status] : null;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => setSelectedId(item.id)}
-                        className={`w-full text-left px-3 py-2 flex items-start gap-1.5 transition-colors border-l-2 ${
-                          isActive
-                            ? 'bg-[var(--color-primary-light)] border-[var(--color-primary)]'
-                            : 'border-transparent hover:bg-white/60'
-                        }`}
-                      >
-                        {item.isStarred ? (
-                          <Star size={12} className="text-amber-500 fill-amber-400 shrink-0 mt-0.5" />
-                        ) : (
-                          <span className="w-3 shrink-0" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className={`text-xs leading-snug line-clamp-2 ${isActive ? 'text-[var(--color-primary)] font-medium' : 'text-[var(--color-text)]'}`}>
-                            {item.content}
-                          </p>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            {sc ? (
-                              <span className={`inline-flex items-center gap-0.5 text-[10px] ${sc.color}`}>
-                                <sc.icon size={10} /> {sc.label}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-[oklch(0.55_0.01_264)]">AI 定位中</span>
-                            )}
-                            {local[item.id]?.verdict === 'dispute' && (
-                              <span className="text-[10px] text-red-600">·异议</span>
-                            )}
+
+          {leftMode === 'list' ? (
+            /* 模式 1：条款清单（按 category 分组，点击选中 → 联动中/右） */
+            <div className="flex-1 overflow-y-auto divide-y divide-[oklch(0.94_0.004_264)]">
+              {grouped.map((cat) => {
+                const items = flat.filter((i) => i.category === cat);
+                if (!items.length) return null;
+                return (
+                  <div key={cat}>
+                    <div className="sticky top-0 px-3 py-1.5 bg-[oklch(0.97_0.005_264)]/95 backdrop-blur-sm border-b border-[oklch(0.91_0.006_264)]">
+                      <span className="text-[11px] font-semibold text-[var(--color-text-secondary)]">
+                        {CAT_LABEL[cat]}
+                      </span>
+                      {cat === 'technical' && (
+                        <span className="text-[10px] text-amber-600 ml-1">★ 实质性</span>
+                      )}
+                    </div>
+                    {items.map((item) => {
+                      const isActive = item.id === effectiveSelectedId;
+                      const resp = respBy(item.id);
+                      const sc = resp ? STATUS_CFG[resp.status] : null;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => setSelectedId(item.id)}
+                          className={`w-full text-left px-3 py-2 flex items-start gap-1.5 transition-colors border-l-2 ${
+                            isActive
+                              ? 'bg-[var(--color-primary-light)] border-[var(--color-primary)]'
+                              : 'border-transparent hover:bg-white/60'
+                          }`}
+                        >
+                          {item.isStarred ? (
+                            <Star size={12} className="text-amber-500 fill-amber-400 shrink-0 mt-0.5" />
+                          ) : (
+                            <span className="w-3 shrink-0" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-xs leading-snug line-clamp-2 ${isActive ? 'text-[var(--color-primary)] font-medium' : 'text-[var(--color-text)]'}`}>
+                              {item.content}
+                            </p>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {sc ? (
+                                <span className={`inline-flex items-center gap-0.5 text-[10px] ${sc.color}`}>
+                                  <sc.icon size={10} /> {sc.label}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-[oklch(0.55_0.01_264)]">AI 定位中</span>
+                              )}
+                              {local[item.id]?.verdict === 'dispute' && (
+                                <span className="text-[10px] text-red-600">·异议</span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* 模式 2：招标文件 iframe（参考视图，中/右保持上一个选中条款不动） */
+            <div className="flex-1 bg-[oklch(0.97_0.005_264)]">
+              <iframe
+                src={tenderDocUrl}
+                title="招标文件原文"
+                className="w-full h-full border-0"
+                style={{ minHeight: '500px' }}
+              />
+            </div>
+          )}
         </aside>
 
         {/* ━━━ 中栏 1/2：投标 PDF 内嵌预览 ━━━ */}
