@@ -2,7 +2,7 @@
 
 import type { AiScoreItem } from '@water-erp/shared';
 
-// ── 分类标签与颜色（与 page.tsx 中的 CATEGORY_LABEL / CATEGORY_COLOR 保持一致）──
+// ── 分类标签与颜色 ──
 
 export const CATEGORY_LABEL: Record<string, string> = {
   QUALIFICATION: '资格审查',
@@ -27,11 +27,17 @@ interface ScoreBarProps {
   score: number;
   maxScore: number;
   comment?: string;
+  evidence?: string;
   color?: string;
+  /** 折叠态截断行数：1=1行（默认），2=2行 */
+  reasonLines?: number;
+  /** 展开：reason 不截断 + 显示证据 */
+  expanded?: boolean;
 }
 
-function ScoreBar({ label, score, maxScore, comment, color = '#0b63ce' }: ScoreBarProps) {
+function ScoreBar({ label, score, maxScore, comment, evidence, color = '#0b63ce', reasonLines = 1, expanded = false }: ScoreBarProps) {
   const pct = maxScore > 0 ? Math.min((score / maxScore) * 100, 100) : 0;
+  const clampClass = expanded ? '' : reasonLines === 2 ? 'line-clamp-2' : 'line-clamp-1';
   return (
     <div>
       <div className="flex items-center justify-between text-xs mb-0.5">
@@ -40,19 +46,14 @@ function ScoreBar({ label, score, maxScore, comment, color = '#0b63ce' }: ScoreB
           {score.toFixed(1)}/{maxScore}
         </span>
       </div>
-      <div
-        className="h-2 rounded-full overflow-hidden"
-        style={{ background: 'oklch(0.94 0.004 264)' }}
-      >
-        <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, background: color }}
-        />
+      <div className="h-2 rounded-full overflow-hidden" style={{ background: 'oklch(0.94 0.004 264)' }}>
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
       </div>
       {comment && (
-        <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5 ml-1 line-clamp-1">
-          {comment}
-        </p>
+        <p className={`text-[10px] text-[var(--color-text-tertiary)] mt-0.5 ml-1 ${clampClass}`}>{comment}</p>
+      )}
+      {expanded && evidence && (
+        <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5 ml-1">证据：{evidence}</p>
       )}
     </div>
   );
@@ -62,12 +63,38 @@ function ScoreBar({ label, score, maxScore, comment, color = '#0b63ce' }: ScoreB
 
 interface ScoreBreakdownBarsProps {
   scoreItems: AiScoreItem[];
+  reasonLines?: number;
+  /** 展开：reason 不截断 + 显示证据 */
+  expanded?: boolean;
+  /** 扁平模式：不显示分类标题/分组（用于已在外层按 category 分组的场景，避免标题重复） */
+  flat?: boolean;
 }
 
-export function ScoreBreakdownBars({ scoreItems }: ScoreBreakdownBarsProps) {
+export function ScoreBreakdownBars({ scoreItems, reasonLines = 1, expanded = false, flat = false }: ScoreBreakdownBarsProps) {
   if (!scoreItems || scoreItems.length === 0) return null;
 
-  // 按 category 分组
+  // 扁平模式：直接渲染每项（无分类标题），用各项自身 category 的颜色
+  if (flat) {
+    return (
+      <div className="space-y-2.5">
+        {scoreItems.map((item) => (
+          <ScoreBar
+            key={item.scoreItemId}
+            label={item.name}
+            score={item.score}
+            maxScore={item.maxScore}
+            comment={item.reason}
+            evidence={item.evidence}
+            color={CATEGORY_COLOR[item.category] ?? '#0b63ce'}
+            reasonLines={reasonLines}
+            expanded={expanded}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // 分组模式：按 category 分组 + 分类标题
   const grouped: Record<string, AiScoreItem[]> = {};
   for (const si of scoreItems) {
     if (!grouped[si.category]) grouped[si.category] = [];
@@ -84,10 +111,7 @@ export function ScoreBreakdownBars({ scoreItems }: ScoreBreakdownBarsProps) {
           <div key={category}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span
-                  className="w-1.5 h-5 rounded-full"
-                  style={{ background: color }}
-                />
+                <span className="w-1.5 h-5 rounded-full" style={{ background: color }} />
                 <span className="text-sm font-semibold text-[var(--color-text)]">
                   {CATEGORY_LABEL[category] ?? category}
                 </span>
@@ -104,7 +128,10 @@ export function ScoreBreakdownBars({ scoreItems }: ScoreBreakdownBarsProps) {
                   score={item.score}
                   maxScore={item.maxScore}
                   comment={item.reason}
+                  evidence={item.evidence}
                   color={color}
+                  reasonLines={reasonLines}
+                  expanded={expanded}
                 />
               ))}
             </div>

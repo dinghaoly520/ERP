@@ -195,16 +195,18 @@ function CollapsibleSection({
   title,
   icon,
   accent,
-  defaultOpen = true,
-  children,
+  defaultOpen = false,
+  summary,
 }: {
   title: string;
   icon?: React.ReactNode;
   accent?: string;
   defaultOpen?: boolean;
-  children: React.ReactNode;
+  /** 常驻内容（折叠+展开都显示）；可为函数 (isOpen) => ReactNode，按展开态切换 reason 截断/完整 */
+  summary?: React.ReactNode | ((isOpen: boolean) => React.ReactNode);
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const summaryNode = typeof summary === 'function' ? summary(isOpen) : summary;
 
   return (
     <div className="glass-card glass-card-lighter rounded-xl overflow-hidden">
@@ -224,9 +226,7 @@ function CollapsibleSection({
           <ChevronDown size={14} className="text-[var(--color-text-tertiary)] shrink-0" />
         )}
       </button>
-      {isOpen && (
-        <div className="px-4 pb-4 border-t border-[oklch(0.94_0.004_264)] pt-3">{children}</div>
-      )}
+      {summaryNode && <div className="px-4 pt-1 pb-4">{summaryNode}</div>}
     </div>
   );
 }
@@ -495,20 +495,22 @@ function ScoringSection({
               )
             }
             accent={catColor}
-            defaultOpen
-          >
-            {isPassFail ? (
-              <div className="space-y-2">
-                {items.map((item) => (
-                  <PassFailReviewCard key={item.scoreItemId} item={item} />
-                ))}
-              </div>
-            ) : (
-              <ScoreBreakdownBars
-                scoreItems={items.filter((si) => SCORE_CATEGORIES.includes(si.category))}
-              />
-            )}
-          </CollapsibleSection>
+            summary={(isOpen: boolean) =>
+              isPassFail ? (
+                <div className="space-y-2">
+                  {items.map((item) => (
+                    <PassFailReviewCard key={item.scoreItemId} item={item} />
+                  ))}
+                </div>
+              ) : (
+                <ScoreBreakdownBars
+                  scoreItems={items.filter((si) => SCORE_CATEGORIES.includes(si.category))}
+                  expanded={isOpen}
+                  flat
+                />
+              )
+            }
+          />
         );
       })}
 
