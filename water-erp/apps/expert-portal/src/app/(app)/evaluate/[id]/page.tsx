@@ -1039,7 +1039,7 @@ export default function ExpertEvaluatePage() {
 
           {/* ====== 条款响应核对 ====== */}
           {step === 'compare' && (
-            <div className="p-6 h-full flex flex-col overflow-hidden">
+            <div className="p-6">
               <div className="mb-6">
                 <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">条款响应核对</h2>
                 <p className="text-sm text-[oklch(0.55_0.01_264)] mt-0.5">对照招标条款逐条核对投标响应，标注认可 / 异议</p>
