@@ -1,8 +1,8 @@
 // requirement-compare-panel.tsx
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText } from 'lucide-react';
+import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2 } from 'lucide-react';
 import type { RequirementResponse, BidRequirementReview } from '@water-erp/shared';
 import { api } from '@/lib/api';
 
@@ -54,6 +54,18 @@ export function RequirementComparePanel({
   const [local, setLocal] = useState<Record<string, BidRequirementReview>>(
     () => Object.fromEntries(reviews.map((r) => [r.requirementId, r])),
   );
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFs, setIsFs] = useState(false);
+  const toggleFs = () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else containerRef.current?.requestFullscreen();
+  };
+  useEffect(() => {
+    const h = () => setIsFs(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', h);
+    return () => document.removeEventListener('fullscreenchange', h);
+  }, []);
 
   // ── 左栏双模式：「条款清单」（默认） / 「招标文件」（参考视图，不改中/右） ──
   const [leftMode, setLeftMode] = useState<'list' | 'tender'>('list');
@@ -143,8 +155,12 @@ export function RequirementComparePanel({
   const grouped = ['qualification', 'technical', 'commercial'] as const;
 
   return (
-    <div className="space-y-2">
-      <PanelGroup orientation="horizontal" className="gap-0" style={{ height: 'calc(100vh - 150px)', minHeight: '460px' }}>
+    <div ref={containerRef} className="relative space-y-2">
+      <button onClick={toggleFs} title={isFs ? '退出全屏' : '全屏'}
+        className="absolute top-2 right-2 z-20 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 border border-[oklch(0.91_0.006_264)] text-[oklch(0.45_0.01_264)] hover:bg-white hover:text-[var(--color-primary)] transition-colors shadow-sm">
+        {isFs ? <Minimize2 size={15} strokeWidth={1.5} /> : <Maximize2 size={15} strokeWidth={1.5} />}
+      </button>
+      <PanelGroup orientation="horizontal" className="gap-0" style={{ height: isFs ? '100vh' : 'calc(100vh - 150px)', minHeight: '460px' }}>
         {/* ━━━ 左栏 1/4：双模式（tab：条款清单 / 招标原文） ━━━ */}
         <Panel defaultSize={25} minSize={15} className="px-0">
         <aside className="glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col h-full">
