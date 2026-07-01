@@ -301,7 +301,7 @@ export function RequirementComparePanel({
         <PanelResizeHandle className="w-1.5 bg-transparent hover:bg-[var(--color-primary)]/30 cursor-col-resize transition-colors" />
 
         {/* ━━━ 右栏 1/4：AI 响应 + 标注 ━━━ */}
-        <Panel defaultSize={25} minSize={25} maxSize={25} className="px-0">
+        <Panel defaultSize={25} minSize={15} className="px-0">
         <aside className="glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col h-full">
           <header className="px-3 py-2 border-b border-[oklch(0.91_0.006_264)] bg-white/50">
             <span className="font-bold text-sm text-[var(--color-text)]">响应与标注</span>
