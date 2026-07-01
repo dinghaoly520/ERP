@@ -143,8 +143,8 @@ export function RequirementComparePanel({
   const grouped = ['qualification', 'technical', 'commercial'] as const;
 
   return (
-    <div className="space-y-2">
-      <PanelGroup orientation="horizontal" className="gap-0" style={{ height: 'calc(100vh - 280px)', minHeight: '460px' }}>
+    <div className="flex-1 min-h-0 flex flex-col">
+      <PanelGroup orientation="horizontal" className="gap-0 flex-1 min-h-0">
         {/* ━━━ 左栏 1/4：双模式（tab：条款清单 / 招标原文） ━━━ */}
         <Panel defaultSize={25} minSize={15} className="px-0">
         <aside className="glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col h-full">
