@@ -143,7 +143,7 @@ export function RequirementComparePanel({
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-12 gap-3" style={{ minHeight: '560px', maxHeight: 'calc(100vh - 200px)' }}>
+      <div className="grid grid-cols-12 gap-3" style={{ height: 'calc(100vh - 280px)', minHeight: '460px' }}>
         {/* ━━━ 左栏 1/4：双模式（tab：条款清单 / 招标原文） ━━━ */}
         <aside className="col-span-3 glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col">
           <header className="px-3 py-2 border-b border-[oklch(0.91_0.006_264)] bg-white/50">
