@@ -1,6 +1,7 @@
 // requirement-compare-panel.tsx
 'use client';
 import { useMemo, useState } from 'react';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText } from 'lucide-react';
 import type { RequirementResponse, BidRequirementReview } from '@water-erp/shared';
 import { api } from '@/lib/api';
@@ -143,9 +144,10 @@ export function RequirementComparePanel({
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-12 gap-3" style={{ height: 'calc(100vh - 280px)', minHeight: '460px' }}>
+      <PanelGroup orientation="horizontal" className="gap-0" style={{ height: 'calc(100vh - 280px)', minHeight: '460px' }}>
         {/* ━━━ 左栏 1/4：双模式（tab：条款清单 / 招标原文） ━━━ */}
-        <aside className="col-span-3 glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col">
+        <Panel defaultSize={25} minSize={15} className="px-0">
+        <aside className="glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col h-full">
           <header className="px-3 py-2 border-b border-[oklch(0.91_0.006_264)] bg-white/50">
             {/* tab 切换：招标文件缺失时隐藏「招标文件」tab */}
             <div className="flex items-center gap-3">
@@ -248,9 +250,12 @@ export function RequirementComparePanel({
             </div>
           )}
         </aside>
+        </Panel>
+        <PanelResizeHandle className="w-1.5 bg-transparent hover:bg-[var(--color-primary)]/30 cursor-col-resize transition-colors" />
 
         {/* ━━━ 中栏 1/2：投标 PDF 内嵌预览 ━━━ */}
-        <section className="col-span-6 glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col">
+        <Panel defaultSize={50} minSize={30} className="px-0">
+        <section className="glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col h-full">
           <header className="px-3 py-2 border-b border-[oklch(0.91_0.006_264)] bg-white/50 flex items-center justify-between">
             <div className="flex items-center gap-1.5 min-w-0">
               <FileText size={13} className="text-[var(--color-primary)] shrink-0" />
@@ -292,9 +297,12 @@ export function RequirementComparePanel({
             )}
           </div>
         </section>
+        </Panel>
+        <PanelResizeHandle className="w-1.5 bg-transparent hover:bg-[var(--color-primary)]/30 cursor-col-resize transition-colors" />
 
         {/* ━━━ 右栏 1/4：AI 响应 + 标注 ━━━ */}
-        <aside className="col-span-3 glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col">
+        <Panel defaultSize={25} minSize={25} maxSize={25} className="px-0">
+        <aside className="glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col h-full">
           <header className="px-3 py-2 border-b border-[oklch(0.91_0.006_264)] bg-white/50">
             <span className="font-bold text-sm text-[var(--color-text)]">响应与标注</span>
           </header>
@@ -382,7 +390,8 @@ export function RequirementComparePanel({
             </div>
           )}
         </aside>
-      </div>
+        </Panel>
+      </PanelGroup>
 
       <p className="text-[10px] text-[oklch(0.55_0.01_264)] text-center">
         标注仅本人可见；异议将在评审报告中披露，并在打分页提示核对。
