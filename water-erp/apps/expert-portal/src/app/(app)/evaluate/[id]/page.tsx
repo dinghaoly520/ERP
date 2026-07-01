@@ -8,15 +8,17 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory } from '@water-erp/shared';
-import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
+import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
 
-type Step = 'verify' | 'documents' | 'assist' | 'scoring' | 'report';
+type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
   { key: 'verify', label: '身份核验', Icon: ShieldCheck },
   { key: 'documents', label: '标书获取', Icon: FileText },
   { key: 'assist', label: '辅助评标', Icon: Sparkles },
+  { key: 'compare', label: '条款响应核对', Icon: Scale },
   { key: 'scoring', label: '专家打分', Icon: Edit3 },
   { key: 'report', label: '评审报告', Icon: BarChart3 },
 ];
@@ -125,6 +127,7 @@ export default function ExpertEvaluatePage() {
       case 'verify': return true;
       case 'documents': return !!expert?.signedIn;
       case 'assist': return !!expert?.signedIn;
+      case 'compare': return !!expert?.signedIn;
       case 'scoring': return !!expert?.signedIn && !!expert?.avoidanceConfirmed;
       case 'report': return !!expert?.reportConfirmed || (expert?.progress ?? 0) >= 100;
     }
@@ -134,6 +137,7 @@ export default function ExpertEvaluatePage() {
       case 'verify': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && confidentialityAgreed && disciplineAgreed;
       case 'documents': return false; // no "complete" state for browsing docs
       case 'assist': return false;
+      case 'compare': return false;
       case 'scoring': return !!expert?.reportConfirmed;
       case 'report': return !!expert?.reportConfirmed;
     }
@@ -597,8 +601,8 @@ export default function ExpertEvaluatePage() {
 
       {/* 主内容区：供应商侧边栏 + 内容 */}
       <div className="flex-1 flex overflow-hidden min-h-0 rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/60">
-        {/* 供应商侧边栏 — 辅助评标 + 专家打分步骤显示 */}
-        {(step === 'assist' || step === 'scoring') && (
+        {/* 供应商侧边栏 — 辅助评标 / 条款响应核对 / 专家打分步骤显示 */}
+        {(step === 'assist' || step === 'compare' || step === 'scoring') && (
           <SupplierSidebar
             suppliers={project.suppliers}
             activeSupplier={activeSupplier}
@@ -1017,6 +1021,25 @@ export default function ExpertEvaluatePage() {
                 projectScoreItems={project.scoreItems}
                 projectId={projectId}
                 onRetry={() => activeSupplier && loadAssist(activeSupplier)}
+              />
+            </div>
+          )}
+
+          {/* ====== 条款响应核对 ====== */}
+          {step === 'compare' && (
+            <div className="p-6">
+              <div className="mb-6">
+                <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">条款响应核对</h2>
+                <p className="text-sm text-[oklch(0.55_0.01_264)] mt-0.5">对照招标条款逐条核对投标响应，标注认可 / 异议</p>
+              </div>
+              <RequirementComparePanel
+                key={activeSupplier}
+                projectId={projectId}
+                supplierId={activeSupplier}
+                requirements={assistData?.requirements}
+                responses={assistData?.requirementResponses ?? []}
+                reviews={assistData?.reviews ?? []}
+                tenderDocUrl={project?.tenderDocument?.downloadUrl}
               />
             </div>
           )}

@@ -41,7 +41,6 @@ import { ScoreBarChart } from './charts/score-bar-chart';
 import type { ScoreBarChartData } from './charts/score-bar-chart';
 import { PriceComparisonChart } from './charts/price-comparison-chart';
 import { AssistKpiCard } from './charts/assist-kpi-card';
-import { RequirementComparePanel } from './requirement-compare-panel';
 
 // ── 类型 ──
 
@@ -1296,36 +1295,21 @@ export function AssistPanel({
         </div>
       </section>
 
-      {/* ② 条款响应对比（新） */}
+      {/* ② 关键信息 */}
       <section>
-        <SectionHeader number={2} title="条款响应对比" subtitle="· 招标条款 ↔ 投标响应" />
-        <div className="mt-3">
-          <RequirementComparePanel
-            key={activeSupplier}
-            projectId={projectId}
-            supplierId={activeSupplier}
-            requirements={assistData.requirements}
-            responses={assistData.requirementResponses ?? []}
-            reviews={assistData.reviews ?? []}
-          />
-        </div>
-      </section>
-
-      {/* ③ 关键信息 */}
-      <section>
-        <SectionHeader number={3} title="关键信息" subtitle="· OCR 提取的结构化数据" />
+        <SectionHeader number={2} title="关键信息" subtitle="· OCR 提取的结构化数据" />
         <div className="mt-3">
           <KeyInfoSection keyInfo={assistData.keyInfo} supplierName={supplierName} />
         </div>
       </section>
 
-      {/* ④ + ⑤ 数据一致性 + 串通检测 双列 */}
+      {/* ③ + ④ 数据一致性 + 串通检测 双列 */}
       <section>
         <div className="grid grid-cols-2 gap-4">
-          {/* ④ 数据一致性 */}
+          {/* ③ 数据一致性 */}
           <div className="glass-card rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
-              <SectionNumber n={4} />
+              <SectionNumber n={3} />
               <h4 className="font-bold text-sm text-[var(--color-text)]">数据一致性</h4>
               <span className="text-[10px] text-[var(--color-text-tertiary)]">系统 vs OCR</span>
             </div>
@@ -1335,10 +1319,10 @@ export function AssistPanel({
             />
           </div>
 
-          {/* ⑤ 串通检测 */}
+          {/* ④ 串通检测 */}
           <div className="glass-card rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
-              <SectionNumber n={5} />
+              <SectionNumber n={4} />
               <h4 className="font-bold text-sm text-[var(--color-text)]">串通检测</h4>
             </div>
             <FraudSection
@@ -1349,9 +1333,9 @@ export function AssistPanel({
         </div>
       </section>
 
-      {/* ⑥ 综合排名 */}
+      {/* ⑤ 综合排名 */}
       <section>
-        <SectionHeader number={6} title="综合排名" subtitle="· 跨供应商对比" />
+        <SectionHeader number={5} title="综合排名" subtitle="· 跨供应商对比" />
         <div className="mt-3">
           <RankingSection projectId={projectId} activeSupplier={activeSupplier} />
         </div>
