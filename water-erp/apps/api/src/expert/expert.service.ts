@@ -334,7 +334,7 @@ export class ExpertService {
           type: asset?.mimeType ?? 'unknown',
           size: asset?.size ?? 0,
           status: canView ? '已解密' : '加密中',
-          downloadUrl: canView && asset ? `/api/expert/projects/${projectId}/suppliers/${supplierId}/documents/${asset.id}` : undefined,
+          downloadUrl: canView && asset ? `/api/expert/projects/${projectId}/suppliers/${supplierId}/documents/${asset.id}/download` : undefined,
           sha256: canView ? asset?.sha256 : undefined,
         };
       });

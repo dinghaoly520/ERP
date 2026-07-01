@@ -103,7 +103,7 @@ export function RequirementComparePanel({
                           </div>
                           {resp.excerpt && <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 leading-relaxed">“{resp.excerpt}”</p>}
                           {resp.location && (
-                            <a href={`/api/expert/projects/${projectId}/suppliers/${supplierId}/documents/${resp.location.fileId}#page=${resp.location.page}`} target="_blank" rel="noopener"
+                            <a href={`/api/expert/projects/${projectId}/suppliers/${supplierId}/documents/${resp.location.fileId}/download#page=${resp.location.page}`} target="_blank" rel="noopener"
                               className="inline-flex items-center gap-0.5 text-[10px] text-[var(--color-primary)] hover:underline mt-1">
                               <ExternalLink size={10} /> 投标原文第 {resp.location.page} 页
                             </a>
