@@ -352,7 +352,7 @@ describe('ExpertService', () => {
 
       expect(result.canView).toBe(true);
       expect(result.documents.length).toBe(2);
-      expect(result.documents[0].downloadUrl).toBe('/api/expert/projects/proj-1/suppliers/bs-1/documents/fa-1');
+      expect(result.documents[0].downloadUrl).toBe('/api/expert/projects/proj-1/suppliers/bs-1/documents/fa-1/download');
       expect(result.documents[0].sha256).toBe('hash1');
     });
 
