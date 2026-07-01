@@ -834,7 +834,14 @@ export class ExpertService {
         where: { projectId, expertId: expert.id, verdict: 'dispute' },
         // Fix 1: 带 bidderResult.bidSupplier.id，前端按 activeSupplier 过滤 ——
         // 避免项目级聚合误拦无异议的供应商。
-        select: { category: true, verdict: true, bidderResultId: true, bidderResult: { select: { bidSupplier: { select: { id: true } } } } },
+        select: {
+          category: true,
+          verdict: true,
+          bidderResultId: true,
+          requirementId: true,
+          note: true,
+          bidderResult: { select: { bidSupplier: { select: { id: true } } } },
+        },
       }),
     ]);
     const UPPER: Record<string, string> = {
@@ -842,18 +849,40 @@ export class ExpertService {
       technical: 'TECHNICAL',
       commercial: 'BUSINESS',
     };
+    // 反查 bidderResult.requirementResponses 拿 tenderContent —— 仿 getReport 的 contentMap 模式。
+    const brIds = [...new Set(disputes.map((d) => d.bidderResultId))];
+    const brs = brIds.length
+      ? await this.prisma.aiBidderResult.findMany({
+          where: { id: { in: brIds } },
+          include: { bidSupplier: { select: { id: true } } },
+        })
+      : [];
+    const contentMap = new Map<string, string>();
+    for (const br of brs) {
+      for (const r of ((br.requirementResponses as any[]) ?? [])) {
+        contentMap.set(`${br.id}:${r.requirementId}`, r.tenderContent ?? '');
+      }
+    }
     // Fix 1: per-supplier 分组 + 去重 —— key 是 supplierId，value 是该供应商的 dispute 大写 category。
     const disputeCategoriesBySupplier: Record<string, string[]> = {};
+    const disputesBySupplier: Record<string, Record<string, { requirementId: string; content: string; note: string }[]>> = {};
     for (const d of disputes) {
       if (d.verdict !== 'dispute') continue;
       const cat = UPPER[d.category];
       if (!cat) continue;
       const supplierId = d.bidderResult?.bidSupplier?.id;
       if (!supplierId) continue; // 数据漂移：无 supplier 关联则跳过（不归属任何供应商）
-      const list = disputeCategoriesBySupplier[supplierId] ?? (disputeCategoriesBySupplier[supplierId] = []);
-      if (!list.includes(cat)) list.push(cat); // 去重
+      const catList = disputeCategoriesBySupplier[supplierId] ?? (disputeCategoriesBySupplier[supplierId] = []);
+      if (!catList.includes(cat)) catList.push(cat); // 去重
+      const detailMap = disputesBySupplier[supplierId] ?? (disputesBySupplier[supplierId] = {});
+      const detailList = detailMap[cat] ?? (detailMap[cat] = []);
+      detailList.push({
+        requirementId: d.requirementId,
+        content: contentMap.get(`${d.bidderResultId}:${d.requirementId}`) ?? '',
+        note: d.note ?? '',
+      });
     }
-    return { records, disputeCategoriesBySupplier };
+    return { records, disputeCategoriesBySupplier, disputesBySupplier };
   }
 
   /* ── 澄清答疑 ── */

@@ -421,3 +421,14 @@ export interface BidEvaluationResultView {
   disqualified?: boolean;
   generatedAt: string;
 }
+
+/* ── 专家异议披露（评审报告维度） ── */
+
+export interface DisputeDetail {
+  requirementId: string;
+  content: string;
+  note: string;
+}
+
+// supplierId → category(大写) → DisputeDetail[]
+export type DisputesBySupplier = Record<string, Record<string, DisputeDetail[]>>;
