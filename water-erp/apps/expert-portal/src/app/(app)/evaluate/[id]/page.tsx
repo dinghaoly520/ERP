@@ -512,7 +512,8 @@ export default function ExpertEvaluatePage() {
 
       {/* P2: clarifications panel (toggled from header) */}
       {showClarifications && (
-        <div className="glass-card glass-card-purple rounded-xl p-5 mb-4 flex-shrink-0 space-y-3 max-h-[300px] !overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowClarifications(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto p-5 space-y-3" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]"><MessageSquare size={14} strokeWidth={1.5} className="inline mr-1" />澄清与答疑</h3>
             <button onClick={() => setShowClarifications(false)} className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.18_0.012_265)]"><X size={14} strokeWidth={1.5} /></button>
@@ -561,6 +562,7 @@ export default function ExpertEvaluatePage() {
                 {clarPosting ? '…' : '发送'}
               </button>
             </div>
+          </div>
           </div>
         </div>
       )}
