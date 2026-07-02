@@ -552,11 +552,12 @@ export default function ExpertEvaluatePage() {
                 <option key={s.id} value={s.supplierName}>{s.supplierName}</option>
               ))}
             </select>
-            <div className="flex items-center gap-2">
-              <input value={clarQuestion} onChange={e => setClarQuestion(e.target.value)}
-                placeholder="向所选供应商发起澄清…"
-                onKeyDown={e => e.key === 'Enter' && postClarification()}
-                className="flex-1 border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs bg-white/60 focus:outline-none focus:border-[#064ea2]" />
+            <div className="flex items-end gap-2">
+              <textarea value={clarQuestion} onChange={e => setClarQuestion(e.target.value)}
+                placeholder="向所选供应商发起澄清…（Ctrl+Enter 发送）"
+                rows={4}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); postClarification(); } }}
+                className="flex-1 border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs bg-white/60 focus:outline-none focus:border-[#064ea2] resize-y min-h-[96px]" />
               <button onClick={postClarification} disabled={clarPosting}
                 className="px-3 py-1.5 bg-[#064ea2] text-white text-xs font-bold rounded-lg hover:bg-[#054280] transition disabled:opacity-50">
                 {clarPosting ? '…' : '发送'}
