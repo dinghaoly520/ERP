@@ -8,15 +8,17 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory } from '@water-erp/shared';
-import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
+import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
 
-type Step = 'verify' | 'documents' | 'assist' | 'scoring' | 'report';
+type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
   { key: 'verify', label: '身份核验', Icon: ShieldCheck },
   { key: 'documents', label: '标书获取', Icon: FileText },
   { key: 'assist', label: '辅助评标', Icon: Sparkles },
+  { key: 'compare', label: '条款响应核对', Icon: Scale },
   { key: 'scoring', label: '专家打分', Icon: Edit3 },
   { key: 'report', label: '评审报告', Icon: BarChart3 },
 ];
@@ -125,6 +127,7 @@ export default function ExpertEvaluatePage() {
       case 'verify': return true;
       case 'documents': return !!expert?.signedIn;
       case 'assist': return !!expert?.signedIn;
+      case 'compare': return !!expert?.signedIn;
       case 'scoring': return !!expert?.signedIn && !!expert?.avoidanceConfirmed;
       case 'report': return !!expert?.reportConfirmed || (expert?.progress ?? 0) >= 100;
     }
@@ -134,6 +137,7 @@ export default function ExpertEvaluatePage() {
       case 'verify': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && confidentialityAgreed && disciplineAgreed;
       case 'documents': return false; // no "complete" state for browsing docs
       case 'assist': return false;
+      case 'compare': return false;
       case 'scoring': return !!expert?.reportConfirmed;
       case 'report': return !!expert?.reportConfirmed;
     }
@@ -141,6 +145,14 @@ export default function ExpertEvaluatePage() {
 
   // P0-2: reason validation — set of scoreItemIds whose reason is missing on submit attempt.
   const [missingReasons, setMissingReasons] = useState<Set<string>>(new Set());
+  // Fix 1: dispute-categories 改 per-supplier —— disputeCategoriesBySupplier 按 supplierId 分组，
+  // confirmedDispute 是 per-supplier UI 核对态（切供应商时重置）。无异议的供应商自然不 gate。
+  const [disputeCategoriesBySupplier, setDisputeCategoriesBySupplier] = useState<Record<string, string[]>>({});
+  // Task 4: 异议备注（per-supplier+category）— 列表用于打分 step「📎插入异议」联动
+  const [disputesBySupplier, setDisputesBySupplier] = useState<Record<string, Record<string, Array<{ requirementId: string; content: string; note: string }>>>>({});
+  // Task 4: 当前展开「插入异议」列表的 scoreItem key（'supplierId:scoreItemId'），点击切换 popover
+  const [disputeInsertOpenKey, setDisputeInsertOpenKey] = useState<string | null>(null);
+  const [confirmedDispute, setConfirmedDispute] = useState<Record<string, boolean>>({});
   // P0-3: draft autosave to localStorage.
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
   const [draftDismissed, setDraftDismissed] = useState(false);
@@ -169,6 +181,18 @@ export default function ExpertEvaluatePage() {
         // P2: sync per-supplier conflicts from server
         const serverConflicts: string[] = p.myExpertRecord?.conflictedSupplierIds || [];
         if (serverConflicts.length > 0) setConflictedSupplierIds(new Set(serverConflicts));
+        // Fix 1: fetch disputeCategoriesBySupplier (per-supplier) via my-scores endpoint.
+        // Task 4: 同时取 disputesBySupplier（异议详情，用于打分 step「📎插入异议」联动）。
+        api.get<{
+          records: unknown[];
+          disputeCategoriesBySupplier: Record<string, string[]>;
+          disputesBySupplier: Record<string, Record<string, Array<{ requirementId: string; content: string; note: string }>>>;
+        }>(`/expert/projects/${projectId}/my-scores`)
+          .then((d) => {
+            setDisputeCategoriesBySupplier(d.disputeCategoriesBySupplier ?? {});
+            setDisputesBySupplier(d.disputesBySupplier ?? {});
+          })
+          .catch(() => { /* my-scores optional — ignore */ });
       })
       .catch((e: any) => toast.error(e?.message || '加载项目失败'))
       .finally(() => setLoading(false));
@@ -359,7 +383,7 @@ export default function ExpertEvaluatePage() {
 
   useEffect(() => {
     if (step === 'documents' && project) loadAllDocuments();
-    if (step === 'assist' && activeSupplier) loadAssist(activeSupplier);
+    if ((step === 'assist' || step === 'compare') && activeSupplier) loadAssist(activeSupplier);
   }, [step, activeSupplier, project]);
 
   const handleSubmitScores = async () => {
@@ -395,6 +419,14 @@ export default function ExpertEvaluatePage() {
       return;
     }
     setMissingReasons(new Set()); // clear on valid submit
+    // Fix 1: dispute-categories 软拦截 — 仅作用于当前 activeSupplier 的异议类别；无异议供应商不 gate。
+    // 不改分、不阻断报告确认。
+    const activeDisputes = new Set(disputeCategoriesBySupplier[activeSupplier] ?? []);
+    const unconfirmed = [...activeDisputes].filter((c) => !confirmedDispute[c]);
+    if (unconfirmed.length > 0) {
+      toast.warning(`以下类别有异议条款未核对：${unconfirmed.map((c) => CATEGORY_LABEL[c] || c).join('、')}`);
+      return;
+    }
     const scoresPayload = project.scoreItems.map(si => {
       const entry = scores[scoreKey(activeSupplier, si.id)];
       if (isPassFailCategory(si.category)) {
@@ -480,7 +512,8 @@ export default function ExpertEvaluatePage() {
 
       {/* P2: clarifications panel (toggled from header) */}
       {showClarifications && (
-        <div className="glass-card glass-card-purple rounded-xl p-5 mb-4 flex-shrink-0 space-y-3 max-h-[300px] !overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowClarifications(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl min-h-[50vh] max-h-[90vh] overflow-y-auto p-5 space-y-3" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]"><MessageSquare size={14} strokeWidth={1.5} className="inline mr-1" />澄清与答疑</h3>
             <button onClick={() => setShowClarifications(false)} className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.18_0.012_265)]"><X size={14} strokeWidth={1.5} /></button>
@@ -519,16 +552,18 @@ export default function ExpertEvaluatePage() {
                 <option key={s.id} value={s.supplierName}>{s.supplierName}</option>
               ))}
             </select>
-            <div className="flex items-center gap-2">
-              <input value={clarQuestion} onChange={e => setClarQuestion(e.target.value)}
-                placeholder="向所选供应商发起澄清…"
-                onKeyDown={e => e.key === 'Enter' && postClarification()}
-                className="flex-1 border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs bg-white/60 focus:outline-none focus:border-[#064ea2]" />
+            <div className="flex items-end gap-2">
+              <textarea value={clarQuestion} onChange={e => setClarQuestion(e.target.value)}
+                placeholder="向所选供应商发起澄清…（Ctrl+Enter 发送）"
+                rows={4}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); postClarification(); } }}
+                className="flex-1 border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs bg-white/60 focus:outline-none focus:border-[#064ea2] resize-y min-h-[96px]" />
               <button onClick={postClarification} disabled={clarPosting}
                 className="px-3 py-1.5 bg-[#064ea2] text-white text-xs font-bold rounded-lg hover:bg-[#054280] transition disabled:opacity-50">
                 {clarPosting ? '…' : '发送'}
               </button>
             </div>
+          </div>
           </div>
         </div>
       )}
@@ -581,12 +616,12 @@ export default function ExpertEvaluatePage() {
 
       {/* 主内容区：供应商侧边栏 + 内容 */}
       <div className="flex-1 flex overflow-hidden min-h-0 rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/60">
-        {/* 供应商侧边栏 — 辅助评标 + 专家打分步骤显示 */}
-        {(step === 'assist' || step === 'scoring') && (
+        {/* 供应商侧边栏 — 辅助评标 / 条款响应核对 / 专家打分步骤显示 */}
+        {(step === 'assist' || step === 'compare' || step === 'scoring') && (
           <SupplierSidebar
             suppliers={project.suppliers}
             activeSupplier={activeSupplier}
-            onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); }}
+            onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); setConfirmedDispute({}); }}
             conflictedSupplierIds={conflictedSupplierIds}
             decryptLabel={decryptLabel}
             scoringProgress={
@@ -1005,6 +1040,21 @@ export default function ExpertEvaluatePage() {
             </div>
           )}
 
+          {/* ====== 条款响应核对 ====== */}
+          {step === 'compare' && (
+            <div className="p-6">
+              <RequirementComparePanel
+                key={activeSupplier}
+                projectId={projectId}
+                supplierId={activeSupplier}
+                requirements={assistData?.requirements}
+                responses={assistData?.requirementResponses ?? []}
+                reviews={assistData?.reviews ?? []}
+                tenderDocUrl={project?.tenderDocument?.downloadUrl}
+              />
+            </div>
+          )}
+
           {/* ====== 专家打分 ====== */}
           {step === 'scoring' && (
             <div className="p-6">
@@ -1041,14 +1091,18 @@ export default function ExpertEvaluatePage() {
                     {Object.entries(grouped).map(([category, items]) => {
                       const catTotal = items.reduce((s, i) => s + Number(i.maxScore), 0);
                       const catScored = items.reduce((s, i) => s + (scores[scoreKey(activeSupplier, i.id)]?.score ?? 0), 0);
+                      // Fix 1: 按当前 activeSupplier 过滤异议类别。
+                      const activeDisputes = new Set(disputeCategoriesBySupplier[activeSupplier] ?? []);
+                      const disputed = activeDisputes.has(category);
                       return (
-                        <div key={category} className="bg-blue-50 rounded-xl border border-blue-100 overflow-hidden">
+                        <div key={category} className={`bg-blue-50 rounded-xl border overflow-hidden ${disputed ? 'border-amber-300 ring-1 ring-amber-200' : 'border-blue-100'}`}>
                           <div className="flex items-center justify-between p-4 border-b border-blue-100" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[category] || '#064ea2'}` }}>
                             <div className="flex items-center gap-3">
                               <span className="text-sm font-bold px-3 py-1 rounded-lg" style={{ color: CATEGORY_COLOR[category] || '#064ea2', backgroundColor: (CATEGORY_COLOR[category] || '#064ea2') + '18' }}>
                                 {CATEGORY_LABEL[category] || category}
                               </span>
                               <span className="text-sm text-[oklch(0.55_0.01_264)]">{items.length} 项</span>
+                              {disputed && <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⚠ 有异议条款待核对</span>}
                             </div>
                             <div className="flex items-center gap-3">
                               {isPassFailCategory(category) ? (
@@ -1063,6 +1117,22 @@ export default function ExpertEvaluatePage() {
                             </div>
                           </div>
                           <div className="p-4 space-y-4">
+                            {/* Task 4: 异议备注区 — disputed category 顶部列出异议条款摘要 + note，供专家打分参考 */}
+                            {disputed && (disputesBySupplier[activeSupplier]?.[category]?.length ?? 0) > 0 && (
+                              <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 space-y-2">
+                                <div className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                                  <AlertTriangle size={12} strokeWidth={1.5} /> 异议备注（{disputesBySupplier[activeSupplier][category].length} 条 · 可在下方评分项点「📎 插入异议」逐条引用）
+                                </div>
+                                <ul className="space-y-1.5">
+                                  {disputesBySupplier[activeSupplier][category].map((dsp, idx) => (
+                                    <li key={`${dsp.requirementId}-${idx}`} className="text-xs text-amber-900 bg-white/70 rounded px-2 py-1.5 border border-amber-100">
+                                      <div className="font-semibold truncate" title={dsp.content}>条款：{dsp.content}</div>
+                                      {dsp.note && <div className="text-amber-700 mt-0.5">异议：{dsp.note}</div>}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                             {items.map(item => {
                               const k = scoreKey(activeSupplier, item.id);
                               const val = scores[k];
@@ -1094,6 +1164,42 @@ export default function ExpertEvaluatePage() {
                                         }}
                                         className={`w-full rounded-lg px-3 py-2 text-sm text-[oklch(0.18_0.012_265)] resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
                                         aria-label={`${item.name} 不通过理由`} />
+                                    )}
+                                    {/* Task 4: 📎 插入异议 — 仅当本 category 有 dispute 时显示，点击展开本类异议列表，逐条追加到该 scoreItem reason */}
+                                    {disputed && (disputesBySupplier[activeSupplier]?.[category]?.length ?? 0) > 0 && (
+                                      <div className="mt-1.5">
+                                        <button type="button"
+                                          onClick={() => setDisputeInsertOpenKey(disputeInsertOpenKey === k ? null : k)}
+                                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-800 hover:bg-amber-50 px-2 py-1 rounded-md transition">
+                                          <AlertTriangle size={11} strokeWidth={1.5} /> 插入异议
+                                        </button>
+                                        {disputeInsertOpenKey === k && (
+                                          <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50/80 p-2 space-y-1.5">
+                                            {disputesBySupplier[activeSupplier][category].map((dsp, idx) => (
+                                              <div key={`ins-${dsp.requirementId}-${idx}`} className="flex items-start gap-2 text-xs">
+                                                <div className="flex-1 min-w-0">
+                                                  <div className="font-semibold text-amber-900 truncate" title={dsp.content}>{dsp.content}</div>
+                                                  {dsp.note && <div className="text-amber-700">{dsp.note}</div>}
+                                                </div>
+                                                <button type="button"
+                                                  onClick={() => {
+                                                    const text = dsp.note ? `[异议：${dsp.note}]` : `[异议：${dsp.content}]`;
+                                                    setScores(prev => {
+                                                      const cur = prev[k];
+                                                      const prevReason = cur?.reason ?? '';
+                                                      const newReason = prevReason ? prevReason.endsWith('\n') ? prevReason + text : prevReason + '\n' + text : text;
+                                                      return { ...prev, [k]: { score: cur?.score ?? 0, reason: newReason, passed: cur?.passed } };
+                                                    });
+                                                    if (missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
+                                                  }}
+                                                  className="shrink-0 px-2 py-1 rounded bg-amber-500 text-white text-[11px] font-bold hover:bg-amber-600 transition">
+                                                  插入
+                                                </button>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
                                     )}
                                     {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold flex items-center gap-1"><AlertTriangle size={12} strokeWidth={1.5} />请选择「通过 / 不通过」，不通过需填理由</p>}
                                   </div>
@@ -1129,11 +1235,58 @@ export default function ExpertEvaluatePage() {
                                     }}
                                     className={`w-full rounded-lg px-3 py-2 text-sm resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
                                     aria-label={`${item.name} 评分理由`} tabIndex={0} />
+                                  {/* Task 4: 📎 插入异议 — 仅当本 category 有 dispute 时显示，点击展开本类异议列表，逐条追加到该 scoreItem reason */}
+                                  {disputed && (disputesBySupplier[activeSupplier]?.[category]?.length ?? 0) > 0 && (
+                                    <div className="mt-1.5">
+                                      <button type="button"
+                                        onClick={() => setDisputeInsertOpenKey(disputeInsertOpenKey === k ? null : k)}
+                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-800 hover:bg-amber-50 px-2 py-1 rounded-md transition">
+                                        <AlertTriangle size={11} strokeWidth={1.5} /> 插入异议
+                                      </button>
+                                      {disputeInsertOpenKey === k && (
+                                        <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50/80 p-2 space-y-1.5">
+                                          {disputesBySupplier[activeSupplier][category].map((dsp, idx) => (
+                                            <div key={`ins-${dsp.requirementId}-${idx}`} className="flex items-start gap-2 text-xs">
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-semibold text-amber-900 truncate" title={dsp.content}>{dsp.content}</div>
+                                                {dsp.note && <div className="text-amber-700">{dsp.note}</div>}
+                                              </div>
+                                              <button type="button"
+                                                onClick={() => {
+                                                  const text = dsp.note ? `[异议：${dsp.note}]` : `[异议：${dsp.content}]`;
+                                                  setScores(prev => {
+                                                    const cur = prev[k];
+                                                    const prevReason = cur?.reason ?? '';
+                                                    const newReason = prevReason ? prevReason.endsWith('\n') ? prevReason + text : prevReason + '\n' + text : text;
+                                                    return { ...prev, [k]: { score: cur?.score ?? 0, reason: newReason, passed: cur?.passed } };
+                                                  });
+                                                  if (missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
+                                                }}
+                                                className="shrink-0 px-2 py-1 rounded bg-amber-500 text-white text-[11px] font-bold hover:bg-amber-600 transition">
+                                                插入
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                   {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold flex items-center gap-1"><AlertTriangle size={12} strokeWidth={1.5} />该项得分低于满分，请填写评分理由</p>}
                                 </div>
                               );
                             })}
                           </div>
+                          {disputed && (
+                            <label className="flex items-center gap-2 px-4 py-2 bg-amber-50/60 border-t border-amber-200 text-xs text-amber-800 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="accent-amber-600"
+                                checked={!!confirmedDispute[category]}
+                                onChange={(e) => setConfirmedDispute({ ...confirmedDispute, [category]: e.target.checked })}
+                              />
+                              已核对本类异议条款
+                            </label>
+                          )}
                         </div>
                       );
                     })}

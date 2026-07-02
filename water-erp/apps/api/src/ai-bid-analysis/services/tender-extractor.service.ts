@@ -4,6 +4,7 @@ import { LlmService } from '../../local-ai/llm.service';
 import { TENDER_REQUIREMENTS_PROMPT } from '../prompts/tender-requirements.prompt';
 import type { TenderRequirements } from '../types';
 import { deterministicSeed } from '../utils';
+import { stabilizeRequirements } from '../utils/requirement-id';
 
 @Injectable()
 export class TenderExtractorService {
@@ -27,6 +28,6 @@ export class TenderExtractorService {
     this.logger.log(`Extracted ${result.qualificationRequirements?.length || 0} qualification requirements`);
     this.logger.log(`Extracted ${result.technicalRequirements?.length || 0} technical requirements`);
 
-    return result;
+    return stabilizeRequirements(result);
   }
 }

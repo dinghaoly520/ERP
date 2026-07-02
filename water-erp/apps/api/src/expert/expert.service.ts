@@ -3,9 +3,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ExpertConflictService } from './expert-conflict.service';
 import { BidGateway } from '../bid/bid.gateway';
+import { PlaintextFetcherService, BidderFileType } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
+import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { decryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
@@ -16,6 +18,7 @@ export class ExpertService {
     private prisma: PrismaService,
     private aiService: AiService,
     private conflictService: ExpertConflictService,
+    private plaintextFetcher: PlaintextFetcherService,
     @Optional() private readonly gateway?: BidGateway,
   ) {}
 
@@ -331,7 +334,7 @@ export class ExpertService {
           type: asset?.mimeType ?? 'unknown',
           size: asset?.size ?? 0,
           status: canView ? '已解密' : '加密中',
-          downloadUrl: canView && asset ? `/api/upload/files/${asset.id}` : undefined,
+          downloadUrl: canView && asset ? `/api/expert/projects/${projectId}/suppliers/${supplierId}/documents/${asset.id}/download` : undefined,
           sha256: canView ? asset?.sha256 : undefined,
         };
       });
@@ -415,6 +418,120 @@ export class ExpertService {
     return { buffer: plaintext, fileName: doc.fileAsset.originalName, mimeType: 'application/pdf' };
   }
 
+  /* ── 投标文件解密下载（专家预览投标人 PDF）── */
+
+  /** 门控同 getDecryptedDocuments/resolveReviewContext：项目阶段 OPENING/EVALUATING + 本人专家 + 签到/回避确认 + 回避名单。
+   *  fileId 必须归属该 supplier 的某类投标文件（防越权），再委托 plaintextFetcher 解密。 */
+  async downloadBidDocument(
+    userId: string,
+    projectId: string,
+    supplierId: string,
+    fileId: string,
+  ): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
+    const expert = await this.assertExpertActiveForProject(userId, projectId);
+
+    // 回避名单检查：与 getAssistData/resolveReviewContext 一致
+    const conflictedIds: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    if (conflictedIds.includes(supplierId)) {
+      throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
+    }
+
+    // 确认 supplier 属于该项目，并拿到 supplierId（系统账户）查 submission
+    const supplier = await this.prisma.bidSupplier.findFirst({
+      where: { id: supplierId, projectId },
+    });
+    if (!supplier) throw new NotFoundException({ error: '供应商不存在', code: 'SUPPLIER_NOT_FOUND' });
+    if (!supplier.supplierId) {
+      throw new NotFoundException({ error: '供应商未关联账户', code: 'NOT_FOUND' });
+    }
+
+    const submission = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId: supplier.supplierId, projectId } },
+    });
+    if (!submission) throw new NotFoundException({ error: '投标文件不存在', code: 'NOT_FOUND' });
+
+    // fileId → which 映射（防越权：fileId 必须是三选一且归属本 supplier）
+    let which: BidderFileType | null = null;
+    if (submission.technicalFileAssetId === fileId) which = 'technical';
+    else if (submission.businessFileAssetId === fileId) which = 'business';
+    else if (submission.coverLetterAssetId === fileId) which = 'coverLetter';
+    if (!which) {
+      throw new NotFoundException({ error: '文件不属于该供应商', code: 'NOT_FOUND' });
+    }
+
+    const result = await this.plaintextFetcher.fetchBidderPlaintext(supplierId, which);
+    if (!result) throw new NotFoundException({ error: '投标文件不存在', code: 'NOT_FOUND' });
+
+    const asset = await this.prisma.fileAsset.findUnique({ where: { id: fileId } });
+    const fileName = asset?.originalName ?? `${which}.pdf`;
+
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId,
+        time: new Date(),
+        role: '评审专家',
+        target: expert.expertName,
+        action: `访问投标文件（${supplier.supplierName}）`,
+        result: fileName,
+        riskFlag: '无',
+      },
+    });
+
+    return { buffer: result.buffer, fileName, mimeType: 'application/pdf' };
+  }
+
+  /* ── 招标条款标注（Task 9：本人 CRUD）── */
+
+  /** 门控：项目阶段 ∈ {OPENING, EVALUATING} + 本项目已签到/回避确认的专家 + 非回避名单供应商 + 投标人 AI 分析已 COMPLETED。
+   *  任一不满足即抛 403/404。返回解析后的 expert 与 bidderResult 供 upsert/list 复用。 */
+  private async resolveReviewContext(userId: string, projectId: string, supplierId: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可操作阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    // 回避名单检查先于签到/回避确认检查：回避名单本身即最终阻断信号，避免泄露后续状态细节
+    const conflictedIds: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    if (conflictedIds.includes(supplierId)) {
+      throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
+    }
+    if (!expert.signedIn || !expert.avoidanceConfirmed) {
+      throw new ForbiddenException({ error: '请先完成身份核验和回避确认', code: 'VERIFICATION_REQUIRED' });
+    }
+    const bidderResult = await this.prisma.aiBidderResult.findFirst({
+      where: { bidSupplierId: supplierId, status: 'COMPLETED' },
+      select: { id: true },
+    });
+    if (!bidderResult) throw new NotFoundException({ error: '该供应商 AI 分析尚未完成', code: 'NOT_FOUND' });
+    return { expert, bidderResult };
+  }
+
+  /** Upsert 本人针对某招标条款的标注。复合唯一键 projectId+bidderResultId+expertId+requirementId 保证幂等。 */
+  async upsertRequirementReview(userId: string, projectId: string, supplierId: string, dto: UpsertRequirementReviewDto) {
+    const { expert, bidderResult } = await this.resolveReviewContext(userId, projectId, supplierId);
+    return this.prisma.bidRequirementReview.upsert({
+      where: {
+        projectId_bidderResultId_expertId_requirementId: {
+          projectId, bidderResultId: bidderResult.id, expertId: expert.id, requirementId: dto.requirementId,
+        },
+      },
+      create: {
+        projectId, bidderResultId: bidderResult.id, expertId: expert.id,
+        requirementId: dto.requirementId, category: dto.category, verdict: dto.verdict, note: dto.note,
+      },
+      update: { verdict: dto.verdict, note: dto.note },
+    });
+  }
+
+  /** 列出本人针对该投标人的全部条款标注（reviews 本人-only）。 */
+  async listRequirementReviews(userId: string, projectId: string, supplierId: string) {
+    const { expert, bidderResult } = await this.resolveReviewContext(userId, projectId, supplierId);
+    return this.prisma.bidRequirementReview.findMany({
+      where: { bidderResultId: bidderResult.id, expertId: expert.id },
+    });
+  }
+
   /* ── 辅助评标（AI引擎驱动） ── */
 
   async getAssistData(userId: string, projectId: string, supplierId: string) {
@@ -447,10 +564,12 @@ export class ExpertService {
       // 15.4: 串通检测分层可见 — 专家端只看摘要（不暴露检测细节）
       const task = await this.prisma.aiBidAnalysisTask.findUnique({
         where: { projectId },
-        select: { id: true },
+        select: { id: true, requirements: true },
       });
       let fraudSummary: { riskLevel: string; indicatorCount: number } | null = null;
       let reportDocxId: string | null = null;
+      // 本人针对该投标人的条款标注（Task 3 BidRequirementReview）
+      let myReviews: any[] = [];
       if (task) {
         const report = await this.prisma.aiBidReport.findUnique({
           where: { taskId: task.id },
@@ -461,6 +580,9 @@ export class ExpertService {
           fraudSummary = { riskLevel: fi.riskLevel ?? 'low', indicatorCount: fi.summary?.totalCount ?? fi.indicators?.length ?? 0 };
         }
         reportDocxId = report?.docxFileId ?? null;
+        myReviews = await this.prisma.bidRequirementReview.findMany({
+          where: { bidderResultId: bidderResult.id, expertId: expert.id },
+        });
       }
       return {
         source: 'ai_bidder_result',
@@ -478,6 +600,9 @@ export class ExpertService {
         riskLevel: bidderResult.riskLevel,
         fraudSummary, // B5: 串通检测摘要（专家端仅看风险等级+数量）
         reportDocxUrl: reportDocxId ? `/api/upload/files/${reportDocxId}` : null, // B6: 综合报告 DOCX 下载
+        requirements: task?.requirements ?? null, // 招标条款（来自 AiBidAnalysisTask.requirements）
+        requirementResponses: bidderResult.requirementResponses ?? [], // AI 条款响应定位（Task 3/6/7）
+        reviews: myReviews, // 本人 BidRequirementReview 列表
       };
     }
     // 降级：规则引擎（LLM/OCR 不可用或 bidderResult 未就绪时）
@@ -700,10 +825,64 @@ export class ExpertService {
       throw new ForbiddenException({ error: '请先完成身份核验和回避确认', code: 'VERIFICATION_REQUIRED' });
     }
 
-    return this.prisma.bidScoreRecord.findMany({
-      where: { expertId: expert.id },
-      include: { scoreItem: true },
-    });
+    const [records, disputes] = await Promise.all([
+      this.prisma.bidScoreRecord.findMany({
+        where: { expertId: expert.id },
+        include: { scoreItem: true },
+      }),
+      this.prisma.bidRequirementReview.findMany({
+        where: { projectId, expertId: expert.id, verdict: 'dispute' },
+        // Fix 1: 带 bidderResult.bidSupplier.id，前端按 activeSupplier 过滤 ——
+        // 避免项目级聚合误拦无异议的供应商。
+        select: {
+          category: true,
+          verdict: true,
+          bidderResultId: true,
+          requirementId: true,
+          note: true,
+          bidderResult: { select: { bidSupplier: { select: { id: true } } } },
+        },
+      }),
+    ]);
+    const UPPER: Record<string, string> = {
+      qualification: 'QUALIFICATION',
+      technical: 'TECHNICAL',
+      commercial: 'BUSINESS',
+    };
+    // 反查 bidderResult.requirementResponses 拿 tenderContent —— 仿 getReport 的 contentMap 模式。
+    const brIds = [...new Set(disputes.map((d) => d.bidderResultId))];
+    const brs = brIds.length
+      ? await this.prisma.aiBidderResult.findMany({
+          where: { id: { in: brIds } },
+          include: { bidSupplier: { select: { id: true } } },
+        })
+      : [];
+    const contentMap = new Map<string, string>();
+    for (const br of brs) {
+      for (const r of ((br.requirementResponses as any[]) ?? [])) {
+        contentMap.set(`${br.id}:${r.requirementId}`, r.tenderContent ?? '');
+      }
+    }
+    // Fix 1: per-supplier 分组 + 去重 —— key 是 supplierId，value 是该供应商的 dispute 大写 category。
+    const disputeCategoriesBySupplier: Record<string, string[]> = {};
+    const disputesBySupplier: Record<string, Record<string, { requirementId: string; content: string; note: string }[]>> = {};
+    for (const d of disputes) {
+      if (d.verdict !== 'dispute') continue;
+      const cat = UPPER[d.category];
+      if (!cat) continue;
+      const supplierId = d.bidderResult?.bidSupplier?.id;
+      if (!supplierId) continue; // 数据漂移：无 supplier 关联则跳过（不归属任何供应商）
+      const catList = disputeCategoriesBySupplier[supplierId] ?? (disputeCategoriesBySupplier[supplierId] = []);
+      if (!catList.includes(cat)) catList.push(cat); // 去重
+      const detailMap = disputesBySupplier[supplierId] ?? (disputesBySupplier[supplierId] = {});
+      const detailList = detailMap[cat] ?? (detailMap[cat] = []);
+      detailList.push({
+        requirementId: d.requirementId,
+        content: contentMap.get(`${d.bidderResultId}:${d.requirementId}`) ?? '',
+        note: d.note ?? '',
+      });
+    }
+    return { records, disputeCategoriesBySupplier, disputesBySupplier };
   }
 
   /* ── 澄清答疑 ── */
@@ -811,6 +990,40 @@ export class ExpertService {
       };
     });
 
+    // Task 11：披露本人异议条款（评审报告维度，非 AI docx — 异议产生于专家评标阶段，晚于 AI 报告）
+    // 过滤 verdict='dispute'，跨 supplier；supplierName 来自 bidderResult.bidSupplier，
+    // tenderContent 来自 bidderResult.requirementResponses 反查（缺失 fallback 空串）
+    const disputed = await this.prisma.bidRequirementReview.findMany({
+      where: { projectId, expertId: expert.id, verdict: 'dispute' },
+    });
+    const brIds = [...new Set(disputed.map((d) => d.bidderResultId))];
+    const brs = brIds.length
+      ? await this.prisma.aiBidderResult.findMany({
+          where: { id: { in: brIds } },
+          include: { bidSupplier: { select: { id: true, supplierName: true } } },
+        })
+      : [];
+    // 内容映射：bidderResultId:requirementId → tenderContent（requirementResponses 反查）
+    const contentMap = new Map<string, string>();
+    for (const br of brs) {
+      for (const r of ((br.requirementResponses as any[]) ?? [])) {
+        contentMap.set(`${br.id}:${r.requirementId}`, r.tenderContent ?? '');
+      }
+    }
+    // Fix 6: O(1) 查找替代 brs.find 的 O(N·M)（沿用 contentMap 同样的 Map 模式）
+    const brById = new Map(brs.map((b) => [b.id, b]));
+    const myDisputedReviews = disputed.map((d) => {
+      const br = brById.get(d.bidderResultId);
+      return {
+        supplierId: br?.bidSupplier?.id ?? '',
+        supplierName: br?.bidSupplier?.supplierName ?? '',
+        requirementId: d.requirementId,
+        category: d.category,
+        tenderContent: contentMap.get(`${d.bidderResultId}:${d.requirementId}`) ?? '',
+        note: d.note ?? '',
+      };
+    });
+
     return {
       projectName: project.name,
       projectCode: project.projectCode,
@@ -822,6 +1035,7 @@ export class ExpertService {
       scoreItems: project.scoreItems,
       canConfirm: expert.progress >= 100,
       overallComplete: expert.progress >= 100,
+      myDisputedReviews,
     };
   }
 

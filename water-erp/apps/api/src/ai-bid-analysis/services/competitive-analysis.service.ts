@@ -7,9 +7,8 @@ const DIMENSION_WHITELIST = [
   'qualification',
   'technical',
   'commercial',
-  'price',
   'risk',
-] as const;
+] as const; // price 由 priceAnalysis 专项处理，不在此评估
 
 interface StrengthOrWeakness {
   dimension: string;
@@ -67,6 +66,7 @@ export class CompetitiveAnalysisService {
 
     if (Array.isArray(raw?.strengths)) {
       for (const s of raw.strengths) {
+        if (s.dimension === 'price') continue; // 价格由 priceAnalysis 专项处理
         if (!s.title || !s.detail) continue;
         strengths.push({
           dimension: DIMENSION_WHITELIST.includes(s.dimension) ? s.dimension : 'technical',
@@ -80,6 +80,7 @@ export class CompetitiveAnalysisService {
 
     if (Array.isArray(raw?.weaknesses)) {
       for (const w of raw.weaknesses) {
+        if (w.dimension === 'price') continue; // 价格由 priceAnalysis 专项处理
         if (!w.title || !w.detail) continue;
         weaknesses.push({
           dimension: DIMENSION_WHITELIST.includes(w.dimension) ? w.dimension : 'technical',

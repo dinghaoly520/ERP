@@ -10,8 +10,7 @@ export const COMPETITIVE_ANALYSIS_PROMPT = `你是一名资深招投标评审专
 商务评分详情：
 {{COMMERCIAL_SCORE}}
 
-报价评分详情：
-{{PRICE_SCORE}}
+报价说明：报价的合规性、策略与风险由专项 priceAnalysis 分析，本处不评估价格分数，请勿针对报价得分生成正向依据或需关注事项。
 
 投标单位关键信息：
 {{KEY_INFO}}
@@ -22,7 +21,7 @@ export const COMPETITIVE_ANALYSIS_PROMPT = `你是一名资深招投标评审专
 {
   "strengths": [
     {
-      "dimension": "qualification|technical|commercial|price|risk",
+      "dimension": "qualification|technical|commercial|risk",
       "title": "正向依据标题（中性概括，如“资质证书已提取”、“业绩数量符合要求”）",
       "detail": "具体描述：说明正向依据内容，引用关键数据和事实（如资质等级、业绩数量、合同金额等）",
       "evidence": "支撑证据（来自投标文件的具体内容摘要）",
@@ -31,7 +30,7 @@ export const COMPETITIVE_ANALYSIS_PROMPT = `你是一名资深招投标评审专
   ],
   "weaknesses": [
     {
-      "dimension": "qualification|technical|commercial|price|risk",
+      "dimension": "qualification|technical|commercial|risk",
       "title": "不足标题（简短概括，如“报价偏高”）",
       "detail": "具体描述：说明具体不足内容，引用关键数据对比",
       "evidence": "支撑证据",

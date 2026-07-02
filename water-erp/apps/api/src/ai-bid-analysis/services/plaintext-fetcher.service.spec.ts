@@ -69,16 +69,31 @@ describe('PlaintextFetcherService — 解密双格式测试 (C12)', () => {
     });
   };
 
+  // Task 4: 返回 { buffer, fileId } 形状验证
+  describe('返回 { buffer, fileId }（Task 4）', () => {
+    it('fetchBidderPlaintext 返回 { buffer, fileId }', async () => {
+      setupMocks(null); // assetId 由 setupMocks 写入 submission.technicalFileAssetId='asset-1'
+
+      const out = await service.fetchBidderPlaintext('bs-1', 'technical');
+
+      expect(out).not.toBeNull();
+      expect(out!.fileId).toBe('asset-1');
+      expect(Buffer.isBuffer(out!.buffer)).toBe(true);
+    });
+  });
+
   describe('wrappedKey 路径（envelope encryption）', () => {
     it('sealedKey 为 base64 格式时走 unwrapKey → decryptBuffer', async () => {
       const wrappedKey = 'aGVsbG8gd29ybGQgdGhpcw=='; // "hello world this" in base64
       setupMocks(wrappedKey);
 
-      await service.fetchBidderPlaintext('bs-1', 'technical');
+      const out = await service.fetchBidderPlaintext('bs-1', 'technical');
 
       expect(isWrappedKey).toHaveBeenCalledWith(wrappedKey);
       expect(unwrapKey).toHaveBeenCalled();
       expect(decryptBuffer).toHaveBeenCalled();
+      expect(Buffer.isBuffer(out!.buffer)).toBe(true);
+      expect(out!.fileId).toBe('asset-1');
     });
   });
 
@@ -87,10 +102,11 @@ describe('PlaintextFetcherService — 解密双格式测试 (C12)', () => {
       const legacyKey = 'a1b2c3d4e5f6:010203040506:ffeeddccbbaa';
       setupMocks(legacyKey);
 
-      await service.fetchBidderPlaintext('bs-1', 'technical');
+      const out = await service.fetchBidderPlaintext('bs-1', 'technical');
 
       expect(isWrappedKey).toHaveBeenCalledWith(legacyKey);
       expect(unwrapKey).not.toHaveBeenCalled();
+      expect(out!.fileId).toBe('asset-1');
     });
   });
 
@@ -98,12 +114,14 @@ describe('PlaintextFetcherService — 解密双格式测试 (C12)', () => {
     it('sealedKey 为 null 时跳过解密，直接返回明文', async () => {
       setupMocks(null);
 
-      const buf = await service.fetchBidderPlaintext('bs-1', 'technical');
+      const out = await service.fetchBidderPlaintext('bs-1', 'technical');
 
       // sealedKey 为 null 时，代码不会进入解密分支，isWrappedKey 不会被调用
       expect(unwrapKey).not.toHaveBeenCalled();
       expect(decryptBuffer).not.toHaveBeenCalled();
-      expect(buf).toBeDefined();
+      expect(out).not.toBeNull();
+      expect(Buffer.isBuffer(out!.buffer)).toBe(true);
+      expect(out!.fileId).toBe('asset-1');
     });
   });
 });

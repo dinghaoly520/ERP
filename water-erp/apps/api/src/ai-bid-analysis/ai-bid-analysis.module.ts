@@ -22,6 +22,7 @@ import { SystemDataAggregatorService } from './services/system-data-aggregator.s
 import { GenericItemScorerService } from './services/generic-item-scorer.service';
 import { ScoreCriteriaInfererService } from './services/score-criteria-inferer.service';
 import { PlaintextFetcherService } from './services/plaintext-fetcher.service';
+import { RequirementMatcherService } from './services/requirement-matcher.service';
 
 const SERVICES = [
   // 复制适配的 services
@@ -42,6 +43,7 @@ const SERVICES = [
   GenericItemScorerService,
   ScoreCriteriaInfererService,
   PlaintextFetcherService,
+  RequirementMatcherService, // Task 7：条款-响应定位（写入 bidderResult.requirementResponses）
 ];
 
 @Module({

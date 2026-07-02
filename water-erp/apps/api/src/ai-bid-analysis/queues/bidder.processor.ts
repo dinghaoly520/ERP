@@ -17,6 +17,7 @@ import { ComparativeScoringService } from '../services/comparative-scoring.servi
 import { CompetitiveAnalysisService } from '../services/competitive-analysis.service';
 import { ReportGeneratorService } from '../services/report-generator.service';
 import { DocxGeneratorService } from '../services/docx-generator.service';
+import { RequirementMatcherService } from '../services/requirement-matcher.service';
 import { minioClient, MINIO_BUCKET, ensureBucket } from '../../upload/minio.client';
 import { AiBidderStatus } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -47,6 +48,7 @@ export class BidderProcessor extends WorkerHost {
     private competitiveAnalysis: CompetitiveAnalysisService,
     private reportGenerator: ReportGeneratorService,
     private docxGenerator: DocxGeneratorService,
+    private requirementMatcher: RequirementMatcherService,
   ) {
     super();
   }
@@ -70,22 +72,31 @@ export class BidderProcessor extends WorkerHost {
       const bidSupplierId = bidderResult.bidSupplierId;
       const task = bidderResult.task;
 
+      // Task 4: 外层声明 fileId / bizOcr，Task 7 matcher 将消费它们做跳转定位
+      let bizOcr: any = null;
+      let techFileId: string | null = null;
+      let bizFileId: string | null = null;
+
       // 1. fetchBidderPlaintext（technical + business）→ OCR
       await this.updateBidderStatus(bidderResultId, AiBidderStatus.OCR_PROCESSING);
 
-      const techBuffer = await this.plaintextFetcher.fetchBidderPlaintext(
+      const tech = await this.plaintextFetcher.fetchBidderPlaintext(
         bidSupplierId,
         'technical',
       );
+      const techBuffer = tech?.buffer ?? Buffer.from('');
+      techFileId = tech?.fileId ?? null;
       const techOcr = await processFile(this.ocrService, techBuffer, 'technical.pdf');
 
       let businessText: string | null = null;
       try {
-        const bizBuffer = await this.plaintextFetcher.fetchBidderPlaintext(
+        const biz = await this.plaintextFetcher.fetchBidderPlaintext(
           bidSupplierId,
           'business',
         );
-        const bizOcr = await processFile(this.ocrService, bizBuffer, 'business.pdf');
+        const bizBuffer = biz?.buffer ?? Buffer.from('');
+        bizFileId = biz?.fileId ?? null;
+        bizOcr = await processFile(this.ocrService, bizBuffer, 'business.pdf');
         businessText = bizOcr.text;
       } catch (e) {
         this.logger.warn(
@@ -242,6 +253,37 @@ export class BidderProcessor extends WorkerHost {
         );
       }
 
+      // Task 7: 条款-响应定位（requirementResponses）— 评分后、final update 前
+      let requirementResponses: any[] = [];
+      try {
+        const techPages = (techOcr.pages ?? []).map((p: any) => ({
+          file: 'technical',
+          page: p.page,
+          text: p.text,
+        }));
+        const bizPages =
+          businessText && bizOcr?.pages
+            ? (bizOcr.pages ?? []).map((p: any) => ({
+                file: 'business',
+                page: p.page,
+                text: p.text,
+              }))
+            : [];
+        if (task.requirements) {
+          requirementResponses = await this.requirementMatcher.match(
+            task.requirements as any,
+            [...techPages, ...bizPages],
+            { technical: techFileId, business: bizFileId },
+            taskId,
+          );
+        }
+      } catch (e) {
+        // matcher 失败非致命 — 记日志后继续（不阻塞评分/报告）
+        this.logger.warn(
+          `bidderResult ${bidderResultId}: requirement matching failed: ${(e as Error).message.slice(0, 150)}`,
+        );
+      }
+
       await this.prisma.aiBidderResult.update({
         where: { id: bidderResultId },
         data: {
@@ -265,6 +307,7 @@ export class BidderProcessor extends WorkerHost {
             weaknesses,
             keyObservations,
           } as any,
+          requirementResponses: requirementResponses as any,
           status: AiBidderStatus.COMPLETED,
           processedAt: new Date(),
         },

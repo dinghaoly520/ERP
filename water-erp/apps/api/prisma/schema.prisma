@@ -148,6 +148,7 @@ model AiBidderResult {
   keyInfo             Json? // 融合后展示对象（权威源 + 一致性标注）
   // per-item 评分（对齐 BidScoreItem，核心）
   scoreItems          Json? // [{scoreItemId, category, name, score, maxScore, reason, evidence, confidence}]
+  requirementResponses Json? // 条款-响应定位（matcher 产物）
   categoryTotals      Json? // { QUALIFICATION:{score,max}, RESPONSIVE:{...}, ... }
   starredResponse     Json? // ★ 方案1收尾：★号实质性条款响应核查 { allMet: boolean, unmet?: string[] }
   totalScore          Decimal?       @db.Decimal(5, 2)
@@ -167,6 +168,7 @@ model AiBidderResult {
   task        AiBidAnalysisTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   bidSupplier BidSupplier          @relation(fields: [bidSupplierId], references: [id], onDelete: Cascade)
   concordance AiConcordanceResult?
+  reviews     BidRequirementReview[]
 
   @@unique([taskId, bidSupplierId])
   @@index([taskId])
@@ -248,6 +250,7 @@ model BidProject {
   supervisionAnnotations BidSupervisionAnnotation[]
   supplierSubmissions    SupplierBidSubmission[]
   procurementProject     ProcurementProject?
+  reviews                BidRequirementReview[]
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
 
@@ -333,6 +336,7 @@ model BidExpert {
   user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   project               BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scoreRecords          BidScoreRecord[]
+  reviews               BidRequirementReview[]
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
@@ -1125,4 +1129,24 @@ model AssistantActionLog {
   executedAt     DateTime?
 
   @@index([status])
+}
+
+model BidRequirementReview {
+  id             String   @id @default(cuid())
+  projectId      String
+  bidderResultId String
+  expertId       String
+  requirementId  String
+  category       String
+  verdict        String // ack | dispute | doubt
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  project       BidProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bidderResult  AiBidderResult @relation(fields: [bidderResultId], references: [id], onDelete: Cascade)
+  expert        BidExpert      @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, bidderResultId, expertId, requirementId])
+  @@map("bid_requirement_reviews")
 }

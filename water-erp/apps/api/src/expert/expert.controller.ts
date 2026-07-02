@@ -7,6 +7,7 @@ import { ExpertService } from './expert.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
+import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
 import { ConfirmReportDto } from './dto/confirm-report.dto';
 import { ConfirmAvoidanceDto } from './dto/confirm-avoidance.dto';
 
@@ -86,6 +87,22 @@ export class ExpertController {
     res.send(buffer);
   }
 
+  /* ── 投标文件解密下载（专家预览投标人 PDF）── */
+  @ApiOperation({ summary: '解密下载投标文件 PDF（inline 预览）' })
+  @Get('projects/:projectId/suppliers/:supplierId/documents/:fileId/download')
+  async downloadBidDocument(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Param('supplierId') supplierId: string,
+    @Param('fileId') fileId: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, fileName, mimeType } = await this.expertService.downloadBidDocument(userId, projectId, supplierId, fileId);
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    res.send(buffer);
+  }
+
   /* ── 辅助评标 ── */
 
   /** 跨供应商对比概览 — 必须在 :supplierId 路由前注册，否则 "compare" 会被当作 supplierId */
@@ -104,6 +121,30 @@ export class ExpertController {
     @Param('supplierId') supplierId: string,
   ) {
     return this.expertService.getAssistData(userId, projectId, supplierId);
+  }
+
+  /* ── 招标条款标注（本人 CRUD，Task 9）── 子路径 reviews 必须在 assist/:supplierId 之后、
+   *   assist/compare 之前注册（assist/compare 已在更上方，此处不影响）。── */
+
+  @ApiOperation({ summary: '本人条款标注列表（仅当前专家）' })
+  @Get('projects/:projectId/assist/:supplierId/reviews')
+  listReviews(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Param('supplierId') supplierId: string,
+  ) {
+    return this.expertService.listRequirementReviews(userId, projectId, supplierId);
+  }
+
+  @ApiOperation({ summary: 'Upsert 本人条款标注（幂等：同一 requirementId 覆盖）' })
+  @Post('projects/:projectId/assist/:supplierId/reviews')
+  upsertReview(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Param('supplierId') supplierId: string,
+    @Body() dto: UpsertRequirementReviewDto,
+  ) {
+    return this.expertService.upsertRequirementReview(userId, projectId, supplierId, dto);
   }
 
   /* ── 专家打分 ── */
