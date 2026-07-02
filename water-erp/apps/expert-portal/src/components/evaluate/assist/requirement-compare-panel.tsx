@@ -154,7 +154,7 @@ export function RequirementComparePanel({
   return (
     <div className={isFs ? 'fixed inset-0 z-50 bg-white p-4 space-y-2' : 'relative space-y-2'}>
       <button onClick={toggleFs} title={isFs ? '退出全屏' : '全屏'}
-        className="absolute top-2 right-2 z-20 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 border border-[oklch(0.91_0.006_264)] text-[oklch(0.45_0.01_264)] hover:bg-white hover:text-[var(--color-primary)] transition-colors shadow-sm">
+        className="absolute bottom-2 right-2 z-20 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 border border-[oklch(0.91_0.006_264)] text-[oklch(0.45_0.01_264)] hover:bg-white hover:text-[var(--color-primary)] transition-colors shadow-sm">
         {isFs ? <Minimize2 size={15} strokeWidth={1.5} /> : <Maximize2 size={15} strokeWidth={1.5} />}
       </button>
       <PanelGroup orientation="horizontal" className="gap-0" style={{ height: isFs ? 'calc(100vh - 32px)' : 'calc(100vh - 150px)', minHeight: '460px' }}>
