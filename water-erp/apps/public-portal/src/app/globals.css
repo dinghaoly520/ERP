@@ -1598,7 +1598,7 @@ a.group:hover::after {
 .announce-tabs {
   display: flex;
   gap: 6px;
-  background: #f0f3f8;
+  background: #eef1f6;
   padding: 4px;
   border-radius: 10px;
 }
@@ -1612,10 +1612,13 @@ a.group:hover::after {
   font-size: 14px;
   font-weight: 600;
   color: #5a6d8a;
-  background: transparent;
+  background: #f8faff;
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  box-shadow:
+    2px 2px 4px oklch(0.55 0.03 258 / 0.12),
+    -1px -1px 3px oklch(1 0 0 / 0.9);
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   white-space: nowrap;
   min-height: 36px;
@@ -1623,13 +1626,17 @@ a.group:hover::after {
 
 .announce-tab:hover:not(.is-active) {
   color: #064ea2;
-  background: rgba(255, 255, 255, 0.7);
+  background: #fff;
+  transform: translateY(-1px);
+  box-shadow:
+    3px 3px 6px oklch(0.55 0.03 258 / 0.16),
+    -2px -2px 5px oklch(1 0 0 / 0.95);
 }
 
 .announce-tab.is-active {
   box-shadow:
-    0 2px 8px color-mix(in srgb, var(--tab-color, #064ea2) 35%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--tab-color, #064ea2) 20%, transparent);
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.18),
+    inset -2px -2px 5px oklch(1 0 0 / 0.6);
   transform: scale(1.02);
 }
 
