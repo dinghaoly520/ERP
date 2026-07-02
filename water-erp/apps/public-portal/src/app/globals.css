@@ -1566,25 +1566,12 @@ a.group:hover::after {
 
 /* 网格纹理装饰 */
 .announce-deco-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(6, 78, 162, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(6, 78, 162, 0.025) 1px, transparent 1px);
-  background-size: 48px 48px;
-  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 20%, transparent 70%);
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 20%, transparent 70%);
-  pointer-events: none;
+  display: none;
 }
 
 /* 角落光晕 */
 .announce-deco-glow {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 40% 50% at 8% 10%, rgba(6, 78, 162, 0.04), transparent 60%),
-    radial-gradient(ellipse 35% 45% at 92% 85%, rgba(8, 145, 178, 0.03), transparent 60%);
+  display: none;
 }
 
 /* ── 标题装饰 ── */
@@ -2545,6 +2532,13 @@ a.group:hover::after {
   0%   { background-position: 0% 50%; }
   50%  { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+
+/* 顶部栏底边光影漂移 */
+@keyframes header-edge-flow {
+  0%   { background-position: 200% 50%; opacity: 0.6; }
+  50%  { background-position: 0% 50%; opacity: 1; }
+  100% { background-position: -200% 50%; opacity: 0.6; }
 }
 
 /* Subtle breathing glow for the search icon when idle */

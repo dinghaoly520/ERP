@@ -176,7 +176,13 @@ export function UnifiedHeader({
   const placeholder = PLACEHOLDERS[placeholderIdx];
 
   return (
-    <header className="sticky top-0 z-50 bg-[oklch(0.55,0.06,258)/0.92] backdrop-blur-[24px] saturate-[170%] shadow-[0_1px_0_oklch(1,0,0/0.15),0_4px_16px_oklch(0.45,0.1,258/0.14)]" style={{ willChange: 'transform', WebkitBackdropFilter: 'blur(24px) saturate(170%)' }}>
+    <header className="sticky top-0 z-50 bg-[#e2f5f6]" style={{ willChange: 'transform' }}>
+      {/* 底部动态光影线 — 青色调 */}
+      <div className="absolute bottom-0 left-0 right-0 h-px z-30" style={{
+        background: 'linear-gradient(90deg, transparent 0%, #5ecfd6 20%, #3db8c4 40%, #a8f0f0 50%, #3db8c4 60%, #5ecfd6 80%, transparent 100%)',
+        backgroundSize: '200% 100%',
+        animation: 'header-edge-flow 4s ease-in-out infinite',
+      }} />
       <div className="relative">
         <div className="absolute inset-0 bg-transparent" />
         <FluidHeader />
@@ -187,12 +193,11 @@ export function UnifiedHeader({
             <img src="/assets/logo.png" alt="四川水发集团" className="h-[45px] w-auto object-contain" />
             <div className="flex flex-col gap-0">
               <strong
-                className="whitespace-nowrap text-[27px] font-black leading-tight tracking-[0.10em] text-white"
-                style={{ fontFamily: '"SimHei","黑体","Heiti SC","STHeiti",sans-serif' }}
+                className="whitespace-nowrap text-[27px] font-black leading-tight tracking-[0.10em] text-[#072e30]"
               >
                 四川水发集团
               </strong>
-              <small className="whitespace-nowrap text-[7px] font-medium tracking-wide text-white/60">
+              <small className="whitespace-nowrap text-[7px] font-medium tracking-wide text-[#8a96aa]">
                 SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.
               </small>
             </div>
@@ -205,13 +210,13 @@ export function UnifiedHeader({
           <div
             className={`rounded-lg p-[1px] ${
               showDropdown
-                ? 'shadow-[0_4px_20px_rgba(6,78,162,.10),0_0_0_4px_rgba(6,78,162,.04)]'
-                : 'shadow-none hover:shadow-[0_4px_16px_rgba(6,78,162,.06),0_0_0_2px_rgba(6,78,162,.02)]'
+                ? 'shadow-[0_4px_20px_rgba(8,145,160,.10),0_0_0_4px_rgba(8,145,160,.04)]'
+                : 'shadow-none hover:shadow-[0_4px_16px_rgba(8,145,160,.06),0_0_0_2px_rgba(8,145,160,.02)]'
             }`}
             style={{
               backgroundImage: showDropdown
-                ? 'linear-gradient(110deg, #bfd5ee, #064ea2 20%, #0b63ce 40%, #0891b2 60%, #0b63ce 80%, #bfd5ee)'
-                : 'linear-gradient(110deg, #dce3eb 0%, #c8d6e6 20%, #bccbde 40%, #cbd5e1 60%, #d3dce8 80%, #dce3eb 100%)',
+                ? 'linear-gradient(110deg, #b5e8e0, #0891a0 20%, #0d9488 40%, #06b6d4 60%, #0d9488 80%, #b5e8e0)'
+                : 'linear-gradient(110deg, #dce8e8 0%, #c8dedc 20%, #bcd4d2 40%, #cbdcd8 60%, #d3e4e0 80%, #dce8e8 100%)',
               backgroundSize: '300% 100%',
               animation: `search-border-flow ${showDropdown ? '2.2s' : '6s'} ease-in-out infinite`,
             }}
@@ -262,7 +267,7 @@ export function UnifiedHeader({
               onClick={() => executeSearch(query)}
               className={`group relative h-8 shrink-0 overflow-hidden rounded-r-[7px] text-xs font-bold transition-all duration-300 active:scale-95 ${
                 hasInput
-                  ? 'bg-gradient-to-r from-[#064ea2] to-[#0b63ce] text-white shadow-[0_1px_3px_rgba(6,78,162,.15)] hover:shadow-[0_2px_8px_rgba(6,78,162,.25)] hover:from-[#05428a] hover:to-[#0a56b3]'
+                  ? 'bg-gradient-to-r from-[#0891a0] to-[#0d9488] text-white shadow-[0_1px_3px_rgba(8,145,160,.15)] hover:shadow-[0_2px_8px_rgba(8,145,160,.25)] hover:from-[#067d8a] hover:to-[#0b8074]'
                   : 'bg-[#e9ecf2] text-[#5a6d8a] hover:bg-[#dde1e8] hover:text-[#18243a]'
               }`}
             >
@@ -270,7 +275,7 @@ export function UnifiedHeader({
               <span
                 className="pointer-events-none absolute inset-0 rounded-[inherit]"
                 style={{
-                  background: 'radial-gradient(circle at center, rgba(6,78,162,0.18) 0%, transparent 70%)',
+                  background: 'radial-gradient(circle at center, rgba(8,145,160,0.18) 0%, transparent 70%)',
                   animation: 'dingdang-breathe 2.2s ease-in-out infinite',
                 }}
                 aria-hidden="true"
@@ -350,14 +355,14 @@ export function UnifiedHeader({
             onMouseLeave={handleMenuLeave}
           >
             <button
-              className="flex items-center gap-1 px-4 py-2 text-[14px] font-semibold tracking-wide text-white/80 hover:text-white transition-colors duration-200 whitespace-nowrap"
+              className="flex items-center gap-1 px-4 py-2 text-[14px] font-semibold tracking-wide text-[#072e30] hover:text-[#0d9488] transition-colors duration-200 whitespace-nowrap"
               aria-expanded={activeMenu === 'about'}
             >
               集团简介
               <svg
                 width="10" height="10" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className={`mt-px transition-transform duration-300 ${activeMenu === 'about' ? 'rotate-180 text-[#064ea2]' : 'text-[#b0bcc9]'}`}
+                className={`mt-px transition-transform duration-300 ${activeMenu === 'about' ? 'rotate-180 text-[#0891a0]' : 'text-[#b0bcc9]'}`}
               >
                 <polyline points="6 9 12 15 18 9" />
               </svg>
@@ -375,12 +380,12 @@ export function UnifiedHeader({
                 <span className="text-[10px] font-bold tracking-[0.16em] text-[#bcc6d4] uppercase">集团概况</span>
               </div>
               <a href="/about" target="_blank" rel="noopener noreferrer"
-                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#064ea2] transition-colors duration-150"
+                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#0891a0] transition-colors duration-150"
               >
                 集团概况
               </a>
               <a href="https://www.scsfjt.com/" target="_blank" rel="noopener noreferrer"
-                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#064ea2] transition-colors duration-150"
+                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#0891a0] transition-colors duration-150"
               >
                 集团官网
               </a>
@@ -394,14 +399,14 @@ export function UnifiedHeader({
             onMouseLeave={handleMenuLeave}
           >
             <button
-              className="flex items-center gap-1 px-4 py-2 text-[14px] font-semibold tracking-wide text-white/80 hover:text-white transition-colors duration-200 whitespace-nowrap"
+              className="flex items-center gap-1 px-4 py-2 text-[14px] font-semibold tracking-wide text-[#072e30] hover:text-[#0d9488] transition-colors duration-200 whitespace-nowrap"
               aria-expanded={activeMenu === 'contact'}
             >
               联系我们
               <svg
                 width="10" height="10" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className={`mt-px transition-transform duration-300 ${activeMenu === 'contact' ? 'rotate-180 text-[#064ea2]' : 'text-[#b0bcc9]'}`}
+                className={`mt-px transition-transform duration-300 ${activeMenu === 'contact' ? 'rotate-180 text-[#0891a0]' : 'text-[#b0bcc9]'}`}
               >
                 <polyline points="6 9 12 15 18 9" />
               </svg>
@@ -419,12 +424,12 @@ export function UnifiedHeader({
                 <span className="text-[10px] font-bold tracking-[0.16em] text-[#bcc6d4] uppercase">联系方式</span>
               </div>
               <a href="/contact"
-                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#064ea2] transition-colors duration-150"
+                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#0891a0] transition-colors duration-150"
               >
                 联系方式
               </a>
               <a href="/contact/visitor"
-                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#064ea2] transition-colors duration-150"
+                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#0891a0] transition-colors duration-150"
               >
                 来访接待
               </a>

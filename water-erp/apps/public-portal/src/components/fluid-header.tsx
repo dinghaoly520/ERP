@@ -32,13 +32,13 @@ export default function FluidHeader() {
       color: { r: 0, g: 0, b: 0 },
     };
 
-    // ── Color palette — 蓝青橙柔和系
+    // ── Color palette — 浅青水色系
     const palette: ColorRGB[] = [
-      { r: 0.08, g: 0.12, b: 0.32 },   // 深蓝
-      { r: 0.06, g: 0.18, b: 0.24 },   // 青蓝
-      { r: 0.20, g: 0.12, b: 0.05 },   // 暖橙
-      { r: 0.12, g: 0.08, b: 0.22 },   // 紫蓝
-      { r: 0.04, g: 0.16, b: 0.18 },   // 水绿
+      { r: 0.04, g: 0.20, b: 0.22 },   // 深青
+      { r: 0.06, g: 0.24, b: 0.26 },   // 湖蓝
+      { r: 0.05, g: 0.18, b: 0.20 },   // 水绿深
+      { r: 0.08, g: 0.22, b: 0.28 },   // 青蓝
+      { r: 0.03, g: 0.22, b: 0.20 },   // 薄荷绿
     ];
     let colorIdx = 0;
     const pickColor = (): ColorRGB => {

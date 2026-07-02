@@ -197,7 +197,6 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
           <div className="absolute inset-0" style={{
             background: 'linear-gradient(90deg,rgba(246,250,255,.95) 0%,rgba(246,250,255,.88) 35%,rgba(246,250,255,.5) 60%,rgba(246,250,255,.15) 100%)',
           }}>
-            {/* 所有图都渲染，由 .hero-slide 的 CSS 动画驱动轮播（不依赖客户端 JS）。 */}
             {heroImages.map((src, i) => (
               <img
                 key={src}
@@ -290,11 +289,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
         </section>
 
         {/* ═══════════════════ 公告信息（主角）═══════════════════ */}
-        <section className="announce-section relative z-10 overflow-hidden">
-          {/* 装饰背景 */}
-          <div className="announce-deco-grid" />
-          <div className="announce-deco-glow" />
-
+        <section className="relative z-10 py-14 overflow-hidden">
           <div className="relative z-10 px-[clamp(40px,4vw,72px)]">
             {/* ── 标题栏 ── */}
             <div className="flex items-center justify-between mb-8">
@@ -466,7 +461,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
         <div className="fixed inset-0 z-[100] flex" onClick={() => setModal(null)}>
           <div className="absolute inset-0 bg-[rgba(3,17,38,.46)] backdrop-blur-sm" />
           <div className="relative m-auto w-[min(620px,calc(100vw-36px))] max-h-[86vh] overflow-auto glass rounded-[10px] shadow-[0_30px_90px_rgba(0,0,0,.26)] p-[34px]" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModal(null)} className="absolute right-4 top-2.5 w-9 h-9 text-[26px] text-[#7d8798] hover:text-[#064ea2]">×</button>
+            <button onClick={() => setModal(null)} className="absolute right-4 top-2.5 w-9 h-9 text-[26px] text-[#7d8798] hover:text-[#0891a0]">×</button>
 
             {modal === 'login' ? (
               <>
