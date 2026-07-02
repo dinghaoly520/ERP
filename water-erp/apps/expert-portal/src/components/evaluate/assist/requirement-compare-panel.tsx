@@ -1,6 +1,6 @@
 // requirement-compare-panel.tsx
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2 } from 'lucide-react';
 import type { RequirementResponse, BidRequirementReview } from '@water-erp/shared';
@@ -57,6 +57,12 @@ export function RequirementComparePanel({
 
   const [isFs, setIsFs] = useState(false);
   const toggleFs = () => setIsFs((f) => !f);
+  useEffect(() => {
+    if (!isFs) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsFs(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isFs]);
 
   // ── 左栏双模式：「条款清单」（默认） / 「招标文件」（参考视图，不改中/右） ──
   const [leftMode, setLeftMode] = useState<'list' | 'tender'>('list');
