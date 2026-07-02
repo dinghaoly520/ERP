@@ -383,7 +383,7 @@ export default function ExpertEvaluatePage() {
 
   useEffect(() => {
     if (step === 'documents' && project) loadAllDocuments();
-    if (step === 'assist' && activeSupplier) loadAssist(activeSupplier);
+    if ((step === 'assist' || step === 'compare') && activeSupplier) loadAssist(activeSupplier);
   }, [step, activeSupplier, project]);
 
   const handleSubmitScores = async () => {
