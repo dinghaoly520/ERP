@@ -1,0 +1,538 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+@import "tailwindcss";
+
+/* =============================================================================
+   智慧水发 ERP — Design Tokens (Refined Industrial)
+   ============================================================================= */
+
+:root {
+  --color-bg: oklch(0.982 0.003 264);
+  --color-surface: oklch(1 0 0);
+  --color-border: oklch(0.91 0.006 264);
+  --color-text: oklch(0.18 0.012 265);
+  --color-text-secondary: oklch(0.45 0.01 264);
+  --color-text-tertiary: oklch(0.62 0.008 264);
+  --color-blue-950: oklch(0.18 0.045 262);
+  --color-blue-700: oklch(0.42 0.14 260);
+  --color-blue-600: oklch(0.50 0.16 258);
+  --color-success: oklch(0.54 0.16 158);
+  --color-warning: oklch(0.64 0.16 82);
+  --color-danger: oklch(0.50 0.18 22);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 0.8125rem;
+  color: var(--color-text);
+  background:
+    radial-gradient(ellipse at 10% 0%, rgba(195, 220, 252, 0.54) 0%, transparent 44%),
+    radial-gradient(ellipse at 90% 16%, rgba(210, 195, 250, 0.40) 0%, transparent 44%),
+    radial-gradient(ellipse at 38% 93%, rgba(185, 235, 228, 0.42) 0%, transparent 46%),
+    radial-gradient(ellipse at 93% 76%, rgba(252, 210, 220, 0.28) 0%, transparent 40%),
+    linear-gradient(135deg,
+      rgba(235, 243, 254, 0.64) 0%,
+      rgba(245, 249, 255, 0.72) 30%,
+      rgba(243, 249, 254, 0.68) 60%,
+      rgba(232, 241, 252, 0.64) 100%);
+  -webkit-font-smoothing: antialiased;
+}
+
+.workbench-page-bg {
+  background:
+    radial-gradient(ellipse at 5% 0%, rgba(6, 78, 162, 0.08), transparent 38%),
+    radial-gradient(ellipse at 92% 6%, rgba(11, 99, 206, 0.06), transparent 32%),
+    radial-gradient(ellipse at 50% 98%, rgba(14, 98, 208, 0.04), transparent 40%),
+    linear-gradient(180deg,
+      rgba(240, 247, 255, 0.82) 0%,
+      rgba(245, 249, 254, 0.86) 50%,
+      rgba(242, 247, 253, 0.82) 100%);
+  backdrop-filter: blur(44px) saturate(1.12);
+  -webkit-backdrop-filter: blur(44px) saturate(1.12);
+}
+
+
+.workbench-input {
+  border: 1px solid #dbe6f3;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.625rem 0.75rem;
+  color: #18243a;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.workbench-input:focus {
+  border-color: #0b63ce;
+  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.12);
+}
+
+.workbench-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.workbench-table thead tr {
+  border-bottom: 1px solid #e5ecf4;
+  color: #5a6d8a;
+  text-align: left;
+}
+
+.workbench-table thead {
+  background: transparent;
+}
+
+.workbench-table th,
+.workbench-table td {
+  padding: 0.875rem 1.25rem;
+}
+
+.workbench-table tbody tr {
+  border-bottom: 1px solid #eef3f8;
+  background: transparent;
+}
+
+.workbench-table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Interactive Effects — Global
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Shared animations ── */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes table-row-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Card entrance (staggered) ── */
+.card-enter {
+  animation: fade-in-up 0.35s ease both;
+}
+
+.card-enter:nth-child(1)  { animation-delay: 0.00s; }
+.card-enter:nth-child(2)  { animation-delay: 0.05s; }
+.card-enter:nth-child(3)  { animation-delay: 0.10s; }
+.card-enter:nth-child(4)  { animation-delay: 0.15s; }
+.card-enter:nth-child(5)  { animation-delay: 0.20s; }
+.card-enter:nth-child(6)  { animation-delay: 0.25s; }
+.card-enter:nth-child(7)  { animation-delay: 0.30s; }
+.card-enter:nth-child(8)  { animation-delay: 0.35s; }
+
+/* ── Section entrance ── */
+.section-enter {
+  animation: fade-in-up 0.4s ease both;
+}
+
+/* ── Modal backdrop + content ── */
+.modal-backdrop {
+  animation: fade-in 0.15s ease both;
+}
+
+.modal-content {
+  animation: scale-in 0.2s ease both;
+}
+
+/* ── Button press effect ── */
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+.btn-press {
+  transition: transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+/* ── Input focus glow ── */
+.input-glow {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.input-glow:focus {
+  border-color: #0b63ce;
+  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.10);
+  background: #fff;
+}
+
+/* ── Workbench select (like input-glow) ── */
+select.workbench-input {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+select.workbench-input:focus {
+  border-color: #0b63ce;
+  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.10);
+  background: #fff;
+}
+
+/* ── Filter / tab active indicator ── */
+.tab-underline {
+  position: relative;
+}
+
+.tab-underline::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 14px;
+  right: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: #064ea2;
+  transform: scaleX(0);
+  transition: transform 0.2s ease;
+}
+
+.tab-underline.active::after {
+  transform: scaleX(1);
+}
+
+/* ── Range slider enhanced ── */
+input[type="range"].range-enhanced {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: #e5ecf4;
+  outline: none;
+  transition: background 0.15s ease;
+}
+
+input[type="range"].range-enhanced::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #064ea2;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="range"].range-enhanced::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+input[type="range"].range-enhanced::-webkit-slider-thumb:active {
+  transform: scale(1.05);
+}
+
+/* ── Progress bar fill animation ── */
+.progress-fill {
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Status badge pulse (attention) ── */
+.status-pulse {
+  animation: pulse-dot 2s ease infinite;
+}
+
+/* ── Skeleton loading shimmer ── */
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e8ecf1 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease infinite;
+  border-radius: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Table styles
+   ═══════════════════════════════════════════════════════════ */
+
+.workbench-table tbody tr {
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  animation: table-row-enter 0.25s ease both;
+}
+
+.workbench-table tbody tr:hover {
+  background: rgba(248, 251, 255, 0.50);
+}
+
+.workbench-table tbody tr:active {
+  background: #e8f1fb;
+}
+
+/* clickable / navigable row */
+.workbench-table tbody tr.row-clickable {
+  cursor: pointer;
+}
+
+/* sortable column header */
+.workbench-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.workbench-table th.sortable:hover {
+  color: #064ea2;
+  background: #eaf1fb;
+}
+
+/* sticky header wrapper */
+.workbench-table-sticky thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: transparent;
+}
+
+/* staggered row delays */
+.workbench-table tbody tr:nth-child(1)  { animation-delay: 0.00s; }
+.workbench-table tbody tr:nth-child(2)  { animation-delay: 0.03s; }
+.workbench-table tbody tr:nth-child(3)  { animation-delay: 0.06s; }
+.workbench-table tbody tr:nth-child(4)  { animation-delay: 0.09s; }
+.workbench-table tbody tr:nth-child(5)  { animation-delay: 0.12s; }
+.workbench-table tbody tr:nth-child(6)  { animation-delay: 0.15s; }
+.workbench-table tbody tr:nth-child(7)  { animation-delay: 0.18s; }
+.workbench-table tbody tr:nth-child(8)  { animation-delay: 0.21s; }
+
+/* Transparent scrollbar track — prevent glass-card glow from bleeding through */
+* {
+  scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.45);
+}
+.workbench-table tbody tr:nth-child(9)  { animation-delay: 0.24s; }
+.workbench-table tbody tr:nth-child(10) { animation-delay: 0.27s; }
+.workbench-table tbody tr:nth-child(n+11) { animation-delay: 0.30s; }
+
+/* Brand gradient text animation */
+@keyframes brandShift {
+  0% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+  100% { background-position: 0% center; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Glass Morphism Design System
+   ═══════════════════════════════════════════════════════════ */
+
+@keyframes glass-glow-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(1.2%, -0.8%) scale(1.02); }
+  50%      { transform: translate(-0.6%, 1%) scale(1.01); }
+  75%      { transform: translate(0.4%, -0.4%) scale(1.015); }
+}
+
+@keyframes glass-glow-drift-reverse {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(-1%, 0.6%) scale(1.02); }
+  50%      { transform: translate(0.8%, -0.8%) scale(1.01); }
+  75%      { transform: translate(-0.5%, 0.5%) scale(1.015); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   KPI Card — Light Flow & Dynamic Effects
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Diagonal light sweep across card surface ── */
+@keyframes kpi-shine-flow {
+  0%   { left: -120%; opacity: 0; }
+  12%  { opacity: 1; }
+  35%  { left: 120%; opacity: 1; }
+  36%  { opacity: 0; }
+  100% { left: 120%; opacity: 0; }
+}
+
+@keyframes kpi-shine-flow-reverse {
+  0%   { right: -120%; opacity: 0; }
+  8%   { opacity: 0; }
+  20%  { opacity: 1; }
+  42%  { right: 120%; opacity: 1; }
+  43%  { opacity: 0; }
+  100% { right: 120%; opacity: 0; }
+}
+
+@keyframes kpi-number-land {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes kpi-glow-pulse {
+  0%, 100% { box-shadow: 0 1px 2px rgba(15, 35, 65, 0.02), 0 4px 16px rgba(91, 155, 213, 0.04); }
+  50%      { box-shadow: 0 1px 2px rgba(15, 35, 65, 0.03), 0 6px 24px rgba(91, 155, 213, 0.09); }
+}
+
+.kpi-card-shine {
+  overflow: hidden;
+}
+
+.kpi-card-shine::after {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: -120%;
+  width: 70%;
+  height: 120%;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 18%,
+    rgba(255, 255, 255, 0.28) 38%,
+    rgba(255, 255, 255, 0.42) 50%,
+    rgba(255, 255, 255, 0.28) 62%,
+    rgba(255, 255, 255, 0.08) 82%,
+    transparent 100%
+  );
+  transform: skewX(-22deg);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.kpi-card-shine:nth-child(1)::after  { animation: kpi-shine-flow 5.5s ease-in-out infinite; }
+.kpi-card-shine:nth-child(2)::after  { animation: kpi-shine-flow 5.8s ease-in-out 1.3s infinite; }
+.kpi-card-shine:nth-child(3)::after  { animation: kpi-shine-flow-reverse 6.2s ease-in-out 0.7s infinite; }
+.kpi-card-shine:nth-child(4)::after  { animation: kpi-shine-flow 5.2s ease-in-out 2.1s infinite; }
+
+/* digital number land animation */
+.kpi-number-animate {
+  display: inline-block;
+  animation: kpi-number-land 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Base glass card ── */
+.glass-card {
+  --glass-alpha: 0.78;
+  position: relative;
+  background-color: transparent;
+  background-image:
+    radial-gradient(ellipse at 24% 8%, rgba(147, 197, 253, 0.15), transparent 52%),
+    radial-gradient(ellipse at 82% 22%, rgba(196, 181, 253, 0.12), transparent 54%),
+    radial-gradient(ellipse at 46% 94%, rgba(167, 243, 208, 0.11), transparent 50%),
+    linear-gradient(rgba(255, 255, 255, var(--glass-alpha)), rgba(255, 255, 255, var(--glass-alpha)));
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 1px 2px rgba(15, 35, 65, 0.02),
+    0 4px 16px rgba(91, 155, 213, 0.04);
+}
+
+.glass-card::before { content: none; }
+
+/* ── 透明/深度变体 ── */
+.glass-card-deeper { --glass-alpha: 0.85; backdrop-filter: blur(20px) saturate(1.2); -webkit-backdrop-filter: blur(20px) saturate(1.2); }
+.glass-card-lighter { --glass-alpha: 0.62; backdrop-filter: blur(12px) saturate(1.15); -webkit-backdrop-filter: blur(12px) saturate(1.15); }
+
+/* ── 色调变体 ── */
+.glass-card-blue {
+  background-image:
+    radial-gradient(ellipse at 24% 10%, rgba(96, 165, 250, 0.18), transparent 54%),
+    radial-gradient(ellipse at 80% 20%, rgba(125, 211, 252, 0.11), transparent 50%),
+    radial-gradient(ellipse at 44% 92%, rgba(186, 230, 253, 0.13), transparent 48%),
+    linear-gradient(rgba(255, 255, 255, var(--glass-alpha)), rgba(255, 255, 255, var(--glass-alpha)));
+}
+
+.glass-card-purple {
+  background-image:
+    radial-gradient(ellipse at 18% 14%, rgba(168, 139, 250, 0.16), transparent 54%),
+    radial-gradient(ellipse at 86% 18%, rgba(196, 167, 250, 0.10), transparent 50%),
+    radial-gradient(ellipse at 40% 90%, rgba(221, 214, 254, 0.13), transparent 46%),
+    linear-gradient(rgba(255, 255, 255, var(--glass-alpha)), rgba(255, 255, 255, var(--glass-alpha)));
+}
+
+.glass-card-emerald {
+  background-image:
+    radial-gradient(ellipse at 22% 12%, rgba(52, 211, 153, 0.15), transparent 52%),
+    radial-gradient(ellipse at 78% 18%, rgba(110, 231, 183, 0.10), transparent 50%),
+    radial-gradient(ellipse at 48% 94%, rgba(167, 243, 208, 0.14), transparent 48%),
+    linear-gradient(rgba(255, 255, 255, var(--glass-alpha)), rgba(255, 255, 255, var(--glass-alpha)));
+}
+
+.glass-card-amber {
+  background-image:
+    radial-gradient(ellipse at 20% 10%, rgba(251, 191, 36, 0.13), transparent 52%),
+    radial-gradient(ellipse at 84% 20%, rgba(252, 211, 77, 0.09), transparent 50%),
+    radial-gradient(ellipse at 42% 88%, rgba(253, 230, 138, 0.11), transparent 46%),
+    linear-gradient(rgba(255, 255, 255, var(--glass-alpha)), rgba(255, 255, 255, var(--glass-alpha)));
+}
+
+.glass-card-rose {
+  background-image:
+    radial-gradient(ellipse at 18% 12%, rgba(251, 113, 133, 0.12), transparent 52%),
+    radial-gradient(ellipse at 82% 16%, rgba(253, 164, 175, 0.09), transparent 50%),
+    radial-gradient(ellipse at 44% 90%, rgba(254, 205, 211, 0.10), transparent 46%),
+    linear-gradient(rgba(255, 255, 255, var(--glass-alpha)), rgba(255, 255, 255, var(--glass-alpha)));
+}
+
+/* ── 表内透明化（玻璃卡片内部表格）── */
+.glass-table thead {
+  background: rgba(255, 255, 255, 0.40);
+  backdrop-filter: blur(4px);
+}
+
+.glass-table tbody tr {
+  background: transparent;
+}
+
+.glass-table tbody tr:hover {
+  background: rgba(248, 251, 255, 0.70);
+}
+
+/* ── 无障碍降级 ── */
+@media (prefers-reduced-motion: reduce) {
+  .glass-glow-drift,
+  .glass-glow-drift-reverse {
+    animation: none !important;
+  }
+}
+
+/* ── Rich text editor placeholder ── */
+[data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+}

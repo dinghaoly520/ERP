@@ -27,6 +27,18 @@ import { AiBidAnalysisModule } from './ai-bid-analysis/ai-bid-analysis.module';
 import { BullModule } from '@nestjs/bullmq';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+// ── 采购中心迁入模块 ──
+import { ContactsModule } from './contacts/contacts.module';
+import { UserSettingsModule } from './user-settings/user-settings.module';
+import { TenderSampleModule } from './tender-sample/tender-sample.module';
+import { TenderHistoryModule } from './tender-history/tender-history.module';
+import { ProgressModule } from './progress/progress.module';
+import { ImportsModule } from './imports/imports.module';
+import { WorkArrangementsModule } from './work-arrangements/work-arrangements.module';
+import { ProjectManagementModule } from './project-management/project-management.module';
+import { KnowledgeModule } from './knowledge/knowledge.module';
+import { TenderReviewModule } from './tender-review/tender-review.module';
+import { TenderWriteModule } from './tender-write/tender-write.module';
 
 @Module({
   imports: [
@@ -59,6 +71,18 @@ import { RolesGuard } from './common/guards/roles.guard';
     LocalAiModule,
     StorageModule,
     AiBidAnalysisModule,
+    // ── 采购中心迁入模块 ──
+    ContactsModule,
+    UserSettingsModule,
+    TenderSampleModule,
+    TenderHistoryModule,
+    ProgressModule,
+    ImportsModule,
+    WorkArrangementsModule,
+    ProjectManagementModule,
+    KnowledgeModule,
+    TenderReviewModule,
+    TenderWriteModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

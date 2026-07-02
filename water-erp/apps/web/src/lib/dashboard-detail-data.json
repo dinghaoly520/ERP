@@ -1,0 +1,1086 @@
+{
+  "supplierDetails": [
+    {
+      "id": "四川省第十二地质大队",
+      "name": "四川省第十二地质大队",
+      "participatedCount": 2,
+      "winCount": 1,
+      "awardAmount": 272.0,
+      "awardAmountLabel": "272.0 万",
+      "detail": {
+        "topMethod": "内部竞标",
+        "topDepartment": "勘察分院",
+        "hitRate": 50,
+        "recentProcurements": [
+          {
+            "project": "引大济岷工程XDZK4、LXZK1、SPDZK8、SPDZK9和SPDZK13五个钻孔施工技术服务",
+            "date": "2026.3.3（星期二）",
+            "method": "内部竞标",
+            "department": "勘察分院",
+            "budgetLabel": "273.0 万",
+            "result": "2720000"
+          },
+          {
+            "project": "引大济岷工程大坪隧ZK2和大坪隧ZK3两个钻孔施工技术服务",
+            "date": "2026.3.6（星期五）",
+            "method": "内部竞标",
+            "department": "勘察分院",
+            "budgetLabel": "94.8 万",
+            "result": "超最高限价"
+          }
+        ],
+        "winProjects": [
+          {
+            "project": "引大济岷工程XDZK4、LXZK1、SPDZK8、SPDZK9和SPDZK13五个钻孔施工技术服务",
+            "date": "2026.3.3（星期二）",
+            "method": "内部竞标",
+            "department": "勘察分院",
+            "awardAmountLabel": "272.0 万"
+          }
+        ],
+        "tags": [
+          "勘察分院重点参与",
+          "内部竞标优势"
+        ]
+      },
+      "ai": {
+        "summary": "四川省第十二地质大队 近阶段参与 2 个采购事项，中标 1 个，主活跃于 勘察分院，主要采购方式为 内部竞标。",
+        "strengths": [
+          "承担项目金额较高，具备承接重点项目能力",
+          "在 勘察分院 业务条线参与度较高"
+        ],
+        "risks": [
+          "曾出现“超最高限价”类结果，需重点跟踪"
+        ],
+        "recommendation": "建议继续观察其报价竞争力与资格稳定性，再决定是否进入重点合作池。"
+      }
+    },
+    {
+      "id": "四川大学",
+      "name": "四川大学",
+      "participatedCount": 11,
+      "winCount": 5,
+      "awardAmount": 226.7,
+      "awardAmountLabel": "226.7 万",
+      "detail": {
+        "topMethod": "竞争性谈判",
+        "topDepartment": "工程设计院",
+        "hitRate": 45,
+        "recentProcurements": [
+          {
+            "project": "引大济岷工程拉塔河电站输水发电系统水力过渡过程计算分析专题",
+            "date": "2026.2.28（星期六）",
+            "method": "竞争性谈判",
+            "department": "机电",
+            "budgetLabel": "27.8 万",
+            "result": "资格审查未通过"
+          },
+          {
+            "project": "引大济岷工程拉塔河电站输水发电系统水力过渡过程计算分析专题",
+            "date": "2026.3.13（星期五）",
+            "method": "竞争性谈判",
+            "department": "机电",
+            "budgetLabel": "27.8 万",
+            "result": "235000"
+          },
+          {
+            "project": "引大济岷工程6#苗溪农场弃渣场排洪隧洞水力学模型试验专题",
+            "date": "2026.3.13（星期五）",
+            "method": "竞争性谈判",
+            "department": "环保",
+            "budgetLabel": "49.0 万",
+            "result": "443000"
+          },
+          {
+            "project": "引大济岷工程泸定取水口水工模型试验研究专题",
+            "date": "2026.03.17（星期二）",
+            "method": "内部竞标",
+            "department": "工程设计院",
+            "budgetLabel": "106.9 万",
+            "result": "1044000"
+          }
+        ],
+        "winProjects": [
+          {
+            "project": "引大济岷工程拉塔河电站输水发电系统水力过渡过程计算分析专题",
+            "date": "2026.3.13（星期五）",
+            "method": "竞争性谈判",
+            "department": "机电",
+            "awardAmountLabel": "23.5 万"
+          },
+          {
+            "project": "引大济岷工程6#苗溪农场弃渣场排洪隧洞水力学模型试验专题",
+            "date": "2026.3.13（星期五）",
+            "method": "竞争性谈判",
+            "department": "环保",
+            "awardAmountLabel": "44.3 万"
+          },
+          {
+            "project": "引大济岷工程泸定取水口水工模型试验研究专题",
+            "date": "2026.03.17（星期二）",
+            "method": "内部竞标",
+            "department": "工程设计院",
+            "awardAmountLabel": "104.4 万"
+          }
+        ],
+        "tags": [
+          "工程设计院重点参与",
+          "竞争性谈判优势"
+        ]
+      },
+      "ai": {
+        "summary": "四川大学 近阶段参与 11 个采购事项，中标 5 个，主活跃于 工程设计院，主要采购方式为 竞争性谈判。",
+        "strengths": [
+          "成交转化稳定，适合持续纳入核心资源池",
+          "承担项目金额较高，具备承接重点项目能力",
+          "在 工程设计院 业务条线参与度较高"
+        ],
+        "risks": [
+          "曾出现“资格审查未通过”类结果，需重点跟踪"
+        ],
+        "recommendation": "建议纳入重点供应商观察名单，结合近期成交与响应质量决定是否提升合作优先级。"
+      }
+    },
+    {
+      "id": "扬州市松田液压机械有限公司",
+      "name": "扬州市松田液压机械有限公司",
+      "participatedCount": 1,
+      "winCount": 1,
+      "awardAmount": 220.4,
+      "awardAmountLabel": "220.4 万",
+      "detail": {
+        "topMethod": "邀请招标",
+        "topDepartment": "工程设计院",
+        "hitRate": 100,
+        "recentProcurements": [
+          {
+            "project": "盐源县龙塘水库及灌区工程\n灌区铸铁闸门（拦污栅）及启闭设备采购",
+            "date": "2026.04.07（星期二）",
+            "method": "邀请招标",
+            "department": "工程设计院",
+            "budgetLabel": "256.3 万",
+            "result": "2203580"
+          }
+        ],
+        "winProjects": [
+          {
+            "project": "盐源县龙塘水库及灌区工程\n灌区铸铁闸门（拦污栅）及启闭设备采购",
+            "date": "2026.04.07（星期二）",
+            "method": "邀请招标",
+            "department": "工程设计院",
+            "awardAmountLabel": "220.4 万"
+          }
+        ],
+        "tags": [
+          "工程设计院重点参与",
+          "邀请招标优势"
+        ]
+      },
+      "ai": {
+        "summary": "扬州市松田液压机械有限公司 近阶段参与 1 个采购事项，中标 1 个，主活跃于 工程设计院，主要采购方式为 邀请招标。",
+        "strengths": [
+          "承担项目金额较高，具备承接重点项目能力",
+          "在 工程设计院 业务条线参与度较高"
+        ],
+        "risks": [
+          "当前未见明显异常，建议保持跟踪履约与响应时效"
+        ],
+        "recommendation": "建议继续观察其报价竞争力与资格稳定性，再决定是否进入重点合作池。"
+      }
+    },
+    {
+      "id": "中国市政工程西南设计研究总院有限公司",
+      "name": "中国市政工程西南设计研究总院有限公司",
+      "participatedCount": 1,
+      "winCount": 1,
+      "awardAmount": 188.0,
+      "awardAmountLabel": "188.0 万",
+      "detail": {
+        "topMethod": "内部竞标",
+        "topDepartment": "工程勘察院",
+        "hitRate": 100,
+        "recentProcurements": [
+          {
+            "project": "引大济岷南干线平原段地下管线探测及地下空间调查专题",
+            "date": "2026.04.02（星期四）",
+            "method": "内部竞标",
+            "department": "工程勘察院",
+            "budgetLabel": "287.0 万",
+            "result": "1880000"
+          }
+        ],
+        "winProjects": [
+          {
+            "project": "引大济岷南干线平原段地下管线探测及地下空间调查专题",
+            "date": "2026.04.02（星期四）",
+            "method": "内部竞标",
+            "department": "工程勘察院",
+            "awardAmountLabel": "188.0 万"
+          }
+        ],
+        "tags": [
+          "工程勘察院重点参与",
+          "内部竞标优势"
+        ]
+      },
+      "ai": {
+        "summary": "中国市政工程西南设计研究总院有限公司 近阶段参与 1 个采购事项，中标 1 个，主活跃于 工程勘察院，主要采购方式为 内部竞标。",
+        "strengths": [
+          "承担项目金额较高，具备承接重点项目能力",
+          "在 工程勘察院 业务条线参与度较高"
+        ],
+        "risks": [
+          "当前未见明显异常，建议保持跟踪履约与响应时效"
+        ],
+        "recommendation": "建议继续观察其报价竞争力与资格稳定性，再决定是否进入重点合作池。"
+      }
+    },
+    {
+      "id": "四川省地质工程勘察院集团有限公司",
+      "name": "四川省地质工程勘察院集团有限公司",
+      "participatedCount": 6,
+      "winCount": 3,
+      "awardAmount": 175.2,
+      "awardAmountLabel": "175.2 万",
+      "detail": {
+        "topMethod": "竞争性谈判",
+        "topDepartment": "勘察分院",
+        "hitRate": 50,
+        "recentProcurements": [
+          {
+            "project": "引大济岷工程隧洞砂砾岩岩溶灾害防控对策研究专题",
+            "date": "2026.2.27（星期五）",
+            "method": "竞争性谈判",
+            "department": "勘察分院",
+            "budgetLabel": "49.6 万",
+            "result": "资格审查未通过"
+          },
+          {
+            "project": "引大济岷工程初设压覆矿复核调查评价",
+            "date": "2026.3.4（星期三）",
+            "method": "竞争性谈判",
+            "department": "移民",
+            "budgetLabel": "48.0 万",
+            "result": "资格审查未通过"
+          },
+          {
+            "project": "引大济岷工程隧洞砂砾岩岩溶灾害防控对策研究专题",
+            "date": "2026.3.5（星期四）",
+            "method": "竞争性谈判",
+            "department": "勘察分院",
+            "budgetLabel": "49.6 万",
+            "result": "480000"
+          },
+          {
+            "project": "引大济岷工程莲隧ZK1、莲隧ZK31、莲隧ZK33、莲隧ZK34和莲隧ZK36五个钻孔施工技术服务",
+            "date": "2026.3.6（星期五）",
+            "method": "内部竞标",
+            "department": "勘察分院",
+            "budgetLabel": "79.7 万",
+            "result": "788580"
+          }
+        ],
+        "winProjects": [
+          {
+            "project": "引大济岷工程莲隧ZK1、莲隧ZK31、莲隧ZK33、莲隧ZK34和莲隧ZK36五个钻孔施工技术服务",
+            "date": "2026.3.6（星期五）",
+            "method": "内部竞标",
+            "department": "勘察分院",
+            "awardAmountLabel": "78.9 万"
+          },
+          {
+            "project": "引大济岷工程初设压覆矿复核调查评价",
+            "date": "2026.3.13（星期五）",
+            "method": "竞争性谈判",
+            "department": "移民",
+            "awardAmountLabel": "47.5 万"
+          },
+          {
+            "project": "拉塔河消能电站地下厂房平硐地应力测试钻孔施工技术服务",
+            "date": "2026.04.01（星期三）",
+            "method": "内部竞标",
+            "department": "工程勘察院",
+            "awardAmountLabel": "48.9 万"
+          }
+        ],
+        "tags": [
+          "勘察分院重点参与",
+          "竞争性谈判优势"
+        ]
+      },
+      "ai": {
+        "summary": "四川省地质工程勘察院集团有限公司 近阶段参与 6 个采购事项，中标 3 个，主活跃于 勘察分院，主要采购方式为 竞争性谈判。",
+        "strengths": [
+          "成交转化稳定，适合持续纳入核心资源池",
+          "承担项目金额较高，具备承接重点项目能力",
+          "在 勘察分院 业务条线参与度较高"
+        ],
+        "risks": [
+          "曾出现“资格审查未通过”类结果，需重点跟踪"
+        ],
+        "recommendation": "建议纳入重点供应商观察名单，结合近期成交与响应质量决定是否提升合作优先级。"
+      }
+    },
+    {
+      "id": "成都金天徕奥科技有限公司",
+      "name": "成都金天徕奥科技有限公司",
+      "participatedCount": 1,
+      "winCount": 1,
+      "awardAmount": 158.8,
+      "awardAmountLabel": "158.8 万",
+      "detail": {
+        "topMethod": "邀请招标",
+        "topDepartment": "水科所",
+        "hitRate": 100,
+        "recentProcurements": [
+          {
+            "project": "大坝自动化监测系统及附属设施建设服务项目",
+            "date": "2026.2.26（星期四）",
+            "method": "邀请招标",
+            "department": "水科所",
+            "budgetLabel": "179.1 万",
+            "result": "1588148"
+          }
+        ],
+        "winProjects": [
+          {
+            "project": "大坝自动化监测系统及附属设施建设服务项目",
+            "date": "2026.2.26（星期四）",
+            "method": "邀请招标",
+            "department": "水科所",
+            "awardAmountLabel": "158.8 万"
+          }
+        ],
+        "tags": [
+          "水科所重点参与",
+          "邀请招标优势"
+        ]
+      },
+      "ai": {
+        "summary": "成都金天徕奥科技有限公司 近阶段参与 1 个采购事项，中标 1 个，主活跃于 水科所，主要采购方式为 邀请招标。",
+        "strengths": [
+          "承担项目金额较高，具备承接重点项目能力",
+          "在 水科所 业务条线参与度较高"
+        ],
+        "risks": [
+          "当前未见明显异常，建议保持跟踪履约与响应时效"
+        ],
+        "recommendation": "建议继续观察其报价竞争力与资格稳定性，再决定是否进入重点合作池。"
+      }
+    },
+    {
+      "id": "成都智辰科技有限公司",
+      "name": "成都智辰科技有限公司",
+      "participatedCount": 1,
+      "winCount": 1,
+      "awardAmount": 121.0,
+      "awardAmountLabel": "121.0 万",
+      "detail": {
+        "topMethod": "续约",
+        "topDepartment": "数字信息化院",
+        "hitRate": 100,
+        "recentProcurements": [
+          {
+            "project": "Autodesk（BIM）桌面端软件续约租赁",
+            "date": "2026.03.19（星期四）",
+            "method": "续约",
+            "department": "数字信息化院",
+            "budgetLabel": "124.0 万",
+            "result": "1210000"
+          }
+        ],
+        "winProjects": [
+          {
+            "project": "Autodesk（BIM）桌面端软件续约租赁",
+            "date": "2026.03.19（星期四）",
+            "method": "续约",
+            "department": "数字信息化院",
+            "awardAmountLabel": "121.0 万"
+          }
+        ],
+        "tags": [
+          "数字信息化院重点参与",
+          "续约优势"
+        ]
+      },
+      "ai": {
+        "summary": "成都智辰科技有限公司 近阶段参与 1 个采购事项，中标 1 个，主活跃于 数字信息化院，主要采购方式为 续约。",
+        "strengths": [
+          "承担项目金额较高，具备承接重点项目能力",
+          "在 数字信息化院 业务条线参与度较高"
+        ],
+        "risks": [
+          "当前未见明显异常，建议保持跟踪履约与响应时效"
+        ],
+        "recommendation": "建议继续观察其报价竞争力与资格稳定性，再决定是否进入重点合作池。"
+      }
+    },
+    {
+      "id": "长江水利委员会长江科学院",
+      "name": "长江水利委员会长江科学院",
+      "participatedCount": 1,
+      "winCount": 1,
+      "awardAmount": 120.0,
+      "awardAmountLabel": "120.0 万",
+      "detail": {
+        "topMethod": "内部竞标",
+        "topDepartment": "勘察分院",
+        "hitRate": 100,
+        "recentProcurements": [
+          {
+            "project": "引大济岷工程地应力测试及地应力场反演专题技术服务",
+            "date": "2026.3.5（星期四）",
+            "method": "内部竞标",
+            "department": "勘察分院",
+            "budgetLabel": "185.0 万",
+            "result": "1200000"
+          }
+        ],
+        "winProjects": [
+          {
+            "project": "引大济岷工程地应力测试及地应力场反演专题技术服务",
+            "date": "2026.3.5（星期四）",
+            "method": "内部竞标",
+            "department": "勘察分院",
+            "awardAmountLabel": "120.0 万"
+          }
+        ],
+        "tags": [
+          "勘察分院重点参与",
+          "内部竞标优势"
+        ]
+      },
+      "ai": {
+        "summary": "长江水利委员会长江科学院 近阶段参与 1 个采购事项，中标 1 个，主活跃于 勘察分院，主要采购方式为 内部竞标。",
+        "strengths": [
+          "承担项目金额较高，具备承接重点项目能力",
+          "在 勘察分院 业务条线参与度较高"
+        ],
+        "risks": [
+          "当前未见明显异常，建议保持跟踪履约与响应时效"
+        ],
+        "recommendation": "建议继续观察其报价竞争力与资格稳定性，再决定是否进入重点合作池。"
+      }
+    },
+    {
+      "id": "山东大学",
+      "name": "山东大学",
+      "participatedCount": 1,
+      "winCount": 1,
+      "awardAmount": 98.0,
+      "awardAmountLabel": "98.0 万",
+      "detail": {
+        "topMethod": "内部竞标",
+        "topDepartment": "工程勘分院",
+        "hitRate": 100,
+        "recentProcurements": [
+          {
+            "project": "引大济岷工程隧洞超前地质预报专项设计",
+            "date": "2026.03.24（星期二）",
+            "method": "内部竞标",
+            "department": "工程勘分院",
+            "budgetLabel": "115.5 万",
+            "result": "980000"
+          }
+        ],
+        "winProjects": [
+          {
+            "project": "引大济岷工程隧洞超前地质预报专项设计",
+            "date": "2026.03.24（星期二）",
+            "method": "内部竞标",
+            "department": "工程勘分院",
+            "awardAmountLabel": "98.0 万"
+          }
+        ],
+        "tags": [
+          "工程勘分院重点参与",
+          "内部竞标优势"
+        ]
+      },
+      "ai": {
+        "summary": "山东大学 近阶段参与 1 个采购事项，中标 1 个，主活跃于 工程勘分院，主要采购方式为 内部竞标。",
+        "strengths": [
+          "在 工程勘分院 业务条线参与度较高"
+        ],
+        "risks": [
+          "当前未见明显异常，建议保持跟踪履约与响应时效"
+        ],
+        "recommendation": "建议继续观察其报价竞争力与资格稳定性，再决定是否进入重点合作池。"
+      }
+    },
+    {
+      "id": "成都理工大学",
+      "name": "成都理工大学",
+      "participatedCount": 6,
+      "winCount": 2,
+      "awardAmount": 96.0,
+      "awardAmountLabel": "96.0 万",
+      "detail": {
+        "topMethod": "竞争性谈判",
+        "topDepartment": "勘察分院",
+        "hitRate": 33,
+        "recentProcurements": [
+          {
+            "project": "引大济岷工程隧洞砂砾岩岩溶灾害防控对策研究专题",
+            "date": "2026.2.27（星期五）",
+            "method": "竞争性谈判",
+            "department": "勘察分院",
+            "budgetLabel": "49.6 万",
+            "result": "资格审查未通过"
+          },
+          {
+            "project": "引大济岷工程隧洞砂砾岩岩溶灾害防控对策研究专题",
+            "date": "2026.3.5（星期四）",
+            "method": "竞争性谈判",
+            "department": "勘察分院",
+            "budgetLabel": "49.6 万",
+            "result": "480000"
+          },
+          {
+            "project": "引大济岷隧洞进出口高陡边坡精细化评价专题技术服务",
+            "date": "2026.3.5（星期四）",
+            "method": "竞争性谈判",
+            "department": "勘察分院",
+            "budgetLabel": "49.5 万",
+            "result": "资格审查未通过"
+          },
+          {
+            "project": "引大济岷隧洞进出口高陡边坡精细化评价专题技术服务",
+            "date": "2026.03.20（星期五）",
+            "method": "竞争性谈判",
+            "department": "勘察分院",
+            "budgetLabel": "49.5 万",
+            "result": "采购文件需修改"
+          }
+        ],
+        "winProjects": [
+          {
+            "project": "引大济岷工程隧洞砂砾岩岩溶灾害防控对策研究专题",
+            "date": "2026.3.5（星期四）",
+            "method": "竞争性谈判",
+            "department": "勘察分院",
+            "awardAmountLabel": "48.0 万"
+          },
+          {
+            "project": "引大济岷隧洞进出口高陡边坡精细化评价专题技术服务",
+            "date": "2026.03.26（星期四）",
+            "method": "竞争性谈判",
+            "department": "勘察分院",
+            "awardAmountLabel": "48.0 万"
+          }
+        ],
+        "tags": [
+          "勘察分院重点参与",
+          "竞争性谈判优势"
+        ]
+      },
+      "ai": {
+        "summary": "成都理工大学 近阶段参与 6 个采购事项，中标 2 个，主活跃于 勘察分院，主要采购方式为 竞争性谈判。",
+        "strengths": [
+          "在 勘察分院 业务条线参与度较高"
+        ],
+        "risks": [
+          "参与项目较多但转化偏低，需复核报价或资质策略",
+          "曾出现“资格审查未通过”类结果，需重点跟踪"
+        ],
+        "recommendation": "建议纳入重点供应商观察名单，结合近期成交与响应质量决定是否提升合作优先级。"
+      }
+    },
+    {
+      "id": "华北水利水电大学",
+      "name": "华北水利水电大学",
+      "participatedCount": 3,
+      "winCount": 2,
+      "awardAmount": 78.0,
+      "awardAmountLabel": "78.0 万",
+      "detail": {
+        "topMethod": "内部竞标",
+        "topDepartment": "工程设计院",
+        "hitRate": 67,
+        "recentProcurements": [
+          {
+            "project": "引大济岷工程泸定取水口边坡\n稳定性分析及加固措施研究专题",
+            "date": "2026.03.27（星期五）",
+            "method": "竞争性谈判",
+            "department": "工程设计院",
+            "budgetLabel": "41.3 万",
+            "result": "290000"
+          },
+          {
+            "project": "引大济岷工程拉塔河消能电站地下洞室施工期通风计算专题技术服务",
+            "date": "2026.03.27（星期五）",
+            "method": "内部竞标",
+            "department": "施工设计院",
+            "budgetLabel": "65.0 万",
+            "result": "490000"
+          },
+          {
+            "project": "引大济岷工程南干线输水管道水锤分析及防控专题研究",
+            "date": "2026.04.02（星期四）",
+            "method": "内部竞标",
+            "department": "工程设计院",
+            "budgetLabel": "95.0 万",
+            "result": "未按要求响应采购文件"
+          }
+        ],
+        "winProjects": [
+          {
+            "project": "引大济岷工程泸定取水口边坡\n稳定性分析及加固措施研究专题",
+            "date": "2026.03.27（星期五）",
+            "method": "竞争性谈判",
+            "department": "工程设计院",
+            "awardAmountLabel": "29.0 万"
+          },
+          {
+            "project": "引大济岷工程拉塔河消能电站地下洞室施工期通风计算专题技术服务",
+            "date": "2026.03.27（星期五）",
+            "method": "内部竞标",
+            "department": "施工设计院",
+            "awardAmountLabel": "49.0 万"
+          }
+        ],
+        "tags": [
+          "工程设计院重点参与",
+          "内部竞标优势"
+        ]
+      },
+      "ai": {
+        "summary": "华北水利水电大学 近阶段参与 3 个采购事项，中标 2 个，主活跃于 工程设计院，主要采购方式为 内部竞标。",
+        "strengths": [
+          "在 工程设计院 业务条线参与度较高"
+        ],
+        "risks": [
+          "曾出现“未按要求响应采购文件”类结果，需重点跟踪"
+        ],
+        "recommendation": "建议纳入重点供应商观察名单，结合近期成交与响应质量决定是否提升合作优先级。"
+      }
+    },
+    {
+      "id": "四川商儒文化传播有限公司",
+      "name": "四川商儒文化传播有限公司",
+      "participatedCount": 1,
+      "winCount": 1,
+      "awardAmount": 48.0,
+      "awardAmountLabel": "48.0 万",
+      "detail": {
+        "topMethod": "续约",
+        "topDepartment": "人资部",
+        "hitRate": 100,
+        "recentProcurements": [
+          {
+            "project": "2026年教育培训服务项目",
+            "date": "2026.3.11（星期三）",
+            "method": "续约",
+            "department": "人资部",
+            "budgetLabel": "48.4 万",
+            "result": "480000"
+          }
+        ],
+        "winProjects": [
+          {
+            "project": "2026年教育培训服务项目",
+            "date": "2026.3.11（星期三）",
+            "method": "续约",
+            "department": "人资部",
+            "awardAmountLabel": "48.0 万"
+          }
+        ],
+        "tags": [
+          "人资部重点参与",
+          "续约优势"
+        ]
+      },
+      "ai": {
+        "summary": "四川商儒文化传播有限公司 近阶段参与 1 个采购事项，中标 1 个，主活跃于 人资部，主要采购方式为 续约。",
+        "strengths": [
+          "在 人资部 业务条线参与度较高"
+        ],
+        "risks": [
+          "当前未见明显异常，建议保持跟踪履约与响应时效"
+        ],
+        "recommendation": "建议继续观察其报价竞争力与资格稳定性，再决定是否进入重点合作池。"
+      }
+    }
+  ],
+  "riskDetails": [
+    {
+      "id": "risk-1-引大济岷工程隧洞砂砾岩岩溶灾害防控对策研究专题",
+      "project": "引大济岷工程隧洞砂砾岩岩溶灾害防控对策研究专题",
+      "department": "勘察分院",
+      "reason": "资格审查未通过，当前预算 49.6 万",
+      "pendingDays": 7,
+      "severity": "高",
+      "detail": {
+        "date": "2026.2.27（星期五）",
+        "method": "竞争性谈判",
+        "budgetLabel": "49.6 万",
+        "result": "资格审查未通过",
+        "suppliers": [
+          "成都理工大学",
+          "西南交通大学",
+          "四川省地质工程勘察院集团有限公司"
+        ],
+        "nextAction": "复核资格门槛与响应文件完整性",
+        "history": [
+          {
+            "label": "发起采购",
+            "value": "2026.2.27（星期五）"
+          },
+          {
+            "label": "当前状态",
+            "value": "资格审查未通过"
+          },
+          {
+            "label": "责任部门",
+            "value": "勘察分院"
+          }
+        ]
+      },
+      "ai": {
+        "summary": "AI 判断该项目当前主要阻塞点为“资格审查未通过”，若不及时处理，预计会继续拉长采购闭环时间。",
+        "rootCause": "资格性文件或响应材料未满足审查要求，导致流程中断。",
+        "recommendations": [
+          "复核资格门槛与响应文件完整性",
+          "在下一轮采购前预审供应商资质材料"
+        ]
+      }
+    },
+    {
+      "id": "risk-2-引大济岷工程拉塔河电站输水发电系统水力过渡过程计算分析专题",
+      "project": "引大济岷工程拉塔河电站输水发电系统水力过渡过程计算分析专题",
+      "department": "机电",
+      "reason": "资格审查未通过，当前预算 27.8 万",
+      "pendingDays": 8,
+      "severity": "高",
+      "detail": {
+        "date": "2026.2.28（星期六）",
+        "method": "竞争性谈判",
+        "budgetLabel": "27.8 万",
+        "result": "资格审查未通过",
+        "suppliers": [
+          "四川大学",
+          "河海大学",
+          "武汉大学"
+        ],
+        "nextAction": "复核资格门槛与响应文件完整性",
+        "history": [
+          {
+            "label": "发起采购",
+            "value": "2026.2.28（星期六）"
+          },
+          {
+            "label": "当前状态",
+            "value": "资格审查未通过"
+          },
+          {
+            "label": "责任部门",
+            "value": "机电"
+          }
+        ]
+      },
+      "ai": {
+        "summary": "AI 判断该项目当前主要阻塞点为“资格审查未通过”，若不及时处理，预计会继续拉长采购闭环时间。",
+        "rootCause": "资格性文件或响应材料未满足审查要求，导致流程中断。",
+        "recommendations": [
+          "复核资格门槛与响应文件完整性",
+          "在下一轮采购前预审供应商资质材料"
+        ]
+      }
+    },
+    {
+      "id": "risk-3-引大济岷工程初设压覆矿复核调查评价",
+      "project": "引大济岷工程初设压覆矿复核调查评价",
+      "department": "移民",
+      "reason": "资格审查未通过，当前预算 48.0 万",
+      "pendingDays": 9,
+      "severity": "高",
+      "detail": {
+        "date": "2026.3.4（星期三）",
+        "method": "竞争性谈判",
+        "budgetLabel": "48.0 万",
+        "result": "资格审查未通过",
+        "suppliers": [
+          "四川省地质工程勘察院集团有限公司",
+          "四川煤田一四一建设投资有限公司",
+          "四川省华地建设工程有限责任公司"
+        ],
+        "nextAction": "复核资格门槛与响应文件完整性",
+        "history": [
+          {
+            "label": "发起采购",
+            "value": "2026.3.4（星期三）"
+          },
+          {
+            "label": "当前状态",
+            "value": "资格审查未通过"
+          },
+          {
+            "label": "责任部门",
+            "value": "移民"
+          }
+        ]
+      },
+      "ai": {
+        "summary": "AI 判断该项目当前主要阻塞点为“资格审查未通过”，若不及时处理，预计会继续拉长采购闭环时间。",
+        "rootCause": "资格性文件或响应材料未满足审查要求，导致流程中断。",
+        "recommendations": [
+          "复核资格门槛与响应文件完整性",
+          "在下一轮采购前预审供应商资质材料"
+        ]
+      }
+    },
+    {
+      "id": "risk-4-引大济岷隧洞进出口高陡边坡精细化评价专题技术服务",
+      "project": "引大济岷隧洞进出口高陡边坡精细化评价专题技术服务",
+      "department": "勘察分院",
+      "reason": "资格审查未通过，当前预算 49.5 万",
+      "pendingDays": 10,
+      "severity": "高",
+      "detail": {
+        "date": "2026.3.5（星期四）",
+        "method": "竞争性谈判",
+        "budgetLabel": "49.5 万",
+        "result": "资格审查未通过",
+        "suppliers": [
+          "成都理工大学",
+          "四川省华地建设工程有限责任公司",
+          "核工业西南勘察设计研究院有限公司"
+        ],
+        "nextAction": "复核资格门槛与响应文件完整性",
+        "history": [
+          {
+            "label": "发起采购",
+            "value": "2026.3.5（星期四）"
+          },
+          {
+            "label": "当前状态",
+            "value": "资格审查未通过"
+          },
+          {
+            "label": "责任部门",
+            "value": "勘察分院"
+          }
+        ]
+      },
+      "ai": {
+        "summary": "AI 判断该项目当前主要阻塞点为“资格审查未通过”，若不及时处理，预计会继续拉长采购闭环时间。",
+        "rootCause": "资格性文件或响应材料未满足审查要求，导致流程中断。",
+        "recommendations": [
+          "复核资格门槛与响应文件完整性",
+          "在下一轮采购前预审供应商资质材料"
+        ]
+      }
+    },
+    {
+      "id": "risk-5-引大济岷工程大坪隧zk2和大坪隧zk3两个钻孔施工技术服务",
+      "project": "引大济岷工程大坪隧ZK2和大坪隧ZK3两个钻孔施工技术服务",
+      "department": "勘察分院",
+      "reason": "超最高限价，当前预算 94.8 万",
+      "pendingDays": 11,
+      "severity": "高",
+      "detail": {
+        "date": "2026.3.6（星期五）",
+        "method": "内部竞标",
+        "budgetLabel": "94.8 万",
+        "result": "超最高限价",
+        "suppliers": [
+          "成都华建地质工程科技有限公司",
+          "四川省第四地质大队",
+          "四川省第十二地质大队"
+        ],
+        "nextAction": "重新核对控制价与报价策略",
+        "history": [
+          {
+            "label": "发起采购",
+            "value": "2026.3.6（星期五）"
+          },
+          {
+            "label": "当前状态",
+            "value": "超最高限价"
+          },
+          {
+            "label": "责任部门",
+            "value": "勘察分院"
+          }
+        ]
+      },
+      "ai": {
+        "summary": "AI 判断该项目当前主要阻塞点为“超最高限价”，若不及时处理，预计会继续拉长采购闭环时间。",
+        "rootCause": "报价或轮次策略与当前采购条件不匹配，造成流标或无效响应。",
+        "recommendations": [
+          "重新核对控制价与报价策略",
+          "提前进行轮次风险复盘"
+        ]
+      }
+    },
+    {
+      "id": "risk-6-大跨度拱式渡槽拱上结构加载顺序研究-科研项目设备及安装",
+      "project": "《大跨度拱式渡槽拱上结构加载顺序研究》科研项目设备及安装",
+      "department": "建设分公司",
+      "reason": "资格审查未通过，当前预算 21.0 万",
+      "pendingDays": 7,
+      "severity": "高",
+      "detail": {
+        "date": "2026.3.13（星期五）",
+        "method": "竞争性谈判",
+        "budgetLabel": "21.0 万",
+        "result": "资格审查未通过",
+        "suppliers": [
+          "瑞派尔（宜昌）科技集团股份有限公司",
+          "中国水利水电第七工程局有限公司",
+          "讯思科技有限公司"
+        ],
+        "nextAction": "复核资格门槛与响应文件完整性",
+        "history": [
+          {
+            "label": "发起采购",
+            "value": "2026.3.13（星期五）"
+          },
+          {
+            "label": "当前状态",
+            "value": "资格审查未通过"
+          },
+          {
+            "label": "责任部门",
+            "value": "建设分公司"
+          }
+        ]
+      },
+      "ai": {
+        "summary": "AI 判断该项目当前主要阻塞点为“资格审查未通过”，若不及时处理，预计会继续拉长采购闭环时间。",
+        "rootCause": "资格性文件或响应材料未满足审查要求，导致流程中断。",
+        "recommendations": [
+          "复核资格门槛与响应文件完整性",
+          "在下一轮采购前预审供应商资质材料"
+        ]
+      }
+    },
+    {
+      "id": "risk-7-引大济岷隧洞进出口高陡边坡精细化评价专题技术服务",
+      "project": "引大济岷隧洞进出口高陡边坡精细化评价专题技术服务",
+      "department": "勘察分院",
+      "reason": "采购文件需修改，当前预算 49.5 万",
+      "pendingDays": 8,
+      "severity": "中",
+      "detail": {
+        "date": "2026.03.20（星期五）",
+        "method": "竞争性谈判",
+        "budgetLabel": "49.5 万",
+        "result": "采购文件需修改",
+        "suppliers": [
+          "成都理工大学",
+          "四川大学",
+          "西南交通大学"
+        ],
+        "nextAction": "尽快锁定技术条款修改范围",
+        "history": [
+          {
+            "label": "发起采购",
+            "value": "2026.03.20（星期五）"
+          },
+          {
+            "label": "当前状态",
+            "value": "采购文件需修改"
+          },
+          {
+            "label": "责任部门",
+            "value": "勘察分院"
+          }
+        ]
+      },
+      "ai": {
+        "summary": "AI 判断该项目当前主要阻塞点为“采购文件需修改”，若不及时处理，预计会继续拉长采购闭环时间。",
+        "rootCause": "采购文件内容存在需要回炉修订的条款，影响继续发标。",
+        "recommendations": [
+          "尽快锁定技术条款修改范围",
+          "同步重新确认供应商邀请名单"
+        ]
+      }
+    },
+    {
+      "id": "risk-8-都江堰灌区现代化改造工程断面测量项目",
+      "project": "都江堰灌区现代化改造工程断面测量项目",
+      "department": "数字信息化院",
+      "reason": "未按要求胶封，当前预算 189.0 万",
+      "pendingDays": 9,
+      "severity": "中",
+      "detail": {
+        "date": "2026.03.30（星期一）",
+        "method": "内部竞标",
+        "budgetLabel": "189.0 万",
+        "result": "未按要求胶封",
+        "suppliers": [
+          "四川省华地建设工程有限责任公司",
+          "四川众维测绘有限公司",
+          "四川升发测绘有限公司"
+        ],
+        "nextAction": "补充投标要求提醒",
+        "history": [
+          {
+            "label": "发起采购",
+            "value": "2026.03.30（星期一）"
+          },
+          {
+            "label": "当前状态",
+            "value": "未按要求胶封"
+          },
+          {
+            "label": "责任部门",
+            "value": "数字信息化院"
+          }
+        ]
+      },
+      "ai": {
+        "summary": "AI 判断该项目当前主要阻塞点为“未按要求胶封”，若不及时处理，预计会继续拉长采购闭环时间。",
+        "rootCause": "供应商提交形式不符合要求，属于执行细节偏差。",
+        "recommendations": [
+          "补充投标要求提醒",
+          "对供应商提交规范进行二次确认"
+        ]
+      }
+    },
+    {
+      "id": "risk-9-引大济岷工程南干线输水管道水锤分析及防控专题研究",
+      "project": "引大济岷工程南干线输水管道水锤分析及防控专题研究",
+      "department": "工程设计院",
+      "reason": "未按要求响应采购文件，当前预算 95.0 万",
+      "pendingDays": 10,
+      "severity": "低",
+      "detail": {
+        "date": "2026.04.02（星期四）",
+        "method": "内部竞标",
+        "budgetLabel": "95.0 万",
+        "result": "未按要求响应采购文件",
+        "suppliers": [
+          "兰州理工大学",
+          "西安理工大学",
+          "华北水利水电大学",
+          "武汉大学"
+        ],
+        "nextAction": "重新核对控制价与报价策略",
+        "history": [
+          {
+            "label": "发起采购",
+            "value": "2026.04.02（星期四）"
+          },
+          {
+            "label": "当前状态",
+            "value": "未按要求响应采购文件"
+          },
+          {
+            "label": "责任部门",
+            "value": "工程设计院"
+          }
+        ]
+      },
+      "ai": {
+        "summary": "AI 判断该项目当前主要阻塞点为“未按要求响应采购文件”，若不及时处理，预计会继续拉长采购闭环时间。",
+        "rootCause": "报价或轮次策略与当前采购条件不匹配，造成流标或无效响应。",
+        "recommendations": [
+          "重新核对控制价与报价策略",
+          "提前进行轮次风险复盘"
+        ]
+      }
+    }
+  ]
+}

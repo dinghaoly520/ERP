@@ -1,0 +1,243 @@
+import {
+  PROJECT_STAGE_STATUS_LABELS,
+  type ProjectManagementStage,
+  type ProjectWorkflowStageKey,
+} from '@/lib/types/project-management';
+
+type ArchiveStepState = 'PENDING' | 'READY' | 'DONE';
+
+type TimelineEntryBase = {
+  key: string;
+  orderLabel: string;
+  title: string;
+  statusLabel: string;
+  summary: string;
+  toneClassName: string;
+  nodeClassName: string;
+  progressLabel: string;
+  progressClassName: string;
+  accentClassName: string;
+};
+
+type SelectableTimelineEntry = TimelineEntryBase & {
+  selectable: true;
+  stageKey: ProjectWorkflowStageKey;
+};
+
+type ArchiveTimelineEntry = TimelineEntryBase & {
+  selectable: false;
+};
+
+type TimelineEntry = SelectableTimelineEntry | ArchiveTimelineEntry;
+
+function getArchiveStepCopy(state: ArchiveStepState) {
+  switch (state) {
+    case 'DONE':
+      return '项目已归档完成';
+    case 'READY':
+      return '合同已完成，等待执行归档';
+    default:
+      return '合同完成后解锁';
+  }
+}
+
+function getArchiveStepStatusLabel(state: ArchiveStepState) {
+  switch (state) {
+    case 'DONE':
+      return '已归档';
+    case 'READY':
+      return '待归档';
+    default:
+      return '未解锁';
+  }
+}
+
+export function ProjectStageTimeline({
+  stages,
+  activeStageKey,
+  onSelect,
+  showArchiveStep,
+  archiveStepState,
+}: {
+  stages: ProjectManagementStage[];
+  activeStageKey: ProjectWorkflowStageKey;
+  onSelect: (stageKey: ProjectWorkflowStageKey) => void;
+  showArchiveStep: boolean;
+  archiveStepState: ArchiveStepState;
+}) {
+  const entries: TimelineEntry[] = stages.map((stage): SelectableTimelineEntry => {
+    const isCompleted = stage.status === 'COMPLETED';
+    const isInProgress = stage.status === 'IN_PROGRESS';
+
+    return {
+      key: stage.id,
+      orderLabel: String(stage.stageOrder).padStart(2, '0'),
+      title: stage.stageName,
+      statusLabel: PROJECT_STAGE_STATUS_LABELS[stage.status],
+      summary: isCompleted
+        ? '当前阶段已完成，可继续补充材料。'
+        : isInProgress
+          ? '当前推进阶段，完成后才会解锁下一步。'
+          : '等待上一阶段完成后解锁。',
+      toneClassName: isCompleted
+        ? 'pm-stage-card--completed'
+        : isInProgress
+          ? 'pm-stage-card--current'
+          : 'pm-stage-card--idle',
+      nodeClassName: isCompleted
+        ? 'pm-stage-node--completed'
+        : isInProgress
+          ? 'pm-stage-node--current'
+          : 'pm-stage-node--idle',
+      selectable: true,
+      stageKey: stage.stageKey,
+      progressLabel: isCompleted ? '已完成' : isInProgress ? '进行中' : '待解锁',
+      progressClassName: isCompleted
+        ? 'pm-stage-progress--completed'
+        : isInProgress
+          ? 'pm-stage-progress--current'
+          : 'pm-stage-progress--idle',
+      accentClassName: `pm-stage-accent--${stage.stageKey.toLowerCase()}`,
+    };
+  });
+
+  if (showArchiveStep) {
+    entries.push({
+      key: 'archive-step',
+      orderLabel: '归',
+      title: '归档完成',
+      statusLabel: getArchiveStepStatusLabel(archiveStepState),
+      summary: getArchiveStepCopy(archiveStepState),
+      toneClassName:
+        archiveStepState === 'DONE'
+          ? 'pm-stage-card--archive-done'
+          : 'pm-stage-card--archive-ready',
+      nodeClassName:
+        archiveStepState === 'DONE'
+          ? 'pm-stage-node--completed'
+          : 'pm-stage-node--archive',
+      selectable: false,
+      progressLabel:
+        archiveStepState === 'DONE'
+          ? '已归档'
+          : archiveStepState === 'READY'
+            ? '待确认'
+            : '未解锁',
+      progressClassName:
+        archiveStepState === 'DONE'
+          ? 'pm-stage-progress--archive-done'
+          : 'pm-stage-progress--archive-ready',
+      accentClassName: 'pm-stage-accent--archive',
+    } satisfies ArchiveTimelineEntry);
+  }
+
+  return (
+    <div className="pm-stage-rail px-1 py-1 sm:px-2">
+      <div className="pm-stage-track">
+        {entries.map((entry, index) => {
+          const isLastEntry = index === entries.length - 1;
+          const segmentClassName = [
+            'pm-stage-track__segment',
+            !isLastEntry ? 'pm-stage-track__segment--linked' : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+
+          if (entry.selectable) {
+            const isSelected = entry.stageKey === activeStageKey;
+            const stageKey = entry.stageKey;
+
+            return (
+              <div key={entry.key} className={segmentClassName}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(stageKey)}
+                  data-selected={isSelected}
+                  className={[
+                    'pm-stage-card interactive-surface group relative flex min-h-[172px] min-w-0 flex-1 flex-col rounded-[28px] px-4 py-4 text-left',
+                    entry.toneClassName,
+                  ].join(' ')}
+                >
+                  <span aria-hidden="true" className="pm-stage-card__flow" />
+                  <div className="flex items-start justify-between gap-3">
+                    <span
+                      className={[
+                        'pm-stage-node flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
+                        entry.nodeClassName,
+                      ].join(' ')}
+                    >
+                      {entry.orderLabel}
+                    </span>
+                    <div className="flex min-w-0 flex-col items-end gap-2 text-right">
+                      <span className={['pm-stage-progress', entry.progressClassName].join(' ')}>
+                        {entry.progressLabel}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex-1">
+                    <div className={['pm-stage-card__title text-[15px] font-semibold leading-6 sm:text-[15px]', entry.accentClassName].join(' ')}>
+                      {entry.title}
+                    </div>
+                    <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] sm:text-[11px]">
+                      {entry.statusLabel}
+                    </div>
+                    <div className="mt-3 text-xs leading-6 text-[color:var(--muted-foreground)] sm:text-xs">
+                      {entry.summary}
+                    </div>
+                  </div>
+                </button>
+              </div>
+            );
+          }
+
+          return (
+            <div key={entry.key} className={segmentClassName}>
+              <button
+                type="button"
+                data-archive-state={archiveStepState}
+                disabled
+                className={[
+                  'pm-stage-card group relative flex min-h-[172px] min-w-0 flex-1 cursor-default flex-col rounded-[28px] px-4 py-4 text-left',
+                  entry.toneClassName,
+                ].join(' ')}
+              >
+                <span
+                  aria-hidden="true"
+                  className={['pm-stage-card__flow', 'pm-stage-card__flow--archive'].join(' ')}
+                />
+                <div className="flex items-start justify-between gap-3">
+                  <span
+                    className={[
+                      'pm-stage-node flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
+                      entry.nodeClassName,
+                    ].join(' ')}
+                  >
+                    {entry.orderLabel}
+                  </span>
+                  <div className="flex min-w-0 flex-col items-end gap-2 text-right">
+                    <span className={['pm-stage-progress', entry.progressClassName].join(' ')}>
+                      {entry.progressLabel}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex-1">
+                  <div className={['pm-stage-card__title text-[15px] font-semibold leading-6 sm:text-[15px]', entry.accentClassName].join(' ')}>
+                    {entry.title}
+                  </div>
+                  <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] sm:text-[11px]">
+                    {entry.statusLabel}
+                  </div>
+                  <div className="mt-3 text-xs leading-6 text-[color:var(--muted-foreground)] sm:text-xs">
+                    {entry.summary}
+                  </div>
+                </div>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

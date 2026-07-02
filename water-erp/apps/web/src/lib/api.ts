@@ -46,5 +46,3 @@ export const api = {
   delete: <T>(path: string) =>
     fetchApi<T>(path, { method: 'DELETE' }),
 };
-
-export * from './api/supplier';

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { LlmService } from '../local-ai/llm.service';
 import { SupplierSelectionAiService } from './supplier-selection-ai.service';
 import type {
   ComplianceItem,
@@ -21,6 +22,7 @@ export class AiService {
   constructor(
     private prisma: PrismaService,
     private selectionAi: SupplierSelectionAiService,
+    private llm: LlmService,
   ) {}
 
   /* ━━━ 核心：对某供应商在某项目中的投标进行全方位 AI 分析 ━━━ */
@@ -890,5 +892,442 @@ export class AiService {
       : '各业务中心暂无活跃数据。建议按实际业务需求逐步初始化：信息发布中心录入首条公告、供应商管理中心注册首批供应商、专家管理中心建立专家库、电子商城导入目录数据。';
 
     return { overview, moduleInsights, crossInsight, highlights: [], suggestions: suggestions.slice(0, 4) };
+  }
+
+  /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     大屏 AI 分析面板 — 6 格 + 跑马灯
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+  async getBigscreenInsight() {
+    const logger = new Logger(AiService.name + '(bigscreen)');
+
+    const [budgetData, signedData, activeBids, supplierGroups, expiringQuals,
+      expertGroups, archiveGroups, decryptAnomalies, disputedConfirms,
+      topExpiringQuals, openingSessions, stalledProjects, recentProcurement,
+    ] = await Promise.all([
+      this.prisma.procurementProject.aggregate({ _sum: { budget: true }, _count: true }),
+      this.prisma.procurementProject.aggregate({ _sum: { budget: true }, where: { status: 'CONTRACTED' } }),
+      this.prisma.bidProject.findMany({
+        where: { stage: { in: ['OPENING', 'EVALUATING'] } },
+        select: { id: true, name: true, stage: true, budget: true,
+          _count: { select: { suppliers: true } } },
+        orderBy: { openTime: 'desc' }, take: 8,
+      }),
+      this.prisma.supplier.groupBy({ by: ['status'], _count: true }),
+      this.prisma.supplierQualification.count({
+        where: { validTo: { lt: new Date(Date.now() + 90 * 86400000), gte: new Date() } },
+      }),
+      this.prisma.expertProfile.groupBy({ by: ['availability'], _count: true }),
+      this.prisma.bidArchiveItem.groupBy({ by: ['status'], _count: true }),
+      // NEW: 解密异常供应商数
+      this.prisma.bidSupplier.count({ where: { decryptStatus: 'DANGER' } }),
+      // NEW: 确认争议数
+      this.prisma.bidSupplier.count({ where: { confirmStatus: 'DISPUTED' } }),
+      // NEW: 最紧急过期资质 top 5（含供应商名）
+      this.prisma.supplierQualification.findMany({
+        where: { validTo: { lt: new Date(Date.now() + 90 * 86400000), gte: new Date() } },
+        select: { name: true, validTo: true, supplier: { select: { name: true } } },
+        orderBy: { validTo: 'asc' }, take: 5,
+      }),
+      // NEW: 当前开标会话（含倒计时）
+      this.prisma.bidOpeningSession.findMany({
+        where: { status: 'OPENING' },
+        select: { projectId: true, remainingSeconds: true, project: { select: { name: true } } },
+        take: 5,
+      }),
+      // NEW: 项目阶段停滞（超过7天未更新）
+      this.prisma.bidProject.findMany({
+        where: { stage: { in: ['SUBMIT', 'OPENING', 'EVALUATING'] },
+          updatedAt: { lt: new Date(Date.now() - 7 * 86400000) } },
+        select: { name: true, stage: true, updatedAt: true },
+        take: 5,
+      }),
+      // NEW: 最近15条采购项目（用于趋势分析）
+      this.prisma.procurementProject.findMany({
+        select: { createdAt: true, budget: true, status: true },
+        orderBy: { createdAt: 'desc' }, take: 20,
+      }),
+    ]);
+
+    const fm = (n: number) => n >= 1e8 ? '¥' + (n / 1e8).toFixed(2) + '亿' : n >= 1e4 ? '¥' + Math.round(n / 1e4) + '万' : '¥' + n;
+    const gc = (arr: any[], s: string) => arr.find(x => x.status === s)?._count ?? 0;
+    const ga = (arr: any[], s: string) => arr.find(x => x.availability === s)?._count ?? 0;
+    const gz = (arr: any[], s: string) => arr.find(x => x.status === s)?._count ?? 0;
+
+    const totalBudget = Number(budgetData._sum.budget || 0);
+    const signedAmt = Number(signedData._sum.budget || 0);
+    const savings = totalBudget - signedAmt;
+    const pct = totalBudget > 0 ? Math.round(savings / totalBudget * 1000) / 10 : 0;
+    const supTotal = supplierGroups.reduce((a: number, x: any) => a + x._count, 0);
+    const supOk = gc(supplierGroups, 'APPROVED');
+    const supWait = gc(supplierGroups, 'PENDING');
+    const supOff = gc(supplierGroups, 'DISABLED');
+    const supBlock = gc(supplierGroups, 'BLACKLIST');
+    const expAvail = ga(expertGroups, '可用');
+    const expBusy = ga(expertGroups, '占用');
+    const expOff = ga(expertGroups, '停用');
+    const arcOk = gz(archiveGroups, 'COMPLETED');
+    const arcIng = gz(archiveGroups, 'IN_PROGRESS');
+    const arcNo = gz(archiveGroups, 'NOT_STARTED');
+    const arcAll = arcOk + arcIng + arcNo;
+    const stageCN: Record<string, string> = { OPENING: '开标', EVALUATING: '评标', SUBMIT: '提交' };
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+    // ── 趋势数据：按月分组最近6个月采购项目 ──
+    const monthlyBuckets: Record<string, number> = {};
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    for (const p of recentProcurement) {
+      const d = new Date(p.createdAt);
+      if (d >= sixMonthsAgo) {
+        const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        monthlyBuckets[key] = (monthlyBuckets[key] || 0) + 1;
+      }
+    }
+    const monthlyTrend = Object.entries(monthlyBuckets).sort().map(([m, c]) => m + ':' + c).join(',');
+    const maxMonthly = Math.max(1, ...Object.values(monthlyBuckets));
+
+    // ── 建设数据快照 ──
+    const snap = [
+      '【蜀水云采运营快照 ' + now.toLocaleDateString('zh-CN') + ' ' + timeStr + '】',
+      '',
+      '## 采购总览',
+      '项目总数:' + budgetData._count + ' | 预算总额:' + fm(totalBudget) + ' | 已签约:' + fm(signedAmt) + ' | 节资率:' + pct + '%',
+      '',
+      '## 月度采购趋势（近6月）',
+      monthlyTrend + ' (格式: YYYY-MM:项目数)',
+      '',
+      '## 活跃招标项目',
+      activeBids.map((b: any) => '- ' + b.name + ' ' + (stageCN[b.stage] || b.stage) + ' 预算' + fm(Number(b.budget)) + ' ' + b._count.suppliers + '家供方').join('\n') || '无',
+      '',
+      '## 供应商库',
+      '总数' + supTotal + ' | 已批准' + supOk + ' | 待审核' + supWait + ' | 停用' + supOff + ' | 黑名单' + supBlock,
+      '资质临期(90天内): ' + expiringQuals + ' 项',
+      '解密异常: ' + decryptAnomalies + ' 家 | 确认争议: ' + disputedConfirms + ' 家',
+      '',
+      '## 临期资质详情（最紧急）',
+      topExpiringQuals.map((q: any) => '- ' + q.supplier.name + ' - ' + q.name + ' 有效期至' + new Date(q.validTo).toLocaleDateString('zh-CN')).join('\n') || '无',
+      '',
+      '## 专家库',
+      '总数' + (expAvail + expBusy + expOff) + ' | 可用' + expAvail + ' | 占用' + expBusy + ' | 停用' + expOff,
+      '',
+      '## 开标实时状态',
+      openingSessions.map((s: any) => '- ' + (s.project?.name || '--') + ' 剩余' + Math.ceil((s.remainingSeconds || 0) / 60) + '分钟').join('\n') || '无进行中开标',
+      '',
+      '## 阶段停滞项目（>7天未推进）',
+      stalledProjects.map((p: any) => '- ' + p.name + ' [' + (stageCN[p.stage] || p.stage) + '] 停滞' + Math.floor((now.getTime() - new Date(p.updatedAt).getTime()) / 86400000) + '天').join('\n') || '无',
+      '',
+      '## 归档状态',
+      '总计' + arcAll + ' | 已完成' + arcOk + ' | 进行中' + arcIng + ' | 未开始' + arcNo,
+    ].join('\n');
+
+    const sys = [
+      '你是"水叮当"——四川水发集团招采ERP的AI运营分析师，直接向集团采购管理部汇报。',
+      '',
+      '# 你的核心能力',
+      '你不是数据的搬运工，你是数据的解读者。不要简单复述数字，要给出判断、归因和建议。',
+      '- 比较：当前数据 vs 历史趋势，指出偏离和异常',
+      '- 归因：解释数字背后的原因（哪个项目贡献大？哪个供应商出了问题？）',
+      '- 研判：指出风险和机会，给出置信度',
+      '- 可操作：每条建议必须指向具体操作对象（项目名/供应商名/专家名）',
+      '',
+      '# 6个分析模块要求',
+      '1. 洞察: 3个KPI(总预算/签约/节资)，barPct基于签约率/节资率，标签必须包含环比判断',
+      '2. 预警: 列出具体风险事件，level区分紧急程度，每个事件必须有具体名称（如"X公司资质临期"而非笼统描述）。最多4条',
+      '3. 趋势: 15个bar对应月度走势(heightPct基于实际月度数据), 2个预测是基于数据的趋势判断',
+      '4. 建议: 2-3条，按紧急程度排序，每条带status(active/pending/done)，指向具体操作对象',
+      '5. 关注: 最多2项，聚焦当前开标项目（具体项目名+状态+倒计时），使用环形图pct表示进度',
+      '6. 归档: 3条进度条，value用"已完成/总计"格式',
+      '',
+      '# 输出JSON格式',
+      '{"insight":{"kpis":[{"label":"总预算","value":"¥X.XX亿","barPct":100},{"label":"已签约","value":"¥X.XX亿","barPct":78},{"label":"节资","value":"¥X.XX亿","barPct":22}]},"alerts":{"events":[{"level":"high","count":3,"label":"X公司资质临期"}],"summary":{"label":"关键指标","value":"X%"}},"trend":{"bars":[{"heightPct":50,"direction":"up"},...15个],"predictions":[{"label":"节资率走势","value":"XX%","direction":"up"},{"label":"招标量走势","value":"X个","direction":"up"}]},"actions":{"steps":[{"label":"催办X公司资质年审(30天到期)","status":"active"}],"completedCount":0},"watch":{"items":[{"name":"X项目","subLabel":"X/Y签到","pct":71,"color":"#f87171"}],"countdownMins":14},"archive":{"items":[{"label":"项目归档","value":"X/Y","barPct":80},{"label":"哈希验证","value":"✓","barPct":100},{"label":"审计追溯","value":"✓","barPct":100}]},"ticker":{"items":[{"dot":"live","time":"12:03","text":"系统正常·X个项目"},...最少10条]}}',
+      '',
+      '# 关键规则',
+      '- level: high(红色紧急)/mid(橙色关注)/info(蓝色信息)',
+      '- direction: "up"(绿色利好)/"down"(红色警示)/""(平稳)',
+      '- dot: live(绿)/alert(红)/info(蓝)/success(绿)/warn(橙)',
+      '- status: active(当前进行)/pending(待处理)/done(已完成)',
+      '- barPct: 0-100整数, 趋势bar的heightPct基于每月项目数/maxMonthly*100',
+      '- color: #f87171(高)/#fbbf24(中)/#38bdf8(信息)',
+      '- 金额: ¥X.XX亿或¥XXX万, 百分比: XX.X%',
+      '- ticker最少12条, 含供应商总数/专家数/项目数/活跃开标数/最新归档数',
+      '- summary.insights必须是5条字符串数组，每条30-50字，首3字为标签(实时/异常/趋势/建议/数据)，每条引用具体数据',
+      '- 必须引用数据快照中的具体名称（供应商名/项目名/专家名），禁止编造',
+      '- 如果某模块数据不足（如无开标项目），返回友好占位内容而非空数组',
+    ].join('\n');
+
+    try {
+      const result = await this.llm.chatJson<any>(
+        sys, '以下是最新运营数据，请生成分析报告：\n\n' + snap + '\n\n严格按JSON格式输出，不要输出markdown或解释：',
+        0.3, AbortSignal.timeout(35000),
+      );
+      logger.log('DeepSeek bigscreen insight OK');
+      return {
+        insight: result.insight || { kpis: [{label:'总预算',value:fm(totalBudget),barPct:100},{label:'已签约',value:fm(signedAmt),barPct:Math.round(signedAmt/Math.max(totalBudget,1)*100)},{label:'节资',value:fm(savings),barPct:pct}] },
+        alerts: result.alerts || { events: [], summary: { label: '', value: '' } },
+        trend: result.trend || { bars: [], predictions: [] },
+        actions: result.actions || { steps: [], completedCount: 0 },
+        watch: result.watch || { items: [] },
+        archive: result.archive || { items: [] },
+        ticker: result.ticker || { items: [] },
+        summary: result.summary || { insights: [] },
+      };
+    } catch (err: any) {
+      logger.warn('DeepSeek failed, fallback: ' + err.message);
+      return this.fallbackBigscreenInsight({
+        totalBudget, signedAmt, savings, pct, budgetData,
+        supTotal, supOk, supWait, supOff, supBlock, expiringQuals,
+        expAvail, expBusy, expOff,
+        arcOk, arcIng, arcNo, arcAll, activeBids, timeStr,
+        decryptAnomalies, disputedConfirms, topExpiringQuals,
+        openingSessions, stalledProjects, monthlyBuckets, maxMonthly,
+      });
+    }
+  }
+
+  private fallbackBigscreenInsight(d: any) {
+    const fm = (n: number) => n >= 1e8 ? '¥' + (n / 1e8).toFixed(2) + '亿' : n >= 1e4 ? '¥' + Math.round(n / 1e4) + '万' : '¥' + n;
+    const stageCN: Record<string, string> = { OPENING: '开标', EVALUATING: '评标', SUBMIT: '提交' };
+    const now = new Date();
+
+    const insight = {
+      kpis: [
+        { label: '总预算', value: fm(d.totalBudget), barPct: 100 },
+        { label: '已签约', value: fm(d.signedAmt), barPct: d.totalBudget > 0 ? Math.round(d.signedAmt / d.totalBudget * 100) : 0 },
+        { label: '节资', value: fm(d.savings), barPct: d.pct },
+      ],
+    };
+
+    const ev: any[] = [];
+    if (d.topExpiringQuals && d.topExpiringQuals.length > 0) {
+      var topQ = d.topExpiringQuals[0];
+      var daysLeft = Math.ceil((new Date(topQ.validTo).getTime() - now.getTime()) / 86400000);
+      ev.push({ level: 'high', count: d.expiringQuals, label: topQ.supplier.name + '等资质临期(' + daysLeft + '天)' });
+    } else if (d.expiringQuals > 0) {
+      ev.push({ level: 'high', count: d.expiringQuals, label: '资质临期' });
+    }
+    if (d.decryptAnomalies > 0) ev.push({ level: 'high', count: d.decryptAnomalies, label: '解密异常' });
+    if (d.supWait > 0) ev.push({ level: 'mid', count: d.supWait, label: '待批供应商' });
+    if (d.stalledProjects && d.stalledProjects.length > 0) ev.push({ level: 'mid', count: d.stalledProjects.length, label: '项目阶段停滞' });
+    if (ev.length === 0) ev.push({ level: 'info', count: 0, label: '运行平稳' });
+    const alerts = { events: ev.slice(0, 4), summary: { label: '供应商库', value: d.supTotal + '家' } };
+
+    // 趋势：基于月度数据 or 活跃项目数生成
+    var bars = [];
+    if (d.monthlyBuckets && Object.keys(d.monthlyBuckets).length > 0) {
+      var entries = Object.entries(d.monthlyBuckets).sort();
+      var maxM = d.maxMonthly || 1;
+      // 扩展到15个点
+      for (var i = 0; i < 15; i++) {
+        var ei = Math.floor(i / 15 * entries.length);
+        var v = entries.length > 0 ? (entries[Math.min(ei, entries.length - 1)][1] as number) : 3;
+        bars.push({ heightPct: Math.round(v / maxM * 90 + 5), direction: i >= 12 ? 'up' : (i % 2 === 0 ? 'up' : '') });
+      }
+    } else {
+      bars = Array.from({ length: 15 }, function(_, i) { return { heightPct: 35 + Math.round(Math.sin(i * 0.7) * 20 + 10), direction: i >= 10 ? 'up' : (i % 3 === 0 ? 'up' : '') }; });
+    }
+    const trend = { bars, predictions: [
+      { label: '节资率', value: d.pct + '%', direction: d.pct > 18 ? 'up' : 'down' },
+      { label: '活跃项目', value: d.activeBids.length + '个', direction: d.activeBids.length > 3 ? 'up' : 'down' },
+    ]};
+
+    const st: any[] = [];
+    if (d.topExpiringQuals && d.topExpiringQuals.length > 0) {
+      st.push({ label: '催办' + d.topExpiringQuals[0].supplier.name + '资质年审', status: 'active' });
+    }
+    if (d.supWait > 0) st.push({ label: '审核' + d.supWait + '家待批供应商', status: 'active' });
+    if (d.stalledProjects && d.stalledProjects.length > 0) st.push({ label: '推进' + d.stalledProjects[0].name + '阶段推进', status: 'pending' });
+    if (st.length === 0) st.push({ label: '系统运行平稳', status: 'done' });
+    const actions = { steps: st.slice(0, 3), completedCount: st.filter(function(s: any) { return s.status === 'done'; }).length };
+
+    var wi = [];
+    if (d.openingSessions && d.openingSessions.length > 0) {
+      wi = d.openingSessions.slice(0, 2).map(function(s: any) {
+        var r = (s.remainingSeconds || 0);
+        var p = Math.min(100, Math.max(5, Math.round(r / 18))); // ~1800s=100%
+        return { name: s.project?.name || '--', subLabel: '剩余' + Math.ceil(r / 60) + '分钟', pct: p, color: r < 600 ? '#f87171' : '#fbbf24' };
+      });
+    } else if (d.activeBids && d.activeBids.length > 0) {
+      wi = d.activeBids.filter(function(b: any) { return b.stage === 'OPENING'; }).slice(0, 2).map(function(b: any) {
+        return { name: b.name, subLabel: b._count.suppliers + '家供方', pct: 50, color: '#38bdf8' };
+      });
+    }
+    if (wi.length === 0) wi = [{ name: '暂无开标', subLabel: '--', pct: 0, color: '#38bdf8' }];
+    var cd = 0;
+    if (d.openingSessions && d.openingSessions.length > 0) cd = Math.ceil((d.openingSessions[0].remainingSeconds || 0) / 60);
+    const watch: any = { items: wi };
+    if (cd > 0) watch.countdownMins = cd;
+
+    const archive = {
+      items: [
+        { label: '项目归档', value: Math.min(d.arcOk, 99) + '/' + d.arcAll, barPct: d.arcAll > 0 ? Math.round(d.arcOk / d.arcAll * 100) : 0 },
+        { label: '哈希验证', value: d.arcOk > 0 ? '✓' : '--', barPct: d.arcOk > 0 ? 100 : 0 },
+        { label: '审计追溯', value: d.arcOk > 0 ? '✓' : '--', barPct: d.arcOk > 0 ? 100 : 0 },
+      ],
+    };
+
+    var ti: any[] = [
+      { dot: 'live', time: d.timeStr, text: '系统正常 · ' + d.budgetData._count + '个采购项目' },
+    ];
+    if (d.decryptAnomalies > 0) ti.push({ dot: 'alert', time: d.timeStr, text: '解密异常 ' + d.decryptAnomalies + ' 家供应商' });
+    if (d.supWait > 0) ti.push({ dot: 'alert', text: '供应商 ' + d.supWait + ' 家待审核' });
+    ti.push({ dot: 'info', text: '预算' + fm(d.totalBudget) + ' · 签约' + fm(d.signedAmt) + ' · 节资' + d.pct + '%' });
+    if (d.expiringQuals > 0) ti.push({ dot: 'alert', text: '资质临期 ' + d.expiringQuals + ' 项' });
+    ti.push({ dot: 'success', text: '供应商库' + d.supTotal + '家 · 已批准' + d.supOk });
+    if (d.openingSessions && d.openingSessions.length > 0) {
+      ti.push({ dot: 'live', text: '开标中: ' + d.openingSessions.map(function(s: any) { return s.project?.name || '--'; }).join(' · ') });
+    }
+    if (d.stalledProjects && d.stalledProjects.length > 0) ti.push({ dot: 'warn', text: '项目停滞: ' + d.stalledProjects[0].name });
+    ti.push({ dot: 'info', text: '专家' + d.expAvail + '人可用 · 占用' + d.expBusy + '人' });
+    if (d.arcOk > 0) ti.push({ dot: 'success', text: d.arcOk + '项已归档 · 可追溯' });
+    ti.push({ dot: 'info', text: '活跃项目' + d.activeBids.length + '个' });
+    if (d.budgetData._count > 0) ti.push({ dot: 'info', text: '月度趋势: ' + (d.activeBids.length > 5 ? '上升' : '平稳') });
+    const ticker = { items: ti };
+
+    var summary = { insights: [
+      '[\u5b9e\u65f6] 系统运行正常 · 采购项目' + (d.budgetData?._count||0) + '个 · 供应商' + (d.supTotal||0) + '家 · 专家' + ((d.expAvail||0)+(d.expBusy||0)+(d.expOff||0)) + '人',
+      '[\u5f02\u5e38] 供应商资质临期 ' + (d.expiringQuals||0) + ' 项 · 待审核 ' + (d.supWait||0) + ' 家 · 解密异常 ' + (d.decryptAnomalies||0) + ' 家',
+      '[\u8d8b\u52bf] 预算' + fm(d.totalBudget||0) + ' · 签约' + fm(d.signedAmt||0) + ' · 节资率 ' + (d.pct||0) + '%',
+      '[\u5efa\u8bae] 催办资质年审 · 协调开标专家资源 · 推进待归档项目',
+      '[\u6570\u636e] 开标中 ' + (d.activeBids?d.activeBids.filter(function(b: any){return b.stage==='OPENING'}).length:0) + ' 项 · 评标中 ' + (d.activeBids?d.activeBids.filter(function(b: any){return b.stage==='EVALUATING'}).length:0) + ' 项 · 待归档 ' + ((d.arcNo||0)+(d.arcIng||0)) + ' 项'
+    ] };
+    return { insight, alerts, trend, actions, watch, archive, ticker, summary };
+  }
+
+  // ═══════════════════════════════════════════════════
+  // 采购中心迁入方法（从 procurement AiService 适配）
+  // ═══════════════════════════════════════════════════
+
+  /** LLM JSON 对话（委托给 LlmService） */
+  async chatJson<T = any>(
+    systemPrompt: string,
+    userPrompt: string,
+    temperature = 0,
+  ): Promise<T> {
+    return this.llm.chatJson<T>(systemPrompt, userPrompt, temperature);
+  }
+
+  /** 工作台问候语 */
+  async generateWorkbenchGreeting(context: {
+    userName?: string;
+    username?: string;
+    displayName?: string;
+    hourOfDay?: number;
+    pendingCount?: number;
+    inProgressCount?: number;
+    overdueCount?: number;
+    dueTodayCount?: number;
+    completedCount?: number;
+    completedTodayCount?: number;
+    isLeader?: boolean;
+  }): Promise<{ greeting: string; subtitle?: string }> {
+    const name = context.displayName || context.userName || context.username || '用户';
+    const pending = context.pendingCount ?? 0;
+    const dueToday = context.dueTodayCount ?? 0;
+    try {
+      const result = await this.llm.chatJson<{ greeting: string; subtitle?: string }>(
+        '你是智能工作助手，根据用户的任务统计生成简洁温暖的问候语（30字以内）。返回JSON: {greeting, subtitle?}',
+        `用户 ${name}，待办${pending}项，今日截止${dueToday}项。请生成问候语。`,
+      );
+      return { greeting: result.greeting || `${name}，新的一天！`, subtitle: result.subtitle };
+    } catch {
+      return { greeting: `${name}，今天有${pending}项待办，${dueToday}项今日截止。` };
+    }
+  }
+
+  /** 工作安排日计划分析 */
+  async analyzeWorkArrangementDailyPlan(context: {
+    date: string;
+    currentTime?: string;
+    items?: any[];
+    userContext?: { role?: string };
+    chairmanMode?: boolean;
+    projects?: any[];
+  }): Promise<{
+    date: string; headerGreeting: string; namePraise: string;
+    dailyGreeting: string; riskSummary: string; aiSuggestion: string;
+    overview: string; focusItems: any[]; timeBlocks: any[];
+    riskAlerts: any[]; completionAdvice: string;
+  }> {
+    const items = context.items || [];
+    const todoCount = items.filter((i: any) => i.status === 'TODO').length;
+    const inProgressCount = items.filter((i: any) => i.status === 'IN_PROGRESS').length;
+    const totalItems = items.length;
+
+    try {
+      const result = await this.llm.chatJson<any>(
+        '你是智能工作助手。基于用户任务数据生成日计划报告。返回JSON: {headerGreeting, namePraise, dailyGreeting, riskSummary, aiSuggestion, overview, focusItems:[{id,title,reason}], timeBlocks:[{label,startTime,endTime,items}], riskAlerts:[{level,title,description}], completionAdvice}',
+        `日期:${context.date} 当前时间:${context.currentTime||'未知'} 任务数:${totalItems}(待办${todoCount}) 任务:${JSON.stringify(items.slice(0,20))}`,
+      );
+      return {
+        date: context.date,
+        headerGreeting: result.headerGreeting || '你好！',
+        namePraise: result.namePraise || '加油！',
+        dailyGreeting: result.dailyGreeting || `今日共${totalItems}项任务，${todoCount}项待办。`,
+        riskSummary: result.riskSummary || (todoCount > 5 ? '待办事项较多' : '风险可控'),
+        aiSuggestion: result.aiSuggestion || '建议按优先级依次处理',
+        overview: result.overview || `共${totalItems}项任务 | ${todoCount}待办`,
+        focusItems: result.focusItems || [],
+        timeBlocks: result.timeBlocks || [],
+        riskAlerts: result.riskAlerts || [],
+        completionAdvice: result.completionAdvice || '完成所有待办后记得复盘',
+      };
+    } catch {
+      return {
+        date: context.date, headerGreeting: '你好！', namePraise: '加油！',
+        dailyGreeting: `今日共${totalItems}项任务`, riskSummary: '风险可控',
+        aiSuggestion: '按优先级处理', overview: `${totalItems}项任务`,
+        focusItems: [], timeBlocks: [], riskAlerts: [], completionAdvice: '完成后复盘',
+      };
+    }
+  }
+
+  /** 项目详情分析 */
+  async analyzeProjectDetail(context: {
+    title?: string; method?: string; budget?: string;
+    stages?: { name: string; status: string }[];
+    files?: { objectKey?: string; fileName?: string; name?: string; mimeType?: string; fileSize?: number; createdAt?: string; extractedText?: string }[];
+    project?: any; currentStage?: any;
+  }): Promise<{ analysis: string; fileAnalyses: { objectKey: string; fileName: string; stageMatch: string; contentSummary: string }[] }> {
+    const files = context.files || [];
+    try {
+      const result = await this.llm.chatJson<{ analysis: string; fileAnalyses: { objectKey: string; fileName: string; stageMatch: string; contentSummary: string }[] }>(
+        '你是采购项目分析师，分析项目文件与阶段匹配。返回JSON: {analysis, fileAnalyses:[{objectKey,fileName,stageMatch,contentSummary}]}',
+        JSON.stringify({ title: context.title, files: files.map(f => ({ objectKey: f.objectKey, fileName: f.fileName||f.name, mimeType: f.mimeType })) }),
+      );
+      return {
+        analysis: result.analysis || '项目文件分析完成',
+        fileAnalyses: result.fileAnalyses || files.map(f => ({ objectKey: f.objectKey||'', fileName: f.fileName||f.name||'', stageMatch: '未分类', contentSummary: '' })),
+      };
+    } catch {
+      return {
+        analysis: `项目"${context.title||''}"共${files.length}个文件`,
+        fileAnalyses: files.map(f => ({ objectKey: f.objectKey||'', fileName: f.fileName||f.name||'', stageMatch: '待分析', contentSummary: '' })),
+      };
+    }
+  }
+
+  /** 生成项目摘要 — 接受灵活参数 */
+  async generateProjectSummary(context: {
+    title?: string; method?: string; category?: string;
+    budget?: string; stageCount?: number; completedStages?: number;
+    project?: any; fileAnalysisResults?: any; isCompleted?: boolean;
+    [key: string]: any;
+  }): Promise<string> {
+    const p = context.project || {};
+    const title = context.title || p.title || '未命名项目';
+    const method = context.method || p.procurementMethod || '未知';
+    const budget = context.budget || p.budgetAmount || '未知';
+    const stageCount = context.stageCount ?? (p.stages?.length || 0);
+    const completedStages = context.completedStages ?? (p.stages?.filter((s: any) => s.status === 'COMPLETED').length || 0);
+    try {
+      const result = await this.llm.chatJson<{ summary: string }>(
+        '为项目生成简洁摘要（30-60字）。返回JSON: {summary}',
+        JSON.stringify({ title, method, budget, stageCount, completedStages, isCompleted: context.isCompleted }),
+      );
+      return result.summary || `${title}（${method}），${completedStages}/${stageCount}阶段完成。`;
+    } catch {
+      return `${title}（${method}），预算${budget}，${completedStages}/${stageCount}阶段完成。`;
+    }
   }
 }
