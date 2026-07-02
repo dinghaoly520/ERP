@@ -62,6 +62,8 @@ model User {
   reviewedPasswordResetRequests  PasswordResetRequest[]    @relation("PasswordResetRequestReviewedBy")
   createdRounds                  ProcurementRound[]        @relation("RoundCreatedBy")
   updatedRounds                  ProcurementRound[]        @relation("RoundUpdatedBy")
+  assistantConversations         AssistantConversation[]
+  assistantAlerts                AssistantAlert[]
 
   @@unique([username, role])
 }
@@ -1103,38 +1105,53 @@ model CatalogSupplier {
 // ── 操作审计日志 ──
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  action    String
-  target    String
-  detail    Json?
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  userId       String
+  action       String
+  resourceType String
+  resourceId   String?
+  details      Json?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([action, createdAt])
 }
 
 // ── 水叮当智能助手 ──
 
 model AssistantConversation {
   id        String             @id @default(cuid())
-  title     String?
+  userId    String?
+  title     String?            @default("新对话")
+  summary   String?
   messages  AssistantMessage[]
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
+
+  user      User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("assistant_conversations")
 }
 
 model AssistantMessage {
   id             String                @id @default(cuid())
   conversationId String
-  role           String // user | assistant | tool
-  content        String
+  role           String // user | assistant | tool_call | tool_result | system
+  content        String                @db.Text
+  toolCalls      Json?
+  toolResult     Json?
+  actions        Json?
   cardsJson      Json?
   citationsJson  Json?
   createdAt      DateTime              @default(now())
   conversation   AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  @@index([conversationId])
+  @@index([conversationId, createdAt])
+  @@map("assistant_messages")
 }
 
 model AssistantActionLog {
@@ -1174,6 +1191,22 @@ model BidRequirementReview {
   @@map("bid_requirement_reviews")
 }
 
+
+model AssistantAlert {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // deadline | anomaly | guidance
+  title     String
+  content   String   @db.Text
+  severity  String   @default("info") // info | warning | urgent
+  dismissed Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, dismissed, createdAt])
+  @@map("assistant_alerts")
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // 采购中心模块（从 procurement 项目迁入）

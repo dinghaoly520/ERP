@@ -10,6 +10,7 @@ import { landingURL, portalURL } from '@water-erp/config';
 import { fetchPublicAnnouncements, type AnnouncementItem } from '@/lib/announcements';
 import GradientText from '@/components/GradientText';
 import { UnifiedHeader } from '@/components/unified-header';
+import { FlowBackdrop } from '@/components/flow-stage';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    智慧水发·蜀水云采 — Landing Page
@@ -164,7 +165,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   }, [announceData.length, announceTab]);
 
   const features = [
-    { icon: 'file', title: '智慧水发·采购中心', desc: '采购文件编制、项目管理、AI协同', href: 'http://10.20.145.152:3001/' },
+    { icon: 'file', title: '智慧水发·采购中心', desc: '采购文件编制、项目管理、AI协同', href: portalURL('web') },
     { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: portalURL('mall', '/login?forceLogin=1') },
     { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: portalURL('supplier', '/login?forceLogin=1') },
     { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: portalURL('web', '/login?forceLogin=1') },
@@ -180,7 +181,8 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   ];
 
   return (
-    <div className="min-h-screen text-[#18243a] bg-white overflow-x-hidden" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+    <div className="flow-page text-[#18243a] overflow-x-hidden" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+      <FlowBackdrop />
       {/* ═══════════════════ Header · 统一顶栏 ═══════════════════ */}
       <UnifiedHeader
         announcements={fetchedAnnouncements}
@@ -188,14 +190,13 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
         onRegisterClick={() => setModal('register')}
       />
 
-      <main className="bg-[#f5f7fa]">
+      <main>
         {/* ═══════════════════ Hero ═══════════════════ */}
         <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden bg-[#0b3d7a]">
           {/* Gradient base — sits BEHIND images, only visible during transitions */}
           <div className="absolute inset-0" style={{
             background: 'linear-gradient(90deg,rgba(246,250,255,.95) 0%,rgba(246,250,255,.88) 35%,rgba(246,250,255,.5) 60%,rgba(246,250,255,.15) 100%)',
           }}>
-            {/* 所有图都渲染，由 .hero-slide 的 CSS 动画驱动轮播（不依赖客户端 JS）。 */}
             {heroImages.map((src, i) => (
               <img
                 key={src}
@@ -216,7 +217,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
           </div>
 
           {/* Bottom curve */}
-          <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-white rounded-[50%_50%_0_0/76%_76%_0_0] z-10" />
+          <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] rounded-[50%_50%_0_0/76%_76%_0_0] z-10" style={{ background: 'oklch(0.975 0.012 258)' }} />
           <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-transparent border-t-[clamp(3px,.4vw,6px)] border-r-[clamp(3px,.5vw,8px)] border-t-[#0b59ad] border-r-[#18a56c] rounded-[50%_50%_0_0/76%_76%_0_0] z-20 pointer-events-none" />
 
           <div className="relative z-20 px-[clamp(40px,4vw,72px)] py-[clamp(56px,5vw,96px)]">
@@ -229,7 +230,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
             >
               <h1 className="text-[clamp(40px,3.6vw,62px)] font-black leading-[1.15] tracking-[0.10em] m-0">智慧水发·蜀水云采</h1>
             </GradientText>
-            <p className="text-[clamp(16px,1.2vw,20px)] text-white/80 font-medium mb-12 max-w-xl">四川省水利发展集团统一招采门户 —— 阳光透明、合规高效的电子化招标采购平台</p>
+            <p className="text-[clamp(16px,1.2vw,20px)] text-white/80 font-medium mb-12 max-w-xl">四川省水利发展集团有限公司统一招采门户 —— 阳光透明、合规高效的电子化招标采购平台</p>
             <div className="flex gap-4">
               <button onClick={() => router.push('/procurement-portal')} className="hero-btn">
                 我要采购
@@ -242,7 +243,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
         </section>
 
         {/* ═══════════════════ 快捷入口 ═══════════════════ */}
-        <section className="relative z-10 py-8 bg-white">
+        <section className="relative z-10 py-8">
           <div className="px-[clamp(40px,4vw,72px)]">
             <div className="flex items-stretch">
               {features.map((f, idx) => (
@@ -272,8 +273,8 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                     </div>
                     {/* 文字 */}
                     <div className="flex flex-col gap-0.5 min-w-0">
-                      <strong className="text-[15px] font-bold text-[#1c2941] group-hover:text-[#064ea2] transition-colors whitespace-nowrap">{f.title}</strong>
-                      <span className="text-xs text-[#8a96aa] group-hover:text-[#5a7da8] transition-colors">{f.desc}</span>
+                      <strong className="text-[17px] font-bold text-[#1c2941] group-hover:text-[#064ea2] transition-colors whitespace-nowrap">{f.title}</strong>
+                      <span className="text-[13px] text-[#8a96aa] group-hover:text-[#5a7da8] transition-colors">{f.desc}</span>
                     </div>
                     {/* 右侧箭头指示 */}
                     <span className="feature-card-arrow">
@@ -288,18 +289,14 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
         </section>
 
         {/* ═══════════════════ 公告信息（主角）═══════════════════ */}
-        <section className="announce-section relative z-10 overflow-hidden">
-          {/* 装饰背景 */}
-          <div className="announce-deco-grid" />
-          <div className="announce-deco-glow" />
-
+        <section className="relative z-10 py-14 overflow-hidden">
           <div className="relative z-10 px-[clamp(40px,4vw,72px)]">
             {/* ── 标题栏 ── */}
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-5">
                 <div className="announce-title-group">
                   <div className="announce-title-accent" />
-                  <h2 className="text-2xl font-black text-[#18243a]">公告</h2>
+                  <h2 className="text-[26px] font-black text-[#18243a]">公告</h2>
                 </div>
                 <div className="announce-tabs">
                   {announceData.map((tab, i) => (
@@ -370,7 +367,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                       style={{ '--item-delay': `${idx * 60}ms`, '--rank-color': currentAnnounce.color } as React.CSSProperties}>
                       <div className="announce-side-item-rank">{String(idx + 1).padStart(2, '0')}</div>
                       <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                        <span className="text-xs text-[#aaa]">{item.date}</span>
+                        <span className="text-[13px] text-[#aaa]">{item.date}</span>
                         <span className="announce-side-item-title">{item.title}</span>
                       </div>
                     </a>
@@ -395,9 +392,9 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
         </section>
 
         {/* ═══════════════════ 价值观 ═══════════════════ */}
-        <section className="relative bg-white py-12 overflow-hidden">
-          <img src="/assets/bg-waterworks-bottom.png" alt="" className="absolute inset-0 w-full h-full object-cover object-bottom opacity-90" />
-          <div className="absolute inset-0" style={{ background: "linear-gradient(0deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0.5) 70%, rgba(255,255,255,1) 100%)" }} />
+        <section className="relative py-12 overflow-hidden">
+          <img src="/assets/bg-waterworks-bottom.png" alt="" className="absolute inset-0 w-full h-full object-cover object-bottom opacity-50" />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(0deg, transparent 0%, oklch(0.975,0.012,258/0.6) 60%, oklch(0.975,0.012,258/0.95) 100%)" }} />
           <div className="relative z-10 px-[clamp(40px,4vw,72px)]">
             <h2 className="value-title">携手水发　共创阳光招采新未来</h2>
             <div className="flex items-stretch max-sm:grid max-sm:grid-cols-2 max-sm:gap-4">
@@ -416,6 +413,42 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
             </div>
           </div>
         </section>
+
+        {/* ═══════════════════ 友情链接 · Footer ═══════════════════ */}
+        <footer className="bg-[#0b3d7a]">
+          {/* 顶部分割线 — 1px hairline，与 Hero 同色系闭合 */}
+          <div className="h-px bg-[#064ea2]" />
+
+          <div className="px-[clamp(40px,4vw,72px)]">
+            {/* ── 友情链接 ── */}
+            <div className="flex items-center justify-center max-sm:flex-col max-sm:py-5 max-sm:gap-3">
+              <div className="flex items-center gap-2.5 select-none pr-8 max-sm:pr-0">
+                <span className="block w-1 h-1 bg-white/60" />
+                <span className="text-[11px] font-bold tracking-[0.25em] text-white/60">友情链接</span>
+              </div>
+              <a href="https://slt.sc.gov.cn/" target="_blank" rel="noopener noreferrer"
+                className="px-6 py-5 text-[14px] text-white hover:text-white transition-colors duration-200">
+                四川省水利厅
+              </a>
+              <span className="w-px h-4 bg-white/[0.10] max-sm:hidden" />
+              <a href="https://www.scsfjt.com/" target="_blank" rel="noopener noreferrer"
+                className="px-6 py-5 text-[14px] text-white hover:text-white transition-colors duration-200">
+                四川省水利发展集团有限公司
+              </a>
+              <span className="w-px h-4 bg-white/[0.10] max-sm:hidden" />
+              <a href="https://www.scswhi.com.cn/" target="_blank" rel="noopener noreferrer"
+                className="px-6 py-5 text-[14px] text-white hover:text-white transition-colors duration-200">
+                四川水发勘测设计研究有限公司
+              </a>
+            </div>
+
+            {/* ── 底部信息带 ── */}
+            <div className="border-t border-white/[0.07] py-3 flex items-center justify-between text-[11px] text-white max-sm:flex-col max-sm:gap-1">
+              <span>© 2026 智慧水发·蜀水云采</span>
+              <span>蜀ICP备XXXXXXXX号</span>
+            </div>
+          </div>
+        </footer>
       </main>
 
       {/* ═══════════════════ 置顶按钮 ═══════════════════ */}
@@ -427,8 +460,8 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
       {modal && (
         <div className="fixed inset-0 z-[100] flex" onClick={() => setModal(null)}>
           <div className="absolute inset-0 bg-[rgba(3,17,38,.46)] backdrop-blur-sm" />
-          <div className="relative m-auto w-[min(620px,calc(100vw-36px))] max-h-[86vh] overflow-auto bg-white rounded-[10px] shadow-[0_30px_90px_rgba(0,0,0,.26)] p-[34px]" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModal(null)} className="absolute right-4 top-2.5 w-9 h-9 text-[26px] text-[#7d8798] hover:text-[#064ea2]">×</button>
+          <div className="relative m-auto w-[min(620px,calc(100vw-36px))] max-h-[86vh] overflow-auto glass rounded-[10px] shadow-[0_30px_90px_rgba(0,0,0,.26)] p-[34px]" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setModal(null)} className="absolute right-4 top-2.5 w-9 h-9 text-[26px] text-[#7d8798] hover:text-[#0891a0]">×</button>
 
             {modal === 'login' ? (
               <>

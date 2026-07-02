@@ -1,0 +1,3 @@
+# Optional: EasyOCR engine (alternative to RapidOCR)
+# Install with: .venv/bin/pip install -r requirements-easyocr.txt
+easyocr

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { fetchPublicAnnouncement, ANNOUNCEMENTS, type AnnouncementItem } from '@/lib/announcements';
+import { UnifiedHeader } from '@/components/unified-header';
+import { FlowBackdrop } from '@/components/flow-stage';
 
 export default function AnnouncementDetailPage() {
   const router = useRouter();
@@ -27,14 +29,14 @@ export default function AnnouncementDetailPage() {
   }, [id]);
 
   if (loading) return (
-    <div className="min-h-screen bg-[#f7f9fc] flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+    <div className="flow-page flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       <div className="text-5xl">⏳</div>
       <p className="text-[#5a6d8a] font-semibold">正在加载公告...</p>
     </div>
   );
 
   if (!item) return (
-    <div className="min-h-screen bg-[#f7f9fc] flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+    <div className="flow-page flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       <div className="text-5xl">📢</div>
       <p className="text-[#5a6d8a] font-semibold">未找到该公告</p>
       <button onClick={() => router.push('/announcements')}
@@ -45,35 +47,19 @@ export default function AnnouncementDetailPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f7f9fc]" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
-      {/* ═══ Header — 与首页一致 ═══ */}
-      <header className="sticky top-0 z-50 h-[88px] flex items-center bg-white border-b border-[#e5ecf4]">
-        <div className="w-full px-[clamp(40px,4vw,72px)] flex items-center justify-between h-full">
-          <a href="/" className="flex items-center gap-3 shrink-0">
-            <img src="/assets/logo.png" alt="四川水发集团" className="h-14 w-auto object-contain" />
-            <div className="flex flex-col gap-0">
-              <strong className="text-[#123a6e] text-3xl tracking-[0.14em] leading-tight whitespace-nowrap" style={{ fontFamily: '"SimHei","黑体",sans-serif', fontWeight: 900 }}>四川水发集团</strong>
-              <small className="text-[7px] text-[#8a96aa] font-medium text-center whitespace-nowrap tracking-wide">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
-            </div>
-          </a>
-
-          <div className="flex items-center gap-3">
-            <button onClick={() => router.push('/announcements')}
-              className="h-11 px-6 border border-[#c5d3e8] text-[#064ea2] bg-white rounded-full text-sm font-semibold hover:bg-[#064ea2] hover:text-white hover:border-[#064ea2] hover:shadow-[0_2px_8px_rgba(6,78,162,.25)] active:scale-95 transition-all duration-200">
-              公告列表
-            </button>
-            <button onClick={() => router.push('/')}
-              className="h-11 px-6 bg-[#064ea2] text-white rounded-full text-sm font-semibold hover:bg-[#084fb0] hover:shadow-[0_2px_12px_rgba(6,78,162,.35)] active:scale-95 transition-all duration-200">
-              返回首页
-            </button>
-          </div>
-        </div>
-      </header>
+    <div className="flow-page" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+      <FlowBackdrop />
+      {/* ═══ 统一顶栏 ═══ */}
+      <UnifiedHeader announcements={[]} onLoginClick={() => {}} onRegisterClick={() => {}} />
 
       {/* ═══ 内容区 ═══ */}
-      <div className="px-[clamp(40px,4vw,72px)] py-10">
-        <div className="w-full mx-auto">
-          <div className="bg-white rounded-2xl border border-[#e5ecf4] p-8">
+      <div className="relative z-10 px-[clamp(40px,4vw,72px)] pt-3 pb-10">
+        <a href="/" className="flow-back inline-flex items-center gap-1.5 w-fit mb-8">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          返回首页
+        </a>
+        <div className="max-w-4xl mx-auto">
+          <div className="glass rounded-2xl p-8">
             {/* 标签 */}
             <div className="flex items-center gap-3 mb-4">
               <span className="text-xs px-3 py-1 rounded-full font-semibold" style={{ color: item.color, backgroundColor: item.color + '18' }}>{item.tag}</span>

@@ -14,6 +14,7 @@
     "dev:expert": "pnpm --filter expert-portal dev",
     "dev:bigscreen": "pnpm --filter bigscreen dev",
     "dev:supplier": "pnpm --filter supplier-portal dev",
+    "dev:ocr": "cd services/ocr && bash start.sh",
     "build": "pnpm -r build",
     "build:api": "pnpm --filter api build",
     "build:web": "pnpm --filter web build",

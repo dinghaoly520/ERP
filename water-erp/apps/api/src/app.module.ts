@@ -15,6 +15,7 @@ import { SupplierPortalModule } from './supplier-portal/supplier-portal.module';
 import { ExpertModule } from './expert/expert.module';
 import { AiModule } from './ai';
 import { ProcurementModule } from './procurement/procurement.module';
+import { ProcurementsModule } from './procurements/procurements.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { BudgetModule } from './budget/budget.module';
 import { AuditModule } from './audit/audit.module';
@@ -39,6 +40,8 @@ import { ProjectManagementModule } from './project-management/project-management
 import { KnowledgeModule } from './knowledge/knowledge.module';
 import { TenderReviewModule } from './tender-review/tender-review.module';
 import { TenderWriteModule } from './tender-write/tender-write.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -62,6 +65,7 @@ import { TenderWriteModule } from './tender-write/tender-write.module';
     ExpertModule,
     AiModule,
     ProcurementModule,
+    ProcurementsModule,
     CatalogModule,
     BudgetModule,
     AuditModule,
@@ -83,7 +87,9 @@ import { TenderWriteModule } from './tender-write/tender-write.module';
     KnowledgeModule,
     TenderReviewModule,
     TenderWriteModule,
+    DashboardModule,
   ],
+  controllers: [AppController],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },

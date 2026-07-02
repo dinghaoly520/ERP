@@ -4,7 +4,7 @@ export const PORTS = {
   public: 3002,   // 信息门户 — 前端入口，公告/政策
   mall: 3003,      // 采购商城
   supplier: 3004,  // 供应商门户
-  web: 3001,       // 统一采购管理工作台（合并 procurement 采购中心 + ERP 管理端）
+  web: 3005,       // 统一采购管理工作台（合并 procurement 采购中心 + ERP 管理端）
   expert: 3006,    // 专家门户
   bid: 3007,       // 开评标管理端
   assistant: 3008, // 水叮当智能助手

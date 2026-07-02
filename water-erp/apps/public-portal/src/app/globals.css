@@ -476,8 +476,9 @@ body {
   background: var(--glass);
   backdrop-filter: blur(20px) saturate(150%);
   -webkit-backdrop-filter: blur(20px) saturate(150%);
-  border: 1px solid var(--glass-border);
+  border: 1px solid oklch(0.65,0.05,258/0.35);
   box-shadow: 0 8px 30px oklch(0.45 0.1 258 / 0.08), inset 0 1px 0 oklch(1 0 0 / 0.75);
+  transition: border-color 0.25s ease;
 }
 
 /* ── Header (frosted bar) ── */
@@ -1559,31 +1560,18 @@ a.group:hover::after {
 /* ── Section 容器 ── */
 .announce-section {
   padding: 56px 0;
-  background: linear-gradient(180deg, #f8fafe 0%, #ffffff 30%, #ffffff 100%);
+  background: transparent;
   position: relative;
 }
 
 /* 网格纹理装饰 */
 .announce-deco-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(6, 78, 162, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(6, 78, 162, 0.025) 1px, transparent 1px);
-  background-size: 48px 48px;
-  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 20%, transparent 70%);
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 20%, transparent 70%);
-  pointer-events: none;
+  display: none;
 }
 
 /* 角落光晕 */
 .announce-deco-glow {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 40% 50% at 8% 10%, rgba(6, 78, 162, 0.04), transparent 60%),
-    radial-gradient(ellipse 35% 45% at 92% 85%, rgba(8, 145, 178, 0.03), transparent 60%);
+  display: none;
 }
 
 /* ── 标题装饰 ── */
@@ -1621,7 +1609,7 @@ a.group:hover::after {
   align-items: center;
   gap: 6px;
   padding: 7px 16px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #5a6d8a;
   background: transparent;
@@ -1699,11 +1687,15 @@ a.group:hover::after {
   display: flex;
   flex-direction: column;
   text-decoration: none;
-  border-radius: 14px;
+  border-radius: 20px;
   overflow: hidden;
   cursor: pointer;
-  background: #fff;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease;
+  background: oklch(1,0,0/0.55);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1.5px solid oklch(0.55,0.08,258/0.45);
+  box-shadow: 0 4px 20px oklch(0.45,0.1,258/0.08);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease, border-color 0.3s ease;
 }
 
 .announce-featured:hover {
@@ -1717,7 +1709,7 @@ a.group:hover::after {
 .announce-featured-border {
   position: absolute;
   inset: 0;
-  border-radius: 14px;
+  border-radius: 20px;
   padding: 1.5px;
   background: linear-gradient(
     135deg,
@@ -1752,13 +1744,15 @@ a.group:hover::after {
   flex-direction: column;
   flex: 1;
   padding: 28px 32px;
-  border: 1.5px solid #e8edf5;
-  border-radius: 14px;
-  transition: border-color 0.3s ease;
+  border: 1.5px solid oklch(0.55,0.08,258/0.45);
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 oklch(1,0,0/0.6), 0 4px 20px oklch(0.45,0.1,258/0.06);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .announce-featured:hover .announce-featured-inner {
-  border-color: rgba(6, 78, 162, 0.12);
+  border-color: oklch(0.55,0.14,258/0.35);
+  box-shadow: inset 0 1px 0 oklch(1,0,0/0.8), 0 8px 32px oklch(0.45,0.1,258/0.1);
 }
 
 /* ── Tag 标签 ── */
@@ -1899,16 +1893,20 @@ a.group:hover::after {
 .announce-side {
   display: flex;
   flex-direction: column;
-  border-radius: 14px;
+  border-radius: 20px;
   overflow: hidden;
-  background: #fff;
-  border: 1.5px solid #e8edf5;
-  transition: border-color 0.3s ease;
+  background: oklch(1,0,0/0.55);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1.5px solid oklch(0.55,0.08,258/0.45);
+  box-shadow: 0 4px 20px oklch(0.45,0.1,258/0.06);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
   min-height: 0;
 }
 
 .announce-side:hover {
-  border-color: rgba(6, 78, 162, 0.1);
+  border-color: oklch(0.55,0.14,258/0.35);
+  box-shadow: inset 0 1px 0 oklch(1,0,0/0.8), 0 8px 32px oklch(0.45,0.1,258/0.1);
 }
 
 .announce-side-header {
@@ -1916,19 +1914,19 @@ a.group:hover::after {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  background: linear-gradient(135deg, #f8fafe, #f0f4fb);
-  border-bottom: 1px solid #eef1f6;
+  background: oklch(1,0,0/0.3);
+  border-bottom: 1px solid oklch(0.55,0.08,258/0.3);
   flex-shrink: 0;
 }
 
 .announce-side-title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   color: #18243a;
 }
 
 .announce-side-count {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: #8a96aa;
   padding: 2px 8px;
@@ -1950,7 +1948,7 @@ a.group:hover::after {
   text-decoration: none;
   transition: all 0.3s ease;
   position: relative;
-  border-bottom: 1px solid #f2f4f8;
+  border-bottom: 1px solid oklch(0.6,0.06,258/0.22);
   flex: 1;
 }
 
@@ -1984,6 +1982,7 @@ a.group:hover::after {
 
 /* 序号 */
 .announce-side-item-rank {
+  font-size: 13px;
   width: 28px;
   height: 28px;
   border-radius: 8px;
@@ -2016,7 +2015,7 @@ a.group:hover::after {
 }
 
 .announce-side-item-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   color: #333;
   line-height: 1.5;
@@ -2533,6 +2532,13 @@ a.group:hover::after {
   0%   { background-position: 0% 50%; }
   50%  { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+
+/* 顶部栏底边光影漂移 */
+@keyframes header-edge-flow {
+  0%   { background-position: 200% 50%; opacity: 0.6; }
+  50%  { background-position: 0% 50%; opacity: 1; }
+  100% { background-position: -200% 50%; opacity: 0.6; }
 }
 
 /* Subtle breathing glow for the search icon when idle */

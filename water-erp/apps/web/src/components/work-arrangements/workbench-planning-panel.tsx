@@ -74,11 +74,11 @@ export function WorkbenchPlanningPanel({
               </div>
               <div className="mt-3 grid gap-3 xl:grid-cols-2">
                 {dailyPlan?.timeBlocks.length ? (
-                  dailyPlan.timeBlocks.map((block) => (
+                  dailyPlan.timeBlocks.map((block, i) => (
                     <button
-                      key={`${block.start}-${block.end}`}
+                      key={`tb-${i}-${block.label}`}
                       type="button"
-                      onClick={() => onSelectTimeBlock(block.taskIds)}
+                      onClick={() => onSelectTimeBlock(block.taskIds ?? [])}
                       aria-label={`选择时间块：${block.label}`}
                       className="block w-full rounded-[18px] bg-white px-3 py-3 text-left transition hover:bg-gray-50"
                     >
@@ -87,7 +87,7 @@ export function WorkbenchPlanningPanel({
                         <div className="text-xs tabular-nums text-[color:var(--muted-foreground)]">{block.start} - {block.end}</div>
                       </div>
                       <p className="mt-2 text-sm leading-6 text-pretty text-[color:var(--muted-foreground)]">{block.focus}</p>
-                      <div className="mt-2 text-xs text-[color:var(--accent)]">关联任务 {block.taskIds.length} 条</div>
+                      <div className="mt-2 text-xs text-[color:var(--accent)]">关联任务 {block.taskIds?.length ?? 0} 条</div>
                     </button>
                   ))
                 ) : (

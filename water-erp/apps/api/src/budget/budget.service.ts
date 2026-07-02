@@ -207,8 +207,8 @@ export class BudgetService {
       data: {
         userId,
         action: 'BUDGET_CONVERTED',
-        target: `预算清单「${list!.name}」→ 采购立项 ${project.projectCode}`,
-        detail: { listId: id, projectCode: project.projectCode, itemCount: list!.items.length, totalAmount: Number(total.toFixed(2)) },
+        resourceType: `预算清单「${list!.name}」→ 采购立项 ${project.projectCode}`,
+        details: { listId: id, projectCode: project.projectCode, itemCount: list!.items.length, totalAmount: Number(total.toFixed(2)) },
       },
     });
     return { projectId: project.id, projectCode: project.projectCode, budgetAmount: Number(total.toFixed(2)) };
@@ -241,7 +241,7 @@ export class BudgetService {
     ws.getCell(`G${totalRow}`).font = { bold: true };
     ws.getCell(`H${totalRow}`).value = Number(rows.reduce((sum, r) => sum + r.subtotal, 0).toFixed(2));
     ws.getCell(`H${totalRow}`).font = { bold: true };
-    await this.prisma.auditLog.create({ data: { userId, action: 'BUDGET_EXPORTED', target: `预算清单「${list.name}」`, detail: { listId: id, itemCount: list.itemCount } } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'BUDGET_EXPORTED', resourceType: `预算清单「${list.name}」`, details: { listId: id, itemCount: list.itemCount } } });
     return Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
   }
 }

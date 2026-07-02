@@ -461,7 +461,7 @@ export class BidService {
       await tx.bidSupervisionLog.create({
         data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '开放投递 (DOWNLOAD→SUBMIT)', result: '阶段变更成功', riskFlag: '无' },
       });
-      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'DOWNLOAD', to: 'SUBMIT', stage: 'SUBMIT' } } });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: 'DOWNLOAD', to: 'SUBMIT', stage: 'SUBMIT' } } });
 
       return result;
     });
@@ -538,7 +538,7 @@ export class BidService {
       await tx.bidSupervisionLog.create({
         data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action: '启动开标 (SUBMIT→OPENING)', result: '阶段变更成功', riskFlag: '无' },
       });
-      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'SUBMIT', to: 'OPENING', stage: 'OPENING', host: dto?.host, supervisor: dto?.supervisor, deadline: project.deadline } } });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: 'SUBMIT', to: 'OPENING', stage: 'OPENING', host: dto?.host, supervisor: dto?.supervisor, deadline: project.deadline } } });
 
       this.gateway?.notifyStageChange(id, 'SUBMIT', 'OPENING', 'host');
       this.gateway?.notifyOpeningStarted(id, { host: dto?.host || '系统', supervisor: dto?.supervisor || '系统' });
@@ -591,7 +591,7 @@ export class BidService {
       await tx.bidSupervisionLog.create({
         data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '启动评标 (OPENING→EVALUATING)', result: '阶段变更成功', riskFlag: '无' },
       });
-      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'OPENING', to: 'EVALUATING', stage: 'EVALUATING' } } });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: 'OPENING', to: 'EVALUATING', stage: 'EVALUATING' } } });
 
       // 4.3: 创建 AI 分析 task（1:1，upsert 幂等）+ 为解密成功供应商创建 bidderResult（数据准备）
       const aiTask = await tx.aiBidAnalysisTask.upsert({
@@ -840,7 +840,7 @@ export class BidService {
         });
         this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密异常：${reason}`, riskFlag: '高风险' });
         this.gateway?.notifyAnomaly(projectId, { type: 'decrypt_failure', supplierId, supplierName: bidSupplier.supplierName, detail: reason, severity: 'danger' });
-        if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', target: `${bidSupplier.supplierName}:${supplierId}`, detail: { projectId, outcome: 'DANGER', reason, phase: 'no_files' } } });
+        if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', resourceType: `${bidSupplier.supplierName}:${supplierId}`, details: { projectId, outcome: 'DANGER', reason, phase: 'no_files' } } });
         return tx.bidSupplier.findUnique({ where: { id: supplierId } });
       }
 
@@ -894,7 +894,7 @@ export class BidService {
         });
         this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密异常：${reason}`, riskFlag: '高风险' });
         this.gateway?.notifyAnomaly(projectId, { type: 'decrypt_failure', supplierId, supplierName: bidSupplier.supplierName, detail: reason, severity: 'danger' });
-        if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', target: `${bidSupplier.supplierName}:${supplierId}`, detail: { projectId, outcome: 'DANGER', reason, phase: 'decrypt_verify' } } });
+        if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', resourceType: `${bidSupplier.supplierName}:${supplierId}`, details: { projectId, outcome: 'DANGER', reason, phase: 'decrypt_verify' } } });
         return tx.bidSupplier.findUnique({ where: { id: supplierId } });
       }
 
@@ -929,7 +929,7 @@ export class BidService {
       });
 
       this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密成功，等待供应商确认唱标信息${legacyNote}`, riskFlag: '无' });
-      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', target: `${bidSupplier.supplierName}:${supplierId}`, detail: { projectId, outcome: 'SUCCESS' } } });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', resourceType: `${bidSupplier.supplierName}:${supplierId}`, details: { projectId, outcome: 'SUCCESS' } } });
 
       return confirmed;
     });
@@ -1251,7 +1251,7 @@ export class BidService {
       }
     });
     this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}）`, riskFlag: '无' });
-    if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_RESULTS_GENERATED', target: `BidProject:${projectId}`, detail: { rankedCount: ranked.length } } });
+    if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_RESULTS_GENERATED', resourceType: `BidProject:${projectId}`, details: { rankedCount: ranked.length } } });
 
     return this.listEvaluationResults(projectId);
   }
@@ -1579,7 +1579,7 @@ export class BidService {
       });
       if (actorId) {
         await tx.auditLog.create({
-          data: { userId: actorId, action: 'BID_STAGE_CHANGE', target: `BidProject:${id}`, detail: { from: 'EVALUATING', to: 'ARCHIVED', stage: 'ARCHIVED', archiveItems: archiveItems.length } },
+          data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: 'EVALUATING', to: 'ARCHIVED', stage: 'ARCHIVED', archiveItems: archiveItems.length } },
         });
       }
 
@@ -1991,8 +1991,8 @@ export class BidService {
       data: {
         userId: actorId,
         action: 'BID_NUDGE_SUPPLIERS',
-        target: project.projectCode,
-        detail: { projectId: id, reached: userIds.length, onlyUnsubmitted },
+        resourceType: project.projectCode,
+        details: { projectId: id, reached: userIds.length, onlyUnsubmitted },
       },
     });
 
@@ -2037,8 +2037,8 @@ export class BidService {
       data: {
         userId: actorId,
         action: 'BID_NUDGE_EXPERTS',
-        target: project.projectCode,
-        detail: { projectId: id, reached: userIds.length, reason },
+        resourceType: project.projectCode,
+        details: { projectId: id, reached: userIds.length, reason },
       },
     });
 
@@ -2106,8 +2106,8 @@ export class BidService {
       data: {
         userId: actorId,
         action: 'BID_INVITE_SUPPLIERS',
-        target: project.projectCode,
-        detail: { projectId: id, added: toInvite.length, skipped },
+        resourceType: project.projectCode,
+        details: { projectId: id, added: toInvite.length, skipped },
       },
     });
 

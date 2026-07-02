@@ -952,7 +952,7 @@ export class SupplierPortalService {
     if (input.attachmentFileAssetId != null) data.attachmentFileAssetId = input.attachmentFileAssetId || null;
     const updated = await this.prisma.supplierCatalogApplication.update({ where: { id: applicationId }, data });
     await this.notifyReviewer(app, '供货申请已重新提交', `供应商已重新提交申请并改价至 ¥${Number(updated.quotedPrice)}，请审核。`);
-    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_APPLICATION_RESUBMITTED', target: '目录供货申请', detail: { applicationId, status: app.status } } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_APPLICATION_RESUBMITTED', resourceType: '目录供货申请', details: { applicationId, status: app.status } } });
     return updated;
   }
 
@@ -970,7 +970,7 @@ export class SupplierPortalService {
       data: { quotedPrice: Number(app.counterPrice), status: 'PENDING' },
     });
     await this.notifyReviewer(app, '供应商已接受议价', `供应商已接受反报价 ¥${Number(app.counterPrice)}，请进行最终审核。`);
-    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_COUNTER_ACCEPTED', target: '目录供货申请', detail: { applicationId, counterPrice: Number(app.counterPrice) } } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_COUNTER_ACCEPTED', resourceType: '目录供货申请', details: { applicationId, counterPrice: Number(app.counterPrice) } } });
     return updated;
   }
 
@@ -987,7 +987,7 @@ export class SupplierPortalService {
       where: { id: applicationId },
       data: { status: 'WITHDRAWN' },
     });
-    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_APPLICATION_WITHDRAWN', target: '目录供货申请', detail: { applicationId } } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_APPLICATION_WITHDRAWN', resourceType: '目录供货申请', details: { applicationId } } });
     return updated;
   }
 
