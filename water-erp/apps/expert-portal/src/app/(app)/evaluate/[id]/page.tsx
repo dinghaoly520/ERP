@@ -149,9 +149,13 @@ export default function ExpertEvaluatePage() {
   // confirmedDispute 是 per-supplier UI 核对态（切供应商时重置）。无异议的供应商自然不 gate。
   const [disputeCategoriesBySupplier, setDisputeCategoriesBySupplier] = useState<Record<string, string[]>>({});
   // Task 4: 异议备注（per-supplier+category）— 列表用于打分 step「📎插入异议」联动
-  const [disputesBySupplier, setDisputesBySupplier] = useState<Record<string, Record<string, Array<{ requirementId: string; content: string; note: string }>>>>({});
-  // Task 4: 当前展开「插入异议」列表的 scoreItem key（'supplierId:scoreItemId'），点击切换 popover
-  const [disputeInsertOpenKey, setDisputeInsertOpenKey] = useState<string | null>(null);
+  const [disputesBySupplier, setDisputesBySupplier] = useState<Record<string, Record<string, Array<{ requirementId: string; content: string; note: string; verdict: 'dispute' | 'doubt' }>>>>({});
+  // Task 5: 复选框面板开关 key（聚焦理由框 / 点📎按钮均开同一面板）
+  const [reviewPanelOpenKey, setReviewPanelOpenKey] = useState<string | null>(null);
+  // Task 5: 已插入的 note id 集合（`${supplierId}:${requirementId}`），实现幂等
+  const [insertedKeys, setInsertedKeys] = useState<Set<string>>(new Set());
+  // Task 5: 点击面板内部时抑制 blur 关闭
+  const suppressBlurRef = useRef(false);
   const [confirmedDispute, setConfirmedDispute] = useState<Record<string, boolean>>({});
   // P0-3: draft autosave to localStorage.
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
@@ -186,7 +190,7 @@ export default function ExpertEvaluatePage() {
         api.get<{
           records: unknown[];
           disputeCategoriesBySupplier: Record<string, string[]>;
-          disputesBySupplier: Record<string, Record<string, Array<{ requirementId: string; content: string; note: string }>>>;
+          disputesBySupplier: Record<string, Record<string, Array<{ requirementId: string; content: string; note: string; verdict: 'dispute' | 'doubt' }>>>;
         }>(`/expert/projects/${projectId}/my-scores`)
           .then((d) => {
             setDisputeCategoriesBySupplier(d.disputeCategoriesBySupplier ?? {});
@@ -478,6 +482,91 @@ export default function ExpertEvaluatePage() {
     return `${(n / 1024 / 1024).toFixed(1)} MB`;
   };
 
+  // ── Task 5: 聚焦复选框面板 helpers ──
+  const noteId = (supplierId: string, requirementId: string) => `${supplierId}:${requirementId}`;
+
+  const buildInsertText = (dsp: { requirementId: string; content: string; note: string }) => {
+    const clause = dsp.content?.trim() ? dsp.content.slice(0, 40) : '(原文缺失)';
+    const body = dsp.note?.trim()
+      ? dsp.note
+      : dsp.content?.trim() ? dsp.content : '(原文缺失)';
+    return `【★条款 ${dsp.requirementId}：${clause}】${body}`;
+  };
+
+  const onToggleNote = (
+    k: string,
+    supplierId: string,
+    dsp: { requirementId: string; content: string; note: string },
+    itemId: string,
+  ) => {
+    const id = noteId(supplierId, dsp.requirementId);
+    if (insertedKeys.has(id)) return; // 幂等：已插入不再插；取消勾选不动文字
+    const text = buildInsertText(dsp);
+    setScores(prev => {
+      const cur = prev[k];
+      const prevReason = cur?.reason ?? '';
+      const newReason = prevReason
+        ? (prevReason.endsWith('\n') ? prevReason + text : prevReason + '\n' + text)
+        : text;
+      return { ...prev, [k]: { score: cur?.score ?? 0, reason: newReason, passed: cur?.passed } };
+    });
+    setInsertedKeys(prev => { const n = new Set(prev); n.add(id); return n; });
+    if (missingReasons.has(itemId)) setMissingReasons(prev => { const n = new Set(prev); n.delete(itemId); return n; });
+  };
+
+  const onReasonFocus = (k: string) => setReviewPanelOpenKey(k);
+  const onReasonBlur = () => {
+    setTimeout(() => {
+      if (!suppressBlurRef.current) setReviewPanelOpenKey(null);
+      suppressBlurRef.current = false;
+    }, 0);
+  };
+
+  // Task 5: 复选框面板渲染（聚焦理由框 / 点📎按钮共用）
+  const renderReviewPanel = (
+    k: string,
+    category: string,
+    itemId: string,
+  ) => {
+    const notes = disputesBySupplier[activeSupplier]?.[category] ?? [];
+    if (notes.length === 0 || scoreLocked) return null;
+    const open = reviewPanelOpenKey === k;
+    return (
+      <div className="mt-1.5">
+        <button type="button"
+          onClick={() => setReviewPanelOpenKey(prev => (prev === k ? null : k))}
+          className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-800 hover:bg-amber-50 px-2 py-1 rounded-md transition">
+          <AlertTriangle size={11} strokeWidth={1.5} /> {open ? '收起' : '插入异议/疑问'}
+        </button>
+        {open && (
+          <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50/80 p-2 space-y-1.5">
+            {notes.map((dsp, idx) => {
+              const id = noteId(activeSupplier, dsp.requirementId);
+              const inserted = insertedKeys.has(id);
+              return (
+                <label key={`rev-${dsp.requirementId}-${idx}`}
+                  onMouseDown={() => { suppressBlurRef.current = true; }}
+                  className={`flex items-start gap-2 text-xs rounded px-2 py-1 ${inserted ? 'opacity-60' : 'hover:bg-white/70'}`}>
+                  <input type="checkbox" checked={inserted} disabled={inserted}
+                    onChange={() => onToggleNote(k, activeSupplier, dsp, itemId)}
+                    className="mt-0.5 accent-amber-600" />
+                  <div className="flex-1 min-w-0">
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mr-1 ${dsp.verdict === 'dispute' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {dsp.verdict === 'dispute' ? '异议' : '疑问'}
+                    </span>
+                    <span className="font-semibold text-amber-900">{dsp.content?.slice(0, 40) || '(原文缺失)'}</span>
+                    {dsp.note && <div className="text-amber-700 mt-0.5">{dsp.note}</div>}
+                    {inserted && <div className="text-[10px] text-amber-600 mt-0.5">已插入</div>}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* P3: disconnected banner */}
@@ -621,7 +710,7 @@ export default function ExpertEvaluatePage() {
           <SupplierSidebar
             suppliers={project.suppliers}
             activeSupplier={activeSupplier}
-            onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); setConfirmedDispute({}); }}
+            onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); setConfirmedDispute({}); setReviewPanelOpenKey(null); }}
             conflictedSupplierIds={conflictedSupplierIds}
             decryptLabel={decryptLabel}
             scoringProgress={
@@ -1157,6 +1246,8 @@ export default function ExpertEvaluatePage() {
                                     </div>
                                     {verdict === false && (
                                       <textarea placeholder="不通过理由（必填）" value={val?.reason || ''}
+                                        onFocus={() => onReasonFocus(k)}
+                                        onBlur={onReasonBlur}
                                         onChange={e => {
                                           const v = e.target.value;
                                           setScores(prev => ({ ...prev, [k]: { score: 0, reason: v, passed: false } }));
@@ -1165,42 +1256,8 @@ export default function ExpertEvaluatePage() {
                                         className={`w-full rounded-lg px-3 py-2 text-sm text-[oklch(0.18_0.012_265)] resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
                                         aria-label={`${item.name} 不通过理由`} />
                                     )}
-                                    {/* Task 4: 📎 插入异议 — 仅当本 category 有 dispute 时显示，点击展开本类异议列表，逐条追加到该 scoreItem reason */}
-                                    {disputed && (disputesBySupplier[activeSupplier]?.[category]?.length ?? 0) > 0 && (
-                                      <div className="mt-1.5">
-                                        <button type="button"
-                                          onClick={() => setDisputeInsertOpenKey(disputeInsertOpenKey === k ? null : k)}
-                                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-800 hover:bg-amber-50 px-2 py-1 rounded-md transition">
-                                          <AlertTriangle size={11} strokeWidth={1.5} /> 插入异议
-                                        </button>
-                                        {disputeInsertOpenKey === k && (
-                                          <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50/80 p-2 space-y-1.5">
-                                            {disputesBySupplier[activeSupplier][category].map((dsp, idx) => (
-                                              <div key={`ins-${dsp.requirementId}-${idx}`} className="flex items-start gap-2 text-xs">
-                                                <div className="flex-1 min-w-0">
-                                                  <div className="font-semibold text-amber-900 truncate" title={dsp.content}>{dsp.content}</div>
-                                                  {dsp.note && <div className="text-amber-700">{dsp.note}</div>}
-                                                </div>
-                                                <button type="button"
-                                                  onClick={() => {
-                                                    const text = dsp.note ? `[异议：${dsp.note}]` : `[异议：${dsp.content}]`;
-                                                    setScores(prev => {
-                                                      const cur = prev[k];
-                                                      const prevReason = cur?.reason ?? '';
-                                                      const newReason = prevReason ? prevReason.endsWith('\n') ? prevReason + text : prevReason + '\n' + text : text;
-                                                      return { ...prev, [k]: { score: cur?.score ?? 0, reason: newReason, passed: cur?.passed } };
-                                                    });
-                                                    if (missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
-                                                  }}
-                                                  className="shrink-0 px-2 py-1 rounded bg-amber-500 text-white text-[11px] font-bold hover:bg-amber-600 transition">
-                                                  插入
-                                                </button>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
+                                    {/* Task 5: pass-fail 「不通过」理由框聚焦（或点📎按钮）→ 展开复选框面板 */}
+                                    {verdict === false && renderReviewPanel(k, category, item.id)}
                                     {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold flex items-center gap-1"><AlertTriangle size={12} strokeWidth={1.5} />请选择「通过 / 不通过」，不通过需填理由</p>}
                                   </div>
                                 );
@@ -1228,6 +1285,8 @@ export default function ExpertEvaluatePage() {
                                       aria-label={`${item.name} 数值输入`} tabIndex={0} />
                                   </div>
                                   <textarea placeholder="评分理由（低于满分必填）" value={val?.reason || ''}
+                                    onFocus={() => onReasonFocus(k)}
+                                    onBlur={onReasonBlur}
                                     onChange={e => {
                                       const v = e.target.value;
                                       setScores(prev => ({ ...prev, [k]: { score: prev[k]?.score ?? 0, reason: v } }));
@@ -1235,42 +1294,8 @@ export default function ExpertEvaluatePage() {
                                     }}
                                     className={`w-full rounded-lg px-3 py-2 text-sm resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
                                     aria-label={`${item.name} 评分理由`} tabIndex={0} />
-                                  {/* Task 4: 📎 插入异议 — 仅当本 category 有 dispute 时显示，点击展开本类异议列表，逐条追加到该 scoreItem reason */}
-                                  {disputed && (disputesBySupplier[activeSupplier]?.[category]?.length ?? 0) > 0 && (
-                                    <div className="mt-1.5">
-                                      <button type="button"
-                                        onClick={() => setDisputeInsertOpenKey(disputeInsertOpenKey === k ? null : k)}
-                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-800 hover:bg-amber-50 px-2 py-1 rounded-md transition">
-                                        <AlertTriangle size={11} strokeWidth={1.5} /> 插入异议
-                                      </button>
-                                      {disputeInsertOpenKey === k && (
-                                        <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50/80 p-2 space-y-1.5">
-                                          {disputesBySupplier[activeSupplier][category].map((dsp, idx) => (
-                                            <div key={`ins-${dsp.requirementId}-${idx}`} className="flex items-start gap-2 text-xs">
-                                              <div className="flex-1 min-w-0">
-                                                <div className="font-semibold text-amber-900 truncate" title={dsp.content}>{dsp.content}</div>
-                                                {dsp.note && <div className="text-amber-700">{dsp.note}</div>}
-                                              </div>
-                                              <button type="button"
-                                                onClick={() => {
-                                                  const text = dsp.note ? `[异议：${dsp.note}]` : `[异议：${dsp.content}]`;
-                                                  setScores(prev => {
-                                                    const cur = prev[k];
-                                                    const prevReason = cur?.reason ?? '';
-                                                    const newReason = prevReason ? prevReason.endsWith('\n') ? prevReason + text : prevReason + '\n' + text : text;
-                                                    return { ...prev, [k]: { score: cur?.score ?? 0, reason: newReason, passed: cur?.passed } };
-                                                  });
-                                                  if (missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
-                                                }}
-                                                className="shrink-0 px-2 py-1 rounded bg-amber-500 text-white text-[11px] font-bold hover:bg-amber-600 transition">
-                                                插入
-                                              </button>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
+                                  {/* Task 5: 数值项理由框聚焦（或点📎按钮）→ 展开复选框面板 */}
+                                  {renderReviewPanel(k, category, item.id)}
                                   {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold flex items-center gap-1"><AlertTriangle size={12} strokeWidth={1.5} />该项得分低于满分，请填写评分理由</p>}
                                 </div>
                               );
