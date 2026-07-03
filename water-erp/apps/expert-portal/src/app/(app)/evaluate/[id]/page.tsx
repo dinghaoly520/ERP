@@ -1207,13 +1207,13 @@ export default function ExpertEvaluatePage() {
                           </div>
                           <div className="p-4 space-y-4">
                             {/* Task 4: 异议备注区 — disputed category 顶部列出异议条款摘要 + note，供专家打分参考 */}
-                            {disputed && (disputesBySupplier[activeSupplier]?.[category]?.length ?? 0) > 0 && (
+                            {disputed && (disputesBySupplier[activeSupplier]?.[category]?.filter((d) => d.verdict === 'dispute').length ?? 0) > 0 && (
                               <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 space-y-2">
                                 <div className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
-                                  <AlertTriangle size={12} strokeWidth={1.5} /> 异议备注（{disputesBySupplier[activeSupplier][category].length} 条 · 可在下方评分项点「📎 插入异议」逐条引用）
+                                  <AlertTriangle size={12} strokeWidth={1.5} /> 异议备注（{disputesBySupplier[activeSupplier][category].filter((d) => d.verdict === 'dispute').length} 条 · 聚焦下方理由框可勾选复选框引用）
                                 </div>
                                 <ul className="space-y-1.5">
-                                  {disputesBySupplier[activeSupplier][category].map((dsp, idx) => (
+                                  {disputesBySupplier[activeSupplier][category].filter((d) => d.verdict === 'dispute').map((dsp, idx) => (
                                     <li key={`${dsp.requirementId}-${idx}`} className="text-xs text-amber-900 bg-white/70 rounded px-2 py-1.5 border border-amber-100">
                                       <div className="font-semibold truncate" title={dsp.content}>条款：{dsp.content}</div>
                                       {dsp.note && <div className="text-amber-700 mt-0.5">异议：{dsp.note}</div>}
