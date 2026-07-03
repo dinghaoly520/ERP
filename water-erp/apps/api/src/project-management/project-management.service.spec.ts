@@ -2,7 +2,6 @@ import type { Express } from 'express';
 import { BadRequestException } from '@nestjs/common';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { ProjectManagementService } from './project-management.service';
-import { PROJECT_WORKFLOW_STAGES } from './project-management.types';
 
 const SAMPLE_DEMAND_TEXT = `采购需求申请表
 采购分类解释
@@ -383,6 +382,7 @@ describe('ProjectManagementService', () => {
     const aiService = {
       analyzeProjectDetail: jest.fn(),
     };
+    const documentParser = {};
 
     const readFileMock = readFile as jest.MockedFunction<typeof readFile>;
     const writeFileMock = writeFile as jest.MockedFunction<typeof writeFile>;
@@ -391,7 +391,7 @@ describe('ProjectManagementService', () => {
     writeFileMock.mockReset();
     mkdirMock.mockReset();
 
-    const prisma = {
+    const prisma: Record<string, any> = {
       department: {
         upsert: jest.fn(),
       },
@@ -421,19 +421,21 @@ describe('ProjectManagementService', () => {
       procurementRound: {
         create: jest.fn(),
       },
-      $transaction: jest.fn(async (callback: (tx: typeof prisma) => unknown) =>
-        callback(prisma),
+      $transaction: jest.fn(async (callback: (tx: any) => unknown) =>
+        callback(prisma as any),
       ),
     };
 
     const service = new ProjectManagementService(
       prisma as never,
       aiService as never,
+      documentParser as never,
     );
     return {
       service,
       prisma,
       aiService,
+      documentParser,
       readFileMock,
       writeFileMock,
       mkdirMock,
@@ -466,6 +468,7 @@ describe('ProjectManagementService', () => {
         procurementOrganizationForm: '自行组织',
         budgetAmount: 380000,
         isAnnualBudget: true,
+        hasProcurementDemand: false,
         projectReason: '年度办公环境升级',
         supplierRequirements: '具备同类项目供货经验',
         initiationAttachment: {
@@ -482,18 +485,24 @@ describe('ProjectManagementService', () => {
       status: 'ACTIVE',
     });
 
+    // 公开招标 + only initiationAttachment (hasDemand=false, hasInitiation=true):
+    // source filters out PROCUREMENT_DEMAND and PUBLIC_ANNOUNCEMENT,
+    // INITIATION is COMPLETED, TENDER_DOCUMENT is the first IN_PROGRESS stage.
+    const expectedStages = [
+      { key: 'INITIATION', label: '项目立项', status: 'COMPLETED' },
+      { key: 'TENDER_DOCUMENT', label: '采购文件', status: 'IN_PROGRESS' },
+      { key: 'EXPERT_SELECTION', label: '专家抽取', status: 'NOT_STARTED' },
+      { key: 'BID_EVALUATION', label: '评标过程', status: 'NOT_STARTED' },
+      { key: 'AWARD_DECISION', label: '定标', status: 'NOT_STARTED' },
+      { key: 'CONTRACT', label: '合同', status: 'NOT_STARTED' },
+    ];
     expect(prisma.projectManagementStage.createMany).toHaveBeenCalledWith({
-      data: PROJECT_WORKFLOW_STAGES.map((stage, index) => ({
+      data: expectedStages.map((stage, index) => ({
         projectManagementItemId: 'pm-01',
         stageKey: stage.key,
         stageName: stage.label,
         stageOrder: index + 1,
-        status:
-          index === 0
-            ? 'COMPLETED'
-            : index === 1
-              ? 'IN_PROGRESS'
-              : 'NOT_STARTED',
+        status: stage.status,
       })),
     });
   });
@@ -850,6 +859,7 @@ describe('ProjectManagementService', () => {
       budgetAmount: 380000,
       currentStage: 'CONTRACT',
       status: 'ACTIVE',
+      departmentNumber: 'CS-001',
     });
     prisma.projectManagementStage.findMany.mockResolvedValue([
       {
@@ -974,7 +984,7 @@ describe('ProjectManagementService', () => {
     prisma.projectManagementStage.updateMany.mockResolvedValue({ count: 1 });
     prisma.projectManagementItem.update.mockResolvedValue({
       id: 'pm-01',
-      currentStage: 'EXPERT_SELECTION',
+      currentStage: 'PUBLIC_ANNOUNCEMENT',
     });
     aiService.analyzeProjectDetail.mockResolvedValue({
       summary: {
@@ -994,14 +1004,14 @@ describe('ProjectManagementService', () => {
     expect(prisma.projectManagementStage.updateMany).toHaveBeenCalledWith({
       where: {
         projectManagementItemId: 'pm-01',
-        stageKey: 'EXPERT_SELECTION',
+        stageKey: 'PUBLIC_ANNOUNCEMENT',
         status: 'NOT_STARTED',
       },
       data: { status: 'IN_PROGRESS' },
     });
     expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
       where: { id: 'pm-01' },
-      data: { currentStage: 'EXPERT_SELECTION' },
+      data: { currentStage: 'PUBLIC_ANNOUNCEMENT' },
     });
   });
 
