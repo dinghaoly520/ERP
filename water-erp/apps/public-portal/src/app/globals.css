@@ -86,6 +86,95 @@ body {
   box-shadow: 3px 3px 8px #c5cad3, -3px -3px 8px #ffffff;
 }
 
+/* ── Neumorphism Cards ── */
+.neu-card {
+  background: oklch(1,0,0/0.55);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1.5px solid oklch(0.55,0.08,258/0.35);
+  border-radius: 20px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.12),
+    -2px -2px 6px oklch(1 0 0 / 0.85);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.neu-card:hover {
+  transform: translateY(-2px);
+  border-color: oklch(0.55,0.14,258/0.25);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 10px oklch(0.45 0.08 258 / 0.1),
+    -2px -2px 8px oklch(1 0 0 / 0.9);
+}
+
+/* ── Neumorphism Form Input ── */
+.neu-input {
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid oklch(0.78 0.03 258 / 0.45);
+  border-radius: 9px;
+  font-size: 14px;
+  color: #18243a;
+  background: oklch(0.99 0.004 258);
+  outline: none;
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    inset -2px -2px 4px oklch(1 0 0 / 0.7);
+  transition: all 0.2s ease;
+  width: 100%;
+}
+.neu-input::placeholder { color: #bcc6d4; }
+.neu-input:focus {
+  border-color: oklch(0.5 0.16 258 / 0.5);
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08),
+    inset -2px -2px 4px oklch(1 0 0 / 0.5),
+    0 0 0 3px oklch(0.5 0.16 258 / 0.08);
+}
+
+/* ── Neumorphism Primary Button ── */
+.neu-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 28px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: oklch(0.5 0.16 258);
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  box-shadow:
+    3px 3px 6px oklch(0.5 0.08 258 / 0.25),
+    -2px -2px 5px oklch(1 0 0 / 0.5);
+  transition: all 0.2s ease;
+}
+.neu-btn-primary:hover {
+  background: oklch(0.42 0.16 258);
+  transform: translateY(-1px);
+  box-shadow:
+    4px 4px 10px oklch(0.45 0.08 258 / 0.28),
+    -2px -2px 6px oklch(1 0 0 / 0.55);
+}
+.neu-btn-primary:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.35 0.08 258 / 0.35),
+    inset -2px -2px 5px oklch(1 0 0 / 0.25);
+}
+.neu-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow:
+    2px 2px 4px oklch(0.5 0.05 258 / 0.15),
+    -1px -1px 3px oklch(1 0 0 / 0.4);
+}
+
 /* ── Hero CTA Buttons ── */
 .hero-btn {
   position: relative;
@@ -101,21 +190,30 @@ body {
   font-weight: 700;
   font-size: 16px;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
-  background: #064ea2;
-  transition: all 0.2s ease;
+  background: oklch(0.5 0.16 258);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.25),
+    3px 3px 8px oklch(0.25 0.06 258 / 0.4),
+    -2px -2px 6px oklch(0.55 0.12 258 / 0.25);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease, background 0.25s ease;
 }
 
 .hero-btn:hover {
-  background: #043d82;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(6, 78, 162, 0.3);
+  background: oklch(0.45 0.16 258);
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.3),
+    5px 5px 14px oklch(0.2 0.06 258 / 0.45),
+    -3px -3px 10px oklch(0.55 0.12 258 / 0.3);
 }
 
 .hero-btn:active {
   transform: translateY(0);
-  box-shadow: none;
+  box-shadow:
+    inset 2px 2px 6px oklch(0.25 0.06 258 / 0.45),
+    inset -2px -2px 6px oklch(0.6 0.12 258 / 0.2);
 }
 
 /* Outlined variant */
@@ -128,26 +226,39 @@ body {
   height: 52px;
   min-width: 160px;
   padding: 0 32px;
-  color: #064ea2;
+  color: #fff;
   font-family: inherit;
   font-weight: 700;
   font-size: 16px;
-  border: 1.5px solid #064ea2;
-  border-radius: 8px;
+  border: 1.5px solid oklch(0.6 0.12 258 / 0.5);
+  border-radius: 12px;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.85);
-  transition: all 0.2s ease;
+  background: oklch(1 0 0 / 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.12),
+    3px 3px 8px oklch(0.25 0.06 258 / 0.35),
+    -2px -2px 6px oklch(0.55 0.12 258 / 0.15);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease, background 0.25s ease, border-color 0.25s ease;
 }
 
 .hero-btn-outline:hover {
   color: #fff;
-  background: #064ea2;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(6, 78, 162, 0.25);
+  background: oklch(0.5 0.16 258 / 0.85);
+  border-color: oklch(0.5 0.16 258 / 0.8);
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.2),
+    5px 5px 14px oklch(0.2 0.06 258 / 0.4),
+    -3px -3px 10px oklch(0.55 0.12 258 / 0.2);
 }
 
 .hero-btn-outline:active {
   transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 6px oklch(0.25 0.06 258 / 0.05),
+    inset -2px -2px 6px oklch(1 0 0 / 0.06);
 }
 
 /* Arrow inside hero buttons */
@@ -495,21 +606,53 @@ body {
   border-bottom: 1px solid oklch(0.8 0.03 258 / 0.5);
 }
 .flow-back {
-  height: 40px;
-  padding: 0 22px;
-  border-radius: 999px;
-  border: 1px solid oklch(0.78 0.03 258 / 0.5);
-  background: oklch(1 0 0 / 0.5);
-  color: var(--fg-2);
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  gap: 6px;
+  padding: 8px 18px;
   font-size: 13px;
   font-weight: 600;
+  color: #5a6d8a;
+  background: #f4f7fc;
+  border: none;
+  border-radius: 8px;
+  text-decoration: none;
   cursor: pointer;
-  transition: all 0.25s ease;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.3s ease;
 }
 .flow-back:hover {
-  color: var(--brand);
-  border-color: var(--brand);
-  background: oklch(1 0 0 / 0.85);
+  color: #064ea2;
+  background: #eef2f8;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 6px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+.flow-back:active {
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+
+.flow-back-arrow {
+  width: 18px;
+  height: 18px;
+  padding: 2px;
+  border-radius: 50%;
+  background: transparent;
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.3s ease;
+}
+
+.flow-back:hover .flow-back-arrow {
+  transform: translateX(-4px);
+  background: rgba(6, 78, 162, 0.08);
 }
 
 /* ── Hero ── */
@@ -1134,11 +1277,14 @@ body {
   width: 100%;
   padding: 24px 26px;
   border-radius: 18px;
-  background: color-mix(in srgb, var(--card-color, #7ec8e3) 14%, oklch(0.995 0.004 258 / 0.6));
+  background: oklch(1 0 0 / 0.55);
   backdrop-filter: blur(22px) saturate(160%);
   -webkit-backdrop-filter: blur(22px) saturate(160%);
-  border: 1px solid color-mix(in srgb, var(--card-color, #7ec8e3) 18%, oklch(0.9 0.01 258 / 0.5));
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--card-color, #7ec8e3) 10%, transparent), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  border: 1.5px solid oklch(0.55 0.08 258 / 0.35);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.12),
+    -2px -2px 6px oklch(1 0 0 / 0.85);
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
@@ -1146,9 +1292,12 @@ body {
 .flow-h-panel.on .flow-h-card {
   opacity: 1;
   transform: scale(1.015) translateY(-4px);
-  background: color-mix(in srgb, var(--card-color, #7ec8e3) 22%, oklch(0.995 0.004 258 / 0.7));
-  box-shadow: 0 18px 44px color-mix(in srgb, var(--card-color, #7ec8e3) 18%, transparent), inset 0 1px 0 oklch(1 0 0 / 0.7);
-  border-color: color-mix(in srgb, var(--card-color, #7ec8e3) 35%, oklch(0.78 0.03 258 / 0.5));
+  background: oklch(1 0 0 / 0.7);
+  border-color: oklch(0.55 0.14 258 / 0.25);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 10px oklch(0.45 0.08 258 / 0.12),
+    -3px -3px 8px oklch(1 0 0 / 0.9);
 }
 /* active card shimmering border */
 .flow-h-panel.on .flow-h-card::before {
@@ -1248,8 +1397,19 @@ body {
   background: var(--glass-2);
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 16px 50px oklch(0.45 0.1 258 / 0.1), inset 0 1px 0 oklch(1 0 0 / 0.8);
+  border: 1.5px solid oklch(0.55,0.08,258/0.35);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.12),
+    -2px -2px 6px oklch(1 0 0 / 0.85);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.flow-cta:hover {
+  border-color: oklch(0.55,0.14,258/0.25);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 10px oklch(0.45 0.08 258 / 0.1),
+    -2px -2px 8px oklch(1 0 0 / 0.9);
 }
 .flow-cta::before {
   content: '';
@@ -1283,30 +1443,58 @@ body {
   height: 54px;
   padding: 0 32px;
   border: none;
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--brand);
   color: #fff;
   font-family: inherit;
   font-weight: 700;
   font-size: 15px;
   cursor: pointer;
-  transition: all 0.25s ease;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.25),
+    3px 3px 8px oklch(0.5 0.08 258 / 0.3),
+    -2px -2px 6px oklch(0.55 0.12 258 / 0.2);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, background 0.25s ease;
 }
 .flow-cta-btn:hover {
   background: var(--brand-deep);
   transform: translateY(-2px);
-  box-shadow: 0 10px 30px oklch(0.5 0.16 258 / 0.3);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.3),
+    5px 5px 14px oklch(0.45 0.08 258 / 0.35),
+    -3px -3px 10px oklch(0.55 0.12 258 / 0.25);
+}
+.flow-cta-btn:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.35 0.08 258 / 0.4),
+    inset -2px -2px 5px oklch(1 0 0 / 0.2);
 }
 .flow-cta-btn.ghost {
-  background: oklch(1 0 0 / 0.5);
+  background: oklch(1 0 0 / 0.55);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
   color: var(--brand);
-  border: 1.5px solid oklch(0.65 0.08 258 / 0.45);
+  border: 1.5px solid oklch(0.55 0.08 258 / 0.35);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.12),
+    -2px -2px 6px oklch(1 0 0 / 0.85);
 }
 .flow-cta-btn.ghost:hover {
-  background: oklch(1 0 0 / 0.85);
-  border-color: var(--brand);
+  background: oklch(1 0 0 / 0.75);
+  border-color: oklch(0.55 0.14 258 / 0.3);
   color: var(--brand);
-  box-shadow: none;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 10px oklch(0.45 0.08 258 / 0.1),
+    -2px -2px 8px oklch(1 0 0 / 0.9);
+}
+.flow-cta-btn.ghost:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.12),
+    inset -1px -1px 3px oklch(1 0 0 / 0.6);
 }
 
 @media (max-width: 860px) {
@@ -1414,20 +1602,25 @@ a.group:hover::after {
 
 /* ── 新拟态凸起边框 ── */
 .feature-entry-card {
-  background: #f6f9fe;
+  background: oklch(1,0,0/0.55);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1.5px solid oklch(0.55,0.08,258/0.35);
+  border-radius: 20px;
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.8),
-    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
-    -1px -1px 3px oklch(1 0 0 / 0.85);
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease, background 0.3s ease;
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.12),
+    -2px -2px 6px oklch(1 0 0 / 0.85);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease, border-color 0.3s ease;
 }
 
 .feature-entry-card:hover {
-  transform: translateY(-3px);
-  background: linear-gradient(135deg, #f5f8fc, #eef3fb);
+  transform: translateY(-2px);
+  border-color: oklch(0.55,0.14,258/0.25);
   box-shadow:
-    3px 3px 6px oklch(0.55 0.03 258 / 0.14),
-    -2px -2px 5px oklch(1 0 0 / 0.9);
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 10px oklch(0.45 0.08 258 / 0.1),
+    -2px -2px 8px oklch(1 0 0 / 0.9);
 }
 
 /* ── reduced motion ── */
@@ -2463,8 +2656,19 @@ a.group:hover::after {
   background: var(--glass-2);
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 16px 48px oklch(0.45 0.1 258 / 0.09), inset 0 1px 0 oklch(1 0 0 / 0.78);
+  border: 1.5px solid oklch(0.55,0.08,258/0.35);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.12),
+    -2px -2px 6px oklch(1 0 0 / 0.85);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.flow-pipe-shell:hover {
+  border-color: oklch(0.55,0.14,258/0.25);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 10px oklch(0.45 0.08 258 / 0.1),
+    -2px -2px 8px oklch(1 0 0 / 0.9);
 }
 .flow-pipe-shell-head {
   display: flex;
@@ -2595,6 +2799,97 @@ a.group:hover::after {
   0%   { background-position: 200% 50%; opacity: 0.6; }
   50%  { background-position: 0% 50%; opacity: 1; }
   100% { background-position: -200% 50%; opacity: 0.6; }
+}
+
+/* ── 顶部栏背景：水彩晕染流动 ──
+   #e2f5f6 主色为底，::before/::after 各承两枚低透明青/薄荷/湖蓝径向色斑，
+   background-size 小于栏宽 + background-position 在栏内漂移 → 永不溢出，
+   无需 overflow:hidden，不裁切子元素（搜索框/按钮）阴影。
+   静止时 <FluidHeader /> 画布透明，色斑显出流动；鼠标交互时 WebGL 涟漪叠于其上。 */
+.flow-header-bg {
+  background-color: #e2f5f6;
+  isolation: isolate;
+}
+.flow-header-bg::before,
+.flow-header-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+}
+.flow-header-bg::before {
+  background-image:
+    radial-gradient(circle, rgba(94, 207, 214, 0.22) 0%, transparent 60%),
+    radial-gradient(circle, rgba(13, 148, 136, 0.15) 0%, transparent 62%);
+  background-size: 55% 140%, 50% 130%;
+  background-position: 15% 35%, 80% 20%;
+  animation: flow-header-drift-a 18s ease-in-out infinite;
+}
+.flow-header-bg::after {
+  background-image:
+    radial-gradient(circle, rgba(125, 196, 224, 0.18) 0%, transparent 58%),
+    radial-gradient(circle, rgba(181, 232, 224, 0.20) 0%, transparent 60%);
+  background-size: 60% 150%, 48% 120%;
+  background-position: 50% 72%, 22% 30%;
+  animation: flow-header-drift-b 22s ease-in-out infinite;
+}
+@keyframes flow-header-drift-a {
+  0%   { background-position: 15% 35%, 80% 20%; }
+  50%  { background-position: 68% 62%, 28% 78%; }
+  100% { background-position: 15% 35%, 80% 20%; }
+}
+@keyframes flow-header-drift-b {
+  0%   { background-position: 50% 72%, 22% 30%; }
+  50%  { background-position: 20% 32%, 75% 60%; }
+  100% { background-position: 50% 72%, 22% 30%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-header-bg::before,
+  .flow-header-bg::after { animation: none; }
+}
+
+/* ── 页脚：玻璃雾化 — 与顶栏同语汇，首尾通透呼应 ──
+   浅青玻璃面 + 顶部青色流光细线（复用 header-edge-flow）；
+   链接墨色 → hover 青色 + 下划线渐显。替代原深海军蓝实心板。 */
+.footer-glass {
+  background: oklch(0.965 0.02 195 / 0.88);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border-top: 1px solid oklch(0.87 0.03 200 / 0.38); /* 微弱上边线，与流光线一同界定页脚起止 */
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7);       /* 顶缘内高光 — 新拟态灵魂线 */
+  isolation: isolate;
+}
+.footer-edge-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, #5ecfd6 20%, #3db8c4 40%, #a8f0f0 50%, #3db8c4 60%, #5ecfd6 80%, transparent 100%);
+  background-size: 200% 100%;
+  animation: header-edge-flow 4s ease-in-out infinite;
+}
+.footer-link {
+  position: relative;
+  padding: 1.25rem 1.5rem;            /* 对齐原 px-6 py-5 */
+  font-size: 14px;
+  color: #26364e;
+  text-decoration: none;
+  transition: color 0.25s ease;
+}
+.footer-link::after {                  /* 下划线：左起渐显 */
+  content: "";
+  position: absolute;
+  left: 1.5rem; right: 1.5rem; bottom: 1.05rem;
+  height: 1px;
+  background: #0891a0;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.footer-link:hover { color: #0891a0; }
+.footer-link:hover::after { transform: scaleX(1); }
+@media (prefers-reduced-motion: reduce) {
+  .footer-edge-line { animation: none; }
+  .footer-link, .footer-link::after { transition: none; }
 }
 
 /* Subtle breathing glow for the search icon when idle */

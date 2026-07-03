@@ -76,7 +76,7 @@ export default function ExpertEvaluationPage() {
       </div>
 
       {/* Summary bar */}
-      <div className="flex items-center gap-6 rounded-2xl border border-[#dce6f3] bg-white px-5 py-3 text-sm">
+      <div className="mb-5 flex items-center gap-6 text-sm">
         <span className="text-[#5a6d8a]">累计评价 <strong className="text-[#18243a] tabular-nums">{stats.total}</strong> 次</span>
         <span className="text-[#5a6d8a]">平均得分 <strong className="text-[#064ea2] tabular-nums">{stats.avgScore}</strong></span>
       </div>
@@ -89,8 +89,8 @@ export default function ExpertEvaluationPage() {
       </DataToolbar>
 
       <SectionCard className="p-0">
-        <table className="workbench-table">
-          <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
+        <table className="workbench-table w-full min-w-[550px]">
+          <thead className="neu-thead [neu-thead text-[#5a6d8a] [&_th]:whitespace-nowrap_th]:whitespace-nowrap">
             <tr>
               <th className="px-4 py-3">专家</th>
               <th className="px-4 py-3 text-center">专业</th>
@@ -122,7 +122,7 @@ export default function ExpertEvaluationPage() {
                 <td className="px-4 py-3 text-center text-sm text-[#5a6d8a]">{e.expertProfile?.employer || '—'}</td>
                 <td className="px-4 py-3 text-center text-sm font-semibold tabular-nums">{e._count.expertEvaluations}</td>
                 <td className="px-4 py-3 text-center">
-                  <button onClick={(ev) => { ev.stopPropagation(); openModal(e); }} className="btn-press rounded-lg bg-[#064ea2] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#054280] transition">
+                  <button onClick={(ev) => { ev.stopPropagation(); openModal(e); }} className="btn-press rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-bold text-white hover:brightness-110 transition">
                     履职评价
                   </button>
                 </td>
@@ -136,7 +136,7 @@ export default function ExpertEvaluationPage() {
       {target && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={closeModal}>
           <div className="modal-content glass-card w-full max-w-lg rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-[#edf2f7] px-6 py-4">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
               <div>
                 <h3 className="text-base font-bold text-[#18243a]">专家履职评价</h3>
                 <p className="mt-0.5 text-xs text-[#5a6d8a]">{target.displayName} · {target.expertProfile?.specialty}</p>
@@ -174,12 +174,12 @@ export default function ExpertEvaluationPage() {
               </div>
 
               <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="评价说明（可选）"
-                className="w-full rounded-xl border border-[#dce6f3] px-3 py-2 text-sm placeholder-[#94a3b8] h-20 resize-none focus:outline-none focus:border-[#064ea2]" />
+                className="w-full rounded-xl border border-[var(--border)] px-3 py-2 text-sm placeholder-[#94a3b8] h-20 resize-none focus:outline-none focus:border-[#064ea2]" />
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-[#edf2f7] px-6 py-4">
-              <button onClick={closeModal} className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
-              <button onClick={submit} disabled={saving} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white hover:bg-[#054280] disabled:opacity-50 transition">
+            <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
+              <button onClick={closeModal} className="neu-btn-soft">取消</button>
+              <button onClick={submit} disabled={saving} className="neu-btn-primary">
                 {saving ? '提交中...' : '提交评价'}
               </button>
             </div>

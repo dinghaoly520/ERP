@@ -19,7 +19,16 @@ function WorkArrangementsRouter() {
     return () => { active = false; };
   }, []);
 
-  if (user === undefined) return null;
+  if (user === undefined) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[rgba(96,139,239,0.3)] border-t-[rgba(96,139,239,1)]" />
+          <span className="text-sm text-[color:var(--muted-foreground)]">加载中...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (user?.username === "Swhi-CGZX-00") {
     return <WorkArrangementsPageChairman initialProjectManagementItemId={projectManagementItemId} />;
@@ -30,7 +39,14 @@ function WorkArrangementsRouter() {
 
 export default function WorkArrangementsRoute() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[rgba(96,139,239,0.3)] border-t-[rgba(96,139,239,1)]" />
+          <span className="text-sm text-[color:var(--muted-foreground)]">加载中...</span>
+        </div>
+      </div>
+    }>
       <WorkArrangementsRouter />
     </Suspense>
   );

@@ -6,9 +6,9 @@ export function TrendChip({ delta, direction }: { delta: number; direction: Tren
   if (delta === 0) return null;
   const up = delta > 0;
   const colorCls =
-    direction === 'up-good' ? (up ? 'text-[#11a874] bg-[#11a87418] border-[#11a87430]' : 'text-[#5a6d8a] bg-[#f8fafc] border-[#e5ecf4]')
-    : direction === 'up-bad'  ? (up ? 'text-[#e74c3c] bg-[#e74c3c18] border-[#e74c3c30]' : 'text-[#11a874] bg-[#11a87418] border-[#11a87430]')
-    : 'text-[#5a6d8a] bg-[#f8fafc] border-[#e5ecf4]';
+    direction === 'up-good' ? (up ? 'text-[var(--success)] bg-[var(--success)]/10 border-[var(--success)]/20' : 'text-[var(--muted-foreground)] bg-[var(--surface)] border-[var(--border)]')
+    : direction === 'up-bad'  ? (up ? 'text-[var(--danger)] bg-[var(--danger)]/10 border-[var(--danger)]/20' : 'text-[var(--success)] bg-[var(--success)]/10 border-[var(--success)]/20')
+    : 'text-[var(--muted-foreground)] bg-[var(--surface)] border-[var(--border)]';
   const Icon = up ? TrendingUp : TrendingDown;
   return (
     <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums', colorCls)}>

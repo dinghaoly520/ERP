@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import type { AnnouncementItem } from '@/lib/announcements';
 import { portalURL } from '@water-erp/config';
@@ -45,9 +46,71 @@ export function UnifiedHeader({
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const [placeholderKey, setPlaceholderKey] = useState(0);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   // 导航菜单状态
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const aboutRef = useRef<HTMLDivElement>(null);
+  const contactRef = useRef<HTMLDivElement>(null);
+  const [aboutMenuPos, setAboutMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [contactMenuPos, setContactMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [searchMenuPos, setSearchMenuPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
   const menuTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 面板打开时同步计算位置，避免闪动；窗口 resize/scroll 时更新
+  useLayoutEffect(() => {
+    if (activeMenu === 'about') {
+      const calc = () => {
+        if (!aboutRef.current) return;
+        const r = aboutRef.current.getBoundingClientRect();
+        setAboutMenuPos({ top: r.bottom, left: r.left });
+      };
+      calc();
+      window.addEventListener('resize', calc);
+      window.addEventListener('scroll', calc, { passive: true });
+      return () => {
+        window.removeEventListener('resize', calc);
+        window.removeEventListener('scroll', calc);
+      };
+    }
+  }, [activeMenu]);
+
+  // 联系我们面板位置
+  useLayoutEffect(() => {
+    if (activeMenu === 'contact') {
+      const calc = () => {
+        if (!contactRef.current) return;
+        const r = contactRef.current.getBoundingClientRect();
+        setContactMenuPos({ top: r.bottom, left: r.left });
+      };
+      calc();
+      window.addEventListener('resize', calc);
+      window.addEventListener('scroll', calc, { passive: true });
+      return () => {
+        window.removeEventListener('resize', calc);
+        window.removeEventListener('scroll', calc);
+      };
+    }
+  }, [activeMenu]);
+
+  // 搜索下拉面板位置
+  useLayoutEffect(() => {
+    if (showDropdown) {
+      const calc = () => {
+        if (!containerRef.current) return;
+        const r = containerRef.current.getBoundingClientRect();
+        setSearchMenuPos({ top: r.bottom + 6, left: r.left, width: r.width });
+      };
+      calc();
+      window.addEventListener('resize', calc);
+      window.addEventListener('scroll', calc, { passive: true });
+      return () => {
+        window.removeEventListener('resize', calc);
+        window.removeEventListener('scroll', calc);
+      };
+    }
+  }, [showDropdown]);
   const handleMenuEnter = (menu: string) => {
     if (menuTimeout.current) { clearTimeout(menuTimeout.current); menuTimeout.current = null; }
     setActiveMenu(menu);
@@ -176,7 +239,7 @@ export function UnifiedHeader({
   const placeholder = PLACEHOLDERS[placeholderIdx];
 
   return (
-    <header className="sticky top-0 z-50 bg-[#e2f5f6]" style={{ willChange: 'transform' }}>
+    <header className="sticky top-0 z-50 flow-header-bg" style={{ willChange: 'transform' }}>
       {/* 底部动态光影线 — 青色调 */}
       <div className="absolute bottom-0 left-0 right-0 h-px z-30" style={{
         background: 'linear-gradient(90deg, transparent 0%, #5ecfd6 20%, #3db8c4 40%, #a8f0f0 50%, #3db8c4 60%, #5ecfd6 80%, transparent 100%)',
@@ -294,12 +357,15 @@ export function UnifiedHeader({
             </div>
           </div>
 
-          {/* ── 下拉面板 ── */}
-          {showDropdown && (
-            <div className="absolute left-4 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-lg border border-white/[0.2] glass shadow-[0_12px_40px_rgba(15,35,65,.10)] animate-[dropdown-slide-in_200ms_ease-out]">
-              <div className="flex items-center gap-2 border-b border-white/[0.1] px-4 py-2">
-                <span className="text-[11px] font-semibold text-[#94a3b8]">{hasInput ? `搜索「${trimmed}」` : '最近搜索'}</span>
-                {hasInput && <span className="text-[11px] text-[#c0c9d4]">{results.length} 条结果</span>}
+          {/* ── 搜索下拉面板 — Portal 到 body ── */}
+          {showDropdown && mounted && createPortal(
+            <div
+              className="fixed overflow-hidden rounded-lg bg-[#f2f4f6] shadow-[0_12px_40px_rgba(15,35,65,.08)] z-[9999]"
+              style={{ top: searchMenuPos.top, left: searchMenuPos.left, width: searchMenuPos.width }}
+            >
+              <div className="flex items-center gap-2 border-b border-[#dde1e8] px-4 py-2">
+                <span className="text-[11px] font-semibold text-[#5a6d8a]">{hasInput ? `搜索「${trimmed}」` : '最近搜索'}</span>
+                {hasInput && <span className="text-[11px] text-[#94a3b8]">{results.length} 条结果</span>}
               </div>
 
               {hasInput ? (
@@ -309,7 +375,7 @@ export function UnifiedHeader({
                       <li key={item.id} role="option" aria-selected={idx === selectedIdx}>
                         <button
                           type="button" onClick={() => goToDetail(item.id)} onMouseEnter={() => setSelectedIdx(idx)}
-                          className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition ${idx === selectedIdx ? 'bg-[#f5f7fa]' : 'hover:bg-[#f8fafb]'}`}
+                          className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition ${idx === selectedIdx ? 'bg-[#e8ebf0]' : 'hover:bg-[#e8ebf0]'}`}
                         >
                           <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ color: item.color, backgroundColor: `${item.color}14` }}>{TYPE_LABEL[item.type] || item.tag}</span>
                           <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#18243a]">{item.title}</span>
@@ -330,7 +396,7 @@ export function UnifiedHeader({
                     {history.map((h, idx) => (
                       <li key={h} role="option" aria-selected={idx === selectedIdx}>
                         <button type="button" onClick={() => executeSearch(h)} onMouseEnter={() => setSelectedIdx(idx)}
-                          className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm transition ${idx === selectedIdx ? 'bg-[#f5f7fa]' : 'text-[#24364f] hover:bg-[#f8fafb]'}`}>
+                          className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm transition ${idx === selectedIdx ? 'bg-[#e8ebf0]' : 'text-[#24364f] hover:bg-[#e8ebf0]'}`}>
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[#bcc6d4]"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
                           <span className="flex-1 truncate text-left">{h}</span>
                           <span className="text-[10px] text-[#bcc6d4]">历史</span>
@@ -342,7 +408,8 @@ export function UnifiedHeader({
                   <div className="px-4 py-6 text-center text-xs text-[#94a3b8]">输入公告标题或编号进行搜索</div>
                 )
               )}
-            </div>
+            </div>,
+            document.body,
           )}
         </div>
 
@@ -350,6 +417,7 @@ export function UnifiedHeader({
         <div className="flex flex-1 items-center justify-end">
           {/* ── 集团简介 ── */}
           <div
+            ref={aboutRef}
             className="relative"
             onMouseEnter={() => handleMenuEnter('about')}
             onMouseLeave={handleMenuLeave}
@@ -368,32 +436,30 @@ export function UnifiedHeader({
               </svg>
             </button>
 
-            {/* 下拉面板 */}
-            <div
-              className={`absolute right-0 top-full mt-1 min-w-[160px] rounded-lg border border-white/[0.2] glass py-1.5 shadow-[0_12px_40px_rgba(15,35,65,.10)] transition-all duration-200 origin-top-right ${
-                activeMenu === 'about'
-                  ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
-                  : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
-              }`}
-            >
-              <div className="px-3 py-1.5 mb-1">
-                <span className="text-[10px] font-bold tracking-[0.16em] text-[#bcc6d4] uppercase">集团概况</span>
-              </div>
-              <a href="/about" target="_blank" rel="noopener noreferrer"
-                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#0891a0] transition-colors duration-150"
+            {/* 下拉面板 — Portal 到 body 以越过 header 层叠上下文 */}
+            {activeMenu === 'about' && mounted && createPortal(
+              <div
+                className="fixed min-w-[140px] rounded-lg bg-[#f2f4f6] py-1 shadow-[0_12px_40px_rgba(15,35,65,.08)] z-[9999]"
+                style={{ top: aboutMenuPos.top, left: aboutMenuPos.left }}
               >
-                集团概况
-              </a>
-              <a href="https://www.scsfjt.com/" target="_blank" rel="noopener noreferrer"
-                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#0891a0] transition-colors duration-150"
-              >
-                集团官网
-              </a>
-            </div>
+                <a href="/about" target="_blank" rel="noopener noreferrer"
+                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#0891a0] transition-colors duration-150 text-center"
+                >
+                  集团概况
+                </a>
+                <a href="https://www.scsfjt.com/" target="_blank" rel="noopener noreferrer"
+                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#0891a0] transition-colors duration-150 text-center"
+                >
+                  集团官网
+                </a>
+              </div>,
+              document.body,
+            )}
           </div>
 
           {/* ── 联系我们 ── */}
           <div
+            ref={contactRef}
             className="relative"
             onMouseEnter={() => handleMenuEnter('contact')}
             onMouseLeave={handleMenuLeave}
@@ -412,28 +478,25 @@ export function UnifiedHeader({
               </svg>
             </button>
 
-            {/* 下拉面板 */}
-            <div
-              className={`absolute right-0 top-full mt-1 min-w-[200px] rounded-lg border border-white/[0.2] glass py-1.5 shadow-[0_12px_40px_rgba(15,35,65,.10)] transition-all duration-200 origin-top-right ${
-                activeMenu === 'contact'
-                  ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
-                  : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
-              }`}
-            >
-              <div className="px-3 py-1.5 mb-1">
-                <span className="text-[10px] font-bold tracking-[0.16em] text-[#bcc6d4] uppercase">联系方式</span>
-              </div>
-              <a href="/contact"
-                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#0891a0] transition-colors duration-150"
+            {/* 下拉面板 — Portal 到 body */}
+            {activeMenu === 'contact' && mounted && createPortal(
+              <div
+                className="fixed min-w-[140px] rounded-lg bg-[#f2f4f6] py-1 shadow-[0_12px_40px_rgba(15,35,65,.08)] z-[9999]"
+                style={{ top: contactMenuPos.top, left: contactMenuPos.left }}
               >
-                联系方式
-              </a>
-              <a href="/contact/visitor"
-                className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#f5f7fa] hover:text-[#0891a0] transition-colors duration-150"
-              >
-                来访接待
-              </a>
-            </div>
+                <a href="/contact"
+                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#0891a0] transition-colors duration-150 text-center"
+                >
+                  联系方式
+                </a>
+                <a href="/contact/visitor"
+                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#0891a0] transition-colors duration-150 text-center"
+                >
+                  来访接待
+                </a>
+              </div>,
+              document.body,
+            )}
           </div>
         </div>
       </div>

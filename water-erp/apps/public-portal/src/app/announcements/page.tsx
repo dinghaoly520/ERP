@@ -48,8 +48,8 @@ function AnnouncementsContent() {
 
       {/* ═══ 内容区 — 全宽与首页对齐 ═══ */}
       <div className="relative z-10 px-[clamp(40px,4vw,72px)] pt-3 pb-10">
-        <a href="/" className="flow-back inline-flex items-center gap-1.5 w-fit mb-8">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        <a href="/" className="flow-back mb-8">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow"><path d="M15 18l-6-6 6-6"/></svg>
           返回首页
         </a>
         {/* 标题 */}

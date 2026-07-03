@@ -125,7 +125,7 @@ export function DashboardAiPanel({
   if (!ready) return null;
 
   return (
-    <section className={cn('glass-card glass-card-deeper glass-card-blue relative overflow-hidden rounded-[20px]', className)}>
+    <section className={cn('relative overflow-hidden', className)}>
       {/* ── Header ── */}
       <div className="flex items-center justify-between border-b border-[#f0edf6]/60 px-6 py-4 relative z-10">
         <div className="flex items-center gap-3">

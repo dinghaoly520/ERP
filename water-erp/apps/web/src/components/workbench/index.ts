@@ -16,3 +16,5 @@ export { EmptyState } from './empty-state';
 export { CommandPalette } from './command-palette';
 export { Pagination } from './pagination';
 export { Breadcrumb } from './breadcrumb';
+export { FlowBackdrop } from './flow-backdrop';
+export { UnifiedHeader } from './unified-header';

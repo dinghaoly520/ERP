@@ -31,8 +31,6 @@ export default function VisitorPage() {
     setSubmitting(false);
   };
 
-  const ic = "h-[44px] px-3.5 border border-[#d4dde8] rounded-lg text-[14px] text-[#18243a] bg-white outline-none focus:border-[#064ea2] focus:shadow-[0_0_0_3px_rgba(6,78,162,.08)] transition-all duration-200 placeholder:text-[#bcc6d4] w-full";
-
   return (
     <div className="flow-page flex flex-col" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       <FlowBackdrop />
@@ -40,7 +38,7 @@ export default function VisitorPage() {
 
       <main className="flex-1 relative z-10">
         <div className="px-[clamp(40px,5vw,80px)] pt-3 pb-[clamp(36px,3.5vw,48px)]">
-          <a href="/" className="flow-back inline-flex items-center gap-1.5 w-fit">
+          <a href="/" className="flow-back">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             返回首页
           </a>
@@ -56,39 +54,39 @@ export default function VisitorPage() {
             <div className="grid grid-cols-2 gap-x-5 gap-y-4">
               <label className="grid gap-1.5 text-[13px] font-bold text-[#1c314d]">
                 <span className="flex items-center gap-1">来访人姓名<span className="text-[#d43030] text-xs">*</span></span>
-                <input type="text" value={form.name} onChange={e => update('name', e.target.value)} placeholder="请输入姓名" className={ic} />
+                <input type="text" value={form.name} onChange={e => update('name', e.target.value)} placeholder="请输入姓名" className="neu-input" />
               </label>
               <label className="grid gap-1.5 text-[13px] font-bold text-[#1c314d]">
                 <span className="flex items-center gap-1">联系电话<span className="text-[#d43030] text-xs">*</span></span>
-                <input type="tel" value={form.phone} onChange={e => update('phone', e.target.value)} placeholder="请输入手机号码" className={ic} />
+                <input type="tel" value={form.phone} onChange={e => update('phone', e.target.value)} placeholder="请输入手机号码" className="neu-input" />
               </label>
               <label className="grid gap-1.5 text-[13px] font-bold text-[#1c314d]">
                 <span>来访单位</span>
-                <input type="text" value={form.organization} onChange={e => update('organization', e.target.value)} placeholder="请输入单位名称" className={ic} />
+                <input type="text" value={form.organization} onChange={e => update('organization', e.target.value)} placeholder="请输入单位名称" className="neu-input" />
               </label>
               <label className="grid gap-1.5 text-[13px] font-bold text-[#1c314d]">
                 <span>来访人数</span>
-                <input type="number" min="1" value={form.visitorCount} onChange={e => update('visitorCount', e.target.value)} placeholder="请输入人数" className={ic} />
+                <input type="number" min="1" value={form.visitorCount} onChange={e => update('visitorCount', e.target.value)} placeholder="请输入人数" className="neu-input" />
               </label>
               <label className="grid gap-1.5 text-[13px] font-bold text-[#1c314d]">
                 <span className="flex items-center gap-1">来访日期<span className="text-[#d43030] text-xs">*</span></span>
-                <input type="date" value={form.visitDate} onChange={e => update('visitDate', e.target.value)} className={ic} />
+                <input type="date" value={form.visitDate} onChange={e => update('visitDate', e.target.value)} className="neu-input" />
               </label>
               <label className="grid gap-1.5 text-[13px] font-bold text-[#1c314d]">
                 <span className="flex items-center gap-1">来访事由<span className="text-[#d43030] text-xs">*</span></span>
-                <input type="text" value={form.purpose} onChange={e => update('purpose', e.target.value)} placeholder="简要说明事由" className={ic} />
+                <input type="text" value={form.purpose} onChange={e => update('purpose', e.target.value)} placeholder="简要说明事由" className="neu-input" />
               </label>
             </div>
 
             <div className="flex items-end gap-4 mt-4">
               <label className="grid gap-1.5 text-[13px] font-bold text-[#1c314d] flex-1">
                 备注说明
-                <input type="text" value={form.remark} onChange={e => update('remark', e.target.value)} placeholder="其他需要说明的事项" className={ic} />
+                <input type="text" value={form.remark} onChange={e => update('remark', e.target.value)} placeholder="其他需要说明的事项" className="neu-input" />
               </label>
               <button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="h-[44px] px-8 bg-[#064ea2] text-white text-[14px] font-bold rounded-lg hover:bg-[#05428a] active:scale-[0.98] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+                className="neu-btn-primary shrink-0"
               >
                 {submitting ? '提交中...' : '提交登记'}
               </button>

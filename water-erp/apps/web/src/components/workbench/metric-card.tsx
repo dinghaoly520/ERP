@@ -9,16 +9,6 @@ import { TrendChip } from './trend-chip';
 import { MiniSparkline } from '@/lib/hooks/use-trend';
 import type { TrendDirection, TrendHistory } from '@/lib/hooks/use-trend';
 
-const TONE_GLASS: Record<string, string> = {
-  blue: 'glass-card-blue',
-  green: 'glass-card-emerald',
-  orange: 'glass-card-amber',
-  red: 'glass-card-rose',
-  purple: 'glass-card-purple',
-  cyan: 'glass-card-blue',
-  gray: 'glass-card-blue',
-};
-
 interface MetricCardProps {
   label: string;
   value: ReactNode;
@@ -118,39 +108,36 @@ export function MetricCard({ label, value, hint, tone = 'blue', icon, onClick, f
   const toneConfig = statusTone[tone];
   const Component = onClick ? 'button' : 'div';
 
-  const glass = TONE_GLASS[tone] || 'glass-card-blue';
-
   return (
     <Component
       onClick={onClick}
       className={cn(
-        'glass-card glass-card-lighter card-enter group rounded-2xl p-4 text-left transition',
-        glass,
+        'neu-card card-enter group p-4 text-left',
         shimmer && 'kpi-card-shine',
-        onClick && 'hover:-translate-y-0.5 hover:shadow-lg btn-press',
+        onClick && 'btn-press cursor-pointer',
         className,
       )}
     >
       {/* Content sits above the shimmer pseudo-element */}
       <div className="relative z-[1]">
         <div className="mb-2 flex items-start justify-between gap-3">
-          <span className="text-xs font-bold text-[#5a6d8a]">{label}</span>
+          <span className="text-xs font-bold text-[var(--muted-foreground)]">{label}</span>
           {icon && <span className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ color: toneConfig.color, backgroundColor: toneConfig.bg }}>{icon}</span>}
         </div>
         <div className="flex items-end justify-between gap-2">
-          <span className="text-2xl font-black tracking-tight text-[#18243a]">
+          <span className="text-2xl font-black tracking-tight text-[var(--foreground)]">
             <AnimatedValue value={value} />
           </span>
           {trendHistory?.values && trendHistory.values.length >= 2 && (
             <MiniSparkline values={trendHistory.values} tone={tone} />
           )}
         </div>
-        {hint && <p className="mt-0.5 text-xs leading-5 text-[#8a96aa]">{hint}</p>}
+        {hint && <p className="mt-0.5 text-xs leading-5 text-[var(--muted-foreground)]">{hint}</p>}
         {trendDelta != null && trendDelta !== 0 && trendDirection && (
           <TrendChip delta={trendDelta} direction={trendDirection} />
         )}
-        {footer && <div className="mt-4 text-xs text-[#5a6d8a]">{footer}</div>}
-        {onClick && <ArrowRight className="mt-3 text-[#8a96aa] opacity-0 transition group-hover:opacity-100 group-hover:translate-x-0.5" size={16} />}
+        {footer && <div className="mt-4 text-xs text-[var(--muted-foreground)]">{footer}</div>}
+        {onClick && <ArrowRight className="mt-3 text-[var(--muted-foreground)] opacity-0 transition group-hover:opacity-100 group-hover:translate-x-0.5" size={16} />}
       </div>
     </Component>
   );

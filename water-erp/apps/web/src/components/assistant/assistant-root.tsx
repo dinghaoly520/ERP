@@ -64,7 +64,7 @@ function AssistantLayoutInner({ children }: { children: ReactNode }) {
         {children}
       </AppShell>
       <WaterSprite />
-      <ChatPanel />
+      <ChatPanel variant="mini" />
     </>
   );
 }

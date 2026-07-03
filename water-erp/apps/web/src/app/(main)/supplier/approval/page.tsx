@@ -118,8 +118,8 @@ function SupplierApprovalPage() {
       <div className="grid gap-4 md:grid-cols-3">
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`glass-card glass-card-lighter text-left rounded-2xl p-5 transition ${
-              tab === t.key ? 'border-[#064ea2] ring-1 ring-[#064ea2]/20' : 'border-white/40 hover:border-[#bcd0e8]'
+            className={`group text-left rounded-xl p-4 transition border ${
+              tab === t.key ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[rgba(184,199,227,0.25)] hover:border-[rgba(96,139,239,0.3)]'
             }`}>
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-[#5a6d8a]">{t.label}</span>
@@ -143,15 +143,15 @@ function SupplierApprovalPage() {
           <div className="flex items-center gap-3 bg-[#eff6ff] border-b border-[#bfdbfe] px-4 py-2.5">
             <span className="text-xs font-extrabold text-[#064ea2]">已选 {selected.size} 项</span>
             {tab !== 'REJECTED' && (
-              <button onClick={batchApprove} disabled={batchApproving} className="btn-press inline-flex items-center gap-1 rounded-lg bg-[#11a874] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#0e8c5f] disabled:opacity-50">
+              <button onClick={batchApprove} disabled={batchApproving} className="btn-press neu-btn-soft is-success">
                 <Check size={12} />{batchApproving ? '批量通过中...' : `批量通过`}
               </button>
             )}
             <button onClick={() => setSelected(new Set())} className="text-xs font-semibold text-[#5a6d8a] hover:text-[#18243a]">取消选择</button>
           </div>
         )}
-        <table className="workbench-table">
-          <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
+        <table className="workbench-table w-full min-w-[750px]">
+          <thead className="neu-thead [neu-thead text-[#5a6d8a] [&_th]:whitespace-nowrap_th]:whitespace-nowrap">
             <tr>
               <th className="px-4 py-3 w-10"><input type="checkbox" checked={data.items.length > 0 && selected.size === data.items.length} onChange={toggleAll} className="accent-[#064ea2]" /></th>
               <th className="px-4 py-3">企业名称</th>
@@ -196,7 +196,7 @@ function SupplierApprovalPage() {
                 <td className="px-4 py-3 text-center">
                   <div className="flex justify-center gap-1.5">
                     <button onClick={(e) => { e.stopPropagation(); router.push(`/supplier/${s.id}`); }}
-                      className="btn-press rounded-lg border border-[#dce6f3] px-2.5 py-1 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">详情</button>
+                      className="btn-press neu-btn-xs is-info">详情</button>
                     {tab !== 'REJECTED' && (
                       <>
                         <button onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'approve', supplier: s }); }}
@@ -221,7 +221,7 @@ function SupplierApprovalPage() {
       {actionModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setActionModal(null)}>
           <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="border-b border-[#edf2f7] px-6 py-4">
+            <div className="border-b border-[var(--border)] px-6 py-4">
               <h3 className="text-base font-bold text-[#18243a]">
                 {actionModal.type === 'approve' ? '确认审核通过' : actionModal.type === 'reject' ? '审核不通过' : '退回补正'}
               </h3>
@@ -233,19 +233,19 @@ function SupplierApprovalPage() {
                   value={actionReason}
                   onChange={e => setActionReason(e.target.value)}
                   placeholder={actionModal.type === 'return' ? '请填写退回补正原因...' : '请填写不通过原因...'}
-                  className="w-full rounded-xl border border-[#dce6f3] px-3 py-2 text-sm placeholder-[#94a3b8] h-24 resize-none focus:outline-none focus:border-[#064ea2]"
+                  className="w-full rounded-xl border border-[var(--border)] px-3 py-2 text-sm placeholder-[#94a3b8] h-24 resize-none focus:outline-none focus:border-[#064ea2]"
                 />
               )}
             </div>
-            <div className="flex justify-end gap-3 border-t border-[#edf2f7] px-6 py-4">
+            <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
               <button onClick={() => setActionModal(null)}
-                className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+                className="neu-btn-soft">取消</button>
               <button
                 onClick={handleAction}
                 disabled={actionModal.type !== 'approve' && !actionReason.trim()}
-                className={`rounded-xl px-4 py-2 text-sm font-bold text-white transition disabled:opacity-50 ${
-                  actionModal.type === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' :
-                  actionModal.type === 'return' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-500 hover:bg-red-600'
+                className={`neu-btn-soft ${
+                  actionModal.type === 'approve' ? 'is-success' :
+                  actionModal.type === 'return' ? 'is-warning' : 'is-danger'
                 }`}>
                 确认
               </button>

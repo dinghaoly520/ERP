@@ -160,14 +160,14 @@ export function ProjectManagementPage() {
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
                   placeholder="按项目名 / 申请人 / 部门搜索"
-                  className="w-full rounded-[18px] border border-white/62 bg-white/78 px-4 py-3 text-sm text-[color:var(--foreground)] outline-none"
+                  className="w-full max-w-[480px] rounded-[18px] border border-white/62 bg-white/78 px-4 py-3 text-sm text-[color:var(--foreground)] outline-none"
                 />
               </div>
               <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={() => setShowRecycleBin(true)}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/72 bg-white/82 px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:bg-white"
+                  className="neu-btn-soft"
                 >
                   <Recycle size={16} />
                   回收站
@@ -180,7 +180,7 @@ export function ProjectManagementPage() {
                 <button
                   type="button"
                   onClick={() => setShowCreateDialog(true)}
-                  className="password-dialog__button password-dialog__button--primary"
+                  className="neu-btn-primary"
                 >
                   新建项目
                 </button>
@@ -195,11 +195,14 @@ export function ProjectManagementPage() {
           ) : null}
 
           {loading ? (
-            <div className="rounded-[24px] border border-white/60 bg-white/70 px-6 py-10 text-sm text-[color:var(--muted-foreground)]">
-              正在加载项目...
+            <div className="rounded-[24px] border border-white/60 bg-white/70 px-6 py-10 text-center text-sm text-[color:var(--muted-foreground)]">
+              <div className="flex flex-col items-center gap-3">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[rgba(96,139,239,0.3)] border-t-[rgba(96,139,239,1)]" />
+                正在加载项目...
+              </div>
             </div>
           ) : filteredItems.length === 0 ? (
-            <div className="rounded-[24px] border border-white/60 bg-white/70 px-6 py-10 text-sm text-[color:var(--muted-foreground)]">
+            <div className="rounded-[24px] border border-white/60 bg-white/70 px-6 py-10 text-center text-sm text-[color:var(--muted-foreground)]">
               当前没有进行中的项目。
             </div>
           ) : (

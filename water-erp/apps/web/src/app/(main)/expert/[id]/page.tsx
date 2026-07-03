@@ -50,8 +50,8 @@ export default function ExpertDetailPage() {
     <div className="space-y-5 animate-pulse">
       <div className="skeleton h-5 w-24 rounded" />
       <div className="space-y-2"><div className="skeleton h-7 w-48 rounded" /><div className="skeleton h-3 w-32 rounded" /></div>
-      <div className="grid grid-cols-4 glass-card rounded-2xl overflow-hidden">{[1,2,3,4].map(i => <div key={i} className="p-4 border-r last:border-r-0 border-white/20"><div className="skeleton h-2 w-12 mb-2" /><div className="skeleton h-5 w-24" /></div>)}</div>
-      <div className="grid grid-cols-3 glass-card rounded-2xl overflow-hidden">{[1,2,3].map(i => <div key={i} className="p-4 border-r last:border-r-0 border-white/20"><div className="skeleton h-2 w-16 mb-2" /><div className="skeleton h-8 w-12" /></div>)}</div>
+      <div className="grid grid-cols-4 overflow-hidden">{[1,2,3,4].map(i => <div key={i} className="p-4 border-r last:border-r-0 border-white/20"><div className="skeleton h-2 w-12 mb-2" /><div className="skeleton h-5 w-24" /></div>)}</div>
+      <div className="grid grid-cols-3 overflow-hidden">{[1,2,3].map(i => <div key={i} className="p-4 border-r last:border-r-0 border-white/20"><div className="skeleton h-2 w-16 mb-2" /><div className="skeleton h-8 w-12" /></div>)}</div>
     </div>
   );
   if (!expert) return <div className="py-24 text-center text-[13px] text-[#94a3b8]">专家不存在</div>;
@@ -68,13 +68,13 @@ export default function ExpertDetailPage() {
 
       {alertItems.length > 0 && <div className="mb-5"><AlertBanner items={alertItems} /></div>}
 
-      <div className="glass-card glass-card-blue rounded-2xl p-5 mb-7">
-        <div className="text-[11px] font-extrabold text-[#0756a5] uppercase tracking-[0.1em]">Expert Profile</div>
-        <h1 className="mt-1 text-[24px] font-black tracking-[-0.03em] text-[#0f172a]">{expert.displayName}</h1>
+      <div className="mb-5 pb-5 border-b border-[rgba(184,199,227,0.4)]">
+        <div className="text-[11px] font-extrabold text-[var(--accent)] uppercase tracking-[0.1em]">Expert Profile</div>
+        <h1 className="mt-1 text-[24px] font-black tracking-[-0.03em] text-[var(--foreground)]">{expert.displayName}</h1>
       </div>
 
       {/* Profile info */}
-      <div className="grid grid-cols-4 glass-card rounded-2xl overflow-hidden mb-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 overflow-hidden mb-5">
         <InfoCell label="用户名" value={expert.username} />
         <InfoCell label="邮箱" value={expert.email || '—'} />
         <InfoCell label="所属部门" value={expert.department?.name || '未分配'} />
@@ -82,7 +82,7 @@ export default function ExpertDetailPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 glass-card glass-card-blue rounded-2xl overflow-hidden mb-7">
+      <div className="grid grid-cols-1 sm:grid-cols-3 mb-7">
         <StatCell label="参与项目" value={expert.statistics.totalProjects} color="#0756a5" />
         <StatCell label="已完成评审" value={expert.statistics.completedProjects} color="#059669" />
         <StatCell label="已签到项目" value={expert.statistics.signedInProjects} color="#7c3aed" last />
@@ -94,9 +94,9 @@ export default function ExpertDetailPage() {
       </div>
 
       {expert.assignments.length === 0 ? (
-        <div className="glass-card rounded-2xl py-16 text-center text-[13px] text-[#94a3b8]">暂无评审项目记录</div>
+        <div className="py-16 text-center text-[13px] text-[var(--muted-foreground)]">暂无评审项目记录</div>
       ) : (
-        <div className="glass-card rounded-2xl overflow-hidden">
+        <div className="overflow-hidden">
           {expert.assignments.map((a, i) => {
             const stage = stageMap[a.project.stage] || { label: a.project.stage, color: '#94a3b8', bg: '#94a3b814' };
             return (

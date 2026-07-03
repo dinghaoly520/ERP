@@ -98,7 +98,7 @@ export default function ExpertEntryPage() {
       )}
 
       <SectionCard title="专家资料" action={
-        <button onClick={() => router.push('/expert/repository')} className="inline-flex items-center gap-1 rounded-xl border border-[#dce3eb] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">
+        <button onClick={() => router.push('/expert/repository')} className="inline-flex items-center gap-1 rounded-xl border border-[var(--border)] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">
           <ArrowLeft size={13} />返回专家库
         </button>
       }>
@@ -138,7 +138,7 @@ export default function ExpertEntryPage() {
             </div>
           </fieldset>
 
-          <div className="border-t border-[#edf2f7]" />
+          <div className="border-t border-[var(--border)]" />
 
           {/* ──────────── 专业资质 ──────────── */}
           <fieldset>
@@ -169,12 +169,12 @@ export default function ExpertEntryPage() {
             </div>
           </fieldset>
 
-          <div className="border-t border-[#edf2f7]" />
+          <div className="border-t border-[var(--border)]" />
 
           {/* ──────────── 联系信息 ──────────── */}
           <fieldset>
             <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.15em] text-[#94a3b8]">
-              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-[#dce3eb] bg-[#f8fafc] text-[10px] font-extrabold text-[#5a6d8a]">3</span>
+              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-[var(--border)] bg-[#f8fafc] text-[10px] font-extrabold text-[#5a6d8a]">3</span>
               联系信息
             </legend>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -196,12 +196,12 @@ export default function ExpertEntryPage() {
             </div>
           </fieldset>
 
-          <div className="border-t border-[#edf2f7]" />
+          <div className="border-t border-[var(--border)]" />
 
           {/* ──────────── 补充信息 ──────────── */}
           <fieldset>
             <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.15em] text-[#94a3b8]">
-              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-[#dce3eb] bg-[#f8fafc] text-[10px] font-extrabold text-[#5a6d8a]">4</span>
+              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-[var(--border)] bg-[#f8fafc] text-[10px] font-extrabold text-[#5a6d8a]">4</span>
               补充信息
             </legend>
             <label className="space-y-1">
@@ -213,17 +213,17 @@ export default function ExpertEntryPage() {
           </fieldset>
 
           {/* ──────────── 操作 ──────────── */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-[#edf2f7] pt-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-[var(--border)] pt-5">
             <p className="text-xs text-[#94a3b8]">
               <span className="text-red-500">*</span> 为必填项，录入后可在专家库调整启停状态
             </p>
             <div className="flex gap-3 self-end sm:self-auto">
               <button onClick={() => router.push('/expert/repository')}
-                className="rounded-xl border border-[#dce3eb] px-5 py-2.5 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">
+                className="neu-btn-soft">
                 取消
               </button>
               <button onClick={submit} disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#054280] disabled:opacity-50 transition">
+                className="neu-btn-primary">
                 {saving ? '保存中...' : <><UserPlus size={14} />录入专家</>}
               </button>
             </div>

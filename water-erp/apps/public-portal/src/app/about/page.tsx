@@ -29,7 +29,7 @@ export default function AboutPage() {
       <main className="relative z-10">
         {/* ═══ Stats Bar — 全宽 ═══ */}
       <section className="px-[clamp(28px,4vw,72px)] pt-3">
-        <a href="/" className="flow-back inline-flex items-center gap-1.5 mb-[clamp(24px,2.5vw,36px)]">
+        <a href="/" className="flow-back mb-[clamp(24px,2.5vw,36px)]">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
           返回首页
         </a>
@@ -38,9 +38,9 @@ export default function AboutPage() {
           <h1 className="text-[clamp(28px,3vw,40px)] font-black text-[#18243a] mb-1.5" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>集团简介</h1>
           <p className="text-sm text-[#8a96aa]">四川省属重点国有企业，水利事业高质量发展的重要力量</p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 border-b border-[#eef1f6]">
-          {STATS.map((s, i) => (
-            <div key={s.label} className={`flex flex-col items-center py-5 px-2 ${i < STATS.length - 1 ? 'sm:border-r border-[#eef1f6]' : ''}`}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+          {STATS.map((s) => (
+            <div key={s.label} className="neu-card flex flex-col items-center py-5 px-2">
               <div className="flex items-baseline gap-0.5 mb-1">
                 <span className="text-[clamp(22px,2vw,30px)] font-black text-[#064ea2] tracking-tight"
                   style={{ fontFamily: "'SF Mono','Menlo',ui-monospace,monospace" }}>
@@ -106,13 +106,13 @@ export default function AboutPage() {
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="glass rounded-xl p-5">
+                <div className="neu-card p-5">
                   <div className="text-[10px] font-bold tracking-[0.2em] text-[#94a3b8] mb-2">总体思路</div>
                   <p className="text-[13px] leading-[1.7] text-[#3d5068]">
                     夯实一个平台 · 做好两大任务 · 承担三项使命 · 突出四个聚焦 · 实现五大目标
                   </p>
                 </div>
-                <div className="glass rounded-xl p-5">
+                <div className="neu-card p-5">
                   <div className="text-[10px] font-bold tracking-[0.2em] text-[#94a3b8] mb-2">企业精神</div>
                   <p className="text-[13px] leading-[1.7] text-[#3d5068]">
                     爱岗敬业 · 低调做人 · 潜心做事 · 争创一流
@@ -131,7 +131,7 @@ export default function AboutPage() {
               <div className="grid gap-2">
                 {PROJECTS.map(name => (
                   <div key={name}
-                    className="flex items-center gap-2.5 px-4 py-2.5 glass rounded-lg hover:border-[#c4d6ee] transition-colors duration-200">
+                    className="flex items-center gap-2.5 px-4 py-2.5 neu-card hover:translate-y-[-1px] cursor-pointer">
                     <span className="block w-1.5 h-1.5 rounded-sm bg-[#c4d6ee] shrink-0" />
                     <span className="text-[14px] font-medium text-[#1c314d]">{name}</span>
                   </div>

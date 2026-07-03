@@ -336,13 +336,24 @@ function PieChart({
   items: Array<{ name: string; count: number }>;
 }) {
   const total = items.reduce((s, i) => s + i.count, 0);
-  if (total === 0) return null;
 
   const size = 80;
   const cx = size / 2;
   const cy = size / 2;
   const outerR = 36;
   const innerR = 22;
+
+  if (total === 0) {
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+        <circle cx={cx} cy={cy} r={outerR} fill="none" stroke="#e5e7eb" strokeWidth={8} />
+        <circle cx={cx} cy={cy} r={innerR} fill="none" stroke="#f3f4f6" strokeWidth={6} />
+        <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="central" className="fill-[#9ca3af] text-[9px] font-bold">
+          0
+        </text>
+      </svg>
+    );
+  }
 
   let cumulative = 0;
   const slices = items.slice(0, 6).map((item, idx) => {

@@ -13,7 +13,10 @@ export function FlowHeader({ label }: { label: string }) {
             <strong className="text-[#123a6e] text-xl tracking-[0.14em]" style={{ fontFamily: '"SimHei","黑体",sans-serif', fontWeight: 900 }}>四川水发集团</strong>
           </div>
         </a>
-        <button onClick={() => router.push('/')} className="flow-back">← 返回首页</button>
+        <button onClick={() => router.push('/')} className="flow-back">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow"><path d="M15 18l-6-6 6-6"/></svg>
+          返回首页
+        </button>
       </div>
     </header>
   );

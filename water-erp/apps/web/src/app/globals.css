@@ -113,6 +113,7 @@ a {
   input,
   textarea,
   select {
+    color: inherit;
     font-family: inherit;
     font-size: inherit;
   }
@@ -345,13 +346,215 @@ a {
 .sidebar-sheen::after {
   content: "";
   position: absolute;
-  inset: -18% auto auto -10%;
-  width: 220px;
-  height: 220px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(122, 170, 255, 0.18), transparent 68%);
-  filter: blur(12px);
+  inset: -5%;
+  background:
+    radial-gradient(circle at 15% 18%, rgba(130, 175, 255, 0.25), transparent 52%),
+    radial-gradient(circle at 78% 72%, rgba(75, 195, 175, 0.10), transparent 48%),
+    radial-gradient(circle at 55% 28%, rgba(255, 255, 255, 0.12), transparent 44%);
+  filter: blur(18px);
   pointer-events: none;
+}
+
+/* ============================================================
+   Sidebar card — 透明玻璃 + 凸起边缘 + 光晕
+   ============================================================ */
+.sidebar-card {
+  /* 透明基底 — 约 45% 不透度，毛玻璃透视底层氛围 */
+  background: oklch(1 0 0 / 0.42);
+  backdrop-filter: blur(22px) saturate(125%);
+  -webkit-backdrop-filter: blur(22px) saturate(125%);
+  /* 凸起边框 — 半透明描边强化立体轮廓 */
+  border: 1.5px solid oklch(0.52 0.08 258 / 0.22);
+  box-shadow:
+    /* 上缘内高光 — 面板顶部的细白亮线 */
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    /* 右下暗影 — 模拟光源从左上方打来的投影 */
+    3px 3px 10px oklch(0.52 0.04 258 / 0.16),
+    /* 左上亮影 — 面向光源的反射面 */
+    -3px -3px 8px oklch(1 0 0 / 0.92),
+    /* 边缘光晕 — 柔和的蓝色氛围光包裹面板 */
+    0 0 30px oklch(0.58 0.14 258 / 0.12);
+  transition: box-shadow 0.4s ease;
+}
+
+/* ============================================================
+   AppShell sidebar — collapse (3D fold) + angle / perspective
+   ============================================================ */
+
+/* 3D fold: sidebar swings shut around its left edge like a hinged door */
+.sidebar-3d {
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  will-change: transform, width, margin, opacity;
+  transition:
+    transform 0.52s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.56s cubic-bezier(0.22, 1, 0.36, 1) 0.05s,
+    margin 0.56s cubic-bezier(0.22, 1, 0.36, 1) 0.05s,
+    opacity 0.36s ease 0.08s;
+}
+.sidebar-3d[data-hidden="true"] {
+  transform: perspective(1500px) rotateY(-95deg) translateX(-6px);
+  width: 0;
+  margin-right: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Brand orb — 3D perspective tilt on hover */
+.brand-orb-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.brand-orb-3d:hover {
+  transform: perspective(700px) rotateY(16deg) rotateX(-8deg) scale(1.05);
+}
+
+/* Diagonal light band — angled motion accent.
+   Rendered as a child span (uses ::before) so it never collides with the
+   ::after already used by .glass-spectrum / .glass-float on the same box. */
+.angle-sweep-band {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 0;
+}
+.angle-sweep-band::before {
+  content: "";
+  position: absolute;
+  inset: -30% -50%;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.5) 47%,
+    rgba(176, 200, 255, 0.22) 53%,
+    transparent 64%
+  );
+  transform: translateX(-130%) skewX(-18deg);
+  animation: angleSweep 7s var(--ease-out-quint) infinite;
+}
+@keyframes angleSweep {
+  0% { transform: translateX(-130%) skewX(-18deg); }
+  58%, 100% { transform: translateX(130%) skewX(-18deg); }
+}
+
+/* Skewed active indicator — angular bookmark stripe */
+.nav-active-skew {
+  background: linear-gradient(180deg, rgba(72, 120, 235, 0.95), rgba(124, 162, 244, 0.7));
+  transform: skewY(-14deg);
+  box-shadow: 0 6px 14px rgba(72, 120, 235, 0.24);
+  border-radius: 999px;
+}
+
+/* Sidebar nav item — inactive raised (凸起) / active recessed (凹陷) neumorphic */
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  border-radius: 10px;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--muted-foreground);
+  background: var(--neu-raised-bg);
+  border: none;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.3s ease;
+}
+.sidebar-nav-item:hover {
+  color: var(--foreground);
+  background: var(--neu-raised-bg-hover);
+}
+/* Active — recessed/凹陷 (inset) */
+.sidebar-nav-item[data-active="true"] {
+  color: var(--foreground);
+  background: transparent;
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+
+/* Press feedback — 像真实按钮被按下 */
+.sidebar-nav-item:active {
+  transform: scale(0.96);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.2),
+    inset -2px -2px 5px oklch(1 0 0 / 0.6);
+}
+
+/* Active indicator pulse — 倾斜蓝条呼吸脉动 */
+.nav-active-skew {
+  animation: navIndicatorPulse 3s ease-in-out infinite;
+}
+@keyframes navIndicatorPulse {
+  0%, 100% { box-shadow: 0 6px 14px rgba(72, 120, 235, 0.24); opacity: 1; }
+  50%      { box-shadow: 0 6px 22px rgba(72, 120, 235, 0.42); opacity: 0.85; }
+}
+
+/* Group expand/collapse — grid-rows 平滑展开收起 */
+.sidebar-group-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sidebar-group-panel.is-open {
+  grid-template-rows: 1fr;
+}
+.sidebar-group-panel > * {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Edge tabs — 点击不位移，仅颜色交互 */
+
+/* Group header — subtle neumorphic hover raise */
+.sidebar-nav .sidebar-group-header:hover {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  background: var(--neu-raised-bg);
+}
+
+/* Angled corner bevel (clip-path) for small chips / toggle buttons */
+.angle-clip {
+  clip-path: polygon(0 0, 100% 0, 100% 68%, 84% 100%, 0 100%);
+}
+
+/* Sidebar nav — visible themed scrollbar + smooth scrolling */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(123, 156, 220, 0.5) transparent;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+.sidebar-scroll::-webkit-scrollbar { width: 6px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; margin: 8px 0; }
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(123, 156, 220, 0.5), rgba(99, 133, 200, 0.32));
+  border-radius: 999px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(123, 156, 220, 0.75), rgba(99, 133, 200, 0.55));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-3d {
+    transition: width 0.2s ease, margin 0.2s ease, opacity 0.15s ease;
+  }
+  .sidebar-3d[data-hidden="true"] { transform: none; }
+  .angle-sweep-band::before { animation: none; opacity: 0; }
+  .brand-orb-3d:hover { transform: none; }
+  .nav-active-skew { animation: none; }
+  .sidebar-group-panel { transition: none; }
 }
 
 .login-stage {
@@ -3238,6 +3441,7 @@ a {
 @media (prefers-reduced-motion: reduce) {
   body::before,
   body::after,
+  .flow-glow,
   .ambient-grid::after,
   .chromatic-glass::before,
   .command-orb::before,
@@ -6314,6 +6518,184 @@ a {
   box-shadow: var(--asst-shadow-lg);
 }
 
+/* ---- 页面内嵌模式 — 无框，自然融入页面 ---- */
+.asst-page {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+  background: transparent;
+}
+
+/* 页面 header — 无背景条、无分割线 */
+.asst-page-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 14px;
+  flex-shrink: 0;
+}
+.asst-page-header-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--foreground);
+}
+
+/* 页面 tab 条 — 轻量贴顶 */
+.asst-page-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 0 10px;
+  flex-shrink: 0;
+}
+
+/* 页面消息区 */
+.asst-page-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 页面输入区 — 居中 neumorphic pill */
+.asst-page-input-area {
+  flex-shrink: 0;
+  padding: 16px 4px 6px;
+}
+.asst-page-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 640px;
+  margin: 0 auto;
+  border-radius: 18px;
+  padding: 6px 6px 6px 16px;
+  background: var(--neu-raised-bg);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    1.5px 1.5px 3px oklch(0.55 0.03 258 / 0.08),
+    -1px -1px 2.5px oklch(1 0 0 / 0.8);
+  transition: box-shadow 0.25s ease;
+}
+.asst-page-input-row:focus-within {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    1.5px 1.5px 4px oklch(0.55 0.03 258 / 0.12),
+    -1px -1px 3px oklch(1 0 0 / 0.9),
+    0 0 0 3px oklch(0.5 0.16 251 / 0.08);
+}
+.asst-page-input {
+  flex: 1;
+  resize: none;
+  border: none;
+  background: transparent;
+  padding: 10px 0;
+  font-size: 14px;
+  color: var(--foreground);
+  outline: none;
+  line-height: 1.5;
+}
+.asst-page-input::placeholder {
+  color: oklch(0.62 0.02 248);
+}
+.asst-page-input:disabled {
+  opacity: 0.35;
+}
+.asst-page-input-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid oklch(0.65 0.12 251 / 0.5);
+  background: linear-gradient(135deg, oklch(0.63 0.128 247 / 0.92), oklch(0.66 0.12 248 / 0.86));
+  color: white;
+  cursor: pointer;
+  transition: all 200ms;
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.06);
+}
+.asst-page-input-btn:hover:not(:disabled) {
+  box-shadow: 0 4px 14px oklch(0.63 0.128 247 / 0.25);
+}
+.asst-page-input-btn:disabled {
+  opacity: 0.3;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* 页面 header 按钮 */
+.asst-page-header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--muted-foreground);
+  background: transparent;
+  transition: all 200ms;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+.asst-page-header-btn:hover {
+  background: oklch(1 0 0 / 0.5);
+  color: var(--foreground);
+}
+
+/* 页面欢迎区 — 大面积居中呼吸感 */
+.asst-page-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 20px;
+  text-align: center;
+  padding: 0 16px;
+}
+
+/* ---- 右下角小窗模式 (persistent mini window) ---- */
+.asst-mini {
+  position: fixed;
+  z-index: 9999;
+  bottom: 24px;
+  right: 24px;
+  width: 400px;
+  height: 480px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: var(--asst-panel-border);
+  border-radius: 22px;
+  background: var(--asst-panel-gradient);
+  backdrop-filter: blur(24px);
+  box-shadow: var(--asst-shadow);
+  transition: all 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.asst-messages-mini {
+  flex: 1;
+  min-height: 0;
+}
+
+.asst-welcome-logo-mini {
+  width: 48px;
+  height: 48px;
+}
+
+.asst-welcome-title-mini {
+  font-size: 0.95rem;
+}
+
 /* ---- 标题栏 ---- */
 .asst-panel-header {
   display: flex;
@@ -7297,5 +7679,549 @@ a {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ───────────────────────────────────────────────
+   flow-page — 统一页面包装器
+   ─────────────────────────────────────────────── */
+
+.flow-page {
+  position: relative;
+  isolation: isolate;
+  min-height: 100%;
+  /* cgzxui 画布底色：不透明的浅冷白，作为 glow 水彩光晕的色彩承载面，
+     覆盖 body 自带渐变，使 .flow-glow 成为唯一色彩源（与 public-portal 一致） */
+  background: oklch(0.975 0.012 258);
+}
+
+.flow-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ── cgzxui 水彩光晕（移植自 public-portal :3002 的 .flow-glow）
+   浅彩水彩光晕 = fixed pastel blooms，是玻璃面板背后模糊掉的色彩来源。
+   oklch 色彩空间 + 方向性定位（左上蓝 / 右上青 / 左下紫 / 右下黄 / 底部蓝），
+   配合 glow-drift 缓慢漂移，是 cgzxui 背景的视觉灵魂。 ── */
+.flow-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle 460px at 6% 6%, oklch(0.82 0.09 258 / 0.5), transparent 68%),
+    radial-gradient(circle 420px at 94% 16%, oklch(0.84 0.08 175 / 0.45), transparent 68%),
+    radial-gradient(circle 440px at 14% 64%, oklch(0.85 0.06 300 / 0.4), transparent 68%),
+    radial-gradient(circle 380px at 86% 78%, oklch(0.88 0.06 60 / 0.4), transparent 68%),
+    radial-gradient(circle 360px at 50% 100%, oklch(0.8 0.07 210 / 0.36), transparent 68%);
+  animation: glow-drift 26s ease-in-out infinite alternate;
+}
+@keyframes glow-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-2%, 1.5%, 0) scale(1.06); }
+}
+
+/* ── 统一顶栏 ── */
+.flow-header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.625rem 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: 20px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.88),
+    rgba(245, 249, 255, 0.74)
+  );
+  border: 1px solid rgba(192, 208, 235, 0.6);
+  box-shadow:
+    0 8px 24px rgba(57, 88, 142, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(18px);
+}
+
+/* ── 返回首页按钮 ── */
+.flow-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5a6d8a;
+  background: #f4f7fc;
+  border: none;
+  border-radius: 8px;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.flow-back:hover {
+  color: var(--accent-strong);
+  background: #eef2f8;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 6px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+
+.flow-back:active {
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+
+.flow-back-arrow {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.flow-back:hover .flow-back-arrow {
+  transform: translateX(-2px);
+}
+
+/* ── 品牌标识 ── */
+.flow-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.94),
+    rgba(241, 245, 251, 0.88)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 8px 18px rgba(63, 96, 156, 0.08);
+  flex-shrink: 0;
+}
+
+/* ── 流动粒子画布 ── */
+.flow-backdrop canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Flow 页面入场动画 ── */
+@keyframes flow-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.flow-enter {
+  animation: flow-enter 0.45s var(--ease-out-quint) both;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   cgzxui — Neumorphic Design System (ported from public-portal :3002)
+   方向性双影 · 三态完整 · oklch 色彩 · 内高光线
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── 新拟态阴影令牌（oklch 色彩空间）── */
+:root {
+  --neu-light: oklch(1 0 0);
+  --neu-dark: oklch(0.55 0.03 258);
+  --neu-dark-soft: oklch(0.45 0.08 258);
+  --neu-brand: var(--accent-strong);
+  --neu-brand-deep: oklch(0.42 0.16 251);
+  --neu-raised-bg: #f4f7fc;
+  --neu-raised-bg-hover: #eef2f8;
+  --neu-link-bg: #e8ecf2;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   主按钮 — .neu-btn-primary
+   品牌蓝实心，用于主要操作（提交、确认、新建）
+   ══════════════════════════════════════════════════════════════════ */
+.neu-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 28px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--neu-brand);
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  box-shadow:
+    3px 3px 6px oklch(0.5 0.08 258 / 0.25),
+    -2px -2px 5px oklch(1 0 0 / 0.5);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.neu-btn-primary:hover {
+  background: var(--neu-brand-deep);
+  transform: translateY(-1px);
+  box-shadow:
+    4px 4px 10px oklch(0.45 0.08 258 / 0.28),
+    -2px -2px 6px oklch(1 0 0 / 0.55);
+}
+.neu-btn-primary:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.35 0.08 258 / 0.35),
+    inset -2px -2px 5px oklch(1 0 0 / 0.25);
+}
+.neu-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow:
+    2px 2px 4px oklch(0.5 0.05 258 / 0.15),
+    -1px -1px 3px oklch(1 0 0 / 0.4);
+}
+
+/* 语义色变体 —— 用于发布/通过等成功语义的主按钮 */
+.neu-btn-primary.is-success {
+  background: oklch(0.6 0.13 164);
+}
+.neu-btn-primary.is-success:hover {
+  background: oklch(0.52 0.14 164);
+}
+.neu-btn-primary.is-danger {
+  background: oklch(0.58 0.17 27);
+}
+.neu-btn-primary.is-danger:hover {
+  background: oklch(0.5 0.18 27);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   链接按钮 — .neu-link / .flow-back / .neu-btn-soft
+   subtle neumorphic，用于次要操作（查看、取消、刷新、返回）
+   ══════════════════════════════════════════════════════════════════ */
+
+/* 经典新拟态链接（明显凸起，背景 #e8ecf2）*/
+.neu-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #18243a;
+  padding: 0.5em 1.3em;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 0.5em;
+  background: var(--neu-link-bg);
+  border: 1px solid var(--neu-link-bg);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 5px 5px 10px #c5cad3, -5px -5px 10px var(--neu-light);
+  white-space: nowrap;
+}
+.neu-link:hover {
+  border: 1px solid #fff;
+  color: var(--accent-strong);
+}
+.neu-link:active {
+  box-shadow: 3px 3px 8px #c5cad3, -3px -3px 8px var(--neu-light);
+}
+
+/* 柔和链接按钮（subtle 凸起，背景 #f4f7fc）—— 用于表格行内操作 */
+.neu-btn-soft {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--neu-raised-bg);
+  border: none;
+  border-radius: 8px;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+.neu-btn-soft:hover {
+  color: var(--accent-strong);
+  background: var(--neu-raised-bg-hover);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 6px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+.neu-btn-soft:active {
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+
+/* 状态色变体 —— 用于通过/拒绝/退回等语义操作 */
+.neu-btn-soft.is-success { color: var(--success); }
+.neu-btn-soft.is-success:hover { background: oklch(0.95 0.05 164 / 0.5); }
+.neu-btn-soft.is-danger { color: var(--danger); }
+.neu-btn-soft.is-danger:hover { background: oklch(0.95 0.05 27 / 0.5); }
+.neu-btn-soft.is-warning { color: var(--warning); }
+.neu-btn-soft.is-warning:hover { background: oklch(0.95 0.05 83 / 0.5); }
+
+/* 紧凑行操作按钮 —— 用于表格行内的 查看/详情/停用/删除 等 */
+.neu-btn-xs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted-foreground);
+  background: oklch(0.98 0.005 258);
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.65),
+    1px 1px 3px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 2px oklch(1 0 0 / 0.8);
+  transition: all 0.25s ease;
+  white-space: nowrap;
+}
+.neu-btn-xs:hover {
+  color: var(--accent-strong);
+  background: oklch(0.96 0.008 258);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.14),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+}
+.neu-btn-xs:active {
+  box-shadow:
+    inset 1px 1px 3px oklch(0.55 0.03 258 / 0.15),
+    inset -1px -1px 3px oklch(1 0 0 / 0.5);
+}
+.neu-btn-xs.is-success { color: var(--success); }
+.neu-btn-xs.is-success:hover { background: oklch(0.96 0.05 164 / 0.4); }
+.neu-btn-xs.is-danger { color: var(--danger); }
+.neu-btn-xs.is-danger:hover { background: oklch(0.96 0.05 27 / 0.4); }
+.neu-btn-xs.is-warning { color: var(--warning); }
+.neu-btn-xs.is-warning:hover { background: oklch(0.96 0.05 83 / 0.4); }
+.neu-btn-xs.is-info { color: var(--accent-strong); }
+.neu-btn-xs.is-info:hover { background: oklch(0.96 0.04 251 / 0.4); }
+
+/* ══════════════════════════════════════════════════════════════════
+   通用卡片 — .neu-card
+   玻璃背景 + 内高光线 + 方向性双影
+   ══════════════════════════════════════════════════════════════════ */
+.neu-card {
+  background: oklch(1 0 0 / 0.55);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1.5px solid oklch(0.55 0.08 258 / 0.35);
+  border-radius: 20px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.12),
+    -2px -2px 6px oklch(1 0 0 / 0.85);
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.neu-card:hover {
+  transform: translateY(-2px);
+  border-color: oklch(0.55 0.14 258 / 0.25);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 10px oklch(0.45 0.08 258 / 0.1),
+    -2px -2px 8px oklch(1 0 0 / 0.9);
+}
+
+/* 静态卡片（不响应 hover，用于信息展示容器）*/
+.neu-card-static {
+  background: oklch(1 0 0 / 0.6);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  border: 1.5px solid oklch(0.55 0.08 258 / 0.3);
+  border-radius: 20px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.1),
+    -2px -2px 6px oklch(1 0 0 / 0.8);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   输入框 — .neu-input / .neu-select
+   内凹输入（凹陷接收输入，与凸起按钮形成对比）
+   ══════════════════════════════════════════════════════════════════ */
+.neu-input,
+.neu-select {
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid oklch(0.78 0.03 258 / 0.45);
+  border-radius: 9px;
+  font-size: 14px;
+  color: var(--foreground);
+  background: oklch(0.99 0.004 258);
+  outline: none;
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    inset -2px -2px 4px oklch(1 0 0 / 0.7);
+  transition: all 0.2s ease;
+  width: 100%;
+}
+.neu-input::placeholder {
+  color: #bcc6d4;
+}
+.neu-input:focus,
+.neu-select:focus {
+  border-color: oklch(0.5 0.16 251 / 0.5);
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08),
+    inset -2px -2px 4px oklch(1 0 0 / 0.5),
+    0 0 0 3px oklch(0.5 0.16 251 / 0.08);
+}
+
+/* textarea 变体 */
+textarea.neu-input {
+  height: auto;
+  min-height: 88px;
+  padding: 10px 14px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   表格表头 — .neu-thead
+   内凹表头背景，与凸起卡片形成层次
+   ══════════════════════════════════════════════════════════════════ */
+.neu-thead {
+  background: oklch(0.96 0.01 258);
+  box-shadow:
+    inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08),
+    inset -1px -1px 2px oklch(1 0 0 / 0.6);
+}
+
+/* 内凹图标井 —— 用于空状态、metric 图标容器等静态凹陷表面 */
+.neu-icon-well {
+  background: oklch(0.99 0.004 258);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12),
+    inset -2px -2px 5px oklch(1 0 0 / 0.7);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   workbench-table — 全局表格基类
+   ══════════════════════════════════════════════════════════════════ */
+.workbench-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.workbench-table thead {
+  background: oklch(0.96 0.01 258);
+  box-shadow:
+    inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08),
+    inset -1px -1px 2px oklch(1 0 0 / 0.6);
+  color: var(--muted-foreground);
+}
+.workbench-table th {
+  padding: 12px 16px;
+  font-weight: 700;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+}
+.workbench-table td {
+  padding: 12px 16px;
+  color: var(--foreground);
+  border-top: 1px solid oklch(0.55 0.03 258 / 0.1);
+}
+.workbench-table tbody tr {
+  transition: background 0.2s ease;
+}
+.workbench-table tbody tr:hover {
+  background: oklch(0.97 0.008 258);
+}
+.row-clickable {
+  cursor: pointer;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   workbench-input — 全局输入框/下拉框基类
+   所有 .workbench-input 统一新拟态内凹风格
+   ══════════════════════════════════════════════════════════════════ */
+.workbench-input {
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid oklch(0.78 0.03 258 / 0.45);
+  border-radius: 9px;
+  font-size: 14px;
+  color: var(--foreground);
+  background: oklch(0.99 0.004 258);
+  outline: none;
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08),
+    inset -2px -2px 4px oklch(1 0 0 / 0.6);
+  transition: all 0.2s ease;
+}
+.workbench-input::placeholder {
+  color: #bcc6d4;
+}
+.workbench-input:focus {
+  border-color: oklch(0.5 0.16 251 / 0.5);
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.06),
+    inset -2px -2px 4px oklch(1 0 0 / 0.45),
+    0 0 0 3px oklch(0.5 0.16 251 / 0.08);
+}
+select.workbench-input {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235a6d8a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   reduced-motion 无障碍降级
+   ══════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .neu-btn-primary,
+  .neu-link,
+  .neu-btn-soft,
+  .neu-card,
+  .neu-input,
+  .neu-select,
+  .flow-back {
+    transition: none !important;
+    animation: none !important;
+  }
+  .neu-btn-primary:hover,
+  .neu-card:hover,
+  .flow-back:hover {
+    transform: none !important;
   }
 }

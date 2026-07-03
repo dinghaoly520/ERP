@@ -445,7 +445,7 @@ export default function TenderWritePage() {
                 <div className="text-[1.1rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
                   {selectedMeta?.label}
                 </div>
-                <p className="mt-1 whitespace-nowrap text-sm leading-6 text-[color:var(--muted-foreground)]">
+                <p className="mt-1 text-sm leading-6 text-[color:var(--muted-foreground)]">
                   {selectedMeta?.description}
                 </p>
               </div>
@@ -533,7 +533,7 @@ export default function TenderWritePage() {
           </div>
         ) : null}
         {!selectedType ? (
-          <div className="rounded-[24px] border border-white/65 bg-white/78 px-6 py-12 text-center text-sm text-[color:var(--muted-foreground)]">
+          <div className="flex flex-1 flex-col items-center justify-center rounded-[24px] border border-white/65 bg-white/78 px-6 py-12 text-center text-sm text-[color:var(--muted-foreground)]">
             <div className="mb-4">请选择招标文件类型</div>
             <TenderTypeSwitcher
               options={TENDER_DOCUMENT_TYPES}

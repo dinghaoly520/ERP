@@ -167,7 +167,7 @@ export default function SupplierDetailPage() {
     <div className="space-y-6 animate-pulse">
       <div className="h-20 rounded-xl bg-gradient-to-r from-[#e8eef5] to-[#dce4f0]" />
       <div className="flex gap-4 pb-2"><div className="skeleton h-9 w-20 rounded-lg" /><div className="skeleton h-9 w-20 rounded-lg" /><div className="skeleton h-9 w-20 rounded-lg" /></div>
-      <div className="glass-card glass-card-lighter rounded-xl p-6 space-y-4">
+      <div className="rounded-xl p-6 space-y-4">
         <div className="grid grid-cols-3 gap-6">{Array.from({ length: 9 }).map((_, i) => <div key={i}><div className="skeleton h-3 w-16 mb-1" /><div className="skeleton h-5 w-32" /></div>)}</div>
       </div>
     </div>
@@ -283,7 +283,7 @@ export default function SupplierDetailPage() {
          仅 PENDING / RETURNED 显示
          ═══════════════════════════════════════════════════ */}
       {isPending && (
-        <div className="glass-card glass-card-lighter card-enter mb-6 rounded-2xl p-5">
+        <div className="mb-6">
           <div className="flex items-center gap-2 mb-4">
             <FileCheck size={15} className="text-[#f5a623]" />
             <span className="text-sm font-extrabold text-[#18243a]">审批进度</span>
@@ -378,7 +378,7 @@ export default function SupplierDetailPage() {
       {/* ═══════════════════════════════════════════════════
          Tab 导航
          ═══════════════════════════════════════════════════ */}
-      <div className="flex border-b border-[#e5ecf4] mb-6 overflow-x-auto">
+      <div className="flex border-b border-[var(--border)] mb-6 overflow-x-auto">
         {tabs.map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             className={`px-5 py-3 text-sm font-semibold transition border-b-2 -mb-px whitespace-nowrap ${
@@ -392,7 +392,7 @@ export default function SupplierDetailPage() {
       {/* ═══════════════════════════════════════════════════
          Tab 内容
          ═══════════════════════════════════════════════════ */}
-      <div className="glass-card glass-card-lighter rounded-xl p-6">
+      <div className="">
         {/* ── 基本信息（合并原审核摘要字段，不再分开重复）── */}
         {activeTab === 'info' && (
           <div className="space-y-6">
@@ -495,9 +495,10 @@ export default function SupplierDetailPage() {
             {(!supplier.contacts || supplier.contacts.length === 0) ? (
               <p className="text-[#8a96aa] text-center py-10">暂无联系人信息</p>
             ) : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[480px] text-sm">
                 <thead>
-                  <tr className="border-b border-[#e5ecf4] text-left text-[#5a6d8a]">
+                  <tr className="border-b border-[var(--border)] text-left text-[#5a6d8a]">
                     <th className="pb-3 px-4">姓名</th><th className="pb-3 px-4">手机号</th><th className="pb-3 px-4">邮箱</th><th className="pb-3 px-4">类型</th>
                   </tr>
                 </thead>
@@ -516,6 +517,7 @@ export default function SupplierDetailPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         )}
@@ -608,9 +610,10 @@ export default function SupplierDetailPage() {
                     </div>
                   ))}
                 </div>
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[750px] text-sm">
                   <thead>
-                    <tr className="border-b border-[#e5ecf4] text-left text-[#5a6d8a]">
+                    <tr className="border-b border-[var(--border)] text-left text-[#5a6d8a]">
                       <th className="pb-3 px-4">评分</th><th className="pb-3 px-4">等级</th>
                       <th className="pb-3 px-4">完整性</th><th className="pb-3 px-4">响应性</th>
                       <th className="pb-3 px-4">合作度</th><th className="pb-3 px-4">合规性</th>
@@ -635,6 +638,7 @@ export default function SupplierDetailPage() {
                     })}
                   </tbody>
                 </table>
+                </div>
               </>
             )}
           </div>
@@ -646,9 +650,10 @@ export default function SupplierDetailPage() {
             {changes.length === 0 ? (
               <p className="text-[#8a96aa] text-center py-10">暂无变更记录</p>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[#e5ecf4] text-left text-[#5a6d8a]">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-sm">
+                  <thead>
+                  <tr className="border-b border-[var(--border)] text-left text-[#5a6d8a]">
                     <th className="pb-3 px-4">变更字段</th><th className="pb-3 px-4">原值</th>
                     <th className="pb-3 px-4">新值</th><th className="pb-3 px-4">原因</th>
                     <th className="pb-3 px-4">状态</th><th className="pb-3 px-4">变更时间</th>
@@ -679,6 +684,7 @@ export default function SupplierDetailPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         )}
@@ -687,7 +693,7 @@ export default function SupplierDetailPage() {
       {/* ═══ 审批操作栏（PENDING/RETURNED 时固定在底部）═══ */}
       {isPending && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/82 backdrop-blur-lg border-t border-white/30 shadow-[0_-4px_24px_rgba(0,0,0,0.04)] px-6 py-3">
-          <div className="max-w-6xl mx-auto flex items-center gap-4">
+          <div className="max-w-6xl mx-auto flex flex-wrap items-center gap-4">
             <div className="flex-1 flex items-center gap-3">
               <span className="text-sm font-bold text-[#18243a]">审批操作</span>
               {approvalMode === null ? (
@@ -704,31 +710,31 @@ export default function SupplierDetailPage() {
                   value={approvalReason}
                   onChange={e => setApprovalReason(e.target.value)}
                   placeholder={approvalMode === 'return' ? '退回补正原因（供供应商修改）...' : '不通过原因...'}
-                  className="w-64 px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm h-10 focus:outline-none focus:border-[#064ea2]"
+                  className="w-64 px-3 py-2 border border-[var(--border)] rounded-lg text-sm h-10 focus:outline-none focus:border-[#064ea2]"
                 />
               )}
               {approvalMode === null ? (
                 <div className="flex items-center gap-2">
                   <button onClick={() => setApprovalMode('approve')}
-                    className="btn-press inline-flex items-center gap-2 rounded-xl bg-[#11a874] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0e8c5f] transition">
+                    className="btn-press neu-btn-soft is-success">
                     <CheckCircle2 size={16} />通过
                   </button>
                   <button onClick={() => setApprovalMode('return')}
-                    className="btn-press inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-5 py-2.5 text-sm font-bold text-amber-700 hover:bg-amber-100 transition">
+                    className="btn-press neu-btn-soft is-warning">
                     <RotateCcw size={16} />退回
                   </button>
                   <button onClick={() => setApprovalMode('reject')}
-                    className="btn-press inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-bold text-red-700 hover:bg-red-100 transition">
+                    className="btn-press neu-btn-soft is-danger">
                     <XCircle size={16} />拒绝
                   </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <button onClick={closeApproval} className="rounded-xl border border-[#dce3eb] px-4 py-2.5 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+                  <button onClick={closeApproval} className="neu-btn-soft">取消</button>
                   <button onClick={handleApproval} disabled={approvalLoading || (approvalMode !== 'approve' && !approvalReason.trim())}
-                    className={`rounded-xl px-5 py-2.5 text-sm font-bold text-white transition disabled:opacity-50 ${
-                      approvalMode === 'approve' ? 'bg-[#11a874] hover:bg-[#0e8c5f]' :
-                      approvalMode === 'return' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-500 hover:bg-red-600'
+                    className={`neu-btn-soft ${
+                      approvalMode === 'approve' ? 'is-success' :
+                      approvalMode === 'return' ? 'is-warning' : 'is-danger'
                     }`}>
                     {approvalLoading ? '处理中...' : `确认${approvalMode === 'approve' ? '通过' : approvalMode === 'return' ? '退回' : '拒绝'}`}
                   </button>
@@ -743,19 +749,19 @@ export default function SupplierDetailPage() {
       {reviewModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setReviewModal(null)}>
           <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="border-b border-[#edf2f7]/60 px-6 py-4 flex items-center gap-3">
+            <div className="border-b border-[var(--border)]/60 px-6 py-4 flex items-center gap-3">
               <FileText size={18} className="text-[#064ea2]" />
               <div><h3 className="text-base font-bold text-[#18243a]">{reviewModal.type === 'approve' ? '确认通过变更' : '拒绝变更'}</h3></div>
             </div>
             <div className="p-6">
               {reviewModal.type === 'reject' && (
                 <textarea value={reviewReason} onChange={e => setReviewReason(e.target.value)} placeholder="请填写拒绝原因..."
-                  className="w-full px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm h-24 resize-none focus:outline-none focus:border-[#064ea2]" />
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm h-24 resize-none focus:outline-none focus:border-[#064ea2]" />
               )}
               <div className="flex justify-end gap-3 mt-4">
-                <button onClick={() => setReviewModal(null)} className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+                <button onClick={() => setReviewModal(null)} className="neu-btn-soft">取消</button>
                 <button onClick={handleReviewChange} disabled={reviewLoading || (reviewModal.type === 'reject' && !reviewReason.trim())}
-                  className={`rounded-xl px-4 py-2 text-sm font-bold text-white transition disabled:opacity-50 ${reviewModal.type === 'approve' ? 'bg-[#11a874] hover:bg-[#0e8c5f]' : 'bg-[#e74c3c] hover:bg-[#c0392b]'}`}>
+                  className={`neu-btn-soft ${reviewModal.type === 'approve' ? 'is-success' : 'is-danger'}`}>
                   {reviewLoading ? '处理中...' : '确认'}
                 </button>
               </div>
@@ -768,18 +774,18 @@ export default function SupplierDetailPage() {
       {actionModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setActionModal(null)}>
           <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="border-b border-[#edf2f7]/60 px-6 py-4 flex items-center gap-3">
+            <div className="border-b border-[var(--border)]/60 px-6 py-4 flex items-center gap-3">
               <Building2 size={18} className={actionModal.type === 'blacklist' ? 'text-[#e74c3c]' : 'text-[#5a6d8a]'} />
               <div><h3 className="text-base font-bold text-[#18243a]">{actionModal.type === 'disable' ? '停用供应商' : '加入黑名单'}</h3></div>
             </div>
             <div className="p-6">
               <p className="text-sm text-[#5a6d8a] mb-3">供应商：<strong className="text-[#18243a]">{actionModal.supplier.name}</strong></p>
               <textarea value={actionReason} onChange={e => setActionReason(e.target.value)} placeholder="请填写原因..."
-                className="w-full px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm h-24 resize-none focus:outline-none focus:border-[#064ea2]" />
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm h-24 resize-none focus:outline-none focus:border-[#064ea2]" />
               <div className="flex justify-end gap-3 mt-4">
-                <button onClick={() => setActionModal(null)} className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+                <button onClick={() => setActionModal(null)} className="neu-btn-soft">取消</button>
                 <button onClick={handleStatusAction} disabled={actionLoading || !actionReason.trim()}
-                  className={`rounded-xl px-4 py-2 text-sm font-bold text-white transition disabled:opacity-50 ${actionModal.type === 'blacklist' ? 'bg-[#e74c3c] hover:bg-[#c0392b]' : 'bg-[#5a6d8a] hover:bg-[#4a5d7a]'}`}>
+                  className={`neu-btn-soft ${actionModal.type === 'blacklist' ? 'is-danger' : ''}`}>
                   {actionLoading ? '处理中...' : '确认'}
                 </button>
               </div>
@@ -792,20 +798,20 @@ export default function SupplierDetailPage() {
       {classModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setClassModal(false)}>
           <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="border-b border-[#edf2f7]/60 px-6 py-4 flex items-center gap-3">
+            <div className="border-b border-[var(--border)]/60 px-6 py-4 flex items-center gap-3">
               <Award size={18} className="text-[#064ea2]" />
               <div><h3 className="text-base font-bold text-[#18243a]">分配供应商分类</h3></div>
             </div>
             <div className="p-6">
               <select value={selectedClassId} onChange={e => setSelectedClassId(e.target.value)}
-                className="w-full px-3 py-2 border border-[#e5ecf4] rounded-lg text-sm focus:outline-none focus:border-[#064ea2] mb-4">
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:border-[#064ea2] mb-4">
                 <option value="">不分类</option>
                 {classifications.map(c => <option key={c.id} value={c.id}>{c.name}（{c.code}）</option>)}
               </select>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setClassModal(false)} className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+                <button onClick={() => setClassModal(false)} className="neu-btn-soft">取消</button>
                 <button onClick={handleAssignClass} disabled={classLoading}
-                  className="rounded-xl px-4 py-2 text-sm font-bold text-white bg-[#064ea2] hover:bg-[#0e62d0] disabled:opacity-50 transition">
+                  className="neu-btn-primary">
                   {classLoading ? '保存中...' : '保存'}
                 </button>
               </div>

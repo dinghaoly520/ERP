@@ -668,26 +668,22 @@ export function WorkArrangementsPage({
         ) : null}
 
         <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(340px,0.92fr)_minmax(0,1.28fr)]">
-          <section className="panel-surface panel-lens flex min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/45 bg-white/75 p-4">
+          <section className="flex min-h-0 flex-col gap-3 overflow-hidden p-4">
             <div className="flex items-center justify-between gap-3 px-1">
               <div className="text-sm font-semibold text-[color:var(--foreground)]">
                 {selectedDate.getMonth() + 1}月{selectedDate.getDate()}日 {['周日','周一','周二','周三','周四','周五','周六'][selectedDate.getDay()]} · {tasksForSelectedDate.length}项
               </div>
-              <button type="button" onClick={handleCreateNew} aria-label="新建工作安排" className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-blue-100 hover:text-blue-700">
+              <button type="button" onClick={handleCreateNew} aria-label="新建工作安排" className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--surface)] px-3 py-1.5 text-xs font-medium shadow-sm transition hover:bg-[var(--accent-soft)]">
                 <Plus size={12} />
                 <span>新建</span>
               </button>
             </div>
-
-            <div className="mt-3" />
 
             <WorkCalendar
               items={allItems}
               selectedDate={selectedDate}
               onDateSelect={setSelectedDate}
             />
-
-            <div className="mt-3" />
 
             <WorkDateTaskList
               selectedDate={selectedDate}
@@ -701,7 +697,7 @@ export function WorkArrangementsPage({
           </section>
 
           <div className="flex min-h-0 flex-col gap-4">
-            <section className="panel-surface panel-lens rounded-[24px] border border-gray-200 bg-white p-4">
+            <section className="p-4">
               <WorkTaskQuickView
                 item={selectedItem}
                 reminderState={selectedReminderState}
@@ -748,8 +744,15 @@ export function WorkArrangementsPage({
         )}
 
         {errorMessage ? (
-          <div className="rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-[color:var(--danger)]">
-            {errorMessage}
+          <div className="flex items-center justify-between px-4 py-3 text-sm text-[color:var(--danger)]">
+            <span>{errorMessage}</span>
+            <button
+              type="button"
+              onClick={() => setErrorMessage("")}
+              className="ml-2 shrink-0 text-[color:var(--danger)] opacity-60 hover:opacity-100"
+            >
+              关闭
+            </button>
           </div>
         ) : null}
       </div>
