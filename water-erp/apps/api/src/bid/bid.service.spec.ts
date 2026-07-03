@@ -84,12 +84,12 @@ describe('BidService — stage transitions', () => {
         groupBy: jest.fn(),
       },
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
-      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn() },
       bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-      bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
+      bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn() },
-      bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
@@ -99,6 +99,8 @@ describe('BidService — stage transitions', () => {
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
       auditLog: { create: jest.fn() },
+      aiBidAnalysisTask: { findUnique: jest.fn(), update: jest.fn(), upsert: jest.fn().mockResolvedValue({ id: 'ai-task-1' }) },
+      aiBidderResult: { createMany: jest.fn() },
       // Support both callback-based and batch-based $transaction patterns
       $transaction: jest.fn(async (callbackOrOps: any) => {
         if (typeof callbackOrOps === 'function') {
@@ -1228,8 +1230,8 @@ describe('BidService — nudge (催办)', () => {
         data: expect.objectContaining({
           userId: 'actor-1',
           action: 'BID_NUDGE_SUPPLIERS',
-          target: 'BID-001',
-          detail: expect.objectContaining({ reached: 2 }),
+          resourceType: 'BID-001',
+          details: expect.objectContaining({ reached: 2 }),
         }),
       }));
     });
@@ -1270,7 +1272,7 @@ describe('BidService — nudge (催办)', () => {
         data: expect.objectContaining({
           userId: 'actor-1',
           action: 'BID_NUDGE_EXPERTS',
-          detail: expect.objectContaining({ reached: 1, reason: 'signin' }),
+          details: expect.objectContaining({ reached: 1, reason: 'signin' }),
         }),
       }));
     });
@@ -1361,8 +1363,8 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
     await service.inviteSuppliers('p1', ['s1', 's2'], 'actor-1');
     expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
-        userId: 'actor-1', action: 'BID_INVITE_SUPPLIERS', target: 'BID-001',
-        detail: expect.objectContaining({ added: 2, skipped: 0 }),
+        userId: 'actor-1', action: 'BID_INVITE_SUPPLIERS', resourceType: 'BID-001',
+        details: expect.objectContaining({ added: 2, skipped: 0 }),
       }),
     }));
   });
@@ -1401,12 +1403,12 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
         groupBy: jest.fn(),
       },
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
-      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn() },
       bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-      bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
+      bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
-      bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
