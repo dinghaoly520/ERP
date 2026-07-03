@@ -161,37 +161,24 @@ LLM 自报 `{ excerpt, page, confidence }`，代码只把 `file/page` 拼成 `lo
 
 **目标**：每次评标留两个快照——① 用了什么模型/prompt；② 每家供应商哪些评分项产出了 AI 建议。归档包带「AI 辅助说明」节。（专家采纳率依赖 P1-E，P1-E 未实施前先只披露「哪些项产出了 AI 建议」。）
 
-**方案**：
+**方案（✅ 已实现）**：快照写入 + 归档导出，聚合逻辑抽纯函数 `buildArchiveAiUsage`（`ai-bid-analysis/utils/archive-ai-usage.ts`）。
 
-1. **schema**：`AiBidAnalysisTask` 增字段
-   ```prisma
-   model AiBidAnalysisTask {
-     ...
-     aiProvenance  Json?  // { model, modelVersion, ranAt, promptVersions: { tenderExtract, score, match, competitive, ... } }
-   }
-   ```
-2. **prompt 版本号**：给 `ai-bid-analysis/prompts/*.prompt.ts`（共 8 个）每个文件加 `export const PROMPT_VERSION = 'v1'`；改 prompt 时 bump。
-3. **写快照**：`task.service` 创建任务时初始化 `aiProvenance`；各 processor 执行时把自己的 `PROMPT_VERSION` 合并进去；`llm.service` 暴露当前 `model`（已从 env `DEEPSEEK_MODEL` 读）。
-4. **归档导出加节**：
-   - JSON：`exportArchivePackage` 返回对象加
-     ```ts
-     aiUsage: {
-       model, modelVersion, ranAt,
-       suppliers: [{ name, aiScoredItemsCount: number, aiSuggestedTotal: number }]
-     }
-     ```
-     （取自 `AiBidderResult.scoreItems` 与 `totalScore`。）
-   - CSV：新增 `=== AI 辅助说明 ===` sheet（供应商 / AI 建议评分项数 / AI 综合分 / 模型版本）。
+1. **schema**：`AiBidAnalysisTask` 加 `aiProvenance Json?`（`{ model, ranAt, promptVersions }`）。⚠️ **migration 待 apply**：已 `prisma generate` 到 client（代码可编译/单测通过），但 DB 列需 `pnpm db:migrate` 建（开发机无 DB 未跑）。
+2. **prompt 版本号（实现决策：集中而非每文件）**：`prompts/index.ts` 一处 `PROMPT_VERSIONS` map（8 个 key）。原文「每文件 `export const PROMPT_VERSION`」会与 index 聚合的同名 export 冲突，改为集中管理——改 prompt 时 bump 对应 key。
+3. **写快照**：`task.service.create` 注入 `LlmService`，创建时一次性写 `aiProvenance = { model: llm.getModel(), ranAt, promptVersions: PROMPT_VERSIONS }`。processor 不逐个合并（prompt 版本是代码静态的）。
+4. **归档导出加节**（`exportArchivePackage`）：查 `aiBidAnalysisTask`（含 bidderResults）→ `buildArchiveAiUsage` 组装 →
+   - JSON：`...(aiUsage ? { aiUsage } : {})`（无 AI 分析则略）；
+   - CSV：新增 `=== AI 辅助说明 ===` sheet（模型 / 运行时间 / 供应商 / AI 建议评分项数 / AI 综合分）。
 
 **红线**：披露只陈述事实（哪些项用了 AI、模型版本），**不暗示 AI 参与决策**——决策主体是专家。
 
 **降级**：`aiProvenance` 写失败仅 warn，不影响主流程。
 
-**测试**：(a) 任务创建→aiProvenance 有 model 字段；(b) 改一版 prompt 后 promptVersions 对应 key bump；(c) 归档 JSON/CSV 均含 AI 节、字段齐全。
+**测试（✅ 已完成）**：`utils/archive-ai-usage.spec.ts` 5 用例（空输入→null / 完整结构 / Decimal→number / 无 scoreItems / 多供应商）。归档导出接入由 `bid.service.spec` 编译覆盖（6 个 inviteSuppliers 失败是 pre-existing，`git stash` 确认非本次引入）。全量 ai-bid-analysis 通过。
 
-**工作量**：**2.5 人日**（8 个 prompt 加版本号 + schema 迁移 + 双格式导出改 + 测试）
+**工作量**：**1.5 人日**（实做，低于预估——集中 `PROMPT_VERSIONS` 省了 8 文件改动）　**状态**：后端已落地；**待 apply migration**；前端展示待接。
 
-**验收**：归档导出含 AI 节；改 prompt 后版本号可见 bump。
+**验收**：归档导出含 AI 节；改 prompt 后版本号 bump 可见。
 
 > 📎 文档原文第 3 条「评标报告 NL 撰写」不在本节。建议作为独立 P1 项：在 `report-generator` 生成 `AiBidReport.conclusion` 时调一次 LLM 写评审纪要，降级用模板拼装。
 
@@ -400,3 +387,4 @@ Sprint 3+（战略，按业务节奏）
 - **A3（2026-07-03）✅ 后端已落地**：抽 `utils/qualification.ts:resolveQualification` 纯函数 + 接入 `bidder.processor`；8 单测 + 全量回归通过。前端红卡待接。
 - **A1（2026-07-03）✅ 后端已落地**：抽 `utils/excerpt-verify.ts:verifyExcerpt` 纯函数（bigram 覆盖率，非 Jaccard）+ 接入 `requirement-matcher`；9 单测 + 全量回归通过。阈值 0.55 待真实数据校准。前端 ⚠️ 标记待接。
 - **A2（2026-07-03）✅ 后端已落地**：抽 `utils/score-samples.ts:aggregateScoreSamples` 纯函数 + scorer `rescoreUnstable`（只对低置信子集复跑，非整体重跑）；8 单测 + 4 集成测试 + 全量回归通过。阈值 0.6/0.2 待真实数据校准。前端 ⚙️ 标记待接。
+- **D（2026-07-03）✅ 后端已落地**：抽 `utils/archive-ai-usage.ts:buildArchiveAiUsage` 纯函数 + schema 加 `aiProvenance` + `task.service` create 写快照 + `exportArchivePackage` 加「AI 辅助说明」节(JSON+CSV)；集中 `PROMPT_VERSIONS` 而非每文件。5 单测通过。⚠️ **migration 待 apply**（`pnpm db:migrate`）。
