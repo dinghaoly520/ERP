@@ -4,6 +4,7 @@ export * from './price-statistics';
 export * from './text-similarity';
 export * from './retry';
 export * from './neutralize';
+export * from './qualification';
 
 /**
  * Generate a deterministic integer seed from an arbitrary string (e.g. task ID).
