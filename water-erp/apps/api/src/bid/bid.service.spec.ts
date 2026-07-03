@@ -84,9 +84,11 @@ describe('BidService — stage transitions', () => {
         groupBy: jest.fn(),
       },
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
-      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn() },
       bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-      bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
+      bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
+      aiBidAnalysisTask: { upsert: jest.fn().mockResolvedValue({ id: 'ai-1' }) },
+      aiBidderResult: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn() },
       bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
@@ -837,6 +839,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
       prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
 
       const result = await service.startEvaluation('p1');
       expect(result.stage).toBe('EVALUATING');
@@ -852,6 +855,7 @@ describe('BidService — stage transitions', () => {
     beforeEach(() => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
       prisma.bidExpert.count.mockResolvedValue(3);
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
     });
 
     it('G4: 无解密成功的有效供应商时拒绝', async () => {
@@ -1228,8 +1232,8 @@ describe('BidService — nudge (催办)', () => {
         data: expect.objectContaining({
           userId: 'actor-1',
           action: 'BID_NUDGE_SUPPLIERS',
-          target: 'BID-001',
-          detail: expect.objectContaining({ reached: 2 }),
+          resourceType: 'BID-001',
+          details: expect.objectContaining({ reached: 2 }),
         }),
       }));
     });
@@ -1270,7 +1274,8 @@ describe('BidService — nudge (催办)', () => {
         data: expect.objectContaining({
           userId: 'actor-1',
           action: 'BID_NUDGE_EXPERTS',
-          detail: expect.objectContaining({ reached: 1, reason: 'signin' }),
+          resourceType: 'BID-001',
+          details: expect.objectContaining({ reached: 1, reason: 'signin' }),
         }),
       }));
     });
@@ -1361,8 +1366,8 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
     await service.inviteSuppliers('p1', ['s1', 's2'], 'actor-1');
     expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
-        userId: 'actor-1', action: 'BID_INVITE_SUPPLIERS', target: 'BID-001',
-        detail: expect.objectContaining({ added: 2, skipped: 0 }),
+        userId: 'actor-1', action: 'BID_INVITE_SUPPLIERS', resourceType: 'BID-001',
+        details: expect.objectContaining({ added: 2, skipped: 0 }),
       }),
     }));
   });
@@ -1401,7 +1406,7 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
         groupBy: jest.fn(),
       },
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
-      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn() },
       bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
       supplier: { count: jest.fn() },
