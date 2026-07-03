@@ -21,6 +21,8 @@ export interface AiScoreItem {
   evidence?: string;
   confidence?: number;
   pass?: boolean;
+  /** A2：多次采样差值大，提示专家重点复核 */
+  unstable?: boolean;
 }
 export interface RequirementResponse {
   requirementId: string;
