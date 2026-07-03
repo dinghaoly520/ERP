@@ -7,6 +7,6 @@ module.exports = {
   coverageDirectory: "../coverage",
   testEnvironment: "node",
   moduleNameMapper: {
-    "^@water-erp/config$": "<rootDir>/../../packages/config/src/index.ts",
+    "^@water-erp/config$": "<rootDir>/../../../packages/config/src/index.ts",
   },
 };
