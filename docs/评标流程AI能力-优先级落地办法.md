@@ -74,32 +74,22 @@ LLM 自报 `{ excerpt, page, confidence }`，代码只把 `file/page` 拼成 `lo
 
 **目标**：每条 `RequirementResponse` 带 `verified` 标记；摘录在原文找不到的，前端标黄降权，让专家知道「这条 AI 没复核通过」。
 
-**方案**：
+**方案（✅ 已实现）**：把校验抽成纯函数 `verifyExcerpt`（`ai-bid-analysis/utils/excerpt-verify.ts`），在 `requirement-matcher.service.ts` 的 `match()` 内对每条 LLM 响应调用——既易单测，又让 matcher 只做「调函数 + 拼装」。
 
-1. `RequirementMatcherService` 增加 private 校验方法：
-   ```ts
-   private verifyExcerpt(excerpt: string, file: string | null, page: number | null,
-                          pages: PageInput[]): { verified: boolean; score: number; correctedPage?: number }
-   ```
-   - **必须用模糊匹配，不能用子串包含**——LLM 产出的 excerpt 实际是改写/精简定位，极少逐字摘录（见 `requirement-matching.prompt.ts`），纯子串匹配会把大量真实定位误判为 `verified=false`。
-   - 实现：归一化（去空白、全/半角统一、去标点）后，做 **token 级 Jaccard 相似度 或 编辑距离比**；
-   - 命中 `(file, page)` 对应页且相似度 ≥ `VERIFY_THRESHOLD` → `verified: true`；
-   - 该页未命中但**全标书**有某页 ≥ 阈值 → `verified: true, correctedPage: <真实页>`（修正 LLM 报错的页码）；
-   - 全标书都低于阈值 → `verified: false`。
-   - `VERIFY_THRESHOLD` 走 env（默认 **0.55，需按前置风险节的实测校准**）。
-2. 在 `match()` 的 `.map(...)` 内对每条 response 调 `verifyExcerpt`：
-   ```ts
-   return { ..., location, confidence: verified ? r.confidence : (r.confidence ?? 0) * 0.5,
-            verified, pageCorrected: !!correctedPage };
-   ```
-3. 类型扩展：`packages/shared/src/types.ts:25` 的 `RequirementResponse` 加 `verified?: boolean`、`pageCorrected?: boolean`。
-4. 前端（`expert-portal` 辅助评标页 / 条款对比视图）：`verified === false` 的条目，证据区标 `⚠️ AI 摘录未在标书中复核通过`，点跳转按钮置灰或跳到「修正后页码」。
+1. **相似度算法：bigram 覆盖率，不是 Jaccard**（实现时的关键修正）。excerpt（几十字）远短于页面（几百字），Jaccard 分母是并集 → 逐字摘录也会被压到 ~0.1 判负；覆盖率 `|A∩B|/|A|`（excerpt 的字符 bigram 有多少能在页面找到）分母是 excerpt 自身 → 逐字摘录 ≈ 1、改写 0.7–0.9、无关 ≈ 0，符合「摘录是否真出自该页」语义。
+   - 归一化：全角→半角 + 小写 + 去标点/空白（保留 `\p{L}\p{N}`，含 CJK）；
+   - 命中目标页（覆盖率 ≥ 阈值）→ `verified: true`；
+   - 目标页未命中但别页 ≥ 阈值 → `verified: true, correctedPage`（同步覆盖 `location.page`，修正 AI 报错的页码）；
+   - 全标书都低于阈值 → `verified: false`，且 `confidence × 0.5` 降权；
+   - 阈值默认 **0.55**，env `AI_EXCERPT_VERIFY_THRESHOLD` 可调（**未经真实数据实测，需按前置风险节校准**）。
+2. **类型扩展**：`packages/shared/src/types.ts` 的 `RequirementResponse` 加 `verified?: boolean`、`pageCorrected?: boolean`。
+3. **前端**（待接）：`expert-portal` 辅助评标页对 `verified === false` 标 `⚠️ AI 摘录未在标书中复核通过`，跳转按钮置灰或跳到 correctedPage。
 
 **降级**：校验是纯本地字符串比对，不依赖 LLM，无降级风险。
 
-**测试**：`requirement-matcher.service.spec.ts` 补：(a) excerpt 逐字命中→verified true；(b) excerpt 改写、阈值边界→正确判定；(c) 报错页码→correctedPage 修正；(d) 全标书无匹配→verified false。
+**测试（✅ 已完成）**：`utils/excerpt-verify.spec.ts` 9 用例——逐字命中 / 轻度改写 / 别页命中 + correctedPage / 无关 / 空 excerpt / targetPage=null / 全角标点归一化 / 阈值边界（字母构造精确 coverage 0.5）/ pages 空。matcher 侧回归由全量 ai-bid-analysis 覆盖（13 suites / 78 tests 通过）。
 
-**工作量**：**0.75 人日**（模糊匹配比子串复杂）　**验收**：构造一条 LLM 返回假 excerpt 的用例，前端能看到 ⚠️ 标记；真实 excerpt 报错页码时自动修正。
+**工作量**：**0.5 人日**（实做）　**状态**：后端已落地；前端 ⚠️ 标记待接。**性能注**：`verifyExcerpt` 每次调用重算页面 bigram，典型项目毫秒级；超大项目可在 `match()` 开头预算一次。
 
 ---
 
@@ -403,3 +393,10 @@ Sprint 3+（战略，按业务节奏）
 6. P1-F 补 expert 端入口（`expert.service.ts:905` 才是主场景），工作量 1.5d → 2d。
 7. 新增「前置风险」节：流水线未经真实数据端到端验证，A1/A2 阈值需实测校准。
 8. 每项补「测试」小节；总览/路线图工作量重估。
+
+---
+
+## 实现进展
+
+- **A3（2026-07-03）✅ 后端已落地**：抽 `utils/qualification.ts:resolveQualification` 纯函数 + 接入 `bidder.processor`；8 单测 + 全量回归通过。前端红卡待接。
+- **A1（2026-07-03）✅ 后端已落地**：抽 `utils/excerpt-verify.ts:verifyExcerpt` 纯函数（bigram 覆盖率，非 Jaccard）+ 接入 `requirement-matcher`；9 单测 + 全量回归通过。阈值 0.55 待真实数据校准。前端 ⚠️ 标记待接。
