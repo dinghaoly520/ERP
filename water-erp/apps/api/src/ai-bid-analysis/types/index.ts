@@ -334,4 +334,6 @@ export interface AiScoreItem {
   weaknesses?: string[];
   /** 价格项 LLM 分析详情（仅 PRICE 项，方案2） */
   priceAnalysis?: PriceAnalysisDetail;
+  /** A2：多次采样差值大，提示专家重点复核 */
+  unstable?: boolean;
 }

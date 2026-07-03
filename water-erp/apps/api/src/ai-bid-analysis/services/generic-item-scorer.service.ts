@@ -7,6 +7,7 @@ import { LlmService } from '../../local-ai/llm.service';
 import { PriceAnalyzerService } from './price-analyzer.service';
 import { ITEM_SCORING_PROMPT } from '../prompts/item-scoring.prompt';
 import { deterministicSeed } from '../utils';
+import { aggregateScoreSamples } from '../utils/score-samples';
 import type { AiScoreItem, TenderRequirements } from '../types';
 
 export interface ItemScoreResult {
@@ -111,6 +112,9 @@ export class GenericItemScorerService {
       });
     }
 
+    // A2：对低置信项复跑取中位数 + 标 unstable（self-consistency）
+    llmResults = await this.rescoreUnstable(llmItems, llmResults, extractedInfo, requirements, taskId, bidSupplierId);
+
     // 价格项：公式客观分 + LLM 分析层（方案2，复用 procurement price.prompt）
     const priceResults = await Promise.all(
       priceItems.map((si) =>
@@ -130,6 +134,82 @@ export class GenericItemScorerService {
       overallComment,
       starredResponse,
     );
+  }
+
+  /**
+   * A2 self-consistency：对首轮 confidence < AI_SCORE_UNSTABLE_THRESHOLD（默认 0.6）的项，
+   * 用 temperature=0.3 + 新 seed 复跑 2 次（只对低置信子集构造 prompt，控制成本），
+   * 取中位数、重算 confidence、差值大则标 unstable。复跑失败保留首轮。
+   */
+  private async rescoreUnstable(
+    llmItems: BidScoreItem[],
+    firstResults: AiScoreItem[],
+    extractedInfo: any,
+    requirements: TenderRequirements | null,
+    taskId: string,
+    bidSupplierId: string,
+  ): Promise<AiScoreItem[]> {
+    const threshold = Number(process.env.AI_SCORE_UNSTABLE_THRESHOLD ?? 0.6);
+    const lowConf = firstResults.filter(
+      (r) => typeof r.confidence === 'number' && (r.confidence as number) < threshold,
+    );
+    if (lowConf.length === 0) return firstResults;
+
+    const lowConfIds = new Set(lowConf.map((r) => r.scoreItemId));
+    const lowConfBidItems = llmItems.filter((si) => lowConfIds.has(si.id));
+    if (lowConfBidItems.length === 0) return firstResults;
+
+    const buildPrompt = () =>
+      ITEM_SCORING_PROMPT.replace(
+        '{{SCORE_ITEMS}}',
+        JSON.stringify(
+          lowConfBidItems.map((si) => ({
+            id: si.id,
+            category: si.category,
+            name: si.name,
+            maxScore: Number(si.maxScore),
+            scoringCriteria: si.scoringCriteria,
+            evidenceHint: si.evidenceHint,
+          })),
+        ),
+      )
+        .replace('{{BIDDER_INFO}}', JSON.stringify(extractedInfo ?? {}))
+        .replace('{{REQUIREMENTS}}', JSON.stringify(requirements ?? {}));
+
+    const rescores: Array<Array<{ scoreItemId: string; score: number; confidence?: number }>> = [];
+    for (let i = 1; i <= 2; i++) {
+      try {
+        const r = await this.llm.chatJson<{
+          items: Array<{ scoreItemId: string; score: number; confidence?: number }>;
+        }>(
+          '你是评标专家。按评分标准对每个评分项独立评分。',
+          buildPrompt(),
+          0.3,
+          undefined,
+          deterministicSeed(`${taskId}:${bidSupplierId}:score:rescore:${i}`),
+        );
+        rescores.push(r.items ?? []);
+      } catch (e) {
+        this.logger.warn(`rescore round ${i} failed: ${String(e).slice(0, 150)}`);
+      }
+    }
+    if (rescores.length === 0) return firstResults; // 两轮全失败 → 保留首轮
+
+    for (const low of lowConf) {
+      const samples = [
+        { score: low.score, confidence: low.confidence },
+        ...rescores.map((rs) => {
+          const m = rs.find((x) => x.scoreItemId === low.scoreItemId);
+          const raw = m?.score ?? low.score;
+          return { score: Math.min(Math.max(0, raw), low.maxScore), confidence: m?.confidence };
+        }),
+      ];
+      const agg = aggregateScoreSamples(samples, low.maxScore);
+      low.score = agg.score;
+      low.confidence = agg.confidence;
+      low.unstable = agg.unstable;
+    }
+    return firstResults;
   }
 
   /**
