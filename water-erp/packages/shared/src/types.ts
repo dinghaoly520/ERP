@@ -31,6 +31,10 @@ export interface RequirementResponse {
   excerpt: string;
   location: { fileId: string; page: number } | null;
   confidence: number;
+  /** excerpt 是否经原文校验（A1 防页码/摘录幻觉）；undefined=未校验 */
+  verified?: boolean;
+  /** AI 报错页码后是否修正为真实页（A1） */
+  pageCorrected?: boolean;
 }
 export interface BidRequirementReview {
   requirementId: string;
