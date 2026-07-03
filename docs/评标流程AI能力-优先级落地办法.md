@@ -100,28 +100,27 @@ LLM 自报 `{ excerpt, page, confidence }`，代码只把 `file/page` 拼成 `lo
 
 **目标**：对低置信项自动复跑，方差大的标「不稳定」，请专家重点复核。成本可控——只复跑少数项。
 
-**方案**：
+**方案（✅ 已实现）**：聚合逻辑抽纯函数 `aggregateScoreSamples`（`ai-bid-analysis/utils/score-samples.ts`），scorer 的 `rescoreUnstable` 只做「调 LLM 复跑 + 调纯函数聚合」。
 
-1. 在 `score()` 末尾，对首轮 `confidence < UNSTABLE_THRESHOLD`（默认 0.6，走 env `AI_SCORE_UNSTABLE_THRESHOLD`）的项触发复跑：
-   ```ts
-   private async rescoreUnstable(items: AiScoreItem[], ctx, taskId, bidSupplierId): Promise<AiScoreItem[]>
-   ```
-   - 复跑 `N=2` 次，`temperature=0.3`，seed 用 `deterministicSeed(`${base}:rescore:1`)` / `...:2`（**返回 number，勿字符串拼接**）；
-   - 三次（含首轮）取 `score` **中位数**；`confidence` 重算为 `1 − std/mean`（clip 到 [0,1]）；
-   - 若 `max−min > maxScore × 20%` → 该项 `unstable: true`。
-2. `AiScoreItem` 类型（`ai-bid-analysis/types/index.ts:320`）加 `unstable?: boolean`。
-3. 前端打分卡：`unstable` 项展示「⚙️ AI 把握度低，请重点复核」徽标，但不强制阻塞。
-4. **成本控制**：阈值之外的项不复跑。
+1. **复跑只对低置信子集构造 prompt（实现时的关键决策）**，不是整体重跑——首轮 `confidence < AI_SCORE_UNSTABLE_THRESHOLD`（默认 0.6）的项才复跑，且 prompt 只含这些低置信项，符合「成本控制」。整体重跑会浪费高置信项的调用。
+   - `rescoreUnstable` 复跑 `N=2` 次，`temperature=0.3`，seed 用 `deterministicSeed(`${taskId}:${bidSupplierId}:score:rescore:1/2`)`；
+   - **每轮独立 try-catch**：某轮失败跳过；两轮全失败则保留首轮原样、`unstable` 不置位。
+2. **纯函数** `aggregateScoreSamples(samples, maxScore)` → `{ score, confidence, unstable }`：
+   - `score` 取**中位数**（抗离群）；
+   - `confidence = 1 − std/mean`（完全一致 = 1，clip [0,1]）；
+   - `unstable = max−min > maxScore × 20%`（`DEFAULT_UNSTABLE_RATIO`）。
+3. `AiScoreItem`（`ai-bid-analysis/types/index.ts`）加 `unstable?: boolean`。
+4. 前端打分卡（待接）：`unstable` 项展示「⚙️ AI 把握度低，请重点复核」徽标，但不强制阻塞。
 
-   > ⚠️ **缓存说明（v2 修正）**：首轮 `temperature=0` + 固定 seed 走 `cache.service` 命中、幂等；**复跑用新 seed 必然缓存 miss，这是预期成本，不是 bug**——不要误以为能靠缓存省掉复跑调用。是否复跑完全由 confidence 阈值把关。
+> ⚠️ **缓存说明**：首轮 `temperature=0` + 固定 seed 走 `cache.service` 命中、幂等；**复跑用新 seed 必然缓存 miss，这是预期成本，不是 bug**——是否复跑完全由 confidence 阈值把关。
 
-5. **统计同质性备注**：严格说，首轮 `temperature=0` 与复跑 `temperature=0.3` 分布不同质，混合取中位数是工程近似。如追求严谨，可改为三轮都用 0.3（首轮仅用于触发判断）。列为可选优化。
+> **统计同质性备注**：首轮 `temperature=0` 与复跑 `temperature=0.3` 分布不同质，混合取中位数是工程近似。列为可选优化（三轮都用 0.3）。
 
-**降级**：复跑 LLM 失败 → 保留首轮结果，`unstable` 不置位；不阻塞。
+**降级**：复跑每轮独立 try-catch；两轮全失败 → 保留首轮，`unstable` 不置位（已覆盖于集成测试）。
 
-**测试**：`generic-item-scorer.service.spec.ts` 补：(a) 全高置信→不触发复跑；(b) 低置信触发、三次结果聚合正确；(c) 高方差→unstable 置位；(d) 复跑抛错→保留首轮、不阻塞。
+**测试（✅ 已完成）**：`utils/score-samples.spec.ts` 8 用例（单样本 / 全同 / 小差 / 大差 / 偶数中位数 / 全 0 / 自定义阈值 / 空）+ `generic-item-scorer.service.spec.ts` 4 集成测试（全高置信不触发 / 低置信触发取中位数 + unstable / 复跑一致 stable / 复跑抛错保留首轮）。全量 ai-bid-analysis 14 suites / 90 tests 通过。
 
-**工作量**：1 人日　**验收**：mock 低置信返回，能看到复跑日志与 `unstable` 标记；高置信项确认未被复跑。
+**工作量**：**1 人日**（实做）　**状态**：后端已落地；前端 ⚙️ 标记待接。**风险**：阈值 0.6/0.2 未经真实数据实测；若上线后 >50% 项触发复跑，成本显著上升，需上调阈值或限复跑项数。
 
 ---
 
@@ -400,3 +399,4 @@ Sprint 3+（战略，按业务节奏）
 
 - **A3（2026-07-03）✅ 后端已落地**：抽 `utils/qualification.ts:resolveQualification` 纯函数 + 接入 `bidder.processor`；8 单测 + 全量回归通过。前端红卡待接。
 - **A1（2026-07-03）✅ 后端已落地**：抽 `utils/excerpt-verify.ts:verifyExcerpt` 纯函数（bigram 覆盖率，非 Jaccard）+ 接入 `requirement-matcher`；9 单测 + 全量回归通过。阈值 0.55 待真实数据校准。前端 ⚠️ 标记待接。
+- **A2（2026-07-03）✅ 后端已落地**：抽 `utils/score-samples.ts:aggregateScoreSamples` 纯函数 + scorer `rescoreUnstable`（只对低置信子集复跑，非整体重跑）；8 单测 + 4 集成测试 + 全量回归通过。阈值 0.6/0.2 待真实数据校准。前端 ⚙️ 标记待接。
