@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import JSZip from 'jszip';
+import * as JSZip from 'jszip';
 import pdfParse from 'pdf-parse';
 import type { BidderDocumentMetadata } from '../types';
 

@@ -7,7 +7,7 @@ import {
 import { promises as fs } from 'fs';
 import { readFileSync } from 'fs';
 import path from 'path';
-import JSZip from 'jszip';
+import * as JSZip from 'jszip';
 import pdfParse from 'pdf-parse';
 import * as XLSX from 'xlsx';
 import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto } from './tender-write.dto';
