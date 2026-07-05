@@ -12,7 +12,7 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
 
   beforeEach(async () => {
     prisma = {
-      user: { findUnique: jest.fn(), findMany: jest.fn() },
+      user: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
       expertProfile: { updateMany: jest.fn() },
       expertEvaluation: { findMany: jest.fn() },
       bidExpert: { findMany: jest.fn(), findFirst: jest.fn() },
@@ -65,7 +65,12 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
         { id: 'u1', displayName: '差专家', expertProfile: { specialty: '水利' } },
       ]);
       // 最近 2 次都是 D
-      prisma.expertEvaluation.findMany.mockResolvedValue([{ level: 'D' }, { level: 'D' }]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([
+        { expertUserId: 'u1', level: 'D', createdAt: new Date() },
+        { expertUserId: 'u1', level: 'D', createdAt: new Date() },
+      ]);
+      // 近期有分配（仍因连续 D 级进候选）
+      prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u1', id: 'r1' }]);
 
       const candidates = await service.reviewRetirementCandidates();
 
@@ -81,8 +86,10 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
       prisma.user.findMany.mockResolvedValue([
         { id: 'u2', displayName: '好专家', expertProfile: { specialty: '水利' } },
       ]);
-      prisma.expertEvaluation.findMany.mockResolvedValue([{ level: 'A' }]);
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'recent' }); // 近期有分配
+      prisma.expertEvaluation.findMany.mockResolvedValue([
+        { expertUserId: 'u2', level: 'A', createdAt: new Date() },
+      ]);
+      prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u2', id: 'recent' }]); // 近期有分配
 
       const candidates = await service.reviewRetirementCandidates();
       expect(candidates).toHaveLength(0);
@@ -92,8 +99,10 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
       prisma.user.findMany.mockResolvedValue([
         { id: 'u3', displayName: '闲置专家', expertProfile: { specialty: '水利' } },
       ]);
-      prisma.expertEvaluation.findMany.mockResolvedValue([{ level: 'B' }]); // 评价正常
-      prisma.bidExpert.findFirst.mockResolvedValue(null); // 近期无分配
+      prisma.expertEvaluation.findMany.mockResolvedValue([
+        { expertUserId: 'u3', level: 'B', createdAt: new Date() },
+      ]); // 评价正常
+      prisma.bidExpert.findMany.mockResolvedValue([]); // 近期无分配
 
       const candidates = await service.reviewRetirementCandidates();
       expect(candidates).toHaveLength(1);
