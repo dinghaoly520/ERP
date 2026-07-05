@@ -7,7 +7,7 @@ import {
   TableRow,
   TableCell,
 } from 'docx';
-import JSZip from 'jszip';
+import * as JSZip from 'jszip';
 import { addDocxCommentBuffer, modifyDocxBuffer } from './docx-generator';
 
 describe('modifyDocxBuffer', () => {
