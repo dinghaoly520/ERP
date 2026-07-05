@@ -13,6 +13,12 @@ jest.mock('../announcement/bid-document.crypto', () => ({
   decryptBuffer: jest.fn(),
 }));
 
+jest.mock('../common/crypto/envelope-crypto', () => ({
+  wrapKey: jest.fn((dek: string, _kmsSecret: string) => `wrapped:${dek}`),
+  unwrapKey: jest.fn(),
+  isWrappedKey: jest.fn(),
+}));
+
 jest.mock('../upload/minio.client', () => ({
   minioClient: {
     getObject: jest.fn().mockResolvedValue({}),
