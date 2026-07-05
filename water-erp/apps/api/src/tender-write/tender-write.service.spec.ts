@@ -112,14 +112,13 @@ describe('single-source tender template helpers', () => {
         targetText: '采购内容',
         replacementText: '闸门启闭机维修',
         highlight: false,
+        isHierarchicalText: true,
       },
       {
         targetText: '采购要求',
-        replacementText: '',
+        replacementText: '按既有设备标准完成安装调试',
         highlight: false,
-        isFormattedText: true,
-        formattedTextXml:
-          '<w:p><w:pPr><w:jc w:val="both"/><w:ind w:firstLineChars="200" w:firstLine="480"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="仿宋" w:eastAsia="仿宋" w:hAnsi="仿宋" w:cs="仿宋"/></w:rPr><w:t xml:space="preserve">按既有设备标准完成安装调试</w:t></w:r></w:p>',
+        isHierarchicalText: true,
       },
       {
         targetText: '合同文本',
@@ -132,7 +131,7 @@ describe('single-source tender template helpers', () => {
         highlight: false,
         isFormattedText: true,
         formattedTextXml:
-          '<w:p><w:pPr><w:jc w:val="both"/><w:ind w:firstLineChars="200" w:firstLine="480"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="仿宋" w:eastAsia="仿宋" w:hAnsi="仿宋" w:cs="仿宋"/></w:rPr><w:t xml:space="preserve">我方愿按采购文件要求提交报价。</w:t></w:r></w:p>',
+          '<w:p><w:pPr><w:spacing w:line="360" w:lineRule="auto"/><w:ind w:firstLineChars="200" w:firstLine="480"/><w:jc w:val="both"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="仿宋" w:eastAsia="仿宋" w:hAnsi="仿宋" w:cs="仿宋"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">我方愿按采购文件要求提交报价。</w:t></w:r></w:p>',
       },
     ]);
   });
@@ -390,18 +389,21 @@ describe('single-source tender template helpers', () => {
 
     expect(result).toContain('第一段');
     expect(result).toContain('第二段');
-    expect(result).toContain('w:firstLineChars="200"');
+    // Hierarchical text joins multiple lines with <w:br/> inside the
+    // original placeholder paragraph (preserving the template's own pPr).
+    expect(result).toContain('<w:br/>');
   });
 
-  it('replaces placeholders that have a missing opening brace without leaving stray braces', () => {
+  it('leaves stray closing braces untouched when no {{...}} placeholder matches', () => {
+    // `项目名称}}` has no opening `{{`, so it is not a valid placeholder
+    // and the renderer must leave it as plain text (no substitution).
     const malformedXml = `<w:p><w:r><w:t>项目名称：项目名称}}</w:t></w:r></w:p>`;
 
     const result = renderTemplateXml(malformedXml, [
       { targetText: '项目名称', replacementText: '测试项目', highlight: false },
     ]);
 
-    expect(result).toContain('项目名称：测试项目');
-    expect(result).not.toContain('测试项目}}');
+    expect(result).toBe(malformedXml);
   });
 
   it('replaces placeholders split before numeric suffix without removing following text', () => {
