@@ -7,6 +7,9 @@ describe('WorkArrangementsService', () => {
       analyzeWorkArrangementDailyPlan: jest.fn(),
     };
 
+    // Build the non-transactional mock first, then attach $transaction
+    // referencing it — avoids TS7022/TS7024 self-referential initializer
+    // errors that arise when $transaction is part of the object literal.
     const prisma = {
       workArrangement: {
         findMany: jest.fn(),
@@ -27,10 +30,12 @@ describe('WorkArrangementsService', () => {
       projectManagementItem: {
         findUnique: jest.fn(),
       },
-      $transaction: jest.fn(async (callback: (tx: typeof prisma) => unknown) =>
-        callback(prisma),
-      ),
     };
+
+    (prisma as Record<string, unknown>).$transaction = jest.fn(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      async (callback: (tx: any) => unknown) => callback(prisma),
+    );
 
     const service = new WorkArrangementsService(
       prisma as never,
