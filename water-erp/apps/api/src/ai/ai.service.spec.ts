@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AiService } from './ai.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupplierSelectionAiService } from './supplier-selection-ai.service';
+import { LlmService } from '../local-ai/llm.service';
 
 describe('AiService', () => {
   let service: AiService;
@@ -40,7 +41,7 @@ describe('AiService', () => {
   beforeEach(async () => {
     prisma = {
       bidProject: { findUnique: jest.fn() },
-      bidSupplier: { findUnique: jest.fn() },
+      bidSupplier: { findUnique: jest.fn(), findMany: jest.fn() },
       bidScoreRecord: { findMany: jest.fn() },
       supplierBidSubmission: { findMany: jest.fn() },
       supplierEvaluation: { groupBy: jest.fn() },
@@ -53,6 +54,7 @@ describe('AiService', () => {
         AiService,
         { provide: PrismaService, useValue: prisma },
         { provide: SupplierSelectionAiService, useValue: { rankCandidates: jest.fn() } },
+        { provide: LlmService, useValue: { chatJson: jest.fn() } },
       ],
     }).compile();
 
