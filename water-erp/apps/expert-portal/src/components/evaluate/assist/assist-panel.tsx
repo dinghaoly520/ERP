@@ -522,6 +522,13 @@ function ScoringSection({
           </div>
         )}
 
+      {/* A2：多次采样不稳定警告（self-consistency 差异大） */}
+      {hasScoreItems && scoreItems.some((si) => si.unstable) && (
+        <div className="p-3 rounded-lg border border-orange-200 bg-orange-50 text-xs text-orange-700 flex items-start gap-1.5">
+          <AlertCircle size={13} strokeWidth={1.5} className="mt-px shrink-0" />⚙ 有 {scoreItems.filter((si) => si.unstable).length} 项评分多次采样差异大（AI 把握度低），请重点复核。
+        </div>
+      )}
+
       {/* AI vs 专家对比 */}
       {hasComparison && (
         <ExpertComparisonTable

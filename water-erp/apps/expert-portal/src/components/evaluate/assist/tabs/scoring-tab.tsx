@@ -826,13 +826,6 @@ function ScoreDetailSection({
         </div>
       )}
 
-      {/* A2：多次采样不稳定警告（self-consistency 差异大） */}
-      {scoreItems.some((si) => si.unstable) && (
-        <div className="p-3 rounded-lg border border-orange-200 bg-orange-50 text-xs text-orange-700">
-          ⚙ 有 {scoreItems.filter((si) => si.unstable).length} 项评分多次采样差异大（AI 把握度低），请重点复核。
-        </div>
-      )}
-
       {/* AI 评语（仅自有供应商） */}
       {/* overallComment is passed separately */}
 
