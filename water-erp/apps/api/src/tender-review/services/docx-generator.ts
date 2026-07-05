@@ -1,4 +1,4 @@
-import JSZip from 'jszip';
+import * as JSZip from 'jszip';
 import { Document, Paragraph, TextRun, Packer } from 'docx';
 
 interface DocxPart {
