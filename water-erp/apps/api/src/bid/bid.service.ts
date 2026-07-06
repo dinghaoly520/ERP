@@ -25,12 +25,14 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 import { buildArchiveAiUsage } from '../ai-bid-analysis/utils/archive-ai-usage';
+import { ClarificationAiService } from './clarification-ai.service';
 
 @Injectable()
 export class BidService {
   constructor(
     private prisma: PrismaService,
     private notificationService: NotificationService,
+    @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
     @Optional()
     @InjectQueue(QUEUE_NAMES.TENDER_PROCESSING)
@@ -713,7 +715,7 @@ export class BidService {
           'process',
           { taskId: task.id },
           {
-            jobId: `tender-rerun-${task.id}`,
+            jobId: `tender-rerun-${task.id}-${Date.now()}`,
             attempts: 3,
             backoff: { type: 'exponential', delay: 5000 },
             removeOnComplete: { age: 7 * 24 * 3600 },
@@ -1389,6 +1391,24 @@ export class BidService {
     return result;
   }
 
+  /** P1-F：AI 起草澄清问题候选（不落库——专家改完再走 createClarification） */
+  async draftClarification(projectId: string, supplierId: string) {
+    return this.clarificationAi?.draftQuestion(projectId, supplierId) ?? { drafts: [], basis: [] };
+  }
+
+  /** P1-F：AI 提炼回复要点 → 写入 BidClarification.aiSummary（供全体评委速读） */
+  async summarizeClarification(projectId: string, cid: string) {
+    const c = await this.prisma.bidClarification.findFirst({ where: { id: cid, projectId } });
+    if (!c || !c.reply) {
+      throw new BadRequestException({ error: '澄清不存在或尚未回复', code: 'NO_REPLY' });
+    }
+    const result = this.clarificationAi ? await this.clarificationAi.summarizeReply(c.question, c.reply) : null;
+    if (!result) return { summary: null, keyPoints: [] };
+    const aiSummary = `${result.summary}\n${result.keyPoints.map((k) => `· ${k}`).join('\n')}`;
+    await this.prisma.bidClarification.update({ where: { id: cid }, data: { aiSummary } });
+    return { ...result, aiSummary };
+  }
+
   async createClarification(projectId: string, dto: CreateClarificationDto) {
     // P1: 阶段门控 — 归档后不可发起澄清
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
@@ -1446,6 +1466,39 @@ export class BidService {
         });
       }
     }
+  }
+
+  /** P1-E：项目级 AI 建议采纳率（仅统计已确认报告的专家 delta；返回总体 + 按评分项） */
+  async getAiAdoption(projectId: string) {
+    const deltas = await this.prisma.bidScoreDelta.findMany({
+      where: { projectId, expertReportConfirmed: true },
+    });
+    if (deltas.length === 0) return { total: 0, accepted: 0, adoptionRate: null, byItem: [] };
+    const itemIds = [...new Set(deltas.map((d) => d.scoreItemId))];
+    const items = await this.prisma.bidScoreItem.findMany({
+      where: { id: { in: itemIds } },
+      select: { id: true, name: true, category: true },
+    });
+    const itemMap = new Map(items.map((i) => [i.id, i]));
+    const accepted = deltas.filter((d) => d.accepted).length;
+    const byItem = itemIds.map((id) => {
+      const ds = deltas.filter((d) => d.scoreItemId === id);
+      const avgDelta = ds.reduce((s, d) => s + Number(d.delta), 0) / ds.length;
+      return {
+        scoreItemId: id,
+        name: itemMap.get(id)?.name,
+        category: itemMap.get(id)?.category,
+        count: ds.length,
+        avgDelta: Math.round(avgDelta * 10) / 10,
+        accepted: ds.filter((d) => d.accepted).length,
+      };
+    });
+    return {
+      total: deltas.length,
+      accepted,
+      adoptionRate: Math.round((accepted / deltas.length) * 100) / 100,
+      byItem,
+    };
   }
 
   /** 归档项目汇总（单次聚合，避免前端逐项目拉详情的 N+1） */

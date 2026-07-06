@@ -12,14 +12,18 @@ describe('ExpertAdminService', () => {
   beforeEach(async () => {
     prisma = {
       user: {
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         findUnique: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
       },
       bidExpert: {
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       expertEvaluation: {
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      expertProfile: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     };
 

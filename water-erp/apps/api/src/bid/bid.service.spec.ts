@@ -3,6 +3,7 @@ import { ConflictException, BadRequestException } from '@nestjs/common';
 import { BidService } from './bid.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { ClarificationAiService } from './clarification-ai.service';
 import { BidGateway } from './bid.gateway';
 import { assertBidStageTransition } from './bid-state';
 
@@ -117,6 +118,7 @@ describe('BidService — stage transitions', () => {
         BidService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: ClarificationAiService, useValue: { draftQuestion: jest.fn().mockResolvedValue({ drafts: [], basis: [] }), summarizeReply: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
 

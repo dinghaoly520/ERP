@@ -140,8 +140,8 @@ describe('GenericItemScorerService — per-item 评分测试 (C13)', () => {
     it('纯 LLM 评分项（无价格项）', async () => {
       mockLlm.chatJson.mockResolvedValue({
         items: [
-          { scoreItemId: 'si-1', score: 16, reason: '方案合理', confidence: 0.85 },
-          { scoreItemId: 'si-2', score: 9, reason: '人员配置强', confidence: 0.8 },
+          { scoreItemId: 'si-1', score: 16, reason: '方案合理', confidence: 0.9 },
+          { scoreItemId: 'si-2', score: 9, reason: '人员配置强', confidence: 0.9 },
         ],
         overallComment: '整体良好',
       });

@@ -149,7 +149,7 @@ export class GenericItemScorerService {
     taskId: string,
     bidSupplierId: string,
   ): Promise<AiScoreItem[]> {
-    const threshold = Number(process.env.AI_SCORE_UNSTABLE_THRESHOLD ?? 0.6);
+    const threshold = Number(process.env.AI_SCORE_UNSTABLE_THRESHOLD ?? 0.85);
     const lowConf = firstResults.filter(
       (r) => typeof r.confidence === 'number' && (r.confidence as number) < threshold,
     );

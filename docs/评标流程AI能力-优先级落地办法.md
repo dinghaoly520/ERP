@@ -28,7 +28,7 @@
 
 > ⚠️ 据 [[ai-bid-migration-status]] 记录，`ai-bid-analysis` 后端 Phase 1–5 虽完成，但**缺真实 MinIO 投标文件**，整条流水线很可能从未在真实 LLM 输出上跑通过。
 
-**影响**：本方案 A1 的模糊匹配阈值、A2 的 confidence 触发阈值（0.6）与方差阈值（20%）**全是估计值，无实测支撑**。
+**影响**：A1 模糊匹配阈值、A2 confidence 触发阈值与方差阈值原是估计值。**✅ 2026-07-06 已实测**（英雄项目 rerun 真实数据）：A1 0.55 → 66 条响应中 22 verified true / 2 false / 7 页码修正；A2 触发阈值降至 0.85 → 25 项中 1 项复跑、0 unstable（复跑一致）。**阈值合理，保留**。
 
 **开工动作**：先用真实（或贴近真实）的招标/投标文件跑一次端到端，观察：
 - `requirementMatcher` 产出的 excerpt 与原文的真实相似度分布 → 校准 A1 阈值；
@@ -385,6 +385,9 @@ Sprint 3+（战略，按业务节奏）
 ## 实现进展
 
 - **A3（2026-07-03）✅ 后端已落地**：抽 `utils/qualification.ts:resolveQualification` 纯函数 + 接入 `bidder.processor`；8 单测 + 全量回归通过。前端红卡待接。
-- **A1（2026-07-03）✅ 后端已落地**：抽 `utils/excerpt-verify.ts:verifyExcerpt` 纯函数（bigram 覆盖率，非 Jaccard）+ 接入 `requirement-matcher`；9 单测 + 全量回归通过。阈值 0.55 待真实数据校准。前端 ⚠️ 标记待接。
-- **A2（2026-07-03）✅ 后端已落地**：抽 `utils/score-samples.ts:aggregateScoreSamples` 纯函数 + scorer `rescoreUnstable`（只对低置信子集复跑，非整体重跑）；8 单测 + 4 集成测试 + 全量回归通过。阈值 0.6/0.2 待真实数据校准。前端 ⚙️ 标记待接。
-- **D（2026-07-03）✅ 后端已落地**：抽 `utils/archive-ai-usage.ts:buildArchiveAiUsage` 纯函数 + schema 加 `aiProvenance` + `task.service` create 写快照 + `exportArchivePackage` 加「AI 辅助说明」节(JSON+CSV)；集中 `PROMPT_VERSIONS` 而非每文件。5 单测通过。⚠️ **migration 待 apply**（`pnpm db:migrate`）。
+- **A1（2026-07-03）✅ 后端已落地**：抽 `utils/excerpt-verify.ts:verifyExcerpt` 纯函数（bigram 覆盖率，非 Jaccard）+ 接入 `requirement-matcher`；9 单测 + 全量回归通过。阈值 0.55 ✅ 已实测（22 真/2 假/7 修正，合理）。前端 ⚠️ 标记待接。
+- **A2（2026-07-03）✅ 后端已落地**：抽 `utils/score-samples.ts:aggregateScoreSamples` 纯函数 + scorer `rescoreUnstable`（只对低置信子集复跑，非整体重跑）；8 单测 + 4 集成测试 + 全量回归通过。触发阈值 0.6→**0.85**（实测 0.6 永不触发，DeepSeek confidence 均 0.9+）；✅ 已实测（1 项复跑、0 unstable，合理）。前端 ⚙️ 标记待接。
+- **D（2026-07-03）✅ 后端已落地**：抽 `utils/archive-ai-usage.ts:buildArchiveAiUsage` 纯函数 + schema 加 `aiProvenance` + `task.service` create 写快照 + `exportArchivePackage` 加「AI 辅助说明」节(JSON+CSV)；集中 `PROMPT_VERSIONS` 而非每文件。5 单测通过。migration ✅ 已 apply。
+- **P1-E（2026-07-06）✅ 后端已落地**：schema `BidScoreDelta` + `submitScores` 事务写 delta（数值项，排除通过性项）+ `confirmReport` 置 `expertReportConfirmed` + `getAiAdoption` API（项目级采纳率 + 按评分项）。migration ✅ 已 apply。**待做**：calibration / expert-deviation API + web 驾驶舱 MetricCard。前端单独一轮。
+- **P1-F（2026-07-06）✅ 后端已落地**：`clarification-ai.service`（`draftQuestion` 起草候选问题 + `summarizeReply` 提炼要点）+ 两端 draft 端点（expert + bid，不落库）+ bid summarize 端点（写 `BidClarification.aiSummary`）；`@Optional` 注入（P1-F 是增强，不阻塞 BidService DI，避免 spec 10 个 TestingModule 加 mock）。schema 加 `aiSummary` + migration ✅。bid+expert 300 tests 通过。前端按钮待接。
+- **expert-admin pre-existing（2026-07-06）✅ 修复**：`portrait & retire` 4 失败测试——mock 缺 `user.update`/`expertProfile.updateMany`/findMany 默认值；测试 mock `findFirst` 但逻辑用 `findMany`；`expertEvaluation` mock 缺 `expertUserId`（group key）。12/12 全过。

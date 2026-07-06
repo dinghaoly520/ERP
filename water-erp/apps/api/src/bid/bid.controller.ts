@@ -40,6 +40,10 @@ export class BidController {
   @ApiOperation({ summary: 'Dashboard 聚合：项目列表 + 就绪状态 + 阶段分布' })
   getProjectsDashboard() { return this.bidService.getProjectsDashboard(); }
 
+  @Get('projects/:id/ai-adoption')
+  @ApiOperation({ summary: 'P1-E：项目级 AI 建议采纳率（专家 vs AI 评分 delta）' })
+  getAiAdoption(@Param('id') id: string) { return this.bidService.getAiAdoption(id); }
+
   @Get('projects/archive-summary')
   @ApiOperation({ summary: '归档项目汇总（单次聚合，避免 N+1）' })
   getArchiveSummary() { return this.bidService.getArchiveSummary(); }
@@ -196,6 +200,18 @@ export class BidController {
   @Post('projects/:id/clarifications')
   @ApiOperation({ summary: '发起澄清' })
   createClarification(@Param('id') id: string, @Body() dto: CreateClarificationDto) { return this.bidService.createClarification(id, dto); }
+
+  @Post('projects/:id/clarifications/draft')
+  @ApiOperation({ summary: 'P1-F：AI 起草澄清问题候选（不落库）' })
+  draftClarification(@Param('id') id: string, @Body() body: { supplierId: string }) {
+    return this.bidService.draftClarification(id, body.supplierId);
+  }
+
+  @Post('projects/:id/clarifications/:cid/summarize')
+  @ApiOperation({ summary: 'P1-F：AI 提炼回复要点 → aiSummary' })
+  summarizeClarification(@Param('id') id: string, @Param('cid') cid: string) {
+    return this.bidService.summarizeClarification(id, cid);
+  }
 
   @Get('projects/:id/supervision-logs')
   @ApiOperation({ summary: '监督日志' })
