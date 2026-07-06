@@ -47,7 +47,7 @@ export default function ExpertRepositoryPage() {
          title="专家库"
         description="评审专家目录、专业分类与启停管理。支持按专业和姓名筛选。"
         tone="blue" icon={<UsersRound size={14} />}
-        actions={<button onClick={() => router.push('/expert/entry')} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white hover:bg-[#054280] transition">录入专家</button>}
+        actions={<button onClick={() => router.push('/expert/entry')} className="neu-btn-primary">录入专家</button>}
       />
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -72,16 +72,16 @@ export default function ExpertRepositoryPage() {
         </select>
         {(search || specialty) && (
           <button onClick={() => { setSearch(''); setSpecialty(''); }}
-            className="rounded-xl border border-[#dce3eb] px-3 py-2 text-sm font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] transition">
+            className="neu-btn-soft">
             重置
           </button>
         )}
-        <button onClick={load} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white hover:bg-[#054280] transition">刷新</button>
+        <button onClick={load} className="neu-btn-primary">刷新</button>
       </DataToolbar>
 
       <SectionCard className="p-0">
         {loading ? (
-          <table className="workbench-table"><tbody><TableSkeleton cols={8} rows={5} /></tbody></table>
+          <table className="workbench-table w-full min-w-[700px]"><tbody><TableSkeleton cols={8} rows={5} /></tbody></table>
         ) : experts.length === 0 ? (
           <div className="py-16 text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f1f5f9] text-[#94a3b8]">
@@ -92,8 +92,8 @@ export default function ExpertRepositoryPage() {
             <button onClick={() => router.push('/expert/entry')} className="text-sm font-bold text-[#064ea2] hover:underline">前往录入专家 →</button>
           </div>
         ) : (
-          <table className="workbench-table">
-            <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
+          <table className="workbench-table w-full min-w-[700px]">
+            <thead className="neu-thead [neu-thead text-[#5a6d8a] [&_th]:whitespace-nowrap_th]:whitespace-nowrap">
               <tr>
                 <th className="px-4 py-3">专家</th>
                 <th className="px-4 py-3 text-center">专业</th>

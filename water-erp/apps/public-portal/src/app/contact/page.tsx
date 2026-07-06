@@ -37,7 +37,7 @@ export default function ContactPage() {
       <main className="flex-1 flex flex-col relative z-10">
         {/* ═══ Contact Cards — 三列横排 ═══ */}
         <section className="px-[clamp(28px,4vw,72px)] pt-3 pb-[clamp(36px,3.5vw,52px)] w-full flex-1 flex flex-col">
-        <a href="/" className="flow-back inline-flex items-center gap-1.5 w-fit">
+        <a href="/" className="flow-back">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
           返回首页
         </a>
@@ -50,7 +50,7 @@ export default function ContactPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
           {CONTACT_INFO.map((item, i) => (
             <div key={i}
-              className="flex flex-col glass rounded-xl p-6 hover:border-[#d4dde8] transition-colors duration-200"
+              className="flex flex-col neu-card p-6"
             >
               {/* Icon + Label */}
               <div className="flex items-center gap-3 mb-4">
@@ -69,7 +69,7 @@ export default function ContactPage() {
               {/* Action button */}
               {item.action && (
                 <a href={item.action.href}
-                  className="inline-flex items-center gap-2 mt-5 self-start px-4 py-2.5 bg-[#064ea2] text-white text-[13px] font-semibold rounded-lg hover:bg-[#05428a] transition-colors duration-200 active:scale-[0.98]">
+                  className="neu-btn-primary mt-5 self-start">
                   {item.action.label}
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                 </a>

@@ -19,14 +19,12 @@ export default function SmartBidPage() {
   const reducedMotion = useReducedMotion() ?? false;
 
   return (
-    <motion.div {...fadeIn(0, reducedMotion)} className="min-h-full">
-      <div className="flex flex-col items-center justify-center py-20">
-        <div className="text-center">
+    <motion.div {...fadeIn(0, reducedMotion)} className="flex flex-1 flex-col items-center justify-center min-h-[60vh]">
+      <div className="text-center">
           <h2 className="text-lg font-semibold text-[color:var(--foreground)]">智能标书编写模块</h2>
           <p className="mt-2 text-sm text-[color:var(--muted-foreground)] max-w-md">
             此模块将用于投标文件的AI全自动生成，包括招标文件分析、资质匹配、方案编写、格式校验等功能。
           </p>
-        </div>
       </div>
     </motion.div>
   );

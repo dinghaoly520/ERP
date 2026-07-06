@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import {
@@ -11,7 +10,6 @@ import {
   LayoutDashboard,
   FileEdit,
   FileSearch,
-  FileBarChart,
   Sparkles,
   FolderOpen,
   KeyRound,
@@ -23,14 +21,19 @@ import {
   ShoppingBag,
   Bell,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Settings,
 } from "lucide-react";
 import { AppUserActions } from "@/components/app-user-actions";
+import { UnifiedHeader } from "@/components/workbench/unified-header";
 import { fetchCurrentUser, type AuthRole, type AuthUser } from "@/lib/api/auth";
+import { ChatPanel } from "@/components/assistant/chat-panel";
 
 type NavItem = {
   key: string;
   label: string;
-  href: string;
+  href?: string;
   icon: typeof LayoutDashboard;
   meta?: string;
   roles?: AuthRole[];
@@ -46,13 +49,23 @@ type NavGroup = {
 
 const navGroups: NavGroup[] = [
   {
-    key: "overview",
-    label: "工作总览",
+    key: "personal-center",
+    label: "个人中心",
+    icon: UserRound,
+    items: [
+      { key: "work-arrangements", label: "工作台", href: "/work-arrangements", icon: UserRound, meta: "工作安排" },
+      { key: "profile-edit", label: "资料修改", href: "/profile", icon: Settings, meta: "资料/密码修改" },
+      { key: "assistant", label: "水叮当助手", href: "/assistant", icon: Sparkles, meta: "AI智能助手" },
+    ],
+  },
+  {
+    key: "cockpit",
+    label: "驾驶舱",
     icon: LayoutDashboard,
     items: [
-      { key: "dashboard", label: "首页驾驶舱", href: "/dashboard", icon: LayoutDashboard, meta: "运营总览" },
+      { key: "dashboard", label: "数据库", href: "/dashboard", icon: LayoutDashboard, meta: "运营总览" },
+      { key: "procurements", label: "采购台账", href: "/procurements", icon: FolderKanban, meta: "事项追踪" },
       { key: "progress", label: "采购进度", href: "/progress", icon: TrendingUp, meta: "项目进度统计", roles: ["admin", "leader"] },
-      { key: "work-arrangements", label: "个人中心", href: "/work-arrangements", icon: UserRound, meta: "工作安排" },
     ],
   },
   {
@@ -60,11 +73,18 @@ const navGroups: NavGroup[] = [
     label: "采购业务",
     icon: FolderKanban,
     items: [
-      { key: "procurements", label: "采购台账", href: "/procurements", icon: FolderKanban, meta: "事项追踪" },
       { key: "projects", label: "项目管理", href: "/projects", icon: FolderOpen, meta: "项目全生命周期" },
-      { key: "tender-write", label: "招标文件编写", href: "/tender-write", icon: FileEdit, meta: "AI辅助编写" },
-      { key: "tender-review", label: "招标文件审查", href: "/tender-review", icon: FileSearch, meta: "合规性审查" },
-      { key: "bid-analysis", label: "投标文件分析", href: "/bid-analysis", icon: FileBarChart, meta: "智能评分分析" },
+      { key: "tender-write", label: "采购文件编写", href: "/tender-write", icon: FileEdit, meta: "AI辅助编写" },
+      { key: "tender-review", label: "采购文件审查", href: "/tender-review", icon: FileSearch, meta: "合规性审查" },
+    ],
+  },
+  {
+    key: "announcement",
+    label: "公告管理",
+    icon: Megaphone,
+    items: [
+      { key: "notice", label: "信息发布中心", href: "/notice", icon: Megaphone, meta: "公告/公示/政策" },
+      { key: "notifications", label: "通知中心", href: "/notifications", icon: Bell, meta: "消息提醒" },
     ],
   },
   {
@@ -90,17 +110,8 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    key: "notice-mgmt",
-    label: "信息发布",
-    icon: Megaphone,
-    items: [
-      { key: "notice", label: "信息发布中心", href: "/notice", icon: Megaphone, meta: "公告/公示/政策" },
-      { key: "notifications", label: "通知中心", href: "/notifications", icon: Bell, meta: "消息提醒" },
-    ],
-  },
-  {
-    key: "mall-mgmt",
-    label: "电子商城管理",
+    key: "catalog-mgmt",
+    label: "集中目录管理",
     icon: ShoppingBag,
     items: [
       { key: "mall-approval", label: "价格审批", href: "/mall-management/approval", icon: ShoppingBag, meta: "供货审核" },
@@ -147,10 +158,10 @@ export function AppShell({
   bodyScrollMode = "shell",
   children,
 }: AppShellProps) {
-  const router = useRouter();
   const hasPageHeader = Boolean(title || description);
   const [resolvedUser, setResolvedUser] = useState<AuthUser | null | undefined>(undefined);
   const [headerVisible, setHeaderVisible] = useState(true);
+  const [sidebarHidden, setSidebarHidden] = useState(false);
   const effectiveRole = currentUserRole ?? resolvedUser?.role;
   const isUserLoading = currentUserRole === undefined && resolvedUser === undefined;
   const effectiveUsername = resolvedUser?.username;
@@ -191,6 +202,16 @@ export function AppShell({
     return () => window.clearTimeout(timer);
   }, [autoHideHeader]);
 
+  // 菜单栏折叠状态持久化（localStorage）
+  useEffect(() => {
+    const stored = window.localStorage.getItem("app-shell:sidebar-hidden");
+    if (stored === "1") setSidebarHidden(true);
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("app-shell:sidebar-hidden", sidebarHidden ? "1" : "0");
+  }, [sidebarHidden]);
+
 
   // 过滤+展开分组为扁平列表（带 group key 标记），含角色过滤 + 特殊用户过滤
   const visibleGroups = isUserLoading
@@ -224,31 +245,36 @@ export function AppShell({
   };
 
   return (
-    <div className="ambient-grid h-full overflow-hidden px-2.5 py-2.5 sm:px-3.5 lg:px-4">
-      <div className="mx-auto flex h-full w-full gap-4 overflow-hidden">
-        <aside className="sidebar-sheen panel-surface chromatic-glass glass-calm glass-float hidden h-full w-[256px] shrink-0 flex-col rounded-[24px] p-2 lg:flex">
-          <div className="glass-spectrum glass-spectrum-soft rounded-[18px] border border-white/60 bg-white/72 p-3">
-            <div className="flex items-center gap-3">
-              <div className="command-orb flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[14px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(241,245,251,0.88))] shadow-[0_10px_18px_rgba(63,96,156,0.08)]">
-                <Image
-                  src="/procurement-brand-logo.png"
-                  alt="智慧水发·蜀水云采"
-                  width={36}
-                  height={36}
-                  className="rounded-[10px] object-cover"
-                  priority
-                />
-              </div>
+    <div className="flow-page ambient-grid h-full overflow-hidden px-2.5 pb-2.5 sm:px-3.5 lg:pr-4 lg:pl-0">
+      {/* cgzxui 水彩光晕 —— 五角 oklch 浅彩 bloom，作为玻璃面板背后漂移的色彩层 */}
+      <div className="flow-glow" aria-hidden />
+      <div className="mx-auto flex h-full w-full overflow-hidden [perspective:1500px]">
+        <aside
+          data-hidden={sidebarHidden ? "true" : "false"}
+          className="sidebar-sheen sidebar-3d sidebar-card mr-4 hidden h-full w-[256px] shrink-0 flex-col rounded-tl-[24px] rounded-tr-[24px] rounded-bl-none rounded-br-[24px] lg:flex"
+        >
+          <header className="flex flex-col items-center gap-1.5 px-3.5 pb-3 pt-3.5">
+            <div className="command-orb brand-orb-3d flex h-9 w-9 shrink-0 items-center justify-center">
+              <Image
+                src="/procurement-brand-logo.png"
+                alt="智慧水发·蜀水云采"
+                width={34}
+                height={34}
+                className="rounded-[10px] object-cover"
+                priority
+              />
+            </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="text-[0.96rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
-                  智慧水发·采购中心
-                </div>
+            <div className="w-full text-center">
+              <div className="truncate text-[0.85rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                智慧水发·采购中心
               </div>
             </div>
-          </div>
+          </header>
 
-          <nav className="glass-spectrum glass-spectrum-soft mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto rounded-[18px] border border-white/50 bg-white/46 p-1.5">
+          <div aria-hidden className="mx-3.5 h-px bg-[linear-gradient(90deg,transparent,rgba(184,199,227,0.55),transparent)]" />
+
+          <nav className="sidebar-scroll sidebar-nav mt-1.5 min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-1">
             {visibleGroups.map((group) => {
               const GroupIcon = group.icon;
               const isCollapsed = collapsedGroups.has(group.key);
@@ -260,7 +286,7 @@ export function AppShell({
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.key)}
-                    className="flex w-full items-center gap-2 rounded-[12px] px-2 py-1.5 text-left transition-colors hover:bg-white/50"
+                    className="sidebar-group-header flex w-full items-center gap-2 rounded-[12px] px-2 py-1.5 text-left transition-all duration-300"
                   >
                     <GroupIcon size={14} className="shrink-0 text-[color:var(--muted-foreground)]" />
                     <span className="flex-1 text-xs font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
@@ -275,8 +301,8 @@ export function AppShell({
                   </button>
 
                   {/* 分组子项 */}
-                  {!isCollapsed && (
-                    <div className="ml-1 space-y-0.5 border-l border-white/40 pl-1.5">
+                  <div className={`sidebar-group-panel ml-1 border-l border-white/40 pl-1.5 ${!isCollapsed ? "is-open" : ""}`}>
+                      <div className="space-y-0.5">
                       {group.items.map((item) => {
                         const Icon = item.icon;
                         const active = item.key === activeKey;
@@ -284,56 +310,51 @@ export function AppShell({
                         return (
                           <Link
                             key={item.key}
-                            href={item.href}
+                            href={item.href!}
                             data-active={active}
-                            className={[
-                              "nav-glow hover-lift interactive-surface group relative flex items-center gap-2.5 overflow-hidden rounded-[12px] px-2.5 py-1.5 transition-all duration-300",
-                              active
-                                ? "bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(242,246,255,0.62))] text-[color:var(--foreground)] shadow-[0_8px_16px_rgba(54,84,140,0.06)]"
-                                : "text-[color:var(--muted-foreground)] hover:bg-white/72 hover:text-[color:var(--foreground)]",
-                            ].join(" ")}
+                            className="sidebar-nav-item group relative"
                           >
                             {active ? (
-                              <span className="absolute bottom-auto left-[4px] top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-[rgba(72,120,235,0.92)]" />
+                              <span className="nav-active-skew absolute bottom-2 left-[2px] top-2 w-[2.5px]" />
                             ) : null}
 
-                            <span
-                              className={[
-                                "flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border transition-all duration-300",
-                                active
-                                  ? "border-white/75 bg-[rgba(239,245,255,0.96)] text-[color:var(--accent)]"
-                                  : "border-white/45 bg-white/34 group-hover:border-white/70 group-hover:bg-white/70",
-                              ].join(" ")}
-                            >
-                              <Icon size={16} />
-                            </span>
+                            <Icon size={16} className="shrink-0" />
 
-                            <div className="min-w-0 flex-1">
-                              <div className="text-xs font-semibold">{item.label}</div>
-                            </div>
+                            <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{item.label}</span>
                           </Link>
                         );
                       })}
                     </div>
-                  )}
+                    </div>
                 </div>
               );
             })}
           </nav>
 
-          <div className="mt-2 hidden lg:block">
-            <AppUserActions layout="sidebar" />
-          </div>
+          {/* 右边缘折叠手柄 —— 点击向左折叠 */}
+          <button
+            type="button"
+            onClick={() => setSidebarHidden(true)}
+            aria-label="收起菜单栏"
+            className="sidebar-edge-tab group absolute right-0 top-1/2 z-20 flex h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-l-[7px] border border-r-0 border-white/70 bg-[linear-gradient(90deg,rgba(241,245,251,0.45),rgba(255,255,255,0.92))] text-[color:var(--muted-foreground)] shadow-[-4px_0_7px_-3px_rgba(69,99,158,0.16)] transition-colors duration-200 hover:bg-white hover:text-[color:var(--accent)]"
+          >
+            <ChevronLeft size={12} />
+          </button>
         </aside>
 
-        <section className="min-h-0 flex flex-1 overflow-hidden">
-          <main className="panel-surface panel-lens chromatic-glass glass-calm glass-float relative z-10 h-full min-h-0 flex flex-1 flex-col overflow-hidden rounded-[24px] p-3.5 sm:p-4 lg:p-4">
-            <div className="pointer-events-none absolute bottom-6 left-[-18px] top-6 hidden w-[24px] lg:block">
-              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-[linear-gradient(180deg,rgba(137,164,214,0.14),rgba(137,164,214,0.46),rgba(137,164,214,0.12))]" />
-              <div className="absolute inset-y-8 left-1/2 w-[18px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(153,182,242,0.22),rgba(153,182,242,0.04)_58%,transparent_72%)] blur-md" />
-            </div>
-            <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,rgba(255,255,255,0.92),rgba(255,255,255,0))]" />
+        {sidebarHidden ? (
+          <button
+            type="button"
+            onClick={() => setSidebarHidden(false)}
+            aria-label="展开菜单栏"
+            className="sidebar-edge-tab interactive-surface group fixed left-0 top-1/2 z-30 hidden h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-r-[7px] border border-l-0 border-white/70 bg-[linear-gradient(270deg,rgba(241,245,251,0.45),rgba(255,255,255,0.92))] text-[color:var(--muted-foreground)] shadow-[4px_0_7px_-3px_rgba(69,99,158,0.16)] transition-colors duration-200 hover:bg-white hover:text-[color:var(--accent)] lg:flex"
+          >
+            <ChevronRight size={12} />
+          </button>
+        ) : null}
 
+        <section className="min-h-0 flex flex-1 overflow-hidden">
+          <main className="relative z-10 h-full min-h-0 flex flex-1 flex-col overflow-hidden p-3.5 sm:p-4 lg:p-4">
             <div
               data-app-shell-scroll="true"
               className={[
@@ -356,7 +377,7 @@ export function AppShell({
                     return (
                       <Link
                         key={item.key}
-                        href={item.href}
+                        href={item.href!}
                         className={[
                           "interactive-surface inline-flex min-w-fit items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition-all duration-200",
                           active
@@ -371,10 +392,17 @@ export function AppShell({
                   })}
                 </div>
 
+                <UnifiedHeader
+                  showBack={false}
+                  title={hasPageHeader ? title : undefined}
+                  description={hasPageHeader ? description : undefined}
+                  actions={hasPageHeader ? headerActions : undefined}
+                />
+
                 {hasPageHeader ? (
                   <header
                     className={[
-                      "grid gap-2.5 overflow-hidden transition-all duration-500 2xl:grid-cols-[1.1fr_0.9fr] 2xl:items-end",
+                      "grid gap-2.5 overflow-hidden transition-all duration-500 2xl:grid-cols-[1.1fr_0.9fr] 2xl:items-end hidden",
                       headerVisible ? "max-h-[220px] opacity-100" : "max-h-0 pointer-events-none opacity-0",
                     ].join(" ")}
                   >
@@ -411,6 +439,7 @@ export function AppShell({
             </div>
           </main>
         </section>
+        <ChatPanel variant="mini" />
       </div>
     </div>
   );

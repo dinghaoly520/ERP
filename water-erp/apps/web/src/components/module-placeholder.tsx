@@ -25,7 +25,7 @@ export function ModulePlaceholder({
       description={description}
       currentUserRole={currentUserRole}
     >
-      <div className="panel-soft panel-lens rounded-[30px] p-6 sm:p-7">
+      <div className="p-6 sm:p-7">
         <div className="max-w-2xl">
           <div className="section-kicker">Module Preview</div>
           <div className="mt-4 text-sm leading-7 text-[color:var(--muted-foreground)]">

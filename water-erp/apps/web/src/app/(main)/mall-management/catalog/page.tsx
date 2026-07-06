@@ -77,12 +77,12 @@ export default function CatalogManagementPage() {
           {statuses.map(s => <option key={s}>{s}</option>)}
         </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索编码、名称、规格、分类、供应商" className="workbench-input flex-1 text-sm" />
-        <button onClick={load} className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white">刷新</button>
+        <button onClick={load} className="neu-btn-primary">刷新</button>
       </DataToolbar>
 
       <SectionCard className="p-0">
-        <table className="workbench-table">
-          <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
+        <table className="workbench-table w-full min-w-[700px]">
+          <thead className="neu-thead [neu-thead text-[#5a6d8a] [&_th]:whitespace-nowrap_th]:whitespace-nowrap">
             <tr>
               <th className="px-4 py-3 text-center">目录编码</th>
               <th className="px-4 py-3">名称/规格</th>
@@ -99,7 +99,7 @@ export default function CatalogManagementPage() {
             ) : filtered.length === 0 ? (
               <tr><td colSpan={7}><EmptyState title="暂无目录" description="通过手动录入或批量导入添加目录后即可查看" action={<button onClick={() => router.push('/mall-management/price-entry')} className="text-sm font-bold text-[#064ea2] hover:underline">前往价格录入 →</button>} /></td></tr>
             ) : filtered.map(item => (
-              <tr key={item.id} className="border-t border-[#edf2f7] hover:bg-[#f8fafc] transition">
+              <tr key={item.id} className="border-t border-[var(--border)] hover:bg-[#f8fafc] transition">
                 <td className="px-4 py-3 text-center font-mono text-xs text-[#123a6e]">{item.code}</td>
                 <td className="px-4 py-3"><div className="font-bold text-[#18243a]">{item.name}</div><div className="text-xs text-[#8a99ad]">{item.specification}</div></td>
                 <td className="px-4 py-3 text-center">{item.category}</td>

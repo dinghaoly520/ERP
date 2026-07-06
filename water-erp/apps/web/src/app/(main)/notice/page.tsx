@@ -62,14 +62,14 @@ export default function NoticePage() {
   };
 
   return (
-    <div>
+    <div className="mx-auto max-w-[1440px]">
       <PageHero
         title="信息发布中心"
         description="招标公示、中标公示、政策法规、平台通知；起草并配齐招标文件/附件后再发布。"
         tone="blue"
         icon={<MegaphoneIcon size={14} />}
         actions={
-          <button onClick={() => router.push('/notice/new')} className="inline-flex items-center gap-2 rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white hover:bg-[#054280]">
+          <button onClick={() => router.push('/notice/new')} className="neu-btn-primary">
             <PlusCircle size={16} /> 新建信息
           </button>
         }
@@ -82,8 +82,8 @@ export default function NoticePage() {
         <MetricCard label="已归档" value={data.items.filter(item => item.status === 'ARCHIVED').length} hint="本页归档记录" tone="gray" />
       </div>
 
-      <div className="mt-6 glass-card glass-card-blue rounded-2xl">
-        <div className="flex items-center border-b border-[#edf2f7]">
+      <div className="mt-6">
+        <div className="flex flex-wrap items-center border-b border-[var(--border)]">
           <div className="flex">
             {(Object.keys(typeMap) as AnnouncementType[]).map((t, i, arr) => (
               <button
@@ -91,7 +91,7 @@ export default function NoticePage() {
                 onClick={() => { setFilterType(t); setPage(1); }}
                 className={`relative px-5 py-3 text-sm font-bold transition-colors
                   ${filterType === t ? 'text-[#064ea2] bg-[#f0f5ff]' : 'text-[#5a6d8a] hover:text-[#18243a] hover:bg-[#f8fafc]'}
-                  ${i < arr.length - 1 ? 'border-r border-[#edf2f7]' : ''}`}
+                  ${i < arr.length - 1 ? 'border-r border-[var(--border)]' : ''}`}
               >
                 {typeMap[t].label}
                 {filterType === t && <span className="absolute bottom-0 left-[14px] right-[14px] h-[2px] rounded-full bg-[#064ea2]" />}
@@ -102,10 +102,10 @@ export default function NoticePage() {
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
               <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-                placeholder="搜索标题..." className="w-[180px] rounded-lg border border-[#e5ecf4] bg-[#f8fafc] py-1.5 pl-8 pr-3 text-sm text-[#18243a] placeholder-[#94a3b8] outline-none transition focus:border-[#0b63ce] focus:bg-white focus:shadow-[0_0_0_3px_rgba(11,99,206,0.10)]" />
+                placeholder="搜索标题..." className="w-full min-w-[120px] max-w-[200px] rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-3 text-sm text-[#18243a] placeholder-[#94a3b8] outline-none transition focus:border-[#0b63ce] focus:bg-white focus:shadow-[0_0_0_3px_rgba(11,99,206,0.10)]" />
             </div>
             <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value as any); setPage(1); }}
-              className="rounded-lg border border-[#e5ecf4] bg-[#f8fafc] py-1.5 pl-3 pr-7 text-sm text-[#5a6d8a] outline-none transition focus:border-[#0b63ce] focus:bg-white focus:shadow-[0_0_0_3px_rgba(11,99,206,0.10)] appearance-none bg-no-repeat"
+              className="rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-3 pr-7 text-sm text-[#5a6d8a] outline-none transition focus:border-[#0b63ce] focus:bg-white focus:shadow-[0_0_0_3px_rgba(11,99,206,0.10)] appearance-none bg-no-repeat"
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundPosition: 'right 8px center' }}
             >
               <option value="">全部状态</option>
@@ -116,9 +116,9 @@ export default function NoticePage() {
           </div>
         </div>
 
-        <div className="overflow-hidden">
-        <table className="workbench-table">
-          <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
+        <div className="overflow-x-auto">
+        <table className="workbench-table w-full min-w-[640px]">
+          <thead className="neu-thead [neu-thead text-[#5a6d8a] [&_th]:whitespace-nowrap_th]:whitespace-nowrap">
             <tr>
               <th className="px-4 py-3 text-center">标题</th>
               <th className="px-4 py-3 text-center">类型</th>
@@ -153,9 +153,9 @@ export default function NoticePage() {
                   <td className="px-4 py-3 text-center text-[#5a6d8a]">{a.viewCount}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex justify-center gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => router.push(`/notice/${a.id}`)} className="rounded-lg border border-[#dce6f3] px-2.5 py-1 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">查看</button>
-                      {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition">投标</button>}
-                      <button onClick={() => remove(a)} className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-100 transition">删除</button>
+                      <button onClick={() => router.push(`/notice/${a.id}`)} className="neu-btn-xs is-info">查看</button>
+                      {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="neu-btn-xs is-success">投标</button>}
+                      <button onClick={() => remove(a)} className="neu-btn-xs is-danger">删除</button>
                     </div>
                   </td>
                 </tr>
@@ -164,11 +164,11 @@ export default function NoticePage() {
           </tbody>
         </table>
         {totalPages > 1 && (
-          <div className="flex justify-between items-center px-4 py-3 border-t border-[#e5ecf4]">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 px-4 py-3 border-t border-[var(--border)]">
             <span className="text-xs text-[#5a6d8a]">共 {data.total} 条，第 {page}/{totalPages} 页</span>
             <div className="flex gap-2">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1 text-xs border border-[#e5ecf4] rounded hover:bg-[#f8fafc] disabled:opacity-40">上一页</button>
-              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="px-3 py-1 text-xs border border-[#e5ecf4] rounded hover:bg-[#f8fafc] disabled:opacity-40">下一页</button>
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--surface)] disabled:opacity-40">上一页</button>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="px-3 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--surface)] disabled:opacity-40">下一页</button>
             </div>
           </div>
         )}
@@ -191,7 +191,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
   return (
     <div className="modal-backdrop fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="modal-content glass-card rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-[#e5ecf4] z-10">
+        <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-[var(--border)] z-10">
           <h3 className="text-lg font-bold text-[#18243a]">投标情况</h3>
           <button onClick={onClose} className="text-[#5a6d8a] hover:text-[#18243a] text-xl leading-none">×</button>
         </div>
@@ -200,13 +200,14 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
             <p className="text-center text-[#5a6d8a] py-8">该招标公示未关联招标项目（无项目编号），暂无投标数据。</p>
           ) : (
             <div className="space-y-4">
-              <div className="rounded-xl border border-[#e5ecf4] p-4">
+              <div className="rounded-xl border border-[var(--border)] p-4">
                 <div className="flex items-center justify-between"><strong className="text-[#18243a]">{data.project.name}</strong><span className="text-xs text-[#5a6d8a]">截止 {new Date(data.project.deadline).toLocaleDateString('zh-CN')}</span></div>
                 <div className="flex items-center justify-between mt-3 mb-1.5"><span className="text-sm font-semibold text-[#18243a]">提交进度</span><span className="text-sm text-[#5a6d8a]">{data.stats.submitted}/{data.stats.total} 已提交</span></div>
                 <div className="h-2 rounded-full bg-[#f1f5f9] overflow-hidden"><div className="h-full rounded-full bg-[#11a874]" style={{ width: pct + '%' }} /></div>
               </div>
-              <table className="w-full text-sm">
-                <thead><tr className="border-b border-[#e5ecf4] text-left text-[#5a6d8a]"><th className="px-3 py-2">供应商</th><th className="px-3 py-2">分类</th><th className="px-3 py-2">下载</th><th className="px-3 py-2">标书状态</th><th className="px-3 py-2">提交时间</th><th className="px-3 py-2">报价</th></tr></thead>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[580px] text-sm">
+                <thead><tr className="border-b border-[var(--border)] text-left text-[#5a6d8a]"><th className="px-3 py-2">供应商</th><th className="px-3 py-2">分类</th><th className="px-3 py-2">下载</th><th className="px-3 py-2">标书状态</th><th className="px-3 py-2">提交时间</th><th className="px-3 py-2">报价</th></tr></thead>
                 <tbody>
                   {data.suppliers.length === 0 ? <tr><td colSpan={6} className="px-3 py-8 text-center text-[#5a6d8a]">暂无投标供应商</td></tr> : data.suppliers.map((s, i) => {
                     const b = badge(s);
@@ -214,6 +215,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>

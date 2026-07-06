@@ -217,14 +217,14 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
       {/* Mode selection */}
       <div>
         <label className="text-sm text-[var(--muted-foreground)] mb-1.5 block">审查模式</label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             onClick={() => setMode('strict')}
             disabled={!selectedKbId}
             className={`rounded-[14px] p-3 text-center border transition-all ${
               mode === 'strict'
                 ? 'border-[var(--accent)]/50 bg-[var(--accent)]/5'
-                : 'border-gray-300 bg-white hover:bg-gray-50'
+                : 'border-white/40 bg-white/60 hover:bg-white/85'
             } disabled:opacity-40`}
           >
             <div className="font-medium text-sm text-[var(--foreground)]">严格审查</div>
@@ -238,7 +238,7 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
             className={`rounded-[14px] p-3 text-center border transition-all ${
               mode === 'general'
                 ? 'border-[var(--accent)]/50 bg-[var(--accent)]/5'
-                : 'border-gray-300 bg-white hover:bg-gray-50'
+                : 'border-white/40 bg-white/60 hover:bg-white/85'
             } disabled:opacity-40`}
           >
             <div className="font-medium text-sm text-[var(--foreground)]">通用审查</div>

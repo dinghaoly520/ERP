@@ -64,7 +64,7 @@ export default function TenderReviewWorkspace() {
   // Loading state
   if (loading.kbs && loading.tasks) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-8rem)]">
+      <div className="flex flex-1 items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-[var(--accent)]" />
       </div>
     );
@@ -73,7 +73,7 @@ export default function TenderReviewWorkspace() {
   // Error state
   if (error.kbs && error.tasks) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-8rem)]">
+      <div className="flex flex-1 items-center justify-center min-h-[400px]">
         <div className="text-center text-[var(--muted-foreground)]">
           <p className="text-lg mb-2">加载失败</p>
           <p className="text-sm">{error.kbs}</p>
@@ -83,7 +83,7 @@ export default function TenderReviewWorkspace() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] gap-3">
+    <div className="flex flex-1 flex-col overflow-hidden gap-3">
       {/* Main layout: Center workspace + Right panel */}
       <div ref={containerRef} className="flex flex-1 gap-3 min-h-0 relative">
         {/* Center - Main workspace */}

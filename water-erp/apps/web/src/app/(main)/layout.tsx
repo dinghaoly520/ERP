@@ -6,8 +6,6 @@ import { useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { UserSettingsProvider } from "@/lib/user-settings-context";
 import { AssistantProvider, useAssistant } from "@/components/assistant/assistant-provider";
-import { WaterSprite } from "@/components/assistant/water-sprite";
-import { ChatPanel } from "@/components/assistant/chat-panel";
 
 const routeToKey: Record<string, string> = {
   "/dashboard": "dashboard",
@@ -15,10 +13,12 @@ const routeToKey: Record<string, string> = {
   "/procurements": "procurements",
   "/projects": "projects",
   "/work-arrangements": "work-arrangements",
+  "/profile": "profile-edit",
   "/tender-write": "tender-write",
   "/tender-review": "tender-review",
   "/smart-bid": "smart-bid",
   "/bid-analysis": "bid-analysis",
+  "/assistant": "assistant",
   "/admin/password-requests": "password-requests",
 };
 
@@ -27,11 +27,13 @@ const routeToModule: Record<string, string> = {
   "/progress": "采购进度",
   "/procurements": "采购台账",
   "/projects": "项目管理",
-  "/work-arrangements": "个人中心",
-  "/tender-write": "招标文件编写",
-  "/tender-review": "招标文件审查",
+  "/work-arrangements": "工作台",
+  "/profile": "资料修改",
+  "/tender-write": "采购文件编写",
+  "/tender-review": "采购文件审查",
   "/bid-analysis": "投标文件分析",
   "/smart-bid": "智能投标",
+  "/assistant": "水叮当助手",
   "/admin/password-requests": "密码审批",
 };
 
@@ -62,8 +64,6 @@ function AssistantLayoutInner({ children }: { children: ReactNode }) {
       <AppShell activeKey={activeKey} bodyScrollMode={isChildrenScrollMode ? "children" : "shell"}>
         {children}
       </AppShell>
-      <WaterSprite />
-      <ChatPanel />
     </>
   );
 }

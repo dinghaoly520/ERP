@@ -13,22 +13,22 @@ interface PageHeroProps {
 }
 
 const toneClass = {
-  blue: 'border-[#bfdbfe] bg-[#eff6ff] text-[#064ea2]',
-  cyan: 'border-[#a5f3fc] bg-[#ecfeff] text-[#0891b2]',
-  green: 'border-[#bbf7d0] bg-[#f0fdf4] text-[#11a874]',
-  orange: 'border-[#fed7aa] bg-[#fff7ed] text-[#f5a623]',
-  red: 'border-[#fecaca] bg-[#fef2f2] text-[#e74c3c]',
-  purple: 'border-[#ddd6fe] bg-[#f5f3ff] text-[#7c3aed]',
-  gray: 'border-[#e5ecf4] bg-[#f8fafc] text-[#5a6d8a]',
+  blue: 'border-[var(--accent)]/20 bg-[var(--accent-soft)] text-[var(--accent-strong)]',
+  cyan: 'border-cyan-200 bg-cyan-50 text-cyan-600',
+  green: 'border-green-200 bg-green-50 text-green-600',
+  orange: 'border-amber-200 bg-amber-50 text-amber-600',
+  red: 'border-red-200 bg-red-50 text-red-600',
+  purple: 'border-purple-200 bg-purple-50 text-purple-600',
+  gray: 'border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)]',
 };
 
 export function PageHero({ eyebrow, title, description, tone = 'blue', icon, actions, children, className }: PageHeroProps) {
   return (
     <section className={cn(
-      'glass-card glass-card-lighter rounded-[24px] p-6',
+      'mb-5 pb-5 border-b border-[rgba(184,199,227,0.4)]',
       className
     )}>
-      <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           {eyebrow && (
             <div className={cn('mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold', toneClass[tone])}>
@@ -36,12 +36,12 @@ export function PageHero({ eyebrow, title, description, tone = 'blue', icon, act
               {eyebrow}
             </div>
           )}
-          <h1 className="text-2xl font-black tracking-tight text-[#0f2f57]">{title}</h1>
-          {description && <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5a6d8a]">{description}</p>}
+          <h1 className="text-2xl font-black tracking-tight text-[var(--foreground)]">{title}</h1>
+          {description && <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted-foreground)]">{description}</p>}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2 relative z-10">{actions}</div>}
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {children && <div className="relative z-10 mt-5">{children}</div>}
+      {children && <div className="mt-5">{children}</div>}
     </section>
   );
 }

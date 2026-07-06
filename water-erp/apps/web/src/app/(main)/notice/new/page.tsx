@@ -94,12 +94,12 @@ export default function NewNoticePage() {
   };
 
   return (
-    <div>
+    <div className="mx-auto max-w-[960px]">
       <button onClick={() => router.push('/notice')} className="inline-flex items-center gap-1.5 text-[13px] text-[#64748b] hover:text-[#0756a5] mb-4 transition">
         <ArrowLeft size={14} />返回信息列表
       </button>
 
-      <div className="glass-card glass-card-lighter rounded-2xl p-6 space-y-5">
+      <div className="space-y-5">
         <h1 className="text-lg font-extrabold text-[#18243a] flex items-center gap-2">
           <PlusCircle size={18} className="text-[#064ea2]" />新建信息
         </h1>
@@ -167,7 +167,7 @@ export default function NewNoticePage() {
 
         {/* 附件 */}
         {annId ? (
-          <div className="rounded-xl border border-[#e5ecf4] p-4">
+          <div className="rounded-xl border border-[var(--border)] p-4">
             <div className="text-xs font-bold text-[#064ea2] mb-3">附件（公开可下载）</div>
             <AttachmentUploader annId={annId} attachments={attachments} onChanged={loadExtras} />
           </div>
@@ -187,11 +187,11 @@ export default function NewNoticePage() {
         <div className="flex items-center justify-between pt-4 border-t border-[#eef3f8]">
           <span className="text-xs text-[#8a96aa]">{annId ? 'ID: ' + annId.slice(-8) : '未保存'}</span>
           <div className="flex gap-3">
-            <button onClick={() => router.push('/notice')} className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
-            <button onClick={saveDraft} disabled={busy} className="rounded-xl border border-[#bcd0e8] px-4 py-2 text-sm font-bold text-[#064ea2] hover:bg-[#f0f6ff] disabled:opacity-50 transition">
+            <button onClick={() => router.push('/notice')} className="neu-btn-soft">取消</button>
+            <button onClick={saveDraft} disabled={busy} className="neu-btn-soft is-info disabled:opacity-50">
               {busy ? '保存中...' : '保存草稿'}
             </button>
-            <button onClick={publish} disabled={busy} className="rounded-xl bg-[#11a874] px-5 py-2 text-sm font-bold text-white hover:bg-[#0e8c5f] disabled:opacity-50 transition">
+            <button onClick={publish} disabled={busy} className="neu-btn-primary is-success disabled:opacity-50">
               {busy ? '处理中...' : '发布'}
             </button>
           </div>
@@ -216,13 +216,13 @@ function AttachmentUploader({ annId, attachments, onChanged }: { annId: string; 
     <div className="space-y-3">
       <div className="flex gap-2">
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="附件标题（可选）" className={inputCls + ' flex-1'} />
-        <label className={'inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-[#064ea2] hover:bg-[#054280] rounded-xl cursor-pointer whitespace-nowrap ' + (uploading ? 'opacity-50' : '')}>
+        <label className={'inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-[var(--accent-strong)] hover:brightness-110 rounded-xl cursor-pointer whitespace-nowrap ' + (uploading ? 'opacity-50' : '')}>
           <Upload size={14} />{uploading ? '上传中...' : '添加附件'}
           <input type="file" className="hidden" onChange={onUpload} />
         </label>
       </div>
       {attachments.length === 0 ? <p className="text-xs text-[#8a96aa]">暂无附件</p> : attachments.map(a => (
-        <div key={a.id} className="flex items-center justify-between rounded-lg border border-[#e5ecf4] px-3 py-2">
+        <div key={a.id} className="flex items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2">
           <div><div className="text-sm font-semibold text-[#18243a]">{a.title}</div><div className="text-xs text-[#5a6d8a]">{a.fileAsset.originalName} · {(a.fileAsset.size / 1024).toFixed(0)} KB</div></div>
           <button onClick={async () => { if (confirm('删除该附件？')) { await removeAttachment(a.id); onChanged(); } }} className="text-xs text-[#e74c3c] hover:underline">删除</button>
         </div>
@@ -274,8 +274,8 @@ function BidDocUploader({ annId, bidDoc, onChanged }: { annId: string; bidDoc: B
 
   const picker = scope === 'INVITED' && (
     <div className="mb-3">
-      <div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-[#5a6d8a]">可下载供应商（已选 {selected.length}）</span><input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="搜索供应商" className="px-2 py-1 border border-[#e5ecf4] rounded text-xs w-40" /></div>
-      <div className="max-h-36 overflow-y-auto rounded border border-[#e5ecf4] divide-y divide-[#f1f5f9]">
+      <div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-[#5a6d8a]">可下载供应商（已选 {selected.length}）</span><input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="搜索供应商" className="px-2 py-1 border border-[var(--border)] rounded text-xs w-40" /></div>
+      <div className="max-h-36 overflow-y-auto rounded border border-[var(--border)] divide-y divide-[#f1f5f9]">
         {suppliers.map(s => (
           <label key={s.id} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-[#f8fafc] cursor-pointer">
             <input type="checkbox" checked={selected.includes(s.id)} onChange={() => setSelected(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])} className="accent-[#064ea2]" />
@@ -289,7 +289,7 @@ function BidDocUploader({ annId, bidDoc, onChanged }: { annId: string; bidDoc: B
   if (bidDoc) {
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between rounded-lg bg-white border border-[#e5ecf4] px-4 py-3">
+        <div className="flex items-center justify-between rounded-lg bg-white border border-[var(--border)] px-4 py-3">
           <div><p className="text-sm font-bold text-[#18243a]">🔒 {bidDoc.title}</p><p className="text-xs text-[#5a6d8a]">{bidDoc.fileName} · {(bidDoc.fileSize / 1024).toFixed(0)} KB · 下载 {bidDoc.downloadCount} 次</p></div>
           <button onClick={removeDoc} className="text-xs font-bold text-[#e74c3c] hover:underline">删除文件</button>
         </div>
@@ -297,7 +297,7 @@ function BidDocUploader({ annId, bidDoc, onChanged }: { annId: string; bidDoc: B
         {picker}
         <button onClick={saveConfig} disabled={busy} className="rounded-xl bg-[#7c3aed] px-4 py-2 text-sm font-bold text-white hover:bg-[#6d28d9] disabled:opacity-50 transition">{busy ? '保存中...' : '保存访问配置'}</button>
         {bidDoc.accesses.length > 0 && (
-          <div className="rounded-lg bg-white border border-[#e5ecf4] p-3">
+          <div className="rounded-lg bg-white border border-[var(--border)] p-3">
             <div className="text-xs font-bold text-[#7c3aed] mb-2">访问与到账</div>
             {bidDoc.accesses.map(a => (
               <div key={a.supplierId} className="flex items-center justify-between py-1.5 border-b border-[#f1f5f9] last:border-0 text-sm">
@@ -326,4 +326,4 @@ function BidDocUploader({ annId, bidDoc, onChanged }: { annId: string; bidDoc: B
   );
 }
 
-const inputCls = 'w-full px-3 py-2 border border-[#e5ecf4] bg-white rounded-lg text-sm placeholder-[#94a3b8] focus:outline-none focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2]/10';
+const inputCls = 'w-full px-3 py-2 border border-[var(--border)] bg-white rounded-lg text-sm placeholder-[#94a3b8] focus:outline-none focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2]/10';

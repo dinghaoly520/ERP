@@ -90,7 +90,7 @@ export default function SupplierEvaluationPage() {
       </div>
 
       {/* Summary bar */}
-      <div className="flex items-center gap-6 glass-card glass-card-lighter rounded-2xl px-5 py-3 text-sm">
+      <div className="mb-5 flex items-center gap-6 text-sm">
         <span className="text-[#5a6d8a]">累计评价 <strong className="tabular-nums text-[#18243a]">{evalStats.total}</strong> 次</span>
         <span className="text-[#5a6d8a]">平均得分 <strong className="tabular-nums text-[#064ea2]">{evalStats.avgScore.toFixed(1)}</strong></span>
       </div>
@@ -104,8 +104,8 @@ export default function SupplierEvaluationPage() {
       </DataToolbar>
 
       <SectionCard className="p-0">
-        <table className="workbench-table">
-          <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
+        <table className="workbench-table w-full min-w-[480px]">
+          <thead className="neu-thead [neu-thead text-[#5a6d8a] [&_th]:whitespace-nowrap_th]:whitespace-nowrap">
             <tr>
               <th className="px-4 py-3">企业名称</th>
               <th className="px-4 py-3 text-center">分类</th>
@@ -135,7 +135,7 @@ export default function SupplierEvaluationPage() {
                 </td>
                 <td className="px-4 py-3 text-center">
                   <button onClick={(e) => { e.stopPropagation(); openEvalModal(s); }}
-                    className="btn-press rounded-lg bg-[#064ea2] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#054280] transition">
+                    className="btn-press neu-btn-primary">
                     评价 / 查看
                   </button>
                 </td>
@@ -145,13 +145,13 @@ export default function SupplierEvaluationPage() {
         </table>
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-[#edf2f7] px-4 py-3">
+          <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-3">
             <span className="text-xs text-[#8a99ad]">共 {data.total} 条，第 {page}/{totalPages} 页</span>
             <div className="flex gap-2">
               <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-                className="rounded-lg border border-[#dce6f3] px-3 py-1 text-xs font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] disabled:opacity-40 transition">上一页</button>
+                className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[#5a6d8a] hover:bg-[var(--surface)] disabled:opacity-40 transition">上一页</button>
               <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-                className="rounded-lg border border-[#dce6f3] px-3 py-1 text-xs font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] disabled:opacity-40 transition">下一页</button>
+                className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[#5a6d8a] hover:bg-[var(--surface)] disabled:opacity-40 transition">下一页</button>
             </div>
           </div>
         )}
@@ -160,8 +160,8 @@ export default function SupplierEvaluationPage() {
       {/* Evaluation Modal */}
       {evalModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setEvalModal(null)}>
-          <div className="modal-content w-full max-w-2xl overflow-hidden rounded-2xl border border-[#dce6f3] bg-white shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-[#edf2f7] px-6 py-4">
+          <div className="modal-content w-full max-w-2xl overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
               <div>
                 <h3 className="text-base font-bold text-[#18243a]">供应商评价</h3>
                 <p className="mt-0.5 text-xs text-[#5a6d8a]">{evalModal.name}</p>
@@ -201,7 +201,7 @@ export default function SupplierEvaluationPage() {
               </div>
 
               <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="评价说明（可选）"
-                className="w-full rounded-xl border border-[#dce6f3] px-3 py-2 text-sm placeholder-[#94a3b8] h-20 resize-none focus:outline-none focus:border-[#064ea2]" />
+                className="w-full rounded-xl border border-[var(--border)] px-3 py-2 text-sm placeholder-[#94a3b8] h-20 resize-none focus:outline-none focus:border-[#064ea2]" />
 
               {/* History */}
               {history.length > 0 && (
@@ -212,7 +212,7 @@ export default function SupplierEvaluationPage() {
                       const lv = ev.level || 'D';
                       const tone = lv === 'A' ? 'green' : lv === 'B' ? 'blue' : lv === 'C' ? 'orange' : 'red';
                       return (
-                        <div key={ev.id} className="rounded-lg border border-[#dce6f3] p-2.5 text-xs">
+                        <div key={ev.id} className="rounded-lg border border-[var(--border)] p-2.5 text-xs">
                           <div className="flex items-center gap-2">
                             <StatusBadge tone={tone as any}>{lv}</StatusBadge>
                             <strong className="text-[#18243a]">{Number(ev.score)}分</strong>
@@ -228,11 +228,11 @@ export default function SupplierEvaluationPage() {
               )}
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-[#edf2f7] px-6 py-4">
+            <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
               <button onClick={() => setEvalModal(null)}
-                className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+                className="neu-btn-soft">取消</button>
               <button onClick={submit} disabled={saving}
-                className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white hover:bg-[#054280] disabled:opacity-50 transition">
+                className="neu-btn-primary">
                 {saving ? '提交中...' : '提交评价'}
               </button>
             </div>

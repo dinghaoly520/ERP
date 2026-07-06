@@ -122,18 +122,18 @@ export default function SupplierRepositoryPage() {
 
       {/* Classification management panel */}
       {showClassMgr && (
-        <div className="glass-card glass-card-lighter rounded-2xl p-5">
+        <div className="mb-5 pb-5 border-b border-[rgba(184,199,227,0.4)]">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-[#18243a]">业务分类管理</h2>
+            <h2 className="text-sm font-black text-[var(--foreground)]">业务分类管理</h2>
             <button onClick={() => openClassEditor(null)}
-              className="inline-flex items-center gap-1 rounded-xl bg-[#064ea2] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#054280] transition">
+              className="neu-btn-primary">
               <Plus size={13} />新增分类
             </button>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             {classifications.map(c => (
-              <div key={c.id} className="rounded-xl border border-[#dce6f3] bg-[#f8fafc] p-3">
+              <div key={c.id} className="group rounded-lg px-3 py-3 border border-[rgba(184,199,227,0.25)] hover:border-[rgba(96,139,239,0.3)] transition-colors">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-[#18243a]">{c.name}</span>
                   <StatusBadge tone="blue">{c._count?.suppliers ?? 0} 家</StatusBadge>
@@ -150,8 +150,8 @@ export default function SupplierRepositoryPage() {
 
           {/* Classification editor */}
           {(editClass || classForm.name || classForm.code) && (
-            <div className="glass-card glass-card-lighter rounded-xl p-4">
-              <h3 className="text-sm font-bold text-[#18243a] mb-3">{editClass ? '编辑分类' : '新增分类'}</h3>
+            <div className="mb-4 pt-4 border-t border-[rgba(184,199,227,0.3)]">
+              <h3 className="text-sm font-black text-[var(--foreground)] mb-3">{editClass ? '编辑分类' : '新增分类'}</h3>
               <div className="grid grid-cols-3 gap-3 mb-3">
                 <input value={classForm.name} onChange={e => setClassForm({ ...classForm, name: e.target.value })}
                   placeholder="分类名称" className="workbench-input text-sm" />
@@ -162,11 +162,11 @@ export default function SupplierRepositoryPage() {
               </div>
               <div className="flex gap-2">
                 <button onClick={saveClass} disabled={classSaving}
-                  className="rounded-xl bg-[#064ea2] px-4 py-1.5 text-sm font-bold text-white hover:bg-[#054280] disabled:opacity-50 transition">
+                  className="neu-btn-primary">
                   {classSaving ? '保存中...' : '保存'}
                 </button>
                 <button onClick={() => openClassEditor(null)}
-                  className="rounded-xl border border-[#dce3eb] px-4 py-1.5 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+                  className="neu-btn-soft">取消</button>
               </div>
             </div>
           )}
@@ -180,7 +180,7 @@ export default function SupplierRepositoryPage() {
             className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
               filterStatus === t.status
                 ? 'bg-[#064ea2] text-white shadow-sm'
-                : 'bg-white text-[#5a6d8a] border border-[#dce6f3] hover:border-[#bcd0e8] hover:text-[#064ea2]'
+                : 'bg-white text-[#5a6d8a] border border-[var(--border)] hover:border-[#bcd0e8] hover:text-[#064ea2]'
             }`}>
             {t.label}
           </button>
@@ -199,13 +199,13 @@ export default function SupplierRepositoryPage() {
           {classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <button onClick={() => { setSearch(''); setFilterStatus(''); setFilterClassification(''); setPage(1); }}
-          className="rounded-xl border border-[#dce3eb] px-3 py-2 text-sm font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] transition">重置</button>
+          className="neu-btn-soft">重置</button>
         <button
           onClick={() => { setSortMode(s => s === 'completeness' ? 'createdAt' : 'completeness'); setPage(1); }}
           className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
             sortMode === 'completeness'
               ? 'border-[#bfdbfe] bg-[#eff6ff] text-[#064ea2]'
-              : 'border-[#dce3eb] text-[#5a6d8a] hover:bg-[#f8fafc]'
+              : 'border-[var(--border)] text-[#5a6d8a] hover:bg-[#f8fafc]'
           }`}
         >
           {sortMode === 'completeness' ? '资料完整度 ↑' : '最新注册 ↑'}
@@ -213,8 +213,8 @@ export default function SupplierRepositoryPage() {
       </DataToolbar>
 
       <SectionCard className="p-0">
-        <table className="workbench-table">
-          <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
+        <table className="workbench-table w-full min-w-[780px]">
+          <thead className="neu-thead [neu-thead text-[#5a6d8a] [&_th]:whitespace-nowrap_th]:whitespace-nowrap">
             <tr>
               <SortableTh label="企业名称" field="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
               <th className="px-4 py-3 text-center">统一社会信用代码</th>
@@ -260,13 +260,13 @@ export default function SupplierRepositoryPage() {
                   <td className="px-4 py-3 text-center">
                     <div className="flex justify-center gap-1.5">
                       <button onClick={(e) => { e.stopPropagation(); router.push(`/supplier/${s.id}`); }}
-                        className="rounded-lg border border-[#dce6f3] px-2.5 py-1 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">详情</button>
+                        className="neu-btn-xs is-info">详情</button>
                       {s.status === 'APPROVED' && (
                         <>
                           <button onClick={(e) => { e.stopPropagation(); setStatusReason(''); setStatusModal({ type: 'disable', supplier: s }); }}
-                            className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 hover:bg-amber-100 transition">停用</button>
+                            className="neu-btn-xs is-warning">停用</button>
                           <button onClick={(e) => { e.stopPropagation(); setStatusReason(''); setStatusModal({ type: 'blacklist', supplier: s }); }}
-                            className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-100 transition">黑名单</button>
+                            className="neu-btn-xs is-danger">黑名单</button>
                         </>
                       )}
                     </div>
@@ -284,7 +284,7 @@ export default function SupplierRepositoryPage() {
       {statusModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setStatusModal(null)}>
           <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="border-b border-[#edf2f7] px-6 py-4">
+            <div className="border-b border-[var(--border)] px-6 py-4">
               <h3 className="text-base font-bold text-[#18243a]">
                 {statusModal.type === 'disable' ? '停用供应商' : '加入黑名单'}
               </h3>
@@ -293,13 +293,13 @@ export default function SupplierRepositoryPage() {
             <div className="p-6">
               <textarea value={statusReason} onChange={e => setStatusReason(e.target.value)}
                 placeholder="请填写原因..."
-                className="w-full rounded-xl border border-[#dce6f3] px-3 py-2 text-sm placeholder-[#94a3b8] h-24 resize-none focus:outline-none focus:border-red-400" />
+                className="w-full rounded-xl border border-[var(--border)] px-3 py-2 text-sm placeholder-[#94a3b8] h-24 resize-none focus:outline-none focus:border-red-400" />
             </div>
-            <div className="flex justify-end gap-3 border-t border-[#edf2f7] px-6 py-4">
+            <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
               <button onClick={() => setStatusModal(null)}
-                className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+                className="neu-btn-soft">取消</button>
               <button onClick={handleStatusAction} disabled={statusLoading || !statusReason.trim()}
-                className="rounded-xl bg-red-500 px-4 py-2 text-sm font-bold text-white hover:bg-red-600 disabled:opacity-50 transition">
+                className="neu-btn-soft is-danger">
                 {statusLoading ? '处理中...' : '确认'}
               </button>
             </div>

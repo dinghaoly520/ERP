@@ -28,10 +28,13 @@ type AssistantContextValue = {
   chatState: ChatState;
   isOpen: boolean;
   isExpanded: boolean;
+  isMiniOpen: boolean;
   expression: SpriteExpression;
   userName: string;
   openChat: () => void;
   closeChat: () => void;
+  openMini: () => void;
+  closeMini: () => void;
   toggleExpand: () => void;
   sendMessage: (content: string) => Promise<void>;
   startNewConversation: () => Promise<void>;
@@ -70,6 +73,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   });
   const [chatState, setChatState] = useState<ChatState>(initialChatState);
   const [isOpen, setIsOpen] = useState(false);
+  const [isMiniOpen, setIsMiniOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [expression, setExpression] = useState<SpriteExpression>("normal");
   const [userName, setUserName] = useState("");
@@ -96,7 +100,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     setIsOpen(false);
     setIsExpanded(false);
   }, []);
-  const toggleExpand = useCallback(() => setIsExpanded((v) => !v), []);
 
   // Load conversation list
   const loadConversations = useCallback(async () => {
@@ -107,6 +110,19 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       // silent
     }
   }, []);
+
+  const openMini = useCallback(() => {
+    setIsMiniOpen(true);
+    // 加载用户名和对话列表（若尚未加载）
+    if (!userName) {
+      fetchCurrentUser()
+        .then((u) => setUserName(u.displayName || u.username || ""))
+        .catch(() => {});
+    }
+    void loadConversations();
+  }, [userName, loadConversations]);
+  const closeMini = useCallback(() => setIsMiniOpen(false), []);
+  const toggleExpand = useCallback(() => setIsExpanded((v) => !v), []);
 
   // Select a conversation
   const selectConversation = useCallback(async (id: string) => {
@@ -328,10 +344,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     chatState,
     isOpen,
     isExpanded,
+    isMiniOpen,
     expression,
     userName,
     openChat,
     closeChat,
+    openMini,
+    closeMini,
     toggleExpand,
     sendMessage: sendMsg,
     startNewConversation,

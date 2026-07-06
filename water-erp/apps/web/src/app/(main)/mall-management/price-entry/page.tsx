@@ -165,7 +165,7 @@ export default function PriceEntryPage() {
         icon={<Upload size={15} />}
         action={
           <button onClick={downloadTemplate}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-[#064ea2] px-3 py-1.5 text-xs font-bold text-[#064ea2] hover:bg-[#f0f5ff] transition">
+            className="neu-btn-soft">
             <Download size={13} />下载模板
           </button>
         }
@@ -181,15 +181,15 @@ export default function PriceEntryPage() {
           <button
             onClick={upload}
             disabled={importing || !file}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#054280] disabled:opacity-50 transition"
+            className="neu-btn-primary"
           >
             {importing ? '导入中...' : <><FileSpreadsheet size={14} />开始导入</>}
           </button>
         </div>
 
         {result && (
-          <div className="mt-4 rounded-xl border border-[#dce6f3] bg-[#f8fbff]">
-            <div className="flex items-center gap-3 p-4 border-b border-[#edf2f7]">
+          <div className="mt-4 rounded-xl border border-[var(--border)] bg-[#f8fbff]">
+            <div className="flex items-center gap-3 p-4 border-b border-[var(--border)]">
               <span className="text-sm font-bold text-[#18243a]">导入结果</span>
               <span className="text-xs text-[#8a99ad]">共 {result.totalRows} 行</span>
             </div>
@@ -212,7 +212,7 @@ export default function PriceEntryPage() {
               </div>
             </div>
             {result.failedRows.length > 0 && (
-              <div className="border-t border-[#edf2f7] px-4 py-3 max-h-[200px] overflow-y-auto">
+              <div className="border-t border-[var(--border)] px-4 py-3 max-h-[200px] overflow-y-auto">
                 <p className="text-xs font-semibold text-red-600 mb-2">失败明细</p>
                 <div className="space-y-1.5">
                   {result.failedRows.map(row => (
@@ -248,7 +248,7 @@ export default function PriceEntryPage() {
             </div>
           </fieldset>
 
-          <div className="border-t border-[#edf2f7]" />
+          <div className="border-t border-[var(--border)]" />
 
           {/* ──────────── ② 价格体系 ──────────── */}
           <fieldset>
@@ -266,12 +266,12 @@ export default function PriceEntryPage() {
             </div>
           </fieldset>
 
-          <div className="border-t border-[#edf2f7]" />
+          <div className="border-t border-[var(--border)]" />
 
           {/* ──────────── ③ 采购来源 ──────────── */}
           <fieldset>
             <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.15em] text-[#94a3b8]">
-              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-[#dce3eb] bg-[#f8fafc] text-[10px] font-extrabold text-[#5a6d8a]">3</span>
+              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-[var(--border)] bg-[#f8fafc] text-[10px] font-extrabold text-[#5a6d8a]">3</span>
               采购来源
             </legend>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -311,12 +311,12 @@ export default function PriceEntryPage() {
             </div>
           </fieldset>
 
-          <div className="border-t border-[#edf2f7]" />
+          <div className="border-t border-[var(--border)]" />
 
           {/* ──────────── ④ 补充信息 ──────────── */}
           <fieldset>
             <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.15em] text-[#94a3b8]">
-              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-[#dce3eb] bg-[#f8fafc] text-[10px] font-extrabold text-[#5a6d8a]">4</span>
+              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-[var(--border)] bg-[#f8fafc] text-[10px] font-extrabold text-[#5a6d8a]">4</span>
               补充信息
             </legend>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -336,7 +336,7 @@ export default function PriceEntryPage() {
                     type="checkbox"
                     checked={form.taxIncluded}
                     onChange={e => setField('taxIncluded', e.target.checked)}
-                    className="rounded border-[#dce6f3] text-[#064ea2] focus:ring-[#064ea2]/20 h-4 w-4"
+                    className="rounded border-[var(--border)] text-[#064ea2] focus:ring-[#064ea2]/20 h-4 w-4"
                   />
                   含税
                 </label>
@@ -345,7 +345,7 @@ export default function PriceEntryPage() {
                     type="checkbox"
                     checked={form.freightIncluded}
                     onChange={e => setField('freightIncluded', e.target.checked)}
-                    className="rounded border-[#dce6f3] text-[#064ea2] focus:ring-[#064ea2]/20 h-4 w-4"
+                    className="rounded border-[var(--border)] text-[#064ea2] focus:ring-[#064ea2]/20 h-4 w-4"
                   />
                   含运费
                 </label>
@@ -364,14 +364,14 @@ export default function PriceEntryPage() {
           </fieldset>
 
           {/* ──────────── 操作 ──────────── */}
-          <div className="flex items-center justify-between gap-3 border-t border-[#edf2f7] pt-5">
+          <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] pt-5">
             <p className="text-xs text-[#94a3b8]">
               <span className="text-red-500">*</span> 为必填项，新增后可在目录管理页查看和编辑
             </p>
             <button
               disabled={saving}
               onClick={submit}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#054280] disabled:opacity-50 transition"
+              className="neu-btn-primary"
             >
               {saving ? '保存中...' : <><PenLine size={14} />新增目录</>}
             </button>

@@ -28,7 +28,7 @@ function humanizeDetail(detail: unknown) {
         {entries.map(([k, v]) => {
           const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
           return (
-            <span key={k} className="inline-flex items-center gap-1 rounded-lg bg-[#f8fafc] border border-[#e5ecf4] px-2 py-0.5 text-xs">
+            <span key={k} className="inline-flex items-center gap-1 rounded-lg bg-[#f8fafc] border border-[var(--border)] px-2 py-0.5 text-xs">
               <span className="font-semibold text-[#5a6d8a]">{k}:</span>
               <span className="text-[#18243a] max-w-[200px] truncate">{val}</span>
             </span>
@@ -75,15 +75,15 @@ export default function MallManagementLogsPage() {
       </DataToolbar>
 
       <SectionCard className="p-0">
-        <table className="workbench-table">
-          <thead className="bg-[#f3f7fc] text-[#5a6d8a]">
+        <table className="workbench-table w-full min-w-[680px]">
+          <thead className="neu-thead [neu-thead text-[#5a6d8a] [&_th]:whitespace-nowrap_th]:whitespace-nowrap">
             <tr><th className="px-4 py-3">时间</th><th className="px-4 py-3">操作人</th><th className="px-4 py-3">类型</th><th className="px-4 py-3">对象</th><th className="px-4 py-3">详情</th></tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr><td colSpan={5}><EmptyState title="暂无操作日志" description="商城目录的导入、改价、下架等操作记录将在这里展示" /></td></tr>
             ) : filtered.map(log => (
-              <tr key={log.id} className="border-t border-[#edf2f7] align-top">
+              <tr key={log.id} className="border-t border-[var(--border)] align-top">
                 <td className="px-4 py-3 text-xs text-[#5a6d8a]">{log.createdAt.slice(0, 19).replace('T', ' ')}</td>
                 <td className="px-4 py-3">{log.user?.displayName || log.user?.username || '-'}</td>
                 <td className="px-4 py-3"><StatusBadge tone="blue">{labels[log.action] || log.action}</StatusBadge></td>

@@ -176,14 +176,14 @@ export default function SupplierSelectionPage() {
         )}
       </div>
 
-      <hr className="border-[#e5ecf4] mb-4" />
+      <hr className="border-[var(--border)] mb-4" />
 
       {/* Requirement */}
       <div className="mb-3">
         <label className="text-sm font-semibold text-[#5a6d8a] block mb-1.5">采购需求描述 *</label>
         <textarea value={requirement} onChange={e => setRequirement(e.target.value)}
           placeholder={PROMPT_TEMPLATE}
-          className="w-full rounded-xl border border-[#dce6f3] px-3 py-2.5 text-sm h-28 resize-y focus:outline-none focus:border-[#064ea2] font-mono text-xs leading-relaxed placeholder-[#94a3b8]" />
+          className="w-full rounded-xl border border-[var(--border)] px-3 py-2.5 text-sm h-28 resize-y focus:outline-none focus:border-[#064ea2] font-mono text-xs leading-relaxed placeholder-[#94a3b8]" />
       </div>
 
       <div className="flex items-center justify-between">
@@ -198,14 +198,14 @@ export default function SupplierSelectionPage() {
             </select>
           </div>
           <button onClick={run} disabled={loading || !requirement.trim()}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#054280] disabled:opacity-50 transition">
+            className="neu-btn-primary">
             <Wand2 size={15} />{loading ? '智能匹配中...' : '智能推荐'}
           </button>
         </div>
       </div>
 
       {/* Advanced filters */}
-      <div className="mt-4 border-t border-[#e5ecf4] pt-4">
+      <div className="mt-4 border-t border-[var(--border)] pt-4">
         <button onClick={() => setShowAdvanced(!showAdvanced)}
           className="flex items-center gap-1.5 text-xs font-semibold text-[#5a6d8a] hover:text-[#18243a] transition">
           {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -231,7 +231,7 @@ export default function SupplierSelectionPage() {
                     className={`rounded-lg px-3 py-1.5 text-xs font-bold border transition ${
                       enterpriseFilter.includes(t)
                         ? 'border-[#064ea2] bg-[#eff6ff] text-[#064ea2]'
-                        : 'border-[#dce6f3] text-[#5a6d8a] hover:border-[#bcd0e8]'
+                        : 'border-[var(--border)] text-[#5a6d8a] hover:border-[#bcd0e8]'
                     }`}>{t}</button>
                 ))}
               </div>
@@ -255,7 +255,7 @@ export default function SupplierSelectionPage() {
 
   // ── Shortlist panel (only shown when results are present) ──
   const shortlistPanel = (
-    <div className="glass-card glass-card-lighter rounded-2xl p-5 lg:sticky lg:top-20">
+    <div className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Award size={15} className="text-[#064ea2]" />
@@ -288,7 +288,7 @@ export default function SupplierSelectionPage() {
             const contact = r.contacts?.find(c => c.isPrimary) || r.contacts?.[0];
             const total = shortlist.size;
             return (
-              <div key={sid} className="rounded-lg border border-[#dce6f3] p-2.5 group">
+              <div key={sid} className="rounded-lg border border-[var(--border)] p-2.5 group">
                 <div className="flex items-center gap-2">
                   <div className="flex flex-col gap-0.5 flex-shrink-0">
                     <button onClick={() => moveShortlistItem(idx, idx - 1)} disabled={idx === 0}
@@ -313,7 +313,7 @@ export default function SupplierSelectionPage() {
                 </div>
                 <input value={note} onChange={e => updateNote(sid, e.target.value)}
                   placeholder="添加备注（如：优先邀请、需核实资质）"
-                  className="w-full mt-2 rounded-md border border-[#dce6f3] px-2 py-1 text-[11px] focus:outline-none focus:border-[#064ea2] bg-[#fafbfc] placeholder-[#94a3b8]" />
+                  className="w-full mt-2 rounded-md border border-[var(--border)] px-2 py-1 text-[11px] focus:outline-none focus:border-[#064ea2] bg-[#fafbfc] placeholder-[#94a3b8]" />
               </div>
             );
           })}
@@ -347,7 +347,7 @@ export default function SupplierSelectionPage() {
             )}
 
             {/* AI Summary */}
-            <div className="glass-card glass-card-lighter rounded-2xl p-4">
+            <div className="mb-5 pb-5 border-b border-[rgba(184,199,227,0.35)]">
               <div className="flex items-center gap-2 mb-3">
                 <FileSearch size={16} className="text-[#064ea2]" />
                 <h2 className="text-sm font-bold text-[#18243a]">智能分析摘要</h2>
@@ -367,9 +367,9 @@ export default function SupplierSelectionPage() {
               const inList = shortlist.has(r.supplierId);
               const contact = r.contacts?.find(c => c.isPrimary) || r.contacts?.[0];
               return (
-                <div key={r.supplierId} className={`glass-card glass-card-lighter rounded-2xl p-4 transition ${
-                  inList ? 'border-[#11a874] ring-1 ring-[#11a874]/20' : 'border-[#dce6f3]'
-                }`}>
+                <div key={r.supplierId} className={`group rounded-lg p-4 transition ${
+                  inList ? 'border border-[#11a874] ring-1 ring-[#11a874]/20' : 'border border-[rgba(184,199,227,0.2)]'
+                } hover:border-[rgba(96,139,239,0.25)]`}>
                   <div className="flex items-start gap-3">
                     <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#064ea2] text-sm font-extrabold text-white">
                       {idx + 1}
@@ -407,11 +407,9 @@ export default function SupplierSelectionPage() {
 
                     <div className="flex flex-col gap-2 flex-shrink-0">
                       <button onClick={() => router.push(`/supplier/${r.supplierId}`)}
-                        className="rounded-lg border border-[#dce6f3] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">详情</button>
+                        className="neu-btn-soft">详情</button>
                       <button onClick={() => toggleShortlist(r)}
-                        className={`inline-flex items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                          inList ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'border border-[#dce6f3] text-[#064ea2] hover:bg-[#f0f5ff]'
-                        }`}>
+                        className={`neu-btn-soft ${inList ? 'is-success' : ''}`}>
                         {inList ? <><X size={12} />移除</> : <><Plus size={12} />加入候选</>}
                       </button>
                     </div>
@@ -438,7 +436,7 @@ export default function SupplierSelectionPage() {
           )}
 
           {loading && (
-            <div className="mt-4 rounded-2xl border border-[#dce6f3] bg-white py-14 text-center">
+            <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white py-14 text-center">
               <div className="inline-flex items-center gap-2 text-sm font-bold text-[#064ea2]">
                 <span className="h-2 w-2 rounded-full bg-[#064ea2] animate-pulse" />
                 AI 正在分析采购需求，从供应商库中匹配候选...

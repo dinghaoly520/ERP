@@ -25,10 +25,10 @@ export default function NotificationsPage() {
   const onAllRead = async () => { await markAllNotificationsRead(); setItems((xs) => xs.map((n) => ({ ...n, isRead: true }))); };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-[960px] space-y-6">
       <PageHero title="通知中心" description="全部站内通知与待办。支持按「待办/全部」查看、标记已读。" tone="blue" icon={<Bell size={14} />} />
       <div className="flex items-center justify-between">
-        <div className="flex gap-2 border-b border-[#e5ecf4]">
+        <div className="flex gap-2 border-b border-[var(--border)]">
           {(['todo', 'all'] as const).map((t) => (
             <button key={t} onClick={() => { setTab(t); setPage(1); }} className={`relative px-4 py-2 text-sm font-extrabold transition ${tab === t ? 'text-[#064ea2]' : 'text-[#5a6d8a] hover:text-[#18243a]'}`}>
               {t === 'todo' ? '待办' : '全部'}
@@ -36,10 +36,10 @@ export default function NotificationsPage() {
             </button>
           ))}
         </div>
-        <button onClick={onAllRead} className="rounded-xl border border-[#dce6f3] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc]">全部已读</button>
+        <button onClick={onAllRead} className="rounded-xl border border-[var(--border)] px-3 py-1.5 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc]">全部已读</button>
       </div>
 
-      <div className="glass-card glass-card-lighter overflow-hidden rounded-2xl">
+      <div className="">
         {loading ? (
           <div className="py-16 text-center text-sm text-[#8a99ad]">加载中...</div>
         ) : items.length === 0 ? (
@@ -66,8 +66,8 @@ export default function NotificationsPage() {
         <div className="flex items-center justify-between">
           <span className="text-xs text-[#8a99ad]">共 {total} 条，第 {page}/{totalPages} 页</span>
           <div className="flex gap-2">
-            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-[#e5ecf4] px-3 py-1 text-xs font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] disabled:opacity-40">上一页</button>
-            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-[#e5ecf4] px-3 py-1 text-xs font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] disabled:opacity-40">下一页</button>
+            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[#5a6d8a] hover:bg-[var(--surface)] disabled:opacity-40">上一页</button>
+            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[#5a6d8a] hover:bg-[var(--surface)] disabled:opacity-40">下一页</button>
           </div>
         </div>
       )}

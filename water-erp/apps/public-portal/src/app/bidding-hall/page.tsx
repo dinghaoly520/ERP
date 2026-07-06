@@ -23,9 +23,9 @@ export default function BiddingHallPage() {
       <FlowBackdrop />
       <UnifiedHeader announcements={[]} onLoginClick={() => {}} onRegisterClick={() => {}} />
 
-      <div className="px-[clamp(28px,4vw,72px)] pt-3">
-        <a href="/" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#c5d3e8] text-[13px] font-semibold text-[#5a6d8a] bg-white hover:text-[#064ea2] hover:border-[#064ea2] hover:bg-[#f0f5fb] transition-all duration-200 active:scale-[0.97] w-fit">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      <div className="relative z-10 px-[clamp(28px,4vw,72px)] pt-3">
+        <a href="/" className="flow-back">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow"><path d="M15 18l-6-6 6-6"/></svg>
           返回首页
         </a>
       </div>
@@ -34,7 +34,7 @@ export default function BiddingHallPage() {
         <div className="flow-hero-brand-left flow-rise-1" style={{ gridColumn: '1 / -1' }}>
           <img src="/assets/logo.png" alt="四川水发集团" className="flow-hero-brand-logo" />
           <strong className="flow-hero-brand-name">四川水发集团</strong>
-          <small className="flow-hero-brand-sub">Sichuan Water Development Group</small>
+          <small className="flow-hero-brand-sub">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
         </div>
       </section>
 

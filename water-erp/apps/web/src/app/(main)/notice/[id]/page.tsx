@@ -64,7 +64,7 @@ export default function NoticeDetailPage() {
     <div className="space-y-4 animate-pulse">
       <div className="skeleton h-5 w-32 rounded" />
       <div className="skeleton h-10 w-72 rounded-xl" />
-      <div className="glass-card rounded-2xl p-6 space-y-4"><div className="skeleton h-4 w-48" /><div className="skeleton h-24 w-full" /></div>
+      <div className="space-y-4"><div className="skeleton h-4 w-48" /><div className="skeleton h-24 w-full" /></div>
     </div>
   );
   if (!ann) return <div className="py-24 text-center text-sm text-[#94a3b8]">信息不存在</div>;
@@ -90,7 +90,7 @@ export default function NoticeDetailPage() {
       </div>
 
       {/* 状态横幅 */}
-      <div className="glass-card glass-card-blue rounded-2xl p-5 mb-5">
+      <div className="mb-5">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold" style={{ color: tm.color, backgroundColor: tm.bg }}>
             <Megaphone size={13} />{tm.label}
@@ -108,15 +108,15 @@ export default function NoticeDetailPage() {
           <div className="ml-auto flex items-center gap-2">
             {!editing ? (
               <>
-                <button onClick={() => setEditing(true)} className="btn-press inline-flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white hover:bg-[#054280] transition">
+                <button onClick={() => setEditing(true)} className="btn-press neu-btn-primary">
                   <Pencil size={14} />编辑
                 </button>
-                <button onClick={handleDelete} className="btn-press inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100 transition">
+                <button onClick={handleDelete} className="btn-press neu-btn-soft is-danger">
                   <Trash2 size={14} />删除
                 </button>
               </>
             ) : (
-              <button onClick={() => setEditing(false)} className="btn-press inline-flex items-center gap-1.5 rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">
+              <button onClick={() => setEditing(false)} className="btn-press neu-btn-soft">
                 <X size={14} />取消编辑
               </button>
             )}
@@ -143,8 +143,8 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
   const hasMeta = fields.some(f => meta[f.key]);
 
   return (
-    <div className="glass-card glass-card-lighter rounded-2xl p-6">
-      <h1 className="text-xl font-extrabold text-[#18243a] leading-snug mb-5">{ann.title}</h1>
+    <div className="">
+      <h1 className="text-xl font-extrabold text-[var(--foreground)] leading-snug mb-5">{ann.title}</h1>
 
       {/* 结构化元数据（内联到标题下方，如存在） */}
       {hasMeta && (
@@ -160,7 +160,7 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
 
       {/* 正文（渲染 HTML） */}
       <div
-        className="prose prose-sm max-w-none text-[#18243a] leading-relaxed [&_table]:border-collapse [&_table_td]:border [&_table_td]:border-[#e5ecf4] [&_table_td]:px-3 [&_table_td]:py-2 [&_table_th]:border [&_table_th]:border-[#e5ecf4] [&_table_th]:px-3 [&_table_th]:py-2 [&_table_th]:bg-[#f8fafc] [&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-6 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-4 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+        className="prose prose-sm mx-auto max-w-[75ch] text-[#18243a] leading-relaxed [&_table]:border-collapse [&_table_td]:border [&_table_td]:border-[var(--border)] [&_table_td]:px-3 [&_table_td]:py-2 [&_table_th]:border [&_table_th]:border-[var(--border)] [&_table_th]:px-3 [&_table_th]:py-2 [&_table_th]:bg-[#f8fafc] [&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-6 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-4 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
         dangerouslySetInnerHTML={{ __html: ann.content }}
       />
     </div>
@@ -231,7 +231,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
   };
 
   return (
-    <div className="glass-card glass-card-lighter rounded-2xl p-6 space-y-5">
+    <div className="space-y-5">
       {/* 基本信息 */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
@@ -302,7 +302,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
       <div className="flex items-center justify-between pt-4 border-t border-[#eef3f8]">
         <span className="text-xs text-[#8a96aa]">ID: {ann.id.slice(-8)}</span>
         <div className="flex gap-3">
-          <button onClick={onCancel} className="rounded-xl border border-[#dce3eb] px-4 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition">取消</button>
+          <button onClick={onCancel} className="neu-btn-soft">取消</button>
           <button onClick={saveDraft} disabled={busy} className="rounded-xl border border-[#bcd0e8] px-4 py-2 text-sm font-bold text-[#064ea2] hover:bg-[#f0f6ff] disabled:opacity-50 transition">
             {busy ? '保存中...' : '保存草稿'}
           </button>
@@ -327,17 +327,17 @@ function AttachmentEditSection({ annId, attachments, onChanged }: { annId: strin
     setUploading(false); e.target.value = '';
   };
   return (
-    <div className="rounded-xl border border-[#e5ecf4] p-4">
+    <div className="rounded-xl border border-[var(--border)] p-4">
       <div className="text-xs font-bold text-[#064ea2] mb-3">附件（公开可下载）</div>
       <div className="flex gap-2 mb-3">
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="附件标题（可选）" className={inputCls + ' flex-1'} />
-        <label className={'inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-[#064ea2] hover:bg-[#054280] rounded-xl cursor-pointer whitespace-nowrap ' + (uploading ? 'opacity-50' : '')}>
+        <label className={'inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-[var(--accent-strong)] hover:brightness-110 rounded-xl cursor-pointer whitespace-nowrap ' + (uploading ? 'opacity-50' : '')}>
           <Upload size={14} />{uploading ? '上传中...' : '添加附件'}
           <input type="file" className="hidden" onChange={onUpload} />
         </label>
       </div>
       {attachments.length === 0 ? <p className="text-xs text-[#8a96aa]">暂无附件</p> : attachments.map(a => (
-        <div key={a.id} className="flex items-center justify-between rounded-lg border border-[#e5ecf4] px-3 py-2">
+        <div key={a.id} className="flex items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2">
           <div><div className="text-sm font-semibold text-[#18243a]">{a.title}</div><div className="text-xs text-[#5a6d8a]">{a.fileAsset.originalName} · {(a.fileAsset.size / 1024).toFixed(0)} KB</div></div>
           <button onClick={async () => { if (confirm('删除该附件？')) { await removeAttachment(a.id); onChanged(); } }} className="text-xs text-[#e74c3c] hover:underline">删除</button>
         </div>
@@ -389,8 +389,8 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
 
   const picker = scope === 'INVITED' && (
     <div className="mb-3">
-      <div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-[#5a6d8a]">可下载供应商（已选 {selected.length}）</span><input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="搜索供应商" className="px-2 py-1 border border-[#e5ecf4] rounded text-xs w-40" /></div>
-      <div className="max-h-36 overflow-y-auto rounded border border-[#e5ecf4] divide-y divide-[#f1f5f9]">
+      <div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-[#5a6d8a]">可下载供应商（已选 {selected.length}）</span><input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="搜索供应商" className="px-2 py-1 border border-[var(--border)] rounded text-xs w-40" /></div>
+      <div className="max-h-36 overflow-y-auto rounded border border-[var(--border)] divide-y divide-[#f1f5f9]">
         {suppliers.map(s => (
           <label key={s.id} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-[#f8fafc] cursor-pointer">
             <input type="checkbox" checked={selected.includes(s.id)} onChange={() => setSelected(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])} className="accent-[#064ea2]" />
@@ -406,7 +406,7 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
       <div className="text-xs font-bold text-[#7c3aed] mb-4">招标文件（AES-256-GCM 加密 · 受控分发）</div>
       {bidDoc ? (
         <div className="space-y-3">
-          <div className="flex items-center justify-between rounded-lg bg-white border border-[#e5ecf4] px-4 py-3">
+          <div className="flex items-center justify-between rounded-lg bg-white border border-[var(--border)] px-4 py-3">
             <div>
               <p className="text-sm font-bold text-[#18243a]">🔒 {bidDoc.title}</p>
               <p className="text-xs text-[#5a6d8a]">{bidDoc.fileName} · {(bidDoc.fileSize / 1024).toFixed(0)} KB · 下载 {bidDoc.downloadCount} 次</p>
@@ -417,7 +417,7 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
           {picker}
           <button onClick={saveConfig} disabled={busy} className="rounded-xl bg-[#7c3aed] px-4 py-2 text-sm font-bold text-white hover:bg-[#6d28d9] disabled:opacity-50 transition">{busy ? '保存中...' : '保存访问配置'}</button>
           {bidDoc.accesses.length > 0 && (
-            <div className="rounded-lg bg-white border border-[#e5ecf4] p-3">
+            <div className="rounded-lg bg-white border border-[var(--border)] p-3">
               <div className="text-xs font-bold text-[#7c3aed] mb-2">访问与到账</div>
               {bidDoc.accesses.map(a => (
                 <div key={a.supplierId} className="flex items-center justify-between py-1.5 border-b border-[#f1f5f9] last:border-0 text-sm">
@@ -445,4 +445,4 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
   );
 }
 
-const inputCls = 'w-full px-3 py-2 border border-[#e5ecf4] bg-white rounded-lg text-sm placeholder-[#94a3b8] focus:outline-none focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2]/10';
+const inputCls = 'w-full px-3 py-2 border border-[var(--border)] bg-white rounded-lg text-sm placeholder-[#94a3b8] focus:outline-none focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2]/10';

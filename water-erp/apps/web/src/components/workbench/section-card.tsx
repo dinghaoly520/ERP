@@ -13,14 +13,14 @@ interface SectionCardProps {
 
 export function SectionCard({ id, title, description, icon, action, children, className }: SectionCardProps) {
   return (
-    <section id={id} className={cn('glass-card glass-card-blue rounded-2xl p-6 section-enter overflow-x-auto', className)}>
+    <section id={id} className={cn('mb-8', className)}>
       {(title || description || icon || action) && (
-        <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="mb-4 flex items-start justify-between gap-4 pb-4 border-b border-[rgba(184,199,227,0.35)]">
           <div className="flex items-start gap-3">
-            {icon && <div className="mt-0.5 text-[#064ea2]">{icon}</div>}
+            {icon && <div className="mt-0.5 text-[var(--accent)]">{icon}</div>}
             <div>
-              {title && <h2 className="text-lg font-black text-[#18243a]">{title}</h2>}
-              {description && <p className="mt-1 text-sm leading-5 text-[#5a6d8a]">{description}</p>}
+              {title && <h2 className="text-lg font-black text-[var(--foreground)]">{title}</h2>}
+              {description && <p className="mt-1 text-sm leading-5 text-[var(--muted-foreground)]">{description}</p>}
             </div>
           </div>
           {action}

@@ -26,6 +26,16 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   const [regForm, setRegForm] = useState({ name: '', creditCode: '', phone: '', pwd: '', contact: '' });
   const [regLoading, setRegLoading] = useState(false);
   const [announceTab, setAnnounceTab] = useState(0);
+  const [heroIndex, setHeroIndex] = useState(0);
+
+  // 自动轮播：每 6s 切换到下一张，5 张一个循环（30s）
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setHeroIndex(prev => (prev + 1) % 5);
+    }, 6000);
+    return () => clearInterval(timer);
+  }, []);
+
   // BG 图库（16张），按12小时窗口内随机轮播5张，全天自动刷新
   const heroImages = useMemo(() => {
     const BG_POOL = [
@@ -192,33 +202,86 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
 
       <main>
         {/* ═══════════════════ Hero ═══════════════════ */}
-        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden bg-[#0b3d7a]">
-          {/* Gradient base — sits BEHIND images, only visible during transitions */}
-          <div className="absolute inset-0" style={{
-            background: 'linear-gradient(90deg,rgba(246,250,255,.95) 0%,rgba(246,250,255,.88) 35%,rgba(246,250,255,.5) 60%,rgba(246,250,255,.15) 100%)',
-          }}>
-            {heroImages.map((src, i) => (
-              <img
-                key={src}
-                src={`/assets/${src}`}
-                alt=""
-                fetchPriority={i === 0 ? 'high' : 'low'}
-                decoding="async"
-                className="absolute inset-0 w-full h-full object-cover hero-slide"
+        <section className="relative min-h-[clamp(380px,36vw,580px)] overflow-hidden">
+          {/* SVG clipPath — 用 objectBoundingBox 归一化坐标，实现响应式弧线裁切 */}
+          <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+            <defs>
+              <clipPath id="heroArcClip" clipPathUnits="objectBoundingBox">
+                <path d="M 0,0 L 1,0 L 1,1 A 0.5,0.11 0 0,0 0,1 Z" />
+              </clipPath>
+            </defs>
+          </svg>
+
+          {/* 深蓝内容区 — clip-path 弧形裁切底部，与装饰弧线同范围外扩 8%，确保两端对齐 */}
+          <div className="absolute" style={{ left: '-4%', right: '-4%', top: 0, bottom: 0, clipPath: 'url(#heroArcClip)' }}>
+            <div className="absolute inset-0 bg-[#0b3d7a]" />
+            <div className="absolute inset-0" style={{
+              background: 'linear-gradient(90deg,rgba(246,250,255,.95) 0%,rgba(246,250,255,.88) 35%,rgba(246,250,255,.5) 60%,rgba(246,250,255,.15) 100%)',
+            }}>
+              {heroImages.map((src, i) => (
+                <img
+                  key={src}
+                  src={`/assets/${src}`}
+                  alt=""
+                  fetchPriority={i === 0 ? 'high' : 'low'}
+                  decoding="async"
+                  className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+                  style={{ opacity: i === heroIndex ? 1 : 0 }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Dot switchers — 点击可切换图片 */}
+          <div className="absolute right-6 bottom-16 z-10 flex gap-1.5">
+            {heroImages.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                aria-label={`切换到第 ${i + 1} 张背景图`}
+                onClick={() => setHeroIndex(i)}
+                className="h-1 rounded-full border-0 cursor-pointer transition-all duration-300"
+                style={{
+                  width: i === heroIndex ? 32 : 16,
+                  background: i === heroIndex ? '#064ea2' : 'rgba(255,255,255,0.5)',
+                }}
               />
             ))}
           </div>
 
-          {/* Dot switchers */}
-          <div className="absolute right-6 bottom-16 z-10 flex gap-1.5">
-            {heroImages.map((_, i) => (
-              <span key={i} className="hero-dot" />
-            ))}
-          </div>
+          {/* 弧线装饰边 */}
+          <div className="absolute left-[-10%] right-[-10%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-transparent border-t-[clamp(3px,.4vw,6px)] border-r-[clamp(3px,.5vw,8px)] border-t-[#0b59ad] border-r-[#18a56c] rounded-[50%_50%_0_0/76%_76%_0_0] z-20 pointer-events-none" />
 
-          {/* Bottom curve */}
-          <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] rounded-[50%_50%_0_0/76%_76%_0_0] z-10" style={{ background: 'oklch(0.975 0.012 258)' }} />
-          <div className="absolute left-[-8%] right-[-8%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] bg-transparent border-t-[clamp(3px,.4vw,6px)] border-r-[clamp(3px,.5vw,8px)] border-t-[#0b59ad] border-r-[#18a56c] rounded-[50%_50%_0_0/76%_76%_0_0] z-20 pointer-events-none" />
+          {/* 弧线光影 — stroke-dashoffset 动画，光斑严格沿弧线路径运动 */}
+          <svg
+            className="absolute left-[-10%] right-[-10%] bottom-[clamp(-50px,-3.5vw,-24px)] h-[clamp(70px,6vw,120px)] z-20 pointer-events-none"
+            viewBox="0 0 1 1"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            {/* 弧线路径：与 clipPath 完全一致 */}
+            <path
+              d="M 0,1 A 0.5,0.11 0 0,0 1,1"
+              fill="none"
+              stroke="rgba(160,210,255,0.85)"
+              strokeWidth="0.016"
+              strokeLinecap="round"
+              strokeDasharray="0.12 1.4"
+              style={{ animation: 'arcDashTravel 6s ease-in-out infinite' }}
+            >
+            </path>
+            {/* 第二条更亮的光点，不同速，形成追逐效果 */}
+            <path
+              d="M 0,1 A 0.5,0.11 0 0,0 1,1"
+              fill="none"
+              stroke="rgba(120,230,200,0.7)"
+              strokeWidth="0.010"
+              strokeLinecap="round"
+              strokeDasharray="0.06 1.5"
+              style={{ animation: 'arcDashTravel 8s ease-in-out infinite 1.5s' }}
+            >
+            </path>
+          </svg>
 
           <div className="relative z-20 px-[clamp(40px,4vw,72px)] py-[clamp(56px,5vw,96px)]">
             <GradientText
@@ -249,20 +312,11 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
               {features.map((f, idx) => (
                 <React.Fragment key={f.title}>
                   <a href={f.href} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 relative flex items-center gap-3.5 px-4 py-3.5 rounded-xl no-underline text-inherit overflow-hidden group"
-                    style={{ transition: 'transform 0.4s cubic-bezier(0.16,1,0.3,1), box-shadow 0.4s ease, background 0.3s ease' }}
+                    className="flex-1 relative flex items-center gap-3.5 px-4 py-3.5 no-underline text-inherit overflow-hidden group feature-entry-card"
                     onMouseMove={e => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       e.currentTarget.style.setProperty('--glow-x', `${e.clientX - rect.left}px`);
                       e.currentTarget.style.setProperty('--glow-y', `${e.clientY - rect.top}px`);
-                      e.currentTarget.style.transform = 'translateY(-3px)';
-                      e.currentTarget.style.background = 'linear-gradient(135deg,#f5f8fc,#eef3fb)';
-                      e.currentTarget.style.boxShadow = '0 8px 28px rgba(6,78,162,0.08),0 2px 8px rgba(6,78,162,0.04)';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.transform = '';
-                      e.currentTarget.style.background = '';
-                      e.currentTarget.style.boxShadow = '';
                     }}>
                     {/* 悬停光晕 */}
                     <div className="feature-card-glow" />
@@ -414,36 +468,33 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
           </div>
         </section>
 
-        {/* ═══════════════════ 友情链接 · Footer ═══════════════════ */}
-        <footer className="bg-[#0b3d7a]">
-          {/* 顶部分割线 — 1px hairline，与 Hero 同色系闭合 */}
-          <div className="h-px bg-[#064ea2]" />
+        {/* ═══════════════════ 友情链接 · Footer（玻璃雾化，与顶栏通透呼应）═══════════════════ */}
+        <footer className="footer-glass">
+          {/* 顶部青色流光细线 — 与顶栏底边同款流动语言 */}
+          <div className="footer-edge-line" />
 
           <div className="px-[clamp(40px,4vw,72px)]">
             {/* ── 友情链接 ── */}
             <div className="flex items-center justify-center max-sm:flex-col max-sm:py-5 max-sm:gap-3">
               <div className="flex items-center gap-2.5 select-none pr-8 max-sm:pr-0">
-                <span className="block w-1 h-1 bg-white/60" />
-                <span className="text-[11px] font-bold tracking-[0.25em] text-white/60">友情链接</span>
+                <span className="block w-1 h-1 rounded-full bg-[#0891a0]" />
+                <span className="text-[11px] font-bold tracking-[0.25em] text-[#5a6d8a]">友情链接</span>
               </div>
-              <a href="https://slt.sc.gov.cn/" target="_blank" rel="noopener noreferrer"
-                className="px-6 py-5 text-[14px] text-white hover:text-white transition-colors duration-200">
+              <a href="https://slt.sc.gov.cn/" target="_blank" rel="noopener noreferrer" className="footer-link">
                 四川省水利厅
               </a>
-              <span className="w-px h-4 bg-white/[0.10] max-sm:hidden" />
-              <a href="https://www.scsfjt.com/" target="_blank" rel="noopener noreferrer"
-                className="px-6 py-5 text-[14px] text-white hover:text-white transition-colors duration-200">
+              <span className="w-px h-4 bg-[#c8d8db] max-sm:hidden" />
+              <a href="https://www.scsfjt.com/" target="_blank" rel="noopener noreferrer" className="footer-link">
                 四川省水利发展集团有限公司
               </a>
-              <span className="w-px h-4 bg-white/[0.10] max-sm:hidden" />
-              <a href="https://www.scswhi.com.cn/" target="_blank" rel="noopener noreferrer"
-                className="px-6 py-5 text-[14px] text-white hover:text-white transition-colors duration-200">
+              <span className="w-px h-4 bg-[#c8d8db] max-sm:hidden" />
+              <a href="https://www.scswhi.com.cn/" target="_blank" rel="noopener noreferrer" className="footer-link">
                 四川水发勘测设计研究有限公司
               </a>
             </div>
 
             {/* ── 底部信息带 ── */}
-            <div className="border-t border-white/[0.07] py-3 flex items-center justify-between text-[11px] text-white max-sm:flex-col max-sm:gap-1">
+            <div className="border-t border-[#e5ecf4] py-3 flex items-center justify-between text-[11px] text-[#8a96aa] max-sm:flex-col max-sm:gap-1">
               <span>© 2026 智慧水发·蜀水云采</span>
               <span>蜀ICP备XXXXXXXX号</span>
             </div>

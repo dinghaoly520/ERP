@@ -145,7 +145,7 @@ function FilterToolbar({
         {filters.searchKeyword && filters.searchKeyword.length >= 2 && (
           <button
             onClick={onAnalyze}
-            className="inline-flex items-center gap-2 rounded-[10px] bg-[rgba(96,139,239,0.92)] px-4 py-2 text-[0.85rem] font-semibold text-white hover:bg-[rgba(88,125,230,1)]"
+            className="neu-btn-primary"
           >
             <Sparkles size={15} />
             分析
@@ -548,7 +548,7 @@ function AnalysisSelectionModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(244,248,252,0.55)] backdrop-blur-sm"
         onClick={onClose}
       >
         <motion.div
@@ -601,7 +601,7 @@ function AnalysisSelectionModal({
             <button
               onClick={onConfirm}
               disabled={selectedIds.size === 0}
-              className="inline-flex items-center gap-2 rounded-[12px] bg-[rgba(96,139,239,0.9)] px-5 py-2.5 text-[0.85rem] font-semibold text-white disabled:opacity-50"
+              className="neu-btn-primary disabled:opacity-50"
             >
               <BarChart3 size={15} />
               开始分析

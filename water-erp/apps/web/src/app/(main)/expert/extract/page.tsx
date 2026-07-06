@@ -164,14 +164,14 @@ function ExpertExtractPage() {
         )}
       </div>
 
-      <hr className="border-[#e5ecf4] mb-4" />
+      <hr className="border-[var(--border)] mb-4" />
 
       {/* Quota mode & parameters */}
       <div className="space-y-4">
         {/* Mode switch */}
         <div className="flex items-center gap-4">
           <span className="text-xs font-semibold text-[#5a6d8a]">配额模式</span>
-          <div className="flex rounded-xl border border-[#dce6f3] overflow-hidden">
+          <div className="flex rounded-xl border border-[var(--border)] overflow-hidden">
             <button onClick={() => setMode('ai')}
               className={`px-3 py-1.5 text-xs font-bold transition ${mode === 'ai' ? 'bg-[#064ea2] text-white' : 'text-[#5a6d8a] hover:bg-[#f8fafc]'}`}>
               AI 自动推荐
@@ -233,10 +233,10 @@ function ExpertExtractPage() {
                   </select>
                   <div className="flex items-center gap-1">
                     <button onClick={() => upQ(i, 'count', Math.max(1, q.count - 1))}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#dce6f3] text-sm text-[#5a6d8a] hover:bg-[#f8fafc]">−</button>
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--border)] text-sm text-[#5a6d8a] hover:bg-[#f8fafc]">−</button>
                     <span className="w-6 text-center text-sm font-extrabold tabular-nums text-[#18243a]">{q.count}</span>
                     <button onClick={() => upQ(i, 'count', q.count + 1)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#dce6f3] text-sm text-[#5a6d8a] hover:bg-[#f8fafc]">+</button>
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--border)] text-sm text-[#5a6d8a] hover:bg-[#f8fafc]">+</button>
                   </div>
                   <button onClick={() => rmQ(i)} disabled={quotas.length <= 1}
                     className="p-1 text-[#8a99ad] hover:text-red-500 disabled:opacity-30 transition">
@@ -293,7 +293,7 @@ function ExpertExtractPage() {
               <button
                 onClick={doSearch}
                 disabled={searching}
-                className="rounded-xl bg-[#064ea2] px-4 py-2 text-sm font-bold text-white hover:bg-[#054280] disabled:opacity-50 transition"
+                className="neu-btn-primary"
               >
                 {searching ? '搜索中...' : '搜索'}
               </button>
@@ -310,7 +310,7 @@ function ExpertExtractPage() {
                     <span className="text-xs text-[#94a3b8]">（{searchSpecialty}）</span>
                   )}
                 </div>
-                <div className="rounded-xl border border-[#edf2f7] divide-y divide-[#edf2f7] max-h-[320px] overflow-y-auto">
+                <div className="rounded-xl border border-[var(--border)] divide-y divide-[var(--border)] max-h-[320px] overflow-y-auto">
                   {searchResults.map(exp => {
                     const isSel = selected.has(exp.id);
                     const assignedToProject = pd?.experts?.some(ex => ex.userId === exp.id);
@@ -373,7 +373,7 @@ function ExpertExtractPage() {
                     已选专家 · {selected.size} 人
                   </span>
                 </div>
-                <div className="rounded-xl border border-[#dce6f3] divide-y divide-[#edf2f7]">
+                <div className="rounded-xl border border-[var(--border)] divide-y divide-[var(--border)]">
                   {[...selected.values()].map((exp, i) => (
                     <div key={exp.id} className="flex items-center justify-between px-3 py-2">
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -422,7 +422,7 @@ function ExpertExtractPage() {
         {/* AI / 手动模式抽取按钮 */}
         {(mode === 'ai' || mode === 'manual') && (
           <button onClick={run} disabled={loading || !pid}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#054280] disabled:opacity-50 transition">
+            className="neu-btn-primary">
             <Sparkles size={15} />
             {loading ? 'AI 分析抽取中...' : '开始智能抽取'}
           </button>
@@ -446,7 +446,7 @@ function ExpertExtractPage() {
 
   // ── Shared: pool card ──
   const poolCard = pool.size > 0 ? (
-    <div className="glass-card glass-card-lighter rounded-2xl p-5">
+    <div className="mb-5">
       <h3 className="text-xs font-bold uppercase tracking-wider text-[#5a6d8a] mb-3">专家库各专业可用人数</h3>
       <div className="space-y-1.5">
         {[...pool.entries()].sort((a, b) => b[1] - a[1]).map(([specialty, count]) => {
@@ -485,12 +485,12 @@ function ExpertExtractPage() {
             )}
 
             {loading && (
-              <div className="rounded-2xl border border-[#dce6f3] bg-white py-14 text-center">
+              <div className="rounded-2xl border border-[var(--border)] bg-white py-14 text-center">
                 <div className="inline-flex items-center gap-2 text-sm font-bold text-[#064ea2]">
                   <span className="h-2 w-2 rounded-full bg-[#064ea2] animate-pulse" />
                   AI 正在分析项目需求并抽取专家组...
                 </div>
-                <p className="mt-3 text-xs text-[#8a99ad] whitespace-nowrap">
+                <p className="mt-3 max-w-lg mx-auto text-xs text-[#8a99ad]">
                   分析维度：项目专业需求 → 合规过滤（供应商回避+可用性）→ 专家匹配评分 → 加权/随机抽取
                 </p>
               </div>
@@ -498,7 +498,7 @@ function ExpertExtractPage() {
 
             {preview && !loading && !done && (
               <div className="space-y-3">
-                <div className="rounded-2xl border border-[#dce6f3] bg-white p-4">
+                <div className="rounded-2xl border border-[var(--border)] bg-white p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <Sparkles size={16} className="text-[#064ea2]" />
                     <h2 className="text-sm font-bold text-[#18243a]">AI 评审组分析</h2>
@@ -547,7 +547,7 @@ function ExpertExtractPage() {
                   ) : (
                     <div>
                       {preview.selected.map((s, i) => (
-                        <div key={s.userId} className={`px-4 py-3.5 ${i < preview.selected.length - 1 ? 'border-b border-[#edf2f7]' : ''}`}>
+                        <div key={s.userId} className={`px-4 py-3.5 ${i < preview.selected.length - 1 ? 'border-b border-[var(--border)]' : ''}`}>
                           <div className="flex items-start gap-3">
                             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#064ea2] text-sm font-extrabold text-white">
                               {i + 1}
@@ -584,7 +584,7 @@ function ExpertExtractPage() {
                 {preview.alternatives.length > 0 && (
                   <SectionCard title={`候补专家 · ${preview.alternatives.length} 人`} className="p-0">
                     {preview.alternatives.map((s, i) => (
-                      <div key={s.userId} className={`flex items-center justify-between px-4 py-2.5 ${i < preview.alternatives.length - 1 ? 'border-b border-[#edf2f7]' : ''}`}>
+                      <div key={s.userId} className={`flex items-center justify-between px-4 py-2.5 ${i < preview.alternatives.length - 1 ? 'border-b border-[var(--border)]' : ''}`}>
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="text-sm font-semibold text-[#18243a] truncate">{s.name}</span>
                           <span className="text-xs text-[#064ea2] font-medium">{s.specialty}</span>
@@ -618,9 +618,9 @@ function ExpertExtractPage() {
                 <p className="text-xs text-[#8a99ad] mb-5">专家可在专家端（:3006）签到并参与评审</p>
                 <div className="flex justify-center gap-3">
                   <button onClick={() => router.push('/expert/repository')}
-                    className="rounded-xl bg-[#064ea2] px-5 py-2 text-sm font-bold text-white hover:bg-[#054280] transition">返回专家库</button>
+                    className="neu-btn-primary">返回专家库</button>
                   <button onClick={reset}
-                    className="rounded-xl border border-[#064ea2] px-5 py-2 text-sm font-bold text-[#064ea2] hover:bg-[#f0f5ff] transition">重新抽取</button>
+                    className="neu-btn-soft">重新抽取</button>
                 </div>
               </div>
             )}

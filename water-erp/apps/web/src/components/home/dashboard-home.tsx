@@ -174,16 +174,8 @@ function Panel({
   };
 
   return (
-    <section
-      className={[
-        "glass-float card-edge-light relative flex h-full flex-col overflow-hidden rounded-[20px] border",
-        variantStyles[variant],
-        "shadow-[0_10px_24px_rgba(79,108,161,0.07),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all duration-300 hover:shadow-[0_14px_32px_rgba(79,108,161,0.12)]",
-        className,
-      ].join(" ")}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.8),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(113,150,232,0.05),transparent_32%)]" />
-      <div className="relative flex h-full flex-col p-4">{children}</div>
+    <section className={className}>
+      <div className="flex h-full flex-col p-4">{children}</div>
     </section>
   );
 }
@@ -2617,6 +2609,24 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4 rounded-[24px] border border-red-200 bg-red-50 px-8 py-10 text-center">
+          <p className="text-sm font-semibold text-red-600">数据加载失败</p>
+          <p className="text-xs text-[color:var(--muted-foreground)]">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => { setLoadError(null); setLoading(true); }}
+            className="neu-btn-primary"
+          >
+            重试
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const completionRate = (dashboardData.summary.completedCount / Math.max(dashboardData.summary.totalCount, 1)) * 100;
   const bidOpeningCount = Math.max(dashboardData.summary.totalCount - dashboardData.summary.completedCount, 0);
   const savingsRate = (dashboardData.summary.totalSavings / Math.max(dashboardData.summary.awardedBudget, 1)) * 100;
@@ -2631,15 +2641,11 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
     >
         {/* ── Header Section with Component Frame ── */}
         <motion.div {...{ initial: cmdInitial, animate: cmdAnimate, transition: cmdTransition }} className="mb-3">
-          <div className="rounded-[18px] border border-[rgba(200,215,235,0.4)] bg-[linear-gradient(175deg,rgba(255,255,255,0.97),rgba(248,252,255,0.93))] p-4 shadow-[0_6px_20px_rgba(79,108,161,0.06),inset_0_1px_0_rgba(255,255,255,0.95)]">
-            {/* Title Row */}
-            <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center justify-between gap-3 mb-3 pb-3 border-b border-[rgba(184,199,227,0.4)]">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-[rgba(96,139,239,0.25)] bg-[linear-gradient(145deg,rgba(238,245,255,0.96),rgba(228,238,255,0.9))] shadow-[0_4px_12px_rgba(96,139,239,0.1)]">
-                  <BarChart3 size={18} className="text-[rgba(96,139,239,1)]" />
-                </div>
+                <BarChart3 size={20} className="text-[var(--accent)]" />
                 <div>
-                  <h1 className="text-lg font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">采购中心仪表盘</h1>
+                  <h1 className="text-lg font-black tracking-[-0.02em] text-[var(--foreground)]">采购中心仪表盘</h1>
                 </div>
               </div>
 
@@ -2695,7 +2701,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
             </div>
 
             {/* ── KPI Cards Grid ── */}
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 items-stretch gap-x-3 gap-y-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 items-stretch gap-x-3 gap-y-1.5">
               {/* Group 1: 预算概览 (1-4) */}
               <KpiCard
                 label="预算总金额"
@@ -2768,7 +2774,6 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
                 accent={accentMap.blue}
               />
             </div>
-          </div>
         </motion.div>
 
         {/* ── Row 2: AI Intelligence (wider) + Savings + Risk (equal width) ── */}

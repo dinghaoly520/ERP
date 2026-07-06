@@ -40,7 +40,7 @@ export default function AnnouncementDetailPage() {
       <div className="text-5xl">📢</div>
       <p className="text-[#5a6d8a] font-semibold">未找到该公告</p>
       <button onClick={() => router.push('/announcements')}
-        className="h-11 px-6 bg-[#064ea2] text-white rounded-full text-sm font-semibold hover:bg-[#084fb0] hover:shadow-[0_2px_12px_rgba(6,78,162,.35)] active:scale-95 transition-all duration-200">
+        className="neu-btn-primary">
         返回公告列表
       </button>
     </div>
@@ -54,41 +54,39 @@ export default function AnnouncementDetailPage() {
 
       {/* ═══ 内容区 ═══ */}
       <div className="relative z-10 px-[clamp(40px,4vw,72px)] pt-3 pb-10">
-        <a href="/" className="flow-back inline-flex items-center gap-1.5 w-fit mb-8">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        <a href="/" className="flow-back mb-8">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow"><path d="M15 18l-6-6 6-6"/></svg>
           返回首页
         </a>
-        <div className="max-w-4xl mx-auto">
-          <div className="glass rounded-2xl p-8">
-            {/* 标签 */}
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-xs px-3 py-1 rounded-full font-semibold" style={{ color: item.color, backgroundColor: item.color + '18' }}>{item.tag}</span>
-              {item.urgent && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded-full font-bold">重要</span>}
-            </div>
-
-            {/* 标题 */}
-            <h1 className="text-2xl font-black text-[#18243a] mb-4 leading-snug" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>{item.title}</h1>
-
-            {/* 元信息 */}
-            <div className="flex items-center gap-5 text-sm text-[#8a96aa] mb-6 pb-6 border-b border-[#e5ecf4]">
-              <span>发布时间：{item.date}</span>
-              {item.code && <span>编号：{item.code}</span>}
-            </div>
-
-            {/* AI 摘要 */}
-            {item.aiSummary && (
-              <div className="mb-6 rounded-xl border border-[#d8e6f7] bg-[#f6fbff] p-5">
-                <div className="mb-2 text-sm font-bold text-[#064ea2]">AI 摘要</div>
-                <p className="text-[15px] leading-8 text-[#26364e]">{item.aiSummary}</p>
-              </div>
-            )}
-
-            {/* 正文 */}
-            <div
-              className="announcement-detail-content text-[15px] text-[#18243a] leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: item.content }}
-            />
+        <div className="glass rounded-2xl p-8">
+          {/* 标签 */}
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-xs px-3 py-1 rounded-full font-semibold" style={{ color: item.color, backgroundColor: item.color + '18' }}>{item.tag}</span>
+            {item.urgent && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded-full font-bold">重要</span>}
           </div>
+
+          {/* 标题 */}
+          <h1 className="text-2xl font-black text-[#18243a] mb-4 leading-snug" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>{item.title}</h1>
+
+          {/* 元信息 */}
+          <div className="flex items-center gap-5 text-sm text-[#8a96aa] mb-6 pb-6 border-b border-[#e5ecf4]">
+            <span>发布时间：{item.date}</span>
+            {item.code && <span>编号：{item.code}</span>}
+          </div>
+
+          {/* AI 摘要 */}
+          {item.aiSummary && (
+            <div className="mb-6 neu-card p-5">
+              <div className="mb-2 text-sm font-bold text-[#064ea2]">AI 摘要</div>
+              <p className="text-[15px] leading-8 text-[#26364e]">{item.aiSummary}</p>
+            </div>
+          )}
+
+          {/* 正文 */}
+          <div
+            className="announcement-detail-content text-[15px] text-[#18243a] leading-relaxed"
+            dangerouslySetInnerHTML={{ __html: item.content }}
+          />
         </div>
       </div>
     </div>
