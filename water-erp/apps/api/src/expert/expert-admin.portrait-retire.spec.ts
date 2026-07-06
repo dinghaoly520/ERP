@@ -12,11 +12,11 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
 
   beforeEach(async () => {
     prisma = {
-      user: { findUnique: jest.fn(), findMany: jest.fn() },
-      expertProfile: { updateMany: jest.fn() },
-      expertEvaluation: { findMany: jest.fn() },
-      bidExpert: { findMany: jest.fn(), findFirst: jest.fn() },
-      bidScoreRecord: { findMany: jest.fn() },
+      user: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn().mockResolvedValue({}) },
+      expertProfile: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      expertEvaluation: { findMany: jest.fn().mockResolvedValue([]) },
+      bidExpert: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
+      bidScoreRecord: { findMany: jest.fn().mockResolvedValue([]) },
     };
     notification = { create: jest.fn(), sendToRole: jest.fn() };
 
@@ -65,7 +65,11 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
         { id: 'u1', displayName: '差专家', expertProfile: { specialty: '水利' } },
       ]);
       // 最近 2 次都是 D
-      prisma.expertEvaluation.findMany.mockResolvedValue([{ level: 'D' }, { level: 'D' }]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([
+        { expertUserId: 'u1', level: 'D' },
+        { expertUserId: 'u1', level: 'D' },
+      ]);
+      prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u1' }]); // 近期有分配 → reason 取"D"而非"无分配"
 
       const candidates = await service.reviewRetirementCandidates();
 
@@ -82,7 +86,7 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
         { id: 'u2', displayName: '好专家', expertProfile: { specialty: '水利' } },
       ]);
       prisma.expertEvaluation.findMany.mockResolvedValue([{ level: 'A' }]);
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'recent' }); // 近期有分配
+      prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u2' }]); // 近期有分配 → 不候选
 
       const candidates = await service.reviewRetirementCandidates();
       expect(candidates).toHaveLength(0);
