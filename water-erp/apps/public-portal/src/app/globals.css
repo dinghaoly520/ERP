@@ -2867,6 +2867,26 @@ a.group:hover::after {
   position: relative;
   z-index: 1;   /* ensure links/copyright bar render above ::before aurora */
 }
+/* ── 页脚极光倒影 — Header 极光带的镜面，方向镜像 + 速度减半 + 不透明度降低 ── */
+.footer-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(ellipse, rgba(129,174,230,0.10) 0%, transparent 50%),
+    radial-gradient(ellipse, rgba(154,194,240,0.08) 0%, transparent 48%);
+  background-size: 75% 40%, 65% 35%;
+  background-position: 80% 40%, 20% 55%;
+  animation: aurora-mirror 28s ease-in-out infinite;
+}
+@keyframes aurora-mirror {
+  0%   { background-position: 80% 40%, 20% 55%; }
+  50%  { background-position: 20% 50%, 75% 38%; }
+  100% { background-position: 80% 40%, 20% 55%; }
+}
 .footer-edge-line {
   height: 1px;
   background: linear-gradient(90deg, transparent 0%, #9ec5f0 20%, #6090d8 40%, #88b8f0 50%, #6090d8 60%, #9ec5f0 80%, transparent 100%);
