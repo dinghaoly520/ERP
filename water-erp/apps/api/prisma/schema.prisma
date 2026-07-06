@@ -399,6 +399,27 @@ model BidScoreRecord {
   @@index([scoreItemId, supplierId])
 }
 
+/// P1-E：评分 delta 数据飞轮（专家分 vs AI 建议分差异，用于采纳率统计 + AI 校准 + 专家反向复核）
+model BidScoreDelta {
+  id                    String   @id @default(cuid())
+  projectId             String
+  expertId              String
+  supplierId            String
+  scoreItemId           String
+  aiScore               Decimal  @db.Decimal(5, 1)
+  expertScore           Decimal  @db.Decimal(5, 1)
+  delta                 Decimal  @db.Decimal(5, 1) // expert − ai
+  accepted              Boolean                    // |delta| ≤ maxScore×10% 视为采纳
+  aiConfidence          Decimal? @db.Decimal(3, 2)
+  expertReportConfirmed Boolean  @default(false)  // 仅统计已确认报告的
+  createdAt             DateTime @default(now())
+
+  @@unique([expertId, scoreItemId, supplierId])
+  @@index([projectId])
+  @@index([expertId])
+  @@map("bid_score_deltas")
+}
+
 model BidClarification {
   id           String     @id @default(cuid())
   projectId    String

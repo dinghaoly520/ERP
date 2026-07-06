@@ -40,6 +40,10 @@ export class BidController {
   @ApiOperation({ summary: 'Dashboard 聚合：项目列表 + 就绪状态 + 阶段分布' })
   getProjectsDashboard() { return this.bidService.getProjectsDashboard(); }
 
+  @Get('projects/:id/ai-adoption')
+  @ApiOperation({ summary: 'P1-E：项目级 AI 建议采纳率（专家 vs AI 评分 delta）' })
+  getAiAdoption(@Param('id') id: string) { return this.bidService.getAiAdoption(id); }
+
   @Get('projects/archive-summary')
   @ApiOperation({ summary: '归档项目汇总（单次聚合，避免 N+1）' })
   getArchiveSummary() { return this.bidService.getArchiveSummary(); }

@@ -732,6 +732,21 @@ export class ExpertService {
       }
     }
 
+    // P1-E：查 AI 建议分（用于评分 delta 飞轮：专家 vs AI 差异）
+    const aiResults = await this.prisma.aiBidderResult.findMany({
+      where: { task: { projectId }, status: 'COMPLETED' },
+      select: { bidSupplierId: true, scoreItems: true },
+    });
+    const aiScoreMap = new Map<string, { score: number; confidence: number | null }>();
+    for (const r of aiResults) {
+      for (const it of (r.scoreItems as any[]) ?? []) {
+        aiScoreMap.set(`${r.bidSupplierId}:${it.scoreItemId}`, {
+          score: Number(it.score ?? 0),
+          confidence: it.confidence != null ? Number(it.confidence) : null,
+        });
+      }
+    }
+
     // Wrap stage check + upsert + progress-recalc + supervision log in a single transaction
     // to prevent TOCTOU race conditions and ensure aggregate consistency.
     const result = await this.prisma.$transaction(async (tx) => {
@@ -764,6 +779,22 @@ export class ExpertService {
             passed: item.passed ?? null,
             reason: item.reason,
           },
+        });
+      }
+
+      // P1-E：评分 delta 飞轮（数值项 only，排除通过性项 QUALIFICATION/RESPONSIVE；无 AI 分析则跳过）
+      for (const item of dto.scores) {
+        const meta = itemMeta.get(item.scoreItemId);
+        if (!meta || meta.category === 'QUALIFICATION' || meta.category === 'RESPONSIVE') continue;
+        const ai = aiScoreMap.get(`${item.supplierId}:${item.scoreItemId}`);
+        if (!ai) continue;
+        const expertScore = item.score ?? 0;
+        const delta = Math.round((expertScore - ai.score) * 10) / 10;
+        const accepted = Math.abs(delta) <= meta.maxScore * 0.1;
+        await tx.bidScoreDelta.upsert({
+          where: { expertId_scoreItemId_supplierId: { expertId: expert.id, scoreItemId: item.scoreItemId, supplierId: item.supplierId } },
+          update: { aiScore: ai.score, expertScore, delta, accepted, aiConfidence: ai.confidence },
+          create: { projectId, expertId: expert.id, scoreItemId: item.scoreItemId, supplierId: item.supplierId, aiScore: ai.score, expertScore, delta, accepted, aiConfidence: ai.confidence },
         });
       }
 
@@ -1059,6 +1090,11 @@ export class ExpertService {
       where: { id: expert.id },
       data: { progress: 100, reportConfirmed: true, reportConfirmedAt: new Date() },
     });
+    // P1-E：报告确认后，该专家本项目的 delta 标记为已确认（仅统计已确认报告的）
+    await this.prisma.bidScoreDelta.updateMany({
+      where: { expertId: expert.id, projectId },
+      data: { expertReportConfirmed: true },
+    }).catch(() => {});
     this.gateway?.notifyExpertPresence(expert.projectId, {
       expertId: expert.id, expertName: expert.expertName, milestone: 'report_confirmed', progressPercent: 100,
     });

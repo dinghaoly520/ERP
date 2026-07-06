@@ -52,7 +52,8 @@ describe('ExpertService', () => {
       bidSupplierCount: jest.fn(),
       bidSupervisionLog: { create: jest.fn(), findMany: jest.fn() },
       bidClarification: { create: jest.fn() },
-      aiBidderResult: { findFirst: jest.fn() },
+      aiBidderResult: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      bidScoreDelta: { upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       $transaction: jest.fn(async (fn: any) => fn(prisma)),
     };
 

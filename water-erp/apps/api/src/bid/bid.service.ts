@@ -1448,6 +1448,39 @@ export class BidService {
     }
   }
 
+  /** P1-E：项目级 AI 建议采纳率（仅统计已确认报告的专家 delta；返回总体 + 按评分项） */
+  async getAiAdoption(projectId: string) {
+    const deltas = await this.prisma.bidScoreDelta.findMany({
+      where: { projectId, expertReportConfirmed: true },
+    });
+    if (deltas.length === 0) return { total: 0, accepted: 0, adoptionRate: null, byItem: [] };
+    const itemIds = [...new Set(deltas.map((d) => d.scoreItemId))];
+    const items = await this.prisma.bidScoreItem.findMany({
+      where: { id: { in: itemIds } },
+      select: { id: true, name: true, category: true },
+    });
+    const itemMap = new Map(items.map((i) => [i.id, i]));
+    const accepted = deltas.filter((d) => d.accepted).length;
+    const byItem = itemIds.map((id) => {
+      const ds = deltas.filter((d) => d.scoreItemId === id);
+      const avgDelta = ds.reduce((s, d) => s + Number(d.delta), 0) / ds.length;
+      return {
+        scoreItemId: id,
+        name: itemMap.get(id)?.name,
+        category: itemMap.get(id)?.category,
+        count: ds.length,
+        avgDelta: Math.round(avgDelta * 10) / 10,
+        accepted: ds.filter((d) => d.accepted).length,
+      };
+    });
+    return {
+      total: deltas.length,
+      accepted,
+      adoptionRate: Math.round((accepted / deltas.length) * 100) / 100,
+      byItem,
+    };
+  }
+
   /** 归档项目汇总（单次聚合，避免前端逐项目拉详情的 N+1） */
   async getArchiveSummary() {
     const projects = await this.prisma.bidProject.findMany({
