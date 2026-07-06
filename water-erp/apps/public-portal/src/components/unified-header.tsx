@@ -242,7 +242,7 @@ export function UnifiedHeader({
     <header className="sticky top-0 z-50 flow-header-bg" style={{ willChange: 'transform' }}>
       {/* 底部动态光影线 — 青色调 */}
       <div className="absolute bottom-0 left-0 right-0 h-px z-30" style={{
-        background: 'linear-gradient(90deg, transparent 0%, #5ecfd6 20%, #3db8c4 40%, #a8f0f0 50%, #3db8c4 60%, #5ecfd6 80%, transparent 100%)',
+        background: 'linear-gradient(90deg, transparent 0%, #9ec5f0 20%, #6090d8 40%, #88b8f0 50%, #6090d8 60%, #9ec5f0 80%, transparent 100%)',
         backgroundSize: '200% 100%',
         animation: 'header-edge-flow 4s ease-in-out infinite',
       }} />
