@@ -2,11 +2,12 @@
 
 import { Fragment, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { draftClarification, summarizeClarification } from '@/lib/api/bid';
 import type { BidProjectDetail, BidClarification } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { TableSkeleton } from '@/components/skeleton';
 import { toast } from 'sonner';
-import { MessageSquare, Plus, AlertTriangle, X, Send } from 'lucide-react';
+import { MessageSquare, Plus, AlertTriangle, X, Send, Sparkles, FileText } from 'lucide-react';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { useReportRealtime } from '@/contexts/bid-realtime-context';
 import NoProjectGuide from '@/components/no-project-guide';
@@ -26,6 +27,49 @@ export default function BidClarificationsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [replying, setReplying] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [drafting, setDrafting] = useState(false);
+  const [summarizing, setSummarizing] = useState<string | null>(null);
+
+  // P1-F：AI 起草澄清问题候选（填入 textarea，专家改完再发）
+  const handleDraft = async () => {
+    if (!projectId) return;
+    if (!selectedSupplierId) { toast.error('请先选择供应商'); return; }
+    setDrafting(true);
+    try {
+      const res: any = await draftClarification(projectId, selectedSupplierId);
+      const drafts: string[] = res?.drafts ?? res?.data?.drafts ?? [];
+      if (drafts.length) {
+        setQuestion(drafts[0]);
+        toast.success(`AI 已起草 ${drafts.length} 条候选，已填入第一条，请审阅修改`);
+      } else {
+        toast.info('AI 暂无起草建议（该供应商可能无 AI 分析弱点）');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'AI 起草失败');
+    } finally {
+      setDrafting(false);
+    }
+  };
+
+  // P1-F：AI 提炼回复要点 → aiSummary
+  const handleSummarize = async (cid: string) => {
+    if (!projectId) return;
+    setSummarizing(cid);
+    try {
+      const res: any = await summarizeClarification(projectId, cid);
+      const aiSummary: string | undefined = res?.aiSummary ?? res?.data?.aiSummary;
+      if (aiSummary) {
+        setClarifications(prev => prev.map(c => c.id === cid ? { ...c, aiSummary } : c));
+        toast.success('AI 摘要已生成');
+      } else {
+        toast.info('AI 暂无法生成摘要');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'AI 摘要失败');
+    } finally {
+      setSummarizing(null);
+    }
+  };
 
   const load = () => {
     if (!projectId) return;
@@ -182,8 +226,12 @@ export default function BidClarificationsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
-                  澄清问题 <span className="text-[oklch(0.50_0.18_22)]">*</span>
+                <label className="flex items-center justify-between text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
+                  <span>澄清问题 <span className="text-[oklch(0.50_0.18_22)]">*</span></span>
+                  <button type="button" onClick={handleDraft} disabled={drafting || !selectedSupplierId}
+                    className="flex items-center gap-1 text-[11px] font-medium text-[oklch(0.42_0.14_260)] hover:underline disabled:opacity-40 normal-case tracking-normal">
+                    <Sparkles size={11} /> {drafting ? '起草中…' : 'AI 起草'}
+                  </button>
                 </label>
                 <textarea value={question} onChange={e => setQuestion(e.target.value)} rows={4}
                   placeholder="请输入需要供应商澄清的问题…"
@@ -250,8 +298,17 @@ export default function BidClarificationsPage() {
                   <td className="px-5 py-3">
                     <span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{ color: statusColor, backgroundColor: statusColor + '18' }}>{statusLabel}</span>
                   </td>
-                  <td className="px-5 py-3 text-[oklch(0.55_0.01_264)] max-w-[200px]">
-                    {c.reply || <span className="text-[oklch(0.72_0.008_264)]">—</span>}
+                  <td className="px-5 py-3 text-[oklch(0.55_0.01_264)] max-w-[220px]">
+                    {c.reply ? (
+                      <div className="space-y-1">
+                        <div>{c.reply}</div>
+                        {c.aiSummary && (
+                          <div className="text-[11px] text-[oklch(0.42_0.14_260)] bg-[oklch(0.96_0.02_260)] rounded px-2 py-1 whitespace-pre-line">
+                            <span className="font-semibold">AI 摘要：</span>{c.aiSummary}
+                          </div>
+                        )}
+                      </div>
+                    ) : <span className="text-[oklch(0.72_0.008_264)]">—</span>}
                   </td>
                   <td className="px-5 py-3 text-[12px] text-[oklch(0.62_0.008_264)] font-mono whitespace-nowrap">
                     {new Date(c.createdAt).toLocaleString('zh-CN')}
@@ -269,7 +326,15 @@ export default function BidClarificationsPage() {
                         <span className="text-[11px] text-[oklch(0.62_0.008_264)]">已归档</span>
                       )
                     ) : (
-                      <span className="text-[11px] text-[oklch(0.62_0.008_264)]">已回复</span>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] text-[oklch(0.62_0.008_264)]">已回复</span>
+                        {isReplied && !c.aiSummary && project?.stage !== 'ARCHIVED' && (
+                          <button onClick={() => handleSummarize(c.id)} disabled={summarizing === c.id}
+                            className="flex items-center gap-0.5 text-[10px] font-semibold text-[oklch(0.42_0.14_260)] hover:underline disabled:opacity-40">
+                            <FileText size={10} /> {summarizing === c.id ? '摘要中…' : 'AI 摘要'}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>

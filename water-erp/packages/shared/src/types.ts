@@ -149,6 +149,7 @@ export interface BidClarification {
   supplierId?: string;
   status: string;
   reply?: string;
+  aiSummary?: string; // P1-F：LLM 提炼的回复要点（供全体评委速读）
   createdAt: string;
   updatedAt: string;
 }

@@ -245,3 +245,18 @@ export function replyClarification(projectId: string, clarificationId: string, b
 }) {
   return api.patch(`/bid/projects/${projectId}/clarifications/${clarificationId}/reply`, body);
 }
+
+// P1-F：AI 辅助（起草候选问题 + 提炼回复要点）
+export function draftClarification(projectId: string, supplierId: string) {
+  return api.post<{ drafts: string[]; basis: string[] }>(
+    `/bid/projects/${projectId}/clarifications/draft`,
+    { supplierId },
+  );
+}
+
+export function summarizeClarification(projectId: string, clarificationId: string) {
+  return api.post<{ summary: string; keyPoints: string[]; aiSummary: string }>(
+    `/bid/projects/${projectId}/clarifications/${clarificationId}/summarize`,
+    {},
+  );
+}

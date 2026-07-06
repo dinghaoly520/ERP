@@ -59,6 +59,7 @@ export default function ExpertEvaluatePage() {
   const [clarSupplier, setClarSupplier] = useState('');
   const [clarSupplierId, setClarSupplierId] = useState('');
   const [clarPosting, setClarPosting] = useState(false);
+  const [clarDrafting, setClarDrafting] = useState(false);
   // P3: real-time status board
   const [liveEvents, setLiveEvents] = useState<{ time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[]>([]);
   const [aggregatePresence, setAggregatePresence] = useState<any>(null);
@@ -375,6 +376,27 @@ export default function ExpertEvaluatePage() {
     setClarPosting(false);
   };
 
+  // P1-F：AI 起草澄清候选（不落库，填入 textarea，专家改完再发）
+  const draftClarificationQ = async () => {
+    if (!projectId) return;
+    if (!clarSupplierId) { toast.error('请先选择供应商'); return; }
+    setClarDrafting(true);
+    try {
+      const res: any = await api.post(`/expert/projects/${projectId}/clarifications/draft`, { supplierId: clarSupplierId });
+      const drafts: string[] = res?.drafts ?? res?.data?.drafts ?? [];
+      if (drafts.length) {
+        setClarQuestion(drafts[0]);
+        toast.success(`AI 已起草 ${drafts.length} 条候选，已填入第一条，请审阅修改`);
+      } else {
+        toast.info('AI 暂无起草建议（该供应商可能无 AI 分析弱点）');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'AI 起草失败');
+    } finally {
+      setClarDrafting(false);
+    }
+  };
+
   const loadAssist = async (sid: string) => {
     const seq = ++assistSeqRef.current;
     setAssistLoading(true);
@@ -642,11 +664,19 @@ export default function ExpertEvaluatePage() {
               ))}
             </select>
             <div className="flex items-end gap-2">
-              <textarea value={clarQuestion} onChange={e => setClarQuestion(e.target.value)}
-                placeholder="向所选供应商发起澄清…（Ctrl+Enter 发送）"
-                rows={4}
-                onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); postClarification(); } }}
-                className="flex-1 border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs bg-white/60 focus:outline-none focus:border-[#064ea2] resize-y min-h-[96px]" />
+              <div className="flex-1">
+                <div className="flex justify-end mb-1">
+                  <button type="button" onClick={draftClarificationQ} disabled={clarDrafting || !clarSupplierId}
+                    className="flex items-center gap-1 text-[11px] font-semibold text-[#064ea2] hover:underline disabled:opacity-40">
+                    <Sparkles size={11} /> {clarDrafting ? '起草中…' : 'AI 起草'}
+                  </button>
+                </div>
+                <textarea value={clarQuestion} onChange={e => setClarQuestion(e.target.value)}
+                  placeholder="向所选供应商发起澄清…（Ctrl+Enter 发送）"
+                  rows={4}
+                  onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); postClarification(); } }}
+                  className="w-full border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs bg-white/60 focus:outline-none focus:border-[#064ea2] resize-y min-h-[96px]" />
+              </div>
               <button onClick={postClarification} disabled={clarPosting}
                 className="px-3 py-1.5 bg-[#064ea2] text-white text-xs font-bold rounded-lg hover:bg-[#054280] transition disabled:opacity-50">
                 {clarPosting ? '…' : '发送'}
