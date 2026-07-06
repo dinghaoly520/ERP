@@ -713,7 +713,7 @@ export class BidService {
           'process',
           { taskId: task.id },
           {
-            jobId: `tender-rerun-${task.id}`,
+            jobId: `tender-rerun-${task.id}-${Date.now()}`,
             attempts: 3,
             backoff: { type: 'exponential', delay: 5000 },
             removeOnComplete: { age: 7 * 24 * 3600 },
