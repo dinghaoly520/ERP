@@ -25,12 +25,14 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 import { buildArchiveAiUsage } from '../ai-bid-analysis/utils/archive-ai-usage';
+import { ClarificationAiService } from './clarification-ai.service';
 
 @Injectable()
 export class BidService {
   constructor(
     private prisma: PrismaService,
     private notificationService: NotificationService,
+    @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
     @Optional()
     @InjectQueue(QUEUE_NAMES.TENDER_PROCESSING)
@@ -1387,6 +1389,24 @@ export class BidService {
       id: cid, replier: 'host', replyPreview: reply.slice(0, 60),
     });
     return result;
+  }
+
+  /** P1-F：AI 起草澄清问题候选（不落库——专家改完再走 createClarification） */
+  async draftClarification(projectId: string, supplierId: string) {
+    return this.clarificationAi?.draftQuestion(projectId, supplierId) ?? { drafts: [], basis: [] };
+  }
+
+  /** P1-F：AI 提炼回复要点 → 写入 BidClarification.aiSummary（供全体评委速读） */
+  async summarizeClarification(projectId: string, cid: string) {
+    const c = await this.prisma.bidClarification.findFirst({ where: { id: cid, projectId } });
+    if (!c || !c.reply) {
+      throw new BadRequestException({ error: '澄清不存在或尚未回复', code: 'NO_REPLY' });
+    }
+    const result = this.clarificationAi ? await this.clarificationAi.summarizeReply(c.question, c.reply) : null;
+    if (!result) return { summary: null, keyPoints: [] };
+    const aiSummary = `${result.summary}\n${result.keyPoints.map((k) => `· ${k}`).join('\n')}`;
+    await this.prisma.bidClarification.update({ where: { id: cid }, data: { aiSummary } });
+    return { ...result, aiSummary };
   }
 
   async createClarification(projectId: string, dto: CreateClarificationDto) {

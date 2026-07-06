@@ -6,6 +6,7 @@ import { AiService } from '../ai/ai.service';
 import { ExpertConflictService } from './expert-conflict.service';
 import { encryptBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
+import { ClarificationAiService } from '../bid/clarification-ai.service';
 import { minioClient } from '../upload/minio.client';
 import { PlaintextFetcherService } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 
@@ -66,6 +67,7 @@ describe('ExpertService', () => {
         { provide: AiService, useValue: ai },
         { provide: ExpertConflictService, useValue: { detectForProject: jest.fn().mockResolvedValue([]) } },
         { provide: PlaintextFetcherService, useValue: { fetchBidderPlaintext: jest.fn() } },
+        { provide: ClarificationAiService, useValue: { draftQuestion: jest.fn().mockResolvedValue({ drafts: [], basis: [] }), summarizeReply: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
 

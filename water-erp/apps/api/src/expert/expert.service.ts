@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ExpertConflictService } from './expert-conflict.service';
 import { BidGateway } from '../bid/bid.gateway';
+import { ClarificationAiService } from '../bid/clarification-ai.service';
 import { PlaintextFetcherService, BidderFileType } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
@@ -19,6 +20,7 @@ export class ExpertService {
     private aiService: AiService,
     private conflictService: ExpertConflictService,
     private plaintextFetcher: PlaintextFetcherService,
+    @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
   ) {}
 
@@ -939,6 +941,11 @@ export class ExpertService {
       where: { projectId },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /** P1-F：AI 起草澄清问题候选（不落库——专家改完再走 createClarification） */
+  async draftClarification(_userId: string, projectId: string, supplierId: string) {
+    return this.clarificationAi?.draftQuestion(projectId, supplierId) ?? { drafts: [], basis: [] };
   }
 
   async createClarification(userId: string, projectId: string, dto: CreateExpertClarificationDto) {

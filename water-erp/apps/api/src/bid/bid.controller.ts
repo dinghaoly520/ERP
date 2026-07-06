@@ -201,6 +201,18 @@ export class BidController {
   @ApiOperation({ summary: '发起澄清' })
   createClarification(@Param('id') id: string, @Body() dto: CreateClarificationDto) { return this.bidService.createClarification(id, dto); }
 
+  @Post('projects/:id/clarifications/draft')
+  @ApiOperation({ summary: 'P1-F：AI 起草澄清问题候选（不落库）' })
+  draftClarification(@Param('id') id: string, @Body() body: { supplierId: string }) {
+    return this.bidService.draftClarification(id, body.supplierId);
+  }
+
+  @Post('projects/:id/clarifications/:cid/summarize')
+  @ApiOperation({ summary: 'P1-F：AI 提炼回复要点 → aiSummary' })
+  summarizeClarification(@Param('id') id: string, @Param('cid') cid: string) {
+    return this.bidService.summarizeClarification(id, cid);
+  }
+
   @Get('projects/:id/supervision-logs')
   @ApiOperation({ summary: '监督日志' })
   listSupervisionLogs(@Param('id') id: string) { return this.bidService.listSupervisionLogs(id); }

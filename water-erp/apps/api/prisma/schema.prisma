@@ -430,6 +430,7 @@ model BidClarification {
   supplierId   String?
   status       String     @default("待回复")
   reply        String?
+  aiSummary    String? // P1-F：LLM 提炼的回复要点（供全体评委速读，不覆盖 reply 原文）
   project      BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   supplier     Supplier?  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   createdAt    DateTime   @default(now())

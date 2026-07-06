@@ -181,6 +181,15 @@ export class ExpertController {
     return this.expertService.createClarification(userId, projectId, dto);
   }
 
+  @Post('projects/:projectId/clarifications/draft')
+  draftClarification(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Body() body: { supplierId: string },
+  ) {
+    return this.expertService.draftClarification(userId, projectId, body.supplierId);
+  }
+
   /* ── 评审报告 ── */
   @Get('projects/:projectId/report')
   getReport(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
