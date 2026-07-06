@@ -522,6 +522,13 @@ function ScoringSection({
           </div>
         )}
 
+      {/* A2：多次采样不稳定警告（self-consistency 差异大） */}
+      {hasScoreItems && scoreItems.some((si) => si.unstable) && (
+        <div className="p-3 rounded-lg border border-orange-200 bg-orange-50 text-xs text-orange-700 flex items-start gap-1.5">
+          <AlertCircle size={13} strokeWidth={1.5} className="mt-px shrink-0" />⚙ 有 {scoreItems.filter((si) => si.unstable).length} 项评分多次采样差异大（AI 把握度低），请重点复核。
+        </div>
+      )}
+
       {/* AI vs 专家对比 */}
       {hasComparison && (
         <ExpertComparisonTable
@@ -1268,10 +1275,30 @@ export function AssistPanel({
   }
 
   // ── 正常态：垂直分区滚动页 ──
+  // A3：资格审查不通过阻断（★条款自动判定时附 AI 说明）
+  const qualBlocked = assistData.qualificationStatus === '不通过';
+  const qualAutoNote = qualBlocked
+    ? (assistData.overallComment ?? '').split('\n').find((l) => l.includes('[自动]'))
+    : null;
   return (
     <div className="p-5 space-y-6">
       {/* 快速状态条 */}
       <StatusBar assistData={assistData} />
+
+      {/* A3：资格不通过阻断卡片 */}
+      {qualBlocked && (
+        <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl border border-red-200 bg-red-50/80">
+          <ShieldAlert size={16} className="text-red-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-700">资格审查不通过 · AI 自动判定</p>
+            {qualAutoNote ? (
+              <p className="text-xs text-red-600/90 mt-0.5 leading-relaxed">{qualAutoNote}</p>
+            ) : (
+              <p className="text-xs text-red-600/80 mt-0.5">存在资质一致性冲突或★实质性条款未响应，建议重点核实资格材料。</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ① 评分分析 */}
       <section>

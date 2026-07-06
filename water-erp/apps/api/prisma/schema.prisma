@@ -140,6 +140,7 @@ model AiBidAnalysisTask {
   tenderPages             Json?
   requirements            Json? // LLM 提取的招标要求（含 scoringRules）
   scoringCriteriaSnapshot Json? // AI 推断的评分标准快照（不回填 BidScoreItem，见方案 15.8）
+  aiProvenance            Json? // P0-D：模型/prompt 版本快照（{ model, ranAt, promptVersions }）
   createdAt               DateTime             @default(now())
   updatedAt               DateTime             @updatedAt
   completedAt             DateTime?

@@ -12,6 +12,8 @@ import { CreateTaskDto } from '../dto/create-task.dto';
 import { UpdateTaskDto } from '../dto/update-task.dto';
 import { AiAnalysisTaskStatus, AiBidderStatus } from '@prisma/client';
 import { ALLOWED_START_ANALYSIS_STATUSES } from '../constants/status.constants';
+import { LlmService } from '../../local-ai/llm.service';
+import { PROMPT_VERSIONS } from '../prompts';
 
 @Injectable()
 export class TaskService {
@@ -21,6 +23,7 @@ export class TaskService {
     private prisma: PrismaService,
     // storage 保留：未来 worker 可能用于中间产物；当前 task CRUD 不直接用
     private storage: StorageService,
+    private llm: LlmService,
   ) {}
 
   // ── Task CRUD（1:1 关联 BidProject）──
@@ -30,6 +33,11 @@ export class TaskService {
       data: {
         projectId: dto.projectId,
         status: AiAnalysisTaskStatus.PENDING,
+        aiProvenance: {
+          model: this.llm.getModel(),
+          ranAt: new Date().toISOString(),
+          promptVersions: PROMPT_VERSIONS,
+        },
       },
     });
   }

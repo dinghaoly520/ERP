@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../../local-ai/llm.service';
 import { REQUIREMENT_MATCHING_PROMPT } from '../prompts/requirement-matching.prompt';
 import { deterministicSeed } from '../utils';
+import { verifyExcerpt, DEFAULT_VERIFY_THRESHOLD } from '../utils/excerpt-verify';
 import type { TenderRequirements } from '../types';
 import type { RequirementResponse } from '@water-erp/shared';
 
@@ -16,6 +17,7 @@ export class RequirementMatcherService {
   async match(req: TenderRequirements, pages: PageInput[], fileIds: FileIdMap, taskId?: string): Promise<RequirementResponse[]> {
     const flat = this.flattenRequirements(req); // [{ seq, requirementId(stable), category, tenderContent, isStarred }]
     if (flat.length === 0 || pages.length === 0) return [];
+    const threshold = Number(process.env.AI_EXCERPT_VERIFY_THRESHOLD ?? DEFAULT_VERIFY_THRESHOLD);
 
     // prompt 只给 seq+content+isStarred（不暴露 hash id；LLM 回填小整数 seq 比 hash 可靠）
     const prompt = REQUIREMENT_MATCHING_PROMPT
@@ -41,6 +43,14 @@ export class RequirementMatcherService {
         const meta = bySeq.get(seqNum);
         if (!meta) return null; // LLM 回填未知 seq → 丢弃
         const fileId = r.file ? (r.file === 'technical' ? fileIds.technical : r.file === 'business' ? fileIds.business : null) : null;
+        // A1：校验 LLM 自报 excerpt 是否真出现在标书页（防页码/摘录幻觉）
+        const verify = verifyExcerpt(
+          r.excerpt ?? '',
+          r.file ?? null,
+          typeof r.page === 'number' ? r.page : null,
+          pages,
+          { threshold },
+        );
         const location = fileId && typeof r.page === 'number' ? { fileId, page: r.page } : null;
         return {
           requirementId: meta.requirementId,
@@ -49,8 +59,10 @@ export class RequirementMatcherService {
           isStarred: meta.isStarred,
           status: r.status,
           excerpt: r.excerpt ?? '',
-          location,
-          confidence: r.confidence ?? 0,
+          location: verify.correctedPage && fileId ? { fileId, page: verify.correctedPage } : location,
+          confidence: verify.verified ? (r.confidence ?? 0) : (r.confidence ?? 0) * 0.5,
+          verified: verify.verified,
+          pageCorrected: !!verify.correctedPage,
         };
       })
       // Fix 5: 按 requirementId 去重（LLM 返回两条同 seq 会产生重复 requirementId 行）

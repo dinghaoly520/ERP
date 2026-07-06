@@ -319,4 +319,51 @@ describe('GenericItemScorerService — per-item 评分测试 (C13)', () => {
       expect(result.priceAnalysis).toBeUndefined(); // 无 LLM 详情
     });
   });
+
+  // ── A2 self-consistency ───────────────────────────────────────────
+  describe('rescoreUnstable（A2 self-consistency）', () => {
+    it('全高置信 → 不触发复跑（chatJson 仅首轮 1 次）', async () => {
+      mockLlm.chatJson.mockResolvedValue({
+        items: [{ scoreItemId: 'si-1', score: 16, confidence: 0.85 }],
+        overallComment: 'OK',
+      });
+      const items = [makeScoreItem({ id: 'si-1', maxScore: 20 })];
+      await service.score(items, {}, null, 'task-1', 'bs-1', []);
+      expect(mockLlm.chatJson).toHaveBeenCalledTimes(1);
+    });
+
+    it('低置信触发复跑 → 取中位数 + 标 unstable（差值大）', async () => {
+      mockLlm.chatJson
+        .mockResolvedValueOnce({ items: [{ scoreItemId: 'si-1', score: 10, confidence: 0.4 }], overallComment: '' })
+        .mockResolvedValueOnce({ items: [{ scoreItemId: 'si-1', score: 5, confidence: 0.4 }] })
+        .mockResolvedValueOnce({ items: [{ scoreItemId: 'si-1', score: 8, confidence: 0.4 }] });
+      const items = [makeScoreItem({ id: 'si-1', maxScore: 10 })];
+      const result = await service.score(items, {}, null, 'task-1', 'bs-1', []);
+      expect(mockLlm.chatJson).toHaveBeenCalledTimes(3); // 首轮 + 2 复跑
+      expect(result.scoreItems[0].score).toBe(8); // median([10,5,8])
+      expect(result.scoreItems[0].unstable).toBe(true); // 差 5 > 10×0.2
+    });
+
+    it('低置信但复跑一致 → stable', async () => {
+      mockLlm.chatJson
+        .mockResolvedValueOnce({ items: [{ scoreItemId: 'si-1', score: 8, confidence: 0.4 }], overallComment: '' })
+        .mockResolvedValueOnce({ items: [{ scoreItemId: 'si-1', score: 8 }] })
+        .mockResolvedValueOnce({ items: [{ scoreItemId: 'si-1', score: 8 }] });
+      const items = [makeScoreItem({ id: 'si-1', maxScore: 20 })];
+      const result = await service.score(items, {}, null, 'task-1', 'bs-1', []);
+      expect(result.scoreItems[0].score).toBe(8);
+      expect(result.scoreItems[0].unstable).toBe(false);
+    });
+
+    it('复跑抛错 → 保留首轮，不阻塞', async () => {
+      mockLlm.chatJson
+        .mockResolvedValueOnce({ items: [{ scoreItemId: 'si-1', score: 10, confidence: 0.4 }], overallComment: '' })
+        .mockRejectedValueOnce(new Error('LLM down'))
+        .mockRejectedValueOnce(new Error('LLM down'));
+      const items = [makeScoreItem({ id: 'si-1', maxScore: 20 })];
+      const result = await service.score(items, {}, null, 'task-1', 'bs-1', []);
+      expect(result.scoreItems[0].score).toBe(10); // 保留首轮
+      expect(result.scoreItems[0].unstable).toBeUndefined();
+    });
+  });
 });

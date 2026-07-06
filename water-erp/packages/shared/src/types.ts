@@ -21,6 +21,8 @@ export interface AiScoreItem {
   evidence?: string;
   confidence?: number;
   pass?: boolean;
+  /** A2：多次采样差值大，提示专家重点复核 */
+  unstable?: boolean;
 }
 export interface RequirementResponse {
   requirementId: string;
@@ -31,6 +33,10 @@ export interface RequirementResponse {
   excerpt: string;
   location: { fileId: string; page: number } | null;
   confidence: number;
+  /** excerpt 是否经原文校验（A1 防页码/摘录幻觉）；undefined=未校验 */
+  verified?: boolean;
+  /** AI 报错页码后是否修正为真实页（A1） */
+  pageCorrected?: boolean;
 }
 export interface BidRequirementReview {
   requirementId: string;

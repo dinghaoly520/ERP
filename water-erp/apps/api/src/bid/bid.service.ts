@@ -24,6 +24,7 @@ import { isBondQualified } from './bid-bond-status';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
+import { buildArchiveAiUsage } from '../ai-bid-analysis/utils/archive-ai-usage';
 
 @Injectable()
 export class BidService {
@@ -1682,6 +1683,19 @@ export class BidService {
       ? archiveGenesisHash({ id: project.id, projectCode: project.projectCode, name: project.name, stage: project.stage })
       : '';
 
+    // P0-D：AI 辅助说明（模型/prompt 版本 + 每家供应商 AI 评分摘要）
+    const aiTask = await this.prisma.aiBidAnalysisTask.findUnique({
+      where: { projectId },
+      select: {
+        aiProvenance: true,
+        bidderResults: {
+          where: { status: 'COMPLETED' },
+          select: { totalScore: true, scoreItems: true, bidSupplier: { select: { supplierName: true } } },
+        },
+      },
+    });
+    const aiUsage = aiTask ? buildArchiveAiUsage(aiTask.aiProvenance as any, aiTask.bidderResults as any) : null;
+
     if (format === 'csv') {
       const BOM = '﻿';
       const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -1727,6 +1741,14 @@ export class BidService {
         const item = project.archiveItems.find(a => a.id === itemId);
         lines.push([`#${i + 1} ${item?.name || itemId}`, hash].map(esc).join(','));
       });
+      if (aiUsage) {
+        lines.push('');
+        lines.push('=== AI 辅助说明 ===');
+        lines.push(['模型', aiUsage.model ?? ''].join(','));
+        lines.push(['运行时间', aiUsage.ranAt ?? ''].join(','));
+        lines.push(['供应商', 'AI建议评分项数', 'AI综合分'].join(','));
+        aiUsage.suppliers.forEach(s => lines.push([s.name, s.aiScoredItemsCount, s.aiSuggestedTotal ?? ''].map(esc).join(',')));
+      }
       return BOM + lines.join('\n');
     }
 
@@ -1766,6 +1788,7 @@ export class BidService {
           return { itemId, name: item?.name, hash };
         }),
       },
+      ...(aiUsage ? { aiUsage } : {}),
     };
   }
 

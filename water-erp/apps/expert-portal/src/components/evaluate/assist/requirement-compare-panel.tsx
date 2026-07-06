@@ -350,9 +350,19 @@ export function RequirementComparePanel({
                           <sc.icon size={11} /> {sc.label}
                         </span>
                         {selectedResp.excerpt && (
-                          <p className="text-[11px] text-[var(--color-text-secondary)] mt-2 leading-relaxed italic">
-                            “{selectedResp.excerpt}”
-                          </p>
+                          <div className="mt-2">
+                            <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed italic">
+                              “{selectedResp.excerpt}”
+                            </p>
+                            {selectedResp.verified === false && (
+                              <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-0.5 not-italic">
+                                <AlertCircle size={10} /> AI 摘录未在标书中复核通过，请手动核对
+                              </p>
+                            )}
+                            {selectedResp.pageCorrected && (
+                              <p className="text-[10px] text-[oklch(0.55_0.01_264)] mt-0.5 not-italic">· 页码已自动修正</p>
+                            )}
+                          </div>
                         )}
                         {!selectedResp.location && (
                           <p className="text-[10px] text-[oklch(0.55_0.01_264)] mt-2">（未定位到投标原文页码）</p>

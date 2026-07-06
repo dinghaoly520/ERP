@@ -48,6 +48,11 @@ export class LlmService {
     return this.deepseek;
   }
 
+  /** P0-D：暴露当前模型名（供 aiProvenance 快照；未配置返回 null，不抛错） */
+  getModel(): string | null {
+    return this.deepseek?.model ?? null;
+  }
+
   async chat(
     systemPrompt: string,
     userPrompt: string,

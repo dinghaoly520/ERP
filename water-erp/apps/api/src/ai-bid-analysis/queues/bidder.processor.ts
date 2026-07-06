@@ -24,6 +24,7 @@ import * as crypto from 'crypto';
 import { QUEUE_NAMES } from './queue.module';
 import { processFile } from '../utils/file-processor';
 import { neutralizeRecommendationText } from '../utils/neutralize';
+import { resolveQualification } from '../utils/qualification';
 
 interface BidderJobData {
   bidderResultId: string;
@@ -204,17 +205,19 @@ export class BidderProcessor extends WorkerHost {
         scoreResult.totalScore = scoreResult.scoreItems.reduce((a, b) => a + b.score, 0);
       }
 
-      // 5. 资格判定（资质 conflict → 不通过）
+      // 5. 资格判定（资质 conflict 或 ★实质性条款未响应 → 不通过）
       const qualConflict = concordance.checks.some(
         (c) => c.field === 'qualification' && c.status === 'conflict',
       );
-      const qualificationStatus = qualConflict ? '不通过' : '通过';
-      const riskLevel =
-        concordance.conflictCount > 0
-          ? 'high'
-          : concordance.warningCount > 0
-            ? 'medium'
-            : 'low';
+      const { qualificationStatus, riskLevel, autoNote } = resolveQualification({
+        qualConflict,
+        starredResponse: scoreResult.starredResponse as
+          | { allMet?: boolean; unmet?: string[] }
+          | null
+          | undefined,
+        concordanceConflictCount: concordance.conflictCount,
+        concordanceWarningCount: concordance.warningCount,
+      });
 
       // 6. 竞争分析：正向依据 + 需关注事项（LLM）
       let strengths: any[] = [];
@@ -292,7 +295,9 @@ export class BidderProcessor extends WorkerHost {
           categoryTotals: scoreResult.categoryTotals as any,
           starredResponse: scoreResult.starredResponse as any,
           totalScore: scoreResult.totalScore,
-          overallComment: neutralizeRecommendationText(competitiveComment),
+          overallComment: autoNote
+            ? `${neutralizeRecommendationText(competitiveComment)}\n${autoNote}`
+            : neutralizeRecommendationText(competitiveComment),
           qualificationStatus,
           riskLevel,
           riskAnalysis: {
