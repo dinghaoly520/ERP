@@ -2848,7 +2848,8 @@ a.group:hover::after {
 }
 @media (prefers-reduced-motion: reduce) {
   .flow-header-bg::before,
-  .flow-header-bg::after { animation: none; }
+  .flow-header-bg::after,
+  .footer-glass::before { animation: none; }
 }
 
 /* ── 页脚：玻璃雾化 — 与顶栏同语汇，首尾通透呼应 ──
