@@ -2855,16 +2855,21 @@ a.group:hover::after {
    浅青玻璃面 + 顶部青色流光细线（复用 header-edge-flow）；
    链接墨色 → hover 青色 + 下划线渐显。替代原深海军蓝实心板。 */
 .footer-glass {
-  background: oklch(0.965 0.02 195 / 0.88);
+  position: relative;                              /* anchor for ::before aurora band */
+  background: oklch(0.965 0.015 250 / 0.88);      /* was 0.02 195 — cyan→ice blue */
   backdrop-filter: blur(18px) saturate(150%);
   -webkit-backdrop-filter: blur(18px) saturate(150%);
-  border-top: 1px solid oklch(0.87 0.03 200 / 0.38); /* 微弱上边线，与流光线一同界定页脚起止 */
+  border-top: 1px solid oklch(0.88 0.025 248 / 0.38); /* was 0.87 0.03 200 */
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7);       /* 顶缘内高光 — 新拟态灵魂线 */
   isolation: isolate;
 }
+.footer-glass > * {
+  position: relative;
+  z-index: 1;   /* ensure links/copyright bar render above ::before aurora */
+}
 .footer-edge-line {
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, #5ecfd6 20%, #3db8c4 40%, #a8f0f0 50%, #3db8c4 60%, #5ecfd6 80%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, #9ec5f0 20%, #6090d8 40%, #88b8f0 50%, #6090d8 60%, #9ec5f0 80%, transparent 100%);
   background-size: 200% 100%;
   animation: header-edge-flow 4s ease-in-out infinite;
 }
