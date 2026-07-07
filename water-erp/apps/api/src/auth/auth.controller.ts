@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Res, Req, UseGuards, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Res, Req, UseGuards, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -7,6 +7,8 @@ import { RegisterDto } from './dto/register.dto';
 import { AuthGuard } from './auth.guard';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from './current-user.decorator';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { PrismaService } from '../prisma/prisma.service';
 import { cookieNameForPortal, portalForRole, portalFromRequest, LEGACY_COOKIE } from './portal-cookie';
 
 const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax' as const, maxAge: 7 * 24 * 3600 * 1000 };
@@ -14,7 +16,10 @@ const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax' as const, maxAge: 7 * 24 *
 @ApiTags('认证')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Post('register')
   @Public()
@@ -57,5 +62,39 @@ export class AuthController {
   @ApiOperation({ summary: '获取当前用户信息' })
   me(@CurrentUser('sub') userId: string) {
     return this.authService.me(userId);
+  }
+
+  @Patch('me')
+  @ApiOperation({ summary: '更新当前用户个人资料' })
+  async updateProfile(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    const updated = await this.authService.updateProfile(userId, dto);
+
+    // Write audit log
+    const changedFields = Object.keys(dto).filter(
+      (k) => dto[k as keyof UpdateProfileDto] !== undefined,
+    );
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'PROFILE_UPDATE',
+        resourceType: 'user',
+        resourceId: userId,
+        details: { changedFields },
+      },
+    });
+
+    return updated;
+  }
+
+  @Get('departments')
+  @ApiOperation({ summary: '获取部门列表（下拉选择用）' })
+  async listDepartments() {
+    return this.prisma.department.findMany({
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    });
   }
 }
