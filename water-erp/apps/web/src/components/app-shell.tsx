@@ -54,7 +54,7 @@ const navGroups: NavGroup[] = [
     icon: UserRound,
     items: [
       { key: "work-arrangements", label: "工作台", href: "/work-arrangements", icon: UserRound, meta: "工作安排" },
-      { key: "profile-edit", label: "资料修改", href: "/profile", icon: Settings, meta: "资料/密码修改" },
+      { key: "personal-center", label: "个人中心", href: "/profile", icon: UserRound, meta: "管理个人资料与偏好" },
       { key: "assistant", label: "水叮当助手", href: "/assistant", icon: Sparkles, meta: "AI智能助手" },
     ],
   },

@@ -8130,6 +8130,24 @@ textarea.neu-input {
     inset -2px -2px 5px oklch(1 0 0 / 0.7);
 }
 
+/* ── 分区标题 — .neu-section-heading ── */
+.neu-section-heading {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--foreground);
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid oklch(0.7 0.02 248 / 0.2);
+  margin-bottom: 0.25rem;
+}
+
+/* ── 内容区块行 — .neu-content-block ── */
+.neu-content-block {
+  border-left: 3px solid var(--accent-soft);
+  background: linear-gradient(90deg, oklch(0.92 0.02 248 / 0.25) 0%, transparent 100%);
+}
+
 /* ══════════════════════════════════════════════════════════════════
    workbench-table — 全局表格基类
    ══════════════════════════════════════════════════════════════════ */

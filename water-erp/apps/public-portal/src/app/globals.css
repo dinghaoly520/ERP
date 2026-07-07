@@ -2807,7 +2807,7 @@ a.group:hover::after {
    无需 overflow:hidden，不裁切子元素（搜索框/按钮）阴影。
    静止时 <FluidHeader /> 画布透明，色斑显出流动；鼠标交互时 WebGL 涟漪叠于其上。 */
 .flow-header-bg {
-  background-color: #e2f5f6;
+  background-color: #dfe9f7;  /* ice-blue aurora base — was #e2f5f6 (cyan) */
   isolation: isolate;
 }
 .flow-header-bg::before,
@@ -2821,49 +2821,76 @@ a.group:hover::after {
 }
 .flow-header-bg::before {
   background-image:
-    radial-gradient(circle, rgba(94, 207, 214, 0.22) 0%, transparent 60%),
-    radial-gradient(circle, rgba(13, 148, 136, 0.15) 0%, transparent 62%);
-  background-size: 55% 140%, 50% 130%;
-  background-position: 15% 35%, 80% 20%;
-  animation: flow-header-drift-a 18s ease-in-out infinite;
+    radial-gradient(ellipse, rgba(129,174,230,0.20) 0%, transparent 55%),
+    radial-gradient(ellipse, rgba(86,137,210,0.14) 0%, transparent 55%),
+    radial-gradient(ellipse, rgba(154,194,240,0.12) 0%, transparent 55%);
+  background-size: 80% 45%, 70% 38%, 60% 30%;
+  background-position: 5% 30%, 85% 55%, 30% 25%;
+  animation: aurora-drift-a 18s ease-in-out infinite;
 }
 .flow-header-bg::after {
   background-image:
-    radial-gradient(circle, rgba(125, 196, 224, 0.18) 0%, transparent 58%),
-    radial-gradient(circle, rgba(181, 232, 224, 0.20) 0%, transparent 60%);
-  background-size: 60% 150%, 48% 120%;
-  background-position: 50% 72%, 22% 30%;
-  animation: flow-header-drift-b 22s ease-in-out infinite;
+    radial-gradient(ellipse, rgba(180,208,245,0.16) 0%, transparent 50%),
+    radial-gradient(ellipse, rgba(170,180,230,0.10) 0%, transparent 50%);
+  background-size: 85% 30%, 65% 28%;
+  background-position: 80% 45%, 15% 30%;
+  animation: aurora-drift-b 24s ease-in-out infinite;
 }
-@keyframes flow-header-drift-a {
-  0%   { background-position: 15% 35%, 80% 20%; }
-  50%  { background-position: 68% 62%, 28% 78%; }
-  100% { background-position: 15% 35%, 80% 20%; }
+@keyframes aurora-drift-a {
+  0%   { background-position: 5% 30%, 85% 55%, 30% 25%; }
+  50%  { background-position: 75% 40%, 20% 65%, 70% 35%; }
+  100% { background-position: 5% 30%, 85% 55%, 30% 25%; }
 }
-@keyframes flow-header-drift-b {
-  0%   { background-position: 50% 72%, 22% 30%; }
-  50%  { background-position: 20% 32%, 75% 60%; }
-  100% { background-position: 50% 72%, 22% 30%; }
+@keyframes aurora-drift-b {
+  0%   { background-position: 80% 45%, 15% 30%; }
+  50%  { background-position: 15% 55%, 70% 40%; }
+  100% { background-position: 80% 45%, 15% 30%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .flow-header-bg::before,
-  .flow-header-bg::after { animation: none; }
+  .flow-header-bg::after,
+  .footer-glass::before { animation: none; }
 }
 
 /* ── 页脚：玻璃雾化 — 与顶栏同语汇，首尾通透呼应 ──
    浅青玻璃面 + 顶部青色流光细线（复用 header-edge-flow）；
    链接墨色 → hover 青色 + 下划线渐显。替代原深海军蓝实心板。 */
 .footer-glass {
-  background: oklch(0.965 0.02 195 / 0.88);
+  position: relative;                              /* anchor for ::before aurora band */
+  background: oklch(0.965 0.015 250 / 0.88);      /* was 0.02 195 — cyan→ice blue */
   backdrop-filter: blur(18px) saturate(150%);
   -webkit-backdrop-filter: blur(18px) saturate(150%);
-  border-top: 1px solid oklch(0.87 0.03 200 / 0.38); /* 微弱上边线，与流光线一同界定页脚起止 */
+  border-top: 1px solid oklch(0.88 0.025 248 / 0.38); /* was 0.87 0.03 200 */
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7);       /* 顶缘内高光 — 新拟态灵魂线 */
   isolation: isolate;
 }
+.footer-glass > * {
+  position: relative;
+  z-index: 1;   /* ensure links/copyright bar render above ::before aurora */
+}
+/* ── 页脚极光倒影 — Header 极光带的镜面，方向镜像 + 速度减半 + 不透明度降低 ── */
+.footer-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(ellipse, rgba(129,174,230,0.10) 0%, transparent 50%),
+    radial-gradient(ellipse, rgba(154,194,240,0.08) 0%, transparent 48%);
+  background-size: 75% 40%, 65% 35%;
+  background-position: 80% 40%, 20% 55%;
+  animation: aurora-mirror 28s ease-in-out infinite;
+}
+@keyframes aurora-mirror {
+  0%   { background-position: 80% 40%, 20% 55%; }
+  50%  { background-position: 20% 50%, 75% 38%; }
+  100% { background-position: 80% 40%, 20% 55%; }
+}
 .footer-edge-line {
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, #5ecfd6 20%, #3db8c4 40%, #a8f0f0 50%, #3db8c4 60%, #5ecfd6 80%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, #9ec5f0 20%, #6090d8 40%, #88b8f0 50%, #6090d8 60%, #9ec5f0 80%, transparent 100%);
   background-size: 200% 100%;
   animation: header-edge-flow 4s ease-in-out infinite;
 }
