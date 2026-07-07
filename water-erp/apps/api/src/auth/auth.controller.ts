@@ -1,13 +1,14 @@
-import { Controller, Post, Get, Patch, Body, Res, Req, UseGuards, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Res, Req, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { AuthGuard } from './auth.guard';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from './current-user.decorator';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { PrismaService } from '../prisma/prisma.service';
+import { cookieNameForPortal, portalForRole, portalFromRequest, LEGACY_COOKIE } from './portal-cookie';
 
 /**
  * 从请求中提取真实客户端 IP。
@@ -42,8 +43,6 @@ function normalizeIp(ip: string): string {
   if (ip === '::1' || ip === '0:0:0:0:0:0:0:1') return '127.0.0.1';
   return ip;
 }
-import { PrismaService } from '../prisma/prisma.service';
-import { cookieNameForPortal, portalForRole, portalFromRequest, LEGACY_COOKIE } from './portal-cookie';
 
 const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax' as const, maxAge: 7 * 24 * 3600 * 1000 };
 
