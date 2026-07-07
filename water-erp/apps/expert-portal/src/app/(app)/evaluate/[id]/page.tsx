@@ -512,7 +512,7 @@ export default function ExpertEvaluatePage() {
     const body = dsp.note?.trim()
       ? dsp.note
       : dsp.content?.trim() ? dsp.content : '(原文缺失)';
-    return `【★条款 ${dsp.requirementId}：${clause}】${body}`;
+    return `【★条款：${clause}】${body}`;
   };
 
   const onToggleNote = (
