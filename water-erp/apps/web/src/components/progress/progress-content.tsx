@@ -65,52 +65,20 @@ type StageMeta = {
 
 // ─── Stage colors in oklch() ────────────────────────────────────────────
 const STAGE_META: Record<ProjectWorkflowStageKey, StageMeta> = {
-  PROCUREMENT_DEMAND: {
-    label: "采购需求",
-    color: "oklch(0.64 0.14 262)",
-    softColor: "oklch(0.64 0.14 262 / 0.12)",
-  },
-  INITIATION: {
-    label: "采购立项",
-    color: "oklch(0.62 0.15 258)",
-    softColor: "oklch(0.62 0.15 258 / 0.12)",
-  },
-  TENDER_DOCUMENT: {
-    label: "采购文件",
-    color: "oklch(0.68 0.11 162)",
-    softColor: "oklch(0.68 0.11 162 / 0.12)",
-  },
-  PUBLIC_ANNOUNCEMENT: {
-    label: "采购公示",
-    color: "oklch(0.66 0.12 168)",
-    softColor: "oklch(0.66 0.12 168 / 0.12)",
-  },
-  EXPERT_SELECTION: {
-    label: "专家抽取",
-    color: "oklch(0.78 0.12 84)",
-    softColor: "oklch(0.78 0.12 84 / 0.14)",
-  },
-  BID_EVALUATION: {
-    label: "评标过程",
-    color: "oklch(0.61 0.13 272)",
-    softColor: "oklch(0.61 0.13 272 / 0.12)",
-  },
-  AWARD_DECISION: {
-    label: "定标",
-    color: "oklch(0.71 0.10 166)",
-    softColor: "oklch(0.71 0.10 166 / 0.12)",
-  },
-  CONTRACT: {
-    label: "合同",
-    color: "oklch(0.67 0.04 252)",
-    softColor: "oklch(0.67 0.04 252 / 0.12)",
-  },
+  PROCUREMENT_DEMAND:  { label: "采购需求", color: "var(--stage-demand)",     softColor: "var(--stage-demand-soft)" },
+  INITIATION:          { label: "采购立项", color: "var(--stage-initiation)",  softColor: "var(--stage-initiation-soft)" },
+  TENDER_DOCUMENT:     { label: "采购文件", color: "var(--stage-tender)",      softColor: "var(--stage-tender-soft)" },
+  PUBLIC_ANNOUNCEMENT: { label: "采购公示", color: "var(--stage-announce)",    softColor: "var(--stage-announce-soft)" },
+  EXPERT_SELECTION:    { label: "专家抽取", color: "var(--stage-expert)",      softColor: "var(--stage-expert-soft)" },
+  BID_EVALUATION:      { label: "评标过程", color: "var(--stage-evaluation)",  softColor: "var(--stage-evaluation-soft)" },
+  AWARD_DECISION:      { label: "定标",     color: "var(--stage-award)",       softColor: "var(--stage-award-soft)" },
+  CONTRACT:            { label: "合同",     color: "var(--stage-contract)",    softColor: "var(--stage-contract-soft)" },
 };
 
 const DEFAULT_STAGE_META: StageMeta = {
   label: "未设置阶段",
-  color: "oklch(0.67 0.04 252)",
-  softColor: "oklch(0.67 0.04 252 / 0.12)",
+  color: "var(--stage-default)",
+  softColor: "var(--stage-default-soft)",
 };
 
 function getStageMeta(stageKey?: string | null): StageMeta {
@@ -118,16 +86,34 @@ function getStageMeta(stageKey?: string | null): StageMeta {
   return STAGE_META[stageKey as ProjectWorkflowStageKey] ?? { ...DEFAULT_STAGE_META, label: stageKey };
 }
 
-// ─── KPI color map (referent → .kpi-card--* modifier) ───────────────────
-const KPI_COLOR: Record<string, string> = {
-  blue:   "oklch(0.64 0.14 262)",
-  green:  "oklch(0.68 0.11 162)",
-  gold:   "oklch(0.71 0.12 78)",
-  coral:  "oklch(0.67 0.14 32)",
-  red:    "oklch(0.56 0.17 28)",
-  purple: "oklch(0.61 0.13 272)",
-  steel:  "oklch(0.57 0.04 250)",
-};
+// ─── KPI Card (matches dashboard KpiCard pattern) ─────────────────────────
+function KpiCard({ label, value, sub, signal, index, reducedMotion }: {
+  label: string; value: ReactNode; sub?: string;
+  signal?: "success" | "warning" | "danger";
+  index: number; reducedMotion: boolean;
+}) {
+  const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
+  const sc = signal === "success" ? "bg-[var(--success)]" : signal === "warning" ? "bg-[var(--warning)]" : "bg-[var(--danger)]";
+  const st = signal === "success" ? "text-[var(--success)]" : signal === "warning" ? "text-[var(--warning)]" : "text-[var(--danger)]";
+  const sl = signal === "success" ? "达标" : signal === "warning" ? "关注" : "告警";
+  return (
+    <motion.div {...{ initial, animate, transition }}>
+      <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
+          {signal && (
+            <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] ${st}`}>
+              <span className={`h-1 w-1 rounded-full shrink-0 ${sc}`} />{sl}
+            </span>
+          )}
+        </div>
+
+        <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{value}</span>
+        <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub || " "}</span>
+      </div>
+    </motion.div>
+  );
+}
 
 function fadeIn(index: number, reducedMotion: boolean, baseDelay = 0.04) {
   if (reducedMotion) return { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } };
@@ -155,14 +141,14 @@ function getRiskLevel(daysSinceUpdate: number): RiskLevel {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const PIE_PALETTE = [
-  "oklch(0.64 0.14 262)",
-  "oklch(0.68 0.11 162)",
-  "oklch(0.78 0.12 84)",
-  "oklch(0.61 0.13 272)",
-  "oklch(0.67 0.14 32)",
-  "oklch(0.67 0.04 252)",
-  "oklch(0.71 0.10 166)",
-  "oklch(0.62 0.14 346)",
+  "var(--accent)",
+  "var(--success)",
+  "var(--gold)",
+  "var(--accent-strong)",
+  "var(--danger)",
+  "var(--muted-foreground)",
+  "color-mix(in oklch, var(--success) 60%, var(--accent) 40%)",
+  "color-mix(in oklch, var(--accent) 50%, var(--danger) 50%)",
 ];
 
 function PieChart({ items }: { items: Array<{ name: string; count: number }> }) {
@@ -247,10 +233,10 @@ function ProjectCard({ project, index, reducedMotion }: { project: DerivedProjec
   const stageMap = new Map(project.stages.map((s) => [s.stageKey, s]));
 
   const riskColor = project.riskLevel === "danger"
-    ? "oklch(0.67 0.14 32)"
+    ? "var(--danger)"
     : project.riskLevel === "warning"
-      ? "oklch(0.78 0.12 84)"
-      : "oklch(0.68 0.11 162)";
+      ? "var(--warning)"
+      : "var(--success)";
 
   return (
     <motion.div {...{ initial, animate, transition }}>
@@ -259,7 +245,7 @@ function ProjectCard({ project, index, reducedMotion }: { project: DerivedProjec
         <div className="flex items-start justify-between gap-2.5">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
-              <h3 className="text-[14px] font-semibold tracking-[-0.03em] text-[color:var(--foreground)] transition-colors duration-200 group-hover:text-[oklch(0.5_0.16_258)]">
+              <h3 className="text-[14px] font-semibold tracking-[-0.03em] text-[color:var(--foreground)] transition-colors duration-200 group-hover:text-[var(--accent)]">
                 {project.title}
               </h3>
               <span
@@ -277,11 +263,11 @@ function ProjectCard({ project, index, reducedMotion }: { project: DerivedProjec
             </div>
             {/* Metadata */}
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
-              <span style={{ color: "oklch(0.64 0.14 262)" }}>所属项目：{project.projectName}</span>
-              <span style={{ color: "oklch(0.68 0.11 162)" }}>申请人：{project.createdBy?.displayName || project.requesterName || "未登记"}</span>
-              <span style={{ color: "oklch(0.78 0.12 84 / 0.9)" }}>归属部门：{project.requesterDepartment || "未设置"}</span>
-              <span style={{ color: "oklch(0.61 0.13 272)" }}>采购方式：{project.procurementMethod || "未设置"}</span>
-              <span className="font-medium" style={{ color: "oklch(0.57 0.04 250)" }}>项目预算：{formatWan(project.budgetAmount)}</span>
+              <span style={{ color: "var(--accent)" }}>所属项目：{project.projectName}</span>
+              <span style={{ color: "var(--success)" }}>申请人：{project.createdBy?.displayName || project.requesterName || "未登记"}</span>
+              <span style={{ color: "var(--gold)" }}>归属部门：{project.requesterDepartment || "未设置"}</span>
+              <span style={{ color: "var(--accent-strong)" }}>采购方式：{project.procurementMethod || "未设置"}</span>
+              <span className="font-medium" style={{ color: "var(--muted-foreground)" }}>项目预算：{formatWan(project.budgetAmount)}</span>
             </div>
           </div>
           <div className="shrink-0 text-right">
@@ -289,7 +275,7 @@ function ProjectCard({ project, index, reducedMotion }: { project: DerivedProjec
               <Clock3 size={12} />
               <span>{project.daysSinceUpdate === 0 ? "今日更新" : `${project.daysSinceUpdate} 天未更新`}</span>
             </div>
-            <div className="mt-1.5 flex items-center justify-end gap-1 text-xs font-medium" style={{ color: "oklch(0.5 0.16 258)" }}>
+            <div className="mt-1.5 flex items-center justify-end gap-1 text-xs font-medium text-[var(--accent)]">
               <span>查看详情</span>
               <ArrowUpRight size={13} />
             </div>
@@ -323,8 +309,8 @@ function ProjectCard({ project, index, reducedMotion }: { project: DerivedProjec
                         <div
                           className="h-[6px] w-[6px] rounded-full"
                           style={{
-                            backgroundColor: isCur ? "oklch(0.5 0.16 258)" : "transparent",
-                            border: isCur ? "none" : "1.5px solid oklch(0.55 0.03 258 / 0.4)",
+                            backgroundColor: isCur ? "var(--accent)" : "transparent",
+                            border: isCur ? "none" : "1.5px solid color-mix(in oklch, var(--muted-foreground) 40%, transparent)",
                           }}
                         />
                       )}
@@ -560,24 +546,46 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
   // ════════════════════════════════════════════════════════════
   return (
     <div className="space-y-4 pb-4">
-      {/* ── KPI Row ── */}
-      <motion.div {...fadeIn(0, reducedMotion, 0.03)} className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
-        {([
-          { label: "进行中项目", value: stats.totalActive, color: "blue" as const },
-          { label: "平均完成度", value: formatPercent(avgCompletion), color: "green" as const },
-          { label: "预算总额", value: formatWan(totalBudget), color: "gold" as const },
-          { label: "待推进", value: attnCount, color: "coral" as const },
-          { label: "高风险项目", value: dangerCount, color: "red" as const },
-          { label: "平均停滞", value: <>{avgStalled}<span className="text-[0.7rem] font-medium ml-0.5">天</span></>, color: "purple" as const },
-          { label: "集中阶段", value: dominantStage?.label ?? "暂无", color: "steel" as const },
-        ]).map((kpi, i) => (
-          <motion.div key={kpi.label} {...fadeIn(i + 1, reducedMotion, 0.03)}>
-            <div className={`kpi-card kpi-card--${kpi.color} flex min-h-[72px] flex-col justify-between p-3`}>
-              <span className="text-xs font-medium" style={{ color: KPI_COLOR[kpi.color] }}>{kpi.label}</span>
-              <span className="text-[1.4rem] font-bold tracking-[-0.03em] leading-none" style={{ color: KPI_COLOR[kpi.color] }}>{kpi.value}</span>
+      {/* ── 标题栏 + KPI — page-hero neumorphic 玻璃卡片 ── */}
+      <motion.div {...fadeIn(0, reducedMotion, 0.04)} className="page-hero">
+        {/* 标题行 */}
+        <div className="page-hero__row">
+          <div className="page-hero__left">
+            <div className="page-hero__icon">
+              <BarChart3 size={20} strokeWidth={1.8} />
             </div>
-          </motion.div>
-        ))}
+            <div className="min-w-0">
+              <div className="page-hero__title">采购进度总览</div>
+              <div className="page-hero__sub">项目阶段推进与健康监测</div>
+            </div>
+          </div>
+
+          <div className="page-hero__right">
+            <span className="page-hero__stat page-hero__stat--info">
+              共 {stats.totalActive} 项
+            </span>
+            {attnCount > 0 && (
+              <span className="page-hero__stat page-hero__stat--warn">
+                <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--danger)]" />
+                待推进 {attnCount}
+              </span>
+            )}
+            <button onClick={() => void loadData()} className="neu-btn-xs">
+              <RefreshCw size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* KPI 行 */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
+          <KpiCard label="进行中项目" value={stats.totalActive} signal="success" index={1} reducedMotion={reducedMotion} />
+          <KpiCard label="平均完成度" value={formatPercent(avgCompletion)} signal={avgCompletion >= 60 ? "success" : avgCompletion >= 40 ? "warning" : "danger"} sub="整体平均推进率" index={2} reducedMotion={reducedMotion} />
+          <KpiCard label="预算总额" value={formatWan(totalBudget)} sub={`${derivedProjects.length}个项目预算合计`} index={3} reducedMotion={reducedMotion} />
+          <KpiCard label="待推进" value={attnCount} signal={attnCount > 0 ? "warning" : "success"} sub="待跟进推进" index={4} reducedMotion={reducedMotion} />
+          <KpiCard label="高风险项目" value={dangerCount} signal={dangerCount > 0 ? "danger" : "success"} sub="停滞超14天" index={5} reducedMotion={reducedMotion} />
+          <KpiCard label="平均停滞" value={avgStalled} sub="天未更新" signal={avgStalled > 7 ? "danger" : avgStalled > 3 ? "warning" : undefined} index={6} reducedMotion={reducedMotion} />
+          <KpiCard label="集中阶段" value={dominantStage?.label ?? "暂无"} sub="项目最密集阶段" index={7} reducedMotion={reducedMotion} />
+        </div>
       </motion.div>
 
       {/* ── Two-column: execution + insights ── */}

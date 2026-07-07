@@ -18,6 +18,25 @@
   --danger: oklch(0.66 0.175 27);
   --gold: oklch(0.8 0.114 84);
   --gold-soft: oklch(0.93 0.03 90);
+  /* 采购进度阶段色 — 派生自上游 :root 变量，单一溯源 */
+  --stage-demand: var(--accent);
+  --stage-demand-soft: var(--accent-soft);
+  --stage-initiation: var(--accent-strong);
+  --stage-initiation-soft: var(--accent-soft);
+  --stage-tender: var(--success);
+  --stage-tender-soft: color-mix(in oklch, var(--success) 12%, transparent);
+  --stage-announce: var(--success);
+  --stage-announce-soft: color-mix(in oklch, var(--success) 8%, transparent);
+  --stage-expert: var(--gold);
+  --stage-expert-soft: var(--gold-soft);
+  --stage-evaluation: var(--accent-strong);
+  --stage-evaluation-soft: var(--accent-soft);
+  --stage-award: var(--success);
+  --stage-award-soft: color-mix(in oklch, var(--success) 10%, transparent);
+  --stage-contract: var(--muted-foreground);
+  --stage-contract-soft: color-mix(in oklch, var(--muted-foreground) 12%, transparent);
+  --stage-default: var(--muted-foreground);
+  --stage-default-soft: color-mix(in oklch, var(--muted-foreground) 12%, transparent);
   --shadow-soft: 0 16px 34px rgba(50, 83, 141, 0.08);
   --shadow-panel: 0 24px 64px rgba(34, 62, 110, 0.12);
   --shadow-focus: 0 0 0 4px rgba(136, 172, 255, 0.12);
@@ -9078,18 +9097,102 @@ select.workbench-input {
     4px 4px 8px oklch(0.55 0.03 258 / 0.15),
     -2.5px -2.5px 7px oklch(1 0 0 / 0.95);
 }
-/* 彩色边框 + 微色偏背景变体：叠加在 .kpi-card 之上 */
 /* ══════════════════════════════════════════════════════════════════
-   KPI 卡片色变体 — .kpi-card--blue / green / gold 等
-   在基础 .kpi-card 凸起上叠加彩色边框+微色偏背景
+   页面标题栏 — 玻璃凸起卡片 + 右侧径向光芒
+   标题行 + KPI 行统一容器
    ══════════════════════════════════════════════════════════════════ */
-.kpi-card--blue   { border: 1px solid oklch(0.64 0.14 262 / 0.18); background: linear-gradient(160deg, oklch(0.64 0.14 262 / 0.06), oklch(0.985 0.005 258)); }
-.kpi-card--green  { border: 1px solid oklch(0.68 0.11 162 / 0.18); background: linear-gradient(160deg, oklch(0.68 0.11 162 / 0.06), oklch(0.985 0.005 258)); }
-.kpi-card--gold   { border: 1px solid oklch(0.78 0.12 84 / 0.22);  background: linear-gradient(160deg, oklch(0.78 0.12 84 / 0.08),  oklch(0.985 0.005 258)); }
-.kpi-card--coral  { border: 1px solid oklch(0.67 0.14 32 / 0.18); background: linear-gradient(160deg, oklch(0.67 0.14 32 / 0.06), oklch(0.985 0.005 258)); }
-.kpi-card--red    { border: 1px solid oklch(0.56 0.17 28 / 0.18); background: linear-gradient(160deg, oklch(0.56 0.17 28 / 0.05), oklch(0.985 0.005 258)); }
-.kpi-card--purple { border: 1px solid oklch(0.61 0.13 272 / 0.18); background: linear-gradient(160deg, oklch(0.61 0.13 272 / 0.06), oklch(0.985 0.005 258)); }
-.kpi-card--steel  { border: 1px solid oklch(0.67 0.04 252 / 0.22); background: linear-gradient(160deg, oklch(0.67 0.04 252 / 0.06), oklch(0.985 0.005 258)); }
+.page-hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1.5px solid oklch(0.55 0.08 258 / 0.3);
+  background:
+    linear-gradient(105deg, oklch(1 0 0 / 0.72) 0%, oklch(0.985 0.005 258 / 0.55) 70%);
+  padding: 1.25rem 1.25rem;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    2px 2px 8px oklch(0.55 0.03 258 / 0.1),
+    -2px -2px 8px oklch(1 0 0 / 0.85);
+}
+.page-hero::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  right: -12%;
+  width: 48%;
+  height: 180%;
+  background:
+    radial-gradient(ellipse at 70% 35%, color-mix(in oklch, var(--accent) 8%, transparent) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 60%, color-mix(in oklch, var(--success) 6%, transparent) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* ── 标题行 ── */
+.page-hero__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* ── 左侧：图标井 + 标题体 ── */
+.page-hero__left {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+/* 图标井 — 内凹凹陷面，物理质感 */
+.page-hero__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: oklch(0.985 0.005 258);
+  color: var(--accent);
+  box-shadow:
+    inset 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.14),
+    inset -2px -2px 5px oklch(1 0 0 / 0.75);
+}
+
+/* 标题体 — display face + 瑞士精密字距 */
+.page-hero__title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  color: var(--foreground);
+}
+.page-hero__sub {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 450;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+  color: var(--muted-foreground);
+}
+
+/* ── 右侧：统计标签 + 操作 ── */
+.page-hero__right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.page-hero__stat {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.688rem; font-weight: 600; white-space: nowrap;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid oklch(0.6 0.04 258 / 0.22);
+  background: oklch(0.99 0.004 258);
+  line-height: 1.4;
+}
+.page-hero__stat--warn  { color: var(--danger); border-color: color-mix(in oklch, var(--danger) 28%, transparent); background: color-mix(in oklch, var(--danger) 6%, transparent); }
+.page-hero__stat--info  { color: var(--accent); border-color: color-mix(in oklch, var(--accent) 25%, transparent); background: color-mix(in oklch, var(--accent) 6%, transparent); }
 
 /* ══════════════════════════════════════════════════════════════════
    阶段流 Pill — 项目卡内阶段时间线
@@ -9105,14 +9208,14 @@ select.workbench-input {
   transition: border-color 0.25s ease, background 0.25s ease;
 }
 .stage-pill--completed {
-  border-color: oklch(0.68 0.11 162 / 0.35);
-  background: oklch(0.68 0.11 162 / 0.1);
-  color: oklch(0.68 0.11 162);
+  border-color: color-mix(in oklch, var(--success) 35%, transparent);
+  background: color-mix(in oklch, var(--success) 10%, transparent);
+  color: var(--success);
 }
 .stage-pill--current {
-  border-color: oklch(0.55 0.14 258 / 0.35);
-  background: oklch(0.55 0.14 258 / 0.1);
-  color: oklch(0.5 0.16 258);
+  border-color: color-mix(in oklch, var(--accent) 35%, transparent);
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
+  color: var(--accent);
 }
 .stage-pill--pending {
   border-color: oklch(0.6 0.04 258 / 0.25);
@@ -9125,7 +9228,7 @@ select.workbench-input {
 }
 .stage-pill__indicator-bar {
   height: 100%; width: 100%;
-  background: oklch(0.5 0.16 258 / 0.7);
+  background: var(--accent);
   animation: pillPulse 2s ease-in-out infinite;
 }
 @keyframes pillPulse {
@@ -9135,9 +9238,9 @@ select.workbench-input {
 
 .stage-connector { display: flex; align-items: center; padding: 0 1px; flex-shrink: 1; min-width: 6px; }
 .stage-connector__line { height: 1px; width: 100%; }
-.stage-connector__line--done   { background: oklch(0.68 0.11 162 / 0.3); }
-.stage-connector__line--active { background: oklch(0.55 0.03 258 / 0.18); }
-.stage-connector__line--idle   { background: oklch(0.55 0.03 258 / 0.14); }
+.stage-connector__line--done   { background: color-mix(in oklch, var(--success) 30%, transparent); }
+.stage-connector__line--active { background: color-mix(in oklch, var(--muted-foreground) 18%, transparent); }
+.stage-connector__line--idle   { background: color-mix(in oklch, var(--muted-foreground) 14%, transparent); }
 
 /* ══════════════════════════════════════════════════════════════════
    洞察行 — AI 洞察列表项，hover 浅底

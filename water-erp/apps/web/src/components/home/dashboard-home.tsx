@@ -458,28 +458,41 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
 
   return <>
     <motion.div animate={reducedMotion?undefined:{opacity:1}} transition={{duration:0.28,ease:easeOutQuint}}>
-      <motion.div {...{initial:ci,animate:ca,transition:ct}} className="mb-3">
-        <div className="flex items-center justify-between gap-3 mb-3 pb-2">
-          <div className="flex items-center gap-3"><BarChart3 size={20} className="text-[var(--accent)]"/><h1 className="text-lg font-black tracking-[-0.02em] text-[var(--foreground)]">采购中心仪表盘</h1></div>
-          <div className="relative">
-            {showDP && <div className="fixed inset-0 z-[999]" onClick={()=>setShowDP(false)}/>}
-            <button onClick={()=>setShowDP(!showDP)} className="neu-btn-xs flex items-center gap-1.5"><CalendarRange size={10}/> {data.range.startDate??"起始"} ~ {data.range.endDate??"至今"}</button>
-            {showDP && <div className="absolute right-0 top-full mt-2 z-[1000] w-[288px] rounded-[18px] bg-[var(--background)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.15)] ring-1 ring-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
-              <div className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-2">快捷选择</div>
-              <div className="grid grid-cols-3 gap-1.5 mb-3">
-                {(["tm","tq","fh","fy","lm","lq"] as const).map(k=><button key={k} onClick={()=>dp[k]()} className="neu-btn-xs !px-2 !py-1 !text-[10px]">{{tm:"本月",tq:"本季度",fh:"上半年",fy:"全年",lm:"上月",lq:"上季度"}[k]}</button>)}
-              </div>
-              <hr className="wb-section-rule"/>
-              <div className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-2 mt-3">自定义范围</div>
-              <div className="grid grid-cols-2 gap-2 mb-3"><div><label className="text-xs text-[var(--muted-foreground)] mb-1 block">起始</label><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="neu-input !h-[32px] !text-[10px] !px-2"/></div><div><label className="text-xs text-[var(--muted-foreground)] mb-1 block">结束</label><input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className="neu-input !h-[32px] !text-[10px] !px-2"/></div></div>
-              <div className="flex items-center justify-between"><button onClick={hrdr} className="neu-btn-soft !py-1 !px-3 !text-[10px]">重置</button><button onClick={hadr} className="neu-btn-primary !h-[32px] !text-[10px] !px-3">应用</button></div>
-            </div>}
+      {/* ── page-hero 标题卡（对标采购进度设计）── */}
+      <motion.div {...{initial:ci,animate:ca,transition:ct}} className="page-hero mb-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="page-hero__left">
+            <div className="page-hero__icon"><BarChart3 size={20} strokeWidth={1.8}/></div>
+            <div className="min-w-0">
+              <div className="page-hero__title">采购中心仪表盘</div>
+              <div className="page-hero__sub">采购运营全局概览与数据驾驶舱</div>
+            </div>
+          </div>
+          <div className="page-hero__right">
+            <span className="page-hero__stat page-hero__stat--info">共 {data.summary.totalCount} 项</span>
+            {data.summary.abnormalCount > 0 && (
+              <span className="page-hero__stat page-hero__stat--warn">
+                <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[oklch(0.67_0.14_32)]" />
+                异常 {data.summary.abnormalCount}
+              </span>
+            )}
+            <div className="relative">
+              {showDP && <div className="fixed inset-0 z-[999]" onClick={()=>setShowDP(false)}/>}
+              <button onClick={()=>setShowDP(!showDP)} className="neu-btn-xs flex items-center gap-1.5"><CalendarRange size={12}/> {data.range.startDate??"起始"} ~ {data.range.endDate??"至今"}</button>
+              {showDP && <div className="absolute right-0 top-full mt-2 z-[1000] w-[288px] rounded-[18px] bg-[var(--background)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.15)] ring-1 ring-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
+                <div className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-2">快捷选择</div>
+                <div className="grid grid-cols-3 gap-1.5 mb-3">
+                  {(["tm","tq","fh","fy","lm","lq"] as const).map(k=><button key={k} onClick={()=>dp[k]()} className="neu-btn-xs !px-2 !py-1 !text-[10px]">{{tm:"本月",tq:"本季度",fh:"上半年",fy:"全年",lm:"上月",lq:"上季度"}[k]}</button>)}
+                </div>
+                <hr className="wb-section-rule"/>
+                <div className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-2 mt-3">自定义范围</div>
+                <div className="grid grid-cols-2 gap-2 mb-3"><div><label className="text-xs text-[var(--muted-foreground)] mb-1 block">起始</label><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="neu-input !h-[32px] !text-[10px] !px-2"/></div><div><label className="text-xs text-[var(--muted-foreground)] mb-1 block">结束</label><input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className="neu-input !h-[32px] !text-[10px] !px-2"/></div></div>
+                <div className="flex items-center justify-between"><button onClick={hrdr} className="neu-btn-soft !py-1 !px-3 !text-[10px]">重置</button><button onClick={hadr} className="neu-btn-primary !h-[32px] !text-[10px] !px-3">应用</button></div>
+              </div>}
+            </div>
           </div>
         </div>
-        {calibration && <div className="neu-card-static mb-3 p-4">
-          <div className="flex items-center justify-between mb-3"><div className="flex items-center gap-1.5"><span className="text-xs font-bold text-[var(--foreground)]">AI 评分校准</span><span className="text-[9px] text-[var(--muted-foreground)]">· 专家 vs AI 建议分差异</span></div><span className="text-[10px] text-[var(--muted-foreground)]">{calibration.overall.total} 项已确认</span></div>
-          <div className="flex items-stretch gap-5"><div className="flex items-center gap-4"><div className="flex flex-col justify-center min-w-[80px]"><span className="text-2xl font-black tabular-nums text-[var(--foreground)] leading-none">{Math.round(calibration.overall.adoptionRate*100)}<span className="text-sm">%</span></span><span className="text-[10px] text-[var(--muted-foreground)] mt-1">建议采纳率</span></div><div className="w-56 flex flex-col gap-1.5">{(()=>{const mxa=Math.max(...calibration.byCategory.map(x=>Math.abs(x.avgDelta)),1);return calibration.byCategory.map(c=>{const wp=Math.min((Math.abs(c.avgDelta)/mxa)*50,50);const ip=c.avgDelta>0;const CL:Record<string,string>={BUSINESS:"商务",TECHNICAL:"技术",PRICE:"价格",QUALIFICATION:"资格",RESPONSIVE:"响应"};return <div key={c.category} className="flex items-center gap-2"><span className="w-12 text-[10px] text-[var(--muted-foreground)] shrink-0">{CL[c.category]??c.category}</span><div className="flex-1 h-3 rounded-[3px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] relative overflow-hidden"><div className="absolute top-0 bottom-0 left-1/2 w-px bg-[color-mix(in_oklch,var(--muted-foreground)_25%,transparent)]"/><div className="absolute top-0 bottom-0 rounded-[3px] transition-all duration-500" style={{width:`${wp}%`,left:ip?"50%":`${50-wp}%`,background:ip?"oklch(0.58 0.17 27)":"oklch(0.55 0.14 251)"}}/></div><span className={`w-8 text-[10px] font-bold tabular-nums text-right ${ip?"text-[var(--danger)]":"text-[var(--accent)]"}`}>{ip?"+":""}{c.avgDelta}</span></div>;})})()}</div></div>{calibration.topDeviations.length>0&&<><div className="w-px bg-[color-mix(in_oklch,var(--warning)_20%,transparent)]"/><div className="min-w-[160px]"><div className="text-[9px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-1.5">偏差最大的评分项</div><div className="flex flex-col gap-0.5">{calibration.topDeviations.slice(0,4).map(d=><div key={d.scoreItemId} className="flex items-center gap-2 text-[10px]"><span className="text-[var(--foreground)] truncate">{d.name}</span><span className={`font-bold tabular-nums ${d.avgDelta>0?"text-[var(--danger)]":"text-[var(--accent)]"}`}>{d.avgDelta>0?"+":""}{d.avgDelta}<span className="text-[var(--muted-foreground)] font-normal ml-0.5">({d.count})</span></span></div>)}</div></div></>}</div></div>}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 items-stretch gap-2.5 pb-4 border-b border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 items-stretch gap-2.5">
           <KpiCard label="预算总金额" value={data.summary.totalBudgetLabel} signal="normal" index={1} reducedMotion={reducedMotion}/>
           <KpiCard label="未成交预算" value={data.summary.pendingBudgetLabel} signal={data.summary.pendingBudget>0?"warning":"normal"} index={2} reducedMotion={reducedMotion}/>
           <KpiCard label="已成交预算" value={data.summary.awardedBudgetLabel} signal="success" index={3} reducedMotion={reducedMotion}/>
@@ -490,6 +503,10 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
           <KpiCard label="项目推进率" value={`${cr.toFixed(0)}%`} signal={cr>=70?"success":cr>=50?"warning":"danger"} index={8} reducedMotion={reducedMotion}/>
         </div>
       </motion.div>
+      {/* AI 校准条 */}
+      {calibration && <motion.div {...fadeIn(1, reducedMotion, 0.05)} className="neu-card-static mb-3 p-4">
+        <div className="flex items-center justify-between mb-3"><div className="flex items-center gap-1.5"><span className="text-xs font-bold text-[var(--foreground)]">AI 评分校准</span><span className="text-[9px] text-[var(--muted-foreground)]">· 专家 vs AI 建议分差异</span></div><span className="text-[10px] text-[var(--muted-foreground)]">{calibration.overall.total} 项已确认</span></div>
+        <div className="flex items-stretch gap-5"><div className="flex items-center gap-4"><div className="flex flex-col justify-center min-w-[80px]"><span className="text-2xl font-black tabular-nums text-[var(--foreground)] leading-none">{Math.round(calibration.overall.adoptionRate*100)}<span className="text-sm">%</span></span><span className="text-[10px] text-[var(--muted-foreground)] mt-1">建议采纳率</span></div><div className="w-56 flex flex-col gap-1.5">{(()=>{const mxa=Math.max(...calibration.byCategory.map(x=>Math.abs(x.avgDelta)),1);return calibration.byCategory.map(c=>{const wp=Math.min((Math.abs(c.avgDelta)/mxa)*50,50);const ip=c.avgDelta>0;const CL:Record<string,string>={BUSINESS:"商务",TECHNICAL:"技术",PRICE:"价格",QUALIFICATION:"资格",RESPONSIVE:"响应"};return <div key={c.category} className="flex items-center gap-2"><span className="w-12 text-[10px] text-[var(--muted-foreground)] shrink-0">{CL[c.category]??c.category}</span><div className="flex-1 h-3 rounded-[3px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] relative overflow-hidden"><div className="absolute top-0 bottom-0 left-1/2 w-px bg-[color-mix(in_oklch,var(--muted-foreground)_25%,transparent)]"/><div className="absolute top-0 bottom-0 rounded-[3px] transition-all duration-500" style={{width:`${wp}%`,left:ip?"50%":`${50-wp}%`,background:ip?"oklch(0.58 0.17 27)":"oklch(0.55 0.14 251)"}}/></div><span className={`w-8 text-[10px] font-bold tabular-nums text-right ${ip?"text-[var(--danger)]":"text-[var(--accent)]"}`}>{ip?"+":""}{c.avgDelta}</span></div>;})})()}</div></div>{calibration.topDeviations.length>0&&<><div className="w-px bg-[color-mix(in_oklch,var(--warning)_20%,transparent)]"/><div className="min-w-[160px]"><div className="text-[9px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-1.5">偏差最大的评分项</div><div className="flex flex-col gap-0.5">{calibration.topDeviations.slice(0,4).map(d=><div key={d.scoreItemId} className="flex items-center gap-2 text-[10px]"><span className="text-[var(--foreground)] truncate">{d.name}</span><span className={`font-bold tabular-nums ${d.avgDelta>0?"text-[var(--danger)]":"text-[var(--accent)]"}`}>{d.avgDelta>0?"+":""}{d.avgDelta}<span className="text-[var(--muted-foreground)] font-normal ml-0.5">({d.count})</span></span></div>)}</div></div></>}</div></motion.div>}
       <div className="mb-3 grid grid-cols-1 items-stretch gap-2 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><IntelligencePanel analysis={analysis} loading={alLoading} error={alErr} onRefresh={()=>hra(true)} index={7} reducedMotion={reducedMotion}/></div>
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><SavingsRankingPanel items={data.savingsRanking as SavingsRankingItem[]} index={8} reducedMotion={reducedMotion}/></div>
