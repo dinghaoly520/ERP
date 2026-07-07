@@ -9057,3 +9057,125 @@ select.workbench-input {
     2px 2px 6px oklch(0.55 0.03 258 / 0.1),
     -1px -1px 4px oklch(1 0 0 / 0.7);
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   KPI 卡片 — 无框线纯 neumorphic 凸起表面
+   ══════════════════════════════════════════════════════════════════ */
+.kpi-card {
+  background: oklch(0.985 0.005 258);
+  border: none;
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.12),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.kpi-card:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    4px 4px 8px oklch(0.55 0.03 258 / 0.15),
+    -2.5px -2.5px 7px oklch(1 0 0 / 0.95);
+}
+/* 彩色边框 + 微色偏背景变体：叠加在 .kpi-card 之上 */
+/* ══════════════════════════════════════════════════════════════════
+   KPI 卡片色变体 — .kpi-card--blue / green / gold 等
+   在基础 .kpi-card 凸起上叠加彩色边框+微色偏背景
+   ══════════════════════════════════════════════════════════════════ */
+.kpi-card--blue   { border: 1px solid oklch(0.64 0.14 262 / 0.18); background: linear-gradient(160deg, oklch(0.64 0.14 262 / 0.06), oklch(0.985 0.005 258)); }
+.kpi-card--green  { border: 1px solid oklch(0.68 0.11 162 / 0.18); background: linear-gradient(160deg, oklch(0.68 0.11 162 / 0.06), oklch(0.985 0.005 258)); }
+.kpi-card--gold   { border: 1px solid oklch(0.78 0.12 84 / 0.22);  background: linear-gradient(160deg, oklch(0.78 0.12 84 / 0.08),  oklch(0.985 0.005 258)); }
+.kpi-card--coral  { border: 1px solid oklch(0.67 0.14 32 / 0.18); background: linear-gradient(160deg, oklch(0.67 0.14 32 / 0.06), oklch(0.985 0.005 258)); }
+.kpi-card--red    { border: 1px solid oklch(0.56 0.17 28 / 0.18); background: linear-gradient(160deg, oklch(0.56 0.17 28 / 0.05), oklch(0.985 0.005 258)); }
+.kpi-card--purple { border: 1px solid oklch(0.61 0.13 272 / 0.18); background: linear-gradient(160deg, oklch(0.61 0.13 272 / 0.06), oklch(0.985 0.005 258)); }
+.kpi-card--steel  { border: 1px solid oklch(0.67 0.04 252 / 0.22); background: linear-gradient(160deg, oklch(0.67 0.04 252 / 0.06), oklch(0.985 0.005 258)); }
+
+/* ══════════════════════════════════════════════════════════════════
+   阶段流 Pill — 项目卡内阶段时间线
+   扁平彩色底（非 neumorphic — 小标签级不加凸起阴影）
+   ══════════════════════════════════════════════════════════════════ */
+.stage-pill {
+  position: relative;
+  display: flex; flex: 1; min-width: 0;
+  flex-direction: column; align-items: center; gap: 0.2rem;
+  border-radius: 8px; border: 1px solid;
+  padding: 0.45rem 0.1rem;
+  font-size: 0.688rem; font-weight: 600;
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+.stage-pill--completed {
+  border-color: oklch(0.68 0.11 162 / 0.35);
+  background: oklch(0.68 0.11 162 / 0.1);
+  color: oklch(0.68 0.11 162);
+}
+.stage-pill--current {
+  border-color: oklch(0.55 0.14 258 / 0.35);
+  background: oklch(0.55 0.14 258 / 0.1);
+  color: oklch(0.5 0.16 258);
+}
+.stage-pill--pending {
+  border-color: oklch(0.6 0.04 258 / 0.25);
+  background: oklch(0.975 0.012 258 / 0.5);
+  color: oklch(0.6 0.04 258 / 0.6);
+}
+.stage-pill__indicator {
+  position: absolute; inset: 0 0 auto;
+  height: 2px; border-radius: 8px 8px 0 0; overflow: hidden;
+}
+.stage-pill__indicator-bar {
+  height: 100%; width: 100%;
+  background: oklch(0.5 0.16 258 / 0.7);
+  animation: pillPulse 2s ease-in-out infinite;
+}
+@keyframes pillPulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+.stage-connector { display: flex; align-items: center; padding: 0 1px; flex-shrink: 1; min-width: 6px; }
+.stage-connector__line { height: 1px; width: 100%; }
+.stage-connector__line--done   { background: oklch(0.68 0.11 162 / 0.3); }
+.stage-connector__line--active { background: oklch(0.55 0.03 258 / 0.18); }
+.stage-connector__line--idle   { background: oklch(0.55 0.03 258 / 0.14); }
+
+/* ══════════════════════════════════════════════════════════════════
+   洞察行 — AI 洞察列表项，hover 浅底
+   ══════════════════════════════════════════════════════════════════ */
+.insight-row {
+  display: flex; align-items: flex-start; gap: 0.5rem;
+  border-radius: 8px; padding: 0.45rem 0.5rem;
+  transition: background 0.2s ease;
+}
+.insight-row:hover { background: oklch(1 0 0 / 0.45); }
+.insight-row__icon {
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 0.1rem;
+  width: 18px; height: 18px; border-radius: 5px;
+}
+.insight-row__dot { width: 5px; height: 5px; border-radius: 999px; flex-shrink: 0; margin-top: 0.35rem; }
+
+/* ══════════════════════════════════════════════════════════════════
+   元数据标签 — 彩色细线 pills，非 neumorphic
+   ══════════════════════════════════════════════════════════════════ */
+.meta-tag {
+  display: inline-flex; align-items: center;
+  border-radius: 999px; border: 1px solid;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.625rem; font-weight: 600; line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   搜索框容器 — 给 neu-input 配搜索图标
+   ══════════════════════════════════════════════════════════════════ */
+.search-box { position: relative; min-width: 160px; flex: 1; }
+.search-box__icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted-foreground); pointer-events: none; z-index: 1; }
+.search-box .neu-input { padding-left: 2.25rem; }
+
+/* ══════════════════════════════════════════════════════════════════
+   reduced-motion — 补充新增类的降级
+   ══════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .stage-pill__indicator-bar { animation: none !important; }
+}

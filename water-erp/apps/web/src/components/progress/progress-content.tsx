@@ -61,296 +61,120 @@ type StageMeta = {
   label: string;
   color: string;
   softColor: string;
-  accentClass: string;
 };
 
-type SectionVariant = "default" | "highlight" | "alert" | "success" | "insight";
-
+// ─── Stage colors in oklch() ────────────────────────────────────────────
 const STAGE_META: Record<ProjectWorkflowStageKey, StageMeta> = {
   PROCUREMENT_DEMAND: {
     label: "采购需求",
-    color: "rgba(96,139,239,1)",
-    softColor: "rgba(96,139,239,0.12)",
-    accentClass: "border-[rgba(96,139,239,0.28)] bg-[rgba(96,139,239,0.08)] text-[rgba(96,139,239,1)]",
+    color: "oklch(0.64 0.14 262)",
+    softColor: "oklch(0.64 0.14 262 / 0.12)",
   },
   INITIATION: {
     label: "采购立项",
-    color: "rgba(96,139,239,1)",
-    softColor: "rgba(96,139,239,0.12)",
-    accentClass: "border-[rgba(96,139,239,0.28)] bg-[rgba(96,139,239,0.08)] text-[rgba(96,139,239,1)]",
+    color: "oklch(0.62 0.15 258)",
+    softColor: "oklch(0.62 0.15 258 / 0.12)",
   },
   TENDER_DOCUMENT: {
     label: "采购文件",
-    color: "rgba(92,181,150,1)",
-    softColor: "rgba(92,181,150,0.12)",
-    accentClass: "border-[rgba(92,181,150,0.28)] bg-[rgba(92,181,150,0.08)] text-[rgba(92,181,150,1)]",
+    color: "oklch(0.68 0.11 162)",
+    softColor: "oklch(0.68 0.11 162 / 0.12)",
   },
   PUBLIC_ANNOUNCEMENT: {
     label: "采购公示",
-    color: "rgba(92,181,150,1)",
-    softColor: "rgba(92,181,150,0.12)",
-    accentClass: "border-[rgba(92,181,150,0.28)] bg-[rgba(92,181,150,0.08)] text-[rgba(92,181,150,1)]",
+    color: "oklch(0.66 0.12 168)",
+    softColor: "oklch(0.66 0.12 168 / 0.12)",
   },
   EXPERT_SELECTION: {
     label: "专家抽取",
-    color: "rgba(234,188,110,1)",
-    softColor: "rgba(234,188,110,0.14)",
-    accentClass: "border-[rgba(234,188,110,0.28)] bg-[rgba(234,188,110,0.10)] text-[rgba(205,155,70,1)]",
+    color: "oklch(0.78 0.12 84)",
+    softColor: "oklch(0.78 0.12 84 / 0.14)",
   },
   BID_EVALUATION: {
     label: "评标过程",
-    color: "rgba(119,129,219,1)",
-    softColor: "rgba(119,129,219,0.12)",
-    accentClass: "border-[rgba(119,129,219,0.28)] bg-[rgba(119,129,219,0.08)] text-[rgba(119,129,219,1)]",
+    color: "oklch(0.61 0.13 272)",
+    softColor: "oklch(0.61 0.13 272 / 0.12)",
   },
   AWARD_DECISION: {
     label: "定标",
-    color: "rgba(104,193,156,1)",
-    softColor: "rgba(104,193,156,0.12)",
-    accentClass: "border-[rgba(104,193,156,0.28)] bg-[rgba(104,193,156,0.08)] text-[rgba(76,160,126,1)]",
+    color: "oklch(0.71 0.10 166)",
+    softColor: "oklch(0.71 0.10 166 / 0.12)",
   },
   CONTRACT: {
     label: "合同",
-    color: "rgba(150,165,195,1)",
-    softColor: "rgba(150,165,195,0.12)",
-    accentClass: "border-[rgba(150,165,195,0.28)] bg-[rgba(150,165,195,0.08)] text-[rgba(111,128,160,1)]",
+    color: "oklch(0.67 0.04 252)",
+    softColor: "oklch(0.67 0.04 252 / 0.12)",
   },
 };
 
 const DEFAULT_STAGE_META: StageMeta = {
   label: "未设置阶段",
-  color: "rgba(150,165,195,1)",
-  softColor: "rgba(150,165,195,0.12)",
-  accentClass: "border-[rgba(150,165,195,0.28)] bg-[rgba(150,165,195,0.08)] text-[rgba(111,128,160,1)]",
+  color: "oklch(0.67 0.04 252)",
+  softColor: "oklch(0.67 0.04 252 / 0.12)",
 };
 
-function getStageMeta(stageKey?: string | null) {
-  if (!stageKey) {
-    return DEFAULT_STAGE_META;
-  }
-
-  return STAGE_META[stageKey as ProjectWorkflowStageKey] ?? {
-    ...DEFAULT_STAGE_META,
-    label: stageKey,
-  };
+function getStageMeta(stageKey?: string | null): StageMeta {
+  if (!stageKey) return DEFAULT_STAGE_META;
+  return STAGE_META[stageKey as ProjectWorkflowStageKey] ?? { ...DEFAULT_STAGE_META, label: stageKey };
 }
 
-function fadeIn(index: number, reducedMotion: boolean, baseDelay = 0.04) {
-  if (reducedMotion) {
-    return { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } };
-  }
+// ─── KPI color map (referent → .kpi-card--* modifier) ───────────────────
+const KPI_COLOR: Record<string, string> = {
+  blue:   "oklch(0.64 0.14 262)",
+  green:  "oklch(0.68 0.11 162)",
+  gold:   "oklch(0.71 0.12 78)",
+  coral:  "oklch(0.67 0.14 32)",
+  red:    "oklch(0.56 0.17 28)",
+  purple: "oklch(0.61 0.13 272)",
+  steel:  "oklch(0.57 0.04 250)",
+};
 
+function fadeIn(index: number, reducedMotion: boolean, baseDelay = 0.04) {
+  if (reducedMotion) return { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } };
   return {
-    initial: { opacity: 0, y: 18, scale: 0.98, filter: "blur(6px)" },
-    animate: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" },
+    initial: { opacity: 0, y: 18 },
+    animate: { opacity: 1, y: 0 },
     transition: { duration: 0.5, delay: index * baseDelay, ease: easeOutQuint },
   };
 }
 
-function formatWan(value: number) {
-  return `${(value / 10000).toFixed(1)} 万`;
-}
-
-function formatPercent(value: number) {
-  return `${Math.round(value)}%`;
-}
-
+function formatWan(value: number) { return `${(value / 10000).toFixed(1)} 万`; }
+function formatPercent(value: number) { return `${Math.round(value)}%`; }
 function getDaysSince(dateString: string) {
   const date = new Date(dateString);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+  return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
 }
-
 function getRiskLevel(daysSinceUpdate: number): RiskLevel {
-  if (daysSinceUpdate > 14) {
-    return "danger";
-  }
-  if (daysSinceUpdate > 7) {
-    return "warning";
-  }
+  if (daysSinceUpdate > 14) return "danger";
+  if (daysSinceUpdate > 7) return "warning";
   return "normal";
 }
 
-function Panel({
-  variant = "default",
-  className = "",
-  children,
-}: {
-  variant?: SectionVariant;
-  className?: string;
-  children: ReactNode;
-}) {
-  const variantStyles: Record<SectionVariant, string> = {
-    default: "border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(246,249,253,0.9))]",
-    highlight: "border-[rgba(96,139,239,0.35)] bg-[linear-gradient(160deg,rgba(248,251,255,0.97),rgba(242,247,255,0.93))] shadow-[0_12px_28px_rgba(79,108,161,0.10)]",
-    alert: "border-[rgba(230,129,102,0.45)] bg-[linear-gradient(160deg,rgba(255,248,246,0.97),rgba(252,246,243,0.93))] shadow-[0_12px_28px_rgba(200,90,70,0.10)]",
-    success: "border-[rgba(92,181,150,0.40)] bg-[linear-gradient(160deg,rgba(246,255,250,0.97),rgba(242,251,247,0.93))] shadow-[0_12px_28px_rgba(70,155,120,0.08)]",
-    insight: "border-[rgba(234,188,110,0.38)] bg-[linear-gradient(160deg,rgba(255,252,244,0.97),rgba(252,248,240,0.93))] shadow-[0_12px_28px_rgba(200,155,80,0.08)]",
-  };
-
-  return (
-    <section
-      className={[
-        "glass-float card-edge-light relative flex flex-col overflow-hidden rounded-[20px] border",
-        variantStyles[variant],
-        "shadow-[0_10px_24px_rgba(79,108,161,0.07),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all duration-300 hover:shadow-[0_16px_30px_rgba(79,108,161,0.11)]",
-        className,
-      ].join(" ")}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.8),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(113,150,232,0.08),transparent_34%)]" />
-      <div className="relative flex h-full flex-col p-3.5">{children}</div>
-    </section>
-  );
-}
-
-function SectionHeader({
-  eyebrow,
-  title,
-  description,
-  action,
-}: {
-  eyebrow?: string;
-  title: string;
-  description?: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-2.5">
-      <div>
-        {eyebrow ? (
-          <div className="text-xs font-bold uppercase tracking-[0.16em] text-[rgba(84,104,139,0.72)]">
-            {eyebrow}
-          </div>
-        ) : null}
-        <h2 className="mt-0.5 text-[0.9rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
-          {title}
-        </h2>
-        {description ? (
-          <p className="mt-0.5 text-xs leading-4.5 text-[color:var(--muted-foreground)]">{description}</p>
-        ) : null}
-      </div>
-      {action}
-    </div>
-  );
-}
-
-const INSIGHT_TYPE_CONFIG: Record<string, { color: string; softBg: string; border: string; icon: typeof Lightbulb }> = {
-  risk: {
-    color: "rgba(230,129,102,1)",
-    softBg: "rgba(230,129,102,0.06)",
-    border: "rgba(230,129,102,0.2)",
-    icon: ShieldAlert,
-  },
-  bottleneck: {
-    color: "rgba(234,188,110,1)",
-    softBg: "rgba(234,188,110,0.06)",
-    border: "rgba(234,188,110,0.2)",
-    icon: BarChart3,
-  },
-  budget: {
-    color: "rgba(119,129,219,1)",
-    softBg: "rgba(119,129,219,0.06)",
-    border: "rgba(119,129,219,0.2)",
-    icon: TrendingUp,
-  },
-  completion: {
-    color: "rgba(92,181,150,1)",
-    softBg: "rgba(92,181,150,0.06)",
-    border: "rgba(92,181,150,0.2)",
-    icon: CheckCircle2,
-  },
-  rhythm: {
-    color: "rgba(96,139,239,1)",
-    softBg: "rgba(96,139,239,0.06)",
-    border: "rgba(96,139,239,0.2)",
-    icon: Clock3,
-  },
-};
-
-function AiInsightCard({
-  insight,
-  onFilter,
-  reducedMotion,
-}: {
-  insight: ProgressAiInsight;
-  onFilter: () => void;
-  reducedMotion: boolean;
-}) {
-  const { initial, animate, transition } = fadeIn(0, reducedMotion, 0.02);
-
-  const typeConfig = INSIGHT_TYPE_CONFIG[insight.type] ?? INSIGHT_TYPE_CONFIG.rhythm;
-  const IconComponent = typeConfig.icon;
-
-  const urgencyColor =
-    insight.urgency === "high"
-      ? "rgba(230,129,102,1)"
-      : insight.urgency === "medium"
-        ? "rgba(234,188,110,1)"
-        : "rgba(92,181,150,1)";
-
-  return (
-    <motion.div
-      {...{ initial, animate, transition }}
-      className="flex items-start gap-2 rounded-[10px] p-2 transition-all duration-200 hover:bg-[rgba(255,255,255,0.5)]"
-    >
-      <div
-        className="mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[6px]"
-        style={{ backgroundColor: `${typeConfig.color}12`, color: typeConfig.color }}
-      >
-        <IconComponent size={11} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs leading-[1.6] text-[color:var(--foreground)]">{insight.message}</p>
-        <div className="mt-1 flex items-center gap-2">
-          <span className="h-[5px] w-[5px] rounded-full" style={{ backgroundColor: urgencyColor }} />
-          {insight.actionLabel && (
-            <button
-              onClick={onFilter}
-              className="text-xs font-medium transition-opacity duration-200 hover:opacity-80"
-              style={{ color: typeConfig.color }}
-            >
-              {insight.actionLabel}
-            </button>
-          )}
-        </div>
-      </div>
-    </motion.div>
-  );
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// PieChart (SVG donut)
+// ═══════════════════════════════════════════════════════════════════════════
 
 const PIE_PALETTE = [
-  "rgba(96,139,239,1)",
-  "rgba(92,181,150,1)",
-  "rgba(234,188,110,1)",
-  "rgba(119,129,219,1)",
-  "rgba(230,129,102,1)",
-  "rgba(150,165,195,1)",
-  "rgba(104,193,156,1)",
-  "rgba(200,120,180,1)",
+  "oklch(0.64 0.14 262)",
+  "oklch(0.68 0.11 162)",
+  "oklch(0.78 0.12 84)",
+  "oklch(0.61 0.13 272)",
+  "oklch(0.67 0.14 32)",
+  "oklch(0.67 0.04 252)",
+  "oklch(0.71 0.10 166)",
+  "oklch(0.62 0.14 346)",
 ];
 
-function PieChart({
-  items,
-}: {
-  items: Array<{ name: string; count: number }>;
-}) {
+function PieChart({ items }: { items: Array<{ name: string; count: number }> }) {
   const total = items.reduce((s, i) => s + i.count, 0);
-
-  const size = 80;
-  const cx = size / 2;
-  const cy = size / 2;
-  const outerR = 36;
-  const innerR = 22;
+  const size = 80, cx = 40, cy = 40, outerR = 36, innerR = 22;
 
   if (total === 0) {
     return (
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
-        <circle cx={cx} cy={cy} r={outerR} fill="none" stroke="#e5e7eb" strokeWidth={8} />
-        <circle cx={cx} cy={cy} r={innerR} fill="none" stroke="#f3f4f6" strokeWidth={6} />
-        <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="central" className="fill-[#9ca3af] text-[9px] font-bold">
-          0
-        </text>
+        <circle cx={cx} cy={cy} r={outerR} fill="none" stroke="oklch(0.9 0.01 258)" strokeWidth={8} />
+        <circle cx={cx} cy={cy} r={innerR} fill="none" stroke="oklch(0.95 0.005 258)" strokeWidth={6} />
+        <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="central" fill="oklch(0.6 0.02 258)" fontSize="9" fontWeight="700">0</text>
       </svg>
     );
   }
@@ -360,42 +184,18 @@ function PieChart({
     const startAngle = (cumulative / total) * 360;
     cumulative += item.count;
     const endAngle = (cumulative / total) * 360;
-
     const startRad = ((startAngle - 90) * Math.PI) / 180;
     const endRad = ((endAngle - 90) * Math.PI) / 180;
     const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-
-    const x1outer = cx + outerR * Math.cos(startRad);
-    const y1outer = cy + outerR * Math.sin(startRad);
-    const x2outer = cx + outerR * Math.cos(endRad);
-    const y2outer = cy + outerR * Math.sin(endRad);
-    const x1inner = cx + innerR * Math.cos(endRad);
-    const y1inner = cy + innerR * Math.sin(endRad);
-    const x2inner = cx + innerR * Math.cos(startRad);
-    const y2inner = cy + innerR * Math.sin(startRad);
-
-    const d = [
-      `M ${x1outer} ${y1outer}`,
-      `A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2outer} ${y2outer}`,
-      `L ${x1inner} ${y1inner}`,
-      `A ${innerR} ${innerR} 0 ${largeArc} 0 ${x2inner} ${y2inner}`,
-      "Z",
-    ].join(" ");
-
+    const x1o = cx + outerR * Math.cos(startRad), y1o = cy + outerR * Math.sin(startRad);
+    const x2o = cx + outerR * Math.cos(endRad), y2o = cy + outerR * Math.sin(endRad);
+    const x1i = cx + innerR * Math.cos(endRad), y1i = cy + innerR * Math.sin(endRad);
+    const x2i = cx + innerR * Math.cos(startRad), y2i = cy + innerR * Math.sin(startRad);
+    const d = `M ${x1o} ${y1o} A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2o} ${y2o} L ${x1i} ${y1i} A ${innerR} ${innerR} 0 ${largeArc} 0 ${x2i} ${y2i} Z`;
     const midRad = (((startAngle + endAngle) / 2 - 90) * Math.PI) / 180;
     const labelR = (outerR + innerR) / 2;
-    const labelX = cx + labelR * Math.cos(midRad);
-    const labelY = cy + labelR * Math.sin(midRad);
     const percent = Math.round((item.count / total) * 100);
-
-    return {
-      d,
-      color: PIE_PALETTE[idx % PIE_PALETTE.length],
-      label: percent >= 12 ? `${percent}%` : "",
-      labelX,
-      labelY,
-      item,
-    };
+    return { d, color: PIE_PALETTE[idx % PIE_PALETTE.length], label: percent >= 12 ? `${percent}%` : "", labelX: cx + labelR * Math.cos(midRad), labelY: cy + labelR * Math.sin(midRad), item };
   });
 
   return (
@@ -403,48 +203,20 @@ function PieChart({
       {slices.map((s, i) => (
         <g key={i}>
           <path d={s.d} fill={s.color} stroke="white" strokeWidth="1.5" />
-          {s.label && (
-            <text
-              x={s.labelX}
-              y={s.labelY}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fill="white"
-              fontSize="8"
-              fontWeight="600"
-            >
-              {s.label}
-            </text>
-          )}
+          {s.label && <text x={s.labelX} y={s.labelY} textAnchor="middle" dominantBaseline="central" fill="white" fontSize="8" fontWeight="600">{s.label}</text>}
         </g>
       ))}
-      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fill="var(--foreground)" fontSize="13" fontWeight="700">
-        {total}
-      </text>
+      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fill="var(--foreground)" fontSize="13" fontWeight="700">{total}</text>
     </svg>
   );
 }
 
-function PieChartBlock({
-  icon,
-  label,
-  items,
-  accent,
-}: {
-  icon: ReactNode;
-  label: string;
-  items: Array<{ name: string; count: number }>;
-  accent: string;
-}) {
+function PieChartBlock({ icon, label, items, accent }: { icon: ReactNode; label: string; items: Array<{ name: string; count: number }>; accent: string }) {
   const topItems = items.slice(0, 6);
-
   return (
-    <div className="rounded-[12px] border border-white/50 bg-white/35 p-2.5">
+    <div className="rounded-[10px] border border-[oklch(1_0_0_/_0.5)] bg-[oklch(1_0_0_/_0.3)] p-2.5">
       <div className="flex items-center gap-1.5">
-        <div
-          className="flex h-[18px] w-[18px] items-center justify-center rounded-[5px]"
-          style={{ backgroundColor: `${accent}12`, color: accent }}
-        >
+        <div className="flex h-[18px] w-[18px] items-center justify-center rounded-[5px]" style={{ backgroundColor: `color-mix(in oklch, ${accent} 8%, transparent)`, color: accent } as React.CSSProperties}>
           {icon}
         </div>
         <span className="text-xs font-semibold text-[color:var(--foreground)]">{label}</span>
@@ -455,16 +227,9 @@ function PieChartBlock({
         <div className="mt-0.5 min-w-0 flex-1 space-y-[3px]">
           {topItems.map((item, idx) => (
             <div key={item.name} className="flex items-center gap-1.5">
-              <span
-                className="h-2 w-2 shrink-0 rounded-[2px]"
-                style={{ backgroundColor: PIE_PALETTE[idx % PIE_PALETTE.length] }}
-              />
-              <span className="min-w-0 flex-1 truncate text-xs text-[color:var(--foreground)]" title={item.name}>
-                {item.name}
-              </span>
-              <span className="shrink-0 text-xs font-medium text-[color:var(--muted-foreground)]">
-                {item.count}
-              </span>
+              <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: PIE_PALETTE[idx % PIE_PALETTE.length] }} />
+              <span className="min-w-0 flex-1 truncate text-xs text-[color:var(--foreground)]" title={item.name}>{item.name}</span>
+              <span className="shrink-0 text-xs font-medium text-[color:var(--muted-foreground)]">{item.count}</span>
             </div>
           ))}
         </div>
@@ -473,69 +238,50 @@ function PieChartBlock({
   );
 }
 
-function ProjectCard({
-  project,
-  index,
-  reducedMotion,
-}: {
-  project: DerivedProject;
-  index: number;
-  reducedMotion: boolean;
-}) {
-  const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.03);
-  const riskTone =
-    project.riskLevel === "danger"
-      ? {
-          border: "border-[rgba(230,129,102,0.25)]",
-          badge: "border-[rgba(230,129,102,0.24)] bg-[rgba(230,129,102,0.10)] text-[rgba(210,100,70,1)]",
-        }
-      : project.riskLevel === "warning"
-        ? {
-            border: "border-[rgba(234,188,110,0.25)]",
-            badge: "border-[rgba(234,188,110,0.24)] bg-[rgba(234,188,110,0.10)] text-[rgba(205,155,70,1)]",
-          }
-        : {
-            border: "border-[rgba(92,181,150,0.22)]",
-            badge: "border-[rgba(92,181,150,0.22)] bg-[rgba(92,181,150,0.10)] text-[rgba(92,181,150,1)]",
-          };
+// ═══════════════════════════════════════════════════════════════════════════
+// ProjectCard — neu-card (cgzxui glass + dual shadow + hover lift)
+// ═══════════════════════════════════════════════════════════════════════════
 
-  const stageMap = new Map(project.stages.map((stage) => [stage.stageKey, stage]));
+function ProjectCard({ project, index, reducedMotion }: { project: DerivedProject; index: number; reducedMotion: boolean }) {
+  const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.03);
+  const stageMap = new Map(project.stages.map((s) => [s.stageKey, s]));
+
+  const riskColor = project.riskLevel === "danger"
+    ? "oklch(0.67 0.14 32)"
+    : project.riskLevel === "warning"
+      ? "oklch(0.78 0.12 84)"
+      : "oklch(0.68 0.11 162)";
 
   return (
     <motion.div {...{ initial, animate, transition }}>
-      <Link
-        href={`/projects?id=${project.id}`}
-        className={[
-          "group block rounded-[18px] border bg-[linear-gradient(165deg,rgba(255,255,255,0.97),rgba(248,251,255,0.93))] px-3.5 py-3 shadow-[0_6px_16px_rgba(79,108,161,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(79,108,161,0.12)]",
-          riskTone.border,
-        ].join(" ")}
-      >
+      <Link href={`/projects?id=${project.id}`} className="neu-card group block px-3.5 py-3">
+        {/* Header row */}
         <div className="flex items-start justify-between gap-2.5">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
-              <h3 className="text-[14px] font-semibold tracking-[-0.03em] text-[color:var(--foreground)] transition-colors duration-200 group-hover:text-[rgba(96,139,239,1)]">
+              <h3 className="text-[14px] font-semibold tracking-[-0.03em] text-[color:var(--foreground)] transition-colors duration-200 group-hover:text-[oklch(0.5_0.16_258)]">
                 {project.title}
               </h3>
               <span
-                className="rounded-full border px-2 py-0.5 text-[10px] font-semibold"
-                style={{
-                  borderColor: `${project.currentStageMeta.color}30`,
-                  backgroundColor: project.currentStageMeta.softColor,
-                  color: project.currentStageMeta.color,
-                }}
+                className="meta-tag"
+                style={{ borderColor: project.currentStageMeta.color, backgroundColor: project.currentStageMeta.softColor, color: project.currentStageMeta.color } as React.CSSProperties}
               >
                 当前阶段 · {project.currentStageMeta.label}
               </span>
-              <span className={["rounded-full border px-2 py-0.5 text-[10px] font-semibold", riskTone.badge].join(" ")}>
+              <span
+                className="meta-tag"
+                style={{ borderColor: riskColor, backgroundColor: `color-mix(in oklch, ${riskColor} 10%, transparent)`, color: riskColor } as React.CSSProperties}
+              >
                 {project.attentionLabel}
               </span>
             </div>
+            {/* Metadata */}
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
-              <span className="text-[rgba(96,139,239,1)]">所属项目：{project.projectName}</span>
-              <span className="text-[rgba(92,181,150,1)]">申请人：{project.createdBy?.displayName || project.requesterName || "未登记"}</span>
-              <span className="text-[rgba(234,188,110,1)]">归属部门：{project.requesterDepartment || "未设置"}</span>
-              <span className="text-[rgba(119,129,219,1)]">采购方式：{project.procurementMethod || "未设置"}</span>
-              <span className="font-medium text-[rgba(150,165,195,1)]">项目预算：{formatWan(project.budgetAmount)}</span>
+              <span style={{ color: "oklch(0.64 0.14 262)" }}>所属项目：{project.projectName}</span>
+              <span style={{ color: "oklch(0.68 0.11 162)" }}>申请人：{project.createdBy?.displayName || project.requesterName || "未登记"}</span>
+              <span style={{ color: "oklch(0.78 0.12 84 / 0.9)" }}>归属部门：{project.requesterDepartment || "未设置"}</span>
+              <span style={{ color: "oklch(0.61 0.13 272)" }}>采购方式：{project.procurementMethod || "未设置"}</span>
+              <span className="font-medium" style={{ color: "oklch(0.57 0.04 250)" }}>项目预算：{formatWan(project.budgetAmount)}</span>
             </div>
           </div>
           <div className="shrink-0 text-right">
@@ -543,70 +289,51 @@ function ProjectCard({
               <Clock3 size={12} />
               <span>{project.daysSinceUpdate === 0 ? "今日更新" : `${project.daysSinceUpdate} 天未更新`}</span>
             </div>
-            <div className="mt-1.5 flex items-center justify-end gap-1 text-xs font-medium text-[rgba(96,139,239,1)]">
+            <div className="mt-1.5 flex items-center justify-end gap-1 text-xs font-medium" style={{ color: "oklch(0.5 0.16 258)" }}>
               <span>查看详情</span>
               <ArrowUpRight size={13} />
             </div>
           </div>
         </div>
 
-        <div className="mt-3 -mx-1 overflow-x-auto px-1 pb-0.5 scrollbar-thin">
+        {/* Stage timeline */}
+        <div className="mt-3 -mx-1 overflow-x-auto px-1 pb-0.5">
           <div className="flex w-full">
             {project.projectStages.map((stage, stageIdx) => {
-              const stageStatus = stageMap.get(stage.key);
-              const stageMeta = getStageMeta(stage.key);
-              const isCompleted = stageStatus?.status === "COMPLETED";
-              const isCurrent = project.currentStage === stage.key;
+              const ss = stageMap.get(stage.key);
+              const sm = getStageMeta(stage.key);
+              const isDone = ss?.status === "COMPLETED";
+              const isCur = project.currentStage === stage.key;
               const isLast = stageIdx === project.projectStages.length - 1;
+              const state = isDone ? "completed" : isCur ? "current" : "pending";
+              const conn = isDone ? "done" : isCur ? "active" : "idle";
 
               return (
                 <div key={stage.key} className="flex flex-1 min-w-0">
-                  <div
-                    className={[
-                      "relative flex w-full flex-col items-center gap-1 rounded-[10px] border py-2 transition-all duration-300",
-                      isCompleted
-                        ? "border-[rgba(92,181,150,0.35)] bg-[linear-gradient(180deg,rgba(92,181,150,0.12),rgba(92,181,150,0.04))] text-[rgba(92,181,150,1)] shadow-[0_2px_8px_rgba(92,181,150,0.12)]"
-                        : isCurrent
-                          ? "border-[rgba(96,139,239,0.4)] bg-[linear-gradient(180deg,rgba(96,139,239,0.13),rgba(96,139,239,0.03))] text-[rgba(96,139,239,1)] shadow-[0_3px_14px_rgba(96,139,239,0.15)]"
-                          : "border-[rgba(207,217,232,0.6)] bg-[rgba(250,252,255,0.6)] text-[rgba(180,190,210,1)]",
-                    ].join(" ")}
-                  >
-                    {isCurrent && (
-                      <div className="absolute inset-x-0 top-0 h-[3px] rounded-t-[10px] overflow-hidden">
-                        <div
-                          className="h-full w-full animate-pulse"
-                          style={{ background: "rgba(96,139,239,0.8)" }}
-                        />
+                  <div className={`stage-pill stage-pill--${state} relative`}>
+                    {isCur && (
+                      <div className="stage-pill__indicator">
+                        <div className="stage-pill__indicator-bar" />
                       </div>
                     )}
                     <div className="flex items-center gap-1">
-                      {isCompleted ? (
-                        <CheckCircle2 size={12} style={{ filter: "drop-shadow(0 1px 2px rgba(92,181,150,0.3))" }} />
+                      {isDone ? (
+                        <CheckCircle2 size={11} />
                       ) : (
                         <div
-                          className="h-[7px] w-[7px] rounded-full"
+                          className="h-[6px] w-[6px] rounded-full"
                           style={{
-                            backgroundColor: isCurrent ? "rgba(96,139,239,1)" : "transparent",
-                            border: isCurrent ? "none" : "1.5px solid rgba(207,217,232,0.8)",
-                            boxShadow: isCurrent ? "0 0 6px rgba(96,139,239,0.4)" : "none",
+                            backgroundColor: isCur ? "oklch(0.5 0.16 258)" : "transparent",
+                            border: isCur ? "none" : "1.5px solid oklch(0.55 0.03 258 / 0.4)",
                           }}
                         />
                       )}
-                      <span className="text-[11px] truncate font-semibold">{stageMeta.label}</span>
+                      <span className="truncate">{sm.label}</span>
                     </div>
                   </div>
                   {!isLast && (
-                    <div className="flex items-center px-[2px]">
-                      <div
-                        className="h-[2px] w-full"
-                        style={{
-                          backgroundColor: isCompleted
-                            ? "rgba(92,181,150,0.35)"
-                            : isCurrent
-                              ? "rgba(207,217,232,0.5)"
-                              : "rgba(207,217,232,0.4)",
-                        }}
-                      />
+                    <div className="stage-connector">
+                      <div className={`stage-connector__line stage-connector__line--${conn}`} />
                     </div>
                   )}
                 </div>
@@ -627,11 +354,54 @@ function ProjectCard({
   );
 }
 
-export function ProgressContent({
-  currentUserRole,
-}: {
-  currentUserRole?: AuthRole;
-}) {
+// ═══════════════════════════════════════════════════════════════════════════
+// AI Insight card — flat row, no neumorphism on text-level elements
+// ═══════════════════════════════════════════════════════════════════════════
+
+const INSIGHT_ICONS: Record<string, typeof Lightbulb> = {
+  risk: ShieldAlert, bottleneck: BarChart3, budget: TrendingUp, completion: CheckCircle2, rhythm: Clock3,
+};
+const INSIGHT_COLORS: Record<string, string> = {
+  risk: "oklch(0.67 0.14 32)", bottleneck: "oklch(0.78 0.12 84)", budget: "oklch(0.61 0.13 272)", completion: "oklch(0.68 0.11 162)", rhythm: "oklch(0.64 0.14 262)",
+};
+
+function AiInsightCard({ insight, onFilter, reducedMotion }: { insight: ProgressAiInsight; onFilter: () => void; reducedMotion: boolean }) {
+  const { initial, animate, transition } = fadeIn(0, reducedMotion, 0.02);
+  const typeColor = INSIGHT_COLORS[insight.type] ?? INSIGHT_COLORS.rhythm;
+  const IconComponent = INSIGHT_ICONS[insight.type] ?? INSIGHT_ICONS.rhythm;
+  const urgencyColor = insight.urgency === "high"
+    ? "oklch(0.67 0.14 32)"
+    : insight.urgency === "medium"
+      ? "oklch(0.78 0.12 84)"
+      : "oklch(0.68 0.11 162)";
+
+  return (
+    <motion.div {...{ initial, animate, transition }} className="insight-row">
+      <div className="insight-row__icon" style={{ backgroundColor: `color-mix(in oklch, ${typeColor} 8%, transparent)`, color: typeColor } as React.CSSProperties}>
+        <IconComponent size={11} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs leading-[1.55] text-[color:var(--foreground)]">{insight.message}</p>
+        <div className="mt-1 flex items-center gap-2">
+          <span className="insight-row__dot" style={{ backgroundColor: urgencyColor }} />
+          {insight.actionLabel && (
+            <button onClick={onFilter} className="text-xs font-medium transition-opacity hover:opacity-80" style={{ color: typeColor }}>
+              {insight.actionLabel}
+            </button>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ProgressContent — main page
+// Layout: KPI hero → (execution + insights) 2-col → project list full-width
+// All containers use .wb-panel (cgzxui workbench panel)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRole }) {
   const reducedMotion = useReducedMotion() ?? false;
   const [stats, setStats] = useState<ProgressStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -648,388 +418,125 @@ export function ProgressContent({
   const [aiLoading, setAiLoading] = useState(false);
 
   const applyInsightFilter = (insight: ProgressAiInsight) => {
-    setKeyword("");
-    setSelectedProject("");
-    setSelectedRequester("");
-
-    if (insight.relatedStageKey) {
-      setSelectedStage(insight.relatedStageKey);
-    } else {
-      setSelectedStage(null);
-    }
-
-    setSelectedProjectIds(
-      insight.relatedProjectIds.length > 0
-        ? new Set(insight.relatedProjectIds)
-        : new Set<string>(),
-    );
-
-    const el = document.getElementById("project-list");
-    if (el) {
-      window.scrollTo({ top: el.offsetTop - 20, behavior: "smooth" });
-    }
+    setKeyword(""); setSelectedProject(""); setSelectedRequester("");
+    setSelectedStage(insight.relatedStageKey ?? null);
+    setSelectedProjectIds(insight.relatedProjectIds.length > 0 ? new Set(insight.relatedProjectIds) : new Set());
+    const el = document.getElementById("project-list"); if (el) window.scrollTo({ top: el.offsetTop - 20, behavior: "smooth" });
   };
 
   const loadData = async () => {
-    setLoading(true);
-    setError(null);
-
+    setLoading(true); setError(null);
     try {
-      const data = await fetchProgressStats();
-      setStats(data);
-      setLastRefreshedAt(
-        new Intl.DateTimeFormat("zh-CN", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        }).format(new Date()),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "项目进度汇总加载失败");
-    } finally {
-      setLoading(false);
-    }
+      const data = await fetchProgressStats(); setStats(data);
+      setLastRefreshedAt(new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()));
+    } catch (err) { setError(err instanceof Error ? err.message : "项目进度汇总加载失败"); }
+    finally { setLoading(false); }
   };
 
   const AI_CACHE_KEY = "progress-ai-insights-cache-v2";
-
-  const buildStatsFingerprint = (s: ProgressStats): string => {
-    const tokens = s.projects.map((p) => `${p.id}:${p.currentStage}:${p.updatedAt}`).join("|");
-    return `${s.totalActive}:${s.monthlyAdded}:${s.monthlyCompleted}:${tokens}`;
-  };
+  const buildFp = (s: ProgressStats) => `${s.totalActive}:${s.monthlyAdded}:${s.monthlyCompleted}:${s.projects.map((p) => `${p.id}:${p.currentStage}:${p.updatedAt}`).join("|")}`;
 
   const loadAiInsights = useCallback(async (forceRefresh = false) => {
     if (!stats) return;
-
-    const fingerprint = buildStatsFingerprint(stats);
-
+    const fp = buildFp(stats);
     if (!forceRefresh) {
       try {
-        const cached = localStorage.getItem(AI_CACHE_KEY);
-        if (cached) {
-          const parsed = JSON.parse(cached) as { fingerprint: string; data: ProgressAiInsights };
-          if (parsed.fingerprint === fingerprint && parsed.data) {
-            setAiInsights(parsed.data);
-            return;
-          }
-        }
-      } catch {
-        // cache corrupted, proceed to fetch
-      }
+        const c = localStorage.getItem(AI_CACHE_KEY);
+        if (c) { const p = JSON.parse(c) as { fingerprint: string; data: ProgressAiInsights }; if (p.fingerprint === fp && p.data) { setAiInsights(p.data); return; } }
+      } catch { /* ignore */ }
     }
-
     setAiLoading(true);
     try {
-      const data = await fetchProgressAiInsights();
-      setAiInsights(data);
-      try {
-        localStorage.setItem(AI_CACHE_KEY, JSON.stringify({ fingerprint, data }));
-      } catch {
-        // localStorage full or unavailable
-      }
-    } catch {
-      setAiInsights(null);
-    } finally {
-      setAiLoading(false);
-    }
+      const data = await fetchProgressAiInsights(); setAiInsights(data);
+      try { localStorage.setItem(AI_CACHE_KEY, JSON.stringify({ fingerprint: fp, data })); } catch { /* ignore */ }
+    } catch { setAiInsights(null); }
+    finally { setAiLoading(false); }
   }, [stats]);
 
-  useEffect(() => {
-    void loadData();
-  }, []);
+  useEffect(() => { void loadData(); }, []);
+  useEffect(() => { if (stats) void loadAiInsights(); }, [stats, loadAiInsights]);
 
-  useEffect(() => {
-    if (stats) {
-      void loadAiInsights();
-    }
-  }, [stats, loadAiInsights]);
-
+  // ─── Derived data ────────────────────────────────────────────────────────
   const derivedProjects = useMemo<DerivedProject[]>(() => {
-    if (!stats) {
-      return [];
-    }
-
-    const budgets = stats.projects
-      .map((project) => project.budgetAmount || 0)
-      .sort((a, b) => a - b);
-    const thresholdIndex = Math.max(0, Math.floor(budgets.length * 0.7) - 1);
-    const highBudgetThreshold = budgets[thresholdIndex] ?? 0;
-
+    if (!stats) return [];
+    const budgets = stats.projects.map((p) => p.budgetAmount || 0).sort((a, b) => a - b);
+    const threshold = budgets[Math.max(0, Math.floor(budgets.length * 0.7) - 1)] ?? 0;
     return stats.projects.map((project) => {
-      const daysSinceUpdate = getDaysSince(project.updatedAt);
-      const completedStages = project.stages.filter((stage) => stage.status === "COMPLETED").length;
-      const totalStages = project.stages.length;
-      const progressPercent = totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0;
-      const currentStageMeta = getStageMeta(project.currentStage);
-      const riskLevel = getRiskLevel(daysSinceUpdate);
-      const isHighBudget = (project.budgetAmount || 0) >= highBudgetThreshold && highBudgetThreshold > 0;
-      const isEarlyStage = ["PROCUREMENT_DEMAND", "INITIATION", "TENDER_DOCUMENT"].includes(project.currentStage);
-      const needsAttention = daysSinceUpdate > 7 || (isHighBudget && isEarlyStage);
-      const attentionLabel =
-        daysSinceUpdate > 14
-          ? "停滞超 14 天"
-          : daysSinceUpdate > 7
-            ? "停滞超 7 天"
-            : isHighBudget && isEarlyStage
-              ? "高预算待推进"
-              : "正常推进";
-
-      // Get stages for this project's procurement method
-      const projectStages = getStagesForMethod(project.procurementMethod as ProcurementMethod);
-
+      const days = getDaysSince(project.updatedAt);
+      const done = project.stages.filter((s) => s.status === "COMPLETED").length;
+      const total = project.stages.length;
+      const meta = getStageMeta(project.currentStage);
+      const isHigh = (project.budgetAmount || 0) >= threshold && threshold > 0;
+      const isEarly = ["PROCUREMENT_DEMAND", "INITIATION", "TENDER_DOCUMENT"].includes(project.currentStage);
+      const needsAttn = days > 7 || (isHigh && isEarly);
       return {
         ...project,
-        daysSinceUpdate,
-        completedStages,
-        totalStages,
-        progressPercent,
-        currentStageMeta,
-        riskLevel,
-        needsAttention,
-        isHighBudget,
-        isEarlyStage,
-        attentionLabel,
-        projectStages,
+        daysSinceUpdate: days,
+        completedStages: done,
+        totalStages: total,
+        progressPercent: total > 0 ? Math.round((done / total) * 100) : 0,
+        currentStageMeta: meta,
+        riskLevel: getRiskLevel(days),
+        needsAttention: needsAttn,
+        isHighBudget: isHigh,
+        isEarlyStage: isEarly,
+        attentionLabel: days > 14 ? "停滞超 14 天" : days > 7 ? "停滞超 7 天" : isHigh && isEarly ? "高预算待推进" : "正常推进",
+        projectStages: getStagesForMethod(project.procurementMethod as ProcurementMethod),
       };
     });
   }, [stats]);
 
-  const totalBudget = useMemo(
-    () => derivedProjects.reduce((sum, project) => sum + (project.budgetAmount || 0), 0),
-    [derivedProjects],
-  );
+  const totalBudget = useMemo(() => derivedProjects.reduce((s, p) => s + (p.budgetAmount || 0), 0), [derivedProjects]);
+  const attnCount = useMemo(() => derivedProjects.filter((p) => p.needsAttention).length, [derivedProjects]);
+  const dangerCount = useMemo(() => derivedProjects.filter((p) => p.daysSinceUpdate > 14).length, [derivedProjects]);
+  const avgStalled = useMemo(() => derivedProjects.length === 0 ? 0 : Math.round(derivedProjects.reduce((s, p) => s + p.daysSinceUpdate, 0) / derivedProjects.length), [derivedProjects]);
+  const avgCompletion = useMemo(() => derivedProjects.length === 0 ? 0 : Math.round(derivedProjects.reduce((s, p) => s + p.progressPercent, 0) / derivedProjects.length), [derivedProjects]);
 
-  const attentionCount = useMemo(
-    () => derivedProjects.filter((project) => project.needsAttention).length,
-    [derivedProjects],
-  );
-
-  const dangerCount = useMemo(
-    () => derivedProjects.filter((project) => project.daysSinceUpdate > 14).length,
-    [derivedProjects],
-  );
-
-  const averageStalledDays = useMemo(() => {
-    if (derivedProjects.length === 0) {
-      return 0;
-    }
-    return Math.round(
-      derivedProjects.reduce((sum, project) => sum + project.daysSinceUpdate, 0) / derivedProjects.length,
-    );
+  const orderedStages = useMemo(() => {
+    const m = new Map<string, number>(); for (const p of derivedProjects) m.set(p.currentStage, (m.get(p.currentStage) ?? 0) + 1);
+    return PROJECT_WORKFLOW_STAGES_ALL.map((s) => ({ key: s.key, count: m.get(s.key) ?? 0, ...getStageMeta(s.key) }));
   }, [derivedProjects]);
+  const dominantStage = useMemo(() => orderedStages.reduce<typeof orderedStages[number] | null>((c, i) => (!c || i.count > c.count ? i : c), null), [orderedStages]);
 
-  const averageCompletion = useMemo(() => {
-    if (derivedProjects.length === 0) {
-      return 0;
-    }
-    return Math.round(
-      derivedProjects.reduce((sum, project) => sum + project.progressPercent, 0) / derivedProjects.length,
-    );
-  }, [derivedProjects]);
+  const projectNames = useMemo(() => [...new Set(derivedProjects.map((p) => p.projectName))].sort(), [derivedProjects]);
+  const requesterNames = useMemo(() => [...new Set(derivedProjects.map((p) => p.createdBy?.displayName || p.requesterName).filter(Boolean))].sort() as string[], [derivedProjects]);
 
-  const orderedStageDistribution = useMemo(() => {
-    const stageCountMap = new Map<string, number>();
+  const methodDist = useMemo(() => { const m = new Map<string, number>(); for (const p of derivedProjects) m.set(p.procurementMethod || "未设置", (m.get(p.procurementMethod || "未设置") ?? 0) + 1); return [...m].map(([n, c]) => ({ name: n, count: c })).sort((a, b) => b.count - a.count); }, [derivedProjects]);
+  const deptDist = useMemo(() => { const m = new Map<string, number>(); for (const p of derivedProjects) m.set(p.requesterDepartment || "未设置", (m.get(p.requesterDepartment || "未设置") ?? 0) + 1); return [...m].map(([n, c]) => ({ name: n, count: c })).sort((a, b) => b.count - a.count); }, [derivedProjects]);
+  const requesterDist = useMemo(() => { const m = new Map<string, number>(); for (const p of derivedProjects) m.set(p.createdBy?.displayName || p.requesterName || "未设置", (m.get(p.createdBy?.displayName || p.requesterName || "未设置") ?? 0) + 1); return [...m].map(([n, c]) => ({ name: n, count: c })).sort((a, b) => b.count - a.count); }, [derivedProjects]);
+  const projectDist = useMemo(() => { const m = new Map<string, number>(); for (const p of derivedProjects) m.set(p.projectName || "未设置", (m.get(p.projectName || "未设置") ?? 0) + 1); return [...m].map(([n, c]) => ({ name: n, count: c })).sort((a, b) => b.count - a.count); }, [derivedProjects]);
+  const scaleDist = useMemo(() => { let s = 0, m = 0, l = 0, x = 0; for (const p of derivedProjects) { const b = p.budgetAmount || 0; if (b < 100000) s++; else if (b < 500000) m++; else if (b < 1000000) l++; else x++; } return [{ name: "小额（<10万）", count: s }, { name: "中额（10-50万）", count: m }, { name: "大额（50-100万）", count: l }, { name: "特大（>100万）", count: x }].filter((d) => d.count > 0); }, [derivedProjects]);
+  const activeStages = useMemo(() => orderedStages.filter((s) => s.count > 0).sort((a, b) => b.count - a.count), [orderedStages]);
+  const stageChartData = useMemo(() => activeStages.map((s) => ({ name: s.label, count: s.count })), [activeStages]);
 
-    for (const project of derivedProjects) {
-      stageCountMap.set(project.currentStage, (stageCountMap.get(project.currentStage) ?? 0) + 1);
-    }
-
-    return PROJECT_WORKFLOW_STAGES_ALL.map((stage) => {
-      const count = stageCountMap.get(stage.key) ?? 0;
-      const meta = getStageMeta(stage.key);
-      const share = derivedProjects.length === 0 ? 0 : (count / derivedProjects.length) * 100;
-      return {
-        key: stage.key,
-        count,
-        share,
-        ...meta,
-      };
-    });
-  }, [derivedProjects]);
-
-  const dominantStage = useMemo(() => {
-    return orderedStageDistribution.reduce<(typeof orderedStageDistribution)[number] | null>((current, item) => {
-      if (!current || item.count > current.count) {
-        return item;
-      }
-      return current;
-    }, null);
-  }, [orderedStageDistribution]);
-
-  const projectNames = useMemo(() => {
-    const nameSet = new Set<string>();
-    for (const project of derivedProjects) {
-      nameSet.add(project.projectName);
-    }
-    return Array.from(nameSet).sort();
-  }, [derivedProjects]);
-
-  const requesterNames = useMemo(() => {
-    const nameSet = new Set<string>();
-    for (const project of derivedProjects) {
-      const name = project.createdBy?.displayName || project.requesterName;
-      if (name) {
-        nameSet.add(name);
-      }
-    }
-    return Array.from(nameSet).sort();
-  }, [derivedProjects]);
-
-  // 本月动态数据
-  const monthlyStats = useMemo(() => {
-    return {
-      added: stats?.monthlyAdded ?? 0,
-      completed: stats?.monthlyCompleted ?? 0,
-      active: stats?.recentlyActive ?? 0,
-    };
-  }, [stats]);
-
-  // 采购方式分布
-  const methodDistribution = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const p of derivedProjects) {
-      const key = p.procurementMethod || "未设置";
-      map.set(key, (map.get(key) ?? 0) + 1);
-    }
-    return Array.from(map.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [derivedProjects]);
-
-  // 部门分布
-  const departmentDistribution = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const p of derivedProjects) {
-      const key = p.requesterDepartment || "未设置";
-      map.set(key, (map.get(key) ?? 0) + 1);
-    }
-    return Array.from(map.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [derivedProjects]);
-
-  // 申请人分布
-  const requesterDistribution = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const p of derivedProjects) {
-      const key = p.createdBy?.displayName || p.requesterName || "未设置";
-      map.set(key, (map.get(key) ?? 0) + 1);
-    }
-    return Array.from(map.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [derivedProjects]);
-
-  // 归属项目分布
-  const projectNameDistribution = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const p of derivedProjects) {
-      const key = p.projectName || "未设置";
-      map.set(key, (map.get(key) ?? 0) + 1);
-    }
-    return Array.from(map.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [derivedProjects]);
-
-  const scaleDistribution = useMemo(() => {
-    let smallCount = 0;
-    let mediumCount = 0;
-    let largeCount = 0;
-    let xlargeCount = 0;
-    for (const p of derivedProjects) {
-      const budget = p.budgetAmount || 0;
-      if (budget < 100000) smallCount++;
-      else if (budget < 500000) mediumCount++;
-      else if (budget < 1000000) largeCount++;
-      else xlargeCount++;
-    }
-    return [
-      { name: "小额（<10万）", count: smallCount },
-      { name: "中额（10-50万）", count: mediumCount },
-      { name: "大额（50-100万）", count: largeCount },
-      { name: "特大（>100万）", count: xlargeCount },
-    ].filter((d) => d.count > 0);
-  }, [derivedProjects]);
-
-  // 阶段分布（只显示有项目的阶段，按数量降序）
-  const activeStages = useMemo(() => {
-    return orderedStageDistribution
-      .filter((stage) => stage.count > 0)
-      .sort((a, b) => b.count - a.count);
-  }, [orderedStageDistribution]);
-
-  const stageDistributionForChart = useMemo(() => {
-    return activeStages.map((s) => ({ name: s.label, count: s.count }));
-  }, [activeStages]);
-
-  const activeFilterCount = [
-    selectedStage,
-    selectedProject,
-    selectedRequester,
-    keyword.trim(),
-    selectedProjectIds.size > 0,
-  ].filter(Boolean).length;
-
-  const clearAllFilters = () => {
-    setKeyword("");
-    setSelectedStage(null);
-    setSelectedProject("");
-    setSelectedRequester("");
-    setSelectedProjectIds(new Set());
-  };
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [keyword, selectedStage, selectedProject, selectedRequester, sortBy, selectedProjectIds]);
+  const activeFilterCount = [selectedStage, selectedProject, selectedRequester, keyword.trim(), selectedProjectIds.size > 0].filter(Boolean).length;
+  const clearAll = () => { setKeyword(""); setSelectedStage(null); setSelectedProject(""); setSelectedRequester(""); setSelectedProjectIds(new Set()); };
+  useEffect(() => { setCurrentPage(1); }, [keyword, selectedStage, selectedProject, selectedRequester, sortBy, selectedProjectIds]);
 
   const filteredProjects = useMemo(() => {
-    const filtered = derivedProjects.filter((project) => {
-      if (selectedProjectIds.size > 0 && !selectedProjectIds.has(project.id)) {
-        return false;
-      }
-      if (selectedStage && project.currentStage !== selectedStage) {
-        return false;
-      }
-      if (selectedProject && project.projectName !== selectedProject) {
-        return false;
-      }
-      if (selectedRequester) {
-        const requesterName = project.createdBy?.displayName || project.requesterName;
-        if (requesterName !== selectedRequester) {
-          return false;
-        }
-      }
-      if (!keyword.trim()) {
-        return true;
-      }
-      const normalized = keyword.trim().toLowerCase();
-      return [
-        project.title,
-        project.requesterName,
-        project.requesterDepartment,
-        project.createdBy?.displayName,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalized);
+    let list = derivedProjects.filter((p) => {
+      if (selectedProjectIds.size > 0 && !selectedProjectIds.has(p.id)) return false;
+      if (selectedStage && p.currentStage !== selectedStage) return false;
+      if (selectedProject && p.projectName !== selectedProject) return false;
+      if (selectedRequester && (p.createdBy?.displayName || p.requesterName) !== selectedRequester) return false;
+      if (!keyword.trim()) return true;
+      return [p.title, p.requesterName, p.requesterDepartment, p.createdBy?.displayName].join(" ").toLowerCase().includes(keyword.trim().toLowerCase());
     });
-
     const sorters: Record<string, (a: DerivedProject, b: DerivedProject) => number> = {
-      updatedAt: () => 0,
-      budgetDesc: (a, b) => (b.budgetAmount || 0) - (a.budgetAmount || 0),
-      progressAsc: (a, b) => a.progressPercent - b.progressPercent,
-      stalledDesc: (a, b) => b.daysSinceUpdate - a.daysSinceUpdate,
+      updatedAt: () => 0, budgetDesc: (a, b) => (b.budgetAmount || 0) - (a.budgetAmount || 0),
+      progressAsc: (a, b) => a.progressPercent - b.progressPercent, stalledDesc: (a, b) => b.daysSinceUpdate - a.daysSinceUpdate,
     };
-
-    return sorters[sortBy] ? filtered.sort(sorters[sortBy]) : filtered;
+    return sorters[sortBy] ? list.sort(sorters[sortBy]) : list;
   }, [derivedProjects, keyword, selectedProject, selectedRequester, selectedStage, selectedProjectIds, sortBy]);
 
+  // ════════════════════════════════════════════════════════════
+  // Loading / Error
+  // ════════════════════════════════════════════════════════════
   if (loading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[rgba(96,139,239,0.3)] border-t-[rgba(96,139,239,1)]" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[oklch(0.5_0.16_258_/_0.25)] border-t-[oklch(0.5_0.16_258)]" />
           <span className="text-sm text-[color:var(--muted-foreground)]">正在汇总项目进展...</span>
         </div>
       </div>
@@ -1039,335 +546,170 @@ export function ProgressContent({
   if (error || !stats) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <AlertCircle size={32} className="text-[rgba(230,129,102,1)]" />
+        <div className="flex flex-col items-center gap-3 text-center">
+          <AlertCircle size={32} className="text-[var(--danger)]" />
           <span className="text-sm text-[color:var(--muted-foreground)]">{error || "项目进度汇总加载失败"}</span>
-          <button
-            onClick={() => void loadData()}
-            className="rounded-[10px] border border-[rgba(96,139,239,0.2)] bg-[rgba(96,139,239,0.08)] px-4 py-2 text-sm font-medium text-[rgba(96,139,239,1)] transition-all duration-200 hover:bg-[rgba(96,139,239,0.15)]"
-          >
-            重新加载
-          </button>
+          <button onClick={() => void loadData()} className="neu-btn-soft">重新加载</button>
         </div>
       </div>
     );
   }
 
+  // ════════════════════════════════════════════════════════════
+  // Main content
+  // ════════════════════════════════════════════════════════════
   return (
-    <div className="space-y-3 pb-3">
-        <motion.div {...fadeIn(0, reducedMotion, 0.03)}>
-          <div className="relative overflow-hidden rounded-[20px] border border-white/50 bg-[linear-gradient(165deg,rgba(255,255,255,0.95),rgba(248,251,255,0.9))] px-4 py-4 shadow-[0_8px_24px_rgba(79,108,161,0.08)]">
-            <div className="absolute inset-y-0 right-[-8%] w-[35%] bg-[radial-gradient(circle_at_center,rgba(96,139,239,0.08),transparent_70%)]" />
-            <div className="relative">
-              <h1 className="text-base font-semibold tracking-[-0.02em] text-[color:var(--foreground)] mb-3">采购进度驾驶舱</h1>
-              {/* KPI Grid - 7 cards with chroma-style design */}
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
-                {/* 进行中项目 */}
-                <motion.div {...fadeIn(1, reducedMotion, 0.03)}>
-                  <div className="group relative flex flex-col justify-between rounded-[14px] border border-[rgba(96,139,239,0.15)] bg-[linear-gradient(160deg,rgba(96,139,239,0.08),rgba(255,255,255,0.95))] p-3 min-h-[72px] transition-all duration-300 hover:border-[rgba(96,139,239,0.4)] hover:shadow-[0_8px_20px_rgba(96,139,239,0.15)]">
-                    <span className="text-xs font-medium text-[rgba(96,139,239,0.85)]">进行中项目</span>
-                    <span className="mt-1 text-[1.4rem] font-bold tracking-[-0.03em] leading-none text-[rgba(96,139,239,1)]">{stats.totalActive}</span>
-                  </div>
-                </motion.div>
+    <div className="space-y-4 pb-4">
+      {/* ── KPI Row ── */}
+      <motion.div {...fadeIn(0, reducedMotion, 0.03)} className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
+        {([
+          { label: "进行中项目", value: stats.totalActive, color: "blue" as const },
+          { label: "平均完成度", value: formatPercent(avgCompletion), color: "green" as const },
+          { label: "预算总额", value: formatWan(totalBudget), color: "gold" as const },
+          { label: "待推进", value: attnCount, color: "coral" as const },
+          { label: "高风险项目", value: dangerCount, color: "red" as const },
+          { label: "平均停滞", value: <>{avgStalled}<span className="text-[0.7rem] font-medium ml-0.5">天</span></>, color: "purple" as const },
+          { label: "集中阶段", value: dominantStage?.label ?? "暂无", color: "steel" as const },
+        ]).map((kpi, i) => (
+          <motion.div key={kpi.label} {...fadeIn(i + 1, reducedMotion, 0.03)}>
+            <div className={`kpi-card kpi-card--${kpi.color} flex min-h-[72px] flex-col justify-between p-3`}>
+              <span className="text-xs font-medium" style={{ color: KPI_COLOR[kpi.color] }}>{kpi.label}</span>
+              <span className="text-[1.4rem] font-bold tracking-[-0.03em] leading-none" style={{ color: KPI_COLOR[kpi.color] }}>{kpi.value}</span>
+            </div>
+          </motion.div>
+        ))}
+      </motion.div>
 
-                {/* 平均完成度 */}
-                <motion.div {...fadeIn(2, reducedMotion, 0.03)}>
-                  <div className="group relative flex flex-col justify-between rounded-[14px] border border-[rgba(92,181,150,0.15)] bg-[linear-gradient(160deg,rgba(92,181,150,0.08),rgba(255,255,255,0.95))] p-3 min-h-[72px] transition-all duration-300 hover:border-[rgba(92,181,150,0.4)] hover:shadow-[0_8px_20px_rgba(92,181,150,0.15)]">
-                    <span className="text-xs font-medium text-[rgba(92,181,150,0.85)]">平均完成度</span>
-                    <span className="mt-1 text-[1.4rem] font-bold tracking-[-0.03em] leading-none text-[rgba(92,181,150,1)]">{formatPercent(averageCompletion)}</span>
-                  </div>
-                </motion.div>
-
-                {/* 预算总额 */}
-                <motion.div {...fadeIn(3, reducedMotion, 0.03)}>
-                  <div className="group relative flex flex-col justify-between rounded-[14px] border border-[rgba(234,188,110,0.2)] bg-[linear-gradient(160deg,rgba(234,188,110,0.1),rgba(255,255,255,0.95))] p-3 min-h-[72px] transition-all duration-300 hover:border-[rgba(234,188,110,0.45)] hover:shadow-[0_8px_20px_rgba(234,188,110,0.15)]">
-                    <span className="text-xs font-medium text-[rgba(205,155,70,0.9)]">预算总额</span>
-                    <span className="mt-1 text-[1.4rem] font-bold tracking-[-0.03em] leading-none text-[rgba(205,155,70,1)]">{formatWan(totalBudget)}</span>
-                  </div>
-                </motion.div>
-
-                {/* 待推进 */}
-                <motion.div {...fadeIn(4, reducedMotion, 0.03)}>
-                  <div className="group relative flex flex-col justify-between rounded-[14px] border border-[rgba(230,129,102,0.15)] bg-[linear-gradient(160deg,rgba(230,129,102,0.08),rgba(255,255,255,0.95))] p-3 min-h-[72px] transition-all duration-300 hover:border-[rgba(230,129,102,0.4)] hover:shadow-[0_8px_20px_rgba(230,129,102,0.15)]">
-                    <span className="text-xs font-medium text-[rgba(230,129,102,0.85)]">待推进</span>
-                    <span className="mt-1 text-[1.4rem] font-bold tracking-[-0.03em] leading-none text-[rgba(230,129,102,1)]">{attentionCount}</span>
-                  </div>
-                </motion.div>
-
-                {/* 高风险项目 */}
-                <motion.div {...fadeIn(5, reducedMotion, 0.03)}>
-                  <div className="group relative flex flex-col justify-between rounded-[14px] border border-[rgba(220,80,80,0.15)] bg-[linear-gradient(160deg,rgba(220,80,80,0.06),rgba(255,255,255,0.95))] p-3 min-h-[72px] transition-all duration-300 hover:border-[rgba(220,80,80,0.4)] hover:shadow-[0_8px_20px_rgba(220,80,80,0.12)]">
-                    <span className="text-xs font-medium text-[rgba(200,70,70,0.85)]">高风险项目</span>
-                    <span className="mt-1 text-[1.4rem] font-bold tracking-[-0.03em] leading-none text-[rgba(200,70,70,1)]">{dangerCount}</span>
-                  </div>
-                </motion.div>
-
-                {/* 平均停滞天数 */}
-                <motion.div {...fadeIn(6, reducedMotion, 0.03)}>
-                  <div className="group relative flex flex-col justify-between rounded-[14px] border border-[rgba(119,129,219,0.15)] bg-[linear-gradient(160deg,rgba(119,129,219,0.08),rgba(255,255,255,0.95))] p-3 min-h-[72px] transition-all duration-300 hover:border-[rgba(119,129,219,0.4)] hover:shadow-[0_8px_20px_rgba(119,129,219,0.15)]">
-                    <span className="text-xs font-medium text-[rgba(119,129,219,0.85)]">平均停滞</span>
-                    <span className="mt-1 text-[1.4rem] font-bold tracking-[-0.03em] leading-none text-[rgba(119,129,219,1)]">{averageStalledDays}<span className="text-[0.75rem] font-medium ml-0.5">天</span></span>
-                  </div>
-                </motion.div>
-
-                {/* 集中阶段 */}
-                <motion.div {...fadeIn(7, reducedMotion, 0.03)}>
-                  <div className="group relative flex flex-col justify-between rounded-[14px] border border-[rgba(150,165,195,0.2)] bg-[linear-gradient(160deg,rgba(150,165,195,0.08),rgba(255,255,255,0.95))] p-3 min-h-[72px] transition-all duration-300 hover:border-[rgba(150,165,195,0.4)] hover:shadow-[0_8px_20px_rgba(150,165,195,0.12)]">
-                    <span className="text-xs font-medium text-[rgba(111,128,160,0.85)]">集中阶段</span>
-                    <span className="mt-1 text-[1.4rem] font-bold tracking-[-0.03em] leading-none text-[rgba(111,128,160,1)]">{dominantStage?.label ?? "暂无"}</span>
-                  </div>
-                </motion.div>
+      {/* ── Two-column: execution + insights ── */}
+      <div className="grid gap-4 xl:grid-cols-2">
+        <motion.div {...fadeIn(2, reducedMotion, 0.03)}>
+          <section className="wb-panel h-full">
+            <div className="wb-panel-header">
+              <h2 className="neu-section-heading">执行态势</h2>
+            </div>
+            <div className="wb-panel-body">
+              <div className="grid grid-cols-2 gap-2">
+                <PieChartBlock icon={<User size={12} />} label="申请人" items={requesterDist} accent="oklch(0.64 0.14 262)" />
+                <PieChartBlock icon={<Gavel size={12} />} label="采购方式" items={methodDist} accent="oklch(0.68 0.11 162)" />
+                <PieChartBlock icon={<Building2 size={12} />} label="归属部门" items={deptDist} accent="oklch(0.78 0.12 84)" />
+                <PieChartBlock icon={<LayoutGrid size={12} />} label="归属项目" items={projectDist} accent="oklch(0.61 0.13 272)" />
+                <PieChartBlock icon={<BarChart3 size={12} />} label="阶段分布" items={stageChartData} accent="oklch(0.71 0.10 166)" />
+                <PieChartBlock icon={<TrendingUp size={12} />} label="项目规模" items={scaleDist} accent="oklch(0.67 0.14 32)" />
               </div>
             </div>
-          </div>
+          </section>
         </motion.div>
 
-
-        <div className="grid gap-3 xl:grid-cols-2">
-          <motion.div {...fadeIn(5, reducedMotion, 0.03)}>
-            <Panel variant="highlight" className="h-full">
-              <SectionHeader title="执行态势" />
-              <div className="mt-2.5 grid grid-cols-2 gap-2">
-                <PieChartBlock
-                  icon={<User size={12} />}
-                  label="申请人"
-                  items={requesterDistribution}
-                  accent="rgba(96,139,239,1)"
-                />
-                <PieChartBlock
-                  icon={<Gavel size={12} />}
-                  label="采购方式"
-                  items={methodDistribution}
-                  accent="rgba(92,181,150,1)"
-                />
-                <PieChartBlock
-                  icon={<Building2 size={12} />}
-                  label="归属部门"
-                  items={departmentDistribution}
-                  accent="rgba(234,188,110,1)"
-                />
-                <PieChartBlock
-                  icon={<LayoutGrid size={12} />}
-                  label="归属项目"
-                  items={projectNameDistribution}
-                  accent="rgba(119,129,219,1)"
-                />
-                <PieChartBlock
-                  icon={<BarChart3 size={12} />}
-                  label="阶段分布"
-                  items={stageDistributionForChart}
-                  accent="rgba(104,193,156,1)"
-                />
-                <PieChartBlock
-                  icon={<TrendingUp size={12} />}
-                  label="项目规模"
-                  items={scaleDistribution}
-                  accent="rgba(230,129,102,1)"
-                />
+        <motion.div {...fadeIn(3, reducedMotion, 0.03)}>
+          <section className="wb-panel h-full">
+            <div className="wb-panel-header">
+              <div className="flex items-center gap-2">
+                <Sparkles size={15} className="text-[oklch(0.5_0.16_258)]" />
+                <h2 className="neu-section-heading">进度洞察</h2>
               </div>
-            </Panel>
-          </motion.div>
-
-          <motion.div {...fadeIn(6, reducedMotion, 0.03)}>
-            <Panel variant="insight" className="h-full">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-[8px] bg-[rgba(96,139,239,0.1)] text-[rgba(96,139,239,1)]">
-                    <Sparkles size={13} />
-                  </div>
-                  <h2 className="text-[0.9rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
-                    进度洞察
-                  </h2>
-                </div>
-                <button
-                  onClick={() => void loadAiInsights(true)}
-                  disabled={aiLoading}
-                  className="inline-flex items-center gap-1 rounded-[8px] border border-[rgba(96,139,239,0.2)] bg-[rgba(96,139,239,0.06)] px-2 py-1 text-xs font-medium text-[rgba(96,139,239,1)] transition-all duration-200 hover:bg-[rgba(96,139,239,0.12)] disabled:opacity-50"
-                >
-                  <RefreshCw size={10} className={aiLoading ? "animate-spin" : ""} />
-                  重新分析
-                </button>
-              </div>
-
+              <button onClick={() => void loadAiInsights(true)} disabled={aiLoading} className="neu-btn-xs">
+                <RefreshCw size={12} className={aiLoading ? "animate-spin" : ""} />
+              </button>
+            </div>
+            <div className="wb-panel-body">
               {aiLoading && !aiInsights ? (
-                <div className="mt-4 flex flex-col items-center gap-2 py-6">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-[rgba(96,139,239,0.3)] border-t-[rgba(96,139,239,1)]" />
-                  <span className="text-xs text-[color:var(--muted-foreground)]">正在分析项目数据...</span>
+                <div className="flex flex-col items-center gap-2 py-8 text-xs text-[color:var(--muted-foreground)]">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-[oklch(0.5_0.16_258_/_0.25)] border-t-[oklch(0.5_0.16_258)]" />
+                  正在分析项目数据...
                 </div>
               ) : aiInsights ? (
                 <>
                   {aiInsights.overview && (
-                    <div className="mt-3 rounded-[12px] border border-white/60 bg-white/50 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-                      <p className="text-xs leading-[1.7] text-[color:var(--foreground)]">{aiInsights.overview}</p>
+                    <div className="neu-card-static mb-3 !rounded-[12px] px-3 py-2.5">
+                      <p className="text-xs leading-[1.65] text-[color:var(--foreground)]">{aiInsights.overview}</p>
                     </div>
                   )}
-
-                  <div className="mt-2.5 space-y-1.5">
+                  <div className="space-y-0.5">
                     {aiInsights.insights.map((insight) => (
-                      <AiInsightCard
-                        key={insight.id}
-                        insight={insight}
-                        onFilter={() => applyInsightFilter(insight)}
-                        reducedMotion={reducedMotion}
-                      />
+                      <AiInsightCard key={insight.id} insight={insight} onFilter={() => applyInsightFilter(insight)} reducedMotion={reducedMotion} />
                     ))}
                   </div>
-
-                  {aiInsights.insights.length === 0 && aiInsights.overview === "" && (
-                    <div className="mt-4 py-4 text-center text-xs text-[color:var(--muted-foreground)]">
-                      暂无分析结果
-                    </div>
+                  {aiInsights.insights.length === 0 && !aiInsights.overview && (
+                    <div className="py-6 text-center text-xs text-[color:var(--muted-foreground)]">暂无分析结果</div>
                   )}
                 </>
               ) : (
-                <div className="mt-4 py-4 text-center text-xs text-[color:var(--muted-foreground)]">
-                  分析暂不可用
-                </div>
-              )}
-            </Panel>
-          </motion.div>
-        </div>
-
-        <motion.div {...fadeIn(7, reducedMotion, 0.03)}>
-          <Panel>
-            <div id="project-list" className="space-y-3">
-              <div className="flex items-end justify-between gap-2.5">
-                <SectionHeader
-                  title="项目清单"
-                  description={`共 ${derivedProjects.length} 个项目`}
-                />
-                <div className="flex items-center gap-2.5">
-                  {lastRefreshedAt && (
-                    <span className="text-xs text-[color:var(--muted-foreground)]">
-                      {lastRefreshedAt}
-                    </span>
-                  )}
-                  <button
-                    onClick={() => void loadData()}
-                    className="inline-flex items-center gap-1.5 rounded-[10px] border border-[rgba(96,139,239,0.2)] bg-[rgba(96,139,239,0.08)] px-3 py-1.5 text-xs font-medium text-[rgba(96,139,239,1)] transition-all duration-200 hover:bg-[rgba(96,139,239,0.15)]"
-                  >
-                    <RefreshCw size={13} />
-                    刷新
-                  </button>
-                </div>
-              </div>
-
-              {/* 筛选与排序 */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative min-w-[160px] flex-1">
-                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[rgba(96,139,239,0.5)]" />
-                  <input
-                    type="text"
-                    value={keyword}
-                    onChange={(event) => setKeyword(event.target.value)}
-                    placeholder="搜索项目、申请人、部门..."
-                    className="w-full rounded-[10px] border border-[rgba(150,165,195,0.25)] bg-white/70 py-1.5 pl-8 pr-3 text-xs text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(96,139,239,0.4)] focus:bg-white focus:shadow-[0_0_0_3px_rgba(96,139,239,0.06)]"
-                  />
-                </div>
-
-                <select
-                  value={selectedStage ?? ""}
-                  onChange={(e) => setSelectedStage(e.target.value || null)}
-                  className="cursor-pointer rounded-[10px] border border-[rgba(150,165,195,0.25)] bg-white/70 px-2.5 py-1.5 text-xs text-[color:var(--foreground)] outline-none transition-all duration-200 hover:border-[rgba(96,139,239,0.3)] focus:border-[rgba(96,139,239,0.4)] focus:bg-white"
-                >
-                  <option value="">全部阶段</option>
-                  {PROJECT_WORKFLOW_STAGES_ALL.map((stage) => (
-                    <option key={stage.key} value={stage.key}>{stage.label}</option>
-                  ))}
-                </select>
-
-                <select
-                  value={selectedProject}
-                  onChange={(e) => setSelectedProject(e.target.value)}
-                  className="cursor-pointer rounded-[10px] border border-[rgba(150,165,195,0.25)] bg-white/70 px-2.5 py-1.5 text-xs text-[color:var(--foreground)] outline-none transition-all duration-200 hover:border-[rgba(96,139,239,0.3)] focus:border-[rgba(96,139,239,0.4)] focus:bg-white"
-                >
-                  <option value="">全部项目</option>
-                  {projectNames.map((name, idx) => (
-                    <option key={`${name}-${idx}`} value={name}>{name}</option>
-                  ))}
-                </select>
-
-                <select
-                  value={selectedRequester}
-                  onChange={(e) => setSelectedRequester(e.target.value)}
-                  className="cursor-pointer rounded-[10px] border border-[rgba(150,165,195,0.25)] bg-white/70 px-2.5 py-1.5 text-xs text-[color:var(--foreground)] outline-none transition-all duration-200 hover:border-[rgba(96,139,239,0.3)] focus:border-[rgba(96,139,239,0.4)] focus:bg-white"
-                >
-                  <option value="">全部申请人</option>
-                  {requesterNames.map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
-
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="cursor-pointer rounded-[10px] border border-[rgba(150,165,195,0.25)] bg-white/70 px-2.5 py-1.5 text-xs text-[color:var(--foreground)] outline-none transition-all duration-200 hover:border-[rgba(96,139,239,0.3)] focus:border-[rgba(96,139,239,0.4)] focus:bg-white"
-                >
-                  <option value="updatedAt">按更新时间</option>
-                  <option value="budgetDesc">预算 高→低</option>
-                  <option value="progressAsc">完成度 低→高</option>
-                  <option value="stalledDesc">停滞天数 高→低</option>
-                </select>
-
-                <span className="shrink-0 text-xs text-[color:var(--muted-foreground)]">
-                  {filteredProjects.length}/{derivedProjects.length}
-                </span>
-
-                {activeFilterCount > 0 && (
-                  <button
-                    onClick={clearAllFilters}
-                    className="shrink-0 rounded-[8px] border border-[rgba(230,129,102,0.25)] bg-[rgba(230,129,102,0.06)] px-2 py-1 text-xs font-medium text-[rgba(230,129,102,1)] transition-all duration-200 hover:bg-[rgba(230,129,102,0.12)]"
-                  >
-                    清除 {activeFilterCount} 项筛选
-                  </button>
-                )}
-              </div>
-
-              {filteredProjects.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center text-[color:var(--muted-foreground)]">
-                  <FolderKanban size={28} className="mb-2 text-[rgba(96,139,239,0.5)]" />
-                  <div className="text-sm font-medium text-[color:var(--foreground)]">
-                    {derivedProjects.length === 0 ? "当前暂无进行中的项目" : "暂无匹配项目"}
-                  </div>
-                  {activeFilterCount > 0 && (
-                    <button
-                      onClick={clearAllFilters}
-                      className="mt-2 rounded-[8px] border border-[rgba(96,139,239,0.2)] bg-[rgba(96,139,239,0.06)] px-3 py-1 text-xs font-medium text-[rgba(96,139,239,1)] transition-all duration-200 hover:bg-[rgba(96,139,239,0.12)]"
-                    >
-                      清除筛选条件
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2.5">
-                    {filteredProjects.slice(0, currentPage * PAGE_SIZE).map((project, index) => (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        index={index}
-                        reducedMotion={reducedMotion}
-                      />
-                    ))}
-                  </div>
-                  {filteredProjects.length > currentPage * PAGE_SIZE && (
-                    <div className="mt-3 flex items-center justify-between border-t border-[rgba(150,165,195,0.15)] pt-3">
-                      <span className="text-xs text-[color:var(--muted-foreground)]">
-                        已显示 {Math.min(currentPage * PAGE_SIZE, filteredProjects.length)} / {filteredProjects.length}
-                      </span>
-                      <button
-                        onClick={() => setCurrentPage((p) => p + 1)}
-                        className="rounded-[10px] border border-[rgba(96,139,239,0.2)] bg-[rgba(96,139,239,0.06)] px-3 py-1.5 text-xs font-medium text-[rgba(96,139,239,1)] transition-all duration-200 hover:bg-[rgba(96,139,239,0.12)]"
-                      >
-                        加载更多
-                      </button>
-                    </div>
-                  )}
-                </>
+                <div className="py-6 text-center text-xs text-[color:var(--muted-foreground)]">分析暂不可用</div>
               )}
             </div>
-          </Panel>
+          </section>
         </motion.div>
       </div>
+
+      {/* ── Project List ── */}
+      <motion.div {...fadeIn(4, reducedMotion, 0.03)} id="project-list">
+        <section className="wb-panel">
+          <div className="wb-panel-header">
+            <div className="flex items-center gap-3">
+              <h2 className="neu-section-heading">项目清单</h2>
+              <span className="text-xs text-[color:var(--muted-foreground)]">共 {derivedProjects.length} 个项目</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {lastRefreshedAt && <span className="text-xs text-[color:var(--muted-foreground)]">{lastRefreshedAt}</span>}
+              <button onClick={() => void loadData()} className="neu-btn-xs"><RefreshCw size={13} /></button>
+            </div>
+          </div>
+          <div className="wb-panel-body space-y-3">
+            {/* Filter bar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="search-box">
+                <Search size={14} className="search-box__icon" />
+                <input type="text" value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="搜索项目、申请人、部门..." className="neu-input" />
+              </div>
+              <select value={selectedStage ?? ""} onChange={(e) => setSelectedStage(e.target.value || null)} className="workbench-input !h-[44px] !w-auto min-w-[110px]">
+                <option value="">全部阶段</option>
+                {PROJECT_WORKFLOW_STAGES_ALL.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
+              </select>
+              <select value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} className="workbench-input !h-[44px] !w-auto min-w-[110px]">
+                <option value="">全部项目</option>
+                {projectNames.map((n, i) => (<option key={`${n}-${i}`} value={n}>{n}</option>))}
+              </select>
+              <select value={selectedRequester} onChange={(e) => setSelectedRequester(e.target.value)} className="workbench-input !h-[44px] !w-auto min-w-[110px]">
+                <option value="">全部申请人</option>
+                {requesterNames.map((n) => (<option key={n} value={n}>{n}</option>))}
+              </select>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="workbench-input !h-[44px] !w-auto min-w-[110px]">
+                <option value="updatedAt">按更新时间</option>
+                <option value="budgetDesc">预算 高→低</option>
+                <option value="progressAsc">完成度 低→高</option>
+                <option value="stalledDesc">停滞天数 高→低</option>
+              </select>
+              <span className="text-xs text-[color:var(--muted-foreground)]">{filteredProjects.length}/{derivedProjects.length}</span>
+              {activeFilterCount > 0 && (
+                <button onClick={clearAll} className="neu-btn-soft is-danger"><Filter size={11} /> 清除 {activeFilterCount} 项</button>
+              )}
+            </div>
+
+            {/* List / Empty */}
+            {filteredProjects.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <FolderKanban size={32} className="mb-2 text-[oklch(0.5_0.16_258_/_0.35)]" />
+                <p className="text-sm font-medium text-[color:var(--foreground)]">{derivedProjects.length === 0 ? "当前暂无进行中的项目" : "暂无匹配项目"}</p>
+                {activeFilterCount > 0 && <button onClick={clearAll} className="neu-btn-soft mt-3">清除筛选条件</button>}
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2.5">
+                  {filteredProjects.slice(0, currentPage * PAGE_SIZE).map((project, idx) => (
+                    <ProjectCard key={project.id} project={project} index={idx} reducedMotion={reducedMotion} />
+                  ))}
+                </div>
+                {filteredProjects.length > currentPage * PAGE_SIZE && (
+                  <div className="flex items-center justify-between pt-3">
+                    <span className="text-xs text-[color:var(--muted-foreground)]">已显示 {Math.min(currentPage * PAGE_SIZE, filteredProjects.length)} / {filteredProjects.length}</span>
+                    <button onClick={() => setCurrentPage((p) => p + 1)} className="neu-btn-soft">加载更多</button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+      </motion.div>
+    </div>
   );
 }
