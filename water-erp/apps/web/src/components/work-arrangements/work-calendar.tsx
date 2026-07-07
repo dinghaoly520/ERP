@@ -22,7 +22,6 @@ const URGENCY_COLORS: Record<WorkArrangementUrgency, string> = {
 
 const WEEKDAY_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
 const MAX_DOTS = 4;
-const GRID_STYLE: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' };
 
 function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -114,35 +113,8 @@ export function WorkCalendar({
   const monthLabel = `${viewMonth.getFullYear()}年${viewMonth.getMonth() + 1}月`;
 
   return (
-    <div
-      className="relative rounded-[18px] px-4 pt-4 pb-3"
-      style={{
-        background: 'linear-gradient(180deg, rgba(255,255,255,0.92), rgba(242,247,255,0.85))',
-        border: '1px solid rgba(192,208,235,0.55)',
-        boxShadow: 'var(--shadow-panel)',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Ambient light overlay — separate div avoids isolation/isolation issues */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: '-18% -12% 24% -10%',
-          zIndex: 0,
-          pointerEvents: 'none',
-          background: [
-            'radial-gradient(circle at 14% 26%, rgba(108,149,244,0.14), transparent 26%)',
-            'radial-gradient(circle at 84% 20%, rgba(248,201,128,0.13), transparent 22%)',
-            'radial-gradient(circle at 56% 82%, rgba(102,194,173,0.12), transparent 24%)',
-          ].join(', '),
-          filter: 'blur(28px)',
-          animation: 'chromaShift 16s cubic-bezier(0.22,1,0.36,1) infinite',
-        }}
-      />
-
-      {/* Content layer — above the ambient overlay */}
-      <div style={{ position: 'relative', zIndex: 1 }}>
+    <div className="rounded-[18px] px-1 pt-1 pb-1">
+      <div className="relative">
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
@@ -166,22 +138,11 @@ export function WorkCalendar({
               <ChevronRight size={16} strokeWidth={2.5} />
             </button>
           </div>
-          <button
-            type="button"
-            onClick={goToToday}
-            className="rounded-[10px] px-3 py-1 text-[11px] font-semibold transition"
-            style={{
-              background: 'linear-gradient(135deg, rgba(96,139,239,0.1), rgba(96,139,239,0.06))',
-              color: 'var(--accent)',
-              boxShadow: '0 1px 3px rgba(96,139,239,0.1)',
-            }}
-          >
-            今天
-          </button>
+          <button type="button" onClick={goToToday} className="neu-btn-xs is-info">今天</button>
         </div>
 
         {/* Weekday headers */}
-        <div className="mb-[2px]" style={GRID_STYLE}>
+        <div className="mb-[2px]" className="grid grid-cols-7">
           {WEEKDAY_LABELS.map(label => (
             <div
               key={label}
@@ -194,55 +155,29 @@ export function WorkCalendar({
         </div>
 
         {/* Day grid */}
-        <div style={GRID_STYLE}>
+        <div className="grid grid-cols-7">
           {calendarDays.map((day, idx) => {
             const dayNum = day.date.getDate();
             const hasTasks = day.dots.length > 0;
 
-            let bgStyle: React.CSSProperties = {};
             let cellClass = 'flex flex-col items-center justify-center rounded-[10px] cursor-pointer transition-all duration-200 text-xs leading-none select-none py-2';
-
             if (!day.isCurrentMonth) {
-              cellClass += ' text-gray-300';
+              cellClass += ' text-[var(--muted-foreground)] opacity-30';
             } else if (day.isToday && day.isSelected) {
-              bgStyle = {
-                background: 'linear-gradient(135deg, #4F7DF5, #6C9BF2)',
-                boxShadow: '0 2px 10px rgba(79,125,245,0.35), 0 0 0 2px rgba(108,155,242,0.25)',
-              };
-              cellClass += ' text-white font-bold';
+              cellClass += ' text-white font-bold bg-[var(--accent)] shadow-[0_2px_10px_var(--accent)/35] ring-2 ring-[var(--accent)]/25';
             } else if (day.isSelected) {
-              bgStyle = {
-                background: 'linear-gradient(135deg, rgba(96,139,239,0.15), rgba(96,139,239,0.08))',
-                boxShadow: '0 0 0 1.5px rgba(96,139,239,0.3), inset 0 1px 2px rgba(255,255,255,0.6)',
-              };
-              cellClass += ' text-[color:var(--accent)] font-bold';
+              cellClass += ' text-[var(--accent)] font-bold bg-[var(--accent-soft)] ring-1 ring-[var(--accent)]/30';
             } else if (day.isToday) {
-              bgStyle = {
-                background: 'linear-gradient(135deg, #4F7DF5, #6C9BF2)',
-                boxShadow: '0 2px 10px rgba(79,125,245,0.35)',
-              };
-              cellClass += ' text-white font-bold';
+              cellClass += ' text-white font-bold bg-[var(--accent)] shadow-[0_2px_8px_var(--accent)/35]';
             } else if (hasTasks) {
-              bgStyle = {
-                background: 'linear-gradient(135deg, rgba(242,247,255,0.9), rgba(235,242,255,0.7))',
-              };
-              cellClass += ' text-[color:var(--foreground)] font-medium';
-              cellClass += ' hover:shadow-[0_1px_6px_rgba(96,139,239,0.12)]';
+              cellClass += ' text-[var(--foreground)] font-medium bg-[var(--accent-soft)]/60 hover:shadow-[0_1px_6px_var(--accent)/12]';
             } else if (day.isWeekend) {
-              cellClass += ' text-gray-400 hover:bg-[rgba(242,247,255,0.5)]';
+              cellClass += ' text-[var(--muted-foreground)] opacity-60 hover:bg-[var(--accent-soft)]/30';
             } else {
-              cellClass += ' text-[color:var(--foreground)] hover:bg-[rgba(242,247,255,0.5)]';
+              cellClass += ' text-[var(--foreground)] hover:bg-[var(--accent-soft)]/30';
             }
-
             return (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => day.isCurrentMonth && onDateSelect(day.date)}
-                className={cellClass}
-                style={bgStyle}
-                aria-label={`${day.date.getMonth() + 1}月${dayNum}日`}
-              >
+              <button key={idx} type="button" onClick={() => day.isCurrentMonth && onDateSelect(day.date)} className={cellClass} aria-label={`${day.date.getMonth() + 1}月${dayNum}日`}>
                 <span>{dayNum}</span>
                 {day.dots.length > 0 && (
                   <div className="mt-[2px] flex gap-[2px] justify-center">
@@ -270,13 +205,7 @@ export function WorkCalendar({
         </div>
 
         {/* Legend */}
-        <div
-          className="mt-3 flex items-center justify-center gap-5 pt-2 text-[10px]"
-          style={{
-            borderTop: '1px solid rgba(192,208,235,0.3)',
-            color: 'var(--muted-foreground)',
-          }}
-        >
+        <div className="mt-3 flex items-center justify-center gap-5 pt-2 text-[10px] text-[var(--muted-foreground)] border-t border-[var(--border)]/40">
           {(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const).map(level => (
             <span key={level} className="flex items-center gap-1.5">
               <span

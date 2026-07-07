@@ -1,27 +1,37 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  listAnnouncements, deleteAnnouncement,
+  listAnnouncements, deleteAnnouncement, updateAnnouncement,
   getParticipants,
 } from '@/lib/api/announcement';
 import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Participant } from '@/lib/api/announcement';
 import { toast } from 'sonner';
 import { MetricCard, PageHero, StatusBadge, TableSkeleton } from '@/components/workbench';
-import { FileText, Megaphone as MegaphoneIcon, PlusCircle, Search } from 'lucide-react';
+import {
+  FileText, Megaphone as MegaphoneIcon, PlusCircle, Search,
+  ChevronUp, ChevronDown, ChevronsUpDown,
+  Paperclip, Lock, Archive, Trash2, Send, X,
+} from 'lucide-react';
 
-const typeMap: Record<AnnouncementType, { label: string; color: string; bg: string }> = {
-  BID_NOTICE: { label: '招标公示', color: '#064ea2', bg: '#064ea218' },
-  WIN_NOTICE: { label: '中标公示', color: '#11a874', bg: '#11a87418' },
-  POLICY: { label: '政策法规', color: '#f5a623', bg: '#f5a62318' },
-  PLATFORM: { label: '平台通知', color: '#5a6d8a', bg: '#5a6d8a18' },
+/* ── 类型 / 状态映射（tone 化，由 StatusBadge 渲染，不写硬编码色）── */
+
+const typeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }> = {
+  BID_NOTICE: { label: '招标公示', tone: 'blue' },
+  WIN_NOTICE: { label: '中标公示', tone: 'green' },
+  POLICY: { label: '政策法规', tone: 'orange' },
+  PLATFORM: { label: '平台通知', tone: 'gray' },
 };
-const statusMap: Record<AnnouncementStatus, { label: string; color: string; bg: string }> = {
-  DRAFT: { label: '草稿', color: '#8a9aaa', bg: '#8a9aaa18' },
-  PUBLISHED: { label: '已发布', color: '#11a874', bg: '#11a87418' },
-  ARCHIVED: { label: '已归档', color: '#5a6d8a', bg: '#5a6d8a18' },
+const statusMeta: Record<AnnouncementStatus, { label: string; tone: 'green' | 'gray' }> = {
+  DRAFT: { label: '草稿', tone: 'gray' },
+  PUBLISHED: { label: '已发布', tone: 'green' },
+  ARCHIVED: { label: '已归档', tone: 'gray' },
 };
+
+/* ── 排序键 ── */
+type SortKey = 'publishDate' | 'viewCount' | 'type' | 'status';
+type SortDir = 'asc' | 'desc';
 
 export default function NoticePage() {
   const router = useRouter();
@@ -34,6 +44,13 @@ export default function NoticePage() {
 
   const [partAnn, setPartAnn] = useState<AnnouncementListItem | null>(null);
 
+  /* 选择（跨页不保留）*/
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  /* 排序（前端页内；默认发布日期降序）*/
+  const [sortKey, setSortKey] = useState<SortKey | null>('publishDate');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -44,8 +61,77 @@ export default function NoticePage() {
   }, [filterType, filterStatus, search, page]);
 
   useEffect(() => { load(); }, [load]);
-  const totalPages = Math.ceil(data.total / 15);
 
+  // 切换筛选 / 翻页时清空选择
+  useEffect(() => { setSelectedIds(new Set()); }, [filterType, filterStatus, search, page]);
+
+  const totalPages = Math.max(1, Math.ceil(data.total / 15));
+
+  /* 排序后的当前页条目 */
+  const sortedItems = useMemo(() => {
+    if (!sortKey) return data.items;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...data.items].sort((a, b) => {
+      let av: string | number = '';
+      let bv: string | number = '';
+      if (sortKey === 'viewCount') { av = a.viewCount; bv = b.viewCount; }
+      else if (sortKey === 'publishDate') { av = a.publishDate || a.createdAt; bv = b.publishDate || b.createdAt; }
+      else if (sortKey === 'type') { av = a.type; bv = b.type; }
+      else if (sortKey === 'status') { av = a.status; bv = b.status; }
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }, [data.items, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey !== key) { setSortKey(key); setSortDir('desc'); }
+    else if (sortDir === 'desc') setSortDir('asc');
+    else { setSortKey(null); setSortDir('desc'); } // 第三次点击取消排序
+  };
+
+  /* 选择辅助 */
+  const selectableIds = sortedItems.map(i => i.id);
+  const allSelected = selectableIds.length > 0 && selectableIds.every(id => selectedIds.has(id));
+  const someSelected = selectableIds.some(id => selectedIds.has(id));
+  const selectedCount = selectedIds.size;
+
+  const toggleRow = (id: string) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+  const toggleAll = () => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (allSelected) selectableIds.forEach(id => next.delete(id));
+    else selectableIds.forEach(id => next.add(id));
+    return next;
+  });
+  const clearSelection = () => setSelectedIds(new Set());
+
+  /* 批量操作 —— 客户端 Promise.all 扇出 */
+  const runBatch = async (action: 'publish' | 'archive' | 'delete') => {
+    const target = Array.from(selectedIds);
+    if (target.length === 0) return;
+    const label = action === 'publish' ? '发布' : action === 'archive' ? '归档' : '删除';
+    if (action === 'delete' && !confirm(`确认删除选中的 ${target.length} 条信息？此操作不可撤销。`)) return;
+
+    clearSelection();
+    const results = await Promise.allSettled(target.map(id =>
+      action === 'delete'
+        ? deleteAnnouncement(id)
+        : updateAnnouncement(id, { status: action === 'publish' ? 'PUBLISHED' : 'ARCHIVED' })
+    ));
+    const ok = results.filter(r => r.status === 'fulfilled').length;
+    const fail = results.length - ok;
+    if (fail === 0) toast.success(`${label}成功 ${ok} 条`);
+    else if (ok === 0) toast.error(`${label}失败 ${fail} 条`);
+    else toast(`${label}完成：成功 ${ok} / 失败 ${fail}`);
+    load();
+  };
+
+  /* 单条删除（保留撤销 toast）*/
   const remove = async (a: AnnouncementListItem) => {
     if (!confirm(`确认删除「${a.title}」？`)) return;
     const prevItems = data.items;
@@ -62,7 +148,7 @@ export default function NoticePage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1440px]">
+    <div className="h-full">
       <PageHero
         title="信息发布中心"
         description="招标公示、中标公示、政策法规、平台通知；起草并配齐招标文件/附件后再发布。"
@@ -82,31 +168,46 @@ export default function NoticePage() {
         <MetricCard label="已归档" value={data.items.filter(item => item.status === 'ARCHIVED').length} hint="本页归档记录" tone="gray" />
       </div>
 
-      <div className="mt-6">
-        <div className="flex flex-wrap items-center border-b border-[var(--border)]">
-          <div className="flex">
-            {(Object.keys(typeMap) as AnnouncementType[]).map((t, i, arr) => (
+      <div className="neu-table-card mt-6">
+        {/* 批量操作条 */}
+        {selectedCount > 0 && (
+          <div className="neu-batch-bar">
+            <span className="neu-batch-bar-count">已选 <strong>{selectedCount}</strong> 条</span>
+            <div className="neu-batch-bar-spacer" />
+            <button onClick={() => runBatch('publish')} className="neu-btn-xs is-success"><Send size={13} /> 发布</button>
+            <button onClick={() => runBatch('archive')} className="neu-btn-xs is-warning"><Archive size={13} /> 归档</button>
+            <button onClick={() => runBatch('delete')} className="neu-btn-xs is-danger"><Trash2 size={13} /> 删除</button>
+            <button onClick={clearSelection} className="neu-btn-xs"><X size={13} /> 取消选择</button>
+          </div>
+        )}
+
+        {/* 工具栏：类型 tab + 搜索 + 状态筛选 */}
+        <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
+          <div className="neu-tab-bar">
+            {(Object.keys(typeMeta) as AnnouncementType[]).map(t => (
               <button
                 key={t}
                 onClick={() => { setFilterType(t); setPage(1); }}
-                className={`relative px-5 py-3 text-sm font-bold transition-colors
-                  ${filterType === t ? 'text-[#064ea2] bg-[#f0f5ff]' : 'text-[#5a6d8a] hover:text-[#18243a] hover:bg-[#f8fafc]'}
-                  ${i < arr.length - 1 ? 'border-r border-[var(--border)]' : ''}`}
+                className={`neu-tab ${filterType === t ? 'is-active' : ''}`}
               >
-                {typeMap[t].label}
-                {filterType === t && <span className="absolute bottom-0 left-[14px] right-[14px] h-[2px] rounded-full bg-[#064ea2]" />}
+                {typeMeta[t].label}
               </button>
             ))}
           </div>
-          <div className="ml-auto flex items-center gap-3 pr-4">
+          <div className="flex items-center gap-2">
             <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
-              <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-                placeholder="搜索标题..." className="w-full min-w-[120px] max-w-[200px] rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-3 text-sm text-[#18243a] placeholder-[#94a3b8] outline-none transition focus:border-[#0b63ce] focus:bg-white focus:shadow-[0_0_0_3px_rgba(11,99,206,0.10)]" />
+              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)]" />
+              <input
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1); }}
+                placeholder="搜索标题..."
+                className="neu-input !h-9 min-w-[160px] max-w-[220px] !pl-9 text-sm"
+              />
             </div>
-            <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value as any); setPage(1); }}
-              className="rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-3 pr-7 text-sm text-[#5a6d8a] outline-none transition focus:border-[#0b63ce] focus:bg-white focus:shadow-[0_0_0_3px_rgba(11,99,206,0.10)] appearance-none bg-no-repeat"
-              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundPosition: 'right 8px center' }}
+            <select
+              value={filterStatus}
+              onChange={e => { setFilterStatus(e.target.value as any); setPage(1); }}
+              className="neu-select !h-9 min-w-[110px] text-sm"
             >
               <option value="">全部状态</option>
               <option value="PUBLISHED">已发布</option>
@@ -116,67 +217,140 @@ export default function NoticePage() {
           </div>
         </div>
 
+        {/* 表格主体 */}
         <div className="overflow-x-auto">
-        <table className="workbench-table w-full min-w-[640px]">
-          <thead className="neu-thead [neu-thead text-[#5a6d8a] [&_th]:whitespace-nowrap_th]:whitespace-nowrap">
-            <tr>
-              <th className="px-4 py-3 text-center">标题</th>
-              <th className="px-4 py-3 text-center">类型</th>
-              <th className="px-4 py-3 text-center">状态</th>
-              <th className="px-4 py-3 text-center">附件/招标文件</th>
-              <th className="px-4 py-3 text-center">浏览</th>
-              <th className="px-4 py-3 text-center">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <TableSkeleton cols={6} rows={5} />
-            ) : data.items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-16 text-center text-[#8a99ad]">暂无信息</td></tr>
-            ) : data.items.map(a => {
-              const tm = typeMap[a.type] || typeMap.PLATFORM;
-              const sm = statusMap[a.status] || statusMap.DRAFT;
-              const noBidDoc = a.type === 'BID_NOTICE' && a.status === 'PUBLISHED' && !a.bidDocument;
-              return (
-                <tr key={a.id} className="row-clickable" onClick={() => router.push(`/notice/${a.id}`)}>
-                  <td className="px-4 py-3">
-                    <span className="text-sm font-bold text-[#18243a]">{a.title}</span>
-                    {a.isTop && <StatusBadge tone="red" className="ml-1 !text-[10px] !px-1.5 !py-0">置顶</StatusBadge>}
-                    {noBidDoc && <span className="ml-2 rounded-md bg-[#fef2f2] px-1.5 py-0.5 text-[10px] text-[#e74c3c]">未上传招标文件</span>}
-                  </td>
-                  <td className="px-4 py-3 text-center"><StatusBadge tone={a.type === 'BID_NOTICE' ? 'blue' : a.type === 'WIN_NOTICE' ? 'green' : a.type === 'POLICY' ? 'orange' : 'gray'}>{tm.label}</StatusBadge></td>
-                  <td className="px-4 py-3 text-center"><StatusBadge tone={a.status === 'PUBLISHED' ? 'green' : a.status === 'DRAFT' ? 'gray' : 'gray'}>{sm.label}</StatusBadge></td>
-                  <td className="px-4 py-3 text-center text-xs text-[#5a6d8a]">
-                    {a.attachments && a.attachments.length > 0 && <span className="mr-2">📎 {a.attachments.length}</span>}
-                    {a.bidDocument && <span className="text-[#064ea2] font-semibold">🔒 招标文件{a.bidDocument.requirePayment ? '(付费)' : ''}</span>}
-                  </td>
-                  <td className="px-4 py-3 text-center text-[#5a6d8a]">{a.viewCount}</td>
-                  <td className="px-4 py-3 text-center">
-                    <div className="flex justify-center gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => router.push(`/notice/${a.id}`)} className="neu-btn-xs is-info">查看</button>
-                      {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="neu-btn-xs is-success">投标</button>}
-                      <button onClick={() => remove(a)} className="neu-btn-xs is-danger">删除</button>
+          <table className="neu-table w-full min-w-[760px]">
+            <thead>
+              <tr>
+                <th style={{ width: 44 }}>
+                  <input
+                    type="checkbox"
+                    className="neu-checkbox"
+                    checked={allSelected}
+                    ref={el => { if (el) el.indeterminate = !allSelected && someSelected; }}
+                    onChange={toggleAll}
+                    aria-label="全选当前页"
+                  />
+                </th>
+                <th>标题</th>
+                <SortTh label="类型" sortKey="type" current={sortKey} dir={sortDir} onToggle={toggleSort} />
+                <SortTh label="状态" sortKey="status" current={sortKey} dir={sortDir} onToggle={toggleSort} />
+                <th>附件 / 招标文件</th>
+                <SortTh label="浏览" sortKey="viewCount" current={sortKey} dir={sortDir} onToggle={toggleSort} align="right" />
+                <th style={{ textAlign: 'center' }}>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <TableSkeleton cols={7} rows={5} />
+              ) : sortedItems.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-16">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
+                        <FileText size={22} className="text-[color:var(--muted-foreground)]" />
+                      </div>
+                      <p className="text-sm text-[color:var(--muted-foreground)]">暂无信息</p>
+                      <button onClick={() => router.push('/notice/new')} className="neu-btn-primary !h-9 text-xs"><PlusCircle size={15} /> 新建信息</button>
                     </div>
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 px-4 py-3 border-t border-[var(--border)]">
-            <span className="text-xs text-[#5a6d8a]">共 {data.total} 条，第 {page}/{totalPages} 页</span>
-            <div className="flex gap-2">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--surface)] disabled:opacity-40">上一页</button>
-              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="px-3 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--surface)] disabled:opacity-40">下一页</button>
-            </div>
+              ) : sortedItems.map(a => {
+                const tm = typeMeta[a.type] || typeMeta.PLATFORM;
+                const sm = statusMeta[a.status] || statusMeta.DRAFT;
+                const noBidDoc = a.type === 'BID_NOTICE' && a.status === 'PUBLISHED' && !a.bidDocument;
+                const isSel = selectedIds.has(a.id);
+                const hasAttachments = a.attachments && a.attachments.length > 0;
+                return (
+                  <tr key={a.id} className="row-clickable" data-selected={isSel ? 'true' : 'false'} onClick={() => router.push(`/notice/${a.id}`)}>
+                    <td onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" className="neu-checkbox" checked={isSel} onChange={() => toggleRow(a.id)} aria-label={`选择 ${a.title}`} />
+                    </td>
+                    <td>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-bold text-[color:var(--foreground)]">{a.title}</span>
+                          {a.isTop && <StatusBadge tone="red" className="!text-[10px] !px-1.5 !py-0">置顶</StatusBadge>}
+                          {noBidDoc && <span className="rounded-md bg-[oklch(0.95_0.04_27/0.55)] px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--danger)]">未上传招标文件</span>}
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-[color:var(--muted-foreground)]">
+                          {a.publishDate && <span>{new Date(a.publishDate).toLocaleDateString('zh-CN')}</span>}
+                          {a.relatedProjectCode && (<><span aria-hidden>·</span><span>{a.relatedProjectCode}</span></>)}
+                          {a.summary && (<><span aria-hidden>·</span><span className="max-w-[360px] truncate">{a.summary.slice(0, 40)}{a.summary.length > 40 ? '…' : ''}</span></>)}
+                        </div>
+                      </div>
+                    </td>
+                    <td><StatusBadge tone={tm.tone}>{tm.label}</StatusBadge></td>
+                    <td><StatusBadge tone={sm.tone}>{sm.label}</StatusBadge></td>
+                    <td>
+                      <div className="flex flex-wrap items-center justify-center gap-1.5">
+                        {!hasAttachments && !a.bidDocument ? (
+                          <span className="text-[color:var(--muted-foreground)]">—</span>
+                        ) : (
+                          <>
+                            {hasAttachments && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-[oklch(0.96_0.005_258)] px-2 py-1 text-[11px] font-semibold text-[color:var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.7)]">
+                                <Paperclip size={11} /> {a.attachments!.length}
+                              </span>
+                            )}
+                            {a.bidDocument && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-[oklch(0.95_0.04_251/0.5)] px-2 py-1 text-[11px] font-semibold text-[color:var(--accent-strong)] shadow-[inset_0_1px_0_oklch(1_0_0/0.7)]">
+                                <Lock size={11} /> 招标文件{a.bidDocument.requirePayment ? ' (¥)' : ''}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'right' }} className="tabular-nums font-semibold text-[color:var(--foreground)]">{a.viewCount}</td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <div className="flex flex-wrap justify-center gap-1.5">
+                        <button onClick={() => router.push(`/notice/${a.id}`)} className="neu-btn-xs is-info">查看</button>
+                        {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="neu-btn-xs is-success">投标</button>}
+                        <button onClick={() => remove(a)} className="neu-btn-xs is-danger">删除</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* 分页 */}
+        <div className="neu-table-card-footer flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-xs text-[color:var(--muted-foreground)]">共 {data.total} 条，第 {page}/{totalPages} 页</span>
+          <div className="flex gap-2">
+            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-40 disabled:pointer-events-none">上一页</button>
+            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-40 disabled:pointer-events-none">下一页</button>
           </div>
-        )}
-      </div>
+        </div>
       </div>
 
       {partAnn && <ParticipantsModal announcement={partAnn} onClose={() => setPartAnn(null)} />}
     </div>
+  );
+}
+
+/* ════════════ 可排序表头 ════════════ */
+
+function SortTh({ label, sortKey, current, dir, onToggle, align = 'left' }: {
+  label: string;
+  sortKey: SortKey;
+  current: SortKey | null;
+  dir: SortDir;
+  onToggle: (k: SortKey) => void;
+  align?: 'left' | 'right';
+}) {
+  const active = current === sortKey;
+  const Indicator = active ? (dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
+  return (
+    <th data-sortable="true" data-sort={active ? dir : undefined} style={{ textAlign: align }}>
+      <button type="button" className="neu-th-sort" onClick={() => onToggle(sortKey)}>
+        <span>{label}</span>
+        <span className="neu-sort-indicator"><Indicator size={12} /></span>
+      </button>
+    </th>
   );
 }
 
@@ -189,21 +363,21 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
   const pct = data && data.stats.total > 0 ? Math.round((data.stats.submitted / data.stats.total) * 100) : 0;
   const badge = (s: Participant) => s.withdrawn ? { label: '已撤回', color: '#e74c3c', bg: '#e74c3c18' } : s.submitted ? { label: '已提交', color: '#11a874', bg: '#11a87418' } : { label: '未提交', color: '#95a5a6', bg: '#95a5a618' };
   return (
-    <div className="modal-backdrop fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="modal-content glass-card rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-[var(--border)] z-10">
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div className="modal-content glass-card w-full max-w-3xl rounded-xl shadow-xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border)] bg-white px-6 py-4">
           <h3 className="text-lg font-bold text-[#18243a]">投标情况</h3>
-          <button onClick={onClose} className="text-[#5a6d8a] hover:text-[#18243a] text-xl leading-none">×</button>
+          <button onClick={onClose} className="text-xl leading-none text-[#5a6d8a] hover:text-[#18243a]">×</button>
         </div>
         <div className="p-6">
-          {loading ? <p className="text-center text-[#5a6d8a] py-8">加载中...</p> : !data || !data.project ? (
-            <p className="text-center text-[#5a6d8a] py-8">该招标公示未关联招标项目（无项目编号），暂无投标数据。</p>
+          {loading ? <p className="py-8 text-center text-[#5a6d8a]">加载中...</p> : !data || !data.project ? (
+            <p className="py-8 text-center text-[#5a6d8a]">该招标公示未关联招标项目（无项目编号），暂无投标数据。</p>
           ) : (
             <div className="space-y-4">
               <div className="rounded-xl border border-[var(--border)] p-4">
                 <div className="flex items-center justify-between"><strong className="text-[#18243a]">{data.project.name}</strong><span className="text-xs text-[#5a6d8a]">截止 {new Date(data.project.deadline).toLocaleDateString('zh-CN')}</span></div>
-                <div className="flex items-center justify-between mt-3 mb-1.5"><span className="text-sm font-semibold text-[#18243a]">提交进度</span><span className="text-sm text-[#5a6d8a]">{data.stats.submitted}/{data.stats.total} 已提交</span></div>
-                <div className="h-2 rounded-full bg-[#f1f5f9] overflow-hidden"><div className="h-full rounded-full bg-[#11a874]" style={{ width: pct + '%' }} /></div>
+                <div className="mt-3 mb-1.5 flex items-center justify-between"><span className="text-sm font-semibold text-[#18243a]">提交进度</span><span className="text-sm text-[#5a6d8a]">{data.stats.submitted}/{data.stats.total} 已提交</span></div>
+                <div className="h-2 overflow-hidden rounded-full bg-[#f1f5f9]"><div className="h-full rounded-full bg-[#11a874]" style={{ width: pct + '%' }} /></div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[580px] text-sm">
@@ -211,7 +385,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
                 <tbody>
                   {data.suppliers.length === 0 ? <tr><td colSpan={6} className="px-3 py-8 text-center text-[#5a6d8a]">暂无投标供应商</td></tr> : data.suppliers.map((s, i) => {
                     const b = badge(s);
-                    return (<tr key={i} className="border-b border-[#f1f5f9]"><td className="px-3 py-2 font-semibold text-[#18243a]">{s.supplierName}</td><td className="px-3 py-2 text-[#5a6d8a]">{s.classification || '—'}</td><td className="px-3 py-2 text-[#5a6d8a]">{s.downloadStatus}</td><td className="px-3 py-2"><span className="px-2 py-1 rounded text-xs font-semibold" style={{ color: b.color, backgroundColor: b.bg }}>{b.label}</span></td><td className="px-3 py-2 text-[#5a6d8a]">{s.submittedAt ? new Date(s.submittedAt).toLocaleString('zh-CN') : '—'}</td><td className="px-3 py-2 text-[#5a6d8a]">{s.bidPrice || '—'}</td></tr>);
+                    return (<tr key={i} className="border-b border-[#f1f5f9]"><td className="px-3 py-2 font-semibold text-[#18243a]">{s.supplierName}</td><td className="px-3 py-2 text-[#5a6d8a]">{s.classification || '—'}</td><td className="px-3 py-2 text-[#5a6d8a]">{s.downloadStatus}</td><td className="px-3 py-2"><span className="rounded px-2 py-1 text-xs font-semibold" style={{ color: b.color, backgroundColor: b.bg }}>{b.label}</span></td><td className="px-3 py-2 text-[#5a6d8a]">{s.submittedAt ? new Date(s.submittedAt).toLocaleString('zh-CN') : '—'}</td><td className="px-3 py-2 text-[#5a6d8a]">{s.bidPrice || '—'}</td></tr>);
                   })}
                 </tbody>
               </table>

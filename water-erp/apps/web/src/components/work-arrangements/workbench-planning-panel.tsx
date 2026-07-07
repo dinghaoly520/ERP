@@ -1,243 +1,83 @@
-import {
-  CalendarClock,
-  Lightbulb,
-  Sparkles,
-  RefreshCw,
-  History,
-} from 'lucide-react';
+import { CalendarClock, Lightbulb, Sparkles, RefreshCw, History } from 'lucide-react';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 
 export function WorkbenchPlanningPanel({
-  dailyPlan,
-  refreshingPlan,
-  onSelectTimeBlock,
-  onRefreshPlan,
-  onShowHistory,
-  showAiScheduling = true,
-  isChairman = false,
+  dailyPlan, refreshingPlan, onSelectTimeBlock, onRefreshPlan, onShowHistory,
+  showAiScheduling = true, isChairman = false,
 }: {
-  dailyPlan: WorkArrangementDailyPlan | null;
-  refreshingPlan: boolean;
-  onSelectTimeBlock: (taskIds: string[]) => void;
-  onRefreshPlan: () => void;
-  onShowHistory: () => void;
-  showAiScheduling?: boolean;
-  isChairman?: boolean;
+  dailyPlan: WorkArrangementDailyPlan | null; refreshingPlan: boolean;
+  onSelectTimeBlock: (taskIds: string[]) => void; onRefreshPlan: () => void; onShowHistory: () => void;
+  showAiScheduling?: boolean; isChairman?: boolean;
 }) {
   return (
-    <section className="panel-surface panel-lens rounded-[24px] p-4">
-      {showAiScheduling && (
-        <>
-          <div className="flex flex-col gap-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-[color:var(--accent)]">
-                  <Sparkles size={13} aria-hidden="true" />
-                  AI 今日排程
-                </div>
-                <div className="mt-3 text-base leading-7 text-pretty text-[color:var(--foreground)]">
-                  {dailyPlan?.overview}
-                </div>
-              </div>
+    <section className="flex flex-col">
+      {showAiScheduling && (<>
+        <p className="text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]"><Sparkles size={14} className="inline-block mr-1.5" />AI 今日排程</p>
+        <div className="text-[15px] leading-relaxed text-[color:var(--foreground)] mt-2">{dailyPlan?.overview}</div>
 
-              {/* 操作按钮 */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onRefreshPlan}
-                  disabled={refreshingPlan}
-                  aria-label="刷新 AI 安排"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-violet-100 hover:text-violet-700 disabled:opacity-50"
-                >
-                  <RefreshCw size={12} className={refreshingPlan ? 'animate-spin' : ''} />
-                  <span className="hidden sm:inline">AI 安排</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={onShowHistory}
-                  aria-label="查看历史记录"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-amber-100 hover:text-amber-700"
-                >
-                  <History size={12} />
-                  <span className="hidden sm:inline">历史</span>
-                </button>
-              </div>
-            </div>
-          </div>
+        <hr className="wb-section-rule" />
 
-          {/* 时间块建议 */}
-          <div className="mt-4 grid min-h-0 content-start gap-4 overflow-y-auto pr-1">
-            <div className="rounded-[22px] border border-white/60 bg-white p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--foreground)]">
-                <CalendarClock size={16} aria-hidden="true" />
-                时间块建议
-              </div>
-              <div className="mt-3 grid gap-3 xl:grid-cols-2">
-                {dailyPlan?.timeBlocks.length ? (
-                  dailyPlan.timeBlocks.map((block, i) => (
-                    <button
-                      key={`tb-${i}-${block.label}`}
-                      type="button"
-                      onClick={() => onSelectTimeBlock(block.taskIds ?? [])}
-                      aria-label={`选择时间块：${block.label}`}
-                      className="block w-full rounded-[18px] bg-white px-3 py-3 text-left transition hover:bg-gray-50"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-[color:var(--foreground)]">{block.label}</div>
-                        <div className="text-xs tabular-nums text-[color:var(--muted-foreground)]">{block.start} - {block.end}</div>
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-pretty text-[color:var(--muted-foreground)]">{block.focus}</p>
-                      <div className="mt-2 text-xs text-[color:var(--accent)]">关联任务 {block.taskIds?.length ?? 0} 条</div>
-                    </button>
-                  ))
-                ) : (
-                  <div className="rounded-[18px] bg-gray-50 px-3 py-3 text-sm text-[color:var(--muted-foreground)] xl:col-span-2">
-                    暂无时间块建议，可用于整理资料、补记录或完成复盘。
-                  </div>
-                )}
-              </div>
-            </div>
+        <p className="text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]"><CalendarClock size={14} className="inline-block mr-1.5" />时间块建议</p>
+        <div className="grid gap-3 xl:grid-cols-2 mt-3">
+            {dailyPlan?.timeBlocks.length ? dailyPlan.timeBlocks.map((block, i) => (
+              <button key={`tb-${i}-${block.label}`} type="button" onClick={() => onSelectTimeBlock(block.taskIds ?? [])} className="wb-timeblock-card">
+                <div className="flex items-center justify-between gap-3"><span className="text-sm font-semibold text-[color:var(--foreground)]">{block.label}</span><span className="text-xs tabular-nums tracking-tight text-[color:var(--muted-foreground)]">{block.start} - {block.end}</span></div>
+                <p className="mt-1.5 text-xs leading-relaxed text-[color:var(--muted-foreground)]">{block.focus}</p>
+                <span className="block mt-2 text-[11px] font-medium text-[color:var(--accent)]">{block.taskIds?.length ?? 0} 项关联</span>
+              </button>
+            )) : <div className="neu-content-block text-sm text-[color:var(--muted-foreground)] xl:col-span-2" style={{ '--block-accent': 'var(--accent)' } as React.CSSProperties}>暂无时间块建议，可用于整理资料、补记录或完成复盘。</div>}
           </div>
-        </>
-      )}
+      </>)}
 
       <div className={showAiScheduling ? 'mt-4' : ''}>
-        {/* 董事长：卡片始终渲染（加载期间也有标题和占位文字） */}
-        {isChairman ? (
-          <>
-            <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--foreground)]">
-              <Lightbulb size={16} aria-hidden="true" />
-              项目简报
-            </div>
-            <div className="mt-3 rounded-[22px] border border-amber-100/60 bg-gradient-to-br from-amber-50/50 to-white p-4">
+        <hr className="wb-section-rule" />
+        {isChairman ? (<>
+          <p className="text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]"><Lightbulb size={14} className="inline-block mr-1.5" />项目简报</p>
+          <div className="mt-3 neu-content-block rounded-[18px]" style={{ '--block-accent': 'oklch(0.72 0.15 69)' } as React.CSSProperties}>
             {dailyPlan?.completionAdvice ? (() => {
-              const text = dailyPlan.completionAdvice;
+              const briefText = dailyPlan.completionAdvice;
               const sections: { title: string; body: string }[] = [];
-              const firstBracket = text.indexOf('【');
-              const preamble = firstBracket > 0 ? text.slice(0, firstBracket).trim() : '';
-
+              const firstBracket = briefText.indexOf('【');
+              const preamble = firstBracket > 0 ? briefText.slice(0, firstBracket).trim() : '';
               if (firstBracket >= 0) {
-                const parts = text.slice(firstBracket).split('【');
+                const parts = briefText.slice(firstBracket).split('【');
                 for (const part of parts) {
                   const sepIdx = part.indexOf('】');
-                  if (sepIdx > 0) {
-                    const title = part.slice(0, sepIdx).trim();
-                    const content = part.slice(sepIdx + 1).trim();
-                    if (title) sections.push({ title, body: content });
-                  }
+                  if (sepIdx > 0) { const t = part.slice(0, sepIdx).trim(); const c = part.slice(sepIdx + 1).trim(); if (t) sections.push({ title: t, body: c }); }
                 }
               }
-
-              return (
-                <>
-                  {preamble && (
-                    <p className="mt-3 text-sm leading-7 text-pretty text-[color:var(--foreground)]">
-                      {preamble}
-                    </p>
-                  )}
-                  {sections.map((section, index) => {
-                    const body = section.body;
-                    const items = body.match(/\d+\.「/g);
-                    const subParagraphs = items && items.length > 1
-                      ? body.split(/(?=\d+\.「)/).filter(Boolean).map(s => s.trim())
-                      : [body];
-
-                    return (
-                      <div key={index} className="mt-3">
-                        <h4 className="text-sm font-semibold text-amber-800">
-                          【{section.title}】
-                        </h4>
-                        {subParagraphs.map((sub, si) => (
-                          <p key={si} className="mt-1 text-justify text-sm leading-7 text-pretty text-[color:var(--foreground)]">
-                            {sub}
-                          </p>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </>
-              );
-            })() : (
-              <p className="mt-3 text-sm text-[color:var(--muted-foreground)]">
-                正在生成项目简报...
-              </p>
-            )}
-          </div>
-          </>
-        ) : (
-          /* 普通员工/管理员：有内容才渲染 */
-          dailyPlan?.completionAdvice && (() => {
-            const text = dailyPlan.completionAdvice;
-
-            // 无【】标记 → 纯文本段落
-            if (!text.includes('【')) {
-              return (
-                <div className="rounded-[22px] border border-amber-100/60 bg-gradient-to-br from-amber-50/50 to-white p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-amber-700">
-                    <Lightbulb size={16} aria-hidden="true" />
-                    具体建议
-                  </div>
-                  <p className="mt-3 text-justify text-sm leading-7 text-pretty text-[color:var(--foreground)]">
-                    {text}
-                  </p>
-                </div>
-              );
-            }
-
-            // 有【】标记 → 分段渲染
-            const sections: { title: string; body: string }[] = [];
-            const firstBracket = text.indexOf('【');
-            const preamble = firstBracket > 0 ? text.slice(0, firstBracket).trim() : '';
-
-            if (firstBracket >= 0) {
-              const parts = text.slice(firstBracket).split('【');
-              for (const part of parts) {
-                const sepIdx = part.indexOf('】');
-                if (sepIdx > 0) {
-                  const title = part.slice(0, sepIdx).trim();
-                  const content = part.slice(sepIdx + 1).trim();
-                  if (title) sections.push({ title, body: content });
-                }
-              }
-            }
-
-            return (
-              <div className="rounded-[22px] border border-amber-100/60 bg-gradient-to-br from-amber-50/50 to-white p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-amber-700">
-                  <Lightbulb size={16} aria-hidden="true" />
-                  具体建议
-                </div>
-
-                {preamble && (
-                  <p className="mt-3 text-sm leading-7 text-pretty text-[color:var(--foreground)]">
-                    {preamble}
-                  </p>
-                )}
-
-                {sections.map((section, index) => {
-                  const body = section.body;
-                  const items = body.match(/\d+\.「/g);
-                  const subParagraphs = items && items.length > 1
-                    ? body.split(/(?=\d+\.「)/).filter(Boolean).map(s => s.trim())
-                    : [body];
-
-                  return (
-                    <div key={index} className="mt-3">
-                      <h4 className="text-sm font-semibold text-amber-800">
-                        【{section.title}】
-                      </h4>
-                      {subParagraphs.map((sub, si) => (
-                        <p key={si} className="mt-1 text-justify text-sm leading-7 text-pretty text-[color:var(--foreground)]">
-                          {sub}
-                        </p>
-                      ))}
-                    </div>
-                  );
+              return (<>
+                {preamble && <p className="mt-3 text-sm leading-7 text-pretty text-[color:var(--foreground)]">{preamble}</p>}
+                {sections.map((s, idx) => {
+                  const items = s.body.match(/\d+\.「/g);
+                  const subs = items && items.length > 1 ? s.body.split(/(?=\d+\.「)/).filter(Boolean).map(x => x.trim()) : [s.body];
+                  return <div key={idx} className="mt-3"><h4 className="text-sm font-semibold text-[color:var(--foreground)]">【{s.title}】</h4>{subs.map((sub, si) => <p key={si} className="mt-1 text-justify text-sm leading-7 text-pretty text-[color:var(--foreground)]">{sub}</p>)}</div>;
                 })}
-              </div>
-            );
-          })()
-        )}
+              </>);
+            })() : <div className="neu-icon-well rounded-[14px] mt-3 flex items-center justify-center px-3 py-4 text-sm text-[color:var(--muted-foreground)]">正在生成项目简报...</div>}
+          </div>
+        </>) : dailyPlan?.completionAdvice ? (() => {
+          const advText = dailyPlan.completionAdvice;
+          if (!advText.includes('【')) return <div className="neu-content-block rounded-[18px]" style={{ '--block-accent': 'oklch(0.74 0.12 84)' } as React.CSSProperties}><div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--muted-foreground)]"><Lightbulb size={16} />具体建议</div><p className="mt-3 text-justify text-sm leading-7 text-pretty text-[color:var(--foreground)]">{advText}</p></div>;
+          const sections: { title: string; body: string }[] = [];
+          const fb = advText.indexOf('【');
+          const preamble = fb > 0 ? advText.slice(0, fb).trim() : '';
+          if (fb >= 0) {
+            const parts = advText.slice(fb).split('【');
+            for (const part of parts) { const si = part.indexOf('】'); if (si > 0) { const t = part.slice(0, si).trim(); const c = part.slice(si + 1).trim(); if (t) sections.push({ title: t, body: c }); } }
+          }
+          return (
+            <div className="neu-content-block rounded-[18px]" style={{ '--block-accent': 'oklch(0.74 0.12 84)' } as React.CSSProperties}>
+              <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--muted-foreground)]"><Lightbulb size={16} />具体建议</div>
+              {preamble && <p className="mt-3 text-sm leading-7 text-pretty text-[color:var(--foreground)]">{preamble}</p>}
+              {sections.map((s, idx) => {
+                const items = s.body.match(/\d+\.「/g);
+                const subs = items && items.length > 1 ? s.body.split(/(?=\d+\.「)/).filter(Boolean).map(x => x.trim()) : [s.body];
+                return <div key={idx} className="mt-3"><h4 className="text-sm font-semibold text-[color:var(--foreground)]">【{s.title}】</h4>{subs.map((sub, si) => <p key={si} className="mt-1 text-justify text-sm leading-7 text-pretty text-[color:var(--foreground)]">{sub}</p>)}</div>;
+              })}
+            </div>
+          );
+        })() : null}
       </div>
     </section>
   );

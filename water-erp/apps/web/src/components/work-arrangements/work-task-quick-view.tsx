@@ -105,7 +105,10 @@ export function WorkTaskQuickView({
 }) {
   if (!item) {
     return (
-      <div className="rounded-[18px] border border-white/45 bg-white/75 p-4 text-sm text-[color:var(--muted-foreground)]">
+      <div className="flex flex-col items-center justify-center py-10 text-sm text-center text-[color:var(--muted-foreground)]">
+        <div className="neu-icon-well mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" /><rect x="9" y="3" width="6" height="4" rx="1" /></svg>
+        </div>
         选择一条任务后，这里会显示快捷处理信息。
       </div>
     );
@@ -116,7 +119,7 @@ export function WorkTaskQuickView({
   const isFinished = item.status === 'COMPLETED' || item.status === 'CANCELLED';
 
   return (
-    <section className={`rounded-[18px] border p-4 ${isFinished ? 'bg-white/60 border-white/35' : 'bg-white/75 border-white/45'}`}>
+    <section className={isFinished ? 'opacity-75' : ''}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className={`text-lg font-semibold text-balance ${isFinished ? 'text-[color:var(--muted-foreground)] line-through' : 'text-[color:var(--foreground)]'}`}>
@@ -131,27 +134,19 @@ export function WorkTaskQuickView({
             </span>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onOpenFullEditor}
-          aria-label="编辑任务详情"
-          className="inline-flex min-h-10 items-center gap-2 rounded-[14px] border border-white/55 bg-white/70 px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:bg-white flex-shrink-0"
-        >
-          <FilePenLine size={16} aria-hidden="true" />
-          编辑
-        </button>
+
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <div className="rounded-[14px] bg-white/50 px-3 py-3 text-sm text-[color:var(--foreground)]">
+        <div className="neu-content-block px-3 py-3 text-sm text-[color:var(--foreground)]">
           <div className="text-xs font-semibold text-[color:var(--accent)]">截止时间</div>
           <div className="mt-2 tabular-nums">{formatDateTimeLabel(item.dueAt)}</div>
         </div>
-        <div className="rounded-[14px] bg-white/50 px-3 py-3 text-sm text-[color:var(--foreground)]">
+        <div className="neu-content-block px-3 py-3 text-sm text-[color:var(--foreground)]">
           <div className="text-xs font-semibold text-[color:var(--accent)]">提醒状态</div>
           <div className="mt-2">{reminderStateLabel(reminderState)}</div>
         </div>
-        <div className="rounded-[14px] bg-white/50 px-3 py-3 text-sm text-[color:var(--foreground)]">
+        <div className="neu-content-block px-3 py-3 text-sm text-[color:var(--foreground)]">
           <div className="text-xs font-semibold text-[color:var(--accent)]">关联项目</div>
           {item.projectManagementItem ? (
             <Link
@@ -166,90 +161,51 @@ export function WorkTaskQuickView({
         </div>
       </div>
 
+      <hr className="wb-section-rule" />
+
       {/* 操作按钮区 - 根据状态动态显示 */}
       {!isFinished && (
         <div className="mt-4 flex flex-wrap gap-2">
           {availableActions.includes('start') && (
-            <button
-              type="button"
-              onClick={onStart}
-              aria-label="开始处理任务"
-              className="inline-flex min-h-10 items-center gap-2 rounded-[14px] border border-[rgba(96,139,239,0.25)] bg-[rgba(96,139,239,0.12)] px-4 py-2 text-sm font-semibold text-[rgba(96,139,239,1)] transition hover:bg-[rgba(96,139,239,0.18)]"
-            >
-              <PlayCircle size={16} aria-hidden="true" />
-              开始处理
+            <button type="button" onClick={onStart} aria-label="开始处理任务" className="neu-btn-primary">
+              <PlayCircle size={16} />开始处理
             </button>
           )}
           {availableActions.includes('complete') && (
-            <button
-              type="button"
-              onClick={onComplete}
-              aria-label="标记任务完成"
-              className="inline-flex min-h-10 items-center gap-2 rounded-[14px] border border-[rgba(92,181,150,0.25)] bg-[rgba(92,181,150,0.12)] px-4 py-2 text-sm font-semibold text-[rgba(92,181,150,1)] transition hover:bg-[rgba(92,181,150,0.18)]"
-            >
-              <CheckCheck size={16} aria-hidden="true" />
-              标记完成
+            <button type="button" onClick={onComplete} aria-label="标记任务完成" className="neu-btn-soft is-success">
+              <CheckCheck size={16} />标记完成
             </button>
           )}
           {availableActions.includes('block') && (
-            <button
-              type="button"
-              onClick={onBlock}
-              aria-label="标记任务受阻"
-              className="inline-flex min-h-10 items-center gap-2 rounded-[14px] border border-[rgba(230,129,102,0.25)] bg-[rgba(230,129,102,0.12)] px-4 py-2 text-sm font-semibold text-[rgba(230,129,102,1)] transition hover:bg-[rgba(230,129,102,0.18)]"
-            >
-              <AlertTriangle size={16} aria-hidden="true" />
-              标记受阻
+            <button type="button" onClick={onBlock} aria-label="标记任务受阻" className="neu-btn-soft is-danger">
+              <AlertTriangle size={16} />标记受阻
             </button>
           )}
           {availableActions.includes('unblock') && (
-            <button
-              type="button"
-              onClick={onUnblock}
-              aria-label="恢复处理"
-              className="inline-flex min-h-10 items-center gap-2 rounded-[14px] border border-[rgba(96,139,239,0.25)] bg-[rgba(96,139,239,0.12)] px-4 py-2 text-sm font-semibold text-[rgba(96,139,239,1)] transition hover:bg-[rgba(96,139,239,0.18)]"
-            >
-              <RotateCcw size={16} aria-hidden="true" />
-              恢复处理
+            <button type="button" onClick={onUnblock} aria-label="恢复处理" className="neu-btn-soft is-info">
+              <RotateCcw size={16} />恢复处理
             </button>
           )}
           {availableActions.includes('cancel') && (
-            <button
-              type="button"
-              onClick={onCancel}
-              aria-label="取消任务"
-              className="inline-flex min-h-10 items-center gap-2 rounded-[14px] border border-white/45 bg-white/50 px-4 py-2 text-sm font-semibold text-[rgba(140,140,140,0.8)] transition hover:bg-white/60"
-            >
-              <XCircle size={16} aria-hidden="true" />
-              取消任务
+            <button type="button" onClick={onCancel} aria-label="取消任务" className="neu-btn-soft">
+              <XCircle size={16} />取消任务
             </button>
           )}
           {reminderState !== 'NONE' && (
-            <button
-              type="button"
-              onClick={onPostponeReminder}
-              aria-label="延后提醒 30 分钟"
-              className="inline-flex min-h-10 items-center gap-2 rounded-[14px] border border-white/55 bg-white/70 px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:bg-white"
-            >
-              <Clock3 size={16} aria-hidden="true" />
-              延后提醒
+            <button type="button" onClick={onPostponeReminder} aria-label="延后提醒 30 分钟" className="neu-btn-soft">
+              <Clock3 size={16} />延后提醒
             </button>
           )}
-          <button
-            type="button"
-            onClick={onOpenNotes}
-            aria-label="添加进展记录"
-            className="inline-flex min-h-10 items-center gap-2 rounded-[14px] border border-white/55 bg-white/70 px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:bg-white"
-          >
-            <FilePenLine size={16} aria-hidden="true" />
-            添加记录
+          <button type="button" onClick={onOpenNotes} aria-label="添加进展记录" className="neu-btn-soft">
+            <FilePenLine size={16} />添加记录
           </button>
         </div>
       )}
 
       {/* 已完成任务的完成信息 */}
+      {isFinished ? <hr className="wb-section-rule" /> : null}
       {isFinished && item.completionSummary && (
-        <div className="mt-4 rounded-[14px] bg-[rgba(92,181,150,0.08)] border border-[rgba(92,181,150,0.2)] px-4 py-3">
+        <div className="mt-4 neu-content-block" style={{ '--block-accent': 'var(--success)' } as React.CSSProperties}>
           <div className="text-xs font-semibold text-[rgba(92,181,150,1)] mb-1">完成摘要</div>
           <div className="text-sm text-[color:var(--foreground)]">{item.completionSummary}</div>
         </div>
@@ -263,7 +219,7 @@ export function WorkTaskQuickView({
             {item.notes.map((note) => (
               <div
                 key={note.id}
-                className="rounded-[12px] bg-white/50 px-3 py-2 text-sm"
+                className="neu-surface-subtle rounded-[12px] px-3 py-2 text-sm"
               >
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-xs font-semibold text-[color:var(--accent)]">
@@ -278,7 +234,7 @@ export function WorkTaskQuickView({
             ))}
           </div>
         ) : (
-          <div className="rounded-[14px] bg-white/50 px-3 py-3 text-sm text-[color:var(--muted-foreground)]">
+          <div className="neu-content-block text-sm text-[color:var(--muted-foreground)]" style={{ '--block-accent': 'var(--accent)' } as React.CSSProperties}>
             还没有过程记录，可从当前推进情况开始补第一条。
           </div>
         )}

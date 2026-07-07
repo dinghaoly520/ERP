@@ -8,30 +8,15 @@ import {
   WORK_ARRANGEMENT_URGENCY_LABELS,
   type WorkArrangementItem,
   type WorkArrangementUrgency,
+  type WorkArrangementUrgency,
 } from '@/lib/types/work-arrangements';
 
-const urgencyStyles: Record<WorkArrangementUrgency, {
-  card: string;
-  badge: string;
-}> = {
-  CRITICAL: {
-    card: 'border-l-4 border-l-rose-500 bg-gradient-to-r from-rose-50/80 to-white',
-    badge: 'bg-rose-100 text-rose-700',
-  },
-  HIGH: {
-    card: 'border-l-4 border-l-orange-400 bg-gradient-to-r from-orange-50/60 to-white',
-    badge: 'bg-orange-100 text-orange-700',
-  },
-  MEDIUM: {
-    card: 'border-l-4 border-l-amber-400 bg-gradient-to-r from-amber-50/40 to-white',
-    badge: 'bg-amber-100 text-amber-700',
-  },
-  LOW: {
-    card: 'border-l-4 border-l-emerald-400 bg-gradient-to-r from-emerald-50/30 to-white',
-    badge: 'bg-emerald-100 text-emerald-700',
-  },
+const urgencyBadge: Record<WorkArrangementUrgency, string> = {
+  CRITICAL: 'bg-rose-100 text-rose-700',
+  HIGH: 'bg-orange-100 text-orange-700',
+  MEDIUM: 'bg-amber-100 text-amber-700',
+  LOW: 'bg-emerald-100 text-emerald-700',
 };
-
 const statusDotStyles: Record<string, string> = {
   TODO: 'bg-slate-400',
   IN_PROGRESS: 'bg-blue-500',
@@ -131,26 +116,10 @@ function TaskCard({
   highlighted: boolean;
   onSelect: () => void;
 }) {
-  const urgencyStyle = urgencyStyles[item.urgency];
   const isFinished = item.status === 'COMPLETED' || item.status === 'CANCELLED';
-
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-label={`选择任务：${item.title}`}
-      className={[
-        'w-full rounded-[20px] border px-4 py-4 text-left transition',
-        isFinished
-          ? 'border-gray-200 bg-gray-50/60 opacity-70'
-          : 'border-gray-200',
-        selected
-          ? 'ring-2 ring-blue-300 ring-offset-1 shadow-md bg-blue-50'
-          : highlighted
-            ? 'ring-1 ring-blue-200 shadow-sm'
-            : !isFinished && 'hover:-translate-y-0.5 hover:shadow-md',
-        !selected && !isFinished ? urgencyStyle.card : '',
-      ].join(' ')}
+    <button type="button" onClick={onSelect} aria-label={`选择任务：${item.title}`}
+      className={['wb-list-item', selected ? 'wb-selected' : ''].filter(Boolean).join(' ')}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -168,7 +137,7 @@ function TaskCard({
           </div>
         </div>
         {!isFinished ? (
-          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold flex-shrink-0 ${urgencyStyle.badge}`}>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold flex-shrink-0 ${urgencyBadge[item.urgency]}`}>
             {WORK_ARRANGEMENT_URGENCY_LABELS[item.urgency]}
           </span>
         ) : (

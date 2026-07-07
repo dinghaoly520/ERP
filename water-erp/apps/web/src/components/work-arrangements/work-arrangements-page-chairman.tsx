@@ -2,12 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { WorkbenchOverview } from "@/components/work-arrangements/workbench-overview";
-import { WorkbenchPlanningPanel } from "@/components/work-arrangements/workbench-planning-panel";
-import { WorkCalendar } from "@/components/work-arrangements/work-calendar";
-import { WorkDateTaskList } from "@/components/work-arrangements/work-date-task-list";
-import { WorkTaskQuickView } from "@/components/work-arrangements/work-task-quick-view";
+import { SchedulePanel } from "@/components/work-arrangements/schedule-panel";
+import { TaskDetailPanel } from "@/components/work-arrangements/task-detail-panel";
+import { AiAssistPanel } from "@/components/work-arrangements/ai-assist-panel";
 import { WorkTaskEditorDrawer } from "@/components/work-arrangements/work-task-editor-drawer";
-import { WorkTaskNotesPanel } from "@/components/work-arrangements/work-task-notes-panel";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
 import { fetchProjectManagementList } from "@/lib/api/project-management";
 import {
@@ -34,7 +32,7 @@ import {
   buildWorkbenchOverview,
   deriveReminderState,
 } from "@/lib/work-arrangements/workbench";
-import { ArrowUpRight, Plus } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 type EditorState = {
@@ -322,7 +320,6 @@ export function WorkArrangementsPageChairman({
     <div className="flex min-h-full flex-col gap-4">
       <WorkbenchOverview
         currentUser={currentUser ?? { id: '', username: 'Swhi-CGZX-00', displayName: '尊敬的张宏董事长', role: 'admin', createdAt: null, lastLoginAt: null } as AuthUser}
-        summary={workbenchSummary}
         dailyPlan={dailyPlan}
       />
 
@@ -342,77 +339,17 @@ export function WorkArrangementsPageChairman({
         </div>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(340px,0.92fr)_minmax(0,1.28fr)]">
-        <div className="flex min-h-0 flex-col gap-4">
-          <section className="panel-surface panel-lens flex min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/45 bg-white/75 p-4">
-            <div className="flex items-center justify-between gap-3 px-1">
-              <div className="text-sm font-semibold text-[color:var(--foreground)]">
-                {selectedDate.getMonth() + 1}月{selectedDate.getDate()}日 {['周日','周一','周二','周三','周四','周五','周六'][selectedDate.getDay()]} · {tasksForSelectedDate.length}项
-              </div>
-              <button type="button" onClick={handleCreateNew} aria-label="新建工作安排" className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-blue-100 hover:text-blue-700">
-                <Plus size={12} />
-                <span>新建</span>
-              </button>
-            </div>
-
-            <div className="mt-3" />
-
-            <WorkCalendar
-              items={allItems}
-              selectedDate={selectedDate}
-              onDateSelect={setSelectedDate}
-            />
-
-            <div className="mt-3" />
-
-            <WorkDateTaskList
-              selectedDate={selectedDate}
-              items={tasksForSelectedDate}
-              unscheduledItems={unscheduledItems}
-              selectedItemId={selectedItemId}
-              highlightedTaskIds={[]}
-              onSelectTask={handleSelectTask}
-              onCreateNew={handleCreateNew}
-            />
-          </section>
-
-          <section className="panel-surface panel-lens rounded-[24px] border border-white/45 bg-white/75 p-4">
-            <WorkTaskQuickView
-              item={selectedItem}
-              reminderState={selectedReminderState ?? ('NONE' as WorkArrangementReminderState)}
-              onStart={() => void handleQuickStatusUpdate("IN_PROGRESS")}
-              onComplete={() => void handleQuickStatusUpdate("COMPLETED")}
-              onBlock={() => void handleQuickStatusUpdate("BLOCKED")}
-              onUnblock={() => void handleQuickStatusUpdate("TODO")}
-              onCancel={() => void handleQuickStatusUpdate("CANCELLED")}
-              onPostponeReminder={async () => {}}
-              onOpenFullEditor={handleOpenEditor}
-              onOpenNotes={() => { if (selectedItem) { setNoteDraft(""); setNoteType("PROGRESS"); } }}
-            />
-
-            <WorkTaskNotesPanel
-              open={!!selectedItem}
-              selectedItem={selectedItem}
-              noteType={noteType}
-              noteDraft={noteDraft}
-              noteSubmitting={noteSubmitting}
-              onNoteTypeChange={setNoteType}
-              onNoteDraftChange={setNoteDraft}
-              onSubmit={() => void handleAddNote()}
-            />
-          </section>
+      <div className="relative flex min-h-0 gap-4 items-start">
+        <div className="w-[calc(40%-0.5rem)] shrink-0 hidden xl:block" aria-hidden />
+        <div className="absolute left-0 top-0 bottom-0 w-[calc(40%-0.5rem)] hidden xl:block">
+          <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} />
         </div>
-
-        <div className="flex min-h-0 flex-col gap-4">
-          <WorkbenchPlanningPanel
-            dailyPlan={dailyPlan}
-            refreshingPlan={refreshingPlan}
-            onSelectTimeBlock={() => {}}
-            onRefreshPlan={handleRefreshPlan}
-            onShowHistory={() => {}}
-            showAiScheduling={false}
-            isChairman={true}
-          />
+        <div className="w-full xl:hidden">
+          <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} />
+        </div>
+        <div className="flex-1 min-w-0 flex flex-col gap-4">
+          <TaskDetailPanel item={selectedItem} reminderState={selectedReminderState ?? ('NONE' as WorkArrangementReminderState)} noteType={noteType} noteDraft={noteDraft} noteSubmitting={noteSubmitting} showNotesPanel={!!selectedItem} onStart={() => void handleQuickStatusUpdate("IN_PROGRESS")} onComplete={() => void handleQuickStatusUpdate("COMPLETED")} onBlock={() => void handleQuickStatusUpdate("BLOCKED")} onUnblock={() => void handleQuickStatusUpdate("TODO")} onCancel={() => void handleQuickStatusUpdate("CANCELLED")} onPostponeReminder={async () => {}} onOpenFullEditor={handleOpenEditor} onOpenNotes={() => { if (selectedItem) { setNoteDraft(""); setNoteType("PROGRESS"); } }} onNoteTypeChange={setNoteType} onNoteDraftChange={setNoteDraft} onSubmitNote={() => void handleAddNote()} />
+          <AiAssistPanel dailyPlan={dailyPlan} refreshingPlan={refreshingPlan} isChairman={true} showProjectBrief={false} onSelectTimeBlock={() => {}} onRefreshPlan={handleRefreshPlan} onShowHistory={() => {}} />
         </div>
       </div>
 

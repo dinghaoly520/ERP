@@ -289,7 +289,7 @@ export function AppShell({
                     className="sidebar-group-header flex w-full items-center gap-2 rounded-[12px] px-2 py-1.5 text-left transition-all duration-300"
                   >
                     <GroupIcon size={14} className="shrink-0 text-[color:var(--muted-foreground)]" />
-                    <span className="flex-1 text-xs font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
+                    <span className="flex-1 text-sm font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
                       {group.label}
                     </span>
                     <ChevronDown
@@ -320,7 +320,7 @@ export function AppShell({
 
                             <Icon size={16} className="shrink-0" />
 
-                            <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{item.label}</span>
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.label}</span>
                           </Link>
                         );
                       })}
