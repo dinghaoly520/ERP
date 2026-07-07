@@ -2708,30 +2708,72 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
               </div>
             </div>
 
-            {/* P1-E：AI 评分校准概览（采纳率 + category 偏差） */}
+            {/* P1-E：AI 评分校准（采纳率 + 维度偏差条 + top 偏差项） */}
             {calibration && (
-              <div className="mb-3 rounded-[14px] border border-[rgba(234,188,110,0.3)] bg-[linear-gradient(160deg,rgba(255,252,244,0.97),rgba(252,248,240,0.93))] p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-[var(--foreground)]">AI 评分校准</span>
+              <div className="mb-3 rounded-[14px] border border-[rgba(234,188,110,0.3)] bg-[linear-gradient(160deg,rgba(255,252,244,0.97),rgba(252,248,240,0.93))] p-4 shadow-[0_8px_24px_rgba(200,155,80,0.06)]">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-[var(--foreground)]">AI 评分校准</span>
+                    <span className="text-[9px] text-[color:var(--muted-foreground)]">· 专家 vs AI 建议分差异</span>
+                  </div>
                   <span className="text-[10px] text-[color:var(--muted-foreground)]">{calibration.overall.total} 项已确认</span>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div>
-                    <span className="text-2xl font-black tabular-nums text-[var(--foreground)]">{Math.round(calibration.overall.adoptionRate * 100)}%</span>
-                    <span className="text-[10px] text-[color:var(--muted-foreground)] ml-1">建议采纳率</span>
+
+                <div className="flex items-stretch gap-5 mb-3">
+                  {/* 总体采纳率 */}
+                  <div className="flex flex-col justify-center min-w-[90px]">
+                    <span className="text-3xl font-black tabular-nums text-[var(--foreground)] leading-none">{Math.round(calibration.overall.adoptionRate * 100)}<span className="text-base">%</span></span>
+                    <span className="text-[10px] text-[color:var(--muted-foreground)] mt-1">建议采纳率</span>
                   </div>
-                  <div className="flex-1 flex flex-col gap-1">
-                    {calibration.byCategory.slice(0, 3).map((c) => (
-                      <div key={c.category} className="flex items-center gap-2 text-[10px]">
-                        <span className="w-20 text-[color:var(--muted-foreground)]">{c.category}</span>
-                        <span className={`font-bold tabular-nums ${c.avgDelta > 0 ? 'text-[rgba(200,80,80,1)]' : c.avgDelta < 0 ? 'text-[rgba(80,130,200,1)]' : 'text-[color:var(--muted-foreground)]'}`}>
-                          {c.avgDelta > 0 ? '+' : ''}{c.avgDelta}
-                        </span>
-                        <span className="text-[color:var(--muted-foreground)]">({c.count})</span>
-                      </div>
-                    ))}
+
+                  {/* 按维度偏差条（双向 bar，正=AI 偏高 红，负=AI 偏低 蓝） */}
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    {(() => {
+                      const maxAbs = Math.max(...calibration.byCategory.map((x) => Math.abs(x.avgDelta)), 1);
+                      return calibration.byCategory.map((c) => {
+                        const widthPct = Math.min((Math.abs(c.avgDelta) / maxAbs) * 50, 50);
+                        const isPos = c.avgDelta > 0;
+                        return (
+                          <div key={c.category} className="flex items-center gap-2">
+                            <span className="w-14 text-[10px] text-[color:var(--muted-foreground)] shrink-0">{({ BUSINESS: '商务', TECHNICAL: '技术', PRICE: '价格', QUALIFICATION: '资格', RESPONSIVE: '响应' } as Record<string, string>)[c.category] ?? c.category}</span>
+                            <div className="flex-1 h-3.5 rounded-[3px] bg-[rgba(200,210,230,0.12)] relative overflow-hidden">
+                              <div className="absolute top-0 bottom-0 left-1/2 w-px bg-[rgba(120,130,150,0.3)]" />
+                              <div
+                                className="absolute top-0 bottom-0 rounded-[3px] transition-all duration-500"
+                                style={{
+                                  width: `${widthPct}%`,
+                                  left: isPos ? '50%' : `${50 - widthPct}%`,
+                                  background: isPos ? 'linear-gradient(90deg,rgba(200,100,100,0.5),rgba(200,80,80,0.85))' : 'linear-gradient(270deg,rgba(90,130,200,0.5),rgba(80,120,190,0.85))',
+                                }}
+                              />
+                            </div>
+                            <span className={`w-9 text-[10px] font-bold tabular-nums text-right ${isPos ? 'text-[rgba(200,80,80,1)]' : c.avgDelta < 0 ? 'text-[rgba(80,130,200,1)]' : 'text-[color:var(--muted-foreground)]'}`}>
+                              {isPos ? '+' : ''}{c.avgDelta}
+                            </span>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
+
+                {/* 偏差最大的评分项 */}
+                {calibration.topDeviations.length > 0 && (
+                  <div className="border-t border-[rgba(234,188,110,0.2)] pt-2">
+                    <div className="text-[9px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)] mb-1.5">偏差最大的评分项</div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                      {calibration.topDeviations.slice(0, 4).map((d) => (
+                        <div key={d.scoreItemId} className="flex items-center justify-between text-[10px]">
+                          <span className="text-[color:var(--foreground)] truncate">{d.name}</span>
+                          <span className={`font-bold tabular-nums ml-2 shrink-0 ${d.avgDelta > 0 ? 'text-[rgba(200,80,80,1)]' : 'text-[rgba(80,130,200,1)]'}`}>
+                            {d.avgDelta > 0 ? '+' : ''}{d.avgDelta}
+                            <span className="text-[color:var(--muted-foreground)] font-normal ml-0.5">({d.count})</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
