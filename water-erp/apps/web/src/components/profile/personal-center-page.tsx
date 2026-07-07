@@ -100,9 +100,9 @@ export function PersonalCenterPage() {
   return (
     <div className="flex flex-col gap-4">
       <PersonalCenterTabBar activeTab={activeTab} onTabChange={setActiveTab} />
-      <div className="relative flex min-h-0 gap-4 items-start">
-        {/* Left: fixed hero card — hidden on mobile */}
-        <div className="hidden w-[280px] shrink-0 self-start xl:block">
+      <div className="relative flex min-h-0 gap-4 items-end">
+        {/* Left: fixed hero card — bottom-aligned with content, hidden on mobile */}
+        <div className="hidden w-[280px] shrink-0 xl:block">
           <PersonalCenterHero
             user={user}
             onEdit={() => setActiveTab('basic-info')}

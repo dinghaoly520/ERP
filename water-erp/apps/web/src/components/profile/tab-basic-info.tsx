@@ -176,7 +176,7 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
         <hr className="wb-section-rule" />
 
         <button type="button" onClick={handleSave} disabled={saving || !hasChanges}
-          className="neu-btn-primary">
+          className="neu-btn-primary self-start">
           {saving ? <><Loader2 size={16} className="animate-spin" />保存中...</> : '保存修改'}
         </button>
       </div>
