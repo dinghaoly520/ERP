@@ -12,6 +12,9 @@
     "scope": "智慧水利调度平台建设含软件开发硬件采购与系统集成",
     "qualification": "1.独立法人资格 2.电子与智能化专业承包二级及以上 3.近三年类似业绩",
     "contact": "联系人李主任电话028-88888888",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-05-20T08:00:00.000Z",
     "updatedAt": "2026-06-10T08:48:00.000Z"
@@ -29,6 +32,9 @@
     "scope": "水利信息化平台升级改造，含数据中台扩容200TB、12套业务系统迁移、智能调度模块开发、统一身份认证平台建设及iOS/Android/小程序移动端适配",
     "qualification": "1.独立法人资格\n2.电子与智能化工程专业承包二级及以上\n3.近三年类似水利信息化项目业绩不少于2个（合同额≥500万元）\n4.项目经理须具备信息系统项目管理师（高级）证书",
     "contact": "联系人：信息技术部张工\n电话：028-88888001\n邮箱：zhanggong@scsdjt.com",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-01T01:51:00.000Z",
     "updatedAt": "2026-06-22T01:51:00.000Z"
@@ -46,6 +52,9 @@
     "scope": "水库安全监测设备采购，含大坝位移监测传感器120套、水位雨量遥测站35座、视频监控点位80处及中央控制平台1套",
     "qualification": "1.独立法人资格\n2.电子与智能化工程专业承包二级及以上\n3.近三年类似水利监测项目业绩不少于2个",
     "contact": "联系人：工程部王工\n电话：028-88888002",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-17T02:00:00.000Z",
     "updatedAt": "2026-06-17T02:00:00.000Z"
@@ -63,6 +72,9 @@
     "scope": "城乡供水一体化管网建设，含DN300-DN800球墨铸铁管铺设45km、加压泵站8座、水质在线监测系统及智慧水务管理平台",
     "qualification": "1.独立法人资格\n2.水利水电工程施工总承包二级及以上\n3.近五年类似供水管网项目业绩不少于3个（合同额≥1000万元）",
     "contact": "联系人：供水事业部张经理\n电话：028-88888003",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-17T02:00:00.000Z",
     "updatedAt": "2026-06-17T02:30:00.000Z"
@@ -80,6 +92,9 @@
     "scope": "括数据采集平台、调度指挥中心、移动巡检应用和网络安全体系，以及为完成本项目所需的运输、安装调试、技术培训、售后保障、资料移交和验收配合等全部工作",
     "qualification": "详见招标公告原文",
     "contact": "详见平台项目页面",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-05-22T00:00:00.000Z",
     "updatedAt": "2026-06-13T08:04:18.820Z"
@@ -97,6 +112,9 @@
     "scope": "括水泵、阀门、管材、闸门启闭机及配套备品备件，以及为完成本项目所需的运输、安装调试、技术培训、售后保障、资料移交和验收配合等全部工作",
     "qualification": "详见招标公告原文",
     "contact": "详见平台项目页面",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-05-20T00:00:00.000Z",
     "updatedAt": "2026-06-13T10:55:24.237Z"
@@ -114,6 +132,9 @@
     "scope": "括高效水泵、变频柜、智能电表、电缆桥架及安装调试，以及为完成本项目所需的运输、安装调试、技术培训、售后保障、资料移交和验收配合等全部工作",
     "qualification": "详见招标公告原文",
     "contact": "详见平台项目页面",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-13T08:03:01.518Z",
     "updatedAt": "2026-06-13T08:03:01.518Z"
@@ -131,6 +152,9 @@
     "scope": "括自动化闸门、流量计量、视频监控、通信网络和备电系统，以及为完成本项目所需的运输、安装调试、技术培训、售后保障、资料移交和验收配合等全部工作",
     "qualification": "详见招标公告原文",
     "contact": "详见平台项目页面",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-13T08:05:04.195Z"
@@ -148,6 +172,9 @@
     "scope": "括渠道清淤、边坡修复、生态护岸、弃土处置和水保措施，以及为完成本项目所需的运输、安装调试、技术培训、售后保障、资料移交和验收配合等全部工作",
     "qualification": "详见招标公告原文",
     "contact": "详见平台项目页面",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-13T08:13:33.450Z",
     "updatedAt": "2026-06-13T08:13:33.450Z"
@@ -165,6 +192,9 @@
     "scope": "括施工准备、质量进度投资控制、安全文明监督和档案审核服务，以及为完成本项目所需的运输、安装调试、技术培训、售后保障、资料移交和验收配合等全部工作",
     "qualification": "详见招标公告原文",
     "contact": "详见平台项目页面",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-13T09:16:41.089Z",
     "updatedAt": "2026-06-13T09:16:41.089Z"
@@ -182,6 +212,9 @@
     "scope": "括水质传感器、站房集成、采样预处理、数据传输和运维服务，以及为完成本项目所需的运输、安装调试、技术培训、售后保障、资料移交和验收配合等全部工作",
     "qualification": "详见招标公告原文",
     "contact": "详见平台项目页面",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-10T00:00:00.000Z",
     "updatedAt": "2026-06-13T08:03:37.615Z"
@@ -199,6 +232,9 @@
     "scope": "括编织袋、铅丝笼、救生衣、抽水泵、应急照明和土工布，以及为完成本项目所需的运输、安装调试、技术培训、售后保障、资料移交和验收配合等全部工作",
     "qualification": "详见招标公告原文",
     "contact": "详见平台项目页面",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-01T00:00:00.000Z",
     "updatedAt": "2026-06-13T08:04:10.228Z"
@@ -216,6 +252,9 @@
     "scope": "括PE管、球墨铸铁管、阀门井配件、入户水表和安装辅材，以及为完成本项目所需的运输、安装调试、技术培训、售后保障、资料移交和验收配合等全部工作",
     "qualification": "详见招标公告原文",
     "contact": "详见平台项目页面",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-13T08:03:24.355Z",
     "updatedAt": "2026-06-13T08:03:24.355Z"
@@ -233,6 +272,9 @@
     "scope": "括雷达流量计、视频水尺、太阳能供电、通信终端和平台接入，以及为完成本项目所需的运输、安装调试、技术培训、售后保障、资料移交和验收配合等全部工作",
     "qualification": "详见招标公告原文",
     "contact": "详见平台项目页面",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-13T10:27:31.044Z",
     "updatedAt": "2026-06-13T10:27:31.044Z"
@@ -250,6 +292,9 @@
     "scope": "括渗压计、位移计、雨量站、采集终端、预警平台和技术服务，以及为完成本项目所需的运输、安装调试、技术培训、售后保障、资料移交和验收配合等全部工作",
     "qualification": "详见招标公告原文",
     "contact": "详见平台项目页面",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-13T08:03:11.739Z",
     "updatedAt": "2026-06-13T08:03:11.739Z"
@@ -267,6 +312,9 @@
     "scope": "括纸质档案整理、扫描、著录、质检、挂接和安全保密服务，以及为完成本项目所需的运输、安装调试、技术培训、售后保障、资料移交和验收配合等全部工作",
     "qualification": "详见招标公告原文",
     "contact": "详见平台项目页面",
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
     "encryptionKeyId": null,
     "createdAt": "2026-06-13T10:55:28.050Z",
     "updatedAt": "2026-06-13T10:55:28.050Z"
@@ -284,7 +332,9 @@
     "scope": "智慧水利大数据平台建设，含数据中台（500TB）、AI调度引擎、数字孪生可视化大屏、统一身份认证平台、移动端APP及12套业务系统对接集成",
     "qualification": "1.独立法人资格\n2.电子与智能化工程专业承包一级\n3.近三年水利信息化项目业绩不少于3个（合同额≥500万元）\n4.项目经理须具备信息系统项目管理师（高级）证书\n5.具备CMMI3级及以上认证",
     "contact": "联系人：信息技术部 陈工\n电话：028-88888101\n邮箱：chengong@scsdjt.com",
-    "bondAmount": 200000,
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": "200000",
     "encryptionKeyId": null,
     "createdAt": "2026-06-10T00:00:00.000Z",
     "updatedAt": "2026-06-22T01:38:58.676Z"

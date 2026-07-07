@@ -96,5 +96,26 @@
     "code": "HBGS",
     "createdAt": "2026-06-13T06:20:00.000Z",
     "updatedAt": "2026-06-13T06:20:00.000Z"
+  },
+  {
+    "id": "cmraiokhq0000ko6f9i7k5mno",
+    "name": "后勤部",
+    "code": null,
+    "createdAt": "2026-07-07T10:39:34.335Z",
+    "updatedAt": "2026-07-07T10:39:34.335Z"
+  },
+  {
+    "id": "cmraiokhw0001ko6fu6nnocnw",
+    "name": "科技创新部",
+    "code": null,
+    "createdAt": "2026-07-07T10:39:34.340Z",
+    "updatedAt": "2026-07-07T10:39:34.340Z"
+  },
+  {
+    "id": "cmraioki40002ko6f24j1uuda",
+    "name": "办公室",
+    "code": null,
+    "createdAt": "2026-07-07T10:39:34.348Z",
+    "updatedAt": "2026-07-07T10:39:34.348Z"
   }
 ]

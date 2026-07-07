@@ -1,1 +1,145 @@
-[]
+[
+  {
+    "id": "cmrai388h0003ko04y6g6qcu8",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-07T10:22:58.673Z"
+  },
+  {
+    "id": "cmrai38af0005ko04wtr40yyg",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-07T10:22:58.744Z"
+  },
+  {
+    "id": "cmrai4asf000bko04i70zckn4",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-07T10:23:48.640Z"
+  },
+  {
+    "id": "cmrai98yk000jko04mtd703cx",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-07T10:27:39.548Z"
+  },
+  {
+    "id": "cmrai9jde000pko04tf29e9jy",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-07T10:27:53.042Z"
+  },
+  {
+    "id": "cmraibomq000vko04prqr3n05",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-07T10:29:33.170Z"
+  },
+  {
+    "id": "cmraicr2a0011ko04fyb3hevb",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-07T10:30:22.978Z"
+  },
+  {
+    "id": "cmraikb3l0019ko04u65fa7cz",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmraijvv90000ko3d2qdq1bja",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-07T10:36:15.538Z"
+  },
+  {
+    "id": "cmraikb5p001bko04iez12b92",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-07T10:36:15.613Z"
+  },
+  {
+    "id": "cmraikb7p001dko04rvzx1nrp",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-07T10:36:15.686Z"
+  },
+  {
+    "id": "cmraikb9r001fko04g17ks2pr",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gx000bkodddegbe2hc",
+    "details": {
+      "role": "staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-07T10:36:15.760Z"
+  }
+]
