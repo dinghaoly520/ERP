@@ -102,8 +102,8 @@ export function TabSecurity({ user }: TabSecurityProps) {
             </div>
           )}
 
-          <div className="pt-1">
-            <button type="submit" disabled={submitting} className="neu-btn-primary self-start">
+          <div className="flex justify-center pt-1">
+            <button type="submit" disabled={submitting} className="neu-btn-primary">
               {submitting ? <><Loader2 size={16} className="animate-spin" />提交中...</> : '提交审批'}
             </button>
           </div>
