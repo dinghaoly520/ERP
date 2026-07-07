@@ -28,6 +28,7 @@ export function WorkbenchOverview({currentUser,dailyPlan}:{currentUser:AuthUser|
   const now=new Date();
   const Icon=TDC[gtod2(now.getHours())].icon;
   const userName=currentUser?.username==='Swhi-CGZX-00'?'尊敬的张宏董事长':currentUser?.displayName||'用户';
+  const rawUsername = currentUser?.username ?? '';
   const loading=!dailyPlan;
   const headerGreeting=dailyPlan?.headerGreeting??'';
   const dailyGreeting=dailyPlan?.dailyGreeting??'';
@@ -38,7 +39,7 @@ export function WorkbenchOverview({currentUser,dailyPlan}:{currentUser:AuthUser|
           <Icon size={24} style={{color:'var(--accent)'}} className="shrink-0 mt-1"/>
           <div className="min-w-0">
             {(()=>{
-              const greet=loading?'':((headerGreeting||'').replace('{name}','').replace(userName,'').replace(/^[，,]\s*/,'')||'你好呀');
+              const greet=loading?'':((headerGreeting||'').replace('{name}','').replace(userName,'').replace(rawUsername,'').replace(/^[，,]\s*/,'')||'你好呀');
               return(
                 <div className="text-[17px] text-[#18243a] leading-relaxed">
                   <span className="font-bold">{userName}</span>
@@ -50,7 +51,7 @@ export function WorkbenchOverview({currentUser,dailyPlan}:{currentUser:AuthUser|
             })()}
             {!loading&&dailyGreeting?(
               <div className="mt-2 text-[13px] text-[color:var(--muted-foreground)] leading-relaxed">
-                {dailyGreeting.replace('{name}','').replace(userName,'').replace(/^[，,]\s*/,'')}
+                {dailyGreeting.replace('{name}','').replace(userName,'').replace(rawUsername,'').replace(/^[，,]\s*/,'')}
               </div>
             ):null}
           </div>
