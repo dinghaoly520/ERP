@@ -256,19 +256,18 @@ ${toolList}
       return '抱歉，数据查询服务暂时不可用，请稍后重试。';
     }
 
-    const cardDigest = (cards as Array<Record<string, unknown>>)
-      .filter((c) => c.type === 'table')
-      .slice(0, 3)
-      .map((c) => ({
-        title: c.title,
-        rows: (c.rows as Array<Record<string, unknown>> || []).slice(0, 20).map((r: Record<string, unknown>) => {
-          const { _total, ...rest } = r;
-          return rest;
-        }),
-      }));
+    // 提取全局概览数字为纯文本摘要
+    const overviewCard = (cards as Array<Record<string, unknown>>)
+      .find((c) => c.type === 'table' && (c.title as string || '').includes('全局概览'));
+    let overviewText = '';
+    if (overviewCard && Array.isArray(overviewCard.rows)) {
+      const items = (overviewCard.rows as Array<Record<string, unknown>>)
+        .filter((r) => !r._total)
+        .map((r) => `${r.item}：${r.value}个${r.note ? `（${r.note}）` : ''}`);
+      overviewText = '【数据库实时查询结果】\n' + items.join('\n') + '\n\n';
+    }
 
-    const toolDataStr = JSON.stringify(cardDigest, null, 0).slice(0, 4000);
-    const systemMsg = `以下是系统从数据库中查询到的真实统计数据。你必须用这些具体数字写回答：\n${toolDataStr}\n\n【严格写作要求】\n1. 开篇第一句必须写出关键数字，用阿拉伯数字，不要用"仅有少数"这类模糊词。\n2. 后续每一段也要写出该模块的具体数字，不能只写"占比较高"。\n3. 数字必须与以上数据完全一致，一个不能改。`;
+    const systemMsg = `${overviewText}以上是系统从数据库查询到的真实数据。你必须原样引用这些数字写回答，一个不能改。不要写"有N条记录"这种元描述，直接说数据本身。英文状态码必须翻译为中文。`;
 
     const followUpMessages: ChatMessage[] = [
       ...messages,
@@ -341,28 +340,29 @@ ${toolList}
         '抱歉，数据查询失败，请稍后重试或换一种方式提问。';
     }
 
-    // 用已有的 cards 摘要传给 LLM 做第二轮调用
-    let toolDataStr = '';
-    try {
-      // 直接传表格数据行（不是 raw Prisma entity，是已经脱敏的卡片数据）
-      const cardDigest = (cards as Array<Record<string, unknown>>)
-        .filter((c) => c.type === 'table')
-        .slice(0, 3)
+    // 从全局概览卡片中提取关键数字，做成纯文本摘要——模型更容易准确引用
+    const overviewCard = (cards as Array<Record<string, unknown>>)
+      .find((c) => c.type === 'table' && (c.title as string || '').includes('全局概览'));
+    let overviewText = '';
+    if (overviewCard && Array.isArray(overviewCard.rows)) {
+      const items = (overviewCard.rows as Array<Record<string, unknown>>)
+        .filter((r) => !r._total)
+        .map((r) => `${r.item}：${r.value}个${r.note ? `（${r.note}）` : ''}`);
+      overviewText = '【数据库实时查询结果 —— 这些就是你回答时必须使用的数字，一个字不能改】\n' + items.join('\n') + '\n\n';
+    }
+
+    const toolSummary = `${overviewText}以下是各模块状态分布表——用于支撑你展开分析，丰富细节：\n${JSON.stringify(
+      (cards as Array<Record<string, unknown>>)
+        .filter((c) => c.type === 'table' && !(c.title as string || '').includes('全局概览'))
+        .slice(0, 4)
         .map((c) => ({
           title: c.title,
-          rows: (c.rows as Array<Record<string, unknown>> || []).slice(0, 20).map((r: Record<string, unknown>) => {
-            // 去掉 _total 标记行和内部字段
+          rows: (c.rows as Array<Record<string, unknown>> || []).slice(0, 15).map((r: Record<string, unknown>) => {
             const { _total, ...rest } = r;
             return rest;
           }),
-        }));
-      toolDataStr = JSON.stringify(cardDigest, null, 0).slice(0, 4000);
-    } catch (e) {
-      this.logger.warn(`handleNormalChat: cards JSON 摘要失败: ${(e as Error).message}`);
-      toolDataStr = `${cards.length} 张卡片已生成`;
-    }
-
-    const toolSummary = `以下是 ${successCount} 个工具从数据库查询到的真实数据。你必须用这些具体数字写回答：\n${toolDataStr}\n\n【严格写作要求】\n1. 开篇第一句必须写出从数据中看到的3-4个关键数字，例如"系统共有 X 个采购项目、Y 个招标项目"——不要用"仅有少数""若干"这类模糊词，必须写阿拉伯数字。\n2. 后续每一段也要写出该模块的具体数字。例如"已入库 X 家"，不要写成"已入库占比较高"。\n3. 如果你把数字从 504 写成了 500 或者任何不同的数字——你是错的，这是编造数据。数据里的数字是什么就写什么，一个不能改。\n4. 不要写"表格有 N 条记录"这种元描述——直接说数据本身的内容。\n5. 状态名必须翻译为中文（OPENING→开标阶段）。`;
+        })),
+    ).slice(0, 3000)}\n\n【严格写作要求 —— 违反即为编造数据】\n1. 开篇第一句必须原样写出上面的关键数字，例如"系统共有 1 个采购项目、17 个招标项目、504 家在库供应商"——数字一个不能改。\n2. 后续每段也必须引用上面的具体数字，不能只说"有多条记录"。\n3. 英文状态码（OPENING、PENDING等）在回答中必须译为中文。`;
 
     try {
       // 若剥离 TOOL_CALL 后 answer 为空，不传空 assistant 消息（DeepSeek 会拒绝空 content）
