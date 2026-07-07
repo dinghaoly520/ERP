@@ -2,7 +2,6 @@
 
 import { Sparkles, AlertCircle } from 'lucide-react';
 import type { AssistData, BidScoreItem } from '@water-erp/shared';
-import { SectionHeader } from './shared/section-header';
 import { StatusBar } from './status-bar';
 import { GateLayer } from './gate-layer';
 import { EvidenceLayer } from './evidence-layer';
@@ -114,7 +113,10 @@ export function AssistPanel({
       {/* ① 合规门 */}
       <GateLayer assistData={assistData} />
 
-      {/* ③ 打分层（含客观价格/主观商务技术/综合） */}
+      {/* ② 证据 */}
+      <EvidenceLayer assistData={assistData} supplierName={supplierName} />
+
+      {/* ③ 打分层（客观价格/主观商务技术/综合） */}
       <ScoringLayer
         assistData={assistData}
         expertScores={expertScores}
@@ -122,16 +124,20 @@ export function AssistPanel({
         projectScoreItems={projectScoreItems}
       />
 
-      {/* ② 证据 */}
-      <EvidenceLayer assistData={assistData} supplierName={supplierName} />
+      {/* ── 单供应商区 / 跨供应商区分隔线 ── */}
+      <div className="relative pt-6">
+        <div className="absolute inset-0 flex items-center" aria-hidden="true">
+          <div className="w-full border-t border-[oklch(0.91_0.006_264)]" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-[oklch(0.975_0.012_258)] px-4 text-xs font-medium text-[var(--color-text-tertiary)]">
+            跨供应商对比
+          </span>
+        </div>
+      </div>
 
       {/* ④ 横向对比 */}
-      <section>
-        <SectionHeader number={4} title="横向对比" subtitle="· 跨供应商对比 / 围标风险 / 导出报告" />
-        <div className="mt-3">
-          <CrossBidderLayer projectId={projectId} activeSupplier={activeSupplier} />
-        </div>
-      </section>
+      <CrossBidderLayer projectId={projectId} activeSupplier={activeSupplier} />
 
       {/* 页脚声明 */}
       <div className="text-xs text-[var(--color-text-tertiary)] text-center pt-2 border-t border-[oklch(0.91_0.006_264)]">
