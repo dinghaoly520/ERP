@@ -53,7 +53,7 @@ export function TabSecurity({ user }: TabSecurityProps) {
           提交申请后需等待管理员审批，审批通过后新密码生效。
         </p>
 
-        <form onSubmit={handleSubmit} noValidate className="mt-5 max-w-md space-y-4">
+        <form id="password-change-form" onSubmit={handleSubmit} noValidate className="mt-5 max-w-md space-y-4">
           <label className="block">
             <span className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-[color:var(--foreground)]">
               <KeyRound size={13} strokeWidth={1.7} className="text-[color:var(--muted-foreground)]" />
@@ -76,38 +76,38 @@ export function TabSecurity({ user }: TabSecurityProps) {
             <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="请再次输入新密码" className="neu-input w-full" autoComplete="new-password" />
           </label>
-
-          {error && (
-            <div className="flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm"
-              style={{
-                backgroundColor: 'rgba(255,241,241,0.76)',
-                borderColor: 'rgba(215,89,89,0.18)',
-                color: 'var(--danger)',
-              }}
-            >
-              <AlertTriangle size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />
-              {error}
-            </div>
-          )}
-          {success && (
-            <div className="flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm"
-              style={{
-                backgroundColor: 'rgba(240,250,245,0.76)',
-                borderColor: 'rgba(92,181,150,0.18)',
-                color: 'var(--success)',
-              }}
-            >
-              <Check size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />
-              {success}
-            </div>
-          )}
-
-          <div className="flex justify-center pt-1">
-            <button type="submit" disabled={submitting} className="neu-btn-primary">
-              {submitting ? <><Loader2 size={16} className="animate-spin" />提交中...</> : '提交审批'}
-            </button>
-          </div>
         </form>
+
+        {error && (
+          <div className="mt-4 flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm"
+            style={{
+              backgroundColor: 'rgba(255,241,241,0.76)',
+              borderColor: 'rgba(215,89,89,0.18)',
+              color: 'var(--danger)',
+            }}
+          >
+            <AlertTriangle size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="mt-4 flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm"
+            style={{
+              backgroundColor: 'rgba(240,250,245,0.76)',
+              borderColor: 'rgba(92,181,150,0.18)',
+              color: 'var(--success)',
+            }}
+          >
+            <Check size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />
+            {success}
+          </div>
+        )}
+
+        <div className="flex justify-center pt-1">
+          <button type="submit" form="password-change-form" disabled={submitting} className="neu-btn-primary">
+            {submitting ? <><Loader2 size={16} className="animate-spin" />提交中...</> : '提交审批'}
+          </button>
+        </div>
       </div>
 
       {/* Login info — compact wb-panel */}
