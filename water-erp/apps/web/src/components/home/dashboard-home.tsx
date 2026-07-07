@@ -2761,11 +2761,11 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
                 {calibration.topDeviations.length > 0 && (
                   <div className="border-t border-[rgba(234,188,110,0.2)] pt-2">
                     <div className="text-[9px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)] mb-1.5">偏差最大的评分项</div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                    <div className="flex flex-col gap-0.5">
                       {calibration.topDeviations.slice(0, 4).map((d) => (
-                        <div key={d.scoreItemId} className="flex items-center justify-between text-[10px]">
+                        <div key={d.scoreItemId} className="flex items-center gap-2 text-[10px]">
                           <span className="text-[color:var(--foreground)] truncate">{d.name}</span>
-                          <span className={`font-bold tabular-nums ml-2 shrink-0 ${d.avgDelta > 0 ? 'text-[rgba(200,80,80,1)]' : 'text-[rgba(80,130,200,1)]'}`}>
+                          <span className={`font-bold tabular-nums ${d.avgDelta > 0 ? 'text-[rgba(200,80,80,1)]' : 'text-[rgba(80,130,200,1)]'}`}>
                             {d.avgDelta > 0 ? '+' : ''}{d.avgDelta}
                             <span className="text-[color:var(--muted-foreground)] font-normal ml-0.5">({d.count})</span>
                           </span>
