@@ -36,6 +36,18 @@ export type AuthUser = {
   lastLoginAt?: string | null;
 };
 
+export type DepartmentItem = {
+  id: string;
+  name: string;
+  code: string | null;
+};
+
+export type UpdateProfileInput = {
+  displayName?: string;
+  email?: string | null;
+  departmentId?: string | null;
+};
+
 export async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const fallbackMessage = "请求失败，请稍后重试。";
@@ -274,5 +286,23 @@ export async function logout() {
   return requestJson<{ success: true }>(`${API_BASE}/auth/logout`, {
     method: "POST",
     credentials: "include",
+  });
+}
+
+export async function updateMyProfile(
+  payload: UpdateProfileInput,
+): Promise<AuthUser> {
+  return requestJson<AuthUser>(`${API_BASE}/auth/me`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchDepartments(): Promise<DepartmentItem[]> {
+  return requestJson<DepartmentItem[]>(`${API_BASE}/auth/departments`, {
+    credentials: 'include',
+    cache: 'no-store',
   });
 }
