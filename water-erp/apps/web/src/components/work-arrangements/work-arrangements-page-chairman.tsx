@@ -157,12 +157,10 @@ export function WorkArrangementsPageChairman({
     () =>
       allItems.filter((item) => {
         if (!item.dueAt) return false;
+        if (item.status === 'COMPLETED' || item.status === 'CANCELLED') return false;
         const dueDate = new Date(item.dueAt);
-        return (
-          dueDate.getFullYear() === selectedDate.getFullYear() &&
-          dueDate.getMonth() === selectedDate.getMonth() &&
-          dueDate.getDate() === selectedDate.getDate()
-        );
+        const selEnd = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() + 1);
+        return dueDate < selEnd;
       }),
     [allItems, selectedDate],
   );

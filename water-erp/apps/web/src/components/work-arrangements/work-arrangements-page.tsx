@@ -214,14 +214,16 @@ export function WorkArrangementsPage({
   const linkedProject =
     projects.find((project) => project.id === linkedProjectId) ?? null;
 
-  // Tasks for the selected date
+  // Tasks for the selected date — includes undone tasks from prior days
   const tasksForSelectedDate = useMemo(() => {
     const dayStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
     return allItems.filter(item => {
       if (!item.dueAt) return false;
+      if (item.status === 'COMPLETED' || item.status === 'CANCELLED') return false;
       const due = new Date(item.dueAt).getTime();
-      return due >= dayStart.getTime() && due < dayEnd.getTime();
+      // 当日任务 + 过期末完成任务
+      return due < dayEnd.getTime();
     });
   }, [allItems, selectedDate]);
 
