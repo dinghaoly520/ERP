@@ -24,7 +24,7 @@ interface PersonalCenterHeroProps {
 
 export function PersonalCenterHero({ user, onEdit, onChangePassword, onLogout, loggingOut }: PersonalCenterHeroProps) {
   return (
-    <div className="wb-panel flex w-[280px] shrink-0 flex-col self-stretch overflow-hidden">
+    <div className="wb-panel flex h-full w-[280px] flex-col overflow-hidden">
       {/* Identity banner */}
       <div className="relative flex flex-col items-center gap-3 px-5 pb-4 pt-6">
         <div

@@ -100,20 +100,18 @@ export function PersonalCenterPage() {
   };
 
   return (
-    <div className="flex min-h-full flex-col gap-4">
+    <div className="flex h-full min-h-[calc(100dvh-12rem)] flex-col gap-4">{/* h-full + dvh: 撑到页面底部 */}
       <PersonalCenterTabBar activeTab={activeTab} onTabChange={setActiveTab} />
-      <div className="flex flex-1 min-h-0 gap-4 items-stretch">
+      <div className="flex flex-1 min-h-0 gap-4">
         {/* Left: Hero card — stretches to bottom, hidden on mobile */}
-        <div className="hidden w-[280px] shrink-0 xl:flex">
-          <div className="flex w-full flex-col">
-            <PersonalCenterHero
-              user={user}
-              onEdit={() => setActiveTab('basic-info')}
-              onChangePassword={() => setActiveTab('security')}
-              onLogout={handleLogout}
-              loggingOut={loggingOut}
-            />
-          </div>
+        <div className="hidden w-[280px] shrink-0 xl:block">
+          <PersonalCenterHero
+            user={user}
+            onEdit={() => setActiveTab('basic-info')}
+            onChangePassword={() => setActiveTab('security')}
+            onLogout={handleLogout}
+            loggingOut={loggingOut}
+          />
         </div>
 
         {/* Right: Tab content — stretches to bottom */}
