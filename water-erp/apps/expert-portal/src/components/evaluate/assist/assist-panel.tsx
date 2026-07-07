@@ -40,7 +40,6 @@ import { ScoreBreakdownBars, CATEGORY_LABEL, CATEGORY_COLOR } from './charts/sco
 import { ScoreBarChart } from './charts/score-bar-chart';
 import type { ScoreBarChartData } from './charts/score-bar-chart';
 import { PriceComparisonChart } from './charts/price-comparison-chart';
-import { AssistKpiCard } from './charts/assist-kpi-card';
 
 // ── 类型 ──
 
