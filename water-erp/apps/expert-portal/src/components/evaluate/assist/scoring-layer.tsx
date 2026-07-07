@@ -236,7 +236,7 @@ export function ScoringLayer({
   // 专家已打分项（用于偏差表门控）
   const myScoredItems = projectScoreItems.filter((si) => {
     const key = `${activeSupplier}:${si.id}`;
-    return expertScores[key] && !['QUALIFICATION', 'RESPONSIVE'].includes(si.category);
+    return expertScores[key] && !['QUALIFICATION', 'RESPONSIVE', 'PRICE'].includes(si.category);
   });
   const hasComparison = !!(activeSupplier && subjective.length > 0 && myScoredItems.length > 0);
 

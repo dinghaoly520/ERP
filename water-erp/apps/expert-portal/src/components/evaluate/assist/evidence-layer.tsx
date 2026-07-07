@@ -32,6 +32,40 @@ interface ConcordanceItem {
   note?: string;
 }
 
+interface KeyInfoData {
+  quotePriceYuan?: string | number;
+  legalPerson?: string;
+  registeredCapital?: string;
+  establishedDate?: string;
+  qualificationLevel?: string;
+  qualificationName?: string;
+  qualificationStatus?: string;
+  constructionPeriod?: string;
+  warrantyPeriod?: string;
+  priceValidity?: number;
+  proposedProjectManager?: string;
+  projectManager?: string;
+  proposedProjectManagerTitle?: string;
+  projectManagerTitle?: string;
+  proposedProjectManagerQualification?: string;
+  teamSize?: number;
+  performanceCount?: number;
+  contactInfo?: { phone?: string; email?: string; address?: string };
+  keyPerformances?: Array<{ projectName?: string; keyMetrics?: string; contractAmount?: string }>;
+}
+
+interface KeyPerformanceItem {
+  projectName?: string;
+  keyMetrics?: string;
+  contractAmount?: string;
+}
+
+interface ContactInfoData {
+  phone?: string;
+  email?: string;
+  address?: string;
+}
+
 const CONCORDANCE_STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; dot: string; border: string }> = {
   conflict: {
     label: '冲突',
@@ -89,6 +123,7 @@ function ConcordanceList({ items }: { items: ConcordanceItem[] }) {
                 </span>
               </div>
             </div>
+            {check.note && <div className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5 ml-3.5">{check.note}</div>}
           </div>
         );
       })}
@@ -122,8 +157,8 @@ function KeyInfoSection({
     );
   }
 
-  const info = keyInfo as Record<string, any>;
-  const contact = (info.contactInfo ?? {}) as Record<string, any>;
+  const info = keyInfo as KeyInfoData;
+  const contact = (info.contactInfo ?? {}) as ContactInfoData;
   const keyPerformances = Array.isArray(info.keyPerformances) ? info.keyPerformances : [];
 
   return (
@@ -198,7 +233,7 @@ function KeyInfoSection({
             </h4>
           </div>
           <div className="space-y-2">
-            {keyPerformances.slice(0, 5).map((kp: any, i: number) => (
+            {keyPerformances.slice(0, 5).map((kp: KeyPerformanceItem, i: number) => (
               <div key={i} className="glass-card glass-card-lighter rounded-lg p-3 flex items-center gap-3 text-sm">
                 <span className="w-6 h-6 rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)] flex items-center justify-center text-xs font-bold shrink-0">
                   {i + 1}
@@ -225,8 +260,8 @@ function KeyInfoSection({
 
 // ── 数据一致性（证据子块）──
 
-function ConcordanceSection({ concordance, concordanceStatus }: { concordance: any; concordanceStatus?: string }) {
-  if (!concordance || !Array.isArray(concordance as any[])) {
+function ConcordanceSection({ concordance, concordanceStatus }: { concordance: ConcordanceItem[] | null | undefined; concordanceStatus?: string }) {
+  if (!concordance || !Array.isArray(concordance)) {
     return (
       <div className="text-center py-4">
         <AlertCircle size={20} strokeWidth={1} className="text-[oklch(0.75_0.008_264)] mx-auto mb-1.5" />
@@ -235,7 +270,7 @@ function ConcordanceSection({ concordance, concordanceStatus }: { concordance: a
     );
   }
 
-  const checks = concordance as unknown as ConcordanceItem[];
+  const checks = concordance;
   const conflicts = checks.filter((c) => c.status === 'conflict');
   const warnings = checks.filter((c) => c.status === 'minor_diff');
   const consistent = checks.filter((c) => c.status === 'consistent');

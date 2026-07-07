@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { BarChart3, Download, ShieldAlert } from 'lucide-react';
 import type { AssistCompareResponse } from '@water-erp/shared';
 import { api } from '@/lib/api';
-import { SectionHeader } from './shared/section-header';
 import { RankBadge } from './shared/rank-badge';
 import { RadarChart } from './charts/radar-chart';
 import type { RadarAxis } from './charts/radar-chart';
@@ -24,6 +23,7 @@ export function CrossBidderLayer({
 }) {
   const [data, setData] = useState<AssistCompareResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [chartType, setChartType] = useState<'radar' | 'bar'>('radar');
 
   useEffect(() => {
@@ -37,8 +37,11 @@ export function CrossBidderLayer({
           setLoading(false);
         }
       })
-      .catch(() => {
-        if (!cancelled) setLoading(false);
+      .catch((e) => {
+        if (!cancelled) {
+          setLoading(false);
+          setError(e?.message || '加载失败');
+        }
       });
     return () => {
       cancelled = true;
@@ -48,6 +51,33 @@ export function CrossBidderLayer({
   if (loading) {
     return (
       <div className="text-center py-8 text-xs text-[oklch(0.55_0.01_264)]">加载排名数据…</div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-sm text-[var(--color-danger)] mb-3">{error}</p>
+        <button
+          onClick={() => {
+            setError(null);
+            setLoading(true);
+            api
+              .get<AssistCompareResponse>(`/expert/projects/${projectId}/assist/compare`)
+              .then((d) => {
+                setData(d);
+                setLoading(false);
+              })
+              .catch((e) => {
+                setLoading(false);
+                setError(e?.message || '加载失败');
+              });
+          }}
+          className="px-4 py-2 rounded-lg border border-[oklch(0.91_0.006_264)] text-xs font-bold text-[var(--color-primary)] hover:bg-[var(--color-primary-light)] transition"
+        >
+          重试
+        </button>
+      </div>
     );
   }
 

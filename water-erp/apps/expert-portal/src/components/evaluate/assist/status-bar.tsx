@@ -1,6 +1,10 @@
 'use client';
 import type { AssistData } from '@water-erp/shared';
 
+interface KeyInfoShape {
+  quotePriceYuan?: string | number;
+}
+
 export function StatusBar({
   assistData,
   supplierName,
@@ -11,7 +15,7 @@ export function StatusBar({
   decryptStatus: string;
 }) {
   const score = assistData.totalScore != null ? Number(assistData.totalScore).toFixed(1) : '—';
-  const quote = (assistData.keyInfo as any)?.quotePriceYuan ?? null;
+  const quote = (assistData.keyInfo as KeyInfoShape | undefined)?.quotePriceYuan ?? null;
   const dotColor =
     decryptStatus === 'SUCCESS' ? 'bg-[#11a874]'
     : decryptStatus === 'DANGER' ? 'bg-[#e74c3c]'
