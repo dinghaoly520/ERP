@@ -153,13 +153,14 @@ ${toolList}
     }
 
     this.logger.log(`chat() 主流程完成，准备清理 answer。当前 answer 长度=${answer?.length || 0}, cards=${cards.length}`);
+    this.logger.log(`answer 前200字: ${answer?.slice(0, 200)}`);
 
     // 安全网：剥离 Markdown 格式符号（无论模型是否遵守提示词规则）
     answer = this.stripMarkdown(answer);
-    this.logger.log('stripMarkdown 完成');
+    this.logger.log(`stripMarkdown 完成, 长度=${answer.length}`);
     // 安全网：剥离残留的英文字母/单词（无论模型是否遵守提示词规则）
     answer = this.stripEnglish(answer);
-    this.logger.log('stripEnglish 完成');
+    this.logger.log(`stripEnglish 完成, 长度=${answer.length}`);
 
     // Guard against empty answers — if all paths produced nothing, give a fallback
     if (!answer || !answer.trim()) {
@@ -276,6 +277,7 @@ ${toolList}
 
     try {
       const res = await this.model.chat(followUpMessages);
+      this.logger.log(`handleFallback: LLM 返回 ${res.text?.length || 0} 字: ${res.text?.slice(0, 200)}`);
       return res.text?.trim() || '抱歉，AI 未能生成有效回复，请重新提问。';
     } catch (e) {
       this.logger.error(`handleFallbackWithGlobalOverview: 模型调用失败: ${(e as Error).message}`);
@@ -290,6 +292,7 @@ ${toolList}
   ): Promise<string> {
     const res = await this.model.chat(messages);
     let answer = res.text;
+    this.logger.log(`handleNormalChat: 第一轮 LLM 返回 ${answer.length} 字, 前150字=${answer.slice(0, 150)}`);
 
     // Parse ALL TOOL_CALL directives (model may emit several for comprehensive questions)
     const toolCalls = this.parseAllToolCalls(answer);
@@ -376,7 +379,7 @@ ${toolList}
       this.logger.log('handleNormalChat: 开始第二轮 DeepSeek 调用...');
       const followUp = await this.model.chat(followUpMessages);
       const followUpText = followUp.text?.trim();
-      this.logger.log(`handleNormalChat: 第二轮 DeepSeek 调用完成，回复长度=${followUpText?.length || 0}`);
+      this.logger.log(`handleNormalChat: 第二轮 DeepSeek 调用完成，回复长度=${followUpText?.length || 0}, 前200字=${followUpText?.slice(0, 200) || '(空)'}`);
       if (followUpText) {
         answer = followUpText;
       }
