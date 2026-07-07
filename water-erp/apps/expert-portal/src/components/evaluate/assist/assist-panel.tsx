@@ -3,36 +3,24 @@
 import { useState, useEffect } from 'react';
 import {
   BarChart3,
-  FileText,
-  Edit3,
   Sparkles,
-  ShieldCheck,
-  ClipboardCheck,
-  TrendingUp,
   AlertCircle,
-  Lightbulb,
-  MessageSquare,
   ShieldAlert,
-  Search,
-  Download,
-  Trophy,
 } from 'lucide-react';
-import type { AssistData, BidScoreItem, AiScoreItem } from '@water-erp/shared';
+import type { AssistData, BidScoreItem } from '@water-erp/shared';
 import { api } from '@/lib/api';
 import { RadarChart } from './charts/radar-chart';
 import type { RadarAxis } from './charts/radar-chart';
-import { ScoreBreakdownBars, CATEGORY_LABEL, CATEGORY_COLOR } from './charts/score-breakdown-bars';
+import { CATEGORY_LABEL } from './charts/score-breakdown-bars';
 import { ScoreBarChart } from './charts/score-bar-chart';
 import type { ScoreBarChartData } from './charts/score-bar-chart';
 import { PriceComparisonChart } from './charts/price-comparison-chart';
-import { CollapsibleSection } from './shared/collapsible-section';
 import { SectionHeader } from './shared/section-header';
-import { PassFailReviewCard } from './shared/pass-fail-card';
-import { SwCard, type SwItem } from './shared/sw-card';
 import { RankBadge } from './shared/rank-badge';
 import { StatusBar } from './status-bar';
 import { GateLayer } from './gate-layer';
 import { EvidenceLayer } from './evidence-layer';
+import { ScoringLayer } from './scoring-layer';
 
 // ── 类型 ──
 
@@ -63,270 +51,6 @@ const SCORE_CATEGORIES = ['BUSINESS', 'TECHNICAL', 'PRICE'];
 // ═══════════════════════════════════════════════════════════════
 // 区域组件
 // ═══════════════════════════════════════════════════════════════
-
-function ExpertComparisonTable({
-  myScoredItems,
-  scoreItems,
-  expertScores,
-  activeSupplier,
-}: {
-  myScoredItems: BidScoreItem[];
-  scoreItems: AiScoreItem[];
-  expertScores: Record<string, { score: number; reason: string }>;
-  activeSupplier: string;
-}) {
-  return (
-    <div className="glass-card rounded-xl p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Edit3 size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-        <h4 className="font-bold text-sm text-[var(--color-text)]">AI 建议 vs 您的评分</h4>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-xs text-[var(--color-text-tertiary)] border-b border-[oklch(0.91_0.006_264)]">
-              <th className="text-left pb-2 font-medium">评分项</th>
-              <th className="text-right pb-2 font-medium">AI 建议</th>
-              <th className="text-right pb-2 font-medium">您的评分</th>
-              <th className="text-right pb-2 font-medium">偏差</th>
-            </tr>
-          </thead>
-          <tbody>
-            {myScoredItems.map((si) => {
-              const aiItem = scoreItems.find((a) => a.scoreItemId === si.id);
-              const myScore = expertScores[`${activeSupplier}:${si.id}`];
-              const aiScore = aiItem ? Number(aiItem.score) : null;
-              const diff = aiScore != null ? Number(myScore.score) - aiScore : null;
-              return (
-                <tr key={si.id} className="border-b border-[oklch(0.94_0.004_264)] last:border-0">
-                  <td className="py-2 text-[var(--color-text-secondary)]">{si.name}</td>
-                  <td className="py-2 text-right text-[var(--color-primary)] font-semibold">
-                    {aiScore != null ? aiScore.toFixed(1) : '—'}
-                  </td>
-                  <td className="py-2 text-right font-bold text-[var(--color-text)]">
-                    {Number(myScore.score).toFixed(1)}
-                  </td>
-                  <td
-                    className={`py-2 text-right text-xs font-semibold ${
-                      diff != null && Math.abs(diff) >= 2
-                        ? 'text-[var(--color-danger)]'
-                        : diff != null && Math.abs(diff) >= 1
-                          ? 'text-[var(--color-warning)]'
-                          : 'text-[var(--color-success)]'
-                    }`}
-                  >
-                    {diff != null
-                      ? diff > 0
-                        ? `+${diff.toFixed(1)}`
-                        : diff.toFixed(1)
-                      : '—'}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-xs text-[var(--color-text-tertiary)] mt-2">
-        偏差 ≥2 分标红，≥1 分标黄，建议复核相应评分依据。
-      </p>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// 区域组件
-// ═══════════════════════════════════════════════════════════════
-
-// ── ① 评分分析 — 聚焦当前供应商 ──
-
-function ScoringSection({
-  scoreItems,
-  categoryTotals,
-  overallComment,
-  expertScores,
-  activeSupplier,
-  projectScoreItems,
-  strengths,
-  weaknesses,
-  keyObservations,
-}: {
-  scoreItems?: AssistData['scoreItems'];
-  categoryTotals?: AssistData['categoryTotals'];
-  overallComment?: string;
-  expertScores: Record<string, { score: number; reason: string }>;
-  activeSupplier: string;
-  projectScoreItems: BidScoreItem[];
-  strengths?: SwItem[] | null;
-  weaknesses?: SwItem[] | null;
-  keyObservations?: string[];
-}) {
-  const hasScoreItems = scoreItems && scoreItems.length > 0;
-  const allCategories = hasScoreItems ? [...new Set(scoreItems.map((si) => si.category))] : [];
-
-  const myScoredItems = projectScoreItems.filter((si) => {
-    const key = `${activeSupplier}:${si.id}`;
-    return expertScores[key] && !['QUALIFICATION', 'RESPONSIVE'].includes(si.category);
-  });
-  const hasComparison = !!(activeSupplier && hasScoreItems && myScoredItems.length > 0);
-
-  const hasStrengths = strengths && strengths.length > 0;
-  const hasWeaknesses = weaknesses && weaknesses.length > 0;
-  const hasSwContent = hasStrengths || hasWeaknesses || !!overallComment || !!(keyObservations && keyObservations.length > 0);
-
-  if (!hasScoreItems && !overallComment && !hasSwContent) {
-    return (
-      <div className="text-center py-8">
-        <BarChart3 size={32} strokeWidth={1} className="text-[oklch(0.75_0.008_264)] mx-auto mb-3" />
-        <p className="text-sm text-[var(--color-text-secondary)]">暂无评分数据</p>
-        <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
-          AI 评分分析完成后将在此展示 per-item 评分详情
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Per-item 评分明细（按分类折叠） */}
-      {allCategories.map((cat) => {
-        const items = scoreItems!.filter((si) => si.category === cat);
-        if (items.length === 0) return null;
-
-        const isPassFail = cat === 'QUALIFICATION' || cat === 'RESPONSIVE';
-        const passCount = items.filter((si) => si.pass === true).length;
-        const failCount = items.filter((si) => si.pass === false).length;
-        const catColor = CATEGORY_COLOR[cat] ?? '#0b63ce';
-
-        return (
-          <CollapsibleSection
-            key={cat}
-            title={`${CATEGORY_LABEL[cat] ?? cat}${isPassFail ? `（通过 ${passCount} / 不通过 ${failCount}）` : ''}`}
-            icon={
-              cat === 'QUALIFICATION' ? (
-                <ShieldCheck size={14} strokeWidth={1.5} />
-              ) : cat === 'RESPONSIVE' ? (
-                <ClipboardCheck size={14} strokeWidth={1.5} />
-              ) : (
-                <FileText size={14} strokeWidth={1.5} />
-              )
-            }
-            accent={catColor}
-            summary={(isOpen: boolean) =>
-              isPassFail ? (
-                <div className="space-y-2">
-                  {items.map((item) => (
-                    <PassFailReviewCard key={item.scoreItemId} item={item} />
-                  ))}
-                </div>
-              ) : (
-                <ScoreBreakdownBars
-                  scoreItems={items.filter((si) => SCORE_CATEGORIES.includes(si.category))}
-                  expanded={isOpen}
-                  flat
-                />
-              )
-            }
-          />
-        );
-      })}
-
-      {/* 置信度低警告 */}
-      {hasScoreItems &&
-        scoreItems.filter((si) => si.confidence != null && si.confidence < 0.6).length > 0 && (
-          <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-700 flex items-start gap-1.5">
-            <AlertCircle size={13} strokeWidth={1.5} className="mt-px shrink-0" />有 {scoreItems.filter((si) => si.confidence != null && si.confidence < 0.6).length}{' '}
-            项评分置信度较低（&lt;60%），建议人工重点复核。
-          </div>
-        )}
-
-      {/* A2：多次采样不稳定警告（self-consistency 差异大） */}
-      {hasScoreItems && scoreItems.some((si) => si.unstable) && (
-        <div className="p-3 rounded-lg border border-orange-200 bg-orange-50 text-xs text-orange-700 flex items-start gap-1.5">
-          <AlertCircle size={13} strokeWidth={1.5} className="mt-px shrink-0" />⚙ 有 {scoreItems.filter((si) => si.unstable).length} 项评分多次采样差异大（AI 把握度低），请重点复核。
-        </div>
-      )}
-
-      {/* AI vs 专家对比 */}
-      {hasComparison && (
-        <ExpertComparisonTable
-          myScoredItems={myScoredItems}
-          scoreItems={scoreItems!}
-          expertScores={expertScores}
-          activeSupplier={activeSupplier}
-        />
-      )}
-
-      {/* 优势与不足 */}
-      {hasSwContent && (
-        <div className="space-y-3">
-          {/* 关键观察 */}
-          {keyObservations && keyObservations.length > 0 && (
-            <div className="glass-card glass-card-blue rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Lightbulb size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-                <h3 className="font-bold text-sm text-[var(--color-primary)]">关键观察</h3>
-              </div>
-              <ul className="space-y-1.5">
-                {keyObservations.map((obs, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-[var(--color-text)]">
-                    <span className="text-[var(--color-primary)] font-bold mt-0.5 shrink-0">{i + 1}.</span>
-                    {obs}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* 双列：正向依据 + 需关注事项 */}
-          <div className="grid grid-cols-1 gap-3">
-            {hasStrengths && (
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp size={14} strokeWidth={1.5} className="text-emerald-500" />
-                  <h4 className="font-bold text-sm text-[var(--color-text)]">
-                    正向依据（{strengths!.length} 项）
-                  </h4>
-                </div>
-                <div className="space-y-2">
-                  {strengths!.map((s, i) => (
-                    <SwCard key={i} item={s} type="strength" />
-                  ))}
-                </div>
-              </div>
-            )}
-            {hasWeaknesses && (
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle size={14} strokeWidth={1.5} className="text-amber-500" />
-                  <h4 className="font-bold text-sm text-[var(--color-text)]">
-                    需关注事项（{weaknesses!.length} 项）
-                  </h4>
-                </div>
-                <div className="space-y-2">
-                  {weaknesses!.map((w, i) => (
-                    <SwCard key={i} item={w} type="weakness" />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* AI 综合评语 */}
-          {overallComment && (
-            <div className="glass-card rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <MessageSquare size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-                <h4 className="font-bold text-sm text-[var(--color-text)]">AI 分析评语</h4>
-              </div>
-              <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{overallComment}</p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── ④ 串通检测 ──
 
@@ -732,27 +456,13 @@ export function AssistPanel({
       {/* ① 合规门 */}
       <GateLayer assistData={assistData} />
 
-      {/* ① 评分分析 */}
-      <section>
-        <SectionHeader number={1} title="评分分析" subtitle={`· ${supplierName}`} />
-        <div className="mt-3">
-          <ScoringSection
-            scoreItems={assistData.scoreItems}
-            categoryTotals={assistData.categoryTotals}
-            overallComment={assistData.overallComment}
-            expertScores={expertScores}
-            activeSupplier={activeSupplier}
-            projectScoreItems={projectScoreItems}
-            strengths={Array.isArray(assistData.strengths) ? assistData.strengths : null}
-            weaknesses={Array.isArray(assistData.weaknesses) ? assistData.weaknesses : null}
-            keyObservations={
-              Array.isArray((assistData as any).keyObservations)
-                ? (assistData as any).keyObservations
-                : undefined
-            }
-          />
-        </div>
-      </section>
+      {/* ③ 打分层（含客观价格/主观商务技术/综合） */}
+      <ScoringLayer
+        assistData={assistData}
+        expertScores={expertScores}
+        activeSupplier={activeSupplier}
+        projectScoreItems={projectScoreItems}
+      />
 
       {/* ② 证据 */}
       <EvidenceLayer assistData={assistData} supplierName={supplierName} />

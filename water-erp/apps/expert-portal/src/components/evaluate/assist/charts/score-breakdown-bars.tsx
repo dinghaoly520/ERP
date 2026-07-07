@@ -29,13 +29,13 @@ interface ScoreBarProps {
   comment?: string;
   evidence?: string;
   color?: string;
-  /** 折叠态截断行数：1=1行（默认），2=2行 */
+  /** 折叠态截断行数：1=1行，2=2行（默认） */
   reasonLines?: number;
   /** 展开：reason 不截断 + 显示证据 */
   expanded?: boolean;
 }
 
-function ScoreBar({ label, score, maxScore, comment, evidence, color = '#0b63ce', reasonLines = 1, expanded = false }: ScoreBarProps) {
+function ScoreBar({ label, score, maxScore, comment, evidence, color = '#0b63ce', reasonLines = 2, expanded = false }: ScoreBarProps) {
   const pct = maxScore > 0 ? Math.min((score / maxScore) * 100, 100) : 0;
   const clampClass = expanded ? '' : reasonLines === 2 ? 'line-clamp-2' : 'line-clamp-1';
   return (
@@ -52,7 +52,7 @@ function ScoreBar({ label, score, maxScore, comment, evidence, color = '#0b63ce'
       {comment && (
         <p className={`text-[10px] text-[var(--color-text-tertiary)] mt-0.5 ml-1 ${clampClass}`}>{comment}</p>
       )}
-      {expanded && evidence && (
+      {evidence && (
         <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5 ml-1">证据：{evidence}</p>
       )}
     </div>
@@ -63,6 +63,7 @@ function ScoreBar({ label, score, maxScore, comment, evidence, color = '#0b63ce'
 
 interface ScoreBreakdownBarsProps {
   scoreItems: AiScoreItem[];
+  /** 折叠态截断行数：1=1行，2=2行（默认） */
   reasonLines?: number;
   /** 展开：reason 不截断 + 显示证据 */
   expanded?: boolean;
@@ -70,7 +71,7 @@ interface ScoreBreakdownBarsProps {
   flat?: boolean;
 }
 
-export function ScoreBreakdownBars({ scoreItems, reasonLines = 1, expanded = false, flat = false }: ScoreBreakdownBarsProps) {
+export function ScoreBreakdownBars({ scoreItems, reasonLines = 2, expanded = false, flat = false }: ScoreBreakdownBarsProps) {
   if (!scoreItems || scoreItems.length === 0) return null;
 
   // 扁平模式：直接渲染每项（无分类标题），用各项自身 category 的颜色
