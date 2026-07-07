@@ -22,6 +22,8 @@ export function getPostLoginDestination(role: string, username?: string) {
 /** 有权限访问数据管理页面的角色 */
 const DATABASE_ACCESS_ROLES: ReadonlySet<string> = new Set<AuthRole>([
   "admin",
+  "leader",
+  "staff",
   "bid_host",
   "procurement_staff",
 ]);

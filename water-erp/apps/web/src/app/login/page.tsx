@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description: "采购中心管理驾驶舱登录入口",
 };
 
-export default function LoginPage() {
-  return <LoginExperience />;
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirect?: string }>;
+}) {
+  const params = await searchParams;
+  return <LoginExperience redirectTo={params.redirect ?? null} />;
 }

@@ -30,7 +30,11 @@ type LoginFormValues = {
 const easeOutQuint = [0.22, 1, 0.36, 1] as const;
 const loginSplashPalette = ["#7aa8ff", "#f0c676", "#72c7b3"] as const;
 
-export function LoginExperience() {
+type LoginExperienceProps = {
+  redirectTo?: string | null;
+};
+
+export function LoginExperience({ redirectTo }: LoginExperienceProps) {
   const router = useRouter();
   const reducedMotion = useReducedMotion();
   const [submitting, setSubmitting] = useState(false);
@@ -98,7 +102,9 @@ export function LoginExperience() {
       });
       beginTenderWriteSession(createTenderWriteSessionId());
 
-      const destination = getPostLoginDestination(result.role, result.username);
+      // Prefer the redirect param from the middleware (where user was trying to go),
+      // falling back to the role-based default destination.
+      const destination = redirectTo ?? getPostLoginDestination(result.role, result.username);
 
       startTransition(() => {
         router.push(destination);

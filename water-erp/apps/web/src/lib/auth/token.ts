@@ -2,6 +2,8 @@ import type { AuthRole } from "@/lib/api/auth";
 
 const VALID_ROLES: ReadonlySet<string> = new Set<AuthRole>([
   "admin",
+  "leader",
+  "staff",
   "procurement_staff",
   "bid_host",
   "bid_expert",

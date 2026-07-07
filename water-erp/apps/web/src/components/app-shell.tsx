@@ -253,20 +253,20 @@ export function AppShell({
           data-hidden={sidebarHidden ? "true" : "false"}
           className="sidebar-sheen sidebar-3d sidebar-card mr-4 hidden h-full w-[256px] shrink-0 flex-col rounded-tl-[24px] rounded-tr-[24px] rounded-bl-none rounded-br-[24px] lg:flex"
         >
-          <header className="flex flex-col items-center gap-1.5 px-3.5 pb-3 pt-3.5">
-            <div className="command-orb brand-orb-3d flex h-9 w-9 shrink-0 items-center justify-center">
+          <header className="flex flex-col items-center gap-2 px-3.5 pb-3.5 pt-4">
+            <div className="command-orb brand-orb-3d flex h-12 w-12 shrink-0 items-center justify-center">
               <Image
                 src="/procurement-brand-logo.png"
                 alt="智慧水发·蜀水云采"
-                width={34}
-                height={34}
-                className="rounded-[10px] object-cover"
+                width={46}
+                height={46}
+                className="rounded-[12px] object-cover"
                 priority
               />
             </div>
 
             <div className="w-full text-center">
-              <div className="truncate text-[0.85rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+              <div className="truncate text-[1rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
                 智慧水发·采购中心
               </div>
             </div>

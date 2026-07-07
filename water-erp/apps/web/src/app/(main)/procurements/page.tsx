@@ -121,7 +121,7 @@ function FilterToolbar({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-[16px] border border-white/50 bg-white/70 p-3"
+      className="wb-panel p-4"
     >
       <div className="flex flex-wrap items-center gap-3">
         {/* Search */}
@@ -132,11 +132,11 @@ function FilterToolbar({
             placeholder="搜索项目名称、供应商..."
             value={filters.searchKeyword}
             onChange={(e) => onFilterChange("searchKeyword", e.target.value)}
-            className="w-full rounded-[10px] border border-white/55 bg-white/70 py-2 pl-9 pr-3 text-[0.85rem] outline-none focus:border-[rgba(96,139,239,0.35)]"
+            className="neu-input !pl-9"
           />
           {filters.searchKeyword && (
-            <button onClick={() => onFilterChange("searchKeyword", null)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-[rgba(96,139,239,0.1)]">
-              <X size={12} />
+            <button onClick={() => onFilterChange("searchKeyword", null)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10">
+              <X size={14} />
             </button>
           )}
         </div>
@@ -156,7 +156,7 @@ function FilterToolbar({
         <select
           value={filters.procurementMethod || ""}
           onChange={(e) => onFilterChange("procurementMethod", e.target.value || null)}
-          className="rounded-[8px] border border-white/55 bg-white/70 px-3 py-2 text-[0.8rem] outline-none"
+          className="workbench-input !w-auto min-w-[120px]"
         >
           <option value="">全部方式</option>
           {methods.map((m) => <option key={m} value={m}>{m}</option>)}
@@ -166,7 +166,7 @@ function FilterToolbar({
         <select
           value={filters.resultStatus || ""}
           onChange={(e) => onFilterChange("resultStatus", e.target.value as ResultStatusKey || null)}
-          className="rounded-[8px] border border-white/55 bg-white/70 px-3 py-2 text-[0.8rem] outline-none"
+          className="workbench-input !w-auto min-w-[110px]"
         >
           <option value="">全部状态</option>
           {Object.entries(RESULT_STATUS_CONFIG).map(([key, config]) => <option key={key} value={key}>{config.label}</option>)}
@@ -176,14 +176,14 @@ function FilterToolbar({
         <select
           value={filters.recycleStatus || "ACTIVE"}
           onChange={(e) => onFilterChange("recycleStatus", e.target.value || "ACTIVE")}
-          className="rounded-[8px] border border-white/55 bg-white/70 px-3 py-2 text-[0.8rem] outline-none"
+          className="workbench-input !w-auto min-w-[110px]"
         >
           <option value="ACTIVE">正常台账</option>
           <option value="RECYCLED">回收站</option>
         </select>
 
         {/* Refresh */}
-        <button onClick={onRefresh} disabled={loading} className="inline-flex items-center gap-2 rounded-[10px] border border-white/55 bg-white/70 px-3 py-2 text-[0.85rem] disabled:opacity-50">
+        <button onClick={onRefresh} disabled={loading} className="neu-btn-soft !h-[40px]">
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           刷新
         </button>
@@ -245,7 +245,13 @@ function LedgerRow({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group rounded-[14px] border border-white/50 bg-white/70 transition-all hover:border-[rgba(96,139,239,0.25)] hover:bg-white/85"
+      className="group rounded-[14px] border border-[oklch(0.55_0.08_258_/_0.2)] bg-[oklch(1_0_0_/_0.45)] backdrop-blur-[14px] transition-all hover:border-[oklch(0.5_0.16_258_/_0.25)] hover:translate-y-[-2px]"
+      style={{
+        boxShadow: isExpanded
+          ? "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5)"
+          : "inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.8)",
+        transition: "box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease",
+      }}
     >
       {/* Main Row */}
       <div className="p-3.5">
@@ -296,7 +302,7 @@ function LedgerRow({
               </button>
             )}
             {item.createdByName && (
-              <span className="text-[10px] text-[color:var(--muted-foreground)] bg-white/60 rounded-full px-2 py-0.5">
+              <span className="text-[10px] text-[color:var(--muted-foreground)] bg-[oklch(1_0_0_/_0.4)] rounded-full px-2 py-0.5">
                 {item.createdByName}
               </span>
             )}
@@ -315,7 +321,7 @@ function LedgerRow({
         </div>
 
         {/* Amount */}
-        <div className="mt-2 flex items-center gap-4 border-t border-white/30 pt-2">
+        <div className="mt-2 flex items-center gap-4 pt-2" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
           <div>
             <span className="text-[10px] uppercase text-[color:var(--muted-foreground)]">预算</span>
             <span className="ml-1.5 text-[0.85rem] font-bold text-[color:var(--foreground)]">{formatAmount(item.controlAmount ?? item.budgetAmount)}</span>
@@ -330,7 +336,7 @@ function LedgerRow({
           {item.sourceType === "PROJECT_MANAGEMENT" && item.projectManagementId ? (
             <button
               onClick={onViewArchive}
-              className="ml-auto flex items-center gap-1.5 rounded-[8px] bg-[rgba(92,181,150,0.1)] px-3 py-1.5 text-[11px] text-[rgba(92,181,150,1)] hover:bg-[rgba(92,181,150,0.18)] transition-colors"
+              className="ml-auto flex items-center gap-1.5 neu-btn-xs !text-[rgba(92,181,150,1)]"
             >
               <FolderOpen size={14} />
               归档详情
@@ -338,7 +344,7 @@ function LedgerRow({
           ) : (
             <button
               onClick={onExpand}
-              className="ml-auto flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[11px] text-[color:var(--muted-foreground)] hover:bg-[rgba(96,139,239,0.08)] transition-colors"
+              className="ml-auto flex items-center gap-1.5 neu-btn-xs"
             >
               {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               {isExpanded ? "收起" : "详情"}
@@ -355,7 +361,8 @@ function LedgerRow({
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="border-t border-white/30 px-4 py-3"
+            className="px-4 py-3"
+          style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}
           >
             {/* 所属项目 */}
             <div className="text-[11px] text-[color:var(--muted-foreground)]">
@@ -500,7 +507,7 @@ function SimplifiedRow({
       className={`cursor-pointer rounded-[10px] border p-2.5 transition-all ${
         isSelected
           ? "border-[rgba(96,139,239,0.5)] bg-[rgba(96,139,239,0.08)]"
-          : "border-white/40 bg-white/60 hover:border-[rgba(96,139,239,0.2)] hover:bg-white/80"
+          : "border-[oklch(0.55_0.08_258_/_0.2)] bg-[oklch(1_0_0_/_0.4)] hover:border-[rgba(96,139,239,0.3)] hover:bg-[oklch(1_0_0_/_0.55)]"
       }`}
     >
       <div className="flex items-start gap-2">
@@ -548,7 +555,7 @@ function AnalysisSelectionModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(244,248,252,0.55)] backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm"
         onClick={onClose}
       >
         <motion.div
@@ -556,10 +563,10 @@ function AnalysisSelectionModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           onClick={(e) => e.stopPropagation()}
-          className="relative max-w-[680px] w-[92vw] max-h-[70vh] overflow-hidden rounded-[20px] border border-white/55 bg-white/90 shadow-lg"
+          className="relative max-w-[680px] w-[92vw] max-h-[70vh] overflow-hidden rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/40">
+          <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
             <div className="flex items-center gap-3">
               <Sparkles size={20} style={{ color: accentMap.blue }} />
               <div>
@@ -567,7 +574,7 @@ function AnalysisSelectionModal({
                 <p className="text-[11px] text-[color:var(--muted-foreground)]">关键词「{keyword}」匹配到 {items.length} 条记录</p>
               </div>
             </div>
-            <button onClick={onClose} className="p-2 rounded-[8px] hover:bg-white/80">
+            <button onClick={onClose} className="neu-btn-xs">
               <X size={16} />
             </button>
           </div>
@@ -587,11 +594,11 @@ function AnalysisSelectionModal({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between px-5 py-4 border-t border-white/40">
+          <div className="flex items-center justify-between px-5 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
             <div className="flex items-center gap-3">
               <button
                 onClick={onSelectAll}
-                className="inline-flex items-center gap-1.5 rounded-[8px] border border-white/50 bg-white/60 px-3 py-1.5 text-[11px] font-medium hover:bg-white/80"
+                className="neu-btn-xs !text-[11px]"
               >
                 {allSelected ? <CheckSquare size={14} className="text-[rgba(96,139,239,1)]" /> : <Square size={14} />}
                 {allSelected ? "取消全选" : "全选"}
@@ -673,10 +680,10 @@ function AnalysisResultModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           onClick={(e) => e.stopPropagation()}
-          className="relative max-w-[900px] w-[94vw] rounded-[22px] border border-white/55 bg-white/92 shadow-xl"
+          className="relative max-w-[900px] w-[94vw] rounded-[22px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/35">
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[rgba(96,139,239,0.1)]">
                 <BarChart3 size={22} style={{ color: accentMap.blue }} />
@@ -686,7 +693,7 @@ function AnalysisResultModal({
                 <p className="text-xs text-[color:var(--muted-foreground)]">关键词「{keyword}」 · {items.length} 条记录</p>
               </div>
             </div>
-            <button onClick={onClose} className="p-2.5 rounded-[10px] hover:bg-white hover:rotate-90 transition-all">
+            <button onClick={onClose} className="neu-btn-xs hover:rotate-90 transition-transform">
               <X size={18} />
             </button>
           </div>
@@ -716,7 +723,7 @@ function AnalysisResultModal({
             {/* Charts Row */}
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               {/* Status Distribution */}
-              <motion.div {...fadeIn(1, reducedMotion)} className="rounded-[16px] border border-white/40 bg-white/65 p-4">
+              <motion.div {...fadeIn(1, reducedMotion)} className="neu-card-static !rounded-[16px] p-4">
                 <div className="flex items-center gap-2 mb-4">
                   <PieChart size={16} style={{ color: accentMap.blue }} />
                   <h3 className="text-[0.9rem] font-semibold text-[color:var(--foreground)]">状态分布</h3>
@@ -753,7 +760,7 @@ function AnalysisResultModal({
               </motion.div>
 
               {/* Method Distribution */}
-              <motion.div {...fadeIn(2, reducedMotion)} className="rounded-[16px] border border-white/40 bg-white/65 p-4">
+              <motion.div {...fadeIn(2, reducedMotion)} className="neu-card-static !rounded-[16px] p-4">
                 <div className="flex items-center gap-2 mb-4">
                   <Activity size={16} style={{ color: accentMap.teal }} />
                   <h3 className="text-[0.9rem] font-semibold text-[color:var(--foreground)]">采购方式</h3>
@@ -783,7 +790,7 @@ function AnalysisResultModal({
             </div>
 
             {/* Department Distribution */}
-            <motion.div {...fadeIn(3, reducedMotion)} className="rounded-[16px] border border-white/40 bg-white/65 p-4">
+            <motion.div {...fadeIn(3, reducedMotion)} className="neu-card-static !rounded-[16px] p-4">
               <div className="flex items-center gap-2 mb-4">
                 <Building2 size={16} style={{ color: accentMap.indigo }} />
                 <h3 className="text-[0.9rem] font-semibold text-[color:var(--foreground)]">部门分布</h3>
@@ -810,13 +817,13 @@ function AnalysisResultModal({
               {aiResult ? (
                 <div className="space-y-3">
                   {/* Overview */}
-                  <div className="p-3 rounded-[12px] bg-white/60">
+                  <div className="p-3 rounded-[12px] bg-[oklch(1_0_0_/_0.4)]">
                     <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">{aiResult.overview}</p>
                   </div>
 
                   {/* Highlights */}
                   {aiResult.highlights.length > 0 && (
-                    <div className="flex items-start gap-3 p-3 rounded-[12px] bg-white/60">
+                    <div className="flex items-start gap-3 p-3 rounded-[12px] bg-[oklch(1_0_0_/_0.4)]">
                       <Target size={16} className="shrink-0 mt-0.5" style={{ color: accentMap.teal }} />
                       <div>
                         <div className="text-[11px] font-bold uppercase tracking-wide text-[rgba(92,181,150,0.8)]">核心亮点</div>
@@ -868,11 +875,11 @@ function AnalysisResultModal({
             </motion.div>
 
             {/* Export Actions */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/30">
-              <button onClick={onClose} className="rounded-[10px] border border-white/55 bg-white/70 px-4 py-2.5 text-[0.85rem] font-medium">
+            <div className="flex items-center justify-end gap-3 pt-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+              <button onClick={onClose} className="neu-btn-soft">
                 关闭
               </button>
-              <button className="inline-flex items-center gap-2 rounded-[10px] bg-[rgba(92,181,150,0.9)] px-4 py-2.5 text-[0.85rem] font-semibold text-white">
+              <button className="neu-btn-primary is-success">
                 <CircleDollarSign size={14} />
                 导出报告
               </button>
@@ -904,7 +911,7 @@ function RecycleConfirmModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(244,248,252,0.55)] backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm"
         onClick={loading ? undefined : onCancel}
       >
         <motion.div
@@ -913,7 +920,7 @@ function RecycleConfirmModal({
           exit={{ opacity: 0, scale: 0.96, y: 18 }}
           transition={{ duration: 0.22, ease: easeOutQuint }}
           onClick={(e) => e.stopPropagation()}
-          className="w-[min(92vw,460px)] overflow-hidden rounded-[22px] border border-white/65 bg-white/92 shadow-[0_28px_70px_rgba(69,99,158,0.16)]"
+          className="w-[min(92vw,460px)] overflow-hidden rounded-[22px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
         >
           <div className="relative px-6 py-5">
             <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,rgba(230,129,102,0.88),rgba(234,188,110,0.65),rgba(96,139,239,0.2))]" />
@@ -938,7 +945,7 @@ function RecycleConfirmModal({
               </button>
             </div>
 
-            <div className="mt-5 rounded-[16px] border border-white/55 bg-[linear-gradient(145deg,rgba(247,250,255,0.86),rgba(255,255,255,0.72))] p-4">
+            <div className="mt-5 rounded-[16px] bg-[linear-gradient(145deg,rgba(247,250,255,0.86),rgba(255,255,255,0.72))] p-4" style={{ border: "1px solid oklch(0.6 0.04 258 / 0.2)" }}>
               <div className="text-[0.92rem] font-semibold leading-6 text-[color:var(--foreground)]">
                 {item.projectName}
               </div>
@@ -961,18 +968,18 @@ function RecycleConfirmModal({
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-white/45 bg-[rgba(247,250,255,0.58)] px-6 py-4">
+          <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
             <button
               onClick={onCancel}
               disabled={loading}
-              className="rounded-[11px] border border-white/60 bg-white/72 px-4 py-2 text-[0.85rem] font-medium text-[color:var(--foreground)] transition-colors hover:bg-white disabled:opacity-40"
+              className="neu-btn-soft disabled:opacity-40"
             >
               取消
             </button>
             <button
               onClick={onConfirm}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-[11px] bg-[rgba(230,129,102,0.92)] px-4 py-2 text-[0.85rem] font-semibold text-white shadow-[0_10px_22px_rgba(230,129,102,0.18)] transition-colors hover:bg-[rgba(220,112,88,1)] disabled:opacity-60"
+              className="neu-btn-primary is-danger disabled:opacity-60"
             >
               {loading && <Loader2 size={14} className="animate-spin" />}
               确认移至回收站
@@ -1294,7 +1301,7 @@ export default function ProcurementsPage() {
   const getAnalysisItems = () => matchedItems.filter(i => selectedAnalysisIds.has(i.id));
 
   return (
-    <div className="min-h-full px-4 py-4 lg:px-6">
+    <div className="min-h-full">
         {/* Toolbar */}
         <div className="mb-4">
           <FilterToolbar
@@ -1308,7 +1315,7 @@ export default function ProcurementsPage() {
         </div>
 
         {/* Data Grid */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-[20px] border border-white/55 bg-white/80 p-4">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="wb-panel p-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <RefreshCw size={24} className="animate-spin text-[rgba(96,139,239,0.6)]" />
@@ -1338,15 +1345,16 @@ export default function ProcurementsPage() {
               </div>
 
               {/* Pagination */}
-              <div className="mt-5 flex items-center justify-between border-t border-white/30 pt-4">
+              <hr className="wb-section-rule !mt-0 !mb-4" />
+              <div className="flex items-center justify-between">
                 <span className="text-[11px] text-[color:var(--muted-foreground)]">
                   {pagination.total} 条 · 第 {pagination.page}/{pagination.totalPages} 页
                 </span>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))} disabled={pagination.page <= 1} className="rounded-[8px] border border-white/50 bg-white/60 px-3 py-1.5 text-[11px] disabled:opacity-40">
+                  <button onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))} disabled={pagination.page <= 1} className="neu-btn-soft !px-3 !py-1 !text-[11px] disabled:opacity-40">
                     上一页
                   </button>
-                  <button onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))} disabled={pagination.page >= pagination.totalPages} className="rounded-[8px] border border-white/50 bg-white/60 px-3 py-1.5 text-[11px] disabled:opacity-40">
+                  <button onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))} disabled={pagination.page >= pagination.totalPages} className="neu-btn-soft !px-3 !py-1 !text-[11px] disabled:opacity-40">
                     下一页
                   </button>
                 </div>
