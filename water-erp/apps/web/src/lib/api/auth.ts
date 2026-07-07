@@ -31,6 +31,8 @@ export type AuthUser = {
   displayName: string;
   role: AuthRole;
   email?: string | null;
+  phone?: string | null;
+  officeLocation?: string | null;
   isActive?: boolean;
   createdAt?: string | null;
   department?: { id: string; name: string; code: string | null } | null;
@@ -46,6 +48,8 @@ export type UpdateProfileInput = {
   displayName?: string;
   email?: string | null;
   departmentId?: string | null;
+  phone?: string | null;
+  officeLocation?: string | null;
 };
 
 export async function parseJsonResponse<T>(response: Response): Promise<T> {

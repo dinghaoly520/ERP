@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, LogOut, Loader2, Mail, UserRound, Building2 } from 'lucide-react';
+import { CalendarDays, LogOut, Loader2, Mail, Phone, MapPin, UserRound, Building2 } from 'lucide-react';
 import type { AuthUser } from '@/lib/api/auth';
 import { ROLE_LABELS } from '@/lib/role-labels';
 
@@ -24,10 +24,9 @@ interface PersonalCenterHeroProps {
 
 export function PersonalCenterHero({ user, onEdit, onChangePassword, onLogout, loggingOut }: PersonalCenterHeroProps) {
   return (
-    <div className="wb-panel w-[280px] shrink-0 self-start overflow-hidden">
-      {/* Identity banner — gradient accent top bar */}
+    <div className="wb-panel flex w-[280px] shrink-0 flex-col self-stretch overflow-hidden">
+      {/* Identity banner */}
       <div className="relative flex flex-col items-center gap-3 px-5 pb-4 pt-6">
-        {/* Subtle gradient accent strip at top */}
         <div
           className="absolute inset-x-0 top-0 h-[3px]"
           style={{
@@ -58,31 +57,47 @@ export function PersonalCenterHero({ user, onEdit, onChangePassword, onLogout, l
 
       <hr className="wb-section-rule mx-5" />
 
-      {/* Info rows — workbench neu-content-block style */}
-      <div className="space-y-1 px-5 pb-4">
-        <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors hover:bg-[rgba(96,139,239,0.04)]">
+      {/* Info rows */}
+      <div className="flex-1 space-y-0.5 px-5 pb-2">
+        <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[rgba(96,139,239,0.04)]">
           <UserRound size={14} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
           <span className="text-[color:var(--muted-foreground)]">用户名</span>
           <span className="ml-auto font-medium tabular-nums text-[color:var(--foreground)]">{user.username}</span>
         </div>
 
-        <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors hover:bg-[rgba(96,139,239,0.04)]">
+        <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[rgba(96,139,239,0.04)]">
           <Building2 size={14} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
           <span className="text-[color:var(--muted-foreground)]">部门</span>
-          <span className="ml-auto font-medium text-[color:var(--foreground)]">
+          <span className="ml-auto max-w-[110px] truncate text-right font-medium text-[color:var(--foreground)]">
             {user.department?.name ?? '未设置'}
           </span>
         </div>
 
-        <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors hover:bg-[rgba(96,139,239,0.04)]">
+        <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[rgba(96,139,239,0.04)]">
           <Mail size={14} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
           <span className="text-[color:var(--muted-foreground)]">邮箱</span>
-          <span className="ml-auto max-w-[120px] truncate font-medium text-[color:var(--foreground)]">
+          <span className="ml-auto max-w-[120px] truncate text-right font-medium text-[color:var(--foreground)]">
             {user.email ?? '未设置'}
           </span>
         </div>
 
-        <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors hover:bg-[rgba(96,139,239,0.04)]">
+        <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[rgba(96,139,239,0.04)]">
+          <Phone size={14} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
+          <span className="text-[color:var(--muted-foreground)]">手机</span>
+          <span className="ml-auto font-medium tabular-nums text-[color:var(--foreground)]">
+            {user.phone ?? '未设置'}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[rgba(96,139,239,0.04)]">
+          <MapPin size={14} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
+          <span className="text-[color:var(--muted-foreground)]">办公位置</span>
+          <span className="ml-auto max-w-[100px] truncate text-right font-medium text-[color:var(--foreground)]">
+            {user.officeLocation ?? '未设置'}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[rgba(96,139,239,0.04)]">
           <CalendarDays size={14} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
           <span className="text-[color:var(--muted-foreground)]">创建时间</span>
           <span className="ml-auto font-medium tabular-nums text-[color:var(--foreground)]">{formatDate(user.createdAt)}</span>
@@ -92,7 +107,7 @@ export function PersonalCenterHero({ user, onEdit, onChangePassword, onLogout, l
       <hr className="wb-section-rule mx-5" />
 
       {/* Quick actions */}
-      <div className="space-y-1.5 px-5 pb-4">
+      <div className="space-y-1.5 px-5 pb-1">
         <button type="button" onClick={onEdit} className="neu-btn-soft w-full justify-center text-[13px]">
           编辑资料
         </button>
@@ -101,10 +116,8 @@ export function PersonalCenterHero({ user, onEdit, onChangePassword, onLogout, l
         </button>
       </div>
 
-      <hr className="wb-section-rule mx-5" />
-
       {/* Logout */}
-      <div className="px-5 pb-5">
+      <div className="px-5 pb-5 pt-2">
         <button
           type="button"
           onClick={onLogout}

@@ -55,4 +55,5 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   PASSWORD_RESET_APPROVED: '密码重置已批准',
   PASSWORD_RESET_REJECTED: '密码重置已拒绝',
   SETTINGS_UPDATE: '更新个人设置',
+  PROFILE_UPDATE: '修改个人资料',
 };
