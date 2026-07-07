@@ -105,6 +105,7 @@ export async function sendMessage(
     if (err instanceof DOMException && err.name === 'AbortError') {
       return;
     }
-    callbacks.onError('无法连接到服务');
+    console.error('[Assistant] sendMessage fetch 失败:', err);
+    callbacks.onError('无法连接到服务，请确认 API 服务（端口 4001）已启动并重启');
   }
 }

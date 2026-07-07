@@ -1,6 +1,5 @@
-import { Controller, Get, Post, Delete, Body, Param, Res } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { Response } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { AssistantService } from './assistant.service';
 import { ChatDto } from './dto/chat.dto';
