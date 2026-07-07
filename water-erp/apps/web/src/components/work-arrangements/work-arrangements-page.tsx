@@ -43,7 +43,7 @@ import {
 import { ArrowUpRight, Plus } from "lucide-react";
 import Link from "next/link";
 
-// Module-level cache for workspace data - persists across page navigation
+// Module-level cache for workspace data — persists across same-session page navigation
 type WorkspaceCache = {
   user: AuthUser | null;
   items: WorkArrangementItem[];
@@ -74,6 +74,41 @@ export function clearWorkspaceCache() {
   workspaceCache.projects = [];
   workspaceCache.dailyPlan = null;
   workspaceCache.lastFetchedAt = 0;
+}
+
+// ── localStorage-backed dailyPlan cache — persists across sessions ──
+const DAILY_PLAN_STORAGE_KEY = 'workspace:daily-plan';
+const DAILY_PLAN_STORAGE_TTL = 12 * 60 * 60 * 1000; // 12 hours
+
+interface StoredDailyPlan {
+  userId: string;
+  plan: WorkArrangementDailyPlan;
+  savedAt: number;
+}
+
+function saveDailyPlanToStorage(userId: string, plan: WorkArrangementDailyPlan): void {
+  try {
+    const data: StoredDailyPlan = { userId, plan, savedAt: Date.now() };
+    localStorage.setItem(DAILY_PLAN_STORAGE_KEY, JSON.stringify(data));
+  } catch { /* quota exceeded or private browsing — silently ignore */ }
+}
+
+function loadDailyPlanFromStorage(
+  userId: string,
+  cacheDate: string,
+): WorkArrangementDailyPlan | null {
+  try {
+    const raw = localStorage.getItem(DAILY_PLAN_STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw) as StoredDailyPlan;
+    // Must belong to current user, be for today, and not expired
+    if (data.userId !== userId) return null;
+    if (data.plan.date !== cacheDate) return null;
+    if (Date.now() - data.savedAt > DAILY_PLAN_STORAGE_TTL) return null;
+    return data.plan;
+  } catch {
+    return null;
+  }
 }
 
 type EditorState = {
@@ -186,7 +221,16 @@ export function WorkArrangementsPage({
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => workspaceCache.user);
   const [allItems, setAllItems] = useState<WorkArrangementItem[]>(() => workspaceCache.items);
   const [projects, setProjects] = useState<ProjectManagementItem[]>(() => workspaceCache.projects);
-  const [dailyPlan, setDailyPlan] = useState<WorkArrangementDailyPlan | null>(() => workspaceCache.dailyPlan);
+  // Init from localStorage first (instant), then module cache, then null
+  const [dailyPlan, setDailyPlan] = useState<WorkArrangementDailyPlan | null>(() => {
+    if (workspaceCache.dailyPlan) return workspaceCache.dailyPlan;
+    // Fallback: try localStorage for an instant render while AI loads
+    if (workspaceCache.user) {
+      const today = new Date().toISOString().slice(0, 10);
+      return loadDailyPlanFromStorage(workspaceCache.user.id, today);
+    }
+    return null;
+  });
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -274,7 +318,11 @@ export function WorkArrangementsPage({
     try {
       setRefreshingPlan(true);
       const nextPlan = await fetchWorkArrangementDailyPlan();
+      workspaceCache.dailyPlan = nextPlan;
       setDailyPlan(nextPlan);
+      // Persist to localStorage for future instant loads
+      const userId = workspaceCache.user?.id;
+      if (userId) saveDailyPlanToStorage(userId, nextPlan);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "加载 AI 建议失败。");
     } finally {
@@ -361,10 +409,26 @@ export function WorkArrangementsPage({
       const nextPlan = await fetchWorkArrangementDailyPlan();
       workspaceCache.dailyPlan = nextPlan;
       setDailyPlan(nextPlan);
+      // Persist to localStorage so future page loads show greeting instantly
+      const userId = workspaceCache.user?.id;
+      if (userId) saveDailyPlanToStorage(userId, nextPlan);
     } catch {
       // AI 排程加载失败不显示错误，WorkbenchOverview 组件会独立重试
     }
   };
+
+  // Hydrate dailyPlan from localStorage once user is known (handles case where
+  // module cache was valid so loadWorkspace returned early without AI fetch)
+  useEffect(() => {
+    if (dailyPlan || !currentUser) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const cached = loadDailyPlanFromStorage(currentUser.id, today);
+    if (cached) {
+      workspaceCache.dailyPlan = cached;
+      setDailyPlan(cached);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
 
   useEffect(() => {
     void loadWorkspace(false, false); // Use cache if available
