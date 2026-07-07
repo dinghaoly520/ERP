@@ -57,8 +57,8 @@ export function PersonalCenterPage() {
 
   if (loadingUser) {
     return (
-      <div className="flex min-h-full flex-col">
-        <div className="wb-panel flex min-h-[420px] flex-1 flex-col items-center justify-center gap-4">
+      <div className="flex h-[calc(100dvh-10rem)] flex-col">
+        <div className="wb-panel flex h-full flex-1 flex-col items-center justify-center gap-4">
           <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
             <Loader2 size={24} strokeWidth={1.4} className="animate-spin text-[color:var(--accent)]" />
           </div>
@@ -73,8 +73,8 @@ export function PersonalCenterPage() {
 
   if (!user) {
     return (
-      <div className="flex min-h-full flex-col">
-        <div className="wb-panel flex min-h-[420px] flex-1 flex-col items-center justify-center gap-4">
+      <div className="flex h-[calc(100dvh-10rem)] flex-col">
+        <div className="wb-panel flex h-full flex-1 flex-col items-center justify-center gap-4">
           <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
             <AlertTriangle size={24} strokeWidth={1.4} className="text-[color:var(--danger)]" />
           </div>
@@ -100,10 +100,10 @@ export function PersonalCenterPage() {
   };
 
   return (
-    <div className="flex h-full min-h-[calc(100dvh-12rem)] flex-col gap-4">{/* h-full + dvh: 撑到页面底部 */}
+    <div className="flex h-[calc(100dvh-10rem)] flex-col gap-4">
       <PersonalCenterTabBar activeTab={activeTab} onTabChange={setActiveTab} />
       <div className="flex flex-1 min-h-0 gap-4">
-        {/* Left: Hero card — stretches to bottom, hidden on mobile */}
+        {/* Left: Hero — fills column via h-full */}
         <div className="hidden w-[280px] shrink-0 xl:block">
           <PersonalCenterHero
             user={user}
@@ -114,8 +114,8 @@ export function PersonalCenterPage() {
           />
         </div>
 
-        {/* Right: Tab content — stretches to bottom */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        {/* Right: Tab content area — h-full for fixed height, overflow-y-auto for scroll */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {renderTabContent()}
         </div>
       </div>

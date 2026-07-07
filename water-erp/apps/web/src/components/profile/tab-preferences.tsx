@@ -12,7 +12,7 @@ export function TabPreferences() {
 
   if (loading) {
     return (
-      <div className="flex flex-1 flex-col">
+      <div className="flex h-full flex-col">
         <div className="wb-panel flex min-h-[320px] flex-1 items-center justify-center gap-2.5 text-sm text-[color:var(--muted-foreground)]">
           <Loader2 size={18} className="animate-spin" />正在加载设置...
         </div>
@@ -22,7 +22,7 @@ export function TabPreferences() {
 
   if (!settings) {
     return (
-      <div className="flex flex-1 flex-col">
+      <div className="flex h-full flex-col">
         <div className="wb-panel flex min-h-[320px] flex-1 items-center justify-center text-sm text-[color:var(--muted-foreground)]">
           无法加载设置
         </div>
@@ -43,7 +43,7 @@ export function TabPreferences() {
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-5">
+    <div className="flex h-full flex-col gap-5 overflow-y-auto">
       {/* Section 1: Appearance */}
       <div className="wb-panel p-6">
         <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
