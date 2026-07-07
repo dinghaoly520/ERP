@@ -1327,7 +1327,7 @@ model UserSettings {
   id              String   @id @default(cuid())
   userId          String   @unique
   theme           String   @default("system")
-  defaultHomePage String   @default("dashboard")
+  defaultHomePage String   @default("work-arrangements")
   compactMode     Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

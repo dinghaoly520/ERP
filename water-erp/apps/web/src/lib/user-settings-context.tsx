@@ -146,6 +146,6 @@ export async function getDefaultHomePage(): Promise<HomePage> {
     const settings = await fetchUserSettings();
     return settings.defaultHomePage as HomePage;
   } catch {
-    return "dashboard";
+    return "work-arrangements";
   }
 }
