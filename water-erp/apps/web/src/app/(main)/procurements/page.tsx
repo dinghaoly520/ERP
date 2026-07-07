@@ -133,12 +133,12 @@ function PageHero({
       className="page-hero"
     >
       {/* 标题行 */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="page-hero__row">
         <div className="page-hero__left">
           <div className="page-hero__icon">
             <FolderKanban size={17} />
           </div>
-          <div className="min-w-0">
+          <div>
             <div className="page-hero__title">采购台账</div>
             <div className="page-hero__sub">事项追踪与采购记录管理</div>
           </div>
