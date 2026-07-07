@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { ProfilePage } from "@/components/profile-page";
+import { PersonalCenterPage } from '@/components/profile/personal-center-page';
 
 export default function ProfileRoute() {
-  return <ProfilePage />;
+  return <PersonalCenterPage />;
 }
