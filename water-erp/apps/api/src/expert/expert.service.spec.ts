@@ -177,12 +177,12 @@ describe('ExpertService', () => {
       prisma.aiBidderResult.findFirst.mockResolvedValue({
         id: 'br-1', status: 'COMPLETED', totalScore: 80, scoreItems: [], categoryTotals: {}, keyInfo: {},
         strengths: [], weaknesses: [], overallComment: '', qualificationStatus: '通过', riskLevel: 'low',
+        starredResponse: { allMet: true, unmet: [] },
         requirementResponses: [{ requirementId: 'r1', category: 'technical', status: 'met', location: { fileId: 'fa1', page: 1 } }],
         concordance: null,
         bidSupplier: { supplierName: '甲公司' },
       });
       prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue({ id: 't-1', requirements: { technicalRequirements: [{ id: 'r1', content: '工期', isStarred: true }] } }) };
-      prisma.aiBidReport = { findUnique: jest.fn().mockResolvedValue(null) };
       prisma.bidRequirementReview = { findMany: jest.fn().mockResolvedValue([{ requirementId: 'r1', verdict: 'dispute', note: '存疑' }]) };
 
       const out = await service.getAssistData('u1', 'proj-1', 'sup-1');
@@ -190,6 +190,10 @@ describe('ExpertService', () => {
       expect(out.requirements).toEqual({ technicalRequirements: [{ id: 'r1', content: '工期', isStarred: true }] });
       expect(out.requirementResponses).toHaveLength(1);
       expect(out.reviews).toEqual([{ requirementId: 'r1', verdict: 'dispute', note: '存疑' }]);
+      expect(out.starredResponse).toEqual({ allMet: true, unmet: [] });
+      expect(out).not.toHaveProperty('fraudSummary');
+      expect(out).not.toHaveProperty('reportDocxUrl');
+      expect(prisma.aiBidReport).toBeUndefined(); // 不再查 AiBidReport
     });
   });
 
