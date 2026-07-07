@@ -79,6 +79,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const [userName, setUserName] = useState("");
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const streamingRef = useRef<{ content: string; actions: Array<Record<string, unknown>> }>({ content: "", actions: [] });
 
   const setPageContext = useCallback(
     (partial: Partial<AssistantPageContext>) => {
@@ -240,6 +241,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       };
 
       setExpression('thinking');
+      streamingRef.current = { content: "", actions: [] };
       setChatState((s) => ({
         ...s,
         messages: [...s.messages, tempUserMsg],
@@ -251,6 +253,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
       await sendMessage(activeConvId, content, pageContext, {
         onToken: (token) => {
+          streamingRef.current.content = token;
           setChatState((s) => ({
             ...s,
             streamingContent: token,
@@ -259,6 +262,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         onToolCall: () => {},
         onToolResult: () => {},
         onAction: (action) => {
+          streamingRef.current.actions = [...streamingRef.current.actions, action];
           setChatState((s) => ({
             ...s,
             streamingActions: [...s.streamingActions, action],
@@ -266,16 +270,19 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         },
         onDone: (messageId) => {
           abortControllerRef.current = null;
+          // 从 ref 捕获流式内容（setState 异步更新，chatState 可能还是旧值）
+          const finalText = streamingRef.current.content;
+          const finalActions = [...streamingRef.current.actions];
           setChatState((s) => {
             const assistantMsg: Message = {
               id: messageId || `msg-${Date.now()}`,
               conversationId: activeConvId,
               role: "assistant",
-              content: s.streamingContent,
+              content: finalText,
               toolCalls: null,
               toolResult: null,
               actions:
-                s.streamingActions.length > 0 ? s.streamingActions : null,
+                finalActions.length > 0 ? finalActions : null,
               createdAt: new Date().toISOString(),
             };
             return {
@@ -304,9 +311,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           }
 
           // Set expression based on response
-          const responseText = s.streamingContent;
-          const hasChart = s.streamingActions.some((a: Record<string, unknown>) => a.type === 'chart');
-          const hasKnowledge = /法规|合规|审查|风险|标准|流程|要求|必须|禁止/.test(responseText);
+          const hasChart = finalActions.some((a: Record<string, unknown>) => a.type === 'chart');
+          const hasKnowledge = /法规|合规|审查|风险|标准|流程|要求|必须|禁止/.test(finalText);
           if (hasChart) {
             setExpression('excited');
           } else if (hasKnowledge) {
