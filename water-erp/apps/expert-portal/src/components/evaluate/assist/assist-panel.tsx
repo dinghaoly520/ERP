@@ -6,8 +6,6 @@ import {
   FileText,
   Edit3,
   Sparkles,
-  CheckCircle,
-  XCircle,
   ShieldCheck,
   ClipboardCheck,
   TrendingUp,
@@ -18,16 +16,6 @@ import {
   Search,
   Download,
   Trophy,
-  Award,
-  Clipboard,
-  Building2,
-  Phone,
-  Mail,
-  MapPin,
-  Briefcase,
-  Clock,
-  Banknote,
-  Minus,
 } from 'lucide-react';
 import type { AssistData, BidScoreItem, AiScoreItem } from '@water-erp/shared';
 import { api } from '@/lib/api';
@@ -38,13 +26,13 @@ import { ScoreBarChart } from './charts/score-bar-chart';
 import type { ScoreBarChartData } from './charts/score-bar-chart';
 import { PriceComparisonChart } from './charts/price-comparison-chart';
 import { CollapsibleSection } from './shared/collapsible-section';
-import { SectionHeader, SectionNumber } from './shared/section-header';
+import { SectionHeader } from './shared/section-header';
 import { PassFailReviewCard } from './shared/pass-fail-card';
 import { SwCard, type SwItem } from './shared/sw-card';
-import { FieldCard } from './shared/field-card';
 import { RankBadge } from './shared/rank-badge';
 import { StatusBar } from './status-bar';
 import { GateLayer } from './gate-layer';
+import { EvidenceLayer } from './evidence-layer';
 
 // ── 类型 ──
 
@@ -336,242 +324,6 @@ function ScoringSection({
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-// ── ② 关键信息 ──
-
-function KeyInfoSection({
-  keyInfo,
-  supplierName,
-}: {
-  keyInfo: AssistData['keyInfo'];
-  supplierName: string;
-}) {
-  if (!keyInfo) {
-    return (
-      <div className="text-center py-6">
-        <Clipboard size={24} strokeWidth={1} className="text-[oklch(0.75_0.008_264)] mx-auto mb-2" />
-        <p className="text-sm text-[var(--color-text-secondary)]">暂无关键信息</p>
-      </div>
-    );
-  }
-
-  const info = keyInfo as Record<string, any>;
-  const contact = (info.contactInfo ?? {}) as Record<string, any>;
-  const keyPerformances = Array.isArray(info.keyPerformances) ? info.keyPerformances : [];
-
-  return (
-    <div className="space-y-3">
-      {/* 公司信息 + 投标信息 双列 */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* 公司信息 */}
-        <div className="glass-card rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Building2 size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-            <h4 className="font-bold text-sm text-[var(--color-text)]">公司信息</h4>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <FieldCard icon={<Building2 size={12} />} label="法定代表人" value={info.legalPerson} />
-            <FieldCard icon={<Clock size={12} />} label="注册资本" value={info.registeredCapital} />
-            <FieldCard icon={<Clock size={12} />} label="成立日期" value={info.establishedDate} />
-            <FieldCard icon={<ShieldCheck size={12} />} label="资质等级" value={info.qualificationLevel} />
-            <FieldCard icon={<Award size={12} />} label="资质名称" value={info.qualificationName} />
-            <FieldCard icon={<ClipboardCheck size={12} />} label="资格状态" value={info.qualificationStatus} />
-          </div>
-        </div>
-
-        {/* 投标信息 */}
-        <div className="glass-card rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Briefcase size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-            <h4 className="font-bold text-sm text-[var(--color-text)]">投标信息</h4>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <FieldCard icon={<Banknote size={12} strokeWidth={1.5} />} label="投标报价" value={info.quotePriceYuan} />
-            <FieldCard icon={<Clock size={12} />} label="工期" value={info.constructionPeriod} />
-            <FieldCard icon={<Clock size={12} />} label="质保期" value={info.warrantyPeriod} />
-            <FieldCard icon={<Clock size={12} />} label="报价有效期" value={info.priceValidity ? `${info.priceValidity}天` : undefined} />
-          </div>
-        </div>
-      </div>
-
-      {/* 联系方式 + 项目团队 双列 */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="glass-card rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Phone size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-            <h4 className="font-bold text-sm text-[var(--color-text)]">联系方式</h4>
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            <FieldCard icon={<Phone size={12} />} label="电话" value={contact.phone} />
-            <FieldCard icon={<Mail size={12} />} label="邮箱" value={contact.email} />
-            <FieldCard icon={<MapPin size={12} />} label="地址" value={contact.address} />
-          </div>
-        </div>
-        <div className="glass-card rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Briefcase size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-            <h4 className="font-bold text-sm text-[var(--color-text)]">项目团队</h4>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <FieldCard icon={<Briefcase size={12} />} label="项目经理" value={info.proposedProjectManager ?? info.projectManager} />
-            <FieldCard icon={<Award size={12} />} label="职称" value={info.proposedProjectManagerTitle ?? info.projectManagerTitle} />
-            <FieldCard icon={<ShieldCheck size={12} />} label="执业资格" value={info.proposedProjectManagerQualification} />
-            <FieldCard icon={<span className="text-xs">👥</span>} label="团队人数" value={info.teamSize} />
-          </div>
-        </div>
-      </div>
-
-      {/* 关键业绩 */}
-      {keyPerformances.length > 0 && (
-        <div className="glass-card rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Award size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-            <h4 className="font-bold text-sm text-[var(--color-text)]">
-              关键业绩（{info.performanceCount ?? keyPerformances.length} 项）
-            </h4>
-          </div>
-          <div className="space-y-2">
-            {keyPerformances.slice(0, 5).map((kp: any, i: number) => (
-              <div key={i} className="glass-card glass-card-lighter rounded-lg p-3 flex items-center gap-3 text-sm">
-                <span className="w-6 h-6 rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)] flex items-center justify-center text-xs font-bold shrink-0">
-                  {i + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-[var(--color-text)] truncate">{kp.projectName}</div>
-                  {kp.keyMetrics && (
-                    <div className="text-xs text-[var(--color-text-tertiary)] mt-0.5">{kp.keyMetrics}</div>
-                  )}
-                </div>
-                {kp.contractAmount && (
-                  <span className="text-xs font-medium text-[var(--color-text-secondary)] shrink-0">
-                    {kp.contractAmount}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── ③ 数据一致性 ──
-
-interface ConcordanceItem {
-  label?: string;
-  field?: string;
-  systemValue?: unknown;
-  docValue?: unknown;
-  status?: string;
-  severity?: string;
-  note?: string;
-}
-
-const CONCORDANCE_STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; dot: string; border: string }> = {
-  conflict: {
-    label: '冲突',
-    bg: 'bg-red-50',
-    text: 'text-red-700',
-    dot: 'bg-red-500',
-    border: 'border-red-200',
-  },
-  minor_diff: {
-    label: '轻微差异',
-    bg: 'bg-amber-50',
-    text: 'text-amber-700',
-    dot: 'bg-amber-500',
-    border: 'border-amber-200',
-  },
-  consistent: {
-    label: '一致',
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
-    dot: 'bg-emerald-500',
-    border: 'border-emerald-200',
-  },
-};
-
-function ConcordanceSection({ concordance, concordanceStatus }: { concordance: any; concordanceStatus?: string }) {
-  if (!concordance || !Array.isArray(concordance as any[])) {
-    return (
-      <div className="text-center py-4">
-        <AlertCircle size={20} strokeWidth={1} className="text-[oklch(0.75_0.008_264)] mx-auto mb-1.5" />
-        <p className="text-xs text-[var(--color-text-tertiary)]">暂无一致性数据</p>
-      </div>
-    );
-  }
-
-  const checks = concordance as unknown as ConcordanceItem[];
-  const conflicts = checks.filter((c) => c.status === 'conflict');
-  const warnings = checks.filter((c) => c.status === 'minor_diff');
-  const consistent = checks.filter((c) => c.status === 'consistent');
-  const sorted = [...checks]
-    .filter((c) => c.status !== 'insufficient_data')
-    .sort((a, b) => {
-      const order = { conflict: 0, minor_diff: 1, consistent: 2 };
-      return (order[a.status as keyof typeof order] ?? 3) - (order[b.status as keyof typeof order] ?? 3);
-    });
-
-  return (
-    <div>
-      {/* 统计条 */}
-      <div className="flex items-center gap-3 mb-2 text-xs">
-        <span className="font-semibold text-red-600">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 mr-1" />
-          {conflicts.length} 冲突
-        </span>
-        <span className="font-semibold text-amber-600">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 mr-1" />
-          {warnings.length} 差异
-        </span>
-        <span className="font-semibold text-emerald-600">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" />
-          {consistent.length} 一致
-        </span>
-        {concordanceStatus && (
-          <span className="text-[var(--color-text-tertiary)] ml-auto">
-            {concordanceStatus === 'consistent' ? <span className="inline-flex items-center gap-1"><CheckCircle size={12} strokeWidth={1.5} />一致</span> : concordanceStatus === 'conflict' ? <span className="inline-flex items-center gap-1"><XCircle size={12} strokeWidth={1.5} />冲突</span> : <span className="inline-flex items-center gap-1"><Minus size={12} strokeWidth={1.5} />差异</span>}
-          </span>
-        )}
-      </div>
-
-      {/* 字段明细（仅显示非一致项，最多 4 条） */}
-      <div className="space-y-1.5">
-        {sorted.filter(c => c.status !== 'consistent').slice(0, 4).map((check, i) => {
-          const cfg = CONCORDANCE_STATUS_CONFIG[check.status ?? ''] ?? CONCORDANCE_STATUS_CONFIG.consistent;
-          return (
-            <div key={i} className={`${cfg.bg} ${cfg.border} border rounded-lg p-2.5`}>
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-                <span className="font-semibold text-xs text-[var(--color-text)]">
-                  {check.label || check.field}
-                </span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ml-auto font-medium ${cfg.bg} ${cfg.text}`}>
-                  {cfg.label}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-[11px] ml-3.5">
-                <div>
-                  <span className="text-[var(--color-text-tertiary)]">系统：</span>
-                  <span className="text-[var(--color-text)] font-medium">
-                    {check.systemValue != null ? String(check.systemValue) : '—'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[var(--color-text-tertiary)]">OCR：</span>
-                  <span className="text-[var(--color-text)] font-medium">
-                    {check.docValue != null ? String(check.docValue) : '—'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -1002,43 +754,8 @@ export function AssistPanel({
         </div>
       </section>
 
-      {/* ② 关键信息 */}
-      <section>
-        <SectionHeader number={2} title="关键信息" subtitle="· OCR 提取的结构化数据" />
-        <div className="mt-3">
-          <KeyInfoSection keyInfo={assistData.keyInfo} supplierName={supplierName} />
-        </div>
-      </section>
-
-      {/* ③ + ④ 数据一致性 + 串通检测 双列 */}
-      <section>
-        <div className="grid grid-cols-2 gap-4">
-          {/* ③ 数据一致性 */}
-          <div className="glass-card rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <SectionNumber n={3} />
-              <h4 className="font-bold text-sm text-[var(--color-text)]">数据一致性</h4>
-              <span className="text-[10px] text-[var(--color-text-tertiary)]">系统 vs OCR</span>
-            </div>
-            <ConcordanceSection
-              concordance={assistData.concordance}
-              concordanceStatus={assistData.concordanceStatus}
-            />
-          </div>
-
-          {/* ④ 串通检测 */}
-          <div className="glass-card rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <SectionNumber n={4} />
-              <h4 className="font-bold text-sm text-[var(--color-text)]">串通检测</h4>
-            </div>
-            <FraudSection
-              fraudSummary={(assistData as any).fraudSummary ?? null}
-              riskLevel={assistData.riskLevel}
-            />
-          </div>
-        </div>
-      </section>
+      {/* ② 证据 */}
+      <EvidenceLayer assistData={assistData} supplierName={supplierName} />
 
       {/* ⑤ 综合排名 */}
       <section>
