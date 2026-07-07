@@ -44,6 +44,7 @@ export type AssistantPageContext = {
   selectedItemId?: string;
   selectedItemType?: string;
   selectedItemData?: Record<string, unknown>;
+  userRole?: string;
 };
 
 // ---- Chat state ----

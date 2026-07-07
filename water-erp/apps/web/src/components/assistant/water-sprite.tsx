@@ -5,14 +5,14 @@ import { useAssistant } from "./assistant-provider";
 import { DINGDANG_IMAGES, type SpriteExpression } from "./sprite-images";
 
 const HALO_STOPS: Array<{ outer: string; mid: string; core: string }> = [
-  { outer: "rgba(120,170,255,0.25) 0%, rgba(120,170,255,0.08) 50%, transparent 75%", mid: "rgba(140,180,255,0.35) 30%, rgba(160,210,255,0.18) 60%, transparent 80%", core: "rgba(180,220,255,0.55) 40%, rgba(140,200,255,0.28) 70%, transparent 95%" },
-  { outer: "rgba(160,130,255,0.25) 0%, rgba(160,130,255,0.08) 50%, transparent 75%", mid: "rgba(170,140,255,0.35) 30%, rgba(190,170,255,0.18) 60%, transparent 80%", core: "rgba(200,180,255,0.55) 40%, rgba(160,140,255,0.28) 70%, transparent 95%" },
-  { outer: "rgba(100,200,240,0.25) 0%, rgba(100,200,240,0.08) 50%, transparent 75%", mid: "rgba(120,210,245,0.35) 30%, rgba(140,220,250,0.18) 60%, transparent 80%", core: "rgba(160,230,255,0.55) 40%, rgba(120,210,245,0.28) 70%, transparent 95%" },
-  { outer: "rgba(255,170,100,0.25) 0%, rgba(255,170,100,0.08) 50%, transparent 75%", mid: "rgba(255,180,110,0.35) 30%, rgba(255,200,140,0.18) 60%, transparent 80%", core: "rgba(255,210,160,0.55) 40%, rgba(255,180,110,0.28) 70%, transparent 95%" },
-  { outer: "rgba(255,130,180,0.25) 0%, rgba(255,130,180,0.08) 50%, transparent 75%", mid: "rgba(255,140,190,0.35) 30%, rgba(255,170,210,0.18) 60%, transparent 80%", core: "rgba(255,190,220,0.55) 40%, rgba(255,150,200,0.28) 70%, transparent 95%" },
-  { outer: "rgba(120,220,180,0.25) 0%, rgba(120,220,180,0.08) 50%, transparent 75%", mid: "rgba(130,225,185,0.35) 30%, rgba(150,235,200,0.18) 60%, transparent 80%", core: "rgba(170,240,210,0.55) 40%, rgba(130,225,185,0.28) 70%, transparent 95%" },
-  { outer: "rgba(255,180,80,0.25) 0%, rgba(255,180,80,0.08) 50%, transparent 75%", mid: "rgba(255,190,90,0.35) 30%, rgba(255,210,130,0.18) 60%, transparent 80%", core: "rgba(255,220,160,0.55) 40%, rgba(255,190,90,0.28) 70%, transparent 95%" },
-  { outer: "rgba(180,140,255,0.25) 0%, rgba(180,140,255,0.08) 50%, transparent 75%", mid: "rgba(190,150,255,0.35) 30%, rgba(210,180,255,0.18) 60%, transparent 80%", core: "rgba(220,190,255,0.55) 40%, rgba(190,150,255,0.28) 70%, transparent 95%" },
+  { outer: "oklch(0.62 0.14 251 / 0.25) 0%, oklch(0.62 0.14 251 / 0.08) 50%, transparent 75%", mid: "oklch(0.66 0.12 252 / 0.35) 30%, oklch(0.72 0.09 253 / 0.18) 60%, transparent 80%", core: "oklch(0.78 0.07 253 / 0.55) 40%, oklch(0.72 0.1 252 / 0.28) 70%, transparent 95%" },
+  { outer: "oklch(0.6 0.15 290 / 0.25) 0%, oklch(0.6 0.15 290 / 0.08) 50%, transparent 75%", mid: "oklch(0.64 0.13 292 / 0.35) 30%, oklch(0.7 0.1 295 / 0.18) 60%, transparent 80%", core: "oklch(0.76 0.08 296 / 0.55) 40%, oklch(0.68 0.11 293 / 0.28) 70%, transparent 95%" },
+  { outer: "oklch(0.6 0.12 220 / 0.25) 0%, oklch(0.6 0.12 220 / 0.08) 50%, transparent 75%", mid: "oklch(0.65 0.1 222 / 0.35) 30%, oklch(0.7 0.08 224 / 0.18) 60%, transparent 80%", core: "oklch(0.76 0.06 226 / 0.55) 40%, oklch(0.7 0.09 223 / 0.28) 70%, transparent 95%" },
+  { outer: "oklch(0.62 0.16 65 / 0.25) 0%, oklch(0.62 0.16 65 / 0.08) 50%, transparent 75%", mid: "oklch(0.66 0.14 67 / 0.35) 30%, oklch(0.72 0.1 70 / 0.18) 60%, transparent 80%", core: "oklch(0.78 0.08 72 / 0.55) 40%, oklch(0.7 0.12 68 / 0.28) 70%, transparent 95%" },
+  { outer: "oklch(0.58 0.17 0 / 0.25) 0%, oklch(0.58 0.17 0 / 0.08) 50%, transparent 75%", mid: "oklch(0.62 0.15 2 / 0.35) 30%, oklch(0.68 0.11 4 / 0.18) 60%, transparent 80%", core: "oklch(0.75 0.08 4 / 0.55) 40%, oklch(0.68 0.13 3 / 0.28) 70%, transparent 95%" },
+  { outer: "oklch(0.6 0.14 170 / 0.25) 0%, oklch(0.6 0.14 170 / 0.08) 50%, transparent 75%", mid: "oklch(0.65 0.12 172 / 0.35) 30%, oklch(0.7 0.09 174 / 0.18) 60%, transparent 80%", core: "oklch(0.76 0.07 175 / 0.55) 40%, oklch(0.7 0.1 173 / 0.28) 70%, transparent 95%" },
+  { outer: "oklch(0.62 0.16 72 / 0.25) 0%, oklch(0.62 0.16 72 / 0.08) 50%, transparent 75%", mid: "oklch(0.66 0.14 74 / 0.35) 30%, oklch(0.72 0.1 77 / 0.18) 60%, transparent 80%", core: "oklch(0.78 0.08 78 / 0.55) 40%, oklch(0.7 0.12 75 / 0.28) 70%, transparent 95%" },
+  { outer: "oklch(0.6 0.15 285 / 0.25) 0%, oklch(0.6 0.15 285 / 0.08) 50%, transparent 75%", mid: "oklch(0.64 0.13 287 / 0.35) 30%, oklch(0.7 0.1 290 / 0.18) 60%, transparent 80%", core: "oklch(0.76 0.08 291 / 0.55) 40%, oklch(0.68 0.11 288 / 0.28) 70%, transparent 95%" },
 ];
 
 function makeBg(stops: string): string {

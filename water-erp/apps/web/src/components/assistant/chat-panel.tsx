@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Minimize2, Maximize2, X } from "lucide-react";
+import { Minimize2, Maximize2, X, Plus, Mic } from "lucide-react";
 import { useAssistant } from "./assistant-provider";
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
+import { ConversationTabs } from "./conversation-tabs";
 import type { Message } from "./types";
 import { MiniSprite } from "./mini-sprite";
 
@@ -28,7 +29,7 @@ function extractSuggestions(actions?: Array<{ type: string; items?: string[] }>)
   return s?.items;
 }
 
-// ---- 共享工具 ----
+// ---- 共享 MessageList ----
 
 function MessageList({
   displayMessages,
@@ -54,25 +55,21 @@ function MessageList({
   onSend: (t: string) => Promise<void>;
 }) {
   const welcomeCls = isMini ? "asst-welcome" : "asst-page-welcome";
-  const logoCls = isMini ? "asst-welcome-logo" : "asst-welcome-logo";
-  const titleCls = isMini ? "asst-welcome-title asst-welcome-title-mini" : "asst-welcome-title";
 
   return (
     <>
       {isEmpty && (
         <div className={welcomeCls}>
-          <div className="relative">
-            <div className={logoCls}>
-              <img src="/procurement-brand-logo.png" alt="智慧水发" className="w-full h-full object-contain" />
+          <>
+            {/* 品牌 logo — neumorphic 凸起圆形，页面/小窗统一 */}
+            <div className={isMini ? "asst-page-welcome-sprite asst-welcome-sprite-mini" : "asst-page-welcome-sprite"}>
+              <img src="/procurement-brand-logo.png" alt="智慧水发" />
             </div>
-            {!isMini && <div className="asst-welcome-glow" />}
-          </div>
-          <div>
-            <div className={titleCls}>
+            <div className={isMini ? "asst-page-welcome-title asst-welcome-title-mini" : "asst-page-welcome-title"}>
               {userName && <div>{userName}，</div>}
-              <div>你好呀，我是水叮当</div>
+              <div>你好呀，我是水叮当！</div>
             </div>
-          </div>
+          </>
         </div>
       )}
 
@@ -126,6 +123,7 @@ export function ChatPanel({ variant }: ChatPanelProps) {
 
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [pageInputEmpty, setPageInputEmpty] = useState(true);
 
   useEffect(() => { void loadConversations(); }, [loadConversations]);
   useEffect(() => {
@@ -153,15 +151,15 @@ export function ChatPanel({ variant }: ChatPanelProps) {
   const isMini = variant === "mini";
 
   const handlePopToMini = () => { openMini(); router.back(); };
-  const handleExpandFromMini = () => { router.push("/assistant"); };
+  const handleExpandFromMini = () => { closeMini(); router.push("/assistant"); };
 
-  // ---- PAGE variant: borderless, naturally integrated ----
+  // ---- PAGE variant: neumorphic integrated layout ----
   if (!isMini) {
     return (
       <div className="asst-page">
-        {/* Header — no bar, no divider */}
+        {/* Header — neumorphic raised bar */}
         <div className="asst-page-header">
-          <MiniSprite size={32} expression={isStreaming ? "thinking" : expression} animated />
+          <MiniSprite size={34} expression={isStreaming ? "thinking" : expression} animated />
           <span className="asst-page-header-title">水叮当</span>
           {isStreaming && (
             <span className="asst-thinking-badge">
@@ -169,28 +167,22 @@ export function ChatPanel({ variant }: ChatPanelProps) {
             </span>
           )}
           <div className="flex-1" />
-          <div className="flex items-center gap-1">
-            <button onClick={() => void startNewConversation()} title="新对话" className="asst-page-header-btn">
-              <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 1v12M1 7h12"/></svg>
-            </button>
-            <button onClick={handlePopToMini} title="收为小窗" className="asst-page-header-btn">
-              <Minimize2 size={15} />
-            </button>
-          </div>
+          <button onClick={() => void startNewConversation()} title="新对话" className="asst-page-header-btn">
+            <Plus size={16} strokeWidth={1.5} />
+          </button>
+          <button onClick={handlePopToMini} title="收为小窗" className="asst-page-header-btn">
+            <Minimize2 size={15} strokeWidth={1.5} />
+          </button>
         </div>
 
-        {/* Conversation tabs */}
-        {conversations.length > 1 && (
-          <div className="asst-page-tabs">
-            {conversations.map((conv) => (
-              <button key={conv.id} onClick={() => void selectConversation(conv.id)}
-                className={`asst-conv-tab ${conv.id === activeConversationId ? "asst-conv-tab-active" : ""}`}>
-                <span className="truncate max-w-[120px]">{conv.title}</span>
-                <span onClick={(e) => { e.stopPropagation(); void removeConversation(conv.id); }} className="asst-conv-tab-delete">×</span>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Conversation tabs — neumorphic tray */}
+        <ConversationTabs
+          conversations={conversations}
+          activeId={activeConversationId}
+          onSelect={(id) => void selectConversation(id)}
+          onDelete={(id) => void removeConversation(id)}
+          variant="page"
+        />
 
         {/* Messages */}
         <div className="asst-page-messages">
@@ -221,23 +213,32 @@ export function ChatPanel({ variant }: ChatPanelProps) {
                   e.preventDefault();
                   const el = e.currentTarget;
                   const val = el.value.trim();
-                  if (val && !isStreaming) { void sendMessage(val); el.value = ""; el.style.height = "auto"; }
+                  if (val && !isStreaming) { void sendMessage(val); el.value = ""; el.style.height = "auto"; setPageInputEmpty(true); }
                 }
               }}
               onInput={(e) => {
                 const el = e.currentTarget;
                 el.style.height = "auto";
                 el.style.height = `${Math.min(el.scrollHeight, 100)}px`;
+                setPageInputEmpty(el.value.trim() === "");
               }}
             />
+            <button
+              disabled={isStreaming}
+              className="asst-page-input-mic-btn"
+              aria-label="语音输入"
+              title="语音输入"
+            >
+              <Mic size={16} strokeWidth={1.5} />
+            </button>
             <button
               onClick={() => {
                 const ta = document.getElementById("asst-page-textarea") as HTMLTextAreaElement | null;
                 if (!ta) return;
                 const val = ta.value.trim();
-                if (val && !isStreaming) { void sendMessage(val); ta.value = ""; ta.style.height = "auto"; }
+                if (val && !isStreaming) { void sendMessage(val); ta.value = ""; ta.style.height = "auto"; setPageInputEmpty(true); }
               }}
-              disabled={isStreaming}
+              disabled={isStreaming || pageInputEmpty}
               className="asst-page-input-btn"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -250,7 +251,7 @@ export function ChatPanel({ variant }: ChatPanelProps) {
     );
   }
 
-  // ---- MINI variant: keeps framed overlay look ----
+  // ---- MINI variant: floating overlay ----
   return (
     <div className="asst-mini">
       <div className="asst-panel-header">
@@ -265,24 +266,22 @@ export function ChatPanel({ variant }: ChatPanelProps) {
         </div>
         <div className="flex items-center gap-0.5">
           <button onClick={() => void startNewConversation()} title="新对话" className="asst-header-btn">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 1v12M1 7h12"/></svg>
+            <Plus size={14} strokeWidth={1.5} />
           </button>
-          <button onClick={handleExpandFromMini} title="展开全屏" className="asst-header-btn"><Maximize2 size={14} /></button>
+          <button onClick={handleExpandFromMini} title="展开全屏" className="asst-header-btn">
+            <Maximize2 size={14} strokeWidth={1.5} />
+          </button>
           <button onClick={closeMini} title="关闭小窗" className="asst-header-btn"><X size={14} /></button>
         </div>
       </div>
 
-      {conversations.length > 1 && (
-        <div className="asst-panel-tabs">
-          {conversations.map((conv) => (
-            <button key={conv.id} onClick={() => void selectConversation(conv.id)}
-              className={`asst-conv-tab ${conv.id === activeConversationId ? "asst-conv-tab-active" : ""}`}>
-              <span className="truncate max-w-[120px]">{conv.title}</span>
-              <span onClick={(e) => { e.stopPropagation(); void removeConversation(conv.id); }} className="asst-conv-tab-delete">×</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <ConversationTabs
+        conversations={conversations}
+        activeId={activeConversationId}
+        onSelect={(id) => void selectConversation(id)}
+        onDelete={(id) => void removeConversation(id)}
+        variant="mini"
+      />
 
       <div className="asst-messages asst-messages-mini">
         <MessageList

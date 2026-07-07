@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, type KeyboardEvent } from "react";
+import { Mic } from "lucide-react";
 
 export function ChatInput({
   onSend,
@@ -46,6 +47,14 @@ export function ChatInput({
             el.style.height = `${Math.min(el.scrollHeight, 100)}px`;
           }}
         />
+        <button
+          disabled={disabled}
+          className="asst-input-mic-btn"
+          aria-label="语音输入"
+          title="语音输入"
+        >
+          <Mic size={14} strokeWidth={1.5} />
+        </button>
         <button
           onClick={handleSend}
           disabled={disabled || !input.trim()}

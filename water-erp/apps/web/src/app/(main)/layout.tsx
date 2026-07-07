@@ -37,7 +37,7 @@ const routeToModule: Record<string, string> = {
   "/admin/password-requests": "密码审批",
 };
 
-const childrenScrollRoutes = new Set(["/tender-write"]);
+const childrenScrollRoutes = new Set(["/tender-write", "/assistant"]);
 
 function AssistantLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();

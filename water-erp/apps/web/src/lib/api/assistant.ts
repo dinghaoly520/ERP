@@ -23,7 +23,7 @@ export async function createConversation(title?: string): Promise<Conversation> 
   return requestJson<Conversation>(`${API_BASE}/assistant/conversations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title: title || '新对话' }),
   });
 }
 
@@ -57,9 +57,9 @@ export async function generateTitle(conversationId: string): Promise<string> {
   }
 }
 
-// ---- Send message (SSE streaming) ----
+// ---- Send message ----
 
-export type SseCallbacks = {
+export type SendCallbacks = {
   onToken: (content: string) => void;
   onToolCall: (tool: string, args: Record<string, unknown>) => void;
   onToolResult: (tool: string, result: unknown, success: boolean) => void;
@@ -68,91 +68,43 @@ export type SseCallbacks = {
   onError: (message: string) => void;
 };
 
-export async function sendMessageStream(
+interface ChatResponse {
+  conversationId: string;
+  answer: string;
+  cards?: Array<{ type: string; title?: string }>;
+  citations?: unknown[];
+  pendingActions?: unknown[];
+}
+
+export async function sendMessage(
   conversationId: string,
   content: string,
   context: AssistantPageContext | undefined,
-  callbacks: SseCallbacks,
+  callbacks: SendCallbacks,
   options?: { signal?: AbortSignal },
 ): Promise<void> {
-  let response: Response;
-
   try {
-    response = await fetch(`${API_BASE}/assistant/conversations/${conversationId}/messages`, {
+    const response = await fetch(`${API_BASE}/assistant/chat`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, context }),
+      body: JSON.stringify({ conversationId, message: content, context }),
       signal: options?.signal,
     });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ message: 'AI 服务异常' }));
+      callbacks.onError((err as { message?: string }).message || 'AI 服务暂时不可用');
+      return;
+    }
+
+    const data: ChatResponse = await response.json();
+    callbacks.onToken(data.answer);
+    callbacks.onDone(data.conversationId);
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
-      return; // 静默处理 abort
+      return;
     }
     callbacks.onError('无法连接到服务');
-    return;
-  }
-
-  if (!response.ok || !response.body) {
-    callbacks.onError('AI 服务暂时不可用');
-    return;
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      // Parse SSE events from buffer
-      const eventPattern = /event: (\w+)\ndata: (.+)\n\n/g;
-      let match: RegExpExecArray | null;
-      let lastIndex = 0;
-
-      while ((match = eventPattern.exec(buffer)) !== null) {
-        lastIndex = match.index + match[0].length;
-        const eventName = match[1];
-        const eventData = match[2];
-
-        try {
-          const parsed = JSON.parse(eventData);
-
-          switch (eventName) {
-            case 'token':
-              callbacks.onToken(parsed.content ?? '');
-              break;
-            case 'tool_call':
-              callbacks.onToolCall(parsed.tool, parsed.args ?? {});
-              break;
-            case 'tool_result':
-              callbacks.onToolResult(parsed.tool, parsed.result, parsed.success);
-              break;
-            case 'action':
-              callbacks.onAction(parsed as AssistantAction);
-              break;
-            case 'done':
-              callbacks.onDone(parsed.message_id ?? '');
-              break;
-            case 'error':
-              callbacks.onError(parsed.message ?? '未知错误');
-              break;
-          }
-        } catch {
-          // Skip malformed JSON
-        }
-      }
-
-      // Keep unprocessed part in buffer
-      if (lastIndex > 0) {
-        buffer = buffer.slice(lastIndex);
-      }
-    }
-  } finally {
-    reader.releaseLock();
   }
 }

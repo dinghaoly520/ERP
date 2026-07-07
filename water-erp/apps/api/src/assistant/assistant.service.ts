@@ -50,6 +50,18 @@ export class AssistantService {
     this.toolRegistry.register(this.mallTool);
   }
 
+  async createConversation(title?: string) {
+    const conv = await this.prisma.assistantConversation.create({
+      data: { title: title || '新对话' },
+    });
+    return {
+      id: conv.id,
+      title: conv.title,
+      createdAt: conv.createdAt,
+      updatedAt: conv.updatedAt,
+    };
+  }
+
   async chat(dto: ChatDto) {
     const conversation = dto.conversationId
       ? await this.prisma.assistantConversation.findUnique({
@@ -84,7 +96,17 @@ export class AssistantService {
       .map((t) => `- ${t.name}: ${t.description}`)
       .join('\n');
 
-    const fullSystemPrompt = `${SYSTEM_KNOWLEDGE}
+    // 从上下文提取用户身份信息，构建权限感知的系统提示
+    const userRole = dto.context?.userRole as string | undefined;
+    const roleContext = userRole
+      ? `\n\n【当前用户的身份信息】\n用户的系统角色是"${userRole}"。${
+          ['admin', 'bid_host', 'procurement_staff'].includes(userRole)
+            ? '该用户属于管理层，拥有全系统数据访问权限。你可以综合分析所有模块的数据，给出全局视角的建议。'
+            : '该用户属于业务层角色，你只应分析与其业务范围直接相关的数据。如果用户询问跨模块或全系统性的问题，应说明数据权限限制并聚焦到其可访问的范围内。'
+        }\n`
+      : '';
+
+    const fullSystemPrompt = `${SYSTEM_KNOWLEDGE}${roleContext}
 
 【你可以使用的数据工具】
 ${toolList}

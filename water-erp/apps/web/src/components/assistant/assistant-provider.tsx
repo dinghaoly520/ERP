@@ -14,11 +14,11 @@ import {
   createConversation,
   getConversation,
   deleteConversation,
-  sendMessageStream,
+  sendMessage,
   generateTitle,
 } from "@/lib/api/assistant";
 import { type SpriteExpression, inferExpression } from "./sprite-images";
-import { fetchCurrentUser } from "@/lib/api/auth";
+import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
 
 // ---- Context shape ----
 
@@ -89,10 +89,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
   const openChat = useCallback(() => {
     setIsOpen(true);
-    // 加载用户名（仅首次）
+    // 加载用户信息（仅首次）
     if (!userName) {
       fetchCurrentUser()
-        .then((u) => setUserName(u.displayName || u.username || ""))
+        .then((u: AuthUser) => {
+          setUserName(u.displayName || u.username || "");
+          setPageContext({ userRole: u.role || "" });
+        })
         .catch(() => {});
     }
   }, [userName]);
@@ -246,19 +249,15 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         error: null,
       }));
 
-      await sendMessageStream(activeConvId, content, pageContext, {
+      await sendMessage(activeConvId, content, pageContext, {
         onToken: (token) => {
           setChatState((s) => ({
             ...s,
-            streamingContent: s.streamingContent + token,
+            streamingContent: token,
           }));
         },
-        onToolCall: () => {
-          // Could show tool execution indicator
-        },
-        onToolResult: () => {
-          // Could show tool result
-        },
+        onToolCall: () => {},
+        onToolResult: () => {},
         onAction: (action) => {
           setChatState((s) => ({
             ...s,
@@ -267,11 +266,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         },
         onDone: (messageId) => {
           abortControllerRef.current = null;
-          // Capture streaming state before it's reset
-          const finalResponseContent = chatState.streamingContent;
-          const finalResponseActions = [...chatState.streamingActions];
           setChatState((s) => {
-            // Replace streaming content with final assistant message
             const assistantMsg: Message = {
               id: messageId || `msg-${Date.now()}`,
               conversationId: activeConvId,
@@ -308,11 +303,10 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             });
           }
 
-          // Set expression based on response: chart → excited, knowledge → serious, else → happy briefly
-          const finalContent = finalResponseContent;
-          const finalActions = finalResponseActions;
-          const hasChart = finalActions.some((a: Record<string, unknown>) => a.type === 'chart');
-          const hasKnowledge = /法规|合规|审查|风险|标准|流程|要求|必须|禁止/.test(finalContent);
+          // Set expression based on response
+          const responseText = s.streamingContent;
+          const hasChart = s.streamingActions.some((a: Record<string, unknown>) => a.type === 'chart');
+          const hasKnowledge = /法规|合规|审查|风险|标准|流程|要求|必须|禁止/.test(responseText);
           if (hasChart) {
             setExpression('excited');
           } else if (hasKnowledge) {
