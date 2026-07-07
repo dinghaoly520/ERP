@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 import { THEME_OPTIONS, HOME_PAGE_OPTIONS, type UserSettings } from '@/lib/api/user-settings';
 import { useUserSettings } from '@/lib/user-settings-context';
@@ -110,7 +110,7 @@ export function TabPreferences() {
 
       {error && (
         <div className="flex items-start gap-2 rounded-xl border border-[rgba(215,89,89,0.18)] bg-[rgba(255,241,241,0.76)] px-4 py-3 text-sm text-[color:var(--danger)]">
-          <span className="mt-0.5 shrink-0">⚠</span>{error}
+          <AlertTriangle size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />{error}
         </div>
       )}
     </div>

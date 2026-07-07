@@ -44,7 +44,7 @@ export function TabActivityLog() {
         </div>
       ) : activities.length === 0 ? (
         <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 text-sm text-[color:var(--muted-foreground)]">
-          <History size={32} strokeWidth={1.2} />暂无操作记录
+          <History size={32} strokeWidth={1.5} />暂无操作记录
         </div>
       ) : (
         <>

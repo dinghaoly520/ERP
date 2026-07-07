@@ -14,14 +14,10 @@ import { TabSecurity } from './tab-security';
 import { TabActivityLog } from './tab-activity-log';
 import { TabPreferences } from './tab-preferences';
 
-type ExtendedUser = AuthUser & {
-  department?: { id: string; name: string; code: string | null } | null;
-};
-
 export function PersonalCenterPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>('basic-info');
-  const [user, setUser] = useState<ExtendedUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [departments, setDepartments] = useState<DepartmentItem[]>([]);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -30,7 +26,7 @@ export function PersonalCenterPage() {
     const load = async () => {
       try {
         const [currentUser, depts] = await Promise.all([
-          fetchCurrentUser() as Promise<ExtendedUser>,
+          fetchCurrentUser(),
           fetchDepartments(),
         ]);
         setUser(currentUser);

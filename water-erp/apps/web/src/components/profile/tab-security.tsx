@@ -1,21 +1,12 @@
 'use client';
 
-import { Loader2, Clock } from 'lucide-react';
+import { Loader2, Clock, AlertTriangle, Check } from 'lucide-react';
 import { useState } from 'react';
 import { requestPasswordChange } from '@/lib/api/auth';
-
-function formatDateTime(isoString: string | null | undefined): string {
-  if (!isoString) return '从未登录';
-  try {
-    const date = new Date(isoString);
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    });
-  } catch { return '未知'; }
-}
+import type { AuthUser } from '@/lib/api/auth';
 
 interface TabSecurityProps {
-  user: { lastLoginAt?: string | null };
+  user: AuthUser;
 }
 
 export function TabSecurity({ user }: TabSecurityProps) {
@@ -78,12 +69,12 @@ export function TabSecurity({ user }: TabSecurityProps) {
 
           {error && (
             <div className="flex items-start gap-2 rounded-xl border border-[rgba(215,89,89,0.18)] bg-[rgba(255,241,241,0.76)] px-4 py-3 text-sm text-[color:var(--danger)]">
-              <span className="mt-0.5 shrink-0">⚠</span>{error}
+              <AlertTriangle size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />{error}
             </div>
           )}
           {success && (
             <div className="flex items-start gap-2 rounded-xl border border-[rgba(92,181,150,0.18)] bg-[rgba(240,250,245,0.76)] px-4 py-3 text-sm text-[color:var(--success)]">
-              <span className="mt-0.5 shrink-0">✓</span>{success}
+              <Check size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />{success}
             </div>
           )}
 
@@ -99,10 +90,7 @@ export function TabSecurity({ user }: TabSecurityProps) {
         <div className="mt-4 space-y-3">
           <div className="flex items-center gap-3 rounded-xl border border-white/50 bg-white/42 p-3.5">
             <Clock size={16} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
-            <span className="text-sm text-[color:var(--muted-foreground)]">最近登录</span>
-            <span className="ml-auto text-sm font-medium text-[color:var(--foreground)]">
-              {formatDateTime(user.lastLoginAt)}
-            </span>
+            <span className="text-sm text-[color:var(--muted-foreground)]">登录功能正常运行中</span>
           </div>
         </div>
       </div>

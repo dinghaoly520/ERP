@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, Mail, Building2, UserRound, Shield } from 'lucide-react';
+import { Loader2, Mail, Building2, UserRound, Shield, AlertTriangle, Check } from 'lucide-react';
 import { useState } from 'react';
 import { updateMyProfile } from '@/lib/api/auth';
 import type { AuthUser, DepartmentItem, UpdateProfileInput } from '@/lib/api/auth';
@@ -15,7 +15,7 @@ function formatDate(isoString: string | null | undefined): string {
 }
 
 interface TabBasicInfoProps {
-  user: AuthUser & { department?: { id: string; name: string; code: string | null } | null };
+  user: AuthUser;
   departments: DepartmentItem[];
   onUserUpdated: (updated: AuthUser) => void;
 }
@@ -121,12 +121,12 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
 
         {error && (
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-[rgba(215,89,89,0.18)] bg-[rgba(255,241,241,0.76)] px-4 py-3 text-sm text-[color:var(--danger)]">
-            <span className="mt-0.5 shrink-0">⚠</span>{error}
+            <AlertTriangle size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />{error}
           </div>
         )}
         {success && (
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-[rgba(92,181,150,0.18)] bg-[rgba(240,250,245,0.76)] px-4 py-3 text-sm text-[color:var(--success)]">
-            <span className="mt-0.5 shrink-0">✓</span>{success}
+            <Check size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />{success}
           </div>
         )}
 

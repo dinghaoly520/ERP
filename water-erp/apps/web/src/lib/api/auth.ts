@@ -33,7 +33,7 @@ export type AuthUser = {
   email?: string | null;
   isActive?: boolean;
   createdAt?: string | null;
-  lastLoginAt?: string | null;
+  department?: { id: string; name: string; code: string | null } | null;
 };
 
 export type DepartmentItem = {
