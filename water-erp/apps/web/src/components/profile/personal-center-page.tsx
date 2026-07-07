@@ -57,7 +57,7 @@ export function PersonalCenterPage() {
 
   if (loadingUser) {
     return (
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-h-full flex-col">
         <div className="wb-panel flex min-h-[420px] flex-1 flex-col items-center justify-center gap-4">
           <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
             <Loader2 size={24} strokeWidth={1.4} className="animate-spin text-[color:var(--accent)]" />
@@ -73,7 +73,7 @@ export function PersonalCenterPage() {
 
   if (!user) {
     return (
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-h-full flex-col">
         <div className="wb-panel flex min-h-[420px] flex-1 flex-col items-center justify-center gap-4">
           <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
             <AlertTriangle size={24} strokeWidth={1.4} className="text-[color:var(--danger)]" />
@@ -100,7 +100,7 @@ export function PersonalCenterPage() {
   };
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col gap-4">
+    <div className="flex min-h-full flex-col gap-4">
       <PersonalCenterTabBar activeTab={activeTab} onTabChange={setActiveTab} />
       <div className="flex flex-1 min-h-0 gap-4 items-stretch">
         {/* Left: Hero card — stretches to bottom, hidden on mobile */}
