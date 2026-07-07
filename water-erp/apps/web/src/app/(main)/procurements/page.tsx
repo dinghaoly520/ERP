@@ -122,22 +122,9 @@ function PageHero({
   pagination: { total: number; page: number; totalPages: number };
   data: ProcurementRoundItem[];
 }) {
-  // KPI 统计
-  const awardedCount = data.filter(i => i.resultStatus === "AWARDED").length;
-  const pendingCount = data.filter(i => i.resultStatus === "PENDING").length;
   const abnormalCount = data.filter(i =>
     ["FAILED_REVIEW", "FILE_REVISION_REQUIRED", "INVALID_RESPONSE", "CANCELLED"].includes(i.resultStatus)
   ).length;
-  const totalBudget = data.reduce((s, i) => {
-    const v = i.controlAmount ?? i.budgetAmount ?? 0;
-    return s + (typeof v === "string" ? parseFloat(v) : v);
-  }, 0);
-  const totalAward = data.reduce((s, i) => {
-    const v = i.awardAmount ?? 0;
-    return s + (typeof v === "string" ? parseFloat(v) : v);
-  }, 0);
-
-  const formatKpi = (n: number) => n >= 10000 ? `${(n / 10000).toFixed(1)}万` : n > 0 ? `${n.toFixed(0)}元` : "-";
 
   return (
     <motion.div
@@ -173,32 +160,8 @@ function PageHero({
         </div>
       </div>
 
-      {/* KPI 行 */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="kpi-card p-2.5">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">已成交</div>
-          <div className="mt-1 text-[1.2rem] font-black tracking-[-0.04em] tabular-nums leading-none text-[color:var(--success)]">{awardedCount}</div>
-          <div className="mt-0.5 text-[10px] text-[color:var(--muted-foreground)]">项</div>
-        </div>
-        <div className="kpi-card p-2.5">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">待处理</div>
-          <div className="mt-1 text-[1.2rem] font-black tracking-[-0.04em] tabular-nums leading-none text-[color:var(--warning)]">{pendingCount}</div>
-          <div className="mt-0.5 text-[10px] text-[color:var(--muted-foreground)]">项</div>
-        </div>
-        <div className="kpi-card p-2.5">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">预算总额</div>
-          <div className="mt-1 text-[1.2rem] font-black tracking-[-0.04em] tabular-nums leading-none text-[color:var(--accent)]">{formatKpi(totalBudget)}</div>
-          <div className="mt-0.5 text-[10px] text-[color:var(--muted-foreground)]">当前页</div>
-        </div>
-        <div className="kpi-card p-2.5">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">成交金额</div>
-          <div className="mt-1 text-[1.2rem] font-black tracking-[-0.04em] tabular-nums leading-none text-[color:var(--success)]">{formatKpi(totalAward)}</div>
-          <div className="mt-0.5 text-[10px] text-[color:var(--muted-foreground)]">当前页</div>
-        </div>
-      </div>
-
       {/* 搜索 + 筛选行 */}
-      <div className="flex flex-wrap items-center gap-3 pt-1" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+      <div className="flex flex-wrap items-center gap-3" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.5rem" }}>
         <div className="relative min-w-[180px] xl:min-w-[240px] flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)] z-10" />
           <input
