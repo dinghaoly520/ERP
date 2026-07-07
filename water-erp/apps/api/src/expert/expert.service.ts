@@ -627,7 +627,7 @@ export class ExpertService {
 
     let projectFraudSummary: { riskLevel: string; indicatorCount: number } | null = null;
     if (report?.fraudIndicators) {
-      const fi = report.fraudIndicators as any;
+      const fi = report.fraudIndicators as { riskLevel?: string; summary?: { totalCount?: number }; indicators?: unknown[] };
       projectFraudSummary = {
         riskLevel: fi.riskLevel ?? 'low',
         indicatorCount: fi.summary?.totalCount ?? fi.indicators?.length ?? 0,
