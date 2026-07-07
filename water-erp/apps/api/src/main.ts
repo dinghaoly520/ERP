@@ -28,6 +28,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const logger = new Logger('Bootstrap');
 
+  // 信任代理头（X-Forwarded-For 等），使 req.ip 返回真实客户端 IP
+  // Express 默认出于安全考虑忽略代理头，本地开发时 trust 'loopback' 即可
+  // 生产环境部署在 nginx 反代后时 trust 第一个代理的 IP
+  app.getHttpAdapter().getInstance().set('trust proxy', true);
+
   app.setGlobalPrefix('api');
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
