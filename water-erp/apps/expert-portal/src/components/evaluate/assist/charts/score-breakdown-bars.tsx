@@ -33,9 +33,13 @@ interface ScoreBarProps {
   reasonLines?: number;
   /** 展开：reason 不截断 + 显示证据 */
   expanded?: boolean;
+  /** AI 置信度 0-1；<0.6 显示低置信标记 */
+  confidence?: number;
+  /** 多次采样差异大（self-consistency），AI 把握度低 */
+  unstable?: boolean;
 }
 
-function ScoreBar({ label, score, maxScore, comment, evidence, color = '#0b63ce', reasonLines = 2, expanded = false }: ScoreBarProps) {
+function ScoreBar({ label, score, maxScore, comment, evidence, color = '#0b63ce', reasonLines = 2, expanded = false, confidence, unstable }: ScoreBarProps) {
   const pct = maxScore > 0 ? Math.min((score / maxScore) * 100, 100) : 0;
   const clampClass = expanded ? '' : reasonLines === 2 ? 'line-clamp-2' : 'line-clamp-1';
   return (
@@ -54,6 +58,20 @@ function ScoreBar({ label, score, maxScore, comment, evidence, color = '#0b63ce'
       )}
       {evidence && (
         <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5 ml-1">证据：{evidence}</p>
+      )}
+      {(confidence != null || unstable) && (
+        <div className="flex items-center gap-1.5 mt-1 ml-1">
+          {confidence != null && confidence < 0.6 && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> 置信度 {Math.round(confidence * 100)}%
+            </span>
+          )}
+          {unstable && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded">
+              ⚙ 不稳定
+            </span>
+          )}
+        </div>
       )}
     </div>
   );
@@ -89,6 +107,8 @@ export function ScoreBreakdownBars({ scoreItems, reasonLines = 2, expanded = fal
             color={CATEGORY_COLOR[item.category] ?? '#0b63ce'}
             reasonLines={reasonLines}
             expanded={expanded}
+            confidence={item.confidence}
+            unstable={item.unstable}
           />
         ))}
       </div>
@@ -133,6 +153,8 @@ export function ScoreBreakdownBars({ scoreItems, reasonLines = 2, expanded = fal
                   color={color}
                   reasonLines={reasonLines}
                   expanded={expanded}
+                  confidence={item.confidence}
+                  unstable={item.unstable}
                 />
               ))}
             </div>
