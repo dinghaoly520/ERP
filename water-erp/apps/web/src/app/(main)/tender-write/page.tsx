@@ -148,10 +148,9 @@ export default function TenderWritePage() {
   useEffect(() => {
     const cached = readTenderWriteState();
     setDrafts(cached.drafts);
-    setSelectedType(cached.selectedType);
-    // Only show type dialog when there's no selected type (no active draft)
-    // If user has a selected type, they're continuing their work - go directly to editing
-    setShowTypeDialog(!cached.selectedType);
+    // 默认进入竞争性谈判，有缓存则恢复
+    setSelectedType(cached.selectedType || "COMPETITIVE_NEGOTIATION");
+    setShowTypeDialog(false);
   }, []);
 
   useEffect(() => {
@@ -439,7 +438,7 @@ export default function TenderWritePage() {
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         {selectedType ? (
-          <div className="mb-4 shrink-0 rounded-[24px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(244,248,255,0.84))] px-4 py-4 shadow-[0_18px_40px_rgba(59,89,143,0.08)]">
+          <div className="mb-4 shrink-0 wb-panel p-4">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="text-[1.1rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
@@ -533,7 +532,7 @@ export default function TenderWritePage() {
           </div>
         ) : null}
         {!selectedType ? (
-          <div className="flex flex-1 flex-col items-center justify-center rounded-[24px] border border-white/65 bg-white/78 px-6 py-12 text-center text-sm text-[color:var(--muted-foreground)]">
+          <div className="flex flex-1 flex-col items-center justify-center wb-panel p-12 text-center text-sm text-[color:var(--muted-foreground)]">
             <div className="mb-4">请选择招标文件类型</div>
             <TenderTypeSwitcher
               options={TENDER_DOCUMENT_TYPES}
@@ -542,12 +541,12 @@ export default function TenderWritePage() {
             />
           </div>
         ) : selectedMeta?.availability !== "ready" ? (
-          <div className="rounded-[24px] border border-white/65 bg-white/78 px-6 py-12">
+          <div className="wb-panel p-12">
             <h2 className="text-lg font-semibold text-[color:var(--foreground)]">
               {selectedMeta?.label}模板待配置
             </h2>
             <p className="mt-3 text-sm leading-6 text-[color:var(--muted-foreground)]">
-              当前仅“竞争性谈判”支持完整问答式填写与 Word 导出。此类型的模板和字段映射将在后续补充。
+              该采购方式的模板和字段映射将在后续补充。可切换到竞争性谈判继续编写。
             </p>
           </div>
         ) : (
@@ -617,7 +616,7 @@ export default function TenderWritePage() {
       {/* Success Toast */}
       {successMessage && (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-fade-in">
-          <div className="rounded-full border border-[rgba(92,181,150,0.3)] bg-[rgba(92,181,150,0.95)] px-5 py-3 text-sm font-medium text-white shadow-lg">
+          <div className="rounded-[10px] border border-[color-mix(in_oklch,var(--success)_28%,transparent)] bg-[var(--success)] px-5 py-3 text-sm font-medium text-white shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
             {successMessage}
           </div>
         </div>

@@ -367,32 +367,32 @@ a {
   position: absolute;
   inset: -5%;
   background:
-    radial-gradient(circle at 15% 18%, rgba(130, 175, 255, 0.25), transparent 52%),
-    radial-gradient(circle at 78% 72%, rgba(75, 195, 175, 0.10), transparent 48%),
-    radial-gradient(circle at 55% 28%, rgba(255, 255, 255, 0.12), transparent 44%);
+    radial-gradient(circle at 15% 18%, rgba(130, 175, 255, 0.38), transparent 52%),
+    radial-gradient(circle at 78% 72%, rgba(75, 195, 175, 0.18), transparent 48%),
+    radial-gradient(circle at 55% 28%, rgba(255, 255, 255, 0.22), transparent 44%);
   filter: blur(18px);
   pointer-events: none;
 }
 
 /* ============================================================
-   Sidebar card — 透明玻璃 + 凸起边缘 + 光晕
+   Sidebar card — 半透明毛玻璃 + 凸起边缘 + 光晕
    ============================================================ */
 .sidebar-card {
-  /* 透明基底 — 约 45% 不透度，毛玻璃透视底层氛围 */
-  background: oklch(1 0 0 / 0.42);
-  backdrop-filter: blur(22px) saturate(125%);
-  -webkit-backdrop-filter: blur(22px) saturate(125%);
-  /* 凸起边框 — 半透明描边强化立体轮廓 */
-  border: 1.5px solid oklch(0.52 0.08 258 / 0.22);
+  /* 基底 — 提高不透明度，减少底层透视为 68% */
+  background: oklch(0.985 0.008 258 / 0.68);
+  backdrop-filter: blur(26px) saturate(130%);
+  -webkit-backdrop-filter: blur(26px) saturate(130%);
+  /* 凸起边框 — 加深描边，增强立体轮廓 */
+  border: 1.5px solid oklch(0.50 0.10 258 / 0.30);
   box-shadow:
     /* 上缘内高光 — 面板顶部的细白亮线 */
-    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
     /* 右下暗影 — 模拟光源从左上方打来的投影 */
-    3px 3px 10px oklch(0.52 0.04 258 / 0.16),
+    3px 3px 10px oklch(0.52 0.04 258 / 0.22),
     /* 左上亮影 — 面向光源的反射面 */
-    -3px -3px 8px oklch(1 0 0 / 0.92),
+    -3px -3px 8px oklch(1 0 0 / 0.94),
     /* 边缘光晕 — 柔和的蓝色氛围光包裹面板 */
-    0 0 30px oklch(0.58 0.14 258 / 0.12);
+    0 0 30px oklch(0.58 0.14 258 / 0.16);
   transition: box-shadow 0.4s ease;
 }
 
@@ -483,30 +483,34 @@ a {
   background: var(--neu-raised-bg);
   border: none;
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.7),
-    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
-    -1px -1px 3px oklch(1 0 0 / 0.85);
+    inset 0 1px 0 oklch(1 0 0 / 0.78),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.14),
+    -1px -1px 3px oklch(1 0 0 / 0.92);
   transition: all 0.3s ease;
 }
 .sidebar-nav-item:hover {
   color: var(--foreground);
   background: var(--neu-raised-bg-hover);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.18),
+    -1px -1px 4px oklch(1 0 0 / 0.94);
 }
 /* Active — recessed/凹陷 (inset) */
 .sidebar-nav-item[data-active="true"] {
   color: var(--foreground);
   background: transparent;
   box-shadow:
-    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15),
-    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+    inset 2px 2px 6px oklch(0.55 0.03 258 / 0.20),
+    inset -2px -2px 5px oklch(1 0 0 / 0.60);
 }
 
 /* Press feedback — 像真实按钮被按下 */
 .sidebar-nav-item:active {
   transform: scale(0.96);
   box-shadow:
-    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.2),
-    inset -2px -2px 5px oklch(1 0 0 / 0.6);
+    inset 2px 2px 6px oklch(0.55 0.03 258 / 0.26),
+    inset -2px -2px 5px oklch(1 0 0 / 0.68);
 }
 
 /* Active indicator pulse — 倾斜蓝条呼吸脉动 */
@@ -534,12 +538,12 @@ a {
 
 /* Edge tabs — 点击不位移，仅颜色交互 */
 
-/* Group header — subtle neumorphic hover raise */
+/* Group header — neumorphic hover raise, deeper with increased opacity */
 .sidebar-nav .sidebar-group-header:hover {
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.7),
-    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
-    -1px -1px 3px oklch(1 0 0 / 0.85);
+    inset 0 1px 0 oklch(1 0 0 / 0.78),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.14),
+    -1px -1px 3px oklch(1 0 0 / 0.92);
   background: var(--neu-raised-bg);
 }
 
@@ -4564,8 +4568,8 @@ a {
   --accent: oklch(0.72 0.128 247);
   --accent-strong: oklch(0.78 0.153 251);
   --accent-soft: oklch(0.35 0.04 243);
-  --neu-raised-bg: #2a3550;
-  --neu-raised-bg-hover: #364368;
+  --neu-raised-bg: #323f5c;
+  --neu-raised-bg-hover: #3e4d70;
   --neu-link-bg: #364368;
 }
 
@@ -5938,35 +5942,49 @@ a {
 .tender-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.625rem;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.82);
+  gap: 0.5rem;
+  border-radius: 9px;
+  border: none;
+  background: var(--neu-raised-bg);
   padding: 0.5rem 1rem;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--foreground);
   cursor: pointer;
+  white-space: nowrap;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
   transition:
-    transform 220ms var(--ease-out-quint),
-    box-shadow 220ms var(--ease-out-quint),
-    background 180ms ease,
-    border-color 180ms ease;
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s ease,
+    background 0.2s ease,
+    color 0.2s ease;
 }
 .tender-btn:hover {
-  background: white;
-  border-color: rgba(255, 255, 255, 0.9);
-  transform: translateY(-2px);
+  color: var(--accent-strong);
+  background: var(--neu-raised-bg-hover);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 6px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
 }
 .tender-btn:active {
-  transform: translateY(0) scale(0.97);
-  transition-duration: 100ms;
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
 }
 .tender-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
   transform: none !important;
-  box-shadow: none !important;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.5),
+    1px 1px 2px oklch(0.55 0.03 258 / 0.06),
+    -1px -1px 2px oklch(1 0 0 / 0.5);
 }
 
 /* Icon wrapper — shared circle badge */
@@ -5976,14 +5994,14 @@ a {
   justify-content: center;
   width: 1.5rem;
   height: 1.5rem;
-  border-radius: 9999px;
-  transition: transform 280ms var(--ease-out-quint);
+  border-radius: 7px;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .tender-btn:hover .tb-icon {
-  transform: scale(1.18);
+  transform: scale(1.12);
 }
 .tender-btn:active .tb-icon {
-  transform: scale(1.05);
+  transform: scale(1.04);
 }
 
 /* Color variants for the icon badge */
@@ -8298,9 +8316,9 @@ a {
   --neu-dark-soft: oklch(0.45 0.08 258);
   --neu-brand: var(--accent-strong);
   --neu-brand-deep: oklch(0.42 0.16 251);
-  --neu-raised-bg: #f4f7fc;
-  --neu-raised-bg-hover: #eef2f8;
-  --neu-link-bg: #e8ecf2;
+  --neu-raised-bg: #edf2f8;
+  --neu-raised-bg-hover: #e4eaf3;
+  --neu-link-bg: #dce3ee;
 }
 
 /* ══════════════════════════════════════════════════════════════════

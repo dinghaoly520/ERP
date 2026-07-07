@@ -134,7 +134,7 @@ export function LedgerPreviewDialog({
   };
 
   const inputClass =
-    "w-full min-h-[28px] rounded-md border border-white/60 bg-white/88 px-2 py-1 text-xs text-[color:var(--foreground)] outline-none transition-all focus:border-[rgba(107,149,240,0.34)] focus:shadow-[0_0_0_2px_rgba(113,152,242,0.08)]";
+    "w-full min-h-[28px] rounded-md border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-2 py-1 text-xs text-[color:var(--foreground)] outline-none transition-all focus:border-[rgba(107,149,240,0.34)] focus:shadow-[0_0_0_2px_rgba(113,152,242,0.08)]";
 
   if (!isOpen) return null;
 
@@ -148,12 +148,12 @@ export function LedgerPreviewDialog({
 
       <motion.div
         {...fadeIn(reducedMotion)}
-        className="relative z-10 mx-6 flex max-h-[92vh] w-[95vw] max-w-[1600px] flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-[0_30px_70px_rgba(40,60,110,0.2)]"
+        className="relative z-10 mx-6 flex max-h-[92vh] w-[95vw] max-w-[1600px] flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
       >
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-white/60 px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
               台账管理
             </div>
             <h2 className="mt-1 text-[1.05rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
@@ -183,7 +183,7 @@ export function LedgerPreviewDialog({
             <button
               type="button"
               onClick={onClose}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/60 bg-white/70 text-[color:var(--muted-foreground)] transition-all hover:bg-white hover:shadow-md"
+              className="neu-btn-xs"
             >
               <X size={18} />
             </button>
@@ -307,7 +307,7 @@ export function LedgerPreviewDialog({
         {/* Success toast */}
         {successMessage && (
           <div className="absolute bottom-6 left-1/2 z-50 -translate-x-1/2 animate-fade-in">
-            <div className="rounded-full border border-[rgba(92,181,150,0.3)] bg-[rgba(92,181,150,0.95)] px-5 py-3 text-sm font-medium text-white shadow-lg">
+            <div className="rounded-[10px] border border-[color-mix(in_oklch,var(--success)_28%,transparent)] bg-[var(--success)] px-5 py-3 text-sm font-medium text-white shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
               {successMessage}
             </div>
           </div>

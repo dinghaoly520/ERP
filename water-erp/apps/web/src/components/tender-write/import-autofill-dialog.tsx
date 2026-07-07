@@ -261,7 +261,7 @@ export function ImportAutofillDialog({
                 type="button"
                 onClick={handleFileSelect}
                 disabled={loading}
-                className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-60"
+                className="neu-btn-soft"
               >
                 <FileUp size={13} />
                 {loading ? '分析中...' : result ? '重新上传' : '选择文件'}
@@ -269,7 +269,7 @@ export function ImportAutofillDialog({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                className="neu-btn-xs"
               >
                 <X size={18} />
               </button>
@@ -388,14 +388,14 @@ export function ImportAutofillDialog({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="rounded-full border border-slate-200 bg-slate-50 px-5 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
+                  className="neu-btn-soft"
                 >
                   取消
                 </button>
                 <button
                   type="button"
                   onClick={handleConfirm}
-                  className="rounded-full bg-blue-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-60"
+                  className="neu-btn-primary"
                 >
                   确认回填
                 </button>

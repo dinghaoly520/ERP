@@ -65,10 +65,10 @@ export function NotificationHubDialog({
           />
           <motion.div
             {...fadeIn(reducedMotion)}
-            className="relative z-10 flex w-[520px] flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-[0_30px_70px_rgba(40,60,110,0.2)]"
+            className="relative z-10 flex w-[520px] flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
           >
             {/* Header */}
-            <div className="flex shrink-0 items-center justify-between border-b border-white/60 px-6 py-4">
+            <div className="flex shrink-0 items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">
                   中标通知书
@@ -80,7 +80,7 @@ export function NotificationHubDialog({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/60 bg-white/70 text-[color:var(--muted-foreground)] transition-all hover:bg-white hover:shadow-md"
+                className="neu-btn-xs"
               >
                 <X size={18} />
               </button>

@@ -23,7 +23,7 @@ export function TenderEditorHeader({
       : `还差 ${remainingFields} 项即可完成本节填写。`;
 
   return (
-    <div className="rounded-[22px] border border-white/72 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(241,246,255,0.9))] px-5 py-4 shadow-[0_14px_28px_rgba(67,96,152,0.08)] tender-section-enter">
+    <div className="wb-panel p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -49,7 +49,7 @@ export function TenderEditorHeader({
             type="button"
             onClick={onPrevious}
             disabled={isFirst}
-            className="min-h-[44px] rounded-full border border-white/70 bg-white/88 px-4 py-2 text-sm font-medium text-[color:var(--foreground)] transition-all duration-300 hover:border-white hover:bg-white hover:shadow-[0_10px_20px_rgba(57,88,142,0.08)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(107,149,240,0.24)] disabled:cursor-not-allowed disabled:opacity-50 tender-btn-ripple"
+            className="neu-btn-soft"
           >
             上一组
           </button>
@@ -57,7 +57,7 @@ export function TenderEditorHeader({
             type="button"
             onClick={onNext}
             disabled={isLast}
-            className="min-h-[44px] rounded-full border border-[rgba(107,149,240,0.24)] bg-[rgba(240,246,255,0.98)] px-4 py-2 text-sm font-medium text-[color:var(--foreground)] transition-all duration-300 hover:border-[rgba(107,149,240,0.4)] hover:bg-white hover:shadow-[0_10px_20px_rgba(57,88,142,0.08)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(107,149,240,0.24)] disabled:cursor-not-allowed disabled:opacity-50 tender-btn-ripple"
+            className="neu-btn-primary"
           >
             下一组
           </button>

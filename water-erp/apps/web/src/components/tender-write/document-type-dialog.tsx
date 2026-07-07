@@ -57,7 +57,7 @@ export function DocumentTypeDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-white/70 bg-white/80 p-2 text-[color:var(--muted-foreground)] transition-colors hover:text-[color:var(--foreground)]"
+            className="neu-btn-xs"
             aria-label="关闭文件类型选择弹窗"
           >
             <X size={16} />
@@ -84,7 +84,7 @@ export function DocumentTypeDialog({
                     "flex w-full items-start gap-4 rounded-xl px-4 py-4 text-left transition",
                     isSelected
                       ? "bg-[color:var(--primary)]/[0.06] ring-1 ring-[color:var(--primary)]/[0.3]"
-                      : "hover:bg-white/60",
+                      : "hover:bg-[oklch(1_0_0_/_0.6)]",
                   ].join(" ")}
                   aria-pressed={isSelected}
                 >
@@ -129,7 +129,7 @@ export function DocumentTypeDialog({
                 onConfirm(pendingType);
               }
             }}
-            className="rounded-full bg-[color:var(--primary)] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[color:var(--primary)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="neu-btn-primary"
           >
             创建草稿
           </button>
