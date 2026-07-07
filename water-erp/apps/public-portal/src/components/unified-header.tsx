@@ -273,13 +273,13 @@ export function UnifiedHeader({
           <div
             className={`rounded-lg p-[1px] ${
               showDropdown
-                ? 'shadow-[0_4px_20px_rgba(8,145,160,.10),0_0_0_4px_rgba(8,145,160,.04)]'
-                : 'shadow-none hover:shadow-[0_4px_16px_rgba(8,145,160,.06),0_0_0_2px_rgba(8,145,160,.02)]'
+                ? 'shadow-[0_4px_20px_rgba(37,99,235,.10),0_0_0_4px_rgba(37,99,235,.04)]'
+                : 'shadow-none hover:shadow-[0_4px_16px_rgba(37,99,235,.06),0_0_0_2px_rgba(37,99,235,.02)]'
             }`}
             style={{
               backgroundImage: showDropdown
-                ? 'linear-gradient(110deg, #b5e8e0, #0891a0 20%, #0d9488 40%, #06b6d4 60%, #0d9488 80%, #b5e8e0)'
-                : 'linear-gradient(110deg, #dce8e8 0%, #c8dedc 20%, #bcd4d2 40%, #cbdcd8 60%, #d3e4e0 80%, #dce8e8 100%)',
+                ? 'linear-gradient(110deg, #b8d4f4, #3b82f6 20%, #2563eb 40%, #1d4ed8 60%, #2563eb 80%, #b8d4f4)'
+                : 'linear-gradient(110deg, #dce4f4 0%, #c8d6ec 20%, #bcd0e8 40%, #cbdaee 60%, #d3e0f2 80%, #dce4f4 100%)',
               backgroundSize: '300% 100%',
               animation: `search-border-flow ${showDropdown ? '2.2s' : '6s'} ease-in-out infinite`,
             }}
@@ -330,7 +330,7 @@ export function UnifiedHeader({
               onClick={() => executeSearch(query)}
               className={`group relative h-8 shrink-0 overflow-hidden rounded-r-[7px] text-xs font-bold transition-all duration-300 active:scale-95 ${
                 hasInput
-                  ? 'bg-gradient-to-r from-[#0891a0] to-[#0d9488] text-white shadow-[0_1px_3px_rgba(8,145,160,.15)] hover:shadow-[0_2px_8px_rgba(8,145,160,.25)] hover:from-[#067d8a] hover:to-[#0b8074]'
+                  ? 'bg-gradient-to-r from-[#3b82f6] to-[#2563eb] text-white shadow-[0_1px_3px_rgba(37,99,235,.15)] hover:shadow-[0_2px_8px_rgba(37,99,235,.25)] hover:from-[#2563eb] hover:to-[#1d4ed8]'
                   : 'bg-[#e9ecf2] text-[#5a6d8a] hover:bg-[#dde1e8] hover:text-[#18243a]'
               }`}
             >
@@ -338,7 +338,7 @@ export function UnifiedHeader({
               <span
                 className="pointer-events-none absolute inset-0 rounded-[inherit]"
                 style={{
-                  background: 'radial-gradient(circle at center, rgba(8,145,160,0.18) 0%, transparent 70%)',
+                  background: 'radial-gradient(circle at center, rgba(37,99,235,0.18) 0%, transparent 70%)',
                   animation: 'dingdang-breathe 2.2s ease-in-out infinite',
                 }}
                 aria-hidden="true"
