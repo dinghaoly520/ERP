@@ -133,6 +133,7 @@ export class AuthController {
   async updateProfile(
     @CurrentUser('sub') userId: string,
     @Body() dto: UpdateProfileDto,
+    @Req() req: Request,
   ) {
     const updated = await this.authService.updateProfile(userId, dto);
 
@@ -140,15 +141,21 @@ export class AuthController {
     const changedFields = Object.keys(dto).filter(
       (k) => dto[k as keyof UpdateProfileDto] !== undefined,
     );
-    await this.prisma.auditLog.create({
-      data: {
-        userId,
-        action: 'PROFILE_UPDATE',
-        resourceType: 'user',
-        resourceId: userId,
-        details: { changedFields },
-      },
-    });
+    if (changedFields.length > 0) {
+      const ip = getClientIp(req);
+      const userAgent = (req.headers['user-agent'] as string) ?? null;
+      await this.prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'PROFILE_UPDATE',
+          resourceType: 'user',
+          resourceId: userId,
+          details: { changedFields },
+          ipAddress: ip,
+          userAgent,
+        },
+      });
+    }
 
     return updated;
   }
