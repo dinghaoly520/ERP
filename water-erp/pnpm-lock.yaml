@@ -128,9 +128,6 @@ importers:
       socket.io:
         specifier: ^4.8.3
         version: 4.8.3
-      xlsx:
-        specifier: ^0.18.5
-        version: 0.18.5
     devDependencies:
       '@nestjs/cli':
         specifier: ^11.0.0
@@ -189,6 +186,9 @@ importers:
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
+      xlsx:
+        specifier: ^0.18.5
+        version: 0.18.5
 
   apps/assistant:
     dependencies:

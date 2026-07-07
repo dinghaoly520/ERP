@@ -75,12 +75,12 @@ export class AiController {
 
   @Get('ai-calibration')
   @ApiOperation({ summary: 'P1-E：全局 AI 评分校准（跨项目采纳率 + category 偏差）' })
-  @Roles('admin', 'procurement_staff')
+  @Roles('admin', 'procurement_staff', 'bid_host', 'leader')
   getAiCalibration() { return this.aiService.getAiCalibration(); }
 
   @Post('dashboard-analysis')
   @ApiOperation({ summary: 'AI采购仪表盘深度分析（从procurement迁入）' })
-  @Roles('admin', 'procurement_staff')
+  @Roles('admin', 'procurement_staff', 'bid_host', 'leader')
   async dashboardAnalysis(@Body() payload: any) {
     return this.aiService.analyzeDashboard(payload);
   }

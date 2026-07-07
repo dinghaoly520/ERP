@@ -210,8 +210,8 @@ export class DashboardService {
         : 'unknown';
       const trendItem = trendMap.get(dateKey) ?? {
         label: round.procurementDate
-          ? `${round.procurementDate.getMonth() + 1}/${String(
-              round.procurementDate.getDate(),
+          ? `${round.procurementDate.getUTCMonth() + 1}/${String(
+              round.procurementDate.getUTCDate(),
             ).padStart(2, '0')}`
           : '未填',
         count: 0,
@@ -226,7 +226,7 @@ export class DashboardService {
       trendItem.projects.push({
         name: round.project.name,
         date: round.procurementDate
-          ? `${round.procurementDate.getMonth() + 1}月${round.procurementDate.getDate()}日`
+          ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
           : '未填',
         department: round.department?.name ?? '未归属部门',
         method: round.procurementMethod ?? '未填',
@@ -274,7 +274,7 @@ export class DashboardService {
       departmentItem.projects.push({
         name: round.project.name,
         date: round.procurementDate
-          ? `${round.procurementDate.getMonth() + 1}月${round.procurementDate.getDate()}日`
+          ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
           : '未填',
         method: round.procurementMethod ?? '未填',
         budgetLabel: formatWan(decimalToNumber(round.budgetAmount)),
@@ -309,7 +309,7 @@ export class DashboardService {
       methodItem.projects.push({
         name: round.project.name,
         date: round.procurementDate
-          ? `${round.procurementDate.getMonth() + 1}月${round.procurementDate.getDate()}日`
+          ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
           : '未填',
         department: departmentName,
         budgetLabel: formatWan(decimalToNumber(round.budgetAmount)),
@@ -335,7 +335,7 @@ export class DashboardService {
         const procurementEntry = {
           project: round.project.name,
           date: round.procurementDate
-            ? `${round.procurementDate.getMonth() + 1}月${round.procurementDate.getDate()}日`
+            ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
             : '未填',
           method: round.procurementMethod,
           department: deptName,
@@ -395,6 +395,110 @@ export class DashboardService {
         supplierMap.set(participant.supplier.name, supplierItem);
       }
 
+      // Fallback: also track the awarded supplier (even if no RoundParticipant records exist)
+      if (
+        round.awardedSupplier &&
+        !round.participants.some((p) => p.supplierId === round.awardedSupplierId)
+      ) {
+        const deptName = round.department?.name ?? '未归属部门';
+        const budgetLabel = formatWan(
+          decimalToNumber(round.controlAmount || round.budgetAmount),
+        );
+        const awardLabel = formatWan(decimalToNumber(round.awardAmount));
+        const procurementEntry = {
+          project: round.project.name,
+          date: round.procurementDate
+            ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
+            : '未填',
+          method: round.procurementMethod,
+          department: deptName,
+          budgetLabel,
+          result: awardLabel,
+        };
+
+        const sItem = supplierMap.get(round.awardedSupplier.name) ?? {
+          name: round.awardedSupplier.name,
+          participatedCount: 0,
+          winCount: 0,
+          awardAmount: 0,
+          methodCount: new Map<string, number>(),
+          deptCount: new Map<string, number>(),
+          procurements: [] as Array<{
+            project: string;
+            date: string;
+            method: string;
+            department: string;
+            budgetLabel: string;
+            result: string;
+          }>,
+          wins: [] as Array<{
+            project: string;
+            date: string;
+            method: string;
+            department: string;
+            awardAmountLabel: string;
+          }>,
+        };
+        sItem.participatedCount += 1;
+        if (round.resultStatus === ResultStatus.AWARDED) {
+          sItem.winCount += 1;
+          sItem.awardAmount += decimalToNumber(round.awardAmount);
+          sItem.wins.push({
+            project: round.project.name,
+            date: procurementEntry.date,
+            method: round.procurementMethod,
+            department: deptName,
+            awardAmountLabel: awardLabel,
+          });
+        }
+        const mc = sItem.methodCount.get(round.procurementMethod) ?? 0;
+        sItem.methodCount.set(round.procurementMethod, mc + 1);
+        const dc = sItem.deptCount.get(deptName) ?? 0;
+        sItem.deptCount.set(deptName, dc + 1);
+        sItem.procurements.push(procurementEntry);
+        supplierMap.set(round.awardedSupplier.name, sItem);
+      }
+
+      // Fallback: use awardedSupplierName text when no participants OR linked supplier exist
+      if (
+        round.participants.length === 0 &&
+        !round.awardedSupplier &&
+        round.awardedSupplierName
+      ) {
+        const supplierName = round.awardedSupplierName.replace(/\n\s*/g, '').trim();
+        if (supplierName) {
+          const deptName = round.department?.name ?? '未归属部门';
+          const budgetLabel = formatWan(decimalToNumber(round.controlAmount || round.budgetAmount));
+          const awardLabel = formatWan(decimalToNumber(round.awardAmount));
+          const dateStr = round.procurementDate
+            ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
+            : '未填';
+
+          const tItem = supplierMap.get(supplierName) ?? {
+            name: supplierName,
+            participatedCount: 0,
+            winCount: 0,
+            awardAmount: 0,
+            methodCount: new Map<string, number>(),
+            deptCount: new Map<string, number>(),
+            procurements: [] as any[],
+            wins: [] as any[],
+          };
+          tItem.participatedCount += 1;
+          if (round.resultStatus === ResultStatus.AWARDED) {
+            tItem.winCount += 1;
+            tItem.awardAmount += decimalToNumber(round.awardAmount);
+            tItem.wins.push({ project: round.project.name, date: dateStr, method: round.procurementMethod, department: deptName, awardAmountLabel: awardLabel });
+          }
+          tItem.procurements.push({ project: round.project.name, date: dateStr, method: round.procurementMethod, department: deptName, budgetLabel, result: awardLabel });
+          const mc = tItem.methodCount.get(round.procurementMethod) ?? 0;
+          tItem.methodCount.set(round.procurementMethod, mc + 1);
+          const dc = tItem.deptCount.get(deptName) ?? 0;
+          tItem.deptCount.set(deptName, dc + 1);
+          supplierMap.set(supplierName, tItem);
+        }
+      }
+
       if (round.resultStatus === ResultStatus.AWARDED) {
         const result = resultStatusMap.get('已成交');
         if (result) {
@@ -429,7 +533,7 @@ export class DashboardService {
         reasonItem.projects.push({
           name: round.project.name,
           date: round.procurementDate
-            ? `${round.procurementDate.getMonth() + 1}月${round.procurementDate.getDate()}日`
+            ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
             : '未填',
           department: round.department?.name ?? '未归属部门',
           budgetLabel: formatWan(decimalToNumber(round.budgetAmount)),
@@ -568,7 +672,7 @@ export class DashboardService {
           savingsLabel: formatWan(savings),
           method: item.procurementMethod,
           date: item.procurementDate
-            ? `${item.procurementDate.getMonth() + 1}月${item.procurementDate.getDate()}日`
+            ? `${item.procurementDate.getUTCMonth() + 1}月${item.procurementDate.getUTCDate()}日`
             : '未填',
         };
       })
