@@ -32,6 +32,7 @@ import {
   ChevronDown,
   ChevronUp,
   FolderOpen,
+  FolderKanban,
   Trash2,
   RotateCcw,
 } from "lucide-react";
@@ -101,14 +102,16 @@ function StatusBadge({ status, resultText }: { status: ResultStatusKey; resultTe
   );
 }
 
-// ─── Filter Toolbar ────────────────────────────────────────────────────────────
-function FilterToolbar({
+// ─── Unified Page Hero: title + KPI + search toolbar ──────────────────────────
+function PageHero({
   filters,
   onFilterChange,
   methods,
   onRefresh,
   onAnalyze,
   loading,
+  pagination,
+  data,
 }: {
   filters: LedgerFilterState;
   onFilterChange: (key: keyof LedgerFilterState, value: string | null) => void;
@@ -116,17 +119,88 @@ function FilterToolbar({
   onRefresh: () => void;
   onAnalyze: () => void;
   loading: boolean;
+  pagination: { total: number; page: number; totalPages: number };
+  data: ProcurementRoundItem[];
 }) {
+  // KPI 统计
+  const awardedCount = data.filter(i => i.resultStatus === "AWARDED").length;
+  const pendingCount = data.filter(i => i.resultStatus === "PENDING").length;
+  const abnormalCount = data.filter(i =>
+    ["FAILED_REVIEW", "FILE_REVISION_REQUIRED", "INVALID_RESPONSE", "CANCELLED"].includes(i.resultStatus)
+  ).length;
+  const totalBudget = data.reduce((s, i) => {
+    const v = i.controlAmount ?? i.budgetAmount ?? 0;
+    return s + (typeof v === "string" ? parseFloat(v) : v);
+  }, 0);
+  const totalAward = data.reduce((s, i) => {
+    const v = i.awardAmount ?? 0;
+    return s + (typeof v === "string" ? parseFloat(v) : v);
+  }, 0);
+
+  const formatKpi = (n: number) => n >= 10000 ? `${(n / 10000).toFixed(1)}万` : n > 0 ? `${n.toFixed(0)}元` : "-";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="wb-panel p-4"
+      className="page-hero"
     >
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Search */}
-        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)]" />
+      {/* 标题行 */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="page-hero__left">
+          <div className="page-hero__icon">
+            <FolderKanban size={17} />
+          </div>
+          <div className="min-w-0">
+            <div className="page-hero__title">采购台账</div>
+            <div className="page-hero__sub">事项追踪与采购记录管理</div>
+          </div>
+        </div>
+
+        <div className="page-hero__right">
+          <span className="page-hero__stat page-hero__stat--info">
+            共 {pagination.total} 条
+          </span>
+          {abnormalCount > 0 && (
+            <span className="page-hero__stat page-hero__stat--warn">
+              <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[oklch(0.67_0.14_32)]" />
+              异常 {abnormalCount}
+            </span>
+          )}
+          <button onClick={onRefresh} disabled={loading} className="neu-btn-xs">
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
+      </div>
+
+      {/* KPI 行 */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="kpi-card p-2.5">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">已成交</div>
+          <div className="mt-1 text-[1.2rem] font-black tracking-[-0.04em] tabular-nums leading-none text-[color:var(--success)]">{awardedCount}</div>
+          <div className="mt-0.5 text-[10px] text-[color:var(--muted-foreground)]">项</div>
+        </div>
+        <div className="kpi-card p-2.5">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">待处理</div>
+          <div className="mt-1 text-[1.2rem] font-black tracking-[-0.04em] tabular-nums leading-none text-[color:var(--warning)]">{pendingCount}</div>
+          <div className="mt-0.5 text-[10px] text-[color:var(--muted-foreground)]">项</div>
+        </div>
+        <div className="kpi-card p-2.5">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">预算总额</div>
+          <div className="mt-1 text-[1.2rem] font-black tracking-[-0.04em] tabular-nums leading-none text-[color:var(--accent)]">{formatKpi(totalBudget)}</div>
+          <div className="mt-0.5 text-[10px] text-[color:var(--muted-foreground)]">当前页</div>
+        </div>
+        <div className="kpi-card p-2.5">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">成交金额</div>
+          <div className="mt-1 text-[1.2rem] font-black tracking-[-0.04em] tabular-nums leading-none text-[color:var(--success)]">{formatKpi(totalAward)}</div>
+          <div className="mt-0.5 text-[10px] text-[color:var(--muted-foreground)]">当前页</div>
+        </div>
+      </div>
+
+      {/* 搜索 + 筛选行 */}
+      <div className="flex flex-wrap items-center gap-3 pt-1" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+        <div className="relative min-w-[180px] xl:min-w-[240px] flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)] z-10" />
           <input
             type="text"
             placeholder="搜索项目名称、供应商..."
@@ -141,18 +215,13 @@ function FilterToolbar({
           )}
         </div>
 
-        {/* Analyze Button - shows when keyword exists */}
         {filters.searchKeyword && filters.searchKeyword.length >= 2 && (
-          <button
-            onClick={onAnalyze}
-            className="neu-btn-primary"
-          >
+          <button onClick={onAnalyze} className="neu-btn-primary">
             <Sparkles size={15} />
             分析
           </button>
         )}
 
-        {/* Method Filter */}
         <select
           value={filters.procurementMethod || ""}
           onChange={(e) => onFilterChange("procurementMethod", e.target.value || null)}
@@ -162,7 +231,6 @@ function FilterToolbar({
           {methods.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
 
-        {/* Status Filter */}
         <select
           value={filters.resultStatus || ""}
           onChange={(e) => onFilterChange("resultStatus", e.target.value as ResultStatusKey || null)}
@@ -172,7 +240,6 @@ function FilterToolbar({
           {Object.entries(RESULT_STATUS_CONFIG).map(([key, config]) => <option key={key} value={key}>{config.label}</option>)}
         </select>
 
-        {/* Recycle Status Filter */}
         <select
           value={filters.recycleStatus || "ACTIVE"}
           onChange={(e) => onFilterChange("recycleStatus", e.target.value || "ACTIVE")}
@@ -181,12 +248,6 @@ function FilterToolbar({
           <option value="ACTIVE">正常台账</option>
           <option value="RECYCLED">回收站</option>
         </select>
-
-        {/* Refresh */}
-        <button onClick={onRefresh} disabled={loading} className="neu-btn-soft !h-[40px]">
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          刷新
-        </button>
       </div>
     </motion.div>
   );
@@ -1302,15 +1363,17 @@ export default function ProcurementsPage() {
 
   return (
     <div className="min-h-full">
-        {/* Toolbar */}
+        {/* Page Hero: title + KPI + search toolbar */}
         <div className="mb-4">
-          <FilterToolbar
+          <PageHero
             filters={filters}
             onFilterChange={handleFilterChange}
             methods={methods}
             onRefresh={loadData}
             onAnalyze={handleAnalyze}
             loading={loading}
+            pagination={pagination}
+            data={data}
           />
         </div>
 
