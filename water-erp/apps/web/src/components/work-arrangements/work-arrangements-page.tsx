@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { WorkbenchOverview } from "@/components/work-arrangements/workbench-overview";
 import { SchedulePanel } from "@/components/work-arrangements/schedule-panel";
 import { TaskDetailPanel } from "@/components/work-arrangements/task-detail-panel";
@@ -198,6 +198,7 @@ export function WorkArrangementsPage({
     workspaceCache.items[0] ? editorFromTask(workspaceCache.items[0]) : blankEditor(linkedProjectId)
   );
   const [creating, setCreating] = useState(false);
+  const lastSelectedIdRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshingPlan, setRefreshingPlan] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -446,6 +447,8 @@ export function WorkArrangementsPage({
   }, [creating, linkedProjectId, selectedItem]);
 
   const handleCreateNew = () => {
+    // 记住当前选中任务，关窗时恢复
+    lastSelectedIdRef.current = selectedItemId;
     setSelectedItemId(null);
     setNoteDraft("");
     setCreating(true);
@@ -642,7 +645,7 @@ export function WorkArrangementsPage({
         onPostpone={handleReminderPostpone}
       />
 
-      <div className="flex min-h-full flex-col gap-4">
+      <div className="flex flex-col gap-4">
         {/* 顶部概览 */}
         <WorkbenchOverview
           currentUser={currentUser}
@@ -708,6 +711,9 @@ export function WorkArrangementsPage({
         availableDependencies={availableDependencies}
         onClose={() => {
           setShowFullEditor(false);
+          if (creating && lastSelectedIdRef.current) {
+            setSelectedItemId(lastSelectedIdRef.current);
+          }
           setCreating(false);
         }}
         onSave={() => void handleSave()}

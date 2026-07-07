@@ -70,20 +70,20 @@ export function WorkTaskEditorDrawer({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop with blur effect */}
       <div
-        className="absolute inset-0 bg-white/30 backdrop-blur-sm"
+        className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-[min(672px,92vw)] max-h-[90vh] overflow-y-auto rounded-[24px] border border-gray-200 bg-white p-6 shadow-lg"
+        className="relative w-full max-w-[min(672px,92vw)] max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="editor-title"
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 pb-4 border-b border-gray-200">
+        <div className="flex items-start justify-between gap-4 pb-4">
           <div>
             <h2 id="editor-title" className="text-lg font-semibold text-balance text-[color:var(--foreground)]">
               {creating ? '新建工作安排' : selectedItemTitle ?? '编辑工作'}
@@ -96,9 +96,9 @@ export function WorkTaskEditorDrawer({
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="rounded-full p-2 text-[color:var(--muted-foreground)] transition-all hover:bg-white hover:rotate-90 hover:text-[color:var(--foreground)]"
+            className="neu-btn-xs"
           >
-            <X size={20} aria-hidden="true" />
+            <X size={16} />
           </button>
         </div>
 
@@ -113,7 +113,7 @@ export function WorkTaskEditorDrawer({
                   onChange((current) => ({ ...current, title: event.target.value }))
                 }
                 placeholder="输入工作标题"
-                className="w-full rounded-[16px] border border-gray-200 bg-white px-3 py-2.5 outline-none focus:border-blue-300"
+                className="workbench-input"
               />
             </label>
             <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
@@ -126,7 +126,7 @@ export function WorkTaskEditorDrawer({
                     projectManagementItemId: event.target.value,
                   }))
                 }
-                className="w-full rounded-[16px] border border-gray-200 bg-white px-3 py-2.5 outline-none focus:border-blue-300"
+                className="workbench-input"
               >
                 <option value="">不关联具体项目</option>
                 {projects.map((project) => (
@@ -150,7 +150,7 @@ export function WorkTaskEditorDrawer({
               }
               rows={3}
               placeholder="详细描述这项工作的内容"
-              className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 outline-none focus:border-blue-300"
+              className="neu-input text-sm"
             />
           </label>
 
@@ -165,7 +165,7 @@ export function WorkTaskEditorDrawer({
                     type: event.target.value as WorkArrangementType,
                   }))
                 }
-                className="w-full rounded-[16px] border border-gray-200 bg-white px-3 py-2.5 outline-none focus:border-blue-300"
+                className="workbench-input"
               >
                 {WORK_ARRANGEMENT_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -184,7 +184,7 @@ export function WorkTaskEditorDrawer({
                     urgency: event.target.value as WorkArrangementUrgency,
                   }))
                 }
-                className="w-full rounded-[16px] border border-gray-200 bg-white px-3 py-2.5 outline-none focus:border-blue-300"
+                className="workbench-input"
               >
                 {WORK_ARRANGEMENT_URGENCY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -203,7 +203,7 @@ export function WorkTaskEditorDrawer({
                     status: event.target.value as WorkArrangementStatus,
                   }))
                 }
-                className="w-full rounded-[16px] border border-gray-200 bg-white px-3 py-2.5 outline-none focus:border-blue-300"
+                className="workbench-input"
               >
                 {WORK_ARRANGEMENT_STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -223,7 +223,7 @@ export function WorkTaskEditorDrawer({
                 onChange={(event) =>
                   onChange((current) => ({ ...current, dueAt: event.target.value }))
                 }
-                className="w-full min-w-0 rounded-[16px] border border-gray-200 bg-white px-3 py-2.5 outline-none focus:border-blue-300"
+                className="workbench-input flex-1 min-w-0"
               />
             </label>
             <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
@@ -237,7 +237,7 @@ export function WorkTaskEditorDrawer({
                     reminderAt: event.target.value,
                   }))
                 }
-                className="w-full min-w-0 rounded-[16px] border border-gray-200 bg-white px-3 py-2.5 outline-none focus:border-blue-300"
+                className="workbench-input flex-1 min-w-0"
               />
             </label>
             <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
@@ -252,7 +252,7 @@ export function WorkTaskEditorDrawer({
                     estimatedMinutes: event.target.value,
                   }))
                 }
-                className="w-full min-w-0 rounded-[16px] border border-gray-200 bg-white px-3 py-2.5 outline-none focus:border-blue-300"
+                className="workbench-input flex-1 min-w-0"
               />
             </label>
             <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
@@ -265,7 +265,7 @@ export function WorkTaskEditorDrawer({
                     recurrence: event.target.value as WorkArrangementRecurrence,
                   }))
                 }
-                className="w-full min-w-0 rounded-[16px] border border-gray-200 bg-white px-3 py-2.5 outline-none focus:border-blue-300"
+                className="workbench-input flex-1 min-w-0"
               >
                 {WORK_ARRANGEMENT_RECURRENCE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -303,42 +303,19 @@ export function WorkTaskEditorDrawer({
                 onChange((current) => ({ ...current, customTags: event.target.value }))
               }
               placeholder="用逗号分隔，例如：招标文件，今日重点"
-              className="rounded-[16px] border border-gray-200 bg-white px-3 py-2.5 outline-none focus:border-blue-300"
+              className="workbench-input"
             />
           </label>
         </div>
 
         {/* Footer */}
-        <div className="mt-6 flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-gray-200">
+        <hr className="wb-section-rule" />
+        <div className="flex flex-wrap items-center justify-end gap-3">
           {!creating ? (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={saving}
-              aria-label="删除工作"
-              className="inline-flex min-h-10 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-[color:var(--danger)] transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Trash2 size={16} aria-hidden="true" />
-              删除
-            </button>
+            <button type="button" onClick={onDelete} disabled={saving} className="neu-btn-soft is-danger h-[38px]"><Trash2 size={16} />删除</button>
           ) : null}
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex min-h-10 items-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:bg-gray-50"
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saving || !editor.title.trim()}
-            aria-label={creating ? '创建工作' : '保存修改'}
-            className="inline-flex min-h-10 items-center gap-2 rounded-full bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Save size={16} aria-hidden="true" />
-            {saving ? '保存中...' : creating ? '创建工作' : '保存修改'}
-          </button>
+          <button type="button" onClick={onClose} disabled={saving} className="neu-btn-soft h-[38px]">取消</button>
+          <button type="button" onClick={onSave} disabled={saving || !editor.title.trim()} className="neu-btn-primary !h-[38px]"><Save size={16} />{saving ? '保存中...' : creating ? '创建工作' : '保存修改'}</button>
         </div>
       </div>
     </div>,

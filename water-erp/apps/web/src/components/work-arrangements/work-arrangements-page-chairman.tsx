@@ -315,7 +315,7 @@ export function WorkArrangementsPageChairman({
 
   return (
     <>
-    <div className="flex min-h-full flex-col gap-4">
+    <div className="flex flex-col gap-4">
       <WorkbenchOverview
         currentUser={currentUser ?? { id: '', username: 'Swhi-CGZX-00', displayName: '尊敬的张宏董事长', role: 'admin', createdAt: null, lastLoginAt: null } as AuthUser}
         dailyPlan={dailyPlan}

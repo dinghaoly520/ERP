@@ -44,14 +44,14 @@ export function HistoryDrawer({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* 背景遮罩 */}
       <div
-        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* 对话框 */}
-      <div className="relative z-10 w-full max-w-[min(672px,92vw)] max-h-[80vh] mx-4 bg-white rounded-[24px] shadow-2xl flex flex-col overflow-hidden">
+      <div className="relative z-10 w-full max-w-[min(672px,92vw)] max-h-[80vh] mx-4 bg-[var(--background)] rounded-[20px] flex flex-col overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
         {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <History size={20} className="text-[color:var(--accent)]" />
             <h2 className="text-lg font-semibold text-[color:var(--foreground)]">历史记录</h2>
@@ -63,9 +63,9 @@ export function HistoryDrawer({
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="p-2 rounded-full hover:bg-white hover:rotate-90 transition-all"
+            className="neu-btn-xs"
           >
-            <X size={20} className="text-[color:var(--muted-foreground)]" />
+            <X size={16} />
           </button>
         </div>
 
@@ -80,11 +80,11 @@ export function HistoryDrawer({
               {historyItems.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-[20px] border border-gray-200 bg-gray-50/50 overflow-hidden"
+                  className="rounded-[16px] bg-[var(--accent-soft)]/15 overflow-hidden"
                 >
                   {/* 任务标题和状态 */}
                   <div
-                    className="px-4 py-3 cursor-pointer hover:bg-gray-100/50 transition"
+                    className="px-4 py-3 cursor-pointer hover:bg-[var(--accent-soft)]/30 transition"
                     onClick={() => {
                       onSelectTask(item.id);
                       onClose();
@@ -119,7 +119,7 @@ export function HistoryDrawer({
                   </div>
 
                   {/* 时间信息 */}
-                  <div className="px-4 py-3 bg-white/50 border-t border-gray-100">
+                  <div className="px-4 py-3 bg-[var(--accent-soft)]/10 border-t border-[var(--border)]/30">
                     <div className="grid gap-2 text-xs sm:grid-cols-2">
                       <div className="flex items-center gap-2">
                         <span className="text-[color:var(--muted-foreground)]">创建时间：</span>
@@ -149,7 +149,7 @@ export function HistoryDrawer({
 
                     {/* 描述 */}
                     {item.description && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
+                      <div className="mt-3 pt-3 border-t border-[var(--border)]/30">
                         <div className="text-xs text-[color:var(--muted-foreground)] mb-1">描述</div>
                         <div className="text-sm text-[color:var(--foreground)] leading-relaxed">
                           {item.description}
@@ -159,7 +159,7 @@ export function HistoryDrawer({
 
                     {/* 完成摘要 */}
                     {item.completionSummary && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
+                      <div className="mt-3 pt-3 border-t border-[var(--border)]/30">
                         <div className="text-xs font-semibold text-green-700 mb-1">完成摘要</div>
                         <div className="text-sm text-green-800 leading-relaxed">
                           {item.completionSummary}
@@ -169,7 +169,7 @@ export function HistoryDrawer({
 
                     {/* 心得反思 */}
                     {item.reflectionSummary && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
+                      <div className="mt-3 pt-3 border-t border-[var(--border)]/30">
                         <div className="text-xs font-semibold text-amber-700 mb-1">心得反思</div>
                         <div className="text-sm text-amber-800 leading-relaxed">
                           {item.reflectionSummary}
@@ -179,7 +179,7 @@ export function HistoryDrawer({
 
                     {/* 笔记记录 */}
                     {item.notes.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
+                      <div className="mt-3 pt-3 border-t border-[var(--border)]/30">
                         <div className="text-xs font-semibold text-[color:var(--accent)] mb-2">
                           过程记录 ({item.notes.length} 条)
                         </div>
@@ -187,7 +187,7 @@ export function HistoryDrawer({
                           {item.notes.map((note) => (
                             <div
                               key={note.id}
-                              className="rounded-[12px] bg-gray-100/80 px-3 py-2"
+                              className="rounded-[12px] bg-[var(--accent-soft)]/20 px-3 py-2"
                             >
                               <div className="flex items-center justify-between gap-2 mb-1">
                                 <span className="text-xs font-semibold text-[color:var(--accent)]">

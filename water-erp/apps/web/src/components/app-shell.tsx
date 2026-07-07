@@ -353,8 +353,8 @@ export function AppShell({
           </button>
         ) : null}
 
-        <section className="min-h-0 flex flex-1 overflow-hidden">
-          <main className="relative z-10 h-full min-h-0 flex flex-1 flex-col overflow-hidden p-3.5 sm:p-4 lg:p-4">
+        <section className="min-h-0 flex flex-1 overflow-visible px-1">
+          <main className="relative z-10 h-full min-h-0 flex flex-1 flex-col overflow-visible p-3.5 sm:p-4 lg:p-4">
             <div
               data-app-shell-scroll="true"
               className={[
