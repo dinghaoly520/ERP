@@ -27,7 +27,7 @@ export function ProjectManagementPage() {
   const [keyword, setKeyword] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
-  const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'budgetAmount' | 'title'>('updatedAt');
+  const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'budgetAmount' | 'departmentNumber' | 'title'>('updatedAt');
   const [filterMethod, setFilterMethod] = useState<string>('');
   const [filterDepartment, setFilterDepartment] = useState<string>('');
   const detailHostRef = useRef<HTMLDivElement | null>(null);
@@ -114,6 +114,8 @@ export function ProjectManagementPage() {
       switch (sortBy) {
         case 'budgetAmount':
           return (b.budgetAmount ?? 0) - (a.budgetAmount ?? 0);
+        case 'departmentNumber':
+          return (a.departmentNumber ?? '').localeCompare(b.departmentNumber ?? '', 'zh-CN');
         case 'title':
           return (a.title ?? '').localeCompare(b.title ?? '', 'zh-CN');
         case 'createdAt':
@@ -248,6 +250,7 @@ export function ProjectManagementPage() {
                   </button>
                 )}
               </div>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
@@ -256,8 +259,10 @@ export function ProjectManagementPage() {
                 <option value="updatedAt">最近更新</option>
                 <option value="createdAt">最近创建</option>
                 <option value="budgetAmount">预算金额</option>
+                <option value="departmentNumber">部门编号</option>
                 <option value="title">项目名称</option>
               </select>
+              <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">筛选</span>
               <select
                 value={filterMethod}
                 onChange={(e) => setFilterMethod(e.target.value)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
 import {
@@ -112,6 +112,8 @@ function PageHero({
   loading,
   pagination,
   data,
+  sortBy,
+  onSortChange,
 }: {
   filters: LedgerFilterState;
   onFilterChange: (key: keyof LedgerFilterState, value: string | null) => void;
@@ -121,6 +123,8 @@ function PageHero({
   loading: boolean;
   pagination: { total: number; page: number; totalPages: number };
   data: ProcurementRoundItem[];
+  sortBy: string;
+  onSortChange: (value: string) => void;
 }) {
   const abnormalCount = data.filter(i =>
     ["FAILED_REVIEW", "FILE_REVISION_REQUIRED", "INVALID_RESPONSE", "CANCELLED"].includes(i.resultStatus)
@@ -185,6 +189,18 @@ function PageHero({
           </button>
         )}
 
+        <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
+        <select
+          value={sortBy}
+          onChange={(e) => onSortChange(e.target.value)}
+          className="workbench-input !w-auto min-w-[100px]"
+        >
+          <option value="procurementDate">时间</option>
+          <option value="departmentId">部门编号</option>
+          <option value="amount">金额</option>
+        </select>
+
+        <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">筛选</span>
         <select
           value={filters.procurementMethod || ""}
           onChange={(e) => onFilterChange("procurementMethod", e.target.value || null)}
@@ -1034,6 +1050,33 @@ export default function ProcurementsPage() {
     recycleStatus: "ACTIVE",
   });
 
+  const [sortBy, setSortBy] = useState<'procurementDate' | 'departmentId' | 'amount'>('procurementDate');
+
+  // Client-side sort
+  const sortedData = useMemo(() => {
+    const result = [...data];
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case 'procurementDate':
+          return new Date(b.procurementDate ?? 0).getTime() - new Date(a.procurementDate ?? 0).getTime();
+        case 'departmentId':
+          return (b.departmentId ?? '').localeCompare(a.departmentId ?? '', 'zh-CN');
+        case 'amount': {
+          const amountA = typeof (a.controlAmount ?? a.budgetAmount) === 'string'
+            ? parseFloat(a.controlAmount as string ?? a.budgetAmount as string ?? '0')
+            : ((a.controlAmount ?? a.budgetAmount) as number ?? 0);
+          const amountB = typeof (b.controlAmount ?? b.budgetAmount) === 'string'
+            ? parseFloat(b.controlAmount as string ?? b.budgetAmount as string ?? '0')
+            : ((b.controlAmount ?? b.budgetAmount) as number ?? 0);
+          return amountB - amountA;
+        }
+        default:
+          return 0;
+      }
+    });
+    return result;
+  }, [data, sortBy]);
+
   // Analysis states
   const [showAnalysisSelection, setShowAnalysisSelection] = useState(false);
   const [matchedItems, setMatchedItems] = useState<ProcurementRoundItem[]>([]);
@@ -1336,7 +1379,9 @@ export default function ProcurementsPage() {
             onAnalyze={handleAnalyze}
             loading={loading}
             pagination={pagination}
-            data={data}
+            data={sortedData}
+            sortBy={sortBy}
+            onSortChange={(v) => setSortBy(v as typeof sortBy)}
           />
         </div>
 
@@ -1346,14 +1391,14 @@ export default function ProcurementsPage() {
             <div className="flex items-center justify-center py-12">
               <RefreshCw size={24} className="animate-spin text-[rgba(96,139,239,0.6)]" />
             </div>
-          ) : data.length === 0 ? (
+          ) : sortedData.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="text-[0.9rem] font-semibold text-[rgba(96,139,239,0.4)]">暂无采购记录</div>
             </div>
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                {data.map((item) => (
+                {sortedData.map((item) => (
                   <LedgerRow
                     key={item.id}
                     item={item}
