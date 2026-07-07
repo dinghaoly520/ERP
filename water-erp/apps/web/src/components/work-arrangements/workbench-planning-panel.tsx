@@ -32,8 +32,9 @@ export function WorkbenchPlanningPanel({
       <div className={showAiScheduling ? 'mt-4' : ''}>
         <hr className="wb-section-rule" />
         {isChairman ? (<>
-          <p className="text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]"><Lightbulb size={14} className="inline-block mr-1.5" />项目简报</p>
-          <div className="mt-3 neu-content-block rounded-[18px]" style={{ '--block-accent': 'oklch(0.72 0.15 69)' } as React.CSSProperties}>
+          <div className="mt-4 p-4 rounded-[16px] bg-[var(--accent-soft)]/15">
+            <p className="text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]"><Lightbulb size={14} className="inline-block mr-1.5" />项目简报</p>
+            <div className="mt-3">
             {dailyPlan?.completionAdvice ? (() => {
               const briefText = dailyPlan.completionAdvice;
               const sections: { title: string; body: string }[] = [];
@@ -56,19 +57,18 @@ export function WorkbenchPlanningPanel({
               </>);
             })() : <div className="neu-icon-well rounded-[14px] mt-3 flex items-center justify-center px-3 py-4 text-sm text-[color:var(--muted-foreground)]">正在生成项目简报...</div>}
           </div>
+          </div>
         </>) : dailyPlan?.completionAdvice ? (() => {
           const advText = dailyPlan.completionAdvice;
-          if (!advText.includes('【')) return <div className="neu-content-block rounded-[18px]" style={{ '--block-accent': 'oklch(0.74 0.12 84)' } as React.CSSProperties}><div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--muted-foreground)]"><Lightbulb size={16} />具体建议</div><p className="mt-3 text-justify text-sm leading-7 text-pretty text-[color:var(--foreground)]">{advText}</p></div>;
-          const sections: { title: string; body: string }[] = [];
-          const fb = advText.indexOf('【');
-          const preamble = fb > 0 ? advText.slice(0, fb).trim() : '';
-          if (fb >= 0) {
-            const parts = advText.slice(fb).split('【');
-            for (const part of parts) { const si = part.indexOf('】'); if (si > 0) { const t = part.slice(0, si).trim(); const c = part.slice(si + 1).trim(); if (t) sections.push({ title: t, body: c }); } }
-          }
+          if (!advText.includes('【')) return (
+            <div className="mt-4 p-4 rounded-[16px] bg-[var(--accent-soft)]/15">
+              <p className="text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]"><Lightbulb size={14} className="inline-block mr-1.5" />具体建议</p>
+              <p className="mt-3 text-justify text-sm leading-7 text-pretty text-[color:var(--foreground)]">{advText}</p>
+            </div>
+          );
           return (
-            <div className="neu-content-block rounded-[18px]" style={{ '--block-accent': 'oklch(0.74 0.12 84)' } as React.CSSProperties}>
-              <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--muted-foreground)]"><Lightbulb size={16} />具体建议</div>
+            <div className="mt-4 p-4 rounded-[16px] bg-[var(--accent-soft)]/15">
+              <p className="text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]"><Lightbulb size={14} className="inline-block mr-1.5" />具体建议</p>
               {preamble && <p className="mt-3 text-sm leading-7 text-pretty text-[color:var(--foreground)]">{preamble}</p>}
               {sections.map((s, idx) => {
                 const items = s.body.match(/\d+\.「/g);

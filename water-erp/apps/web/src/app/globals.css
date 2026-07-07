@@ -8577,16 +8577,33 @@ select.workbench-input {
   padding: 16px 20px;
 }
 
-/* 列表行 — 1px hairline 分割 + hover 凸起 */
+/* 列表行 — hairline 分割 + hover 凸起 + 左侧类型色标 */
 .wb-list-item {
   display: block;
   width: 100%;
-  padding: 12px 0;
+  padding: 12px 0 12px 14px;
   text-align: left;
   cursor: pointer;
+  position: relative;
   transition: all 0.2s ease;
   border-bottom: 1px solid oklch(0.6 0.06 258 / 0.12);
 }
+/* 左侧色标 — 渐隐细笔触，非 solid bar */
+.wb-list-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--item-accent, oklch(0.5 0.16 258));
+  opacity: 0.65;
+  mask-image: linear-gradient(180deg, black 40%, transparent 95%);
+  -webkit-mask-image: linear-gradient(180deg, black 40%, transparent 95%);
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.wb-list-item:hover::before { opacity: 1; transform: scaleY(1.08); }
 .wb-list-item:last-child { border-bottom: none; }
 .wb-list-item:hover {
   transform: translateY(-1px);
@@ -8597,6 +8614,7 @@ select.workbench-input {
   color: var(--foreground);
   box-shadow: 2px 2px 4px oklch(0.55 0.03 258 / 0.06), -1px -1px 3px oklch(1 0 0 / 0.5);
 }
+.wb-list-item.wb-selected::before { opacity: 1; }
 
 /* 面板内分区标题 — typographic hierarchy only */
 .wb-section-title {
@@ -8615,4 +8633,20 @@ select.workbench-input {
   margin: 16px 0;
 }
 
-/* 时间块卡片 */
+/* 时间块卡片 — 左对齐，充分展示描述文字 */
+.wb-timeblock-card {
+  display: block;
+  width: 100%;
+  padding: 16px 18px;
+  text-align: left;
+  cursor: pointer;
+  background: oklch(1 0 0 / 0.35);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+.wb-timeblock-card:hover {
+  background: oklch(1 0 0 / 0.5);
+  box-shadow:
+    2px 2px 6px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 4px oklch(1 0 0 / 0.7);
+}

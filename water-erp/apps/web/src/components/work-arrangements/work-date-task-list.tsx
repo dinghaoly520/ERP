@@ -117,8 +117,14 @@ function TaskCard({
   onSelect: () => void;
 }) {
   const isFinished = item.status === 'COMPLETED' || item.status === 'CANCELLED';
+  const typeColor: Record<string,string> = {
+    APPROVAL:'oklch(0.60 0.15 251)', FOLLOW_UP:'oklch(0.58 0.13 175)', WRITING:'oklch(0.55 0.15 300)',
+    COMMUNICATION:'oklch(0.62 0.14 69)', REVIEW:'oklch(0.65 0.14 84)', ARCHIVE:'oklch(0.48 0.03 258)',
+    RESEARCH:'oklch(0.55 0.14 158)', MEETING:'oklch(0.58 0.14 27)', OTHER:'oklch(0.45 0.03 258)',
+  };
   return (
     <button type="button" onClick={onSelect} aria-label={`选择任务：${item.title}`}
+      style={{ '--item-accent': typeColor[item.type] } as React.CSSProperties}
       className={['wb-list-item', selected ? 'wb-selected' : ''].filter(Boolean).join(' ')}
     >
       <div className="flex items-start justify-between gap-3">
@@ -132,8 +138,9 @@ function TaskCard({
               {item.title}
             </div>
           </div>
-          <div className="mt-1 text-xs text-[color:var(--muted-foreground)] ml-4">
-            {WORK_ARRANGEMENT_TYPE_LABELS[item.type]} · {WORK_ARRANGEMENT_STATUS_LABELS[item.status]}
+          <div className="mt-1 text-xs ml-4">
+            <span style={{ color: typeColor[item.type] }}>{WORK_ARRANGEMENT_TYPE_LABELS[item.type]}</span>
+            <span className="text-[color:var(--muted-foreground)]"> · {WORK_ARRANGEMENT_STATUS_LABELS[item.status]}</span>
           </div>
         </div>
         {!isFinished ? (

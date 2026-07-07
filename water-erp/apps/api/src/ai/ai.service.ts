@@ -1301,9 +1301,14 @@ export class AiService {
 
 【projectBrief，有项目数据时150-300字，无项目时返回空字符串""】
 - 综述各项目阶段、预算、风险概况
-- 示例格式:"当前活跃项目共4个：水利枢纽闸门招标中(285万)，PE管材框架进入签约(120万)，泵站自动化评标中(460万)，污水处理升级编写标书(820万)。建议重点关注评标和签约阶段的项目推进。"
 
-返回JSON: {headerGreeting,namePraise,dailyGreeting,riskSummary,aiSuggestion,overview,focusItems:[{id,title,reason}],timeBlocks:[{label,startTime,endTime,items}],riskAlerts:[{level,title,description}],completionAdvice,projectBrief}`,
+【timeBlocks，按任务优先级和时段划分，每个timeBlock必须包含focus字段】
+- focus字段为20-40字的纯中文描述，必须包含该时段要完成的**具体任务名称**
+- 示例："专注处理催办财政专项资金审批与督办跨部门协作遗留问题，确保今日超期事项全部闭环"
+- items字段为该时段关联的任务对象数组[{id,title}]
+- 必须生成3-4个时间块
+
+返回JSON: {headerGreeting,namePraise,dailyGreeting,riskSummary,aiSuggestion,overview,focusItems:[{id,title,reason}],timeBlocks:[{label,startTime,endTime,focus,items}],riskAlerts:[{level,title,description}],completionAdvice,projectBrief}`,
         `用户:${userName} 时段:${period} 日期:${context.date} 任务:共${totalItems}项(待处理${todoCount},进行中${inProgressCount},紧急${criticalCount}) ${JSON.stringify(items.slice(0,20))}${projectsInfo}`,
       );
       const safeTimeBlocks = (result.timeBlocks || []).map((b: any) => {
