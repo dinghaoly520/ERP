@@ -29,8 +29,10 @@ import {
 } from "@/lib/api/dashboard";
 import {
   fetchDashboardAnalysis,
+  fetchAiCalibration,
   type DashboardAnalysisPayload,
   type DashboardAnalysisResult,
+  type AiCalibration,
 } from "@/lib/api/ai";
 
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -2357,6 +2359,12 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [dataHash, setDataHash] = useState<string | null>(null);
 
+  // P1-E：AI 评分校准
+  const [calibration, setCalibration] = useState<AiCalibration | null>(null);
+  useEffect(() => {
+    fetchAiCalibration().then(setCalibration).catch(() => {});
+  }, []);
+
   // 日期范围选择状态
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [startDate, setStartDate] = useState<string>("");
@@ -2699,6 +2707,33 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
                 )}
               </div>
             </div>
+
+            {/* P1-E：AI 评分校准概览（采纳率 + category 偏差） */}
+            {calibration && (
+              <div className="mb-3 rounded-[14px] border border-[rgba(234,188,110,0.3)] bg-[linear-gradient(160deg,rgba(255,252,244,0.97),rgba(252,248,240,0.93))] p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-[var(--foreground)]">AI 评分校准</span>
+                  <span className="text-[10px] text-[color:var(--muted-foreground)]">{calibration.overall.total} 项已确认</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div>
+                    <span className="text-2xl font-black tabular-nums text-[var(--foreground)]">{Math.round(calibration.overall.adoptionRate * 100)}%</span>
+                    <span className="text-[10px] text-[color:var(--muted-foreground)] ml-1">建议采纳率</span>
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1">
+                    {calibration.byCategory.slice(0, 3).map((c) => (
+                      <div key={c.category} className="flex items-center gap-2 text-[10px]">
+                        <span className="w-20 text-[color:var(--muted-foreground)]">{c.category}</span>
+                        <span className={`font-bold tabular-nums ${c.avgDelta > 0 ? 'text-[rgba(200,80,80,1)]' : c.avgDelta < 0 ? 'text-[rgba(80,130,200,1)]' : 'text-[color:var(--muted-foreground)]'}`}>
+                          {c.avgDelta > 0 ? '+' : ''}{c.avgDelta}
+                        </span>
+                        <span className="text-[color:var(--muted-foreground)]">({c.count})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ── KPI Cards Grid ── */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 items-stretch gap-x-3 gap-y-1.5">

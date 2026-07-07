@@ -68,6 +68,17 @@ export async function fetchDashboardAnalysis(
   return api.post<DashboardAnalysisResult>('/ai/dashboard-analysis', payload);
 }
 
+// P1-E：全局 AI 评分校准
+export type AiCalibration = {
+  overall: { total: number; accepted: number; adoptionRate: number };
+  byCategory: Array<{ category: string; avgDelta: number; count: number }>;
+  topDeviations: Array<{ scoreItemId: string; name: string; category: string; avgDelta: number; count: number }>;
+};
+
+export async function fetchAiCalibration(): Promise<AiCalibration | null> {
+  return api.get<AiCalibration | null>('/ai/ai-calibration');
+}
+
 export type ReferenceBudgetPayload = {
   projectTitle: string;
   procurementMethod?: string;

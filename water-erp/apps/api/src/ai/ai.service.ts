@@ -11,6 +11,7 @@ import type {
   SupplierSelectionResult,
 } from './ai.types';
 import { computeRiskFactors, riskLevel } from './risk-score.compute';
+import { buildCalibration } from '../ai-bid-analysis/utils/calibration';
 
 /* =================================================================
    AI 辅助评标引擎
@@ -627,6 +628,29 @@ export class AiService {
   }
 
   private readonly logger = new Logger(AiService.name);
+
+  /** P1-E：全局 AI 评分校准（跨项目采纳率 + category 偏差 + top 偏差项） */
+  async getAiCalibration() {
+    const deltas = await this.prisma.bidScoreDelta.findMany({
+      where: { expertReportConfirmed: true },
+    });
+    if (!deltas.length) return null;
+    const itemIds = [...new Set(deltas.map((d) => d.scoreItemId))];
+    const items = await this.prisma.bidScoreItem.findMany({
+      where: { id: { in: itemIds } },
+      select: { id: true, category: true, name: true },
+    });
+    return buildCalibration(
+      deltas.map((d) => ({
+        scoreItemId: d.scoreItemId,
+        expertScore: Number(d.expertScore),
+        aiScore: Number(d.aiScore),
+        delta: Number(d.delta),
+        accepted: d.accepted,
+      })),
+      items,
+    );
+  }
 
   async dashboardSummary(context: {
     supplier?: { total: number; approved: number; pending: number; risk: number };
