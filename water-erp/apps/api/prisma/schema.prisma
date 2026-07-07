@@ -24,8 +24,10 @@ model Department {
 model User {
   id           String      @id @default(cuid())
   username     String
-  displayName  String
-  email        String?
+  displayName    String
+  email          String?
+  phone          String?
+  officeLocation String?  @map("office_location")
   passwordHash String?
   role         String      @default("internal_user")
   isActive     Boolean     @default(true)

@@ -58,6 +58,8 @@ export class AuthService {
         username: true,
         displayName: true,
         email: true,
+        phone: true,
+        officeLocation: true,
         role: true,
         isActive: true,
         createdAt: true,
@@ -84,12 +86,16 @@ export class AuthService {
         ...(dto.displayName !== undefined && { displayName: dto.displayName }),
         ...(dto.email !== undefined && { email: dto.email }),
         ...(dto.departmentId !== undefined && { departmentId: dto.departmentId }),
+        ...(dto.phone !== undefined && { phone: dto.phone }),
+        ...(dto.officeLocation !== undefined && { officeLocation: dto.officeLocation }),
       },
       select: {
         id: true,
         username: true,
         displayName: true,
         email: true,
+        phone: true,
+        officeLocation: true,
         role: true,
         isActive: true,
         createdAt: true,
@@ -104,6 +110,6 @@ export class AuthService {
 
   private issueToken(sub: string, username: string, role: string) {
     const access_token = this.jwt.sign({ sub, username, role });
-    return { access_token, role, username };
+    return { access_token, role, username, userId: sub };
   }
 }

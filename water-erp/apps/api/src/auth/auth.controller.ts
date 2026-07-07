@@ -42,13 +42,44 @@ export class AuthController {
     if (!result) throw new UnauthorizedException('用户名或密码错误');
     const cookiePortal = portalForRole(result.role) || portalFromRequest(req);
     res.cookie(cookiePortal ? cookieNameForPortal(cookiePortal) : LEGACY_COOKIE, result.access_token, COOKIE_OPTS);
-    return result;
+
+    // Write login audit log
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.ip ?? null;
+    const userAgent = (req.headers['user-agent'] as string) ?? null;
+    await this.prisma.auditLog.create({
+      data: {
+        userId: result.userId,
+        action: 'LOGIN',
+        resourceType: 'auth',
+        resourceId: result.userId,
+        details: { role: result.role },
+        ipAddress: ip,
+        userAgent,
+      },
+    });
+
+    return { access_token: result.access_token, role: result.role, username: result.username };
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '退出登录' })
-  logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  async logout(@CurrentUser('sub') userId: string, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    // Write logout audit log
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.ip ?? null;
+    const userAgent = (req.headers['user-agent'] as string) ?? null;
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'LOGOUT',
+        resourceType: 'auth',
+        resourceId: userId,
+        details: {},
+        ipAddress: ip,
+        userAgent,
+      },
+    });
+
     // 清除当前门户的 cookie（按 X-Portal / 来源端口），同时清除旧版 token
     const portal = portalFromRequest(req);
     if (portal) res.clearCookie(cookieNameForPortal(portal));

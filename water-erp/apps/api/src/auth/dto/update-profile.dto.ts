@@ -18,4 +18,14 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   departmentId?: string | null;
+
+  @ApiPropertyOptional({ description: '手机号码', example: '13800138000', nullable: true })
+  @IsOptional()
+  @IsString()
+  phone?: string | null;
+
+  @ApiPropertyOptional({ description: '办公位置', example: '12楼1205室', nullable: true })
+  @IsOptional()
+  @IsString()
+  officeLocation?: string | null;
 }
