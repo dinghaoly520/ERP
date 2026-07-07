@@ -2719,61 +2719,67 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
                   <span className="text-[10px] text-[color:var(--muted-foreground)]">{calibration.overall.total} 项已确认</span>
                 </div>
 
-                <div className="flex items-stretch gap-5 mb-3">
-                  {/* 总体采纳率 */}
-                  <div className="flex flex-col justify-center min-w-[90px]">
-                    <span className="text-3xl font-black tabular-nums text-[var(--foreground)] leading-none">{Math.round(calibration.overall.adoptionRate * 100)}<span className="text-base">%</span></span>
-                    <span className="text-[10px] text-[color:var(--muted-foreground)] mt-1">建议采纳率</span>
-                  </div>
+                <div className="flex items-stretch gap-5">
+                  {/* 左栏：采纳率 + 偏差条 */}
+                  <div className="flex items-center gap-4">
+                    <div className="flex flex-col justify-center min-w-[80px]">
+                      <span className="text-2xl font-black tabular-nums text-[var(--foreground)] leading-none">{Math.round(calibration.overall.adoptionRate * 100)}<span className="text-sm">%</span></span>
+                      <span className="text-[10px] text-[color:var(--muted-foreground)] mt-1">建议采纳率</span>
+                    </div>
 
-                  {/* 按维度偏差条（双向 bar，正=AI 偏高 红，负=AI 偏低 蓝） */}
-                  <div className="w-64 flex flex-col gap-1.5">
-                    {(() => {
-                      const maxAbs = Math.max(...calibration.byCategory.map((x) => Math.abs(x.avgDelta)), 1);
-                      return calibration.byCategory.map((c) => {
-                        const widthPct = Math.min((Math.abs(c.avgDelta) / maxAbs) * 50, 50);
-                        const isPos = c.avgDelta > 0;
-                        return (
-                          <div key={c.category} className="flex items-center gap-2">
-                            <span className="w-14 text-[10px] text-[color:var(--muted-foreground)] shrink-0">{({ BUSINESS: '商务', TECHNICAL: '技术', PRICE: '价格', QUALIFICATION: '资格', RESPONSIVE: '响应' } as Record<string, string>)[c.category] ?? c.category}</span>
-                            <div className="flex-1 h-3.5 rounded-[3px] bg-[rgba(200,210,230,0.12)] relative overflow-hidden">
-                              <div className="absolute top-0 bottom-0 left-1/2 w-px bg-[rgba(120,130,150,0.3)]" />
-                              <div
-                                className="absolute top-0 bottom-0 rounded-[3px] transition-all duration-500"
-                                style={{
-                                  width: `${widthPct}%`,
-                                  left: isPos ? '50%' : `${50 - widthPct}%`,
-                                  background: isPos ? 'linear-gradient(90deg,rgba(200,100,100,0.5),rgba(200,80,80,0.85))' : 'linear-gradient(270deg,rgba(90,130,200,0.5),rgba(80,120,190,0.85))',
-                                }}
-                              />
+                    <div className="w-56 flex flex-col gap-1.5">
+                      {(() => {
+                        const maxAbs = Math.max(...calibration.byCategory.map((x) => Math.abs(x.avgDelta)), 1);
+                        return calibration.byCategory.map((c) => {
+                          const widthPct = Math.min((Math.abs(c.avgDelta) / maxAbs) * 50, 50);
+                          const isPos = c.avgDelta > 0;
+                          return (
+                            <div key={c.category} className="flex items-center gap-2">
+                              <span className="w-12 text-[10px] text-[color:var(--muted-foreground)] shrink-0">{({ BUSINESS: '商务', TECHNICAL: '技术', PRICE: '价格', QUALIFICATION: '资格', RESPONSIVE: '响应' } as Record<string, string>)[c.category] ?? c.category}</span>
+                              <div className="flex-1 h-3 rounded-[3px] bg-[rgba(200,210,230,0.12)] relative overflow-hidden">
+                                <div className="absolute top-0 bottom-0 left-1/2 w-px bg-[rgba(120,130,150,0.3)]" />
+                                <div
+                                  className="absolute top-0 bottom-0 rounded-[3px] transition-all duration-500"
+                                  style={{
+                                    width: `${widthPct}%`,
+                                    left: isPos ? '50%' : `${50 - widthPct}%`,
+                                    background: isPos ? 'linear-gradient(90deg,rgba(200,100,100,0.5),rgba(200,80,80,0.85))' : 'linear-gradient(270deg,rgba(90,130,200,0.5),rgba(80,120,190,0.85))',
+                                  }}
+                                />
+                              </div>
+                              <span className={`w-8 text-[10px] font-bold tabular-nums text-right ${isPos ? 'text-[rgba(200,80,80,1)]' : c.avgDelta < 0 ? 'text-[rgba(80,130,200,1)]' : 'text-[color:var(--muted-foreground)]'}`}>
+                                {isPos ? '+' : ''}{c.avgDelta}
+                              </span>
                             </div>
-                            <span className={`w-9 text-[10px] font-bold tabular-nums text-right ${isPos ? 'text-[rgba(200,80,80,1)]' : c.avgDelta < 0 ? 'text-[rgba(80,130,200,1)]' : 'text-[color:var(--muted-foreground)]'}`}>
-                              {isPos ? '+' : ''}{c.avgDelta}
-                            </span>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-
-                {/* 偏差最大的评分项 */}
-                {calibration.topDeviations.length > 0 && (
-                  <div className="border-t border-[rgba(234,188,110,0.2)] pt-2">
-                    <div className="text-[9px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)] mb-1.5">偏差最大的评分项</div>
-                    <div className="flex flex-col gap-0.5">
-                      {calibration.topDeviations.slice(0, 4).map((d) => (
-                        <div key={d.scoreItemId} className="flex items-center gap-2 text-[10px]">
-                          <span className="text-[color:var(--foreground)] truncate">{d.name}</span>
-                          <span className={`font-bold tabular-nums ${d.avgDelta > 0 ? 'text-[rgba(200,80,80,1)]' : 'text-[rgba(80,130,200,1)]'}`}>
-                            {d.avgDelta > 0 ? '+' : ''}{d.avgDelta}
-                            <span className="text-[color:var(--muted-foreground)] font-normal ml-0.5">({d.count})</span>
-                          </span>
-                        </div>
-                      ))}
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
-                )}
+
+                  {/* 分隔线 */}
+                  {calibration.topDeviations.length > 0 && (
+                    <div className="w-px bg-[rgba(234,188,110,0.2)]" />
+                  )}
+
+                  {/* 右栏：偏差最大的评分项 */}
+                  {calibration.topDeviations.length > 0 && (
+                    <div className="min-w-[160px]">
+                      <div className="text-[9px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)] mb-1.5">偏差最大的评分项</div>
+                      <div className="flex flex-col gap-0.5">
+                        {calibration.topDeviations.slice(0, 4).map((d) => (
+                          <div key={d.scoreItemId} className="flex items-center gap-2 text-[10px]">
+                            <span className="text-[color:var(--foreground)] truncate">{d.name}</span>
+                            <span className={`font-bold tabular-nums ${d.avgDelta > 0 ? 'text-[rgba(200,80,80,1)]' : 'text-[rgba(80,130,200,1)]'}`}>
+                              {d.avgDelta > 0 ? '+' : ''}{d.avgDelta}
+                              <span className="text-[color:var(--muted-foreground)] font-normal ml-0.5">({d.count})</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
