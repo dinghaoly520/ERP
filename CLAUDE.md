@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **智慧水发·蜀水云采 ERP 系统** — a Chinese-language procurement and bidding ERP system for Sichuan Water Development Group（四川水发集团）. It covers bid/project lifecycle, supplier lifecycle, expert evaluation/scoring, AI-assisted review, announcements/notifications, file uploads, and a public procurement mall.
 
-The active codebase is the pnpm workspace in `water-erp/`. The top-level `water_erp_web/` directory is a legacy/static prototype and is **not** the current development target.
+The active codebase is the pnpm workspace in `water-erp/`. Legacy/non-target directories: the top-level `water_erp_web/` (static prototype) and `water-erp/apps/web-erp-old/` (superseded Next.js app) — do not develop against either.
 
 > `AGENTS.md` is stale — it documents an old port layout and is missing `bid-portal`/`mall`. This `CLAUDE.md` is the source of truth. `water-erp/ACCOUNTS.md` lists seed accounts grouped by portal. `water-erp/.impeccable.md` defines the design system.
 
@@ -26,6 +26,7 @@ Run workspace commands from `water-erp/`.
 | **专家门户** | `apps/expert-portal` | Next.js 16 App Router | 3006 | Bid expert workstation — project review, identity verification, scoring, reports |
 | **开评标管理端** | `apps/bid-portal` | Next.js 16 App Router | 3007 | Bid opening/evaluation admin — 开标大厅, 监督端, 评标管理, 归档, 澄清答疑 |
 | **水叮当助手** | `apps/assistant` | Next.js 16 App Router | 3008 | AI assistant chatbot — public, no login required |
+| **大屏** | `apps/bigscreen` | Next.js 16 | 3010 | Data-viz big-screen dashboard. Standalone — **not** started by `pnpm dev`; run `pnpm dev:bigscreen`. Port is hardcoded (not in `packages/config/ports.ts`). |
 
 ### Shared Packages
 
@@ -36,6 +37,8 @@ Run workspace commands from `water-erp/`.
 | `packages/ui` | Shared React workbench components (`MetricCard`, `PageHero`, `SectionCard`, `StatusBadge`, `DataToolbar`) + `cn` helper — `@water-erp/ui` |
 
 Infrastructure in `water-erp/docker-compose.yml`: PostgreSQL 16 (`localhost:5432`), Redis 7 (`localhost:6380→6379`), MinIO (`localhost:9000`, console `localhost:9001`).
+
+**Auxiliary service:** `water-erp/services/ocr/` is a standalone Python (FastAPI + uvicorn) OCR microservice on `localhost:8100`. Its `start.sh` auto-provisions a `.venv` from `requirements.txt` on first run. Start with `pnpm dev:ocr`. The API consumes it via the `local-ai` module's `OcrService`.
 
 ## Portal Descriptions
 
@@ -73,6 +76,9 @@ The admin/internal staff management console for `procurement_staff` users. Key m
 - **供应商管理中心** (`/supplier`) — supplier approval, repository, selection, evaluation
 - **专家管理中心** (`/expert`) — expert entry, repository, extraction, performance evaluation
 - **电子商城管理** (`/mall-management`) — price approval/entry, catalog management, sync & operation logs
+- **AI 投标分析** (`/ai-bid-analysis` · `/bid-analysis` · `/smart-bid`) — per-item LLM bid-analysis dashboards; they read jobs produced by the **separate worker process** (see Architecture → AI Bid Analysis Worker), so no analysis runs unless that worker is started
+- **招投标文档** (`/tender-write` · `/tender-review`) — tender-document authoring + AI review
+- **项目 / 进度 / 工作安排** (`/procurements` · `/projects` · `/progress` · `/work-arrangements`) — procurement-project lifecycle, milestones, work assignments
 
 **Access:** Requires login as `procurement_staff` role.  
 **Login cookie:** `token_web`.  
@@ -104,6 +110,8 @@ The bid lifecycle management backend for `admin` and `bid_host` roles. Modules:
 - **评标管理端** (`/bid/evaluate`) — expert status overview, scoring progress monitoring, start evaluation workflow
 - **归档端** (`/bid/archive`) — archive items checklist, one-click archiving, export archive package with hash chain
 - **澄清答疑** (`/bid/clarifications`) — clarification/QA workflow between bid committee and suppliers
+- **评分标准管理** (`/bid/standard`) — define/reuse `ScoreItem`s across the 5 scoring categories (qualification/responsive/business/technical/price); locked once the project stage advances past the standard phase
+- **项目工作区** (`/bid/project/[id]`) — per-project detail page (header + tabbed sub-views) unifying the above workflows around a single selected project
 
 **Authentication flow:** `admin`/`bid_host` users authenticate from the public portal's "在线开评标系统" card → redirected to expert portal (:3006) login → cookie `token_web` is set → post-login redirect to bid portal (:3007). The bid portal shares the `token_web` cookie namespace (no separate `token_bid`), sending `X-Portal: web` for API calls.
 
@@ -153,7 +161,7 @@ pnpm db:migrate      # Run migrations
 pnpm db:seed         # Seed data (idempotent + destructive — see Seed Data)
 pnpm db:studio       # Open Prisma Studio
 
-# Start all apps
+# Start all (8 core portals — does NOT include bigscreen)
 pnpm dev
 
 # Start individual apps
@@ -165,6 +173,13 @@ pnpm dev:web         # :3005 采购管理工作台
 pnpm dev:expert      # :3006 专家门户
 pnpm dev:bid         # :3007 开评标管理端
 pnpm dev:assistant   # :3008 水叮当助手
+pnpm dev:bigscreen   # :3010 大屏（独立启动，不在 pnpm dev 内）
+
+# AI 投标分析 worker（独立进程 — 必需，否则 per-item 分析任务不出队执行）
+pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/src/ai-bid-analysis-worker.js
+
+# OCR 微服务（Python，:8100）
+pnpm dev:ocr
 
 # Build
 pnpm build
@@ -257,7 +272,7 @@ The NestJS API (`apps/api`, :4001):
 - Swagger docs at `/api/docs`
 - All error responses normalized to `{ statusCode, code, error, timestamp, path }` via `HttpExceptionFilter`
 
-**Key modules (20 total, all under `apps/api/src/`):**
+**Key modules (~30 feature modules + infrastructure, all under `apps/api/src/`; only the architecturally significant ones are listed — the rest are discoverable in the directory):**
 
 | Module | Purpose |
 |--------|---------|
@@ -267,10 +282,17 @@ The NestJS API (`apps/api`, :4001):
 | `Supplier` | Supplier CRUD, review, evaluations, classifications, change records |
 | `SupplierPortal` | Supplier-facing endpoints (bid submissions, downloads, profile changes) |
 | `Ai` | AI-assisted bid analysis, anomaly detection, risk scoring (LLM-powered + hardcoded fallback) |
+| `AiBidAnalysis` | Per-item LLM bid analysis via BullMQ queues (tender + bidder processors); jobs run in the **separate worker process** (see below), not the main API |
+| `LocalAi` | **Global** foundation: `LlmService` (DeepSeek / vLLM), `OcrService`, `EmbeddingService` (RAG), `LlmOutputValidator`, `VllmMonitorService` |
+| `Storage` | **Global** MinIO object-storage wrapper (`StorageService`) — shared by `Upload` and `AiBidAnalysis`; distinct from the HTTP-facing `Upload` module |
 | `Announcement` | Announcements CRUD, publish/archive, bid documents (encrypted, access-controlled) |
 | `Notification` | In-app notifications + `NotificationDeliveryLog` (Track A: multi-channel delivery) |
 | `Upload` | File upload to MinIO (50 MB cap), download, delete |
-| `Procurement` | Procurement projects: draft → review → approve → bidding → contract → close |
+| `Procurements` | Procurement project lifecycle (active module — exports `ProcurementsService`) |
+| `Procurement` | Legacy procurement module (no Prisma; prefer `Procurements` for new work) |
+| `ProjectManagement` | Project management endpoints |
+| `TenderWrite` / `TenderReview` / `TenderSample` / `TenderHistory` | Tender-document authoring, AI review, sample library, historical-tender search |
+| `Knowledge` | Knowledge base / RAG corpus backing AI features |
 | `Catalog` | Mall catalog items, price history, favorites, supplier applications/catalog-suppliers |
 | `Budget` | Budget lists with items linked to catalog; convert to procurement project |
 | `Audit` | Operation audit logs (`AuditLog` model) |
@@ -281,6 +303,17 @@ The NestJS API (`apps/api`, :4001):
 | `Redis` | Infrastructure: Redis caching via ioredis |
 | `Prisma` | Infrastructure: global `PrismaService` singleton |
 | `Common` | Shared: `HttpExceptionFilter` (normalized errors), guards, decorators (`@CurrentUser`, `@Public`, `@Roles`) |
+
+### AI Bid Analysis Worker (separate process)
+
+`AiBidAnalysis` jobs (BullMQ, backed by Redis `:6380`) are **not** processed by the main API. They run in a standalone Nest process bootstrapped from `apps/api/src/ai-bid-analysis-worker.module.ts` (`AiBidAnalysisWorkerModule`), which registers `TenderProcessor` + `BidderProcessor`. It is deliberately **not** imported by `AppModule`.
+
+```bash
+pnpm --filter api dev:worker:ai-bid-analysis   # build + run the worker
+pnpm --filter api start:worker:ai-bid-analysis # run the pre-built worker
+```
+
+> **Operational gotcha:** editing `ai-bid-analysis` source and letting `pnpm dev` (API `--watch`) restart the API does **not** restart the worker. Kill and re-run the worker command. Re-running analysis creates new jobs — don't rely on a stable `jobId`.
 
 ### ENV Configuration
 
@@ -317,7 +350,7 @@ Same-stage transitions are idempotent; invalid transitions throw `ConflictExcept
 
 - Shared workbench components live in `packages/ui` (`@water-erp/ui`). Consuming apps must add `@source "../../node_modules/@water-erp/ui"` to their `globals.css` (Tailwind v4 requirement).
 - Next.js portals use React 19 + Tailwind CSS v4; supplier portal uses Vue 3 + Element Plus + Pinia.
-- **Design system** (see `.impeccable.md`): industrial precision aesthetic — 1px hairline dividers, monospace numerals, layered navy→ice blue palette, Lucide 1.5px-stroke icons, frosted glass surfaces, `rounded-2xl` cards, `rounded-xl` buttons. Anti-patterns: no gradient buttons, no emoji-as-icons, no generic admin-template look.
+- **Design system** (see `.impeccable.md`): industrial precision aesthetic — 1px hairline dividers, monospace numerals, layered navy→ice blue palette, Lucide 1.5px-stroke icons, `rounded-2xl` cards, `rounded-xl` buttons. The signature component treatment is a **neumorphic raised-border system** (directional light/dark shadow pairs derived from the page BG `oklch(0.975 0.012 258)`; never flat omnidirectional `box-shadow`) — buttons raise on hover, inset on active. Anti-patterns: no gradient buttons, no emoji-as-icons, no Material-style elevation shadows, no generic admin-template look. (`docs/glass-morphism-design-system.md` is an earlier, superseded direction; `.impeccable.md` is current.)
 - No mock data fallbacks — show real DB data, loading, or empty states.
 
 ### Prisma Migration Notes

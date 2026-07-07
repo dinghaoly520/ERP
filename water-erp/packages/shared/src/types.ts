@@ -240,6 +240,8 @@ export interface AssistData {
   strengths?: any;
   weaknesses?: any;
   overallComment?: string;
+  keyObservations?: string[];
+  starredResponse?: { allMet: boolean; unmet?: string[] };
   qualificationStatus?: string;
   riskLevel?: string;
   // ── rules_fallback（旧规则引擎结构，降级时用）──
@@ -439,3 +441,20 @@ export interface DisputeDetail {
 
 // supplierId → category(大写) → DisputeDetail[]
 export type DisputesBySupplier = Record<string, Record<string, DisputeDetail[]>>;
+
+/* ── 辅助评标对比视图 ── */
+
+export interface AssistCompareBidder {
+  supplierId: string;
+  supplierName: string;
+  totalScore: number;
+  categoryTotals: Record<string, { score: number; max: number }>;
+  qualificationStatus: string;
+  riskLevel: string;
+}
+
+export interface AssistCompareResponse {
+  bidders: AssistCompareBidder[];
+  projectFraudSummary: { riskLevel: string; indicatorCount: number } | null;
+  reportDocxUrl: string | null;
+}
