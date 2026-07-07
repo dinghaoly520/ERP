@@ -60,54 +60,82 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
   };
 
   return (
-    <div className="space-y-5">
-      {/* Read-only account info */}
-      <div className="neu-card-static p-5">
-        <h3 className="neu-section-heading">账号信息</h3>
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center gap-3 rounded-xl border border-white/50 bg-white/42 p-3">
-            <Shield size={16} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
-            <span className="text-sm text-[color:var(--muted-foreground)]">用户名</span>
-            <span className="ml-auto text-sm font-medium text-[color:var(--foreground)]">{user.username}</span>
+    <div className="flex flex-col gap-5">
+      {/* Read-only account info — wb-panel card */}
+      <div className="wb-panel p-6">
+        <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
+          <Shield size={12} strokeWidth={1.8} className="text-[color:var(--accent)]" />
+          账号信息
+        </h3>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {/* Username */}
+          <div className="rounded-xl border border-[rgba(96,139,239,0.12)] bg-[rgba(96,139,239,0.04)] px-4 py-3.5">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[color:var(--muted-foreground)]">用户名</div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <UserRound size={14} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
+              <span className="text-[15px] font-semibold tracking-[-0.01em] text-[color:var(--foreground)]">{user.username}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-3 rounded-xl border border-white/50 bg-white/42 p-3">
-            <UserRound size={16} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
-            <span className="text-sm text-[color:var(--muted-foreground)]">角色</span>
-            <span className="ml-auto inline-block rounded-full border border-[color:var(--accent-soft)] bg-[color:var(--accent-soft)] px-2 py-0.5 text-[11px] font-semibold tracking-[0.04em] text-[color:var(--accent-strong)]">
-              {ROLE_LABELS[user.role] ?? user.role}
-            </span>
+
+          {/* Role */}
+          <div className="rounded-xl border border-[rgba(96,139,239,0.12)] bg-[rgba(96,139,239,0.04)] px-4 py-3.5">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[color:var(--muted-foreground)]">角色</div>
+            <div className="mt-1.5">
+              <span className="inline-flex items-center rounded-[10px] border px-2 py-0.5 text-[11px] font-semibold tracking-[0.04em]"
+                style={{
+                  backgroundColor: 'rgba(96,139,239,0.12)',
+                  color: 'var(--accent)',
+                  borderColor: 'rgba(96,139,239,0.25)',
+                }}
+              >
+                {ROLE_LABELS[user.role] ?? user.role}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-3 rounded-xl border border-white/50 bg-white/42 p-3">
-            <UserRound size={16} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
-            <span className="text-sm text-[color:var(--muted-foreground)]">创建时间</span>
-            <span className="ml-auto text-sm font-medium text-[color:var(--foreground)]">{formatDate(user.createdAt)}</span>
+
+          {/* Created */}
+          <div className="rounded-xl border border-[rgba(96,139,239,0.12)] bg-[rgba(96,139,239,0.04)] px-4 py-3.5">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[color:var(--muted-foreground)]">创建时间</div>
+            <div className="mt-1.5 text-[15px] font-semibold tabular-nums tracking-[-0.01em] text-[color:var(--foreground)]">
+              {formatDate(user.createdAt)}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Edit form */}
-      <div className="neu-card-static p-5">
-        <h3 className="neu-section-heading">编辑资料</h3>
+      {/* Edit form — wb-panel card */}
+      <div className="wb-panel p-6">
+        <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
+          <UserRound size={12} strokeWidth={1.8} className="text-[color:var(--accent)]" />
+          编辑资料
+        </h3>
 
-        <div className="mt-4 space-y-4">
+        <div className="mt-5 max-w-lg space-y-5">
+          {/* Display name */}
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-[color:var(--foreground)]">姓名</span>
+            <span className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-[color:var(--foreground)]">
+              <UserRound size={13} strokeWidth={1.7} className="text-[color:var(--muted-foreground)]" />
+              姓名
+            </span>
             <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
               placeholder="请输入姓名" className="neu-input w-full" maxLength={32} />
           </label>
 
+          {/* Email */}
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-[color:var(--foreground)]">
-              <Mail size={14} strokeWidth={1.6} className="mr-1.5 inline-block text-[color:var(--muted-foreground)]" />
+            <span className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-[color:var(--foreground)]">
+              <Mail size={13} strokeWidth={1.7} className="text-[color:var(--muted-foreground)]" />
               邮箱
             </span>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
               placeholder="请输入邮箱地址" className="neu-input w-full" />
           </label>
 
+          {/* Department */}
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-[color:var(--foreground)]">
-              <Building2 size={14} strokeWidth={1.6} className="mr-1.5 inline-block text-[color:var(--muted-foreground)]" />
+            <span className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-[color:var(--foreground)]">
+              <Building2 size={13} strokeWidth={1.7} className="text-[color:var(--muted-foreground)]" />
               部门
             </span>
             <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className="neu-select w-full">
@@ -119,23 +147,38 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
           </label>
         </div>
 
+        {/* Alerts — match workbench banner pattern */}
         {error && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-[rgba(215,89,89,0.18)] bg-[rgba(255,241,241,0.76)] px-4 py-3 text-sm text-[color:var(--danger)]">
-            <AlertTriangle size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />{error}
+          <div className="mt-5 flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm"
+            style={{
+              backgroundColor: 'rgba(255,241,241,0.76)',
+              borderColor: 'rgba(215,89,89,0.18)',
+              color: 'var(--danger)',
+            }}
+          >
+            <AlertTriangle size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />
+            {error}
           </div>
         )}
         {success && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-[rgba(92,181,150,0.18)] bg-[rgba(240,250,245,0.76)] px-4 py-3 text-sm text-[color:var(--success)]">
-            <Check size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />{success}
+          <div className="mt-5 flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm"
+            style={{
+              backgroundColor: 'rgba(240,250,245,0.76)',
+              borderColor: 'rgba(92,181,150,0.18)',
+              color: 'var(--success)',
+            }}
+          >
+            <Check size={14} strokeWidth={1.6} className="mt-0.5 shrink-0" />
+            {success}
           </div>
         )}
 
-        <div className="mt-5">
-          <button type="button" onClick={handleSave} disabled={saving || !hasChanges}
-            className="neu-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
-            {saving ? <><Loader2 size={16} className="animate-spin" />保存中...</> : '保存修改'}
-          </button>
-        </div>
+        <hr className="wb-section-rule" />
+
+        <button type="button" onClick={handleSave} disabled={saving || !hasChanges}
+          className="neu-btn-primary">
+          {saving ? <><Loader2 size={16} className="animate-spin" />保存中...</> : '保存修改'}
+        </button>
       </div>
     </div>
   );
