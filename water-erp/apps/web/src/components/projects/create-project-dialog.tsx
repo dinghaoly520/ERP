@@ -420,7 +420,7 @@ export function CreateProjectDialog({
                 e.preventDefault();
                 onClear?.();
               }}
-              className="p-1 rounded-full text-[rgba(88,107,142,0.6)] hover:text-[rgba(200,80,80,0.9)] hover:bg-[rgba(200,80,80,0.08)] transition-all duration-200"
+              className="neu-btn-xs"
               title="清除"
             >
               <X size={16} />
@@ -501,7 +501,7 @@ export function CreateProjectDialog({
                     "p-2.5 text-left rounded-lg border transition-all duration-200",
                     comparison.selectedValue === comparison.demandValue
                       ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                      : "border-[rgba(171,191,227,0.54)] bg-white hover:bg-[rgba(246,249,255,0.5)]",
+                      : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
                   ].join(" ")}
                 >
                   <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)]">需求表</div>
@@ -517,7 +517,7 @@ export function CreateProjectDialog({
                     "p-2.5 text-left rounded-lg border transition-all duration-200",
                     comparison.selectedValue === comparison.initiationValue
                       ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                      : "border-[rgba(171,191,227,0.54)] bg-white hover:bg-[rgba(246,249,255,0.5)]",
+                      : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
                   ].join(" ")}
                 >
                   <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)]">立项表</div>
@@ -534,7 +534,7 @@ export function CreateProjectDialog({
                       "p-2.5 text-left rounded-lg border transition-all duration-200",
                       comparison.selectedValue === comparison.demandValue
                         ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                        : "border-[rgba(171,191,227,0.54)] bg-white hover:bg-[rgba(246,249,255,0.5)]",
+                        : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
                     ].join(" ")}
                   >
                     <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)]">需求表</div>
@@ -549,7 +549,7 @@ export function CreateProjectDialog({
                       "p-2.5 text-left rounded-lg border transition-all duration-200",
                       comparison.selectedValue === comparison.initiationValue
                         ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                        : "border-[rgba(171,191,227,0.54)] bg-white hover:bg-[rgba(246,249,255,0.5)]",
+                        : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
                     ].join(" ")}
                   >
                     <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)]">立项表</div>
@@ -567,7 +567,7 @@ export function CreateProjectDialog({
                       "p-2.5 text-left rounded-lg border transition-all duration-200",
                       comparison.selectedValue === comparison.demandValue
                         ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                        : "border-[rgba(171,191,227,0.54)] bg-white hover:bg-[rgba(246,249,255,0.5)]",
+                        : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
                     ].join(" ")}
                   >
                     <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)]">需求表</div>
@@ -582,7 +582,7 @@ export function CreateProjectDialog({
                       "p-2.5 text-left rounded-lg border transition-all duration-200",
                       comparison.selectedValue === comparison.initiationValue
                         ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                        : "border-[rgba(171,191,227,0.54)] bg-white hover:bg-[rgba(246,249,255,0.5)]",
+                        : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
                     ].join(" ")}
                   >
                     <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)]">立项表</div>
@@ -604,7 +604,7 @@ export function CreateProjectDialog({
                         "w-full p-2 text-left rounded-lg border transition-all duration-200",
                         comparison.selectedValue === candidate.value
                           ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                          : "border-[rgba(171,191,227,0.54)] bg-white hover:bg-[rgba(246,249,255,0.5)]",
+                          : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
                       ].join(" ")}
                     >
                       <span className="text-sm font-medium text-[color:var(--foreground)]">{candidate.value}</span>
@@ -708,7 +708,7 @@ export function CreateProjectDialog({
             className="password-dialog__input"
           />
           {showAttributionDropdown && (
-            <div className="absolute z-10 w-full mt-1 max-h-48 overflow-auto rounded-lg border border-[rgba(171,191,227,0.54)] bg-white shadow-lg">
+            <div className="absolute z-10 w-full mt-1 max-h-48 overflow-auto rounded-lg border border-[oklch(0.6_0.04_258_/_0.22)] bg-[var(--background)] shadow-[0_16px_40px_rgba(0,0,0,0.1)]">
               {filteredAttributions.map((option) => (
                 <button
                   key={option.name}
@@ -762,7 +762,7 @@ export function CreateProjectDialog({
                   {budgetReference.suggestedBudget.toLocaleString()}
                 </div>
                 {budgetReference.hasReference && (
-                  <div className="absolute bottom-full right-0 mb-2 w-80 p-3 rounded-lg border border-[rgba(92,181,150,0.3)] bg-white shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="absolute bottom-full right-0 mb-2 w-80 p-3 rounded-lg border border-[color-mix(in_oklch,var(--success)_25%,transparent)] bg-[var(--background)] shadow-[0_16px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     {budgetReference.analysis && (
                       <p className="text-xs text-[color:var(--foreground)] mb-2">{budgetReference.analysis}</p>
                     )}
@@ -780,7 +780,7 @@ export function CreateProjectDialog({
                           {budgetReference.references.map((ref, idx) => {
                             const isLedger = ref.source === '采购台账';
                             return (
-                              <div key={idx} className="rounded-lg border border-[rgba(184,199,227,0.28)] bg-white/70 px-2.5 py-2 text-[10px] text-[color:var(--foreground)]">
+                              <div key={idx} className="rounded-lg border border-[oklch(0.6_0.04_258_/_0.2)] bg-[oklch(1_0_0_/_0.5)] px-2.5 py-2 text-[10px] text-[color:var(--foreground)]">
                                 <div className="flex items-center gap-1.5">
                                   <span
                                     className={[
@@ -923,7 +923,7 @@ export function CreateProjectDialog({
           </div>
 
           {/* Fixed Footer */}
-          <div className="flex-shrink-0 border-t border-[rgba(184,199,227,0.48)] px-[1.7rem] py-4">
+          <div className="flex-shrink-0 px-[1.7rem] py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
             {step === 'upload' && (
               <div className="flex justify-between">
                 <button
@@ -933,7 +933,7 @@ export function CreateProjectDialog({
                     setFieldComparisons(comparisons);
                     setStep('compare');
                   }}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(171,191,227,0.54)] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(241,246,255,0.72))] px-4 py-2.5 text-sm font-medium text-[rgba(92,109,141,0.92)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_12px_24px_rgba(69,99,158,0.06)] transition-all duration-200 hover:-translate-y-px hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(243,248,255,0.8))] hover:text-[rgba(57,73,103,0.95)]"
+                  className="neu-btn-soft"
                 >
                   跳过，手动填写
                 </button>
@@ -944,7 +944,7 @@ export function CreateProjectDialog({
                     if (initiationFile && !initiationExtracted) void handleExtractInitiation();
                   }}
                   disabled={(!demandFile && !initiationFile) || (demandExtracted && initiationExtracted) || extractingDemand || extractingInitiation}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-[rgba(102,148,245,0.72)] bg-[linear-gradient(135deg,rgba(96,145,246,0.96),rgba(138,176,251,0.9))] px-5 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.32),0_18px_32px_rgba(74,109,175,0.18)] transition-all duration-200 hover:-translate-y-px hover:border-[rgba(122,168,255,0.82)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.36),0_20px_38px_rgba(74,109,175,0.22)] disabled:pointer-events-none disabled:opacity-56"
+                  className="neu-btn-primary"
                 >
                   {extractingDemand || extractingInitiation ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                   {extractingDemand || extractingInitiation ? '解析中...' : '解析文档'}
@@ -962,7 +962,7 @@ export function CreateProjectDialog({
                     setInitiationExtracted(false);
                     setFieldComparisons([]);
                   }}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(171,191,227,0.54)] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(241,246,255,0.72))] px-4 py-2.5 text-sm font-medium text-[rgba(92,109,141,0.92)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_12px_24px_rgba(69,99,158,0.06)] transition-all duration-200 hover:-translate-y-px hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(243,248,255,0.8))] hover:text-[rgba(57,73,103,0.95)]"
+                  className="neu-btn-soft"
                 >
                   <ArrowLeft size={16} />
                   返回
@@ -973,7 +973,7 @@ export function CreateProjectDialog({
                     setStep('review');
                     void handleAnalyzeBudgetReference();
                   }}
-                  className="inline-flex items-center justify-center rounded-full border border-[rgba(102,148,245,0.72)] bg-[linear-gradient(135deg,rgba(96,145,246,0.96),rgba(138,176,251,0.9))] px-5 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.32),0_18px_32px_rgba(74,109,175,0.18)] transition-all duration-200 hover:-translate-y-px hover:border-[rgba(122,168,255,0.82)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.36),0_20px_38px_rgba(74,109,175,0.22)]"
+                  className="neu-btn-primary"
                 >
                   确认并继续
                 </button>
@@ -985,7 +985,7 @@ export function CreateProjectDialog({
                 <button
                   type="button"
                   onClick={() => setStep('compare')}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(171,191,227,0.54)] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(241,246,255,0.72))] px-4 py-2.5 text-sm font-medium text-[rgba(92,109,141,0.92)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_12px_24px_rgba(69,99,158,0.06)] transition-all duration-200 hover:-translate-y-px hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(243,248,255,0.8))] hover:text-[rgba(57,73,103,0.95)]"
+                  className="neu-btn-soft"
                 >
                   <ArrowLeft size={16} />
                   返回
@@ -994,7 +994,7 @@ export function CreateProjectDialog({
                   type="button"
                   onClick={() => void handleCreate()}
                   disabled={submitting}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-[rgba(102,148,245,0.72)] bg-[linear-gradient(135deg,rgba(96,145,246,0.96),rgba(138,176,251,0.9))] px-5 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.32),0_18px_32px_rgba(74,109,175,0.18)] transition-all duration-200 hover:-translate-y-px hover:border-[rgba(122,168,255,0.82)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.36),0_20px_38px_rgba(74,109,175,0.22)] disabled:pointer-events-none disabled:opacity-56"
+                  className="neu-btn-primary"
                 >
                   {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
                   {submitting ? '创建中...' : '创建项目'}

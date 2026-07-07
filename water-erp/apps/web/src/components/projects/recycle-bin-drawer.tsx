@@ -51,16 +51,16 @@ export function RecycleBinDrawer({
   return (
     <>
       <div
-        className="fixed inset-0 z-[92] bg-[rgba(236,242,252,0.56)] backdrop-blur-sm"
+        className="fixed inset-0 z-[92] bg-[var(--background)]/60 backdrop-blur-sm"
         onClick={onClose}
       />
 
       <section className="fixed inset-0 z-[93] flex items-center justify-center px-4 py-6">
-        <div className="panel-surface chromatic-glass glass-calm flex h-[min(760px,calc(100dvh-3rem))] w-full max-w-[min(860px,92vw)] flex-col overflow-hidden rounded-[30px] border border-white/72 shadow-[0_32px_80px_rgba(42,71,126,0.18)]">
-          <div className="border-b border-white/55 px-5 py-5 sm:px-6 lg:px-7">
+        <div className="flex h-[min(760px,calc(100dvh-3rem))] w-full max-w-[min(860px,92vw)] flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+          <div className="px-5 py-5 sm:px-6 lg:px-7" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <div className="inline-flex items-center gap-2 rounded-full bg-[rgba(121,162,239,0.12)] px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--accent)]">
+                <div className="inline-flex items-center gap-2 rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--accent)]">
                   <Recycle size={14} />
                   回收站
                 </div>
@@ -77,7 +77,7 @@ export function RecycleBinDrawer({
                     type="button"
                     onClick={() => setShowDeleteAllConfirm(true)}
                     disabled={Boolean(submittingId)}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[rgba(209,88,88,0.12)] px-4 py-2 text-sm font-semibold text-[color:var(--danger)] transition hover:bg-[rgba(209,88,88,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="neu-btn-soft is-danger"
                   >
                     <Trash2 size={16} />
                     {submittingId === '__all__' ? '删除中...' : '一键删除'}
@@ -86,7 +86,7 @@ export function RecycleBinDrawer({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/76 text-[color:var(--muted-foreground)] transition hover:bg-white hover:text-[color:var(--foreground)]"
+                  className="neu-btn-xs"
                   aria-label="关闭回收站"
                 >
                   <X size={18} />
@@ -97,7 +97,7 @@ export function RecycleBinDrawer({
 
           <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6 lg:px-7">
             {items.length === 0 ? (
-              <div className="rounded-[26px] border border-dashed border-white/65 bg-white/56 px-5 py-10 text-sm leading-6 text-[color:var(--muted-foreground)]">
+              <div className="wb-panel flex items-center justify-center px-5 py-10 text-sm leading-6 text-[color:var(--muted-foreground)]">
                 当前回收站为空。被移除的项目会在这里等待恢复或彻底删除。
               </div>
             ) : (
@@ -108,7 +108,7 @@ export function RecycleBinDrawer({
                   return (
                     <article
                       key={item.id}
-                      className="rounded-[26px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(244,248,255,0.74))] p-5 shadow-[0_16px_34px_rgba(59,89,143,0.08)]"
+                      className="neu-card-static !rounded-[20px] p-5"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
@@ -119,7 +119,7 @@ export function RecycleBinDrawer({
                             {item.requesterDepartment} · {item.requesterName}
                           </div>
                         </div>
-                        <span className="shrink-0 rounded-full bg-[rgba(234,191,106,0.14)] px-3 py-1 text-[11px] font-semibold text-[color:var(--warning)]">
+                        <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] px-3 py-1 text-[11px] font-semibold text-[color:var(--warning)]">
                           已移除
                         </span>
                       </div>
@@ -150,7 +150,7 @@ export function RecycleBinDrawer({
                               type="button"
                               onClick={() => void onRestore(item.id)}
                               disabled={isSubmitting}
-                              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/72 bg-white/82 px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                              className="neu-btn-soft"
                             >
                               <RotateCcw size={16} />
                               {isSubmitting ? '处理中...' : '恢复项目'}
@@ -159,7 +159,7 @@ export function RecycleBinDrawer({
                               type="button"
                               onClick={() => void onDelete(item.id)}
                               disabled={isSubmitting}
-                              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[rgba(209,88,88,0.12)] px-4 py-2 text-sm font-semibold text-[color:var(--danger)] transition hover:bg-[rgba(209,88,88,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+                              className="neu-btn-soft is-danger"
                             >
                               <Trash2 size={16} />
                               {isSubmitting ? '处理中...' : '彻底删除'}
@@ -189,20 +189,20 @@ export function RecycleBinDrawer({
       {showDeleteAllConfirm ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-6">
           <div
-            className="absolute inset-0 bg-[rgba(236,242,252,0.66)] backdrop-blur-md"
+            className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-md"
             onClick={() => {
               if (!submittingId) setShowDeleteAllConfirm(false);
             }}
           />
-          <div className="panel-surface chromatic-glass relative w-full max-w-[460px] overflow-hidden rounded-[28px] border border-white/75 bg-white/90 shadow-[0_34px_90px_rgba(42,71,126,0.22)]">
+          <div className="relative w-full max-w-[460px] overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
             <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,rgba(209,88,88,0.95),rgba(234,191,106,0.72),rgba(121,162,239,0.35))]" />
             <div className="px-6 py-6">
               <div className="flex items-start gap-4">
-                <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-[18px] border border-[rgba(209,88,88,0.24)] bg-[rgba(209,88,88,0.11)] text-[color:var(--danger)] shadow-[0_12px_26px_rgba(209,88,88,0.12)]">
+                <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-[18px] border border-[color-mix(in_oklch,var(--danger)_24%,transparent)] bg-[color-mix(in_oklch,var(--danger)_11%,transparent)] text-[color:var(--danger)]">
                   <AlertTriangle size={24} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="inline-flex rounded-full bg-[rgba(209,88,88,0.1)] px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--danger)]">
+                  <div className="inline-flex rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--danger)]">
                     不可恢复操作
                   </div>
                   <h3 className="mt-3 font-[family-name:var(--font-display)] text-[1.28rem] font-semibold tracking-[-0.05em] text-[color:var(--foreground)]">
@@ -216,24 +216,24 @@ export function RecycleBinDrawer({
                   type="button"
                   onClick={() => setShowDeleteAllConfirm(false)}
                   disabled={Boolean(submittingId)}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/76 text-[color:var(--muted-foreground)] transition hover:bg-white hover:text-[color:var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="neu-btn-xs"
                   aria-label="取消一键删除"
                 >
                   <X size={17} />
                 </button>
               </div>
 
-              <div className="mt-5 rounded-[18px] border border-[rgba(209,88,88,0.14)] bg-[linear-gradient(145deg,rgba(255,245,245,0.86),rgba(255,255,255,0.72))] px-4 py-3 text-sm leading-6 text-[rgba(145,63,63,0.92)]">
-                建议仅在确认项目已无归档价值时使用。若只是误移除，请选择“恢复项目”。
+              <div className="mt-5 rounded-[18px] border border-[color-mix(in_oklch,var(--danger)_14%,transparent)] bg-[linear-gradient(145deg,rgba(255,245,245,0.86),rgba(255,255,255,0.72))] px-4 py-3 text-sm leading-6 text-[rgba(145,63,63,0.92)]">
+                建议仅在确认项目已无归档价值时使用。若只是误移除，请选择"恢复项目"。
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-white/55 bg-[rgba(247,250,255,0.64)] px-6 py-4">
+            <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
               <button
                 type="button"
                 onClick={() => setShowDeleteAllConfirm(false)}
                 disabled={Boolean(submittingId)}
-                className="inline-flex min-h-11 items-center rounded-full border border-white/72 bg-white/82 px-5 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="neu-btn-soft"
               >
                 取消
               </button>
@@ -241,7 +241,7 @@ export function RecycleBinDrawer({
                 type="button"
                 onClick={() => void onDeleteAll().then(() => setShowDeleteAllConfirm(false))}
                 disabled={Boolean(submittingId)}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[rgba(209,88,88,0.92)] px-5 py-2 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(209,88,88,0.2)] transition hover:bg-[rgba(190,70,70,0.96)] disabled:cursor-not-allowed disabled:opacity-70"
+                className="neu-btn-primary is-danger"
               >
                 {submittingId === '__all__' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                 {submittingId === '__all__' ? '正在删除' : '确认一键删除'}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Recycle } from 'lucide-react';
+import { AlertCircle, FolderOpen, Recycle } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -153,17 +153,22 @@ export function ProjectManagementPage() {
     <>
       <div className="relative min-h-full">
         <div className="space-y-4">
-          <div className="rounded-[24px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(245,249,255,0.78))] px-5 py-4 shadow-[0_20px_42px_rgba(59,89,143,0.08)]">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-1 flex-col gap-3 sm:flex-row">
-                <input
-                  value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
-                  placeholder="按项目名 / 申请人 / 部门搜索"
-                  className="w-full max-w-[480px] rounded-[18px] border border-white/62 bg-white/78 px-4 py-3 text-sm text-[color:var(--foreground)] outline-none"
-                />
+          {/* Page Hero: title + search + actions */}
+          <div className="page-hero">
+            <div className="page-hero__row">
+              <div className="page-hero__left">
+                <div className="page-hero__icon">
+                  <FolderOpen size={17} />
+                </div>
+                <div>
+                  <div className="page-hero__title">项目管理</div>
+                  <div className="page-hero__sub">项目全生命周期管理与追踪</div>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="page-hero__right">
+                <span className="page-hero__stat page-hero__stat--info">
+                  共 {items.length} 项
+                </span>
                 <button
                   type="button"
                   onClick={() => setShowRecycleBin(true)}
@@ -186,24 +191,35 @@ export function ProjectManagementPage() {
                 </button>
               </div>
             </div>
+            <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.5rem" }}>
+              <input
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                placeholder="按项目名 / 申请人 / 部门搜索"
+                className="neu-input max-w-[480px]"
+              />
+            </div>
           </div>
 
           {errorMessage ? (
-            <div className="rounded-[20px] border border-[rgba(215,89,89,0.18)] bg-[rgba(255,241,241,0.76)] px-4 py-3 text-sm text-[color:var(--danger)]">
-              {errorMessage}
+            <div className="wb-panel p-4" style={{ border: "1px solid color-mix(in oklch, var(--danger) 22%, transparent)" }}>
+              <div className="flex items-center gap-2.5 text-sm text-[color:var(--danger)]">
+                <AlertCircle size={16} />
+                {errorMessage}
+              </div>
             </div>
           ) : null}
 
           {loading ? (
-            <div className="rounded-[24px] border border-white/60 bg-white/70 px-6 py-10 text-center text-sm text-[color:var(--muted-foreground)]">
+            <div className="wb-panel p-6 flex items-center justify-center">
               <div className="flex flex-col items-center gap-3">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-[rgba(96,139,239,0.3)] border-t-[rgba(96,139,239,1)]" />
-                正在加载项目...
+                <span className="text-sm text-[color:var(--muted-foreground)]">正在加载项目...</span>
               </div>
             </div>
           ) : filteredItems.length === 0 ? (
-            <div className="rounded-[24px] border border-white/60 bg-white/70 px-6 py-10 text-center text-sm text-[color:var(--muted-foreground)]">
-              当前没有进行中的项目。
+            <div className="wb-panel p-10 flex items-center justify-center">
+              <span className="text-sm text-[color:var(--muted-foreground)]">当前没有进行中的项目。</span>
             </div>
           ) : (
             <div className="grid gap-4 xl:grid-cols-2">

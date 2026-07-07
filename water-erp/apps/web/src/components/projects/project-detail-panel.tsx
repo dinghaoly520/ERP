@@ -986,10 +986,10 @@ export function ProjectDetailPanel({
 
   return (
     <>
-      <div className="pm-detail-overlay absolute inset-0 z-[120] rounded-[24px] bg-[rgba(246,249,253,0.72)] backdrop-blur-[3px]" />
+      <div className="pm-detail-overlay absolute inset-0 z-[120] rounded-[24px] bg-[var(--background)]/60 backdrop-blur-[3px]" />
 
-      <section className="pm-detail-shell panel-surface absolute inset-0 z-[121] flex flex-col overflow-hidden rounded-[24px] border border-white/72 shadow-[0_36px_90px_rgba(42,71,126,0.18)]">
-        <div className="pm-detail-header border-b border-white/55 px-5 py-5 sm:px-6 lg:px-7">
+      <section className="absolute inset-0 z-[121] flex flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+        <div className="px-5 py-5 sm:px-6 lg:px-7" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
           <div className="pm-project-header pm-project-header--inline rounded-[28px] px-5 py-5 sm:px-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
@@ -1012,7 +1012,7 @@ export function ProjectDetailPanel({
                   type="button"
                   onClick={() => void moveToRecycleBin()}
                   disabled={submitting || uploading}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/72 bg-white/82 px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  className="neu-btn-soft is-danger"
                 >
                   <Recycle size={16} />
                   移至回收站
@@ -1021,7 +1021,7 @@ export function ProjectDetailPanel({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/72 bg-white/76 px-4 py-2 text-sm font-semibold text-[color:var(--muted-foreground)] transition hover:bg-white hover:text-[color:var(--foreground)]"
+                  className="neu-btn-soft"
                 >
                   <X size={16} />
                   关闭
@@ -1562,7 +1562,7 @@ export function ProjectDetailPanel({
                       type="button"
                       onClick={() => void uploadStageFiles()}
                       disabled={uploading || selectedFiles.length === 0 || stageLocked}
-                      className="pm-upload-btn inline-flex min-h-11 items-center gap-2 rounded-full px-5 py-2.5 text-[0.82rem] font-semibold shadow-[0_4px_14px_rgba(86,127,208,0.12)] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                      className="neu-btn-primary"
                     >
                       {uploading ? (
                         <>
@@ -1582,7 +1582,7 @@ export function ProjectDetailPanel({
                       type="button"
                       onClick={() => void markStageCompleted(selectedStage)}
                       disabled={!canCompleteStage || submitting}
-                      className="pm-complete-btn inline-flex min-h-11 items-center gap-2 rounded-full px-5 py-2.5 text-[0.82rem] font-semibold transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="neu-btn-primary is-success"
                     >
                       {submitting ? (
                         <>
@@ -1615,7 +1615,7 @@ export function ProjectDetailPanel({
                           setSelectedFiles([]);
                           if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
-                        className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium text-[color:var(--muted-foreground)] opacity-60 transition-opacity hover:opacity-100"
+                        className="neu-btn-soft !px-3 !py-1.5 !text-[11px]"
                       >
                         <X size={12} />
                         清空选择
@@ -1674,7 +1674,7 @@ export function ProjectDetailPanel({
                         type="button"
                         onClick={() => setCurrentFileIndex(Math.max(0, currentFileIndex - 1))}
                         disabled={currentFileIndex === 0}
-                        className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/72 bg-white/82 px-3 py-1.5 text-xs font-semibold text-[color:var(--foreground)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                        className="neu-btn-xs"
                       >
                         <ChevronLeft size={14} />
                         上一份
@@ -1686,7 +1686,7 @@ export function ProjectDetailPanel({
                         type="button"
                         onClick={() => setCurrentFileIndex(Math.min(stageFileAnalysis.length - 1, currentFileIndex + 1))}
                         disabled={currentFileIndex === stageFileAnalysis.length - 1}
-                        className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/72 bg-white/82 px-3 py-1.5 text-xs font-semibold text-[color:var(--foreground)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                        className="neu-btn-xs"
                       >
                         <ChevronRight size={14} />
                         下一份
@@ -1715,7 +1715,7 @@ export function ProjectDetailPanel({
             onClick={() => setShowArchiveConfirm(false)}
           />
           {/* 对话框 */}
-          <div className="relative mx-4 w-full max-w-md rounded-[24px] bg-white/95 p-6 shadow-[0_24px_64px_rgba(0,0,0,0.16)] backdrop-blur-xl">
+          <div className="relative mx-4 w-full max-w-md rounded-[24px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
             <h3 className="text-lg font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
               确认归档
             </h3>
