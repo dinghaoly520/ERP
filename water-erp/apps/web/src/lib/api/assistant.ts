@@ -93,8 +93,9 @@ export async function sendMessage(
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: 'AI 服务异常' }));
-      callbacks.onError((err as { message?: string }).message || 'AI 服务暂时不可用');
+      const text = await response.text().catch(() => '');
+      console.error(`[Assistant] API 返回非 200: ${response.status} ${response.statusText}`, text.slice(0, 500));
+      callbacks.onError(`服务异常（${response.status}），请确认 API 已重启并检查后端日志`);
       return;
     }
 
