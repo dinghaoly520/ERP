@@ -6609,8 +6609,8 @@ a {
   --asst-chart-border: oklch(0.68 0.03 255 / 0.45);
   --asst-chart-bg: linear-gradient(175deg, oklch(1 0 0 / 0.88), oklch(0.96 0.01 255 / 0.8));
   --asst-chart-bar: linear-gradient(90deg, oklch(0.48 0.16 251 / 0.72), oklch(0.58 0.12 253 / 0.58));
-  --asst-user-bubble-bg: linear-gradient(135deg, oklch(0.48 0.16 251 / 0.92), oklch(0.55 0.14 253 / 0.88));
-  --asst-bot-bubble-bg: oklch(1 0 0 / 0.72);
+  --asst-user-bubble-bg: linear-gradient(135deg, oklch(0.72 0.12 251 / 0.28), oklch(0.76 0.08 253 / 0.22));
+  --asst-bot-bubble-bg: oklch(1 0 0 / 0.78);
   --asst-panel-gradient: linear-gradient(175deg, oklch(0.975 0.01 258 / 0.96), oklch(0.96 0.01 258 / 0.92) 40%, oklch(0.95 0.01 258 / 0.88));
   --asst-panel-border: 1px solid var(--asst-border-color);
   --asst-header-gradient: linear-gradient(180deg, oklch(1 0 0 / 0.85), oklch(0.975 0.01 258 / 0.72));
@@ -7179,8 +7179,12 @@ a {
 }
 .asst-bubble-user {
   background: var(--asst-user-bubble-bg);
-  color: white;
+  color: var(--foreground);
   border-bottom-right-radius: 6px;
+  border: 1px solid oklch(0.68 0.08 251 / 0.2);
+  box-shadow:
+    0.5px 0.5px 2px oklch(0.55 0.03 258 / 0.04),
+    -0.5px -0.5px 1.5px oklch(1 0 0 / 0.5);
 }
 .asst-bubble-bot {
   background: var(--asst-bot-bubble-bg);
