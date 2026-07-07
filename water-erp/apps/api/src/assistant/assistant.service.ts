@@ -256,16 +256,19 @@ ${toolList}
       return '抱歉，数据查询服务暂时不可用，请稍后重试。';
     }
 
-    const cardDigest = (cards as Array<Record<string, unknown>>).map((c) => ({
-      type: c.type,
-      title: c.title,
-      ...(c.type === 'table'
-        ? { rowCount: Array.isArray(c.rows) ? (c.rows as unknown[]).length : 0 }
-        : { chartType: (c as Record<string, unknown>).chartType }),
-    }));
+    const cardDigest = (cards as Array<Record<string, unknown>>)
+      .filter((c) => c.type === 'table')
+      .slice(0, 3)
+      .map((c) => ({
+        title: c.title,
+        rows: (c.rows as Array<Record<string, unknown>> || []).slice(0, 20).map((r: Record<string, unknown>) => {
+          const { _total, ...rest } = r;
+          return rest;
+        }),
+      }));
 
-    const toolDataStr = JSON.stringify(cardDigest).slice(0, 3000);
-    const systemMsg = `以下是系统从数据库中查询到的真实统计数据。你必须严格基于这些数据回答，不得使用任何不在此数据中的数字或名称。\n\n真实数据：\n${toolDataStr}\n\n请按系统提示词的总-分结构，用真实数据撰写回复。记住：你看到的数字必须是这些数据中的数字，一个都不能编。`;
+    const toolDataStr = JSON.stringify(cardDigest, null, 0).slice(0, 4000);
+    const systemMsg = `以下是系统从数据库中查询到的真实统计数据。你必须严格基于这些数据回答，不得使用任何不在此数据中的数字或名称。每个数字都必须来自以下数据：\n${toolDataStr}\n\n请按系统提示词的总-分结构，用真实数据撰写回复。记住：你看到的数字必须是这些数据中的数字，一个都不能编。`;
 
     const followUpMessages: ChatMessage[] = [
       ...messages,
@@ -338,24 +341,28 @@ ${toolList}
         '抱歉，数据查询失败，请稍后重试或换一种方式提问。';
     }
 
-    // 用已有的 cards 摘要传给 LLM 做第二轮调用 —— 避免传递原始 Prisma 实体
+    // 用已有的 cards 摘要传给 LLM 做第二轮调用
     let toolDataStr = '';
     try {
-      // cards 里都是纯 JS 对象（table 的 rows/columns, chart 的 option），安全序列化
-      const cardDigest = (cards as Array<Record<string, unknown>>).map((c) => ({
-        type: c.type,
-        title: c.title,
-        ...(c.type === 'table'
-          ? { rowCount: Array.isArray(c.rows) ? (c.rows as unknown[]).length : 0 }
-          : { chartType: (c as Record<string, unknown>).chartType }),
-      }));
-      toolDataStr = JSON.stringify(cardDigest).slice(0, 3000);
+      // 直接传表格数据行（不是 raw Prisma entity，是已经脱敏的卡片数据）
+      const cardDigest = (cards as Array<Record<string, unknown>>)
+        .filter((c) => c.type === 'table')
+        .slice(0, 3)
+        .map((c) => ({
+          title: c.title,
+          rows: (c.rows as Array<Record<string, unknown>> || []).slice(0, 20).map((r: Record<string, unknown>) => {
+            // 去掉 _total 标记行和内部字段
+            const { _total, ...rest } = r;
+            return rest;
+          }),
+        }));
+      toolDataStr = JSON.stringify(cardDigest, null, 0).slice(0, 4000);
     } catch (e) {
       this.logger.warn(`handleNormalChat: cards JSON 摘要失败: ${(e as Error).message}`);
       toolDataStr = `${cards.length} 张卡片已生成`;
     }
 
-    const toolSummary = `以下是 ${successCount} 个工具返回的真实数据摘要，请综合引用其中的项目名称、金额、日期等具体信息：\n\`\`\`json\n${toolDataStr}\n\`\`\`\n\n请基于以上真实数据，按系统提示词的总-分结构输出回答。必须引用具体的项目名称、金额数字、时间节点。注意：数据中的英文状态码（如OPENING、PENDING）仅供你理解使用，在回答中必须转换为中文（如"开标阶段""待审核"），严禁在回答中输出英文代码。不要写空泛的概括。`;
+    const toolSummary = `以下是 ${successCount} 个工具从数据库查询到的真实数据。你必须严格基于这些数据回答，不得编造任何数字或名称：\n${toolDataStr}\n\n请基于以上真实数据，按系统提示词的总-分结构输出回答。每个数字都必须来自以上数据，不得使用数据中没有的数字。项目名称、金额、数量等必须与以上数据完全一致。注意：数据中的英文状态码（如OPENING、PENDING）仅供你理解使用，在回答中必须转换为中文（如"开标阶段""待审核"），严禁在回答中输出英文代码。不要写空泛的概括。`;
 
     try {
       // 若剥离 TOOL_CALL 后 answer 为空，不传空 assistant 消息（DeepSeek 会拒绝空 content）
