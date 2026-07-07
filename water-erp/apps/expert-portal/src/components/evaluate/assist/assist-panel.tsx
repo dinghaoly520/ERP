@@ -8,15 +8,12 @@ import {
   Sparkles,
   CheckCircle,
   XCircle,
-  ChevronDown,
-  ChevronUp,
   ShieldCheck,
   ClipboardCheck,
   TrendingUp,
   AlertCircle,
   Lightbulb,
   MessageSquare,
-  Medal,
   ShieldAlert,
   Search,
   Download,
@@ -40,6 +37,12 @@ import { ScoreBreakdownBars, CATEGORY_LABEL, CATEGORY_COLOR } from './charts/sco
 import { ScoreBarChart } from './charts/score-bar-chart';
 import type { ScoreBarChartData } from './charts/score-bar-chart';
 import { PriceComparisonChart } from './charts/price-comparison-chart';
+import { CollapsibleSection } from './shared/collapsible-section';
+import { SectionHeader, SectionNumber } from './shared/section-header';
+import { PassFailReviewCard } from './shared/pass-fail-card';
+import { SwCard, type SwItem } from './shared/sw-card';
+import { FieldCard } from './shared/field-card';
+import { RankBadge } from './shared/rank-badge';
 
 // ── 类型 ──
 
@@ -50,14 +53,6 @@ interface ComparedBidder {
   categoryTotals: Record<string, { score: number; max: number }>;
   qualificationStatus: string;
   riskLevel: string;
-}
-
-interface SwItem {
-  dimension: string;
-  title: string;
-  detail: string;
-  evidence?: string;
-  impact?: string;
 }
 
 interface AssistPanelProps {
@@ -74,216 +69,9 @@ interface AssistPanelProps {
 // 仅用于雷达/柱状图的评分维度
 const SCORE_CATEGORIES = ['BUSINESS', 'TECHNICAL', 'PRICE'];
 
-// ── 维度徽章颜色 ──
-
-const DIMENSION_LABEL: Record<string, string> = {
-  qualification: '资质',
-  technical: '技术',
-  commercial: '商务',
-  price: '价格',
-  risk: '风险',
-};
-
-const DIMENSION_COLOR: Record<string, string> = {
-  qualification: '#064ea2',
-  technical: '#11a874',
-  commercial: '#f5a623',
-  price: '#e74c3c',
-  risk: '#8b5cf6',
-};
-
 // ═══════════════════════════════════════════════════════════════
-// 子组件
+// 区域组件
 // ═══════════════════════════════════════════════════════════════
-
-// ── Pass/Fail 审查卡片 ──
-
-function PassFailReviewCard({ item }: { item: AiScoreItem }) {
-  const isPass = item.pass === true;
-  return (
-    <div
-      className={`flex items-start gap-3 p-3 rounded-lg border ${
-        isPass ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
-      }`}
-    >
-      <span
-        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-          isPass ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
-        }`}
-      >
-        {isPass ? <CheckCircle size={14} /> : <XCircle size={14} />}
-      </span>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="font-semibold text-sm text-[var(--color-text)]">{item.name}</span>
-          <span
-            className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-              isPass ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-            }`}
-          >
-            {isPass ? '通过' : '不通过'}
-          </span>
-        </div>
-        {item.reason && (
-          <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{item.reason}</p>
-        )}
-        {item.evidence && (
-          <div className="mt-1.5 text-[11px] text-[var(--color-text-tertiary)]">
-            <span className="font-medium">证据：</span>
-            {item.evidence}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── SW 卡片（正向依据/需关注事项）──
-
-function SwCard({ item, type }: { item: SwItem; type: 'strength' | 'weakness' }) {
-  const isStrength = type === 'strength';
-  const color = DIMENSION_COLOR[item.dimension] ?? '#0b63ce';
-
-  return (
-    <div
-      className={`glass-card glass-card-lighter rounded-lg p-3.5 border-l-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
-        isStrength ? 'border-l-emerald-400' : 'border-l-amber-400'
-      }`}
-    >
-      <div className="flex items-start gap-2 mb-1.5">
-        {isStrength ? (
-          <TrendingUp size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-        ) : (
-          <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-        )}
-        <div className="flex-1 min-w-0">
-          <span
-            className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded mb-1"
-            style={{ color, background: `${color}15` }}
-          >
-            {DIMENSION_LABEL[item.dimension] ?? item.dimension}
-          </span>
-          <div className="font-semibold text-sm text-[var(--color-text)]">{item.title}</div>
-        </div>
-      </div>
-      <p className="text-xs text-[var(--color-text-secondary)] ml-6 leading-relaxed">{item.detail}</p>
-      {(item.evidence || item.impact) && (
-        <div className="mt-2 ml-6 space-y-1">
-          {item.evidence && (
-            <div className="text-[11px] text-[var(--color-text-tertiary)]">
-              <span className="font-medium">证据：</span>
-              {item.evidence}
-            </div>
-          )}
-          {item.impact && (
-            <div className={`text-[11px] font-medium ${isStrength ? 'text-emerald-600' : 'text-amber-600'}`}>
-              <span>{isStrength ? '影响：' : '风险：'}</span>
-              {item.impact}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── 可折叠段落 ──
-
-function CollapsibleSection({
-  title,
-  icon,
-  accent,
-  defaultOpen = false,
-  summary,
-}: {
-  title: string;
-  icon?: React.ReactNode;
-  accent?: string;
-  defaultOpen?: boolean;
-  /** 常驻内容（折叠+展开都显示）；可为函数 (isOpen) => ReactNode，按展开态切换 reason 截断/完整 */
-  summary?: React.ReactNode | ((isOpen: boolean) => React.ReactNode);
-}) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  const summaryNode = typeof summary === 'function' ? summary(isOpen) : summary;
-
-  return (
-    <div className="glass-card glass-card-lighter rounded-xl overflow-hidden">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-3 p-4 text-left hover:bg-white/40 transition-colors"
-      >
-        {accent && <span className="w-1 h-6 rounded-full shrink-0" style={{ background: accent }} />}
-        {icon && <span className="text-[var(--color-primary)] shrink-0">{icon}</span>}
-        <span className="font-semibold text-sm text-[var(--color-text)] flex-1 truncate">{title}</span>
-        <span className="text-[10px] text-[var(--color-text-tertiary)] px-2 py-0.5 rounded bg-white/50 shrink-0">
-          {isOpen ? '收起' : '展开'}
-        </span>
-        {isOpen ? (
-          <ChevronUp size={14} className="text-[var(--color-text-tertiary)] shrink-0" />
-        ) : (
-          <ChevronDown size={14} className="text-[var(--color-text-tertiary)] shrink-0" />
-        )}
-      </button>
-      {summaryNode && <div className="px-4 pt-1 pb-4">{summaryNode}</div>}
-    </div>
-  );
-}
-
-// ── 字段卡片（关键信息用）──
-
-function FieldCard({
-  icon,
-  label,
-  value,
-  suffix,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number | null | undefined;
-  suffix?: string;
-}) {
-  return (
-    <div className="glass-card glass-card-lighter rounded-lg p-3">
-      <div className="flex items-center gap-1.5 mb-1">
-        <span className="text-[var(--color-text-tertiary)]">{icon}</span>
-        <span className="text-[11px] text-[var(--color-text-tertiary)]">{label}</span>
-      </div>
-      <div className="font-semibold text-sm text-[var(--color-text)]">
-        {value != null ? String(value) + (suffix ?? '') : '—'}
-      </div>
-    </div>
-  );
-}
-
-// ── 排名徽章 ──
-
-function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1)
-    return (
-      <span className="w-6 h-6 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
-        <Medal size={12} />
-      </span>
-    );
-  if (rank === 2)
-    return (
-      <span className="w-6 h-6 rounded-full bg-gradient-to-br from-slate-300 to-slate-400 flex items-center justify-center text-white text-xs font-bold shadow-sm">
-        <Medal size={12} />
-      </span>
-    );
-  if (rank === 3)
-    return (
-      <span className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-600 to-amber-700 flex items-center justify-center text-white text-xs font-bold shadow-sm">
-        <Medal size={12} />
-      </span>
-    );
-  return (
-    <span className="w-6 h-6 rounded-full bg-[oklch(0.92_0.008_264)] flex items-center justify-center text-[11px] font-bold text-[var(--color-text-tertiary)]">
-      {rank}
-    </span>
-  );
-}
-
-// ── AI vs 专家对比表 ──
 
 function ExpertComparisonTable({
   myScoredItems,
@@ -1154,40 +942,6 @@ function RankingSection({
       <p className="text-xs text-[var(--color-text-tertiary)] text-center">
         以上排名与数据由 AI 分析引擎生成，最终评审结果以专家人工评分为准。
       </p>
-    </div>
-  );
-}
-
-// ── 分区标题 ──
-
-// ── 实心编号圆 ──
-
-function SectionNumber({ n }: { n: number }) {
-  return (
-    <svg width={18} height={18} viewBox="0 0 18 18" className="shrink-0">
-      <circle cx={9} cy={9} r={9} fill="var(--color-primary)" />
-      <text
-        x={9}
-        y={12}
-        textAnchor="middle"
-        fill="#fff"
-        fontSize={10}
-        fontWeight={700}
-        fontFamily="system-ui, sans-serif"
-      >
-        {n}
-      </text>
-    </svg>
-  );
-}
-
-function SectionHeader({ number, title, subtitle }: { number: number; title: string; subtitle?: string }) {
-  return (
-    <div className="flex items-center gap-2.5 pt-2 pb-1">
-      <SectionNumber n={number} />
-      <h3 className="font-bold text-sm text-[var(--color-text)]">{title}</h3>
-      {subtitle && <span className="text-[11px] text-[var(--color-text-tertiary)]">{subtitle}</span>}
-      <span className="flex-1 h-px bg-[oklch(0.91_0.006_264)] ml-2" />
     </div>
   );
 }
