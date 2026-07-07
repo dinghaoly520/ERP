@@ -612,12 +612,28 @@ export class ExpertService {
       where: { projectId },
       select: { id: true },
     });
-    if (!task) return { bidders: [] };
+    if (!task) return { bidders: [], projectFraudSummary: null, reportDocxUrl: null };
 
-    const results = await this.prisma.aiBidderResult.findMany({
-      where: { taskId: task.id, status: 'COMPLETED' },
-      include: { bidSupplier: { select: { supplierName: true } } },
-    });
+    const [results, report] = await Promise.all([
+      this.prisma.aiBidderResult.findMany({
+        where: { taskId: task.id, status: 'COMPLETED' },
+        include: { bidSupplier: { select: { supplierName: true } } },
+      }),
+      this.prisma.aiBidReport.findUnique({
+        where: { taskId: task.id },
+        select: { fraudIndicators: true, docxFileId: true },
+      }),
+    ]);
+
+    let projectFraudSummary: { riskLevel: string; indicatorCount: number } | null = null;
+    if (report?.fraudIndicators) {
+      const fi = report.fraudIndicators as any;
+      projectFraudSummary = {
+        riskLevel: fi.riskLevel ?? 'low',
+        indicatorCount: fi.summary?.totalCount ?? fi.indicators?.length ?? 0,
+      };
+    }
+    const reportDocxUrl = report?.docxFileId ? `/api/upload/files/${report.docxFileId}` : null;
 
     return {
       bidders: results.map((r) => ({
@@ -628,6 +644,8 @@ export class ExpertService {
         qualificationStatus: r.qualificationStatus ?? '待审查',
         riskLevel: r.riskLevel ?? 'low',
       })),
+      projectFraudSummary,
+      reportDocxUrl,
     };
   }
 

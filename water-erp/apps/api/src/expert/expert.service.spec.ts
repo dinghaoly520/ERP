@@ -197,6 +197,36 @@ describe('ExpertService', () => {
     });
   });
 
+  describe('getAssistCompare', () => {
+    it('返回 bidders + projectFraudSummary + reportDocxUrl（项目级）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1' });
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue({ id: 't-1' }) };
+      prisma.aiBidderResult.findMany.mockResolvedValue([
+        { bidSupplierId: 's1', totalScore: 80, categoryTotals: {}, qualificationStatus: '通过', riskLevel: 'low',
+          bidSupplier: { supplierName: '甲' } },
+      ]);
+      prisma.aiBidReport = { findUnique: jest.fn().mockResolvedValue({
+        fraudIndicators: { riskLevel: 'medium', summary: { totalCount: 3 } },
+        docxFileId: 'doc-1',
+      }) };
+
+      const out = await service.getAssistCompare('u1', 'proj-1');
+      expect(out.bidders).toHaveLength(1);
+      expect(out.bidders[0]).toMatchObject({ supplierId: 's1', supplierName: '甲', totalScore: 80 });
+      expect(out.projectFraudSummary).toEqual({ riskLevel: 'medium', indicatorCount: 3 });
+      expect(out.reportDocxUrl).toBe('/api/upload/files/doc-1');
+    });
+
+    it('无 task 时返回空 bidders + null 摘要', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1' });
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue(null) };
+      const out = await service.getAssistCompare('u1', 'proj-1');
+      expect(out.bidders).toEqual([]);
+      expect(out.projectFraudSummary).toBeNull();
+      expect(out.reportDocxUrl).toBeNull();
+    });
+  });
+
   describe('updateProfile', () => {
     it('应更新用户 displayName 和 email', async () => {
       prisma.user.update.mockResolvedValue({ id: 'user-1', displayName: '王工', email: 'wang@test.com' });
