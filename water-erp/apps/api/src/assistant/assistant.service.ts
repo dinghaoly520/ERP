@@ -111,8 +111,9 @@ export class AssistantService {
 【你可以使用的数据工具】
 ${toolList}
 
-【重要规则】
-- 当用户询问数据/统计/列表/详情/分析问题时，你必须调用相应的工具获取真实数据。
+【重要规则 —— 违反即为错误回复】
+- 铁律：任何涉及数据/统计/列表/详情/分析的回复，必须先通过 TOOL_CALL 调用工具。你没有内置数据库，不知道系统里有什么数据。不调用工具就回复数字 = 编造。
+- 当用户询问任何可能涉及数据的问题时，你的第一轮回复应该只包含 TOOL_CALL 指令，不要写任何实质内容。等系统把真实数据返回给你后，再基于真实数据撰写第二轮回复。
 - 工具调用格式（放在回答最前面，独占一行）：
   TOOL_CALL: {"tool": "<工具名>", "args": {"action": "<action>", ...}}
 - 每次回答调用一个或者多个工具。先获取数据，再基于数据提炼洞察。
@@ -235,6 +236,51 @@ ${toolList}
     return res.text;
   }
 
+  /**
+   * 安全兜底：模型没有调用任何工具就直接输出回复（大概率编造数据），
+   * 强制调用 global_overview 获取真实数据，再以此为基础生成第二轮回復。
+   */
+  private async handleFallbackWithGlobalOverview(
+    messages: ChatMessage[],
+    cards: unknown[],
+    citations: unknown[],
+  ): Promise<string> {
+    // 执行 global_overview 获取真实统计数据
+    const tool = this.toolRegistry.get('global_overview');
+    if (tool) {
+      const result = await tool.execute({});
+      this.pushCardsWithCharts(result, cards);
+    }
+
+    if (cards.length === 0) {
+      return '抱歉，数据查询服务暂时不可用，请稍后重试。';
+    }
+
+    const cardDigest = (cards as Array<Record<string, unknown>>).map((c) => ({
+      type: c.type,
+      title: c.title,
+      ...(c.type === 'table'
+        ? { rowCount: Array.isArray(c.rows) ? (c.rows as unknown[]).length : 0 }
+        : { chartType: (c as Record<string, unknown>).chartType }),
+    }));
+
+    const toolDataStr = JSON.stringify(cardDigest).slice(0, 3000);
+    const systemMsg = `以下是系统从数据库中查询到的真实统计数据。你必须严格基于这些数据回答，不得使用任何不在此数据中的数字或名称。\n\n真实数据：\n${toolDataStr}\n\n请按系统提示词的总-分结构，用真实数据撰写回复。记住：你看到的数字必须是这些数据中的数字，一个都不能编。`;
+
+    const followUpMessages: ChatMessage[] = [
+      ...messages,
+      { role: 'user' as const, content: systemMsg },
+    ];
+
+    try {
+      const res = await this.model.chat(followUpMessages);
+      return res.text?.trim() || '抱歉，AI 未能生成有效回复，请重新提问。';
+    } catch (e) {
+      this.logger.error(`handleFallbackWithGlobalOverview: 模型调用失败: ${(e as Error).message}`);
+      return '抱歉，AI 服务暂时不可用，请稍后重试。';
+    }
+  }
+
   private async handleNormalChat(
     messages: ChatMessage[],
     cards: unknown[],
@@ -245,7 +291,12 @@ ${toolList}
 
     // Parse ALL TOOL_CALL directives (model may emit several for comprehensive questions)
     const toolCalls = this.parseAllToolCalls(answer);
-    if (toolCalls.length === 0) return answer;
+    if (toolCalls.length === 0) {
+      // 模型没有调用任何工具就直接回复了——这很可能是编造的数据。
+      // 强行注入 global_overview 并对原回复做真实性核查。
+      this.logger.warn('handleNormalChat: 模型未调用任何工具，强制注入 global_overview 并丢弃原回复');
+      return this.handleFallbackWithGlobalOverview(messages, cards, citations);
+    }
 
     this.logger.log(
       `handleNormalChat: 解析到 ${toolCalls.length} 个 TOOL_CALL: ${toolCalls.map((t) => `${t.tool}(${JSON.stringify(t.args)})`).join(', ')}`,
