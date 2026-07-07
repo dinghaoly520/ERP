@@ -242,7 +242,7 @@ export function UnifiedHeader({
     <header className="sticky top-0 z-50 flow-header-bg" style={{ willChange: 'transform' }}>
       {/* 底部动态光影线 — 青色调 */}
       <div className="absolute bottom-0 left-0 right-0 h-px z-30" style={{
-        background: 'linear-gradient(90deg, transparent 0%, #9ec5f0 20%, #6090d8 40%, #88b8f0 50%, #6090d8 60%, #9ec5f0 80%, transparent 100%)',
+        background: 'linear-gradient(90deg, transparent 0%, #5ecfd6 20%, #3db8c4 40%, #a8f0f0 50%, #3db8c4 60%, #5ecfd6 80%, transparent 100%)',
         backgroundSize: '200% 100%',
         animation: 'header-edge-flow 4s ease-in-out infinite',
       }} />
@@ -256,7 +256,7 @@ export function UnifiedHeader({
             <img src="/assets/logo.png" alt="四川水发集团" className="h-[45px] w-auto object-contain" />
             <div className="flex flex-col gap-0">
               <strong
-                className="whitespace-nowrap text-[27px] font-black leading-tight tracking-[0.10em] text-[#072e30]"
+                className="whitespace-nowrap text-[27px] font-black leading-tight tracking-[0.10em] text-[#0a2540]"
               >
                 四川水发集团
               </strong>
@@ -273,13 +273,13 @@ export function UnifiedHeader({
           <div
             className={`rounded-lg p-[1px] ${
               showDropdown
-                ? 'shadow-[0_4px_20px_rgba(37,99,235,.10),0_0_0_4px_rgba(37,99,235,.04)]'
-                : 'shadow-none hover:shadow-[0_4px_16px_rgba(37,99,235,.06),0_0_0_2px_rgba(37,99,235,.02)]'
+                ? 'shadow-[0_4px_20px_rgba(37,99,174,.10),0_0_0_4px_rgba(37,99,174,.04)]'
+                : 'shadow-none hover:shadow-[0_4px_16px_rgba(37,99,174,.06),0_0_0_2px_rgba(37,99,174,.02)]'
             }`}
             style={{
               backgroundImage: showDropdown
-                ? 'linear-gradient(110deg, #b8d4f4, #3b82f6 20%, #2563eb 40%, #1d4ed8 60%, #2563eb 80%, #b8d4f4)'
-                : 'linear-gradient(110deg, #dce4f4 0%, #c8d6ec 20%, #bcd0e8 40%, #cbdaee 60%, #d3e0f2 80%, #dce4f4 100%)',
+                ? 'linear-gradient(110deg, #bcd2ee, #2563ae 20%, #1d5fa8 40%, #3b8fd9 60%, #1d5fa8 80%, #bcd2ee)'
+                : 'linear-gradient(110deg, #dce5f2 0%, #c8d4e8 20%, #bccae4 40%, #cbd6e6 60%, #d3deec 80%, #dce5f2 100%)',
               backgroundSize: '300% 100%',
               animation: `search-border-flow ${showDropdown ? '2.2s' : '6s'} ease-in-out infinite`,
             }}
@@ -330,7 +330,7 @@ export function UnifiedHeader({
               onClick={() => executeSearch(query)}
               className={`group relative h-8 shrink-0 overflow-hidden rounded-r-[7px] text-xs font-bold transition-all duration-300 active:scale-95 ${
                 hasInput
-                  ? 'bg-gradient-to-r from-[#3b82f6] to-[#2563eb] text-white shadow-[0_1px_3px_rgba(37,99,235,.15)] hover:shadow-[0_2px_8px_rgba(37,99,235,.25)] hover:from-[#2563eb] hover:to-[#1d4ed8]'
+                  ? 'bg-gradient-to-r from-[#2563ae] to-[#1d5fa8] text-white shadow-[0_1px_3px_rgba(37,99,174,.15)] hover:shadow-[0_2px_8px_rgba(37,99,174,.25)] hover:from-[#1d4f8e] hover:to-[#143f74]'
                   : 'bg-[#e9ecf2] text-[#5a6d8a] hover:bg-[#dde1e8] hover:text-[#18243a]'
               }`}
             >
@@ -338,7 +338,7 @@ export function UnifiedHeader({
               <span
                 className="pointer-events-none absolute inset-0 rounded-[inherit]"
                 style={{
-                  background: 'radial-gradient(circle at center, rgba(37,99,235,0.18) 0%, transparent 70%)',
+                  background: 'radial-gradient(circle at center, rgba(37,99,174,0.18) 0%, transparent 70%)',
                   animation: 'dingdang-breathe 2.2s ease-in-out infinite',
                 }}
                 aria-hidden="true"
@@ -423,14 +423,14 @@ export function UnifiedHeader({
             onMouseLeave={handleMenuLeave}
           >
             <button
-              className="flex items-center gap-1 px-4 py-2 text-[14px] font-semibold tracking-wide text-[#072e30] hover:text-[#0d9488] transition-colors duration-200 whitespace-nowrap"
+              className="flex items-center gap-1 px-4 py-2 text-[14px] font-semibold tracking-wide text-[#0a2540] hover:text-[#1d5fa8] transition-colors duration-200 whitespace-nowrap"
               aria-expanded={activeMenu === 'about'}
             >
               集团简介
               <svg
                 width="10" height="10" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className={`mt-px transition-transform duration-300 ${activeMenu === 'about' ? 'rotate-180 text-[#0891a0]' : 'text-[#b0bcc9]'}`}
+                className={`mt-px transition-transform duration-300 ${activeMenu === 'about' ? 'rotate-180 text-[#2563ae]' : 'text-[#b0bcc9]'}`}
               >
                 <polyline points="6 9 12 15 18 9" />
               </svg>
@@ -443,12 +443,12 @@ export function UnifiedHeader({
                 style={{ top: aboutMenuPos.top, left: aboutMenuPos.left }}
               >
                 <a href="/about" target="_blank" rel="noopener noreferrer"
-                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#0891a0] transition-colors duration-150 text-center"
+                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#2563ae] transition-colors duration-150 text-center"
                 >
                   集团概况
                 </a>
                 <a href="https://www.scsfjt.com/" target="_blank" rel="noopener noreferrer"
-                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#0891a0] transition-colors duration-150 text-center"
+                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#2563ae] transition-colors duration-150 text-center"
                 >
                   集团官网
                 </a>
@@ -465,14 +465,14 @@ export function UnifiedHeader({
             onMouseLeave={handleMenuLeave}
           >
             <button
-              className="flex items-center gap-1 px-4 py-2 text-[14px] font-semibold tracking-wide text-[#072e30] hover:text-[#0d9488] transition-colors duration-200 whitespace-nowrap"
+              className="flex items-center gap-1 px-4 py-2 text-[14px] font-semibold tracking-wide text-[#0a2540] hover:text-[#1d5fa8] transition-colors duration-200 whitespace-nowrap"
               aria-expanded={activeMenu === 'contact'}
             >
               联系我们
               <svg
                 width="10" height="10" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className={`mt-px transition-transform duration-300 ${activeMenu === 'contact' ? 'rotate-180 text-[#0891a0]' : 'text-[#b0bcc9]'}`}
+                className={`mt-px transition-transform duration-300 ${activeMenu === 'contact' ? 'rotate-180 text-[#2563ae]' : 'text-[#b0bcc9]'}`}
               >
                 <polyline points="6 9 12 15 18 9" />
               </svg>
@@ -485,12 +485,12 @@ export function UnifiedHeader({
                 style={{ top: contactMenuPos.top, left: contactMenuPos.left }}
               >
                 <a href="/contact"
-                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#0891a0] transition-colors duration-150 text-center"
+                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#2563ae] transition-colors duration-150 text-center"
                 >
                   联系方式
                 </a>
                 <a href="/contact/visitor"
-                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#0891a0] transition-colors duration-150 text-center"
+                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#2563ae] transition-colors duration-150 text-center"
                 >
                   来访接待
                 </a>

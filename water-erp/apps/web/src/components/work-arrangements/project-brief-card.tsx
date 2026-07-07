@@ -6,26 +6,23 @@ export function ProjectBriefCard({
 }: {
   dailyPlan: WorkArrangementDailyPlan | null;
 }) {
-  if (!dailyPlan?.projectBrief) {
+  if (!dailyPlan) return null;
+  const text = dailyPlan.projectBrief || '';
+  if (!text) {
     return (
-      <div className="panel-surface panel-lens rounded-[24px] p-4">
+      <div className="neu-content-block rounded-[18px]">
         <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--foreground)]">
-          <Lightbulb size={16} aria-hidden="true" />
-          项目简报
+          <Lightbulb size={16} aria-hidden="true" />项目简报
         </div>
-        <p className="mt-3 text-sm text-[color:var(--muted-foreground)]">
-          正在生成项目简报...
-        </p>
+        <p className="mt-3 text-sm text-[color:var(--muted-foreground)]">暂无项目数据</p>
       </div>
     );
   }
 
-  const text = dailyPlan.projectBrief;
-
   // 无【】标记 → 纯文本段落
   if (!text.includes('【')) {
     return (
-      <div className="panel-surface panel-lens rounded-[24px] p-4">
+      <div className="neu-content-block rounded-[18px]">
         <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--foreground)]">
           <Lightbulb size={16} aria-hidden="true" />
           项目简报
@@ -55,7 +52,7 @@ export function ProjectBriefCard({
   }
 
   return (
-    <div className="panel-surface panel-lens rounded-[24px] p-4">
+    <div className="neu-content-block rounded-[18px]">
       <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--foreground)]">
         <Lightbulb size={16} aria-hidden="true" />
         项目简报

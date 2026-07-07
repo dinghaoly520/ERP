@@ -22,7 +22,7 @@ export function ReminderBanner({
   return (
     <div className="fixed top-0 left-0 right-0 z-50 animate-slide-down">
       <div className="mx-auto max-w-2xl px-4 py-3">
-        <div className="rounded-[20px] border border-amber-200 px-4 py-3 shadow-lg" style={{ background: 'linear-gradient(to right, #fffbeb, #fff7ed)' }}>
+        <div className="neu-content-block px-4 py-3" style={{ '--block-accent': 'oklch(0.78 0.12 83)' } as React.CSSProperties}>
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 flex-1 min-w-0">
               <div className="flex-shrink-0 mt-0.5">

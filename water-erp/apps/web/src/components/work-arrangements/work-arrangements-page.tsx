@@ -2,15 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { WorkbenchOverview } from "@/components/work-arrangements/workbench-overview";
-import { WorkbenchPlanningPanel } from "@/components/work-arrangements/workbench-planning-panel";
-import { WorkCalendar } from "@/components/work-arrangements/work-calendar";
-import { WorkDateTaskList } from "@/components/work-arrangements/work-date-task-list";
-import { WorkTaskQuickView } from "@/components/work-arrangements/work-task-quick-view";
+import { SchedulePanel } from "@/components/work-arrangements/schedule-panel";
+import { TaskDetailPanel } from "@/components/work-arrangements/task-detail-panel";
+import { AiAssistPanel } from "@/components/work-arrangements/ai-assist-panel";
 import { WorkTaskEditorDrawer } from "@/components/work-arrangements/work-task-editor-drawer";
-import { WorkTaskNotesPanel } from "@/components/work-arrangements/work-task-notes-panel";
 import { HistoryDrawer } from "@/components/work-arrangements/history-drawer";
 import { ReminderBanner } from "@/components/work-arrangements/reminder-banner";
-import { ProjectBriefCard } from "@/components/work-arrangements/project-brief-card";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
 import { fetchProjectManagementList } from "@/lib/api/project-management";
 import {
@@ -647,7 +644,6 @@ export function WorkArrangementsPage({
         {/* 顶部概览 */}
         <WorkbenchOverview
           currentUser={currentUser}
-          summary={workbenchSummary}
           dailyPlan={dailyPlan}
         />
 
@@ -667,81 +663,23 @@ export function WorkArrangementsPage({
           </div>
         ) : null}
 
-        <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(340px,0.92fr)_minmax(0,1.28fr)]">
-          <section className="flex min-h-0 flex-col gap-3 overflow-hidden p-4">
-            <div className="flex items-center justify-between gap-3 px-1">
-              <div className="text-sm font-semibold text-[color:var(--foreground)]">
-                {selectedDate.getMonth() + 1}月{selectedDate.getDate()}日 {['周日','周一','周二','周三','周四','周五','周六'][selectedDate.getDay()]} · {tasksForSelectedDate.length}项
-              </div>
-              <button type="button" onClick={handleCreateNew} aria-label="新建工作安排" className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--surface)] px-3 py-1.5 text-xs font-medium shadow-sm transition hover:bg-[var(--accent-soft)]">
-                <Plus size={12} />
-                <span>新建</span>
-              </button>
-            </div>
-
-            <WorkCalendar
-              items={allItems}
-              selectedDate={selectedDate}
-              onDateSelect={setSelectedDate}
-            />
-
-            <WorkDateTaskList
-              selectedDate={selectedDate}
-              items={tasksForSelectedDate}
-              unscheduledItems={unscheduledItems}
-              selectedItemId={selectedItemId}
-              highlightedTaskIds={highlightedTaskIds}
-              onSelectTask={handleSelectTask}
-              onCreateNew={handleCreateNew}
-            />
-          </section>
-
-          <div className="flex min-h-0 flex-col gap-4">
-            <section className="p-4">
-              <WorkTaskQuickView
-                item={selectedItem}
-                reminderState={selectedReminderState}
-                onStart={() => void handleQuickStatusUpdate('IN_PROGRESS')}
-                onComplete={() => void handleQuickStatusUpdate('COMPLETED')}
-                onBlock={() => void handleQuickStatusUpdate('BLOCKED')}
-                onUnblock={() => void handleUnblock()}
-                onCancel={() => void handleCancel()}
-                onPostponeReminder={() => void handlePostponeReminder()}
-                onOpenFullEditor={() => setShowFullEditor(true)}
-                onOpenNotes={() => setShowNotesPanel(true)}
-              />
-
-              <WorkTaskNotesPanel
-                open={showNotesPanel}
-                selectedItem={selectedItem}
-                noteType={noteType}
-                noteDraft={noteDraft}
-                noteSubmitting={noteSubmitting}
-                onNoteTypeChange={setNoteType}
-                onNoteDraftChange={setNoteDraft}
-                onSubmit={() => void handleAddNote()}
-              />
-            </section>
-
-            <WorkbenchPlanningPanel
-              dailyPlan={dailyPlan}
-              refreshingPlan={refreshingPlan}
-              onSelectTimeBlock={(taskIds) => {
-                setHighlightedTaskIds(taskIds);
-                const firstTaskId = taskIds[0];
-                if (firstTaskId) {
-                  handleSelectTask(firstTaskId);
-                }
-              }}
-              onRefreshPlan={() => void loadDailyPlan()}
-              onShowHistory={() => setShowHistoryDrawer(true)}
-            />
+        <div className="relative flex min-h-0 gap-4 items-start">
+          {/* 左列占位 */}
+          <div className="w-[calc(40%-0.5rem)] shrink-0 hidden xl:block" aria-hidden />
+          {/* 左列 absolute — 高度严格等于右列 */}
+          <div className="absolute left-0 top-0 bottom-0 w-[calc(40%-0.5rem)] hidden xl:block">
+            <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={highlightedTaskIds} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew}/>
+          </div>
+          {/* 移动端左列全宽 */}
+          <div className="w-full xl:hidden">
+            <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={highlightedTaskIds} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew}/>
+          </div>
+          {/* 右列 — 自然高度 */}
+          <div className="flex-1 min-w-0 flex flex-col gap-4">
+            <TaskDetailPanel item={selectedItem} reminderState={selectedReminderState} noteType={noteType} noteDraft={noteDraft} noteSubmitting={noteSubmitting} showNotesPanel={showNotesPanel} onStart={() => void handleQuickStatusUpdate('IN_PROGRESS')} onComplete={() => void handleQuickStatusUpdate('COMPLETED')} onBlock={() => void handleQuickStatusUpdate('BLOCKED')} onUnblock={() => void handleUnblock()} onCancel={() => void handleCancel()} onPostponeReminder={() => void handlePostponeReminder()} onOpenFullEditor={() => setShowFullEditor(true)} onOpenNotes={() => setShowNotesPanel(true)} onNoteTypeChange={setNoteType} onNoteDraftChange={setNoteDraft} onSubmitNote={() => void handleAddNote()}/>
+            <AiAssistPanel dailyPlan={dailyPlan} refreshingPlan={refreshingPlan} isChairman={false} showProjectBrief={currentUser?.role === 'leader' || currentUser?.role === 'admin'} onSelectTimeBlock={(taskIds) => { setHighlightedTaskIds(taskIds); const id = taskIds[0]; if (id) handleSelectTask(id); }} onRefreshPlan={() => void loadDailyPlan()} onShowHistory={() => setShowHistoryDrawer(true)}/>
           </div>
         </div>
-
-        {(currentUser?.role === 'leader' || currentUser?.role === 'admin') && (
-          <ProjectBriefCard dailyPlan={dailyPlan} />
-        )}
 
         {errorMessage ? (
           <div className="flex items-center justify-between px-4 py-3 text-sm text-[color:var(--danger)]">

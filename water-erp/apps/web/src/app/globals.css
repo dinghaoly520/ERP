@@ -454,7 +454,7 @@ a {
   gap: 10px;
   width: 100%;
   padding: 8px 10px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   text-align: left;
   border-radius: 10px;
@@ -3291,8 +3291,12 @@ a {
   inset: -6px;
   border-radius: 22px;
   border: 1.5px solid var(--lc-ring, rgba(59,130,246,0.3));
-  box-shadow: 0 0 18px var(--lc-glow, rgba(59,130,246,0.16));
-  animation: liveClockRingPulse 3.6s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+  box-shadow:
+    0 0 18px var(--lc-glow, rgba(59,130,246,0.16)),
+    0 0 36px var(--lc-glow, rgba(59,130,246,0.06));
+  animation:
+    liveClockRingPulse 3.6s cubic-bezier(0.25, 1, 0.5, 1) infinite,
+    liveClockRingFlow 4s ease-in-out infinite;
   pointer-events: none;
 }
 
@@ -3397,6 +3401,25 @@ a {
   50% {
     transform: scale(1.03);
     opacity: 0.78;
+  }
+}
+
+@keyframes liveClockRingFlow {
+  0% {
+    border-color: rgba(94,207,214,0.38);
+    box-shadow: 0 0 18px rgba(94,207,214,0.22), 0 0 36px rgba(94,207,214,0.08);
+  }
+  33% {
+    border-color: rgba(61,184,196,0.44);
+    box-shadow: 0 0 24px rgba(61,184,196,0.26), 0 0 42px rgba(61,184,196,0.10);
+  }
+  66% {
+    border-color: rgba(168,240,240,0.38);
+    box-shadow: 0 0 22px rgba(168,240,240,0.24), 0 0 38px rgba(168,240,240,0.09);
+  }
+  100% {
+    border-color: rgba(94,207,214,0.38);
+    box-shadow: 0 0 18px rgba(94,207,214,0.22), 0 0 36px rgba(94,207,214,0.08);
   }
 }
 
@@ -8132,14 +8155,14 @@ textarea.neu-input {
 
 /* ── 分区标题 — .neu-section-heading ── */
 .neu-section-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 600;
   letter-spacing: -0.03em;
   color: var(--foreground);
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid oklch(0.7 0.02 248 / 0.2);
-  margin-bottom: 0.25rem;
 }
 
 /* ── 内容区块行 — .neu-content-block ── */
@@ -8224,6 +8247,279 @@ select.workbench-input {
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   Tab bar — .neu-tab-bar / .neu-tab
+   内凹容器 + 凸起 tab（默认）/ 抬升（hover）/ 内凹（激活）
+   ══════════════════════════════════════════════════════════════════ */
+.neu-tab-bar {
+  display: inline-flex;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 14px;
+  background: oklch(0.96 0.012 258);
+  box-shadow:
+    inset 1.5px 1.5px 4px oklch(0.55 0.03 258 / 0.1),
+    inset -1.5px -1.5px 3px oklch(1 0 0 / 0.65);
+}
+.neu-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--neu-raised-bg);
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    1px 1px 3px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 2px oklch(1 0 0 / 0.85);
+  transition: all 0.25s ease;
+  white-space: nowrap;
+}
+.neu-tab:hover {
+  color: var(--foreground);
+  background: var(--neu-raised-bg-hover);
+}
+.neu-tab:active {
+  box-shadow:
+    inset 1.5px 1.5px 4px oklch(0.55 0.03 258 / 0.14),
+    inset -1.5px -1.5px 3px oklch(1 0 0 / 0.5);
+}
+/* 激活 — 内凹（与凸起 tab 形成层次）*/
+.neu-tab.is-active {
+  color: var(--accent-strong);
+  background: transparent;
+  box-shadow:
+    inset 1.5px 1.5px 4px oklch(0.55 0.03 258 / 0.14),
+    inset -1.5px -1.5px 3px oklch(1 0 0 / 0.5);
+}
+.neu-tab-count {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: oklch(0.55 0.03 258 / 0.1);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.neu-tab.is-active .neu-tab-count {
+  background: oklch(0.5 0.16 251 / 0.14);
+  color: var(--accent-strong);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   表格外壳卡片 — .neu-table-card
+   玻璃 + 内高光 + 方向性双影；不响应 hover 抬升（避免整表抖动）
+   ══════════════════════════════════════════════════════════════════ */
+.neu-table-card {
+  position: relative;
+  background: oklch(1 0 0 / 0.62);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  border: 1.5px solid oklch(0.55 0.08 258 / 0.28);
+  border-radius: 20px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    3px 3px 8px oklch(0.55 0.03 258 / 0.1),
+    -2px -2px 6px oklch(1 0 0 / 0.85);
+  overflow: hidden;
+}
+.neu-table-card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid oklch(0.55 0.03 258 / 0.1);
+}
+.neu-table-card-footer {
+  padding: 12px 18px;
+  border-top: 1px solid oklch(0.55 0.03 258 / 0.1);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   新表格基类 — .neu-table
+   与 .workbench-table 并列，承载新交互（选中/排序/三态行）
+   ══════════════════════════════════════════════════════════════════ */
+.neu-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.neu-table thead {
+  background: oklch(0.96 0.012 258);
+  box-shadow:
+    inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08),
+    inset -1px -1px 2px oklch(1 0 0 / 0.6);
+  color: var(--muted-foreground);
+}
+.neu-table th {
+  padding: 12px 16px;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.neu-table td {
+  padding: 14px 16px;
+  color: var(--foreground);
+  border-top: 1px solid oklch(0.55 0.03 258 / 0.07);
+  vertical-align: middle;
+}
+.neu-table tbody tr {
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+.neu-table tbody tr:hover {
+  background: oklch(0.97 0.008 258);
+}
+/* 选中行 — 内凹 + 品牌色左侧条 */
+.neu-table tbody tr[data-selected="true"] {
+  background: oklch(0.96 0.03 251 / 0.32);
+  box-shadow: inset 3px 0 0 var(--accent-strong);
+}
+.neu-table tbody tr[data-selected="true"]:hover {
+  background: oklch(0.95 0.035 251 / 0.4);
+}
+.neu-table tbody tr.row-clickable {
+  cursor: pointer;
+}
+
+/* 可排序表头 */
+.neu-table th[data-sortable="true"] {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s ease;
+}
+.neu-table th[data-sortable="true"]:hover {
+  color: var(--foreground);
+}
+.neu-th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.neu-sort-indicator {
+  display: inline-flex;
+  opacity: 0;
+  color: var(--muted-foreground);
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+.neu-table th[data-sortable="true"]:hover .neu-sort-indicator {
+  opacity: 0.45;
+}
+.neu-table th[data-sort="asc"] .neu-sort-indicator,
+.neu-table th[data-sort="desc"] .neu-sort-indicator {
+  opacity: 1;
+  color: var(--accent-strong);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Checkbox — .neu-checkbox
+   泛化自 .login-remember__checkbox：内凹默认 + 品牌实心勾选/半选
+   ══════════════════════════════════════════════════════════════════ */
+.neu-checkbox {
+  position: relative;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 20px;
+  width: 20px;
+  border-radius: 6px;
+  border: 1px solid oklch(0.78 0.03 258 / 0.5);
+  background: oklch(0.99 0.004 258);
+  box-shadow:
+    inset 1.5px 1.5px 3px oklch(0.55 0.03 258 / 0.1),
+    inset -1px -1px 2px oklch(1 0 0 / 0.6);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+.neu-checkbox:hover {
+  border-color: oklch(0.5 0.16 251 / 0.5);
+}
+.neu-checkbox::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  height: 10px;
+  width: 5px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  opacity: 0;
+  transform: rotate(45deg) scale(0.6);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.neu-checkbox:checked {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  box-shadow:
+    inset 1px 1px 2px oklch(0.35 0.1 251 / 0.4),
+    inset -1px -1px 2px oklch(1 0 0 / 0.3);
+}
+.neu-checkbox:checked::after {
+  opacity: 1;
+  transform: rotate(45deg) scale(1);
+}
+.neu-checkbox:indeterminate {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+}
+.neu-checkbox:indeterminate::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 8.5px;
+  height: 0;
+  width: 10px;
+  border: none;
+  border-bottom: 2px solid #fff;
+  opacity: 1;
+  transform: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   批量操作浮条 — .neu-batch-bar
+   表格卡片顶部滑入；玻璃 + 内高光 + 双影
+   ══════════════════════════════════════════════════════════════════ */
+.neu-batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: oklch(0.99 0.004 258 / 0.85);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border-bottom: 1px solid oklch(0.55 0.08 258 / 0.18);
+  animation: neuBatchBarIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes neuBatchBarIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.neu-batch-bar-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.neu-batch-bar-count strong {
+  color: var(--accent-strong);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.neu-batch-bar-spacer { flex: 1; }
+
+/* ══════════════════════════════════════════════════════════════════
    reduced-motion 无障碍降级
    ══════════════════════════════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
@@ -8233,7 +8529,10 @@ select.workbench-input {
   .neu-card,
   .neu-input,
   .neu-select,
-  .flow-back {
+  .flow-back,
+  .neu-tab,
+  .neu-checkbox,
+  .neu-batch-bar {
     transition: none !important;
     animation: none !important;
   }
@@ -8243,3 +8542,77 @@ select.workbench-input {
     transform: none !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   工作台面板 — .wb-panel / .wb-panel-header / .wb-panel-body
+   完全对标 public-portal .announce-side（最新公告）
+   透明玻璃容器 + 头部栏 + 内容区，不嵌套子卡片
+   ══════════════════════════════════════════════════════════════════ */
+.wb-panel {
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 14px oklch(0.5 0.06 258 / 0.18),
+    -3px -3px 10px oklch(1 0 0 / 0.95),
+    0 12px 24px oklch(0.48 0.07 258 / 0.14);
+  min-height: 0;
+}
+
+.wb-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  flex-shrink: 0;
+}
+
+.wb-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+/* 列表行 — 1px hairline 分割 + hover 凸起 */
+.wb-list-item {
+  display: block;
+  width: 100%;
+  padding: 12px 0;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid oklch(0.6 0.06 258 / 0.12);
+}
+.wb-list-item:last-child { border-bottom: none; }
+.wb-list-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.6);
+}
+.wb-list-item.wb-selected {
+  font-weight: 600;
+  color: var(--foreground);
+  box-shadow: 2px 2px 4px oklch(0.55 0.03 258 / 0.06), -1px -1px 3px oklch(1 0 0 / 0.5);
+}
+
+/* 面板内分区标题 — typographic hierarchy only */
+.wb-section-title {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: oklch(0.55 0.02 258);
+  padding-bottom: 8px;
+}
+/* 面板内分区线 — 1px hairline */
+.wb-section-rule {
+  border: none;
+  border-top: 1px solid oklch(0.6 0.04 258 / 0.16);
+  margin: 16px 0;
+}
+
+/* 时间块卡片 */

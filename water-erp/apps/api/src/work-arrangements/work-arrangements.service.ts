@@ -302,7 +302,7 @@ export class WorkArrangementsService {
     const [user, items] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
-        select: { username: true, role: true },
+        select: { username: true, role: true, displayName: true },
       }),
       this.prisma.workArrangement.findMany({
       where: {
@@ -413,7 +413,7 @@ export class WorkArrangementsService {
           date: dayStart.toISOString(),
           currentTime: new Date(now).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
           items: [],
-          userContext: user ? { role: user.role } : undefined,
+          userContext: user ? { role: user.role, displayName: user.displayName, username: user.username } : undefined,
           chairmanMode: isChairman || undefined,
           projects: allProjects,
         });
@@ -446,7 +446,7 @@ export class WorkArrangementsService {
               status: dependency.dependsOn.status,
             })),
           })),
-          userContext: user ? { role: user.role } : undefined,
+          userContext: user ? { role: user.role, displayName: user.displayName, username: user.username } : undefined,
           chairmanMode: isChairman || undefined,
           projects: allProjects,
         });
@@ -465,6 +465,7 @@ export class WorkArrangementsService {
         timeBlocks: [],
         riskAlerts: [],
         completionAdvice: '',
+        projectBrief: '',
       };
     }
 

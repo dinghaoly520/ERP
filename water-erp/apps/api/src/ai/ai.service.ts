@@ -1264,37 +1264,64 @@ export class AiService {
     date: string;
     currentTime?: string;
     items?: any[];
-    userContext?: { role?: string };
+    userContext?: { role?: string; displayName?: string; username?: string };
     chairmanMode?: boolean;
     projects?: any[];
   }): Promise<{
     date: string; headerGreeting: string; namePraise: string;
     dailyGreeting: string; riskSummary: string; aiSuggestion: string;
     overview: string; focusItems: any[]; timeBlocks: any[];
-    riskAlerts: any[]; completionAdvice: string;
+    riskAlerts: any[]; completionAdvice: string; projectBrief: string;
   }> {
-    const items = context.items || [];
-    const todoCount = items.filter((i: any) => i.status === 'TODO').length;
-    const inProgressCount = items.filter((i: any) => i.status === 'IN_PROGRESS').length;
+    const EN2ZH: Record<string,string> = {TODO:'待处理',IN_PROGRESS:'进行中',BLOCKED:'阻塞',COMPLETED:'已完成',CANCELLED:'已取消',CRITICAL:'紧急',HIGH:'高',MEDIUM:'中',LOW:'低'};
+    const zh = (s:string)=>EN2ZH[s]||s;
+    const items = (context.items||[]).map((i:any)=>({...i,status:zh(i.status),urgency:zh(i.urgency)}));
+    const todoCount = items.filter((i:any)=>i.status==='待处理').length;
+    const inProgressCount = items.filter((i:any)=>i.status==='进行中').length;
+    const criticalCount = items.filter((i:any)=>i.urgency==='紧急').length;
     const totalItems = items.length;
+    const projects = (context.projects||[]);
+    const projectsInfo = projects.length>0?` 项目数据:${JSON.stringify(projects.slice(0,10))}`:'';
+    const userName = context.userContext?.displayName||context.userContext?.username||'用户';
+    const hour=parseInt((context.currentTime||'9:00').split(':')[0])||9;
+    const period=hour<11?'上午':hour<14?'中午':hour<18?'下午':'晚上';
 
     try {
       const result = await this.llm.chatJson<any>(
-        '你是智能工作助手。基于用户任务数据生成日计划报告。返回JSON: {headerGreeting, namePraise, dailyGreeting, riskSummary, aiSuggestion, overview, focusItems:[{id,title,reason}], timeBlocks:[{label,startTime,endTime,items}], riskAlerts:[{level,title,description}], completionAdvice}',
-        `日期:${context.date} 当前时间:${context.currentTime||'未知'} 任务数:${totalItems}(待办${todoCount}) 任务:${JSON.stringify(items.slice(0,20))}`,
+        `你是${userName}的私人工作秘书。
+
+【headerGreeting，50字温馨多样】
+- 以"{name}，{时段}好"开头，融入季节/茶道/山水/励志等随机主题
+- 每次与前次不同，语气如老友关怀
+- 示例:"{name}，下午好。日影西斜，一盏清茶正温——今日虽忙碌，但每一份付出都在为明天筑基。"
+- 禁止用职位代替姓名
+
+【dailyGreeting，≤30字纯中文】
+- 一句话概括总量+紧急数+最紧迫事项，禁止英文
+
+【projectBrief，有项目数据时150-300字，无项目时返回空字符串""】
+- 综述各项目阶段、预算、风险概况
+- 示例格式:"当前活跃项目共4个：水利枢纽闸门招标中(285万)，PE管材框架进入签约(120万)，泵站自动化评标中(460万)，污水处理升级编写标书(820万)。建议重点关注评标和签约阶段的项目推进。"
+
+返回JSON: {headerGreeting,namePraise,dailyGreeting,riskSummary,aiSuggestion,overview,focusItems:[{id,title,reason}],timeBlocks:[{label,startTime,endTime,items}],riskAlerts:[{level,title,description}],completionAdvice,projectBrief}`,
+        `用户:${userName} 时段:${period} 日期:${context.date} 任务:共${totalItems}项(待处理${todoCount},进行中${inProgressCount},紧急${criticalCount}) ${JSON.stringify(items.slice(0,20))}${projectsInfo}`,
       );
-      const safeTimeBlocks = (result.timeBlocks || []).map((b: any) => ({
-        label: b.label || '时间段',
-        start: b.startTime || b.start || '',
-        end: b.endTime || b.end || '',
-        focus: b.focus || (b.items?.join('、') || ''),
-        taskIds: Array.isArray(b.taskIds) ? b.taskIds : Array.isArray(b.items) ? b.items : [],
-      }));
+      const safeTimeBlocks = (result.timeBlocks || []).map((b: any) => {
+        const raw = Array.isArray(b.items) ? b.items : [];
+        const titles = raw.map((i: any) => typeof i === 'string' ? i : (i.title || i.name || '')).filter(Boolean);
+        return {
+          label: b.label || '时间段',
+          start: b.startTime || b.start || '',
+          end: b.endTime || b.end || '',
+          focus: b.focus || titles.join('、'),
+          taskIds: Array.isArray(b.taskIds) ? b.taskIds : [],
+        };
+      });
       return {
         date: context.date,
-        headerGreeting: result.headerGreeting || '你好！',
-        namePraise: result.namePraise || '加油！',
-        dailyGreeting: result.dailyGreeting || `今日共${totalItems}项任务，${todoCount}项待办。`,
+        headerGreeting: result.headerGreeting || `{name}，${period}好。新的一天，愿你从容应对每一件事。`,
+        namePraise: result.namePraise || '',
+        dailyGreeting: result.dailyGreeting || `今日共${totalItems}项任务，${todoCount}项待处理，${criticalCount}项紧急。`,
         riskSummary: result.riskSummary || (todoCount > 5 ? '待办事项较多' : '风险可控'),
         aiSuggestion: result.aiSuggestion || '建议按优先级依次处理',
         overview: result.overview || `共${totalItems}项任务 | ${todoCount}待办`,
@@ -1302,13 +1329,15 @@ export class AiService {
         timeBlocks: safeTimeBlocks,
         riskAlerts: result.riskAlerts || [],
         completionAdvice: result.completionAdvice || '完成所有待办后记得复盘',
+        projectBrief: result.projectBrief || '',
       };
     } catch {
       return {
-        date: context.date, headerGreeting: '你好！', namePraise: '加油！',
+        date: context.date, headerGreeting: `{name}，${period}好。`, namePraise: '',
         dailyGreeting: `今日共${totalItems}项任务`, riskSummary: '风险可控',
         aiSuggestion: '按优先级处理', overview: `${totalItems}项任务`,
-        focusItems: [], timeBlocks: [], riskAlerts: [], completionAdvice: '完成后复盘',
+        focusItems: [], timeBlocks: [], riskAlerts: [],
+        completionAdvice: '完成后复盘', projectBrief: '',
       };
     }
   }
