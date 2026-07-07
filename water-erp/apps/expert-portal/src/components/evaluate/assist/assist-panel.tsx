@@ -43,6 +43,7 @@ import { PassFailReviewCard } from './shared/pass-fail-card';
 import { SwCard, type SwItem } from './shared/sw-card';
 import { FieldCard } from './shared/field-card';
 import { RankBadge } from './shared/rank-badge';
+import { StatusBar } from './status-bar';
 
 // ── 类型 ──
 
@@ -60,6 +61,7 @@ interface AssistPanelProps {
   assistLoading: boolean;
   activeSupplier: string;
   supplierName: string;
+  decryptStatus: string;
   expertScores: Record<string, { score: number; reason: string }>;
   projectScoreItems: BidScoreItem[];
   projectId: string;
@@ -146,66 +148,6 @@ function ExpertComparisonTable({
 // ═══════════════════════════════════════════════════════════════
 // 区域组件
 // ═══════════════════════════════════════════════════════════════
-
-// ── 快速状态条 — 瑞士网格 · 字体排印驱动 ──
-// 不对称布局：AI 评分独占左列（大字 hero），三个状态指标右列横排
-// 模型来源标注于右上角，整体靠留白和字重层级传达信息
-
-function StatusBar({ assistData }: { assistData: AssistData }) {
-  const score = assistData.totalScore != null ? Number(assistData.totalScore).toFixed(1) : '—';
-
-  const qualStatus = assistData.qualificationStatus;
-  const qualLabel = qualStatus === '通过' ? '通过' : qualStatus === '不通过' ? '不通过' : '—';
-  const qualColor =
-    qualStatus === '通过' ? 'text-[#11a874]' : qualStatus === '不通过' ? 'text-[#e74c3c]' : 'text-[oklch(0.50_0.010_264)]';
-
-  const riskLevel = assistData.riskLevel ?? 'low';
-  const riskLabel = riskLevel === 'high' ? '高' : riskLevel === 'medium' ? '中' : '低';
-  const riskColor =
-    riskLevel === 'high' ? 'text-[#e74c3c]' : riskLevel === 'medium' ? 'text-[#f5a623]' : 'text-[#11a874]';
-
-  const concordanceStatus = assistData.concordanceStatus;
-  const concordLabel =
-    concordanceStatus === 'consistent' ? '一致' : concordanceStatus === 'conflict' ? '冲突' : '差异';
-  const concordColor =
-    concordanceStatus === 'consistent' ? 'text-[#11a874]' : concordanceStatus === 'conflict' ? 'text-[#e74c3c]' : 'text-[#f5a623]';
-
-  return (
-    <div className="grid gap-x-14 gap-y-3 mb-3 px-6 py-4 bg-white/60 rounded-xl border border-[oklch(0.91_0.006_264)]" style={{ gridTemplateColumns: '1fr auto', gridTemplateRows: 'auto auto', alignItems: 'center' }}>
-      {/* 左列：AI 评分 hero（跨两行） */}
-      <div className="flex flex-col gap-1" style={{ gridRow: '1 / 3' }}>
-        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.48_0.01_264)] select-none">
-          AI 评估分
-        </span>
-        <span className="text-[44px] font-bold leading-none text-[var(--color-primary)] tabular-nums">
-          {score}
-        </span>
-      </div>
-
-      {/* 右下：三个状态指标横排 */}
-      <div className="flex gap-10">
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-[oklch(0.50_0.010_264)] select-none">
-            资格审查
-          </span>
-          <span className={`text-base font-bold tabular-nums ${qualColor}`}>{qualLabel}</span>
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-[oklch(0.50_0.010_264)] select-none">
-            风险等级
-          </span>
-          <span className={`text-base font-bold tabular-nums ${riskColor}`}>{riskLabel}</span>
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-[oklch(0.50_0.010_264)] select-none">
-            数据一致性
-          </span>
-          <span className={`text-base font-bold tabular-nums ${concordColor}`}>{concordLabel}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── ① 评分分析 — 聚焦当前供应商 ──
 
@@ -955,6 +897,7 @@ export function AssistPanel({
   assistLoading,
   activeSupplier,
   supplierName,
+  decryptStatus,
   expertScores,
   projectScoreItems,
   projectId,
@@ -1036,7 +979,7 @@ export function AssistPanel({
   return (
     <div className="p-5 space-y-6">
       {/* 快速状态条 */}
-      <StatusBar assistData={assistData} />
+      <StatusBar assistData={assistData} supplierName={supplierName} decryptStatus={decryptStatus} />
 
       {/* A3：资格不通过阻断卡片 */}
       {qualBlocked && (
