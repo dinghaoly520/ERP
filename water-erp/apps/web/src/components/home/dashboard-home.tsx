@@ -2727,7 +2727,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
                   </div>
 
                   {/* 按维度偏差条（双向 bar，正=AI 偏高 红，负=AI 偏低 蓝） */}
-                  <div className="w-48 flex flex-col gap-1.5">
+                  <div className="w-64 flex flex-col gap-1.5">
                     {(() => {
                       const maxAbs = Math.max(...calibration.byCategory.map((x) => Math.abs(x.avgDelta)), 1);
                       return calibration.byCategory.map((c) => {
