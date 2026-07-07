@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, FolderOpen, Recycle } from 'lucide-react';
+import { AlertCircle, FolderOpen, Recycle, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -27,6 +27,9 @@ export function ProjectManagementPage() {
   const [keyword, setKeyword] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'budgetAmount' | 'title'>('updatedAt');
+  const [filterMethod, setFilterMethod] = useState<string>('');
+  const [filterDepartment, setFilterDepartment] = useState<string>('');
   const detailHostRef = useRef<HTMLDivElement | null>(null);
   const [portalReady, setPortalReady] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -71,19 +74,58 @@ export function ProjectManagementPage() {
     }
   }, [selectedItemId]);
 
+  // Derived: unique departments + methods for filter dropdowns
+  const departments = useMemo(() => {
+    const set = new Set(items.map(i => i.requesterDepartment).filter(Boolean));
+    return Array.from(set).sort();
+  }, [items]);
+
+  const methods = useMemo(() => {
+    const set = new Set(items.map(i => i.procurementMethod).filter(Boolean));
+    return Array.from(set).sort();
+  }, [items]);
+
   const filteredItems = useMemo(() => {
+    let result = [...items];
+
+    // Text search
     const normalized = keyword.trim().toLowerCase();
-    if (!normalized) {
-      return items;
+    if (normalized) {
+      result = result.filter((item) =>
+        [item.title, item.requesterName, item.requesterDepartment]
+          .join(' ')
+          .toLowerCase()
+          .includes(normalized),
+      );
     }
 
-    return items.filter((item) =>
-      [item.title, item.requesterName, item.requesterDepartment]
-        .join(' ')
-        .toLowerCase()
-        .includes(normalized),
-    );
-  }, [items, keyword]);
+    // Method filter
+    if (filterMethod) {
+      result = result.filter(i => i.procurementMethod === filterMethod);
+    }
+
+    // Department filter
+    if (filterDepartment) {
+      result = result.filter(i => i.requesterDepartment === filterDepartment);
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case 'budgetAmount':
+          return (b.budgetAmount ?? 0) - (a.budgetAmount ?? 0);
+        case 'title':
+          return (a.title ?? '').localeCompare(b.title ?? '', 'zh-CN');
+        case 'createdAt':
+          return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+        case 'updatedAt':
+        default:
+          return new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime();
+      }
+    });
+
+    return result;
+  }, [items, keyword, sortBy, filterMethod, filterDepartment]);
 
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
 
@@ -191,13 +233,47 @@ export function ProjectManagementPage() {
                 </button>
               </div>
             </div>
-            <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.5rem" }}>
-              <input
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-                placeholder="按项目名 / 申请人 / 部门搜索"
-                className="neu-input max-w-[480px]"
-              />
+            <div className="flex flex-wrap items-center gap-3" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.5rem" }}>
+              <div className="relative flex-1 min-w-[200px]">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)] z-10" />
+                <input
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  placeholder="按项目名 / 申请人 / 部门搜索"
+                  className="neu-input !pl-9"
+                />
+                {keyword && (
+                  <button onClick={() => setKeyword('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[color:var(--muted-foreground)] z-10">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="workbench-input !w-auto min-w-[110px]"
+              >
+                <option value="updatedAt">最近更新</option>
+                <option value="createdAt">最近创建</option>
+                <option value="budgetAmount">预算金额</option>
+                <option value="title">项目名称</option>
+              </select>
+              <select
+                value={filterMethod}
+                onChange={(e) => setFilterMethod(e.target.value)}
+                className="workbench-input !w-auto min-w-[130px]"
+              >
+                <option value="">全部方式</option>
+                {methods.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <select
+                value={filterDepartment}
+                onChange={(e) => setFilterDepartment(e.target.value)}
+                className="workbench-input !w-auto min-w-[130px]"
+              >
+                <option value="">全部部门</option>
+                {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
             </div>
           </div>
 
