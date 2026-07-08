@@ -432,14 +432,14 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
   return (
     <div className="grid gap-3">
       {/* Toolbar */}
-      <div className="flex items-center justify-between rounded-[14px] border border-white/60 bg-white/78 px-3 py-2">
+      <div className="flex items-center justify-between rounded-[14px] border border-[oklch(0.6_0.04_258_/_0.2)] bg-[oklch(1_0_0_/_0.3)] px-3 py-2">
         {/* Left: Alignment buttons */}
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => handleCellAlign("left")}
             disabled={selectedCells.size === 0}
-            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)] disabled:opacity-40"
+            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)] disabled:opacity-40"
             title="左对齐"
           >
             <AlignLeft size={14} />
@@ -448,7 +448,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
             type="button"
             onClick={() => handleCellAlign("center")}
             disabled={selectedCells.size === 0}
-            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)] disabled:opacity-40"
+            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)] disabled:opacity-40"
             title="居中"
           >
             <AlignCenter size={14} />
@@ -457,7 +457,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
             type="button"
             onClick={() => handleCellAlign("right")}
             disabled={selectedCells.size === 0}
-            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)] disabled:opacity-40"
+            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)] disabled:opacity-40"
             title="右对齐"
           >
             <AlignRight size={14} />
@@ -470,7 +470,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
             type="button"
             onClick={handleMergeCells}
             disabled={!canMerge}
-            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)] disabled:opacity-40"
+            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)] disabled:opacity-40"
             title="合并单元格"
           >
             <Merge size={14} />
@@ -479,7 +479,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
             type="button"
             onClick={handleSplitCells}
             disabled={!canSplit}
-            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)] disabled:opacity-40"
+            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)] disabled:opacity-40"
             title="拆分单元格"
           >
             <Split size={14} />
@@ -492,7 +492,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
             type="button"
             onClick={handleInsertRowAbove}
             disabled={!canInsertRow}
-            className="flex flex-col items-center rounded-lg p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)] disabled:opacity-40"
+            className="flex flex-col items-center rounded-lg p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)] disabled:opacity-40"
             title="在上方插入行"
           >
             <Plus size={10} />
@@ -502,7 +502,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
             type="button"
             onClick={handleInsertRowBelow}
             disabled={!canInsertRow}
-            className="flex flex-col items-center rounded-lg p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)] disabled:opacity-40"
+            className="flex flex-col items-center rounded-lg p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)] disabled:opacity-40"
             title="在下方插入行"
           >
             <Plus size={10} />
@@ -512,7 +512,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
             type="button"
             onClick={handleDeleteRow}
             disabled={!canDeleteRow}
-            className="flex flex-col items-center rounded-lg p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)] disabled:opacity-40"
+            className="flex flex-col items-center rounded-lg p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)] disabled:opacity-40"
             title="删除行"
           >
             <Minus size={10} />
@@ -523,7 +523,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
             type="button"
             onClick={handleInsertColLeft}
             disabled={!canInsertCol}
-            className="flex flex-row items-center rounded-lg p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)] disabled:opacity-40"
+            className="flex flex-row items-center rounded-lg p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)] disabled:opacity-40"
             title="在左侧插入列"
           >
             <Plus size={10} />
@@ -533,7 +533,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
             type="button"
             onClick={handleInsertColRight}
             disabled={!canInsertCol}
-            className="flex flex-row items-center rounded-lg p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)] disabled:opacity-40"
+            className="flex flex-row items-center rounded-lg p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)] disabled:opacity-40"
             title="在右侧插入列"
           >
             <Plus size={10} />
@@ -543,7 +543,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
             type="button"
             onClick={handleDeleteCol}
             disabled={!canDeleteCol}
-            className="flex flex-row items-center rounded-lg p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)] disabled:opacity-40"
+            className="flex flex-row items-center rounded-lg p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)] disabled:opacity-40"
             title="删除列"
           >
             <Minus size={10} />
@@ -576,7 +576,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
                 }
                 onChange({ ...value, rows, cells: newCells });
               }}
-              className="w-14 rounded-[8px] border border-white/60 bg-white/88 px-1.5 py-0.5 text-center text-sm outline-none focus:border-[rgba(107,149,240,0.34)]"
+              className="w-14 rounded-[8px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-1.5 py-0.5 text-center text-sm outline-none focus:border-[rgba(107,149,240,0.34)]"
             />
           </label>
           <label className="flex items-center gap-1.5">
@@ -597,7 +597,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
                 });
                 onChange({ ...value, cols, cells: newCells });
               }}
-              className="w-14 rounded-[8px] border border-white/60 bg-white/88 px-1.5 py-0.5 text-center text-sm outline-none focus:border-[rgba(107,149,240,0.34)]"
+              className="w-14 rounded-[8px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-1.5 py-0.5 text-center text-sm outline-none focus:border-[rgba(107,149,240,0.34)]"
             />
           </label>
         </div>
@@ -605,7 +605,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
 
       {/* Table */}
       <div
-        className="overflow-auto rounded-[14px] border border-white/60 bg-white/88 p-3"
+        className="overflow-auto rounded-[14px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] p-3"
         onPaste={handlePaste}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}

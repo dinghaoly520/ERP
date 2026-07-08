@@ -262,7 +262,7 @@ export function LedgerPreviewDialog({
                                 />
                               ) : (
                                 <div
-                                  className="min-h-[28px] cursor-text rounded-md px-2 py-1 text-[color:var(--foreground)] transition-colors hover:bg-white/60"
+                                  className="min-h-[28px] cursor-text rounded-md px-2 py-1 text-[color:var(--foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)]"
                                   onDoubleClick={() =>
                                     handleCellDoubleClick(rowIdx, colIdx)
                                   }

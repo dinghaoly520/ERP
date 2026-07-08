@@ -361,7 +361,7 @@ function AnnouncementFieldEditor({
                     "rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200",
                     isActive
                       ? "bg-[rgba(107,149,240,0.16)] text-[rgba(75,110,200,1)] shadow-[0_1px_4px_rgba(107,149,240,0.12)]"
-                      : "bg-white/60 text-[color:var(--muted-foreground)] hover:bg-white/80",
+                      : "bg-[oklch(1_0_0_/_0.4)] text-[color:var(--muted-foreground)] hover:bg-[oklch(1_0_0_/_0.6)]",
                   ].join(" ")}
                 >
                   {opt.label}
@@ -796,7 +796,7 @@ export function AnnouncementDialog({
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="rounded-full border border-white/60 bg-white/80 px-3 py-1 text-xs font-medium text-[color:var(--muted-foreground)] transition-all hover:bg-white hover:shadow-sm"
+                  className="neu-btn-xs"
                 >
                   ← 返回选择
                 </button>
@@ -862,7 +862,7 @@ export function AnnouncementDialog({
             /* Editor + Preview */
             <div className="flex min-h-0 flex-1 flex-row gap-4 p-4">
               {/* Editor (left) */}
-              <section className="flex min-h-0 flex-1 flex-col rounded-[22px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(245,248,255,0.8))] shadow-[0_18px_40px_rgba(59,89,143,0.08)]">
+              <section className="flex min-h-0 flex-1 flex-col rounded-[20px] wb-panel">
                 <div className="shrink-0 border-b border-white/60 px-5 py-3">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">
                     编辑区

@@ -164,11 +164,8 @@ export function TenderHistoryDialog({
           )}
         </div>
 
-        <div className="flex justify-end border-t border-white/60 px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-white/70 bg-white/80 px-4 py-2 text-sm font-semibold text-[color:var(--foreground)]"
+        <div className="flex justify-end px-6 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+          <button type="button" onClick={onClose} className="neu-btn-soft"
           >
             关闭
           </button>

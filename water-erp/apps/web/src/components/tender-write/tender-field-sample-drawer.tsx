@@ -77,8 +77,8 @@ export function TenderFieldSampleDialog({
         className="absolute inset-0 backdrop-blur-md bg-white/10"
         onClick={onClose}
       />
-      <div className="relative z-10 flex max-h-[80vh] w-full max-w-[min(480px,90vw)] flex-col rounded-[24px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,255,0.96))] shadow-[0_24px_54px_rgba(59,89,143,0.16)]">
-        <header className="flex items-center justify-between border-b border-white/60 px-5 py-4">
+      <div className="relative z-10 flex max-h-[80vh] w-full max-w-[min(480px,90vw)] flex-col rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+        <header className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">
               样本库
@@ -90,7 +90,7 @@ export function TenderFieldSampleDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)]"
+            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)]"
           >
             <X size={18} />
           </button>
@@ -102,7 +102,7 @@ export function TenderFieldSampleDialog({
               加载中...
             </div>
           ) : samples.length === 0 ? (
-            <div className="rounded-[18px] border border-white/60 bg-white/50 px-4 py-8 text-center text-sm text-[color:var(--muted-foreground)]">
+            <div className="wb-panel flex items-center justify-center px-4 py-8 text-center text-sm text-[color:var(--muted-foreground)]">
               暂无样本记录
               <p className="mt-2 text-xs">
                 点击字段右侧的收藏按钮保存内容到样本库
@@ -177,7 +177,7 @@ function SampleCard({
   onSelect: () => void;
 }) {
   return (
-    <div className="group rounded-[14px] border border-white/60 bg-white/70 p-3 transition-all hover:border-white/80 hover:bg-white/90">
+    <div className="group neu-card-static !rounded-[14px] p-3">
       <div className="flex items-start justify-between gap-2">
         <p
           className="max-h-[80px] min-w-0 flex-1 cursor-pointer overflow-y-auto text-sm leading-6 text-[color:var(--foreground)]"
@@ -189,7 +189,7 @@ function SampleCard({
           <button
             type="button"
             onClick={onToggleFavorite}
-            className="rounded p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[rgba(234,188,110,1)]"
+            className="rounded p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[rgba(234,188,110,1)]"
           >
             <Star
               size={14}
@@ -203,14 +203,14 @@ function SampleCard({
           <button
             type="button"
             onClick={onCopy}
-            className="rounded p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[color:var(--foreground)]"
+            className="rounded p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)]"
           >
             {isCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
           </button>
           <button
             type="button"
             onClick={onDelete}
-            className="rounded p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-white/60 hover:text-[rgba(199,108,83,1)]"
+            className="rounded p-1 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[rgba(199,108,83,1)]"
           >
             <Trash2 size={14} />
           </button>

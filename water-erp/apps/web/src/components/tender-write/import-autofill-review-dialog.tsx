@@ -71,7 +71,7 @@ function FieldCard({
       ? 'border-blue-200 bg-blue-50/40'
       : field.status === 'low_confidence'
         ? 'border-amber-200 bg-amber-50/40'
-        : 'border-slate-200 bg-slate-50/60 opacity-75';
+        : 'border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.35)] opacity-75';
 
   return (
     <div className={`rounded-xl border p-3 ${borderClass}`}>
@@ -81,7 +81,7 @@ function FieldCard({
           checked={checked}
           disabled={!isFillable}
           onChange={onToggle}
-          className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300"
+          className="mt-1 h-4 w-4 shrink-0 rounded border-[oklch(0.6_0.04_258_/_0.3)]"
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
@@ -207,7 +207,7 @@ export function ImportAutofillReviewDialog({
         {/* Body */}
         <div className="flex min-h-0 flex-1">
           {/* Left sidebar */}
-          <aside className="w-[160px] xl:w-[200px] shrink-0 overflow-y-auto border-r border-slate-100 p-4">
+          <aside className="w-[160px] xl:w-[200px] shrink-0 overflow-y-auto border-r border-[oklch(0.6_0.04_258_/_0.16)] p-4">
             <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
               章节
             </div>
@@ -220,7 +220,7 @@ export function ImportAutofillReviewDialog({
                 return (
                   <div
                     key={section.sectionKey}
-                    className="rounded-lg border border-slate-150 bg-slate-50/60 px-3 py-2 text-xs"
+                    className="rounded-lg border border-[oklch(0.6_0.04_258_/_0.2)] bg-[oklch(1_0_0_/_0.35)] px-3 py-2 text-xs"
                   >
                     <div className="font-medium text-slate-700">
                       {section.sectionTitle}
@@ -259,7 +259,7 @@ export function ImportAutofillReviewDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4">
+        <div className="flex items-center justify-between border-t border-[oklch(0.6_0.04_258_/_0.16)] px-6 py-4">
           <span className="text-xs text-slate-400">
             已选择 {checkedKeys.size} 个字段，确认后写入当前草稿
           </span>
