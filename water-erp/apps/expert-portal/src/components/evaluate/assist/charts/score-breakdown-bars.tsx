@@ -38,9 +38,13 @@ interface ScoreBarProps {
   confidence?: number;
   /** 多次采样差异大（self-consistency），AI 把握度低 */
   unstable?: boolean;
+  /** per-item 正向事实（引用标书原文） */
+  strengths?: string[];
+  /** per-item 需关注事项 */
+  weaknesses?: string[];
 }
 
-function ScoreBar({ label, score, maxScore, comment, evidence, color = '#0b63ce', reasonLines = 2, expanded = false, confidence, unstable }: ScoreBarProps) {
+function ScoreBar({ label, score, maxScore, comment, evidence, color = '#0b63ce', reasonLines = 2, expanded = false, confidence, unstable, strengths, weaknesses }: ScoreBarProps) {
   const pct = maxScore > 0 ? Math.min((score / maxScore) * 100, 100) : 0;
   const clampClass = expanded ? '' : reasonLines === 2 ? 'line-clamp-2' : 'line-clamp-1';
   return (
@@ -74,6 +78,23 @@ function ScoreBar({ label, score, maxScore, comment, evidence, color = '#0b63ce'
           )}
         </div>
       )}
+      {/* per-item 正向依据 / 需关注事项（仅展开态显示，避免折叠态膨胀） */}
+      {expanded && (strengths?.length || weaknesses?.length) ? (
+        <div className="mt-1.5 ml-1 space-y-0.5">
+          {strengths?.map((s, i) => (
+            <div key={`s${i}`} className="text-[10px] text-emerald-700 flex items-start gap-1 leading-snug">
+              <span className="text-emerald-500 shrink-0 font-bold">+</span>
+              <span>{s}</span>
+            </div>
+          ))}
+          {weaknesses?.map((w, i) => (
+            <div key={`w${i}`} className="text-[10px] text-amber-700 flex items-start gap-1 leading-snug">
+              <span className="text-amber-500 shrink-0 font-bold">−</span>
+              <span>{w}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -121,6 +142,8 @@ export function ScoreBreakdownBars({ scoreItems, reasonLines = 2, expanded = fal
               expanded={effExpanded}
               confidence={item.confidence}
               unstable={item.unstable}
+              strengths={item.strengths}
+              weaknesses={item.weaknesses}
             />
           ))}
         </div>
@@ -169,6 +192,8 @@ export function ScoreBreakdownBars({ scoreItems, reasonLines = 2, expanded = fal
                   expanded={effExpanded}
                   confidence={item.confidence}
                   unstable={item.unstable}
+                  strengths={item.strengths}
+                  weaknesses={item.weaknesses}
                 />
               ))}
             </div>
