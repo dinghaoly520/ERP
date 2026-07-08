@@ -1,7 +1,13 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { X, FileDown, FileSearch, Plus, Trash2 } from "lucide-react";
+import { X, FileDown, FileSearch, Plus, Trash2, ScrollText, FileCheck, Ban } from "lucide-react";
+
+const CATEGORY_ICONS: Record<string, typeof ScrollText> = {
+  procurement_document: ScrollText,
+  winning_bid: FileCheck,
+  failed_bid: Ban,
+};
 import { motion, useReducedMotion } from "framer-motion";
 import type {
   AnnouncementCategory,
@@ -840,18 +846,24 @@ export function AnnouncementDialog({
                   const catMeta = ANNOUNCEMENT_CATEGORIES.find(
                     (c) => c.type === cat,
                   );
+                  const IconComponent = CATEGORY_ICONS[cat] ?? FileSearch;
                   return (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => handleSelectCategory(cat)}
-                      className="group neu-card-static !rounded-[18px] px-6 py-5 text-left transition-all duration-300 hover:border-[rgba(107,149,240,0.3)] hover:bg-[oklch(1_0_0_/_0.7)]"
+                      className="group neu-card flex items-start gap-4 !rounded-[16px] px-5 py-4 text-left"
                     >
-                      <div className="text-[1.05rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                        {getAnnouncementLabel(tenderType, cat)}
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[color:var(--accent)] transition-transform duration-300 group-hover:scale-105">
+                        <IconComponent size={18} />
                       </div>
-                      <div className="mt-1.5 text-sm leading-6 text-[color:var(--muted-foreground)]">
-                        {catMeta?.description}
+                      <div className="min-w-0">
+                        <div className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                          {getAnnouncementLabel(tenderType, cat)}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
+                          {catMeta?.description}
+                        </div>
                       </div>
                     </button>
                   );
@@ -863,8 +875,8 @@ export function AnnouncementDialog({
             <div className="flex min-h-0 flex-1 flex-row gap-4 p-4">
               {/* Editor (left) */}
               <section className="flex min-h-0 flex-1 flex-col rounded-[20px] wb-panel">
-                <div className="shrink-0 border-b border-white/60 px-5 py-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">
+                <div className="shrink-0 px-5 py-3" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
                     编辑区
                   </div>
                   <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
@@ -932,8 +944,8 @@ export function AnnouncementDialog({
 
               {/* Preview (right) */}
               <aside className="flex min-h-0 flex-[1.1] flex-col overflow-hidden rounded-[22px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,250,255,0.92))] shadow-[0_18px_40px_rgba(59,89,143,0.08)]">
-                <div className="shrink-0 border-b border-white/60 px-5 py-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">
+                <div className="shrink-0 px-5 py-3" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
                     预览区
                   </div>
                   <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">

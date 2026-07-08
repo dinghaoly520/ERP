@@ -466,7 +466,7 @@ export function NotificationLetterDialog({
               {/* Editor (left) */}
               <section className="flex min-h-0 flex-1 flex-col rounded-[20px] wb-panel">
                 <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">编辑区</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">编辑区</div>
                   <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
                     {filledCount}/{fields.length} 项已填写
                     {fileName && <span className="ml-2 text-[rgba(78,150,124,1)]">· 已从审批表导入</span>}
@@ -637,7 +637,7 @@ export function NotificationLetterDialog({
               {/* Preview (right) */}
               <aside className="flex min-h-0 flex-[1.1] flex-col overflow-hidden rounded-[22px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,250,255,0.92))] shadow-[0_18px_40px_rgba(59,89,143,0.08)]">
                 <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
                     预览区
                   </div>
                   <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">

@@ -92,19 +92,17 @@ export function NotificationHubDialog({
                 <button
                   type="button"
                   onClick={() => handleSelect("letter")}
-                  className="group neu-card-static !rounded-[18px] px-6 py-5 text-left transition-all duration-300 hover:border-[rgba(107,149,240,0.3)] hover:bg-[oklch(1_0_0_/_0.7)]"
+                  className="group neu-card flex items-start gap-4 !rounded-[16px] px-5 py-4 text-left"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(92,181,150,0.1)]">
-                      <Mail size={18} className="text-[rgba(78,150,124,0.9)]" />
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] text-[color:var(--success)] transition-transform duration-300 group-hover:scale-105">
+                    <Mail size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                      中标通知书编制
                     </div>
-                    <div>
-                      <div className="text-[1.05rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                        中标通知书编制
-                      </div>
-                      <div className="mt-1.5 text-sm leading-6 text-[color:var(--muted-foreground)]">
-                        上传定标审批表，自动识别中标信息，生成中标通知书并写入台账。
-                      </div>
+                    <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
+                      上传定标审批表，自动识别中标信息，生成中标通知书并写入台账。
                     </div>
                   </div>
                 </button>
@@ -112,19 +110,17 @@ export function NotificationHubDialog({
                 <button
                   type="button"
                   onClick={() => handleSelect("ledger")}
-                  className="group neu-card-static !rounded-[18px] px-6 py-5 text-left transition-all duration-300 hover:border-[rgba(107,149,240,0.3)] hover:bg-[oklch(1_0_0_/_0.7)]"
+                  className="group neu-card flex items-start gap-4 !rounded-[16px] px-5 py-4 text-left"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(107,149,240,0.1)]">
-                      <Table size={18} className="text-[rgba(75,110,200,0.9)]" />
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[color:var(--accent)] transition-transform duration-300 group-hover:scale-105">
+                    <Table size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                      台账预览
                     </div>
-                    <div>
-                      <div className="text-[1.05rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                        台账预览
-                      </div>
-                      <div className="mt-1.5 text-sm leading-6 text-[color:var(--muted-foreground)]">
-                        查看、编辑中标通知书台账，支持新增、删除和导出。
-                      </div>
+                    <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
+                      查看、编辑中标通知书台账，支持新增、删除和导出。
                     </div>
                   </div>
                 </button>
