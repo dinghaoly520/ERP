@@ -148,6 +148,7 @@ function KeyInfoSection({
   keyInfo: AssistData['keyInfo'];
   supplierName: string;
 }) {
+  const [showAllPerf, setShowAllPerf] = useState(false);
   if (!keyInfo) {
     return (
       <div className="text-center py-6">
@@ -160,6 +161,8 @@ function KeyInfoSection({
   const info = keyInfo as KeyInfoData;
   const contact = (info.contactInfo ?? {}) as ContactInfoData;
   const keyPerformances = Array.isArray(info.keyPerformances) ? info.keyPerformances : [];
+  const PERF_PREVIEW = 5;
+  const shownPerf = showAllPerf ? keyPerformances : keyPerformances.slice(0, PERF_PREVIEW);
 
   return (
     <div className="space-y-3">
@@ -233,7 +236,7 @@ function KeyInfoSection({
             </h4>
           </div>
           <div className="space-y-2">
-            {keyPerformances.slice(0, 5).map((kp: KeyPerformanceItem, i: number) => (
+            {shownPerf.map((kp: KeyPerformanceItem, i: number) => (
               <div key={i} className="glass-card glass-card-lighter rounded-lg p-3 flex items-center gap-3 text-sm">
                 <span className="w-6 h-6 rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)] flex items-center justify-center text-xs font-bold shrink-0">
                   {i + 1}
@@ -251,6 +254,11 @@ function KeyInfoSection({
                 )}
               </div>
             ))}
+            {keyPerformances.length > PERF_PREVIEW && (
+              <button onClick={() => setShowAllPerf(v => !v)} className="text-[11px] text-[var(--color-primary)] hover:underline">
+                {showAllPerf ? '收起' : `展开全部 ${keyPerformances.length} 项`}
+              </button>
+            )}
           </div>
         </div>
       )}

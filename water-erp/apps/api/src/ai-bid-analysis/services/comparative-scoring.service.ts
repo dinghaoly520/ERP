@@ -117,7 +117,10 @@ export class ComparativeScoringService {
         data: {
           categoryTotals: newTotals as any,
           totalScore: newTotal,
-          competitiveAnalysis: {
+          // ★ 横向校准结果写入 deviationAnalysis，禁止覆盖 competitiveAnalysis。
+          //   competitiveAnalysis 保留第一轮 {strengths, weaknesses, keyObservations}，
+          //   供专家端辅助评标 + docx 报告生成消费（覆盖会导致 keyObservations 丢失）。
+          deviationAnalysis: {
             comparativeScore: newTotal,
             previousScore: oldTotal,
             reason: adj.reason ?? '横向校准',

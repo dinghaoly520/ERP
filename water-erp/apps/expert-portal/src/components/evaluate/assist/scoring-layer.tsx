@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { AlertCircle, TrendingUp, Lightbulb, MessageSquare, Edit3 } from 'lucide-react';
 import type { AssistData, AiScoreItem, BidScoreItem } from '@water-erp/shared';
 import { CollapsibleSection } from './shared/collapsible-section';
@@ -55,21 +56,28 @@ function Warn({ cls, children }: { cls: 'amber' | 'orange'; children: React.Reac
 
 // ── ClauseEvidence ──
 
+const EVIDENCE_PREVIEW = 3;
+
 function ClauseEvidence({ resp }: { resp: AssistData['requirementResponses'] }) {
+  const [showAll, setShowAll] = useState(false);
   if (!resp || !resp.length) return null;
-  const bad = resp
-    .filter((r) => r.status === 'unmet' || r.status === 'partial' || r.status === 'not_found')
-    .slice(0, 3);
+  const bad = resp.filter((r) => r.status === 'unmet' || r.status === 'partial' || r.status === 'not_found');
   if (!bad.length) return null;
+  const shown = showAll ? bad : bad.slice(0, EVIDENCE_PREVIEW);
   return (
     <div className="rounded-lg border border-[oklch(0.91_0.006_264)] bg-[oklch(0.985_0.002_264)] p-2.5">
       <div className="text-[10px] font-semibold text-[oklch(0.45_0.01_264)] mb-1">条款响应佐证</div>
-      {bad.map((r, i) => (
+      {shown.map((r, i) => (
         <div key={i} className="text-[11px] text-[oklch(0.35_0.01_264)] truncate" title={r.excerpt}>
           · {r.excerpt || r.requirementId}
           {r.location ? `（第${r.location.page}页）` : ''}
         </div>
       ))}
+      {bad.length > EVIDENCE_PREVIEW && (
+        <button onClick={() => setShowAll(v => !v)} className="mt-1 text-[11px] text-[var(--color-primary)] hover:underline">
+          {showAll ? '收起' : `展开全部 ${bad.length} 项`}
+        </button>
+      )}
     </div>
   );
 }
@@ -272,7 +280,7 @@ export function ScoringLayer({
                 title={CATEGORY_LABEL[cat] ?? cat}
                 accent={cat === 'BUSINESS' ? '#f5a623' : '#11a874'}
                 summary={
-                  <ScoreBreakdownBars scoreItems={sub} flat reasonLines={2} />
+                  <ScoreBreakdownBars scoreItems={sub} flat reasonLines={2} expandable />
                 }
               />
             );
