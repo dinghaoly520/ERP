@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { TenderSectionProgress } from '@/lib/types/tender-write';
 
 export function TenderEditorHeader({
@@ -24,12 +25,12 @@ export function TenderEditorHeader({
             {section.title}
           </h2>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={onPrevious} disabled={isFirst} className="neu-btn-soft">
-            上一组
+        <div className="flex shrink-0 items-center gap-1">
+          <button type="button" onClick={onPrevious} disabled={isFirst} className="neu-btn-soft !px-2" title="上一组">
+            <ChevronLeft size={16} />
           </button>
-          <button type="button" onClick={onNext} disabled={isLast} className="neu-btn-soft">
-            下一组
+          <button type="button" onClick={onNext} disabled={isLast} className="neu-btn-soft !px-2" title="下一组">
+            <ChevronRight size={16} />
           </button>
         </div>
       </div>
