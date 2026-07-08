@@ -438,7 +438,7 @@ export default function TenderWritePage() {
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         {selectedType ? (
-          <div className="mb-2 shrink-0 wb-panel p-2.5">
+          <div className="mb-0 shrink-0 wb-panel p-2.5">
             <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="text-[0.9rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
