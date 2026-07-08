@@ -702,10 +702,6 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
           <div className="wb-panel-body space-y-3">
             {/* Filter bar */}
             <div className="flex flex-wrap items-center gap-2">
-              <div className="search-box">
-                <Search size={14} className="search-box__icon" />
-                <input type="text" value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="搜索项目、申请人、部门..." className="neu-input" />
-              </div>
               <select value={selectedStage ?? ""} onChange={(e) => setSelectedStage(e.target.value || null)} className="workbench-input !h-[44px] !w-auto min-w-[110px]">
                 <option value="">全部阶段</option>
                 {PROJECT_WORKFLOW_STAGES_ALL.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
