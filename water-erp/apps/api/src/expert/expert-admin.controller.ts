@@ -12,7 +12,7 @@ import { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
 @ApiCookieAuth('token')
 @Controller('expert-admin')
 
-@Roles('admin', 'bid_host', 'procurement_staff')
+@Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
 export class ExpertAdminController {
   constructor(private expertAdminService: ExpertAdminService) {}
 

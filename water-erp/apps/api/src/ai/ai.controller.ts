@@ -20,7 +20,7 @@ export class AiController {
 
   @Get('projects/:projectId/analyze/:supplierId')
   @ApiOperation({ summary: 'AI全方位分析供应商投标' })
-  @Roles('admin', 'bid_expert', 'bid_host')
+  @Roles('admin', 'bid_expert', 'bid_host', 'leader', 'staff')
   async analyzeBid(
     @Param('projectId') projectId: string,
     @Param('supplierId') supplierId: string,
@@ -30,21 +30,21 @@ export class AiController {
 
   @Get('projects/:projectId/anomalies')
   @ApiOperation({ summary: 'AI评分异常检测' })
-  @Roles('admin', 'bid_host', 'procurement_staff')
+  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
   async detectAnomalies(@Param('projectId') projectId: string) {
     return this.aiService.detectAnomalies(projectId);
   }
 
   @Get('projects/:projectId/risk-scores')
   @ApiOperation({ summary: 'AI供应商风险评分' })
-  @Roles('admin', 'bid_host', 'procurement_staff')
+  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
   async getSupplierRiskScores(@Param('projectId') projectId: string) {
     return this.aiService.getSupplierRiskScores(projectId);
   }
 
   @Post('supplier-selection')
   @ApiOperation({ summary: 'AI智能推荐供应商（按采购需求）' })
-  @Roles('admin', 'procurement_staff', 'bid_host')
+  @Roles('admin', 'procurement_staff', 'bid_host', 'leader', 'staff')
   async recommendSuppliers(
     @Body() body: { requirement?: string; classificationId?: string; maxCount?: number },
   ) {
@@ -60,7 +60,7 @@ export class AiController {
 
   @Post('dashboard-summary')
   @ApiOperation({ summary: 'AI采购运营总览摘要' })
-  @Roles('admin', 'procurement_staff')
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
   async dashboardSummary(
     @Body() body: {
       supplier?: { total: number; approved: number; pending: number; risk: number };
@@ -75,33 +75,33 @@ export class AiController {
 
   @Get('ai-calibration')
   @ApiOperation({ summary: 'P1-E：全局 AI 评分校准（跨项目采纳率 + category 偏差）' })
-  @Roles('admin', 'procurement_staff', 'bid_host', 'leader')
+  @Roles('admin', 'procurement_staff', 'bid_host', 'leader', 'staff')
   getAiCalibration() { return this.aiService.getAiCalibration(); }
 
   @Post('dashboard-analysis')
   @ApiOperation({ summary: 'AI采购仪表盘深度分析（从procurement迁入）' })
-  @Roles('admin', 'procurement_staff', 'bid_host', 'leader')
+  @Roles('admin', 'procurement_staff', 'bid_host', 'leader', 'staff')
   async dashboardAnalysis(@Body() payload: any) {
     return this.aiService.analyzeDashboard(payload);
   }
 
   @Post('procurement-analysis')
   @ApiOperation({ summary: 'AI采购台账分析' })
-  @Roles('admin', 'procurement_staff')
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
   async procurementAnalysis(@Body() payload: any) {
     return this.aiService.analyzeProcurementLedger(payload);
   }
 
   @Post('tender-field-generate')
   @ApiOperation({ summary: 'AI招标字段内容生成' })
-  @Roles('admin', 'procurement_staff', 'bid_host')
+  @Roles('admin', 'procurement_staff', 'bid_host', 'leader', 'staff')
   async tenderFieldGenerate(@Body() payload: any) {
     return this.aiService.generateTenderFieldContent(payload);
   }
 
   @Post('reference-budget')
   @ApiOperation({ summary: 'AI参考预算生成' })
-  @Roles('admin', 'procurement_staff')
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
   async referenceBudget(@Body() payload: any) {
     return this.aiService.generateReferenceBudget(payload);
   }

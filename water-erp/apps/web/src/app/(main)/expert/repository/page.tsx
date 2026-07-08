@@ -18,7 +18,7 @@ export default function ExpertRepositoryPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setExperts(await listExperts({ search: search || undefined, specialty: specialty || undefined }) as ExpertListItem[]); } catch {}
+    try { setExperts(await listExperts({ search: search || undefined, specialty: specialty || undefined }) as ExpertListItem[]); } catch (err: any) { toast.error(err?.message || '加载专家列表失败'); }
     setLoading(false);
   }, [search, specialty]);
   useEffect(() => { load(); }, [load]);

@@ -28,35 +28,35 @@ export class CatalogController {
   // ── Admin endpoints (must be static routes before dynamic :id routes) ──
 
   @Get('admin/stats')
-  @Roles('admin', 'procurement_staff')
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
   @ApiOperation({ summary: '电子商城目录管理统计' })
   async adminStats() {
     return this.catalogService.stats();
   }
 
   @Post('admin/items')
-  @Roles('admin', 'procurement_staff')
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
   @ApiOperation({ summary: '管理端新增目录' })
   async createAdminItem(@Request() req: any, @Body() dto: CatalogItemAdminDto) {
     return this.catalogService.createAdminItem(req.user.sub, dto);
   }
 
   @Patch('admin/items/:id')
-  @Roles('admin', 'procurement_staff')
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
   @ApiOperation({ summary: '管理端编辑目录' })
   async updateAdminItem(@Request() req: any, @Param('id') id: string, @Body() dto: CatalogItemAdminDto) {
     return this.catalogService.updateAdminItem(req.user.sub, id, dto);
   }
 
   @Patch('admin/items/:id/status')
-  @Roles('admin', 'procurement_staff')
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
   @ApiOperation({ summary: '管理端变更目录状态' })
   async changeStatus(@Request() req: any, @Param('id') id: string, @Body() dto: CatalogStatusDto) {
     return this.catalogService.changeStatus(req.user.sub, id, dto);
   }
 
   @Get('admin/import-template')
-  @Roles('admin', 'procurement_staff')
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
   @ApiOperation({ summary: '下载电子商城目录导入模板' })
   async importTemplate(@Request() req: any, @Res() res: Response) {
     const buf = await this.catalogService.importTemplate(req.user.sub);
@@ -68,7 +68,7 @@ export class CatalogController {
   }
 
   @Post('admin/import')
-  @Roles('admin', 'procurement_staff')
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
@@ -78,7 +78,7 @@ export class CatalogController {
   }
 
   @Get('admin/audit-logs')
-  @Roles('admin', 'procurement_staff')
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
   @ApiOperation({ summary: '电子商城管理操作日志' })
   async adminAuditLogs() {
     return this.catalogService.adminAuditLogs();
@@ -87,28 +87,28 @@ export class CatalogController {
   // ── 供应商目录供货申请（管理员审核）──
 
   @Get('applications')
-  @Roles('procurement_staff', 'admin')
+  @Roles('procurement_staff', 'admin', 'leader', 'staff')
   @ApiOperation({ summary: '供货申请审核列表' })
   async applications(@Query('status') status?: string, @Query('type') type?: string) {
     return this.catalogService.listApplications({ status, type });
   }
 
   @Get('applications/:id')
-  @Roles('procurement_staff', 'admin')
+  @Roles('procurement_staff', 'admin', 'leader', 'staff')
   @ApiOperation({ summary: '供货申请详情' })
   async application(@Param('id') id: string) {
     return this.catalogService.getApplication(id);
   }
 
   @Post('applications/:id/review')
-  @Roles('procurement_staff', 'admin')
+  @Roles('procurement_staff', 'admin', 'leader', 'staff')
   @ApiOperation({ summary: '审核供货申请（通过/拒绝/退回/议价）' })
   async review(@Request() req: any, @Param('id') id: string, @Body() body: any) {
     return this.catalogService.reviewApplication(req.user.sub, id, body);
   }
 
   @Get('items/:itemId/suppliers')
-  @Roles('procurement_staff', 'admin')
+  @Roles('procurement_staff', 'admin', 'leader', 'staff')
   @ApiOperation({ summary: '某目录条目的准入供应商（含报价）' })
   async itemSuppliers(@Param('itemId') itemId: string) {
     return this.catalogService.listItemSuppliers(itemId);
