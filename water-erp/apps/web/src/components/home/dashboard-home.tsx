@@ -497,6 +497,9 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
             </div>
           </div>
         </div>
+
+        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
+
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 items-stretch gap-2.5">
           <KpiCard label="预算总金额" value={data.summary.totalBudgetLabel} signal="normal" index={1} reducedMotion={reducedMotion}/>
           <KpiCard label="未成交预算" value={data.summary.pendingBudgetLabel} signal={data.summary.pendingBudget>0?"warning":"normal"} index={2} reducedMotion={reducedMotion}/>
@@ -506,6 +509,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
           <KpiCard label="节资率" value={`${sr.toFixed(1)}%`} signal={sr>5?"success":"warning"} index={6} reducedMotion={reducedMotion} showDivider="right"/>
           <KpiCard label="开评标项目" value={`${data.summary.completedCount}/${data.summary.totalCount}`} index={7} reducedMotion={reducedMotion}/>
           <KpiCard label="项目推进率" value={`${cr.toFixed(0)}%`} signal={cr>=70?"success":cr>=50?"warning":"danger"} index={8} reducedMotion={reducedMotion}/>
+        </div>
         </div>
       </motion.div>
       {/* AI 校准条 */}

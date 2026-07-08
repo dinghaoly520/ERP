@@ -576,7 +576,8 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
           </div>
         </div>
 
-        {/* KPI 行 */}
+        {/* KPI 行 — 分割线 + 内容合并在同一容器，间距与项目管理统一 */}
+        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
           <KpiCard label="进行中项目" value={stats.totalActive} signal="success" index={1} reducedMotion={reducedMotion} />
           <KpiCard label="平均完成度" value={formatPercent(avgCompletion)} signal={avgCompletion >= 60 ? "success" : avgCompletion >= 40 ? "warning" : "danger"} sub="整体平均推进率" index={2} reducedMotion={reducedMotion} />
@@ -585,6 +586,7 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
           <KpiCard label="高风险项目" value={dangerCount} signal={dangerCount > 0 ? "danger" : "success"} sub="停滞超14天" index={5} reducedMotion={reducedMotion} />
           <KpiCard label="平均停滞" value={avgStalled} sub="天未更新" signal={avgStalled > 7 ? "danger" : avgStalled > 3 ? "warning" : undefined} index={6} reducedMotion={reducedMotion} />
           <KpiCard label="集中阶段" value={dominantStage?.label ?? "暂无"} sub="项目最密集阶段" index={7} reducedMotion={reducedMotion} />
+        </div>
         </div>
       </motion.div>
 

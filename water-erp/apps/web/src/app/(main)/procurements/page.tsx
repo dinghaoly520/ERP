@@ -165,7 +165,7 @@ function PageHero({
       </div>
 
       {/* 搜索 + 筛选行 */}
-      <div className="flex flex-wrap items-center gap-3" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.5rem" }}>
+      <div className="flex flex-wrap items-center gap-3" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
         <div className="relative min-w-[180px] xl:min-w-[240px] flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)] z-10" />
           <input

@@ -154,16 +154,15 @@ export default function NoticePage() {
           </div>
         </div>
 
-        {/* hairline 分割线 — 与项目管理同款：oklch 淡色 1px + 紧凑上间距 */}
-        <div className="w-full" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.18)", paddingTop: "0.625rem" }} />
-
-        {/* KPI 行 — 对标采购进度的 kpi-card 模式：label / big-value / sub + signal */}
+                {/* hairline 分割线 + KPI 行 — 合并为单一容器，间距与项目管理统一 */}
+        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           <HeroStat label="已发布" value={published} sub="已生效可见" />
           <HeroStat label="待处理草稿" value={drafts} signal={drafts > 0 ? "warning" : "success"} sub={drafts > 0 ? "尽快发布" : "全部已发布"} />
           <HeroStat label="本月发布" value={publishedThisMonth} sub="本月新增公告" valueStr={publishedThisMonth.toString()} />
           <HeroStat label="浏览总量" value={totalViews} sub="累计曝光量" valueStr={totalViews >= 10000 ? `${(totalViews / 10000).toFixed(1)} 万` : totalViews.toLocaleString()} />
           <HeroStat label="缺招标文件" value={missingBidDocs} signal={missingBidDocs > 0 ? "danger" : "success"} sub={missingBidDocs > 0 ? "需立即补齐" : "全部补齐"} />
+        </div>
         </div>
       </div>
 
