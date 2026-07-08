@@ -93,19 +93,14 @@ export function TenderPreviewPane({
     >
       {/* Header — lightweight, no nested card frames */}
       <div className="px-3 py-1.5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="max-w-[48ch]">
-            <div className="text-[8px] font-semibold uppercase tracking-[0.1em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
-              完整预览
-            </div>
-            <div className="mt-0.5 text-xs font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="rounded-[4px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[9px] font-medium text-[color:var(--accent)]">
+              {selectedMeta.label}
+            </span>
+            <span className="text-xs font-semibold tracking-[-0.02em] text-[color:var(--foreground)] truncate">
               {previewHeadline}
-            </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[9px]">
-              <span className="rounded-[4px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 font-medium text-[color:var(--accent)]">
-                {selectedMeta.label}
-              </span>
-            </div>
+            </span>
           </div>
           <div className="flex items-center gap-2 text-[9px] font-semibold">
             <div className="flex items-center gap-1 text-[color:var(--foreground)]">

@@ -262,7 +262,7 @@ function PreviewSection({
         'scroll-mt-6 transition-all duration-300 cursor-pointer',
         isActive
           ? 'rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-3 py-3'
-          : 'border-b border-[oklch(0.6_0.04_258_/_0.12)] px-0 pb-4 hover:bg-[oklch(1_0_0_/_0.2)]',
+          : 'border-b border-[oklch(0.6_0.04_258_/_0.08)] px-0 pb-3 hover:bg-[oklch(1_0_0_/_0.2)]',
       ].join(' ')}
     >
       <div className="flex items-center justify-between gap-3">
@@ -570,7 +570,7 @@ function CompetitiveNegotiationPreview({
               </table>
             </div>
           </div>
-          <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
+          <div className="mt-4 pt-3">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               3. 采购文件构成
             </div>
@@ -749,7 +749,7 @@ function SingleSourcePreview({
               根据单位内部采购管理制度规定，该项目符合单源直接采购的适用条件。现正式向贵单位发出单源直接采购邀请，具体事宜如下：
             </p>
           </div>
-          <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
+          <div className="mt-4 pt-3">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、采购项目基本信息
             </div>
@@ -940,7 +940,7 @@ function SingleSourcePreview({
               </table>
             </div>
           </div>
-          <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
+          <div className="mt-4 pt-3">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               响应文件构成
             </div>
@@ -1186,7 +1186,7 @@ function InquiryPurchasePreview({
               </tbody>
             </table>
           </div>
-          <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
+          <div className="mt-4 pt-3">
             <div className="text-sm leading-7 text-[color:var(--foreground)]">
               <span className="font-semibold">一、递交报价函截止时间：</span>
               <PreviewValue value={draft.submissionDeadline} placeholder="{{递交报价函截止时间}}" fieldKey="submissionDeadline" onValueChange={onValueChange} />
@@ -1619,7 +1619,7 @@ function InternalBiddingPreview({
               />
             </div>
           </div>
-          <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
+          <div className="mt-4 pt-3">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、商务要求
             </div>
@@ -1633,7 +1633,7 @@ function InternalBiddingPreview({
               />
             </div>
           </div>
-          <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
+          <div className="mt-4 pt-3">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               三、技术要求
             </div>
