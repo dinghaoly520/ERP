@@ -585,6 +585,11 @@ export class ExpertService {
         concordanceStatus: bidderResult.concordance?.overallStatus ?? null,
         strengths: bidderResult.strengths,
         weaknesses: bidderResult.weaknesses,
+        // ★ keyObservations 存在 competitiveAnalysis 里（bidder.processor 第一轮写入），
+        //   历史被旧版 comparative-scoring 覆盖过的记录此处为 undefined → 兜底空数组。
+        //   修复 A 后新跑的分析不再覆盖，docx 报告与专家端均可消费。
+        keyObservations:
+          (bidderResult.competitiveAnalysis as { keyObservations?: string[] } | null)?.keyObservations ?? [],
         overallComment: bidderResult.overallComment,
         qualificationStatus: bidderResult.qualificationStatus,
         riskLevel: bidderResult.riskLevel,

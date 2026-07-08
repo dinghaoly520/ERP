@@ -195,6 +195,44 @@ describe('ExpertService', () => {
       expect(out).not.toHaveProperty('reportDocxUrl');
       expect(prisma.aiBidReport).toBeUndefined(); // 不再查 AiBidReport
     });
+
+    it('映射 competitiveAnalysis.keyObservations 到顶层', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', conflictedSupplierIds: [] });
+      prisma.aiBidderResult.findFirst.mockResolvedValue({
+        id: 'br-1', status: 'COMPLETED', totalScore: 80, scoreItems: [], categoryTotals: {}, keyInfo: {},
+        strengths: [], weaknesses: [], overallComment: '', qualificationStatus: '通过', riskLevel: 'low',
+        starredResponse: { allMet: true, unmet: [] },
+        competitiveAnalysis: { strengths: [], weaknesses: [], keyObservations: ['报价次低', '技术维持首轮'] },
+        requirementResponses: [], concordance: null,
+        bidSupplier: { supplierName: '甲公司' },
+      });
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue({ id: 't-1', requirements: null }) };
+      prisma.bidRequirementReview = { findMany: jest.fn().mockResolvedValue([]) };
+
+      const out = await service.getAssistData('u1', 'proj-1', 'sup-1') as any;
+      expect(out.source).toBe('ai_bidder_result');
+      expect(out.keyObservations).toEqual(['报价次低', '技术维持首轮']);
+    });
+
+    it('competitiveAnalysis 被旧版 comparative-scoring 覆盖时 keyObservations 兜底空数组', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', conflictedSupplierIds: [] });
+      // 历史数据：第二轮覆盖后 competitiveAnalysis 只剩横向校准三字段，无 keyObservations
+      prisma.aiBidderResult.findFirst.mockResolvedValue({
+        id: 'br-1', status: 'COMPLETED', totalScore: 80, scoreItems: [], categoryTotals: {}, keyInfo: {},
+        strengths: [], weaknesses: [], overallComment: '', qualificationStatus: '通过', riskLevel: 'low',
+        starredResponse: null,
+        competitiveAnalysis: { comparativeScore: 80, previousScore: 78, reason: '横向校准' },
+        requirementResponses: [], concordance: null,
+        bidSupplier: { supplierName: '甲公司' },
+      });
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue({ id: 't-1', requirements: null }) };
+      prisma.bidRequirementReview = { findMany: jest.fn().mockResolvedValue([]) };
+
+      const out = await service.getAssistData('u1', 'proj-1', 'sup-1') as any;
+      expect(out.keyObservations).toEqual([]);
+    });
   });
 
   describe('getAssistCompare', () => {

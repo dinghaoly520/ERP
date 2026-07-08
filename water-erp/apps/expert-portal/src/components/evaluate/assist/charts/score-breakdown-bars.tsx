@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { AiScoreItem } from '@water-erp/shared';
 
 // ── 分类标签与颜色 ──
@@ -87,30 +88,43 @@ interface ScoreBreakdownBarsProps {
   expanded?: boolean;
   /** 扁平模式：不显示分类标题/分组（用于已在外层按 category 分组的场景，避免标题重复） */
   flat?: boolean;
+  /** 可展开：渲染「展开全部理由」按钮并自管展开态（覆盖 expanded prop） */
+  expandable?: boolean;
 }
 
-export function ScoreBreakdownBars({ scoreItems, reasonLines = 2, expanded = false, flat = false }: ScoreBreakdownBarsProps) {
+export function ScoreBreakdownBars({ scoreItems, reasonLines = 2, expanded = false, expandable = false, flat = false }: ScoreBreakdownBarsProps) {
+  const [expandedAll, setExpandedAll] = useState(false);
   if (!scoreItems || scoreItems.length === 0) return null;
+
+  const effExpanded = expandable ? expandedAll : expanded;
+  const toggleBtn = expandable && scoreItems.some((i) => i.reason) ? (
+    <button onClick={() => setExpandedAll(v => !v)} className="mt-2 text-[11px] text-[var(--color-primary)] hover:underline">
+      {effExpanded ? '收起理由' : '展开全部理由'}
+    </button>
+  ) : null;
 
   // 扁平模式：直接渲染每项（无分类标题），用各项自身 category 的颜色
   if (flat) {
     return (
-      <div className="space-y-2.5">
-        {scoreItems.map((item) => (
-          <ScoreBar
-            key={item.scoreItemId}
-            label={item.name}
-            score={item.score}
-            maxScore={item.maxScore}
-            comment={item.reason}
-            evidence={item.evidence}
-            color={CATEGORY_COLOR[item.category] ?? '#0b63ce'}
-            reasonLines={reasonLines}
-            expanded={expanded}
-            confidence={item.confidence}
-            unstable={item.unstable}
-          />
-        ))}
+      <div>
+        <div className="space-y-2.5">
+          {scoreItems.map((item) => (
+            <ScoreBar
+              key={item.scoreItemId}
+              label={item.name}
+              score={item.score}
+              maxScore={item.maxScore}
+              comment={item.reason}
+              evidence={item.evidence}
+              color={CATEGORY_COLOR[item.category] ?? '#0b63ce'}
+              reasonLines={reasonLines}
+              expanded={effExpanded}
+              confidence={item.confidence}
+              unstable={item.unstable}
+            />
+          ))}
+        </div>
+        {toggleBtn}
       </div>
     );
   }
@@ -152,7 +166,7 @@ export function ScoreBreakdownBars({ scoreItems, reasonLines = 2, expanded = fal
                   evidence={item.evidence}
                   color={color}
                   reasonLines={reasonLines}
-                  expanded={expanded}
+                  expanded={effExpanded}
                   confidence={item.confidence}
                   unstable={item.unstable}
                 />
@@ -161,6 +175,7 @@ export function ScoreBreakdownBars({ scoreItems, reasonLines = 2, expanded = fal
           </div>
         );
       })}
+      {toggleBtn}
     </div>
   );
 }
