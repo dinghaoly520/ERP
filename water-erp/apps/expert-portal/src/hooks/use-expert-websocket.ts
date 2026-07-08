@@ -31,7 +31,22 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
   const manualClose = useRef(false);
   handlersRef.current = handlers;
 
-  const clearTimers = useCallback(() => {
+  /** 绑定业务事件处理（通过 ref 避免闭包过期） */
+  function bindBusinessEvents(socket: Socket) {
+    const on = <T,>(ev: string, fn: ((d: T) => void) | undefined) => {
+      socket.on(ev, (d: T) => {
+      if (fn) { setLastEventAt(Date.now()); fn(d); }
+      });
+    };
+    const h = handlersRef;
+    on(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, h.current.onAggregatePresence);
+    on(BID_EVENT.DECRYPT_STATUS, h.current.onDecryptStatus);
+    on(BID_EVENT.STAGE_CHANGE, h.current.onStageChange);
+    on(BID_EVENT.CLARIFICATION_CREATED, h.current.onClarificationCreated);
+    on(BID_EVENT.CLARIFICATION_REPLIED, h.current.onClarificationReplied);
+  }
+
+  const clearHeartbeatTimers = useCallback(() => {
     if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
     if (heartbeatTimer.current) { clearInterval(heartbeatTimer.current); heartbeatTimer.current = null; }
     if (pongTimer.current) { clearTimeout(pongTimer.current); pongTimer.current = null; }
@@ -79,7 +94,7 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
     };
 
     socket.on('disconnect', () => {
-      clearTimers();
+      clearHeartbeatTimers();
       setConnection('disconnected');
       socketRef.current = null;
       if (manualClose.current) return;
@@ -91,40 +106,32 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
       scheduleReconnect();
     });
 
-    // Bind event handlers via ref for stale-closure safety
-    const on = <T,>(ev: string, fn: ((d: T) => void) | undefined) => {
-      socket.on(ev, (d: T) => {
-        if (fn) { setLastEventAt(Date.now()); fn(d); }
-      });
-    };
-    const h = handlersRef;
-    on(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, h.current.onAggregatePresence);
-    on(BID_EVENT.DECRYPT_STATUS, h.current.onDecryptStatus);
-    on(BID_EVENT.STAGE_CHANGE, h.current.onStageChange);
-    on(BID_EVENT.CLARIFICATION_CREATED, h.current.onClarificationCreated);
-    on(BID_EVENT.CLARIFICATION_REPLIED, h.current.onClarificationReplied);
+    // 绑定业务事件。每次 connect() 调用都会创建全新的 socket 实例，
+    // 因此旧 socket 实例在 disconnect() 后会被 GC 回收，其上绑定的监听器也随之释放，
+    // 不存在"重复绑定旧事件监听器"的问题。
+    bindBusinessEvents(socket);
   }, [projectId]);
 
   const reconnectNow = useCallback(() => {
     if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
-    clearTimers();
+    clearHeartbeatTimers();
     attemptRef.current = 0;
     connect();
-  }, [connect, clearTimers]);
+  }, [connect, clearHeartbeatTimers]);
 
   useEffect(() => {
     if (!projectId) return;
     connect();
     return () => {
       manualClose.current = true;
-      clearTimers();
+      clearHeartbeatTimers();
       if (socketRef.current) {
         socketRef.current.emit('leave:project', projectId);
         socketRef.current.disconnect();
         socketRef.current = null;
       }
     };
-  }, [projectId, connect, clearTimers]);
+  }, [projectId, connect, clearHeartbeatTimers]);
 
   return { connection, lastEventAt, reconnectNow };
 }

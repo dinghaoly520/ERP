@@ -6,6 +6,7 @@ import { Pencil, ClipboardList, CheckCircle, FileText } from 'lucide-react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { SectionCard, MetricCard } from '@water-erp/ui';
+import { STAGE_LABEL } from '@water-erp/shared';
 
 interface ExpertProfile {
   id: string; username: string; displayName: string; email: string; role: string; isActive: boolean;
@@ -15,8 +16,6 @@ interface ExpertProfile {
     scoreRecords: { id: string; score: number; reason?: string; scoreItem: { category: string; name: string; maxScore: number } }[];
   }[];
 }
-
-const stageLabel: Record<string, string> = { DOWNLOAD: '文件下载', SUBMIT: '加密投递', OPENING: '在线开标', EVALUATING: '专家评标', ARCHIVED: '资料归档' };
 
 export default function ExpertProfilePage() {
   const router = useRouter();
@@ -38,9 +37,11 @@ export default function ExpertProfilePage() {
     try {
       await api.patch('/expert/profile', form);
       toast.success('资料已更新');
-      setEditing(false);
+      // Refresh profile from server, then exit editing mode
       const data = await api.get<ExpertProfile>('/expert/profile');
       setProfile(data);
+      setForm({ displayName: data.displayName, email: data.email || '' });
+      setEditing(false);
     } catch { toast.error('更新失败'); }
     setSaving(false);
   };
@@ -187,7 +188,7 @@ export default function ExpertProfilePage() {
                           ? 'border border-[#bbf7d0] bg-[#f0fdf4] text-[#11a874]'
                           : 'border border-[#bfdbfe] bg-white/60 text-[#064ea2]'
                       }`}>
-                        {a.progress >= 100 ? '已完成' : stageLabel[a.project.stage] || a.project.stage}
+                        {a.progress >= 100 ? '已完成' : STAGE_LABEL[a.project.stage] || a.project.stage}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-[#5a6d8a] mb-2">

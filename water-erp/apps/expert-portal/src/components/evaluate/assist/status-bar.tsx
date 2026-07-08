@@ -1,5 +1,6 @@
 'use client';
 import type { AssistData } from '@water-erp/shared';
+import { DECRYPT_LABEL } from '@water-erp/shared';
 
 interface KeyInfoShape {
   quotePriceYuan?: string | number;
@@ -20,7 +21,7 @@ export function StatusBar({
     decryptStatus === 'SUCCESS' ? 'bg-[#11a874]'
     : decryptStatus === 'DANGER' ? 'bg-[#e74c3c]'
     : 'bg-[#f5a623]';
-  const decryptLabel = decryptStatus === 'SUCCESS' ? '已解密' : decryptStatus === 'DANGER' ? '解密异常' : decryptStatus === 'RUNNING' ? '解密中' : '待解密';
+  const decryptLabel = DECRYPT_LABEL[decryptStatus] || '待解密';
 
   return (
     <div className="grid gap-x-10 gap-y-2 mb-3 px-6 py-4 bg-white/60 rounded-xl border border-[oklch(0.91_0.006_264)]"

@@ -6,6 +6,7 @@ import { Clock, CheckCircle, TrendingUp, Clipboard, ScrollText, UserCircle } fro
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { ExpertStatistics, ExpertProject, User } from '@/lib/types';
+import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 import { PageHero, SectionCard, MetricCard } from '@water-erp/ui';
 
 export default function ExpertDashboardPage() {
@@ -23,7 +24,6 @@ export default function ExpertDashboardPage() {
     ]).finally(() => setLoading(false));
   }, []);
 
-  const stageLabel: Record<string, string> = { DOWNLOAD: '文件下载', SUBMIT: '加密投递', OPENING: '在线开标', EVALUATING: '专家评标', ARCHIVED: '资料归档' };
   const isProjectActive = (stage: string) => stage === 'OPENING' || stage === 'EVALUATING';
   const activeProjects = projects.filter(p => isProjectActive(p.project.stage));
   const totalProjectCount = projects.length;
@@ -116,8 +116,7 @@ export default function ExpertDashboardPage() {
           ) : (
             <div className="space-y-3">
               {activeProjects.slice(0, 5).map(ep => {
-                const stageColor: Record<string, string> = { EVALUATING: '#064ea2', OPENING: '#f5a623', ARCHIVED: '#11a874' };
-                const sc = stageColor[ep.project.stage] || '#5a6d8a';
+                const sc = STAGE_COLOR[ep.project.stage] || '#5a6d8a';
                 return (
                   <div key={ep.id} role="button" tabIndex={0}
                     onClick={() => router.push(`/evaluate/${ep.project.id}`)}
@@ -139,7 +138,7 @@ export default function ExpertDashboardPage() {
                       </div>
                       <span className="text-xs font-semibold px-2.5 py-1 rounded-full"
                         style={{ color: sc, backgroundColor: sc + '18' }}>
-                        {stageLabel[ep.project.stage] || ep.project.stage}
+                        {STAGE_LABEL[ep.project.stage] || ep.project.stage}
                       </span>
                     </div>
                     <div className="flex items-center gap-6 text-sm text-[oklch(0.55_0.01_264)] mb-3">

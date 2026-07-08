@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '../lib/types';
 import {
   LayoutDashboard, ClipboardList, UserCircle,
-  PanelLeftClose, PanelLeft,
+  PanelLeftClose, PanelLeft, AlertTriangle, RefreshCw,
 } from 'lucide-react';
 
 const LOGIN_URL = '/login';
@@ -21,19 +21,33 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [authError, setAuthError] = useState(false);
+  const [authRetrying, setAuthRetrying] = useState(false);
 
-  useEffect(() => {
+  const checkAuth = () => {
+    setAuthRetrying(true);
     fetch('/api/auth/me', { credentials: 'include' })
       .then(r => {
         if (r.status === 401) { router.replace(LOGIN_URL); return null; }
         return r.ok ? r.json() : null;
       })
-      .then(u => { if (!u) router.replace(LOGIN_URL); else setUser(u); })
+      .then(u => {
+        if (!u) { router.replace(LOGIN_URL); return; }
+        setUser(u);
+        setAuthError(false);
+        setAuthRetrying(false);
+      })
       .catch(() => {
-        // Transient network error — don't log out, show retry
-        console.error('Auth check failed — will retry on next navigation');
+        setAuthError(true);
+        setAuthRetrying(false);
+        // Auto-retry once after 3 seconds
+        setTimeout(() => {
+          if (!user) checkAuth();
+        }, 3000);
       });
-  }, []);
+  };
+
+  useEffect(() => { checkAuth(); }, []);
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
@@ -125,6 +139,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {authError && (
+            <div className="mx-6 mt-3 flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 text-sm">
+              <AlertTriangle size={16} strokeWidth={1.5} className="text-amber-500 shrink-0" />
+              <span className="flex-1 font-semibold text-amber-700">身份验证失败，请检查网络后重试</span>
+              <button
+                onClick={checkAuth}
+                disabled={authRetrying}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition disabled:opacity-50"
+              >
+                <RefreshCw size={12} className={authRetrying ? 'animate-spin' : ''} />
+                {authRetrying ? '重试中…' : '重试'}
+              </button>
+            </div>
+          )}
           <main className="flex-1 overflow-y-auto p-6">
             {children}
           </main>

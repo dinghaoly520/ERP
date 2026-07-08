@@ -1,6 +1,17 @@
 const BASE = '/api';
 const PORTAL = 'expert';
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+    public readonly data?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
   // Merge headers safely: handle both plain objects and Headers instances
   const mergedHeaders = new Headers({ 'X-Portal': PORTAL });
@@ -15,10 +26,16 @@ async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
     headers: mergedHeaders,
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const err = new Error(body.error || body.message || res.statusText);
-    (err as any).data = body;
-    throw err;
+    let message = `请求失败 (${res.status})`;
+    let body: Record<string, unknown> = {};
+    try {
+      body = await res.json();
+      if (body.error) message = String(body.error);
+      else if (body.message) message = String(body.message);
+    } catch {
+      // Response body is not JSON — keep default message
+    }
+    throw new ApiError(message, res.status, body);
   }
   return res.json();
 }

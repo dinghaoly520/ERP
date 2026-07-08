@@ -2,16 +2,19 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { toast } from 'sonner';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
-import { isPassFailCategory } from '@water-erp/shared';
+import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
+import { DocumentsStep } from '@/components/evaluate/documents-step';
+import { ReportStep } from '@/components/evaluate/report-step';
+import { formatBytes } from '@/lib/utils';
 
 type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
@@ -23,12 +26,7 @@ const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: numb
   { key: 'report', label: '评审报告', Icon: BarChart3 },
 ];
 
-const CATEGORY_LABEL: Record<string, string> = {
-  QUALIFICATION: '资格审查', RESPONSIVE: '响应性评审', BUSINESS: '商务评审', TECHNICAL: '技术评审', PRICE: '价格评审',
-};
-const CATEGORY_COLOR: Record<string, string> = {
-  QUALIFICATION: '#064ea2', RESPONSIVE: '#0b63ce', BUSINESS: '#f5a623', TECHNICAL: '#11a874', PRICE: '#e74c3c',
-};
+// CATEGORY_LABEL, CATEGORY_COLOR 从 @water-erp/shared 导入（单一来源）
 
 export default function ExpertEvaluatePage() {
   const router = useRouter();
@@ -281,8 +279,7 @@ export default function ExpertEvaluatePage() {
     if (!stepAccessible(step)) {
       setStep('verify');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, expert?.signedIn, expert?.avoidanceConfirmed, confidentialityAgreed, disciplineAgreed]);
+  }, [step, expert?.signedIn, expert?.avoidanceConfirmed, expert?.reportConfirmed, expert?.progress, confidentialityAgreed, disciplineAgreed]);
 
   const handleSignIn = async () => {
     setBusy(true);
@@ -314,7 +311,8 @@ export default function ExpertEvaluatePage() {
         });
       }, 1000);
     } catch (e: any) {
-      toast.error(e.data?.error || e.message || '发送失败');
+      const msg = e instanceof ApiError && e.data?.error ? String(e.data.error) : e.message || '发送失败';
+      toast.error(msg);
     }
     setSendingCode(false);
   };
@@ -332,14 +330,14 @@ export default function ExpertEvaluatePage() {
       setPhoneVerified(true);
       toast.success('手机验证通过');
     } catch (e: any) {
-      const data = e.data;
-      setCodeError(data?.error || '验证失败');
+      const data = e instanceof ApiError ? e.data : null;
+      setCodeError(data?.error ? String(data.error) : e.message || '验证失败');
       autoVerifyRef.current = false; // disable auto-verify after first failure
       if (data?.code === 'ATTEMPTS_EXCEEDED' || data?.code === 'CODE_EXPIRED') {
         setCodeSent(false);
         setVerificationCode('');
       }
-      const match = data?.error?.match(/剩余 (\d+) 次/);
+      const match = data?.error ? String(data.error).match(/剩余 (\d+) 次/) : null;
       if (match) setAttemptsLeft(parseInt(match[1], 10));
     }
     setVerifying(false);
@@ -497,21 +495,12 @@ export default function ExpertEvaluatePage() {
   };
 
   if (loading || !project) return <div className="flex items-center justify-center h-64 text-[oklch(0.55_0.01_264)]">加载中...</div>;
-
-  const decryptLabel: Record<string, string> = { PENDING: '待解密', RUNNING: '解密中', SUCCESS: '已解密', DANGER: '异常' };
   const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
   const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
     // P2: also block if expert declared conflict with this supplier
     && !conflictedSupplierIds.has(activeSupplier)
     && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier);
   const scoreLocked = !!expert?.reportConfirmed;
-
-  const formatBytes = (n: number) => {
-    if (!n) return '—';
-    if (n < 1024) return `${n} B`;
-    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-    return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  };
 
   // ── Task 5: 聚焦复选框面板 helpers ──
   const noteId = (supplierId: string, requirementId: string) => `${supplierId}:${requirementId}`;
@@ -751,7 +740,7 @@ export default function ExpertEvaluatePage() {
             activeSupplier={activeSupplier}
             onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); setConfirmedDispute({}); setReviewPanelOpenKey(null); }}
             conflictedSupplierIds={conflictedSupplierIds}
-            decryptLabel={decryptLabel}
+            decryptLabel={DECRYPT_LABEL}
             scoringProgress={
               step === 'scoring'
                 ? Object.fromEntries(
@@ -1041,115 +1030,7 @@ export default function ExpertEvaluatePage() {
 
           {/* ====== 标书获取 ====== */}
           {step === 'documents' && (
-            <div className="p-6 pt-4">
-
-              {/* 招标文件（项目级，专家独立核对原文 ★号实质性条款）*/}
-              <div className="mb-5 border border-[#064ea2]/30 rounded-xl overflow-hidden bg-gradient-to-br from-blue-50/60 to-white">
-                <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[#064ea2]/15">
-                  <div className="w-7 h-7 rounded-lg bg-[#064ea2] flex items-center justify-center text-white shrink-0">
-                    <FileText size={15} strokeWidth={1.5} />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]">招标文件</h3>
-                    <p className="text-[10px] text-[oklch(0.55_0.01_264)]">评标依据原文 · 请独立核对 ★号实质性条款</p>
-                  </div>
-                </div>
-                <div className="p-4">
-                  {project.tenderDocument ? (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-[#064ea2]/15 hover:shadow-sm transition-all">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0b63ce] flex items-center justify-center text-white text-[9px] font-bold uppercase shrink-0">
-                        PDF
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-xs text-[oklch(0.18_0.012_265)] truncate" title={project.tenderDocument.fileName}>{project.tenderDocument.fileName}</h4>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] text-[oklch(0.55_0.01_264)]">{formatBytes(project.tenderDocument.fileSize)}</span>
-                          <span className="text-[10px] text-[#064ea2] font-semibold">可预览</span>
-                        </div>
-                      </div>
-                      <a href={project.tenderDocument.downloadUrl} target="_blank" rel="noopener" className="flex items-center gap-1 px-3 py-1.5 bg-[#064ea2] text-white text-[11px] rounded-lg hover:bg-[#054280] transition shrink-0">
-                        <Download size={12} strokeWidth={1.5} /> 预览
-                      </a>
-                    </div>
-                  ) : (
-                    <div className="text-center py-5 text-[oklch(0.55_0.01_264)]">
-                      <FileText size={26} strokeWidth={1} className="text-[#cbd5e1] mx-auto mb-2" />
-                      <p className="text-xs">本项目暂无招标文件</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {Object.keys(documents).length === 0 ? (
-                <div className="text-center py-12 text-[oklch(0.55_0.01_264)]">
-                  <div className="mb-3"><FileText size={40} strokeWidth={1} className="text-[#cbd5e1]" /></div>
-                  <p>正在加载标书...</p>
-                </div>
-              ) : (
-                <div className="space-y-5">
-                  {project.suppliers.map(sup => {
-                    const doc = documents[sup.id];
-                    if (!doc) return null;
-                    return (
-                      <div key={sup.id} className="border border-[oklch(0.91_0.006_264)] rounded-xl overflow-hidden">
-                        {/* 供应商头部 */}
-                        <div className="flex items-center justify-between px-4 py-3 bg-[oklch(0.97_0.005_264)] border-b border-[oklch(0.91_0.006_264)]">
-                          <div className="flex items-center gap-2.5">
-                            <span className={`w-2 h-2 rounded-full ${
-                              sup.decryptStatus === 'SUCCESS' ? 'bg-[#11a874]'
-                              : sup.decryptStatus === 'DANGER' ? 'bg-[#e74c3c]' : 'bg-[#f5a623]'
-                            }`} />
-                            <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]">{sup.supplierName}</h3>
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                              sup.decryptStatus === 'SUCCESS' ? 'bg-emerald-100 text-[#11a874]'
-                              : sup.decryptStatus === 'DANGER' ? 'bg-red-100 text-[#e74c3c]' : 'bg-amber-100 text-[#f5a623]'
-                            }`}>
-                              {decryptLabel[sup.decryptStatus] || sup.decryptStatus}
-                            </span>
-                          </div>
-                          {!doc.canView && (
-                            <span className="text-[11px] text-amber-600 font-medium">标书尚未解密</span>
-                          )}
-                        </div>
-
-                        {/* 文件列表 */}
-                        <div className="p-4">
-                          {!doc.canView ? (
-                            <p className="text-sm text-[oklch(0.55_0.01_264)]">请等待开标主持端完成解密</p>
-                          ) : doc.documents.length === 0 ? (
-                            <p className="text-sm text-[oklch(0.55_0.01_264)] text-center py-4">该供应商未提交可查看的投标文件</p>
-                          ) : (
-                            <div className="grid grid-cols-2 gap-3">
-                              {doc.documents.map((d, i) => (
-                                <div key={i} className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100 hover:shadow-sm transition-all">
-                                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0b63ce] flex items-center justify-center text-white text-[9px] font-bold uppercase shrink-0">
-                                    {d.type.replace('application/', '').replace('image/', '').replace('vnd.', '').slice(0, 4)}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <h4 className="font-semibold text-xs text-[oklch(0.18_0.012_265)] truncate" title={d.originalName}>{d.originalName}</h4>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <span className="text-[10px] text-[oklch(0.55_0.01_264)]">{formatBytes(d.size)}</span>
-                                      <span className="text-[10px] text-emerald-600 font-semibold">{d.status}</span>
-                                    </div>
-                                  </div>
-                                  {d.downloadUrl ? (
-                                    <a href={d.downloadUrl} target="_blank" rel="noopener" className="flex items-center gap-1 px-2.5 py-1.5 bg-[#064ea2] text-white text-[11px] rounded-lg hover:bg-[#054280] transition shrink-0">
-                                      <Download size={12} strokeWidth={1.5} /> 预览
-                                    </a>
-                                  ) : (
-                                    <span className="text-[10px] text-[oklch(0.62_0.008_264)] px-2 py-1 shrink-0">待解密</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <DocumentsStep project={project} documents={documents} />
           )}
 
           {/* ====== 辅助评标（AI引擎驱动） ====== */}
@@ -1262,11 +1143,12 @@ export default function ExpertEvaluatePage() {
                                 </ul>
                               </div>
                             )}
-                            {items.map(item => {
+                            {items.map((item, idx) => {
                               const k = scoreKey(activeSupplier, item.id);
                               const val = scores[k];
                               const reasonMissing = missingReasons.has(item.id);
                               const passFail = isPassFailCategory(item.category);
+                              const isLastItem = idx === items.length - 1;
                               if (passFail) {
                                 const verdict = val?.passed;
                                 return (
@@ -1320,7 +1202,7 @@ export default function ExpertEvaluatePage() {
                                       aria-label={`${item.name} 评分`} aria-valuemin={0} aria-valuemax={max} aria-valuenow={currentScore} aria-valuetext={`${currentScore} / ${max} 分`} tabIndex={0} />
                                     <input type="number" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.min(parseFloat(e.target.value) || 0, max), reason: prev[k]?.reason || '' } }))}
-                                      onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); const v = Math.min((currentScore || 0) + 0.5, max); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } else if (e.key === 'ArrowDown') { e.preventDefault(); const v = Math.max((currentScore || 0) - 0.5, 0); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } handleScoringKeyDown(e, false); }}
+                                      onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); const v = Math.min((currentScore || 0) + 0.5, max); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } else if (e.key === 'ArrowDown') { e.preventDefault(); const v = Math.max((currentScore || 0) - 0.5, 0); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } handleScoringKeyDown(e, isLastItem); }}
                                       className="w-20 text-center border border-blue-100 rounded-lg px-2 py-1.5 text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2] outline-none"
                                       aria-label={`${item.name} 数值输入`} tabIndex={0} />
                                   </div>
@@ -1332,6 +1214,7 @@ export default function ExpertEvaluatePage() {
                                       setScores(prev => ({ ...prev, [k]: { score: prev[k]?.score ?? 0, reason: v } }));
                                       if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
                                     }}
+                                    onKeyDown={e => handleScoringKeyDown(e, isLastItem)}
                                     className={`w-full rounded-lg px-3 py-2 text-sm resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
                                     aria-label={`${item.name} 评分理由`} tabIndex={0} />
                                   {/* Task 5: 数值项理由框聚焦（或点📎按钮）→ 展开复选框面板 */}
@@ -1402,75 +1285,7 @@ export default function ExpertEvaluatePage() {
 
           {/* ====== 评审报告 ====== */}
           {step === 'report' && (
-            <div className="p-6 max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-xl font-bold text-[oklch(0.18_0.012_265)]">评审报告</h2>
-                  <p className="text-sm text-[oklch(0.55_0.01_264)] mt-1">查看评审结果汇总，确认后不可修改</p>
-                </div>
-                {report?.canConfirm && (
-                  <button onClick={handleConfirmReport} disabled={busy}
-                    className="px-6 py-2.5 bg-emerald-500 text-white rounded-lg font-semibold hover:bg-emerald-600 transition disabled:opacity-50">
-                    {busy ? '确认中...' : <span className="inline-flex items-center gap-1.5"><Check size={14} strokeWidth={2.5} />确认评审报告</span>}
-                  </button>
-                )}
-              </div>
-
-              {report ? (
-                <div className="space-y-6">
-                  <div className="bg-[#064ea2] text-white rounded-xl p-6">
-                    <h3 className="text-xl font-bold mb-2">{report.projectName}</h3>
-                    <div className="flex items-center gap-6 text-sm text-white/80">
-                      <span>项目编号：{report.projectCode}</span>
-                      <span>评审专家：{report.expertName}</span>
-                      <span>完成度：{report.expertProgress}%</span>
-                    </div>
-                  </div>
-
-                  {report.supplierScores.map((ss, i) => (
-                    <div key={i} className="glass-card glass-card-blue rounded-xl overflow-hidden">
-                      <div className="flex items-center justify-between p-5 border-b border-[oklch(0.91_0.006_264)]">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#064ea2] to-[#0b63ce] flex items-center justify-center text-white font-bold text-sm">{i + 1}</div>
-                          <h3 className="font-bold text-[oklch(0.18_0.012_265)]">{ss.supplierName}</h3>
-                          {ss.perSupplierComplete && <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-semibold">评分完整</span>}
-                        </div>
-                        <div className="text-2xl font-bold text-[#064ea2]">{ss.totalScore} <span className="text-sm text-[oklch(0.55_0.01_264)] font-normal">分</span></div>
-                      </div>
-                      {Object.entries(ss.categoryScores).length > 0 && (
-                        <div className="p-5 grid grid-cols-3 gap-3">
-                          {Object.entries(ss.categoryScores).map(([cat, data]) => {
-                            const passFail = isPassFailCategory(cat);
-                            const firstPassed = data.items[0]?.passed;
-                            return (
-                              <div key={cat} className="bg-blue-50 rounded-lg p-3" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[cat] || '#064ea2'}` }}>
-                                <div className="text-xs font-semibold mb-1" style={{ color: CATEGORY_COLOR[cat] || '#064ea2' }}>{CATEGORY_LABEL[cat] || cat}</div>
-                                {passFail ? (
-                                  <div className={`text-lg font-bold ${firstPassed === false ? 'text-[#e74c3c]' : 'text-[#11a874]'}`}>
-                                    {firstPassed === false ? '不通过' : '通过'}
-                                  </div>
-                                ) : (
-                                  <div className="text-lg font-bold text-[oklch(0.18_0.012_265)]">{data.total} <span className="text-xs text-[oklch(0.55_0.01_264)] font-normal">/ {data.max}</span></div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  {!report.overallComplete && (
-                    <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 flex items-center gap-3">
-                      <span className="text-xl"><AlertTriangle size={14} strokeWidth={1.5} /></span>
-                      <p className="text-sm text-amber-600">请先完成所有供应商的评分后再确认报告</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-12 text-[oklch(0.55_0.01_264)]">加载报告数据...</div>
-              )}
-            </div>
+            <ReportStep report={report} busy={busy} onConfirmReport={handleConfirmReport} />
           )}
             </div>
           </div>

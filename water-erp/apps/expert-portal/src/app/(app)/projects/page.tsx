@@ -6,14 +6,7 @@ import { toast } from 'sonner';
 import { ClipboardList, Building2, FileText, MessageSquare, Calendar, Clock, Lock, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ExpertProject } from '@/lib/types';
-
-const stageLabel: Record<string, string> = {
-  DOWNLOAD: '文件下载',
-  SUBMIT: '加密投递',
-  OPENING: '在线开标',
-  EVALUATING: '专家评标',
-  ARCHIVED: '资料归档',
-};
+import { STAGE_LABEL } from '@water-erp/shared';
 
 const stageColor: Record<string, string> = {
   OPENING: '#f5a623',
@@ -196,7 +189,7 @@ export default function ExpertProjectsPage() {
                       {/* Stage badge — always shown, color-coded */}
                       <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold border"
                         style={{ color: sc, backgroundColor: sbg, borderColor: sbd }}>
-                        {stageLabel[ep.project.stage] || ep.project.stage}
+                        {STAGE_LABEL[ep.project.stage] || ep.project.stage}
                       </span>
                     </div>
                   </div>
@@ -299,7 +292,7 @@ export default function ExpertProjectsPage() {
                       backgroundColor: stageBg[overviewProject.project.stage] || '#f8fafc',
                       borderColor: stageBorder[overviewProject.project.stage] || '#e5ecf4',
                     }}>
-                    {stageLabel[overviewProject.project.stage] || overviewProject.project.stage}
+                    {STAGE_LABEL[overviewProject.project.stage] || overviewProject.project.stage}
                   </span>
                 </div>
                 <div>

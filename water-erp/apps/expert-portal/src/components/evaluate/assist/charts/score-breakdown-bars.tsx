@@ -2,24 +2,10 @@
 
 import { useState } from 'react';
 import type { AiScoreItem } from '@water-erp/shared';
+import { CATEGORY_LABEL, CATEGORY_COLOR } from '@water-erp/shared';
 
-// ── 分类标签与颜色 ──
-
-export const CATEGORY_LABEL: Record<string, string> = {
-  QUALIFICATION: '资格审查',
-  RESPONSIVE: '响应性评审',
-  BUSINESS: '商务评审',
-  TECHNICAL: '技术评审',
-  PRICE: '价格评审',
-};
-
-export const CATEGORY_COLOR: Record<string, string> = {
-  QUALIFICATION: '#064ea2',
-  RESPONSIVE: '#0b63ce',
-  BUSINESS: '#f5a623',
-  TECHNICAL: '#11a874',
-  PRICE: '#e74c3c',
-};
+// 向后兼容：重新导出，使仍从该文件导入的消费者继续工作
+export { CATEGORY_LABEL, CATEGORY_COLOR };
 
 // ── 单条评分进度条 ──
 
