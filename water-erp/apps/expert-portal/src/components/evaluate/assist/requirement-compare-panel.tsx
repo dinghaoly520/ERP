@@ -246,13 +246,14 @@ export function RequirementComparePanel({
                                 <span className="text-[10px] text-red-600">·异议</span>
                               )}
                               {item.sourcePage && (
-                                <button type="button"
+                                <span role="button" tabIndex={0}
                                   onClick={(e) => { e.stopPropagation(); setTenderPage(item.sourcePage!); setLeftMode('tender'); }}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setTenderPage(item.sourcePage!); setLeftMode('tender'); } }}
                                   title={`跳转到招标文件第 ${item.sourcePage} 页`}
-                                  className="text-[10px] text-[var(--color-primary)] hover:underline ml-auto shrink-0"
+                                  className="text-[10px] text-[var(--color-primary)] hover:underline ml-auto shrink-0 cursor-pointer"
                                 >
                                   原文 p.{item.sourcePage}
-                                </button>
+                                </span>
                               )}
                             </div>
                           </div>
