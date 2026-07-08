@@ -14,6 +14,8 @@ interface ReqItem {
   acceptanceCriteria?: string;
   threshold?: string;
   evidenceType?: string;
+  /** 条款在招标文件中的首次页码（LLM 标注）；有值时显示「跳原文」按钮 */
+  sourcePage?: number;
 }
 
 const CAT_LABEL: Record<string, string> = {
@@ -66,6 +68,7 @@ export function RequirementComparePanel({
 
   // ── 左栏双模式：「条款清单」（默认） / 「招标文件」（参考视图，不改中/右） ──
   const [leftMode, setLeftMode] = useState<'list' | 'tender'>('list');
+  const [tenderPage, setTenderPage] = useState<number | null>(null);
 
   const flat: ReqItem[] = useMemo(
     () => [
@@ -242,6 +245,15 @@ export function RequirementComparePanel({
                               {local[item.id]?.verdict === 'dispute' && (
                                 <span className="text-[10px] text-red-600">·异议</span>
                               )}
+                              {item.sourcePage && (
+                                <button type="button"
+                                  onClick={(e) => { e.stopPropagation(); setTenderPage(item.sourcePage!); setLeftMode('tender'); }}
+                                  title={`跳转到招标文件第 ${item.sourcePage} 页`}
+                                  className="text-[10px] text-[var(--color-primary)] hover:underline ml-auto shrink-0"
+                                >
+                                  原文 p.{item.sourcePage}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </button>
@@ -255,7 +267,8 @@ export function RequirementComparePanel({
             /* 模式 2：招标文件 iframe（参考视图，中/右保持上一个选中条款不动） */
             <div className="flex-1 bg-[oklch(0.97_0.005_264)]">
               <iframe
-                src={tenderDocUrl}
+                key={`tender-p${tenderPage ?? 1}`}
+                src={tenderPage ? `${tenderDocUrl}#page=${tenderPage}` : tenderDocUrl}
                 title="招标文件原文"
                 className="w-full h-full border-0"
                 style={{ minHeight: '500px' }}
