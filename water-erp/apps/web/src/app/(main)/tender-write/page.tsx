@@ -17,11 +17,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Eraser, FileDown, History, Megaphone, Save, ScanText, Mail } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { LoginErrorDialog } from "@/components/login/login-error-dialog";
-import { DocumentTypeDialog } from "@/components/tender-write/document-type-dialog";
 import { TenderHistoryDialog } from "@/components/tender-write/tender-history-dialog";
 import { ImportAutofillButton } from "@/components/tender-write/import-autofill-button";
 import { ImportAutofillDialog } from "@/components/tender-write/import-autofill-dialog";
-import { TenderTypeSwitcher } from "@/components/tender-write/tender-type-switcher";
 import { TenderWriteWorkspace } from "@/components/tender-write/tender-write-workspace";
 import { AnnouncementDialog } from "@/components/tender-write/announcement-dialog";
 import { NotificationHubDialog } from "@/components/tender-write/notification-hub-dialog";
@@ -134,7 +132,6 @@ export default function TenderWritePage() {
   const [activeSectionKey, setActiveSectionKey] = useState<TenderSectionKey>(
     "cover",
   );
-  const [showTypeDialog, setShowTypeDialog] = useState(true);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [savingHistory, setSavingHistory] = useState(false);
@@ -313,12 +310,6 @@ export default function TenderWritePage() {
         },
       }));
     }
-  };
-
-  const handleSelectType = (type: TenderDocumentType) => {
-    setSelectedType(type);
-    setActiveSectionKey("cover");
-    setShowTypeDialog(false);
   };
 
   const handleClearCurrent = async () => {
@@ -522,35 +513,9 @@ export default function TenderWritePage() {
               </div>
             </div>
 
-            <div className="mt-4">
-              <TenderTypeSwitcher
-                options={TENDER_DOCUMENT_TYPES}
-                selectedType={selectedType}
-                onSelect={handleSelectType}
-              />
-            </div>
           </div>
         ) : null}
-        {!selectedType ? (
-          <div className="flex flex-1 flex-col items-center justify-center wb-panel p-12 text-center text-sm text-[color:var(--muted-foreground)]">
-            <div className="mb-4">请选择招标文件类型</div>
-            <TenderTypeSwitcher
-              options={TENDER_DOCUMENT_TYPES}
-              selectedType={null}
-              onSelect={handleSelectType}
-            />
-          </div>
-        ) : selectedMeta?.availability !== "ready" ? (
-          <div className="wb-panel p-12">
-            <h2 className="text-lg font-semibold text-[color:var(--foreground)]">
-              {selectedMeta?.label}模板待配置
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-[color:var(--muted-foreground)]">
-              该采购方式的模板和字段映射将在后续补充。可切换到竞争性谈判继续编写。
-            </p>
-          </div>
-        ) : (
-          <TenderWriteWorkspace
+        {selectedMeta ? (<TenderWriteWorkspace
             documentType={selectedType as ReadyTenderDocumentType}
             draft={currentDraft}
             sections={currentSections}
@@ -559,8 +524,14 @@ export default function TenderWritePage() {
             onSectionSelect={setActiveSectionKey}
             onChange={updateDraft}
             onTableChange={updateDraftTable}
-          />
-        )}
+          />) : (
+            <div className="flex flex-1 items-center justify-center wb-panel">
+              <div className="flex flex-col items-center gap-3">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[rgba(96,139,239,0.3)] border-t-[rgba(96,139,239,1)]" />
+                <span className="text-sm text-[color:var(--muted-foreground)]">正在加载...</span>
+              </div>
+            </div>
+          )}
       </motion.div>
 
       {selectedType && selectedMeta ? (
@@ -572,13 +543,6 @@ export default function TenderWritePage() {
           onClose={() => setShowHistoryDialog(false)}
         />
       ) : null}
-
-      <DocumentTypeDialog
-        isOpen={showTypeDialog}
-        options={TENDER_DOCUMENT_TYPES}
-        onConfirm={handleSelectType}
-        onClose={() => setShowTypeDialog(false)}
-      />
 
       <LoginErrorDialog
         isOpen={Boolean(errorMessage)}
