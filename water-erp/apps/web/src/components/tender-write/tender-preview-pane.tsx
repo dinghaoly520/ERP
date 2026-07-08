@@ -96,20 +96,20 @@ export function TenderPreviewPane({
   return (
     <aside
       data-tender-panel="preview"
-      className="flex min-h-0 flex-1 flex-col overflow-hidden max-w-[420px] tender-section-enter-delay-2"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden max-w-[380px] tender-section-enter-delay-2"
     >
       {/* Header — lightweight, no nested card frames */}
-      <div className="px-5 py-3.5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-[52ch]">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
+      <div className="px-4 py-2.5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="max-w-[48ch]">
+            <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
               完整预览
             </div>
-            <div className="mt-1.5 text-base font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
+            <div className="mt-1 text-sm font-semibold tracking-[-0.025em] text-[color:var(--foreground)]">
               {previewHeadline}
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
-              <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 font-medium text-[color:var(--accent)]">
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
+              <span className="rounded-[5px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 font-medium text-[color:var(--accent)]">
                 {selectedMeta.label}
               </span>
               <span className="text-[color:var(--muted-foreground)]">
@@ -117,14 +117,14 @@ export function TenderPreviewPane({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-[11px] font-semibold">
-            <div className="flex items-center gap-1.5 text-[color:var(--foreground)]">
-              <span className="h-2 w-2 rounded-full bg-[var(--success)]" />
+          <div className="flex items-center gap-3 text-[10px] font-semibold">
+            <div className="flex items-center gap-1 text-[color:var(--foreground)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
               {completedSections}/{progress.length} 组
             </div>
             {missingFieldCount > 0 && (
-              <div className="flex items-center gap-1.5 text-[color:var(--danger)]">
-                <span className="h-2 w-2 rounded-full bg-[var(--danger)]" />
+              <div className="flex items-center gap-1 text-[color:var(--danger)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--danger)]" />
                 +{missingFieldCount}
               </div>
             )}

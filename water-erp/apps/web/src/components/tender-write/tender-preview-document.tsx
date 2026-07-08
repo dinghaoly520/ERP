@@ -383,7 +383,7 @@ function CompetitiveNegotiationPreview({
             <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
-            <div className="mt-4 text-[1.12rem] font-semibold tracking-[0.08em] text-[rgba(80,102,146,0.92)]">
+            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[rgba(80,102,146,0.92)]">
               竞争性谈判采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
@@ -721,7 +721,7 @@ function SingleSourcePreview({
             <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
-            <div className="mt-4 text-[1.12rem] font-semibold tracking-[0.08em] text-[rgba(80,102,146,0.92)]">
+            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[rgba(80,102,146,0.92)]">
               单源直接采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
@@ -1095,7 +1095,7 @@ function InquiryPurchasePreview({
             <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
-            <div className="mt-4 text-[1.12rem] font-semibold tracking-[0.08em] text-[rgba(80,102,146,0.92)]">
+            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[rgba(80,102,146,0.92)]">
               询价采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
@@ -1315,7 +1315,7 @@ function InternalBiddingPreview({
             <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
-            <div className="mt-4 text-[1.12rem] font-semibold tracking-[0.08em] text-[rgba(80,102,146,0.92)]">
+            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[rgba(80,102,146,0.92)]">
               内部竞标（竞价）采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
