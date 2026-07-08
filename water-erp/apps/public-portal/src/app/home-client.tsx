@@ -175,6 +175,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   }, [announceData.length, announceTab]);
 
   const features = [
+    { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: portalURL('mall', '/login?forceLogin=1') },
     { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: portalURL('supplier', '/login?forceLogin=1') },
     { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: portalURL('web', '/login?forceLogin=1') },
     { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: portalURL('expert', '/login?forceLogin=1') },
@@ -305,13 +306,13 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
 
         {/* ═══════════════════ 快捷入口 ═══════════════════ */}
         <section className="relative z-10 py-8">
-          <div className="px-[clamp(40px,4vw,72px)]">
-            <div className="flex items-stretch justify-evenly max-w-[1500px] mx-auto gap-5">
+          <div className="px-[clamp(20px,2vw,40px)]">
+            <div className="flex items-stretch max-w-[1800px] mx-auto gap-2">
               {features.map((f, idx) => (
                 <React.Fragment key={f.title}>
                   {idx > 0 && <div className="feature-divider" />}
                   <a href={f.href} target="_blank" rel="noopener noreferrer"
-                    className="relative flex items-center gap-3.5 px-[100px] py-6 no-underline text-inherit overflow-hidden group feature-entry-card min-w-[360px]"
+                    className="relative flex flex-1 items-center gap-3.5 px-14 py-8 no-underline text-inherit overflow-hidden group feature-entry-card"
                     onMouseMove={e => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       e.currentTarget.style.setProperty('--glow-x', `${e.clientX - rect.left}px`);
