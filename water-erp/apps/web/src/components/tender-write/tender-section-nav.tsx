@@ -9,7 +9,7 @@ const sectionStateCopy = {
 } as const;
 
 const sectionStateTone = {
-  idle: 'border-white/42 bg-white/52 text-[color:var(--muted-foreground)]',
+  idle: 'border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.35)] text-[color:var(--muted-foreground)]',
   completed:
     'border-[rgba(92,181,150,0.18)] bg-[rgba(92,181,150,0.08)] text-[rgba(78,150,124,1)]',
   'active-complete':
@@ -36,8 +36,8 @@ export function TenderSectionNav({
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-[24px] border border-[rgba(226,234,248,0.88)] bg-[rgba(255,255,255,0.72)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
-      <div className="tender-nav-summary rounded-[20px] border border-white/72 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(244,248,255,0.84))] px-3 py-3 shadow-[0_10px_22px_rgba(57,88,142,0.06)]">
+    <div className="flex h-full min-h-0 flex-col rounded-[20px] neu-card-static !rounded-[20px] p-3">
+      <div className="rounded-[16px] bg-[oklch(1_0_0_/_0.35)] px-3 py-3" style={{ border: "1px solid oklch(0.6 0.04 258 / 0.18)" }}>
         <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(90,122,186,0.76)]">
           章节导航
         </div>
@@ -70,7 +70,7 @@ export function TenderSectionNav({
                 'tender-nav-card group relative w-full rounded-[20px] border px-3.5 py-3.5 text-left transition-all duration-300 tender-card-interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(107,149,240,0.24)]',
                 isActive
                   ? 'border-[rgba(107,149,240,0.34)] bg-[linear-gradient(145deg,rgba(241,247,255,0.99),rgba(232,240,255,0.9))] shadow-[0_14px_28px_rgba(78,110,168,0.12)]'
-                  : 'border-white/45 bg-white/72 hover:border-white/78 hover:bg-white/88',
+                  : 'border-[oklch(0.6_0.04_258_/_0.18)] bg-[oklch(1_0_0_/_0.35)] hover:border-[oklch(0.6_0.04_258_/_0.3)] hover:bg-[oklch(1_0_0_/_0.55)]',
               ].join(' ')}
             >
               <div className="flex items-start justify-between gap-3">
@@ -81,7 +81,7 @@ export function TenderSectionNav({
                         'inline-flex h-6 min-w-[1.75rem] items-center justify-center rounded-full px-2 text-[10px] font-semibold tracking-[0.08em] transition-all duration-300',
                         isActive
                           ? 'bg-[rgba(96,139,239,0.16)] text-[rgba(96,139,239,1)]'
-                          : 'bg-white/82 text-[rgba(96,118,160,0.84)]',
+                          : 'bg-[oklch(1_0_0_/_0.55)] text-[rgba(96,118,160,0.84)]',
                       ].join(' ')}
                     >
                       {String(index + 1).padStart(2, '0')}
@@ -97,7 +97,7 @@ export function TenderSectionNav({
                     {section.description}
                   </div>
                 </div>
-                <span className="rounded-full border border-white/75 bg-white/88 px-2 py-1 text-[10px] font-semibold text-[color:var(--muted-foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)]">
+                <span className="rounded-full border border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.55)] px-2 py-1 text-[10px] font-semibold text-[color:var(--muted-foreground)]">
                   {section.filledFields}/{section.totalFields}
                 </span>
               </div>

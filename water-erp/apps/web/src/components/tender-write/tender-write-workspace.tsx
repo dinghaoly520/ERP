@@ -128,7 +128,7 @@ export function TenderWriteWorkspace({
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden xl:flex-row">
         <aside
           data-tender-panel="nav"
-          className="hidden min-h-0 w-[280px] shrink-0 flex-col overflow-hidden rounded-[30px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(244,248,255,0.76))] p-3 shadow-[0_24px_54px_rgba(57,88,142,0.10)] xl:flex tender-section-enter"
+          className="hidden min-h-0 w-[280px] shrink-0 flex-col overflow-hidden rounded-[24px] wb-panel p-3 xl:flex tender-section-enter"
         >
           <TenderSectionNav
             sections={progress}
@@ -139,9 +139,9 @@ export function TenderWriteWorkspace({
 
         <section
           data-tender-panel="editor"
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[30px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(245,248,255,0.8))] p-3 shadow-[0_24px_54px_rgba(57,88,142,0.10)] tender-section-enter-delay-1"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] wb-panel p-3 tender-section-enter-delay-1"
         >
-          <div className="flex min-h-0 flex-1 flex-col rounded-[24px] border border-[rgba(226,234,248,0.88)] bg-[rgba(255,255,255,0.66)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+          <div className="flex min-h-0 flex-1 flex-col rounded-[20px] neu-card-static !rounded-[20px] p-4">
             <div
               className="min-h-0 flex-1 overflow-y-auto pr-1 tender-scroll"
               data-tender-editor-scroll="true"

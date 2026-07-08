@@ -158,10 +158,10 @@ function BidderEditor({
   const rankLabels = ["第一名", "第二名", "第三名", "第四名", "第五名", "第六名", "第七名", "第八名", "第九名", "第十名"];
 
   const commonInputClass =
-    "w-full rounded-[14px] border border-white/60 bg-white/88 px-3 py-2.5 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-white focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-white/80";
+    "w-full rounded-[14px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-3 py-2.5 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]";
 
   return (
-    <div className="rounded-[18px] border border-white/40 bg-white/50 px-4 py-3.5 transition-all duration-300">
+    <div className="rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.18)] bg-[oklch(1_0_0_/_0.35)] px-4 py-3.5 transition-all duration-300">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-[color:var(--foreground)]">
           投标单位（{bidders.length}家）
@@ -212,7 +212,7 @@ function BidderEditor({
             <button
               type="button"
               onClick={() => handleRemove(idx)}
-              className="shrink-0 flex h-8 w-8 items-center justify-center rounded-full border border-white/60 bg-white/70 text-[color:var(--muted-foreground)] transition-all hover:bg-red-50 hover:text-red-500 hover:border-red-200"
+              className="neu-btn-xs is-danger"
             >
               <Trash2 size={13} />
             </button>
@@ -267,7 +267,7 @@ function AnnouncementFieldEditor({
     : null;
 
   const commonInputClass =
-    "w-full rounded-[18px] border border-white/60 bg-white/88 px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-white focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-white/80";
+    "w-full rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]";
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -283,7 +283,7 @@ function AnnouncementFieldEditor({
         "block rounded-[18px] border px-4 py-3.5 transition-all duration-300",
         hasValue
           ? "border-[rgba(92,181,150,0.14)] bg-[rgba(92,181,150,0.04)]"
-          : "border-white/40 bg-white/50 hover:border-white/70",
+          : "border-[oklch(0.6_0.04_258_/_0.18)] bg-[oklch(1_0_0_/_0.35)] hover:border-[oklch(0.6_0.04_258_/_0.35)]",
       ].join(" ")}
     >
       <div className="flex items-center justify-between gap-2">
@@ -322,7 +322,7 @@ function AnnouncementFieldEditor({
           <select
             value={value}
             onChange={(e) => onChange(field.key, e.target.value)}
-            className="w-full appearance-none rounded-[18px] border border-white/60 bg-white/88 px-4 py-3 pr-10 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-white focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-white/80"
+            className="w-full appearance-none rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 pr-10 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]"
           >
             <option value="" disabled>
               请选择

@@ -321,7 +321,7 @@ export function NotificationLetterDialog({
   const filledCount = fields.filter((f) => draft[f.key]?.trim()).length;
 
   const commonInputClass =
-    "mt-2 w-full rounded-[18px] border border-white/60 bg-white/88 px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-white focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-white/80";
+    "mt-2 w-full rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]";
 
   if (!isOpen) return null;
 
@@ -372,7 +372,7 @@ export function NotificationLetterDialog({
             {step === "edit" && (
               <>
                 {/* Preview mode toggle */}
-                <div className="flex items-center rounded-full border border-white/60 bg-white/70 p-0.5">
+                <div className="flex items-center rounded-full border border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.4)] p-0.5">
                   <button
                     type="button"
                     onClick={() => setPreviewMode("letter")}
@@ -465,7 +465,7 @@ export function NotificationLetterDialog({
             <div className="flex min-h-0 flex-1 flex-row gap-4 p-4">
               {/* Editor (left) */}
               <section className="flex min-h-0 flex-1 flex-col rounded-[22px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(245,248,255,0.8))] shadow-[0_18px_40px_rgba(59,89,143,0.08)]">
-                <div className="shrink-0 border-b border-white/60 px-5 py-3">
+                <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">编辑区</div>
                   <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
                     {filledCount}/{fields.length} 项已填写
@@ -537,7 +537,7 @@ export function NotificationLetterDialog({
                               <select
                                 value={draft[field.key]}
                                 onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                                className="w-full appearance-none rounded-[18px] border border-white/60 bg-white/88 px-4 py-3 pr-10 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-white focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-white/80"
+                                className="w-full appearance-none rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 pr-10 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]"
                               >
                                 <option value="" disabled>请选择</option>
                                 {field.options!.map((opt) => (
@@ -573,7 +573,7 @@ export function NotificationLetterDialog({
                                 className={commonInputClass}
                               />
                               {projectDropdownOpen && filteredProjects.length > 0 && (
-                                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-[14px] border border-white/60 bg-white shadow-lg">
+                                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-[14px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[var(--background)] shadow-[0_16px_40px_rgba(0,0,0,0.1)]">
                                   {filteredProjects.map((p) => (
                                     <button
                                       key={p.name}
@@ -636,7 +636,7 @@ export function NotificationLetterDialog({
 
               {/* Preview (right) */}
               <aside className="flex min-h-0 flex-[1.1] flex-col overflow-hidden rounded-[22px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,250,255,0.92))] shadow-[0_18px_40px_rgba(59,89,143,0.08)]">
-                <div className="shrink-0 border-b border-white/60 px-5 py-3">
+                <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">
                     预览区
                   </div>

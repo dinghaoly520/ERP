@@ -94,7 +94,7 @@ function CoverDateSelector({
             setYearDropdownOpen(!yearDropdownOpen);
             onFocus?.();
           }}
-          className="w-28 shrink-0 rounded-[18px] border border-white/60 bg-white/88 px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-white hover:border-white/80 flex items-center justify-between"
+          className="w-28 shrink-0 rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] hover:border-[oklch(0.6_0.04_258_/_0.35)] flex items-center justify-between"
         >
           <span>{selectedYear}年</span>
           <svg
@@ -107,7 +107,7 @@ function CoverDateSelector({
           </svg>
         </button>
         {yearDropdownOpen && (
-          <div className="absolute top-full left-0 mt-2 z-50 rounded-[16px] border border-white/60 bg-white shadow-[0_8px_24px_rgba(59,89,143,0.12)] p-2 min-w-[100px]">
+          <div className="absolute top-full left-0 mt-2 z-50 rounded-[16px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[var(--background)] shadow-[0_16px_40px_rgba(0,0,0,0.1)] p-2 min-w-[100px]">
             {years.map((year) => (
               <button
                 key={year}
@@ -134,7 +134,7 @@ function CoverDateSelector({
             setMonthDropdownOpen(!monthDropdownOpen);
             onFocus?.();
           }}
-          className="w-28 shrink-0 rounded-[18px] border border-white/60 bg-white/88 px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-white hover:border-white/80 flex items-center justify-between"
+          className="w-28 shrink-0 rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] hover:border-[oklch(0.6_0.04_258_/_0.35)] flex items-center justify-between"
         >
           <span>{selectedMonth}月</span>
           <svg
@@ -147,7 +147,7 @@ function CoverDateSelector({
           </svg>
         </button>
         {monthDropdownOpen && (
-          <div className="absolute top-full left-0 mt-2 z-50 rounded-[16px] border border-white/60 bg-white shadow-[0_8px_24px_rgba(59,89,143,0.12)] p-3 min-w-[180px]">
+          <div className="absolute top-full left-0 mt-2 z-50 rounded-[16px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[var(--background)] shadow-[0_16px_40px_rgba(0,0,0,0.1)] p-3 min-w-[180px]">
             {monthRows.map((row, rowIndex) => (
               <div key={rowIndex} className="flex gap-2 mb-2 last:mb-0">
                 {row.map((month) => (
@@ -479,7 +479,7 @@ export function TenderSectionEditor({
           {aiError}
         </div>
       )}
-      <section className="rounded-[18px] border border-white/50 bg-white/40 px-5 py-4 tender-section-enter">
+      <section className="rounded-[18px] neu-card-static !rounded-[18px] px-5 py-4 tender-section-enter">
         <div className="grid gap-4">
           {section.fields.map((field) => {
             // Skip response deposit detail fields if not collecting (only for InternalBiddingDraft)
@@ -629,7 +629,7 @@ export function TenderSectionEditor({
                       <select
                         value={typeValue || ""}
                         onChange={(event) => onChange(field.composite!.typeKey, event.target.value)}
-                        className={`w-32 shrink-0 rounded-[18px] border border-white/60 bg-white/88 px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-white hover:border-white/80 ${field.multiline && typeValue === 'have' && !shouldHideInput ? 'min-h-[168px]' : ''}`}
+                        className={`w-32 shrink-0 rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] hover:border-[oklch(0.6_0.04_258_/_0.35)] ${field.multiline && typeValue === 'have' && !shouldHideInput ? 'min-h-[168px]' : ''}`}
                       >
                         <option value="" disabled>
                           请选择
@@ -945,7 +945,7 @@ export function TenderSectionEditor({
                       }}
                       onFocus={() => onFieldFocus?.(field.key)}
                       placeholder="请输入报价函内容"
-                      className="min-h-[168px] rounded-[18px] border border-white/60 bg-white/88 px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-white focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-white/80 resize-y"
+                      className="min-h-[168px] rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)] resize-y"
                     />
                   )}
                   {isTable && tableData && (

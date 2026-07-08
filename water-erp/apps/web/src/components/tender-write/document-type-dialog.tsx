@@ -45,7 +45,7 @@ export function DocumentTypeDialog({
       />
       <div className="relative z-10 w-full max-w-[720px] rounded-[24px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(244,248,255,0.88))] shadow-[0_24px_64px_rgba(59,89,143,0.16)]">
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-white/60 px-6 py-5">
+        <div className="flex items-start justify-between px-6 py-5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
           <div>
             <h2 className="text-lg font-semibold text-[color:var(--foreground)]">
               选择招标文件类型
@@ -120,7 +120,7 @@ export function DocumentTypeDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end border-t border-white/60 px-6 py-4">
+        <div className="flex justify-end px-6 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
           <button
             type="button"
             disabled={isDisabled}

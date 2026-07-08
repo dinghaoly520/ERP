@@ -102,9 +102,9 @@ export function TenderPreviewPane({
   return (
     <aside
       data-tender-panel="preview"
-      className="tender-preview-shell flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,250,255,0.92))] shadow-[0_18px_40px_rgba(59,89,143,0.08)] tender-section-enter-delay-2"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] wb-panel tender-section-enter-delay-2"
     >
-      <div className="border-b border-white/60 px-5 py-4">
+      <div className="px-5 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-[52ch]">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">
@@ -136,7 +136,7 @@ export function TenderPreviewPane({
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-y-auto overscroll-none tender-scroll"
       >
-        <div className="tender-preview-body rounded-[20px] border border-[rgba(230,236,248,0.86)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,249,255,0.88))] p-2 pb-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]">
+        <div className="rounded-[20px] neu-card-static !rounded-[20px] p-2 pb-6">
           <TenderPreviewDocument
             documentType={documentType}
             draft={draft}
