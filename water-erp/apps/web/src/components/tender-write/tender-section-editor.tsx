@@ -584,7 +584,7 @@ export function TenderSectionEditor({
                 <label key={field.key} className={getFieldCardClassName(field.key, effectiveHasValue)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-base font-medium text-[color:var(--foreground)]">
+                      <span className="text-[1.05rem] font-semibold tracking-[-0.025em] text-[color:var(--foreground)]">
                         {field.label}
                       </span>
                     </div>
@@ -743,7 +743,7 @@ export function TenderSectionEditor({
                 <div key={field.key} className={getFieldCardClassName(field.key, hasSelected)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-base font-medium text-[color:var(--foreground)]">
+                      <span className="text-[1.05rem] font-semibold tracking-[-0.025em] text-[color:var(--foreground)]">
                         {field.label}
                       </span>
                     </div>
@@ -802,7 +802,7 @@ export function TenderSectionEditor({
                 <div key={field.key} className={getFieldCardClassName(field.key, Boolean(selectedOption))}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-base font-medium text-[color:var(--foreground)]">
+                      <span className="text-[1.05rem] font-semibold tracking-[-0.025em] text-[color:var(--foreground)]">
                         {field.label}
                       </span>
                     </div>
@@ -867,7 +867,7 @@ export function TenderSectionEditor({
                 <div key={field.key} className={getFieldCardClassName(field.key, (isText && value.trim().length > 0) || isTable)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-base font-medium text-[color:var(--foreground)]">
+                      <span className="text-[1.05rem] font-semibold tracking-[-0.025em] text-[color:var(--foreground)]">
                         {field.label}
                       </span>
                     </div>
@@ -966,7 +966,7 @@ export function TenderSectionEditor({
               <div key={field.key} className={getFieldCardClassName(field.key, hasValue)}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-base font-medium text-[color:var(--foreground)]">
+                    <span className="text-[1.05rem] font-semibold tracking-[-0.025em] text-[color:var(--foreground)]">
                       {field.label}
                     </span>
                   </div>
