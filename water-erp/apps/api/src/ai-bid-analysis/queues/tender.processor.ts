@@ -9,6 +9,8 @@ import { OcrService } from '../../local-ai/ocr.service';
 import { TenderExtractorService } from '../services/tender-extractor.service';
 import { ScoreCriteriaInfererService } from '../services/score-criteria-inferer.service';
 import { PlaintextFetcherService } from '../services/plaintext-fetcher.service';
+import { LlmService } from '../../local-ai/llm.service';
+import { REQUIREMENT_VALIDATION_PROMPT } from '../prompts/tender-requirements.prompt';
 import { AiAnalysisTaskStatus } from '@prisma/client';
 import { QUEUE_NAMES } from './queue.module';
 import { processFile } from '../utils/file-processor';
@@ -26,6 +28,7 @@ export class TenderProcessor extends WorkerHost {
     private ocrService: OcrService,
     private tenderExtractor: TenderExtractorService,
     private scoreCriteriaInferer: ScoreCriteriaInfererService,
+    private llmService: LlmService,
     private plaintextFetcher: PlaintextFetcherService,
     @InjectQueue(QUEUE_NAMES.BIDDER_PROCESSING)
     private bidderQueue: Queue,
@@ -107,6 +110,42 @@ export class TenderProcessor extends WorkerHost {
           setPage(requirements.qualificationRequirements);
           setPage(requirements.technicalRequirements);
           setPage(requirements.commercialRequirements);
+
+          // AI 审查：过滤不适合条款清单的条目（跨引用/法律兜底/流程说明）
+          try {
+            const allItems = [
+              ...(requirements.qualificationRequirements || []).map((r: any) => ({ ...r, _cat: 'qualification' })),
+              ...(requirements.technicalRequirements || []).map((r: any) => ({ ...r, _cat: 'technical' })),
+              ...(requirements.commercialRequirements || []).map((r: any) => ({ ...r, _cat: 'commercial' })),
+            ];
+            if (allItems.length > 0) {
+              const validation = await this.llmService.chatJson<{ keep: string[] }>(
+                '你是招标文件审核专家，逐条判断每条是否属于可供专家核对的评审条款。',
+                REQUIREMENT_VALIDATION_PROMPT.replace(
+                  '{{ITEMS}}',
+                  JSON.stringify(allItems.map((r: any) => ({
+                    id: r.id,
+                    category: r.category || r._cat,
+                    isStarred: r.isStarred || false,
+                    content: (r.content || '').slice(0, 100),
+                  }))),
+                ),
+                0,
+              );
+              if (validation?.keep?.length) {
+                const keepIds = new Set(validation.keep);
+                const filterArr = (arr: any[]) => arr?.filter((r: any) => keepIds.has(r.id));
+                requirements.qualificationRequirements = filterArr(requirements.qualificationRequirements);
+                requirements.technicalRequirements = filterArr(requirements.technicalRequirements);
+                requirements.commercialRequirements = filterArr(requirements.commercialRequirements);
+                const before = allItems.length;
+                const after = keepIds.size;
+                this.logger.log(`AI 审查过滤 ${before}→${after} 条（剔除 ${before - after} 条）`);
+              }
+            }
+          } catch (e) {
+            this.logger.warn(`AI 审查过滤失败，保留全部: ${String(e).slice(0, 100)}`);
+          }
         }
       }
 
