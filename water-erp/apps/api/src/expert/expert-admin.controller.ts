@@ -100,6 +100,12 @@ export class ExpertAdminController {
     return this.expertAdminService.confirmRetire(id, body.reason);
   }
 
+  @Post('import-from-seed')
+  @ApiOperation({ summary: '从种子数据批量导入专家（跳过已存在的）' })
+  importFromSeed() {
+    return this.expertAdminService.importFromSeed();
+  }
+
   @Post('evaluations')
   @ApiOperation({ summary: '发起专家履职评价' })
   createEvaluation(@Body() dto: CreateExpertEvaluationDto, @Request() req: any) {

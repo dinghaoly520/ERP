@@ -77,7 +77,7 @@ export function TabActivityLog() {
     <div className="flex h-full flex-col gap-5 overflow-y-auto">
       {/* Statistics bar — matches workbench metric grid */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="wb-panel px-5 py-4">
+        <div className="kpi-card px-5 py-4">
           <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
             登录次数
           </div>
@@ -87,7 +87,7 @@ export function TabActivityLog() {
           <div className="mt-0.5 text-[11px] text-[color:var(--muted-foreground)]">当前会话可见</div>
         </div>
 
-        <div className="wb-panel px-5 py-4">
+        <div className="kpi-card px-5 py-4">
           <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
             最近登录
           </div>
@@ -104,7 +104,7 @@ export function TabActivityLog() {
           )}
         </div>
 
-        <div className="wb-panel px-5 py-4">
+        <div className="kpi-card px-5 py-4">
           <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
             操作总数
           </div>

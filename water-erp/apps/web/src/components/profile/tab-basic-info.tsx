@@ -76,7 +76,7 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
         </h3>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl border border-[rgba(96,139,239,0.12)] bg-[rgba(96,139,239,0.04)] px-4 py-3.5">
+          <div className="kpi-card px-4 py-3.5">
             <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[color:var(--muted-foreground)]">用户名</div>
             <div className="mt-1.5 flex items-center gap-2">
               <UserRound size={14} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
@@ -84,7 +84,7 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
             </div>
           </div>
 
-          <div className="rounded-xl border border-[rgba(96,139,239,0.12)] bg-[rgba(96,139,239,0.04)] px-4 py-3.5">
+          <div className="kpi-card px-4 py-3.5">
             <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[color:var(--muted-foreground)]">角色</div>
             <div className="mt-1.5">
               <span className="inline-flex items-center rounded-[10px] border px-2 py-0.5 text-[11px] font-semibold tracking-[0.04em]"
@@ -99,14 +99,14 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
             </div>
           </div>
 
-          <div className="rounded-xl border border-[rgba(96,139,239,0.12)] bg-[rgba(96,139,239,0.04)] px-4 py-3.5">
+          <div className="kpi-card px-4 py-3.5">
             <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[color:var(--muted-foreground)]">部门</div>
             <div className="mt-1.5 text-sm font-semibold tracking-[-0.01em] text-[color:var(--foreground)]">
               {user.department?.name ?? '未设置'}
             </div>
           </div>
 
-          <div className="rounded-xl border border-[rgba(96,139,239,0.12)] bg-[rgba(96,139,239,0.04)] px-4 py-3.5">
+          <div className="kpi-card px-4 py-3.5">
             <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[color:var(--muted-foreground)]">创建时间</div>
             <div className="mt-1.5 text-sm font-semibold tabular-nums tracking-[-0.01em] text-[color:var(--foreground)]">
               {formatDate(user.createdAt)}

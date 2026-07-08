@@ -83,6 +83,10 @@ export function setExpertAvailability(id: string, available: boolean) {
   return api.patch<{ success: boolean }>(`/expert-admin/${id}/availability`, { available });
 }
 
+export function importExpertsFromSeed() {
+  return api.post<{ imported: number; skipped: number; total: number }>('/expert-admin/import-from-seed', {});
+}
+
 export function updateExpertProfile(id: string, data: Record<string, unknown>) {
   return api.patch<{ success: boolean }>(`/expert-admin/${id}/profile`, data);
 }

@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { randomInt } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
@@ -128,6 +130,76 @@ export class ExpertAdminService {
       });
       return user;
     });
+  }
+
+  /** 从种子数据批量导入专家（仅导入尚未存在于数据库中的专家） */
+  async importFromSeed() {
+    const logger = new Logger(ExpertAdminService.name);
+    const seedDir = join(__dirname, '..', '..', '..', 'prisma', 'seed-data');
+    const expertHash = hashSync('expert@2026', 10);
+
+    // 读取种子数据
+    let users: any[] = [];
+    let profiles: any[] = [];
+    try {
+      users = JSON.parse(readFileSync(join(seedDir, 'User.json'), 'utf-8')) as any[];
+      profiles = JSON.parse(readFileSync(join(seedDir, 'ExpertProfile.json'), 'utf-8')) as any[];
+    } catch {
+      throw new BadRequestException('种子数据文件不存在，请先运行 dump 导出快照');
+    }
+
+    const expertProfileUserIds = new Set(profiles.map((p: any) => p.userId));
+    const seedExpertUsers = users.filter((u: any) => expertProfileUserIds.has(u.id) && u.role === 'bid_expert');
+
+    // 已在库中的用户名
+    const existingUsernames = new Set(
+      (await this.prisma.user.findMany({ where: { role: 'bid_expert' }, select: { username: true } })).map(u => u.username)
+    );
+
+    let imported = 0;
+    let skipped = 0;
+
+    for (const seedUser of seedExpertUsers) {
+      const targetUsername = (seedUser.displayName ?? '').trim() || seedUser.username;
+
+      // 检查用户名是否已存在（bid_expert 下）
+      if (existingUsernames.has(targetUsername)) {
+        skipped++;
+        continue;
+      }
+
+      const profile = profiles.find((p: any) => p.userId === seedUser.id);
+
+      try {
+        await this.prisma.user.create({
+          data: {
+            username: targetUsername,
+            displayName: targetUsername,
+            passwordHash: expertHash,
+            role: 'bid_expert',
+            isActive: true,
+            expertProfile: {
+              create: {
+                specialty: profile?.specialty ?? '未分类',
+                title: profile?.title ?? '',
+                employer: profile?.employer ?? '',
+                phone: profile?.phone ?? '',
+                idNumber: profile?.idNumber ?? null,
+                availability: '可用',
+                notes: profile?.notes ?? '',
+              },
+            },
+          },
+        });
+        existingUsernames.add(targetUsername);
+        imported++;
+      } catch (err: any) {
+        logger.warn(`跳过专家「${targetUsername}」: ${err?.message ?? String(err)}`);
+        skipped++;
+      }
+    }
+
+    return { imported, skipped, total: seedExpertUsers.length };
   }
 
   /** 启用/停用专家（停用 = isActive=false + availability 停用） */
