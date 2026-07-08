@@ -3,10 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { listExperts, listSpecialties, setExpertAvailability, importExpertsFromSeed } from '@/lib/api/expert';
+import { listExperts, listSpecialties, setExpertAvailability } from '@/lib/api/expert';
 import type { ExpertListItem } from '@/lib/api/expert';
 import { StatusBadge } from '@/components/workbench';
-import { UsersRound, PlusCircle, Search, RefreshCw, Database } from 'lucide-react';
+import { UsersRound, PlusCircle, Search, RefreshCw } from 'lucide-react';
 
 export default function ExpertRepositoryPage() {
   const router = useRouter();
@@ -29,18 +29,6 @@ export default function ExpertRepositoryPage() {
     catch (err: any) { toast.error(err?.message || '操作失败'); }
   };
 
-  const [importing, setImporting] = useState(false);
-  const handleImport = async () => {
-    if (!confirm('将从种子数据导入专家库，已存在的专家将跳过，确认继续？')) return;
-    setImporting(true);
-    try {
-      const result = await importExpertsFromSeed();
-      toast.success(`导入完成：新增 ${result.imported} 人，跳过 ${result.skipped} 人（共 ${result.total} 人）`);
-      load();
-    } catch (err: any) { toast.error(err?.message || '导入失败'); }
-    finally { setImporting(false); }
-  };
-
   const total = experts.length;
   const available = experts.filter(e => e.isActive && e.expertProfile?.availability === '可用').length;
   const inProgress = experts.reduce((s, e) => s + e.bidExperts.filter(a => a.project.stage !== 'ARCHIVED').length, 0);
@@ -56,7 +44,6 @@ export default function ExpertRepositoryPage() {
           </div>
           <div className="page-hero__right">
             <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
-            <button onClick={handleImport} disabled={importing} className="neu-btn-soft is-info"><Database size={15} />{importing ? '导入中...' : '导入专家'}</button>
             <button onClick={() => router.push('/expert/entry')} className="neu-btn-soft"><PlusCircle size={15} />录入专家</button>
           </div>
         </div>
