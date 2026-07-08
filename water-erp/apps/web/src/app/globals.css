@@ -6306,14 +6306,14 @@ a {
 }
 
 .tender-field-input {
-  min-height: 48px;
+  min-height: 42px;
   width: 100%;
   border-radius: 10px;
   border: 1px solid oklch(0.55 0.05 258 / 0.18);
   background: oklch(0.99 0.004 258);
-  padding: 0.75rem 0.875rem;
-  font-size: 0.875rem;
-  line-height: 1.65;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.6;
   color: var(--foreground);
   outline: none;
   box-shadow:
@@ -6358,7 +6358,7 @@ a {
 }
 
 .tender-field-input--textarea {
-  min-height: 188px;
+  min-height: 148px;
   resize: vertical;
 }
 
