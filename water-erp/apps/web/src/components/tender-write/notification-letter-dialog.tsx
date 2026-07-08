@@ -426,7 +426,6 @@ export function NotificationLetterDialog({
         {/* Body */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {step === "upload" ? (
-            {/* Upload step */}
             <div className="flex flex-1 items-center justify-center p-8">
               <div className="w-full max-w-md">
                 <button
