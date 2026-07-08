@@ -40,7 +40,7 @@ export function TenderEditorHeader({
           <h2 className="mt-2 text-[0.85rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
             {section.title}
           </h2>
-          <p className="mt-1.5 max-w-[58ch] text-xs leading-5 text-[color:var(--muted-foreground)]">
+          <p className="mt-1 max-w-[58ch] text-[10px] leading-4 text-[color:var(--muted-foreground)]">
             {section.description}
           </p>
         </div>
