@@ -99,17 +99,17 @@ export function TenderPreviewPane({
       className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] wb-panel tender-section-enter-delay-2"
     >
       {/* Header — lightweight, no nested card frames */}
-      <div className="px-4 py-2.5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="px-3 py-1.5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+        <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="max-w-[48ch]">
-            <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
+            <div className="text-[8px] font-semibold uppercase tracking-[0.1em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
               完整预览
             </div>
-            <div className="mt-1 text-sm font-semibold tracking-[-0.025em] text-[color:var(--foreground)]">
+            <div className="mt-0.5 text-xs font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
               {previewHeadline}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
-              <span className="rounded-[5px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 font-medium text-[color:var(--accent)]">
+            <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[9px]">
+              <span className="rounded-[4px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 font-medium text-[color:var(--accent)]">
                 {selectedMeta.label}
               </span>
               <span className="text-[color:var(--muted-foreground)]">
@@ -117,14 +117,14 @@ export function TenderPreviewPane({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-3 text-[10px] font-semibold">
+          <div className="flex items-center gap-2 text-[9px] font-semibold">
             <div className="flex items-center gap-1 text-[color:var(--foreground)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
+              <span className="h-1 w-1 rounded-full bg-[var(--success)]" />
               {completedSections}/{progress.length} 组
             </div>
             {missingFieldCount > 0 && (
               <div className="flex items-center gap-1 text-[color:var(--danger)]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[var(--danger)]" />
+                <span className="h-1 w-1 rounded-full bg-[var(--danger)]" />
                 +{missingFieldCount}
               </div>
             )}
