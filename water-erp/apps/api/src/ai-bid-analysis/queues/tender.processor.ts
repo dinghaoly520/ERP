@@ -85,14 +85,16 @@ export class TenderProcessor extends WorkerHost {
             if (typeof item.sourcePage !== 'number' || item.sourcePage < 1) {
               item.sourcePage = 1;
             }
-            // 用 content 渐进搜索（降级：40→25→15 字），克服 OCR 误差
+            // 用 content 渐进搜索（降级：40→25→15 字），去掉空白后匹配
             if (item.content && tenderPages.length > 0) {
+              const norm = (s: string) => s.replace(/\s+/g, '');
               const txt = (item.content as string);
               for (const len of [40, 25, 15]) {
-                const needle = txt.slice(0, len);
+                const needle = norm(txt.slice(0, len));
+                if (!needle) continue;
                 let found = false;
                 for (const pg of tenderPages) {
-                  if (pg.text && pg.text.includes(needle)) {
+                  if (pg.text && norm(pg.text).includes(needle)) {
                     item.sourcePage = pg.page;
                     found = true;
                     break;
