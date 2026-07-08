@@ -6380,12 +6380,12 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 32px;
-  min-height: 32px;
-  border-radius: 12px;
-  border: 1px solid rgba(222, 232, 247, 0.88);
-  background: rgba(255, 255, 255, 0.84);
-  color: rgba(95, 116, 154, 0.92);
+  min-width: 26px;
+  min-height: 26px;
+  border-radius: 7px;
+  border: 1px solid oklch(0.55 0.05 258 / 0.15);
+  background: oklch(1 0 0 / 0.4);
+  color: oklch(0.5 0.04 258 / 0.7);
   transition:
     border-color 0.2s var(--ease-out-quint),
     background 0.2s var(--ease-out-quint),
@@ -6393,15 +6393,15 @@ a {
 }
 
 .tender-action-chip:hover {
-  border-color: rgba(183, 205, 241, 0.96);
-  background: rgba(255, 255, 255, 0.98);
-  color: rgba(79, 103, 149, 1);
+  border-color: oklch(0.5 0.08 258 / 0.25);
+  background: oklch(1 0 0 / 0.6);
+  color: oklch(0.45 0.1 258 / 0.85);
 }
 
 .tender-action-chip:focus-visible {
   outline: none;
-  border-color: rgba(107, 149, 240, 0.55);
-  box-shadow: var(--tender-shadow-focus);
+  border-color: oklch(0.5 0.16 258 / 0.4);
+  box-shadow: 0 0 0 2px oklch(0.5 0.16 258 / 0.12);
 }
 
 .tender-action-chip:active {
@@ -6409,15 +6409,15 @@ a {
 }
 
 .tender-action-chip--active {
-  border-color: rgba(240, 204, 126, 0.92);
-  background: rgba(255, 248, 227, 0.96);
-  color: rgba(201, 146, 43, 1);
+  border-color: oklch(0.75 0.12 84 / 0.5);
+  background: oklch(0.9 0.06 84 / 0.3);
+  color: oklch(0.65 0.15 84);
 }
 
 .tender-action-chip--primary {
-  border-color: rgba(186, 210, 247, 0.96);
-  background: rgba(241, 246, 255, 0.98);
-  color: rgba(76, 111, 189, 1);
+  border-color: oklch(0.5 0.16 258 / 0.2);
+  background: oklch(0.5 0.16 258 / 0.08);
+  color: oklch(0.5 0.16 258);
 }
 
 .tender-nav-summary {

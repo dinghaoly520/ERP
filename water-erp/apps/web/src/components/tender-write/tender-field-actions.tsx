@@ -123,7 +123,7 @@ export function TenderFieldActions({
             aria-label={isTableType ? '表格不支持AI优化' : currentValue.trim() ? 'AI 优化' : 'AI 生成'}
             title={isTableType ? '表格不支持AI优化' : currentValue.trim() ? 'AI 优化' : 'AI 生成'}
             {...bindTooltip('ai')}
-            className={`tender-action-chip tender-action-chip--primary ${isGenerating ? 'tender-status-badge--pulse' : ''}`}
+            className={`tender-action-chip tender-action-chip--primary ${isGenerating ? 'tender-status-badge--pulse' : ''} !text-[11px] !px-2 !py-1`}
           >
             <Sparkles
               size={14}
