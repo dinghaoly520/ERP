@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { promises as fs } from 'fs';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 import * as JSZip from 'jszip';
 import pdfParse from 'pdf-parse';
@@ -849,6 +849,11 @@ export class TenderWriteService {
       '模板文件/中标通知书台账.xlsx',
     );
 
+    if (!existsSync(templatePath)) {
+      // Return empty ledger with default structure
+      return [];
+    }
+
     const workbook = XLSX.read(readFileSync(templatePath), { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
@@ -873,6 +878,10 @@ export class TenderWriteService {
       process.cwd(),
       '模板文件/中标通知书台账.xlsx',
     );
+
+    if (!existsSync(templatePath)) {
+      throw new NotFoundException(`Template not found: ${templatePath}`);
+    }
 
     const workbook = XLSX.read(readFileSync(templatePath), { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
