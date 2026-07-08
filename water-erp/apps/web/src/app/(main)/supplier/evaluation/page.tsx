@@ -82,13 +82,14 @@ export default function SupplierEvaluationPage() {
           </div>
         </div>
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 items-stretch">
           {(['A','B','C','D'] as const).map(lv => (
             <div key={lv} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">
                 {lv}级 · {lv === 'A' ? '优秀' : lv === 'B' ? '良好' : lv === 'C' ? '合格' : '不合格'}
               </span>
               <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{evalStats.levelCounts[lv]}</span>
+              <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">&nbsp;</span>
             </div>
           ))}
         </div>
@@ -226,7 +227,7 @@ export default function SupplierEvaluationPage() {
             <hr className="wb-section-rule mx-6" />
             <div className="flex justify-end gap-3 px-6 py-4">
               <button onClick={() => setEvalModal(null)} className="neu-btn-soft">取消</button>
-              <button onClick={submit} disabled={saving} className="neu-btn-soft is-info">{saving ? '提交中...' : '提交评价'}</button>
+              <button onClick={submit} disabled={saving} className="neu-btn-soft is-success">{saving ? '提交中...' : '提交评价'}</button>
             </div>
           </div>
         </div>

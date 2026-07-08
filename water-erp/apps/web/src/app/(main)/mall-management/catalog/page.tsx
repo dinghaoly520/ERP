@@ -3,15 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton, EmptyState } from '@/components/workbench';
+import { StatusBadge } from '@/components/workbench';
 import {
-  changeCatalogStatus,
-  getCatalogStats,
-  listCatalogItems,
-  type CatalogItem,
-  type CatalogStats,
+  changeCatalogStatus, getCatalogStats, listCatalogItems,
+  type CatalogItem, type CatalogStats,
 } from '@/lib/api/catalog-admin';
-import { ShoppingCart, Package } from 'lucide-react';
+import { ShoppingCart, Package, RefreshCw, ChevronUp } from 'lucide-react';
 
 const statuses = ['全部', '有效', '价格波动', '即将过期', '待复核', '下架', '停用'];
 
@@ -27,15 +24,10 @@ export default function CatalogManagementPage() {
     setLoading(true);
     try {
       const [list, s] = await Promise.all([listCatalogItems({ status }), getCatalogStats()]);
-      setItems(list);
-      setStats(s);
-    } catch (err: any) {
-      toast.error(err.message || '加载失败');
-    } finally {
-      setLoading(false);
-    }
+      setItems(list); setStats(s);
+    } catch (err: any) { toast.error(err.message || '加载失败'); }
+    finally { setLoading(false); }
   };
-
   useEffect(() => { load(); }, [status]);
 
   const filtered = useMemo(() => {
@@ -44,82 +36,89 @@ export default function CatalogManagementPage() {
   }, [items, search]);
 
   const setItemStatus = async (item: CatalogItem, nextStatus: string) => {
-    const ok = window.confirm(`确认将 ${item.name} 状态改为「${nextStatus}」？`);
-    if (!ok) return;
-    try {
-      await changeCatalogStatus(item.id, nextStatus, `管理端${nextStatus}`);
-      toast.success('状态已更新');
-      await load();
-    } catch (err: any) {
-      toast.error(err.message || '状态更新失败');
-    }
+    if (!window.confirm(`确认将 ${item.name} 状态改为「${nextStatus}」？`)) return;
+    try { await changeCatalogStatus(item.id, nextStatus, `管理端${nextStatus}`); toast.success('状态已更新'); await load(); }
+    catch (err: any) { toast.error(err.message || '状态更新失败'); }
   };
 
-  return (
-    <div className="space-y-6">
-      <PageHero
-        title="集中采购目录管理"
-        description="维护商城目录，支持筛选、查看、启用和下架。下架不会删除历史数据。"
-        tone="blue"
-        icon={<ShoppingCart size={14} />}
-      />
+  const statusTone = (s: string): 'green' | 'gray' | 'orange' | 'red' | 'blue' =>
+    s === '有效' ? 'green' : s === '下架' || s === '停用' ? 'gray' : s === '待复核' || s === '价格波动' ? 'orange' : s === '即将过期' ? 'red' : 'blue';
 
-      <div className="grid gap-4 md:grid-cols-5">
-        <MetricCard label="目录总数" value={stats?.total ?? '—'} tone="blue" icon={<Package size={18} strokeWidth={1.7} />} />
-        <MetricCard label="有效目录" value={stats?.active ?? '—'} tone="green" />
-        <MetricCard label="下架/停用" value={stats?.inactive ?? '—'} tone="gray" />
-        <MetricCard label="待复核/预警" value={stats?.review ?? '—'} tone="orange" />
-        <MetricCard label="本月更新" value={stats?.updatedThisMonth ?? '—'} tone="cyan" />
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="page-hero">
+        <div className="page-hero__row">
+          <div className="page-hero__left">
+            <div className="page-hero__icon"><ShoppingCart size={17} /></div>
+            <div>
+              <div className="page-hero__title">集中采购目录管理</div>
+              <div className="page-hero__sub">维护商城目录，支持筛选、查看、启用和下架，下架不删除历史数据</div>
+            </div>
+          </div>
+          <div className="page-hero__right">
+            <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
+          </div>
+        </div>
+        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 items-stretch">
+          {[
+            ['目录总数', stats?.total ?? '—', '全量目录'],
+            ['有效目录', stats?.active ?? '—', '正常使用'],
+            ['下架/停用', stats?.inactive ?? '—', '已归档'],
+            ['待复核/预警', stats?.review ?? '—', '需关注'],
+            ['本月更新', stats?.updatedThisMonth ?? '—', '30日内'],
+          ].map(([label, value, sub]) => (
+            <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
+              <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{value}</span>
+              <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub}</span>
+            </div>
+          ))}
+        </div>
+        </div>
       </div>
 
-      <DataToolbar>
-        <select value={status} onChange={e => setStatus(e.target.value)} className="workbench-input text-sm">
-          {statuses.map(s => <option key={s}>{s}</option>)}
-        </select>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索编码、名称、规格、分类、供应商" className="workbench-input flex-1 text-sm" />
-        <button onClick={load} className="neu-btn-primary">刷新</button>
-      </DataToolbar>
+      <div className="flex flex-wrap items-center gap-3 rounded-[16px] border border-[color-mix(in_oklch,var(--border)_80%,transparent)] bg-[var(--surface)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.65),2px_2px_6px_oklch(0.55_0.03_258/0.08),-1px_-1px_3px_oklch(1_0_0/0.85)]">
+        <div className="neu-tab-bar">
+          {statuses.map(s => (<button key={s} onClick={() => setStatus(s)} className={`neu-tab ${status === s ? 'is-active' : ''}`}>{s}</button>))}
+        </div>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索编码、名称、规格、分类、供应商" className="neu-input flex-1 min-w-[180px] text-sm" />
+      </div>
 
-      <SectionCard className="p-0">
-        <table className="workbench-table w-full min-w-[700px]">
-          <thead className="neu-thead [neu-thead text-[#5a6d8a] [&_th]:whitespace-nowrap_th]:whitespace-nowrap">
-            <tr>
-              <th className="px-4 py-3 text-center">目录编码</th>
-              <th className="px-4 py-3">名称/规格</th>
-              <th className="px-4 py-3 text-center">分类</th>
-              <th className="px-4 py-3 text-center">参考价</th>
-              <th className="px-4 py-3 text-center">供应商</th>
-              <th className="px-4 py-3 text-center">状态</th>
-              <th className="px-4 py-3 text-center">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <TableSkeleton cols={7} rows={5} />
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={7}><EmptyState title="暂无目录" description="通过手动录入或批量导入添加目录后即可查看" action={<button onClick={() => router.push('/mall-management/price-entry')} className="text-sm font-bold text-[#064ea2] hover:underline">前往价格录入 →</button>} /></td></tr>
-            ) : filtered.map(item => (
-              <tr key={item.id} className="border-t border-[var(--border)] hover:bg-[#f8fafc] transition">
-                <td className="px-4 py-3 text-center font-mono text-xs text-[#123a6e]">{item.code}</td>
-                <td className="px-4 py-3"><div className="font-bold text-[#18243a]">{item.name}</div><div className="text-xs text-[#8a99ad]">{item.specification}</div></td>
-                <td className="px-4 py-3 text-center">{item.category}</td>
-                <td className="px-4 py-3 text-center font-bold tabular-nums">¥{item.referencePrice.toLocaleString('zh-CN')}</td>
-                <td className="px-4 py-3 text-center">{item.supplier}</td>
-                <td className="px-4 py-3 text-center"><StatusBadge tone={item.status === "有效" ? "green" : item.status === "下架" || item.status === "停用" ? "gray" : item.status === "待复核" || item.status === "价格波动" ? "orange" : item.status === "即将过期" ? "red" : "blue"}>{item.status}</StatusBadge></td>
-                <td className="px-4 py-3 text-center">
-                  <div className="flex justify-center gap-2">
-                    {item.status === '有效' ? (
-                      <button onClick={() => setItemStatus(item, '下架')} className="btn-press rounded-lg border border-orange-200 px-2 py-1 text-xs font-bold text-orange-700 hover:bg-orange-50 transition">下架</button>
-                    ) : (
-                      <button onClick={() => setItemStatus(item, '有效')} className="btn-press rounded-lg border border-emerald-200 px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition">启用</button>
-                    )}
+      <div className="neu-table-card">
+        <div className="overflow-x-auto">
+          <table className="neu-table w-full min-w-[700px]">
+            <thead><tr><th className="text-center">目录编码</th><th>名称/规格</th><th className="text-center">分类</th><th className="text-center">参考价</th><th className="text-center">供应商</th><th className="text-center">状态</th><th className="text-center">操作</th></tr></thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={7} className="px-4 py-16 text-center text-sm text-[var(--muted-foreground)]">加载中...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-16">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><Package size={22} className="text-[var(--muted-foreground)]" /></div>
+                    <p className="text-sm text-[var(--muted-foreground)]">暂无目录</p>
+                    <button onClick={() => router.push('/mall-management/price-entry')} className="neu-btn-xs is-info">前往价格录入 →</button>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </SectionCard>
+                </td></tr>
+              ) : filtered.map(item => (
+                <tr key={item.id} className="row-clickable">
+                  <td className="text-center font-mono text-xs text-[var(--accent)]">{item.code}</td>
+                  <td><div className="font-bold text-[var(--foreground)]">{item.name}</div><div className="text-xs text-[var(--muted-foreground)]">{item.specification}</div></td>
+                  <td className="text-center">{item.category}</td>
+                  <td className="text-center font-bold tabular-nums">¥{item.referencePrice.toLocaleString('zh-CN')}</td>
+                  <td className="text-center">{item.supplier}</td>
+                  <td className="text-center"><StatusBadge tone={statusTone(item.status)}>{item.status}</StatusBadge></td>
+                  <td onClick={e => e.stopPropagation()} className="text-center">
+                    {item.status === '有效'
+                      ? <button onClick={() => setItemStatus(item, '下架')} className="neu-btn-xs is-warning">下架</button>
+                      : <button onClick={() => setItemStatus(item, '有效')} className="neu-btn-xs is-success">启用</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

@@ -175,8 +175,6 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   }, [announceData.length, announceTab]);
 
   const features = [
-    { icon: 'file', title: '智慧水发·采购中心', desc: '采购文件编制、项目管理、AI协同', href: portalURL('web') },
-    { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: portalURL('mall', '/login?forceLogin=1') },
     { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: portalURL('supplier', '/login?forceLogin=1') },
     { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: portalURL('web', '/login?forceLogin=1') },
     { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: portalURL('expert', '/login?forceLogin=1') },
@@ -308,11 +306,12 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
         {/* ═══════════════════ 快捷入口 ═══════════════════ */}
         <section className="relative z-10 py-8">
           <div className="px-[clamp(40px,4vw,72px)]">
-            <div className="flex items-stretch">
+            <div className="flex items-stretch justify-evenly max-w-[900px] mx-auto">
               {features.map((f, idx) => (
                 <React.Fragment key={f.title}>
+                  {idx > 0 && <div className="feature-divider" />}
                   <a href={f.href} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 relative flex items-center gap-3.5 px-4 py-3.5 no-underline text-inherit overflow-hidden group feature-entry-card"
+                    className="relative flex items-center gap-3.5 px-5 py-3.5 no-underline text-inherit overflow-hidden group feature-entry-card"
                     onMouseMove={e => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       e.currentTarget.style.setProperty('--glow-x', `${e.clientX - rect.left}px`);
@@ -321,21 +320,20 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                     {/* 悬停光晕 */}
                     <div className="feature-card-glow" />
                     {/* 图标 */}
-                    <div className="relative w-11 h-11 shrink-0">
+                    <div className="relative w-12 h-12 shrink-0">
                       <div className="feature-icon-ring" />
                       <div className="w-full h-full rounded-[10px] bg-[#eef3fb] text-[#064ea2] flex items-center justify-center group-hover:bg-[#064ea2] group-hover:text-white transition-all duration-300" dangerouslySetInnerHTML={{ __html: SVG_ICONS[f.icon] }} />
                     </div>
                     {/* 文字 */}
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <strong className="text-[17px] font-bold text-[#1c2941] group-hover:text-[#064ea2] transition-colors whitespace-nowrap">{f.title}</strong>
-                      <span className="text-[13px] text-[#8a96aa] group-hover:text-[#5a7da8] transition-colors">{f.desc}</span>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <strong className="text-[19px] font-bold text-[#1c2941] group-hover:text-[#064ea2] transition-colors whitespace-nowrap">{f.title}</strong>
+                      <span className="text-[14px] text-[#8a96aa] group-hover:text-[#5a7da8] transition-colors">{f.desc}</span>
                     </div>
                     {/* 右侧箭头指示 */}
                     <span className="feature-card-arrow">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                     </span>
                   </a>
-                  {idx < features.length - 1 && <div className="feature-divider" />}
                 </React.Fragment>
               ))}
             </div>

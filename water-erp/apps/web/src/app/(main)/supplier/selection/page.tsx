@@ -11,8 +11,7 @@ import { Wand2, Copy, Download, X, Plus, FileSearch, ChevronDown, ChevronUp, Awa
 import { StatusBadge } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 
-const scoreColor = (s: number) => (s >= 85 ? 'var(--success)' : s >= 70 ? 'var(--accent)' : s >= 55 ? 'var(--warning)' : 'var(--danger)');
-const scoreBg = (s: number) => s >= 85 ? 'var(--success)/0.14' : s >= 70 ? 'var(--accent)/0.14' : s >= 55 ? 'var(--warning)/0.14' : 'var(--danger)/0.14';
+const scoreVar = (s: number): string => (s >= 85 ? 'var(--success)' : s >= 70 ? 'var(--accent)' : s >= 55 ? 'var(--warning)' : 'var(--danger)');
 const scoreLabel = (s: number) => (s >= 85 ? '强匹配' : s >= 70 ? '较匹配' : s >= 55 ? '可考虑' : '弱匹配');
 
 const ENTERPRISE_TYPES = ['有限责任公司','股份有限公司','国有企业','集体企业','合伙企业','个人独资企业','外商投资企业','其他'];
@@ -110,7 +109,7 @@ export default function SupplierSelectionPage() {
 
       <div>
         <label className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">采购需求描述 *</label>
-        <textarea value={requirement} onChange={e => setRequirement(e.target.value)} placeholder={PROMPT_TEMPLATE} className="neu-input w-full h-28 resize-y font-mono text-xs leading-relaxed" />
+        <textarea value={requirement} onChange={e => setRequirement(e.target.value)} placeholder={PROMPT_TEMPLATE} className="neu-input w-full !min-h-[260px] resize-y font-mono text-xs leading-relaxed" />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -183,7 +182,7 @@ export default function SupplierSelectionPage() {
                       <button onClick={() => toggleShortlist(r)} className="ml-1 flex-shrink-0 text-[var(--muted-foreground)]/30 hover:text-[var(--danger)] opacity-0 group-hover:opacity-100 transition"><X size={13} /></button>
                     </div>
                     <div className="mt-0.5 flex items-center gap-2">
-                      <span className="text-[10px] font-bold" style={{ color: scoreColor(r.matchScore) }}>{r.matchScore}</span>
+                      <span className="text-[10px] font-bold" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</span>
                       {contact && <span className="text-[10px] text-[var(--muted-foreground)] truncate">{contact.name} · {contact.phone}</span>}
                     </div>
                   </div>
@@ -226,7 +225,7 @@ export default function SupplierSelectionPage() {
       </div>
 
       {result !== null && !loading ? (
-        <div className={`grid grid-cols-1 gap-5 ${shortlist.size > 0 ? 'lg:grid-cols-3' : ''}`}>
+        <div className={`grid grid-cols-1 gap-5 items-start ${shortlist.size > 0 ? 'lg:grid-cols-3' : ''}`}>
           <div className={`space-y-4 ${shortlist.size > 0 ? 'lg:col-span-2' : ''}`}>
             {inputCard}
 
@@ -260,9 +259,9 @@ export default function SupplierSelectionPage() {
                         {inList && <StatusBadge tone="green">已入选</StatusBadge>}
                       </div>
                       <div className="flex items-center gap-2 mb-2">
-                        <div className="flex-1 h-2 rounded-full bg-[var(--muted)]/50 overflow-hidden max-w-[280px]"><div className="h-full rounded-full transition-all duration-700" style={{ width: `${r.matchScore}%`, backgroundColor: scoreColor(r.matchScore) }} /></div>
-                        <strong className="text-sm tabular-nums min-w-[2rem] text-right" style={{ color: scoreColor(r.matchScore) }}>{r.matchScore}</strong>
-                        <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ color: scoreColor(r.matchScore), backgroundColor: `color-mix(in oklch, ${scoreColor(r.matchScore)} 14%, transparent)` }}>{scoreLabel(r.matchScore)}</span>
+                        <div className="flex-1 h-2 rounded-full bg-[var(--muted)]/50 overflow-hidden max-w-[280px]"><div className="h-full rounded-full transition-all duration-700" style={{ width: `${r.matchScore}%`, backgroundColor: scoreVar(r.matchScore) }} /></div>
+                        <strong className="text-sm tabular-nums min-w-[2rem] text-right" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</strong>
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ color: scoreVar(r.matchScore), backgroundColor: `color-mix(in oklch, ${scoreVar(r.matchScore)} 14%, transparent)` }}>{scoreLabel(r.matchScore)}</span>
                       </div>
                       <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{r.reason}</p>
                       {contact && <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">联系人：{contact.name}{contact.phone ? ` · ${contact.phone}` : ''}{r.legalPerson ? ` ｜ 法定代表人：${r.legalPerson}` : ''}</p>}

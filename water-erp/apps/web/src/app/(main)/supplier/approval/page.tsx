@@ -140,9 +140,9 @@ function SupplierApprovalPage() {
 
         {/* hairline 分割线 + KPI 行 */}
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 items-stretch">
           <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 min-h-[18px]">
               <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">待审核</span>
               {counts.PENDING > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--accent)]">
@@ -151,10 +151,10 @@ function SupplierApprovalPage() {
               )}
             </div>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{counts.PENDING}</span>
-            <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">新注册申请</span>
+            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">新注册申请</span>
           </div>
           <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 min-h-[18px]">
               <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">退回补正</span>
               {counts.RETURNED > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]">
@@ -163,14 +163,14 @@ function SupplierApprovalPage() {
               )}
             </div>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{counts.RETURNED}</span>
-            <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">待补正修改</span>
+            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">待补正修改</span>
           </div>
           <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 min-h-[18px]">
               <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">审核不通过</span>
             </div>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{counts.REJECTED}</span>
-            <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">已拒绝归档</span>
+            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">已拒绝归档</span>
           </div>
         </div>
         </div>

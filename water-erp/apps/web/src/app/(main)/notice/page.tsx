@@ -156,12 +156,12 @@ export default function NoticePage() {
 
                 {/* hairline 分割线 + KPI 行 — 合并为单一容器，间距与项目管理统一 */}
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 items-stretch">
           <HeroStat label="已发布" value={published} sub="已生效可见" />
-          <HeroStat label="待处理草稿" value={drafts} signal={drafts > 0 ? "warning" : "success"} sub={drafts > 0 ? "尽快发布" : "全部已发布"} />
+          <HeroStat label="待处理草稿" value={drafts} signal={drafts > 0 ? "warning" : undefined} sub={drafts > 0 ? "尽快发布" : "全部已发布"} />
           <HeroStat label="本月发布" value={publishedThisMonth} sub="本月新增公告" valueStr={publishedThisMonth.toString()} />
           <HeroStat label="浏览总量" value={totalViews} sub="累计曝光量" valueStr={totalViews >= 10000 ? `${(totalViews / 10000).toFixed(1)} 万` : totalViews.toLocaleString()} />
-          <HeroStat label="缺招标文件" value={missingBidDocs} signal={missingBidDocs > 0 ? "danger" : "success"} sub={missingBidDocs > 0 ? "需立即补齐" : "全部补齐"} />
+          <HeroStat label="缺招标文件" value={missingBidDocs} signal={missingBidDocs > 0 ? "danger" : undefined} sub={missingBidDocs > 0 ? "需立即补齐" : "全部补齐"} />
         </div>
         </div>
       </div>
@@ -321,7 +321,7 @@ export default function NoticePage() {
 
 /* ════════════ HeroStat — 对标采购进度 KpiCard 的紧凑指标瓷片 ════════════
    kpi-card 基类：浅底凸起 + hover 抬升 + label/value/sub 纵向排版
-   有问题的值自动渲染 signal 徽标（warning/danger）*/
+   所有卡片保留相同结构层（label区 / value / sub区），确保同排高度一致 */
 function HeroStat({ label, value, sub, signal, valueStr }: {
   label: string; value: number;
   sub?: string;
@@ -332,7 +332,8 @@ function HeroStat({ label, value, sub, signal, valueStr }: {
   const st = signal === "success" ? "text-[var(--success)]" : signal === "warning" ? "text-[var(--warning)]" : signal === "danger" ? "text-[var(--danger)]" : "";
   return (
     <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-      <div className="flex items-center justify-between gap-2">
+      {/* label 行 — 固定 min-h 使得有/无 signal 时 label 位置一致 */}
+      <div className="flex items-center justify-between gap-2 min-h-[18px]">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
         {signal && (
           <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] ${st}`}>
@@ -340,10 +341,12 @@ function HeroStat({ label, value, sub, signal, valueStr }: {
           </span>
         )}
       </div>
+      {/* value — 始终渲染 */}
       <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">
         {valueStr ?? (value >= 1000 ? value.toLocaleString() : value)}
       </span>
-      {sub && <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub}</span>}
+      {/* sub 行 — 固定 min-h 使得有/无 sub 时 value 位置一致 */}
+      <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub || " "}</span>
     </div>
   );
 }
