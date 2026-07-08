@@ -23,7 +23,7 @@ export function TenderEditorHeader({
         <h2 className="text-[0.85rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
           {section.title}
         </h2>
-        <p className="text-[9px] text-[color:var(--muted-foreground)]">{section.description}</p>
+        <span className="min-w-0 truncate text-[9px] text-[color:var(--muted-foreground)]">{section.description}</span>
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <button type="button" onClick={onPrevious} disabled={isFirst} className="neu-btn-soft !px-2" title="上一组">
             <ChevronLeft size={16} />
