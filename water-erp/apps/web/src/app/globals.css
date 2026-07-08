@@ -6304,14 +6304,14 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
-  font-size: 13px;
+  font-size: 11px;
   line-height: 1.5;
   color: rgba(92, 116, 160, 0.92);
 }
 
 .tender-field-helper {
   min-height: 1.25rem;
-  font-size: 13px;
+  font-size: 11px;
   color: rgba(103, 124, 164, 0.88);
 }
 
