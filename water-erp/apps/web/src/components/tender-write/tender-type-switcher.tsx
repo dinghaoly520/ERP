@@ -25,9 +25,13 @@ export function TenderTypeSwitcher({
             className={[
               "rounded-[8px] px-3.5 py-2 text-sm font-semibold transition-all duration-200",
               active
-                ? "neu-btn-primary"
+                ? "bg-[oklch(0.96_0.008_258)] text-[color:var(--foreground)]"
                 : "neu-btn-soft",
             ].join(" ")}
+            style={active ? {
+              boxShadow: "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5)",
+              border: "none",
+            } : undefined}
           >
             {option.label}
           </button>
