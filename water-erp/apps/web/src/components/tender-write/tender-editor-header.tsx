@@ -49,7 +49,7 @@ export function TenderEditorHeader({
               type="button"
               onClick={onPrevious}
               disabled={isFirst}
-              className="neu-btn-soft !h-[44px]"
+              className="neu-btn-soft !h-[36px]"
             >
               上一组
             </button>
@@ -57,7 +57,7 @@ export function TenderEditorHeader({
               type="button"
               onClick={onNext}
               disabled={isLast}
-              className="neu-btn-primary !h-[44px]"
+              className="neu-btn-primary !h-[36px]"
             >
               下一组
             </button>
