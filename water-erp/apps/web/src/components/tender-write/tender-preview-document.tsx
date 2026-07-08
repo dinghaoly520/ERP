@@ -261,8 +261,8 @@ function PreviewSection({
       className={[
         'scroll-mt-6 rounded-[22px] border px-5 py-5 transition-all duration-300 cursor-pointer tender-card-interactive',
         isActive
-          ? 'border-[rgba(107,149,240,0.3)] bg-[linear-gradient(180deg,rgba(244,248,255,0.98),rgba(239,245,255,0.9))] shadow-[0_14px_30px_rgba(88,120,182,0.12)]'
-          : 'border-[rgba(233,239,249,0.86)] bg-white/82 hover:border-[rgba(107,149,240,0.22)] hover:bg-[rgba(248,251,255,0.94)]',
+          ? 'border-[rgba(107,149,240,0.3)] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] shadow-[0_14px_30px_rgba(88,120,182,0.12)]'
+          : 'border-[oklch(0.55_0.05_258_/_0.18)] bg-[oklch(1_0_0_/_0.45)] hover:border-[rgba(107,149,240,0.22)] hover:bg-[oklch(1_0_0_/_0.65)]',
       ].join(' ')}
     >
       <div className="flex items-center justify-between gap-3">
@@ -369,7 +369,7 @@ function CompetitiveNegotiationPreview({
   const submissionRequirementsType = (draft as Record<string, string>).submissionRequirementsType;
 
   return (
-    <div className="rounded-[26px] border border-white/72 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,255,0.94))] px-6 py-6 shadow-[0_18px_40px_rgba(59,89,143,0.08)]">
+    <div className="neu-card-static !rounded-[20px] px-6 py-6">
       <div className="mx-auto max-w-[72ch] space-y-5">
         {/* 封面 */}
         <PreviewSection
@@ -570,7 +570,7 @@ function CompetitiveNegotiationPreview({
               </table>
             </div>
           </div>
-          <div className="mt-4 rounded-[16px] border border-[rgba(233,239,249,0.8)] bg-white/72 px-4 py-4">
+          <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
               3. 采购文件构成
             </div>
@@ -707,7 +707,7 @@ function SingleSourcePreview({
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
 }) {
   return (
-    <div className="rounded-[26px] border border-white/72 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,255,0.94))] px-6 py-6 shadow-[0_18px_40px_rgba(59,89,143,0.08)]">
+    <div className="neu-card-static !rounded-[20px] px-6 py-6">
       <div className="mx-auto max-w-[72ch] space-y-5">
         {/* 封面 */}
         <PreviewSection
@@ -749,7 +749,7 @@ function SingleSourcePreview({
               根据单位内部采购管理制度规定，该项目符合单源直接采购的适用条件。现正式向贵单位发出单源直接采购邀请，具体事宜如下：
             </p>
           </div>
-          <div className="mt-4 rounded-[16px] border border-[rgba(233,239,249,0.8)] bg-white/72 px-4 py-4">
+          <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
               一、采购项目基本信息
             </div>
@@ -940,7 +940,7 @@ function SingleSourcePreview({
               </table>
             </div>
           </div>
-          <div className="mt-4 rounded-[16px] border border-[rgba(233,239,249,0.8)] bg-white/72 px-4 py-4">
+          <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
               响应文件构成
             </div>
@@ -1081,7 +1081,7 @@ function InquiryPurchasePreview({
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
 }) {
   return (
-    <div className="rounded-[26px] border border-white/72 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,255,0.94))] px-6 py-6 shadow-[0_18px_40px_rgba(59,89,143,0.08)]">
+    <div className="neu-card-static !rounded-[20px] px-6 py-6">
       <div className="mx-auto max-w-[72ch] space-y-5">
         {/* 封面 */}
         <PreviewSection
@@ -1186,7 +1186,7 @@ function InquiryPurchasePreview({
               </tbody>
             </table>
           </div>
-          <div className="mt-4 rounded-[16px] border border-[rgba(233,239,249,0.8)] bg-white/72 px-4 py-4">
+          <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
             <div className="text-[0.92rem] leading-7 text-[color:var(--foreground)]">
               <span className="font-semibold">一、递交报价函截止时间：</span>
               <PreviewValue value={draft.submissionDeadline} placeholder="{{递交报价函截止时间}}" fieldKey="submissionDeadline" onValueChange={onValueChange} />
@@ -1301,7 +1301,7 @@ function InternalBiddingPreview({
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
 }) {
   return (
-    <div className="rounded-[26px] border border-white/72 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,255,0.94))] px-6 py-6 shadow-[0_18px_40px_rgba(59,89,143,0.08)]">
+    <div className="neu-card-static !rounded-[20px] px-6 py-6">
       <div className="mx-auto max-w-[72ch] space-y-5">
         {/* 封面 */}
         <PreviewSection
@@ -1619,7 +1619,7 @@ function InternalBiddingPreview({
               />
             </div>
           </div>
-          <div className="mt-4 rounded-[16px] border border-[rgba(233,239,249,0.8)] bg-white/72 px-4 py-4">
+          <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
               二、商务要求
             </div>
@@ -1633,7 +1633,7 @@ function InternalBiddingPreview({
               />
             </div>
           </div>
-          <div className="mt-4 rounded-[16px] border border-[rgba(233,239,249,0.8)] bg-white/72 px-4 py-4">
+          <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
               三、技术要求
             </div>
