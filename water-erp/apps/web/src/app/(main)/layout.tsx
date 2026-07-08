@@ -20,6 +20,27 @@ const routeToKey: Record<string, string> = {
   "/bid-analysis": "bid-analysis",
   "/assistant": "assistant",
   "/admin/password-requests": "password-requests",
+  // 公告管理
+  "/notice": "notice",
+  "/notifications": "notifications",
+  // 供应商管理
+  "/supplier/approval": "supplier-approval",
+  "/supplier/repository": "supplier-repo",
+  "/supplier/selection": "supplier-select",
+  "/supplier/evaluation": "supplier-eval",
+  "/supplier": "supplier-approval",
+  // 专家管理
+  "/expert/entry": "expert-entry",
+  "/expert/repository": "expert-repo",
+  "/expert/extract": "expert-extract",
+  "/expert/evaluation": "expert-eval",
+  "/expert": "expert-entry",
+  // 集中目录管理
+  "/mall-management/approval": "mall-approval",
+  "/mall-management/price-entry": "mall-price",
+  "/mall-management/catalog": "mall-catalog",
+  "/mall-management/logs": "mall-logs",
+  "/mall-management": "mall-approval",
 };
 
 const routeToModule: Record<string, string> = {
@@ -35,6 +56,11 @@ const routeToModule: Record<string, string> = {
   "/smart-bid": "智能投标",
   "/assistant": "水叮当助手",
   "/admin/password-requests": "密码审批",
+  "/notice": "信息发布中心",
+  "/notifications": "通知中心",
+  "/supplier": "供应商管理",
+  "/expert": "专家管理",
+  "/mall-management": "集中目录管理",
 };
 
 const childrenScrollRoutes = new Set(["/tender-write", "/assistant"]);
