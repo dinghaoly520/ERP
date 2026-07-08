@@ -94,7 +94,7 @@ export function NotificationHubDialog({
                   onClick={() => handleSelect("letter")}
                   className="group neu-card flex items-start gap-4 !rounded-[16px] px-5 py-4 text-left"
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] text-[color:var(--success)] transition-transform duration-300 group-hover:scale-105">
+                  <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[color:var(--success)] transition-transform duration-300 group-hover:scale-105">
                     <Mail size={18} />
                   </div>
                   <div className="min-w-0">
@@ -112,7 +112,7 @@ export function NotificationHubDialog({
                   onClick={() => handleSelect("ledger")}
                   className="group neu-card flex items-start gap-4 !rounded-[16px] px-5 py-4 text-left"
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[color:var(--accent)] transition-transform duration-300 group-hover:scale-105">
+                  <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[color:var(--accent)] transition-transform duration-300 group-hover:scale-105">
                     <Table size={18} />
                   </div>
                   <div className="min-w-0">
