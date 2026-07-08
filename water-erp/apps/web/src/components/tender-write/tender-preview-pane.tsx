@@ -36,7 +36,6 @@ export function TenderPreviewPane({
     const root = scrollRef.current;
     if (!root) return;
 
-    // 如果有聚焦的字段，滚动到该字段
     if (scrollToCenter && focusedFieldKey) {
       const fieldTarget = root.querySelector<HTMLElement>(`#preview-field-${focusedFieldKey}`);
       if (fieldTarget) {
@@ -53,7 +52,6 @@ export function TenderPreviewPane({
       }
     }
 
-    // 否则滚动到章节
     const target = root.querySelector<HTMLElement>(`#preview-${activeSectionKey}`);
     if (!target) return;
 
@@ -66,20 +64,16 @@ export function TenderPreviewPane({
       const scrollHeight = root.scrollHeight;
 
       if (scrollToCenter) {
-        // 居中显示
         const scrollTo = Math.max(0, relativeTop - rootHeight / 2 + targetHeight / 2);
         root.scrollTo({ top: scrollTo, behavior: 'smooth' });
       } else {
-        // 判断是否为最后一个章节
         const allSections = root.querySelectorAll<HTMLElement>('[id^="preview-"]');
         const isLastSection = allSections.length > 0 && allSections[allSections.length - 1] === target;
 
         if (isLastSection) {
-          // 最后一项：底部对齐
           const scrollTo = scrollHeight - rootHeight;
           root.scrollTo({ top: Math.max(0, scrollTo), behavior: 'smooth' });
         } else {
-          // 其他项：顶部对齐
           root.scrollTo({ top: Math.max(0, relativeTop), behavior: 'smooth' });
         }
       }
@@ -104,31 +98,36 @@ export function TenderPreviewPane({
       data-tender-panel="preview"
       className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] wb-panel tender-section-enter-delay-2"
     >
-      <div className="px-5 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+      {/* Header — lightweight, no nested card frames */}
+      <div className="px-5 py-3.5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-[52ch]">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
               完整预览
             </div>
-            <div className="mt-2 text-base font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
+            <div className="mt-1.5 text-base font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               {previewHeadline}
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted-foreground)]">
-              <span className="rounded-full border border-white/65 bg-white/84 px-2.5 py-1 transition-all duration-200">
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 font-medium text-[color:var(--accent)]">
                 {selectedMeta.label}
               </span>
-              <span className="rounded-full border border-[rgba(96,139,239,0.16)] bg-[rgba(96,139,239,0.08)] px-2.5 py-1 text-[rgba(87,126,214,1)] transition-all duration-200">
-                当前定位：第 {activeSectionIndex + 1} 组 · {activeSectionTitle}
+              <span className="text-[color:var(--muted-foreground)]">
+                第 {activeSectionIndex + 1} 组 · {activeSectionTitle}
               </span>
             </div>
           </div>
-          <div className="grid gap-2 text-right">
-            <div className="rounded-[18px] border border-white/65 bg-white/84 px-3.5 py-2 text-[11px] font-semibold text-[color:var(--muted-foreground)] transition-all duration-200">
-              已完成 {completedSections}/{progress.length} 组
+          <div className="flex items-center gap-4 text-[11px] font-semibold">
+            <div className="flex items-center gap-1.5 text-[color:var(--foreground)]">
+              <span className="h-2 w-2 rounded-full bg-[var(--success)]" />
+              {completedSections}/{progress.length} 组
             </div>
-            <div className="rounded-[18px] border border-[rgba(230,129,102,0.14)] bg-[rgba(255,247,244,0.86)] px-3.5 py-2 text-[11px] font-semibold text-[rgba(199,108,83,1)] transition-all duration-200">
-              待补充 {missingFieldCount} 项
-            </div>
+            {missingFieldCount > 0 && (
+              <div className="flex items-center gap-1.5 text-[color:var(--danger)]">
+                <span className="h-2 w-2 rounded-full bg-[var(--danger)]" />
+                +{missingFieldCount}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -136,7 +135,7 @@ export function TenderPreviewPane({
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-y-auto overscroll-none tender-scroll"
       >
-        <div className="rounded-[20px] neu-card-static !rounded-[20px] p-2 pb-6">
+        <div className="px-1 pb-6">
           <TenderPreviewDocument
             documentType={documentType}
             draft={draft}

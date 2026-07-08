@@ -479,7 +479,7 @@ export function TenderSectionEditor({
           {aiError}
         </div>
       )}
-      <section className="rounded-[18px] neu-card-static !rounded-[18px] px-5 py-4 tender-section-enter">
+      <section className="tender-section-enter" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
         <div className="grid gap-4">
           {section.fields.map((field) => {
             // Skip response deposit detail fields if not collecting (only for InternalBiddingDraft)
