@@ -15,8 +15,7 @@ export const TENDER_REQUIREMENTS_PROMPT = `你是一个招标文件分析专家�
       "content": "逐字抄录的招标文件原文（不得改写、概括、用自己的话重述）",
       "isRequired": true,
       "evidenceType": "证书|合同|声明书|审计报告",
-      "threshold": "门槛值（如：近5年、单项500万以上等）",
-      "sourcePage": 1
+      "threshold": "门槛值（如：近5年、单项500万以上等）"
     }
   ],
   "technicalRequirements": [
@@ -27,8 +26,7 @@ export const TENDER_REQUIREMENTS_PROMPT = `你是一个招标文件分析专家�
       "isStarred": true,
       "weight": 20,
       "measurable": true,
-      "acceptanceCriteria": "验收标准（如有）",
-      "sourcePage": 1
+      "acceptanceCriteria": "验收标准（如有）"
     }
   ],
   "commercialRequirements": [
@@ -36,8 +34,7 @@ export const TENDER_REQUIREMENTS_PROMPT = `你是一个招标文件分析专家�
       "id": "c1",
       "category": "售后服务|质保期|付款条件|保险要求",
       "content": "逐字抄录的招标文件原文（不得改写、概括、用自己的话重述）",
-      "isRequired": true,
-      "sourcePage": 1
+      "isRequired": true
     }
   ],
   "priceEvaluationMethod": "最低价中标|综合评分法|经评审最低价法",
@@ -66,7 +63,7 @@ export const TENDER_REQUIREMENTS_PROMPT = `你是一个招标文件分析专家�
   }
 }
 
-招标文件内容（文本中的【第N页】标记指示对应原文在 PDF 第 N 页）：
+招标文件内容：
 {{TENDER_TEXT}}
 
 注意：
@@ -76,5 +73,4 @@ export const TENDER_REQUIREMENTS_PROMPT = `你是一个招标文件分析专家�
 4. **保留量化门槛与验收标准**：尽可能保留数字、阈值、期限（如"近5年"、"≥95%"、"2026年4月10日前"、"单项500万以上"）于 threshold/acceptanceCriteria 字段。
 5. 评分规则要准确提取，影响后续评分计算。
 6. 不得自行估算招标控制价、预算价、项目概算、成本或市场价；只能提取文件明确载明的数据。
-7. **sourcePage 标注**：每条 requirement 必须标注 sourcePage 字段（数字），填入该条款在招标文件中首次出现的页码——根据文本中【第N页】标记确定 N。如条款跨多页出现，取首次页码。无法确定时填 1。
-8. **content 必须逐字抄录原文**：content 字段必须是招标文件原文的逐字抄录，不得改写、概括、精炼或用自己的话重述。即使原文语句冗长也要完整抄录；只在原文超过 500 字时适当截断。这是专家用来逐条核对投标响应的基准，AI 改写会导致语义偏差。`;
+7. **content 必须逐字抄录原文**：content 字段必须是招标文件原文的逐字抄录，不得改写、概括、精炼或用自己的话重述。即使原文语句冗长也要完整抄录；只在原文超过 500 字时适当截断。这是专家用来逐条核对投标响应的基准，AI 改写会导致语义偏差。`;

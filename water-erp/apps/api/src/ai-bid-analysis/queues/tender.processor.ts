@@ -79,6 +79,27 @@ export class TenderProcessor extends WorkerHost {
           this.logger.log(`Task ${taskId}: merged ${clarifications.length} clarifications into extraction text`);
         }
         requirements = await this.tenderExtractor.extract(extractionText, taskId);
+        // 后处理：LLM 标注 sourcePage 不可靠（幻觉），改用原文搜索确定页码
+        if (requirements && tenderPages && Array.isArray(tenderPages)) {
+          const setPage = (arr: any[]) => arr?.forEach((item: any) => {
+            if (typeof item.sourcePage !== 'number' || item.sourcePage < 1) {
+              item.sourcePage = 1;
+            }
+            // 用 content 前 40 字在 tenderPages 中搜索，修正 sourcePage
+            if (item.content && tenderPages.length > 0) {
+              const needle = (item.content as string).slice(0, 40);
+              for (const pg of tenderPages) {
+                if (pg.text && pg.text.includes(needle)) {
+                  item.sourcePage = pg.page;
+                  break; // 首次出现的页
+                }
+              }
+            }
+          });
+          setPage(requirements.qualificationRequirements);
+          setPage(requirements.technicalRequirements);
+          setPage(requirements.commercialRequirements);
+        }
       }
 
       // 3. ScoreCriteriaInferer：为缺细则的评分项推断 scoringCriteria（存 snapshot，不回填 BidScoreItem）
