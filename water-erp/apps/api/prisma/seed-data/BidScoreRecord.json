@@ -60,246 +60,6 @@
     "createdAt": "2026-06-20T06:00:00.000Z"
   },
   {
-    "id": "cmqhero-sr01",
-    "expertId": "cmqhero-be01",
-    "scoreItemId": "cmqhero-si03",
-    "supplierId": "cmqhero-bs01",
-    "score": "16.4",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr02",
-    "expertId": "cmqhero-be01",
-    "scoreItemId": "cmqhero-si04",
-    "supplierId": "cmqhero-bs01",
-    "score": "44",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr03",
-    "expertId": "cmqhero-be01",
-    "scoreItemId": "cmqhero-si05",
-    "supplierId": "cmqhero-bs01",
-    "score": "25.5",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr04",
-    "expertId": "cmqhero-be01",
-    "scoreItemId": "cmqhero-si03",
-    "supplierId": "cmqhero-bs02",
-    "score": "18",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr05",
-    "expertId": "cmqhero-be01",
-    "scoreItemId": "cmqhero-si04",
-    "supplierId": "cmqhero-bs02",
-    "score": "46",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr06",
-    "expertId": "cmqhero-be01",
-    "scoreItemId": "cmqhero-si05",
-    "supplierId": "cmqhero-bs02",
-    "score": "23.4",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr07",
-    "expertId": "cmqhero-be01",
-    "scoreItemId": "cmqhero-si03",
-    "supplierId": "cmqhero-bs03",
-    "score": "17",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr08",
-    "expertId": "cmqhero-be01",
-    "scoreItemId": "cmqhero-si04",
-    "supplierId": "cmqhero-bs03",
-    "score": "40",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr09",
-    "expertId": "cmqhero-be01",
-    "scoreItemId": "cmqhero-si05",
-    "supplierId": "cmqhero-bs03",
-    "score": "27",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr10",
-    "expertId": "cmqhero-be02",
-    "scoreItemId": "cmqhero-si03",
-    "supplierId": "cmqhero-bs01",
-    "score": "17",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr11",
-    "expertId": "cmqhero-be02",
-    "scoreItemId": "cmqhero-si04",
-    "supplierId": "cmqhero-bs01",
-    "score": "42.5",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr12",
-    "expertId": "cmqhero-be02",
-    "scoreItemId": "cmqhero-si05",
-    "supplierId": "cmqhero-bs01",
-    "score": "24.6",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr13",
-    "expertId": "cmqhero-be02",
-    "scoreItemId": "cmqhero-si03",
-    "supplierId": "cmqhero-bs02",
-    "score": "17.6",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr14",
-    "expertId": "cmqhero-be02",
-    "scoreItemId": "cmqhero-si04",
-    "supplierId": "cmqhero-bs02",
-    "score": "45",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr15",
-    "expertId": "cmqhero-be02",
-    "scoreItemId": "cmqhero-si05",
-    "supplierId": "cmqhero-bs02",
-    "score": "24",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr16",
-    "expertId": "cmqhero-be02",
-    "scoreItemId": "cmqhero-si03",
-    "supplierId": "cmqhero-bs03",
-    "score": "16.4",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr17",
-    "expertId": "cmqhero-be02",
-    "scoreItemId": "cmqhero-si04",
-    "supplierId": "cmqhero-bs03",
-    "score": "39",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr18",
-    "expertId": "cmqhero-be02",
-    "scoreItemId": "cmqhero-si05",
-    "supplierId": "cmqhero-bs03",
-    "score": "26.4",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr19",
-    "expertId": "cmqhero-be03",
-    "scoreItemId": "cmqhero-si03",
-    "supplierId": "cmqhero-bs01",
-    "score": "16",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr20",
-    "expertId": "cmqhero-be03",
-    "scoreItemId": "cmqhero-si04",
-    "supplierId": "cmqhero-bs01",
-    "score": "43",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr21",
-    "expertId": "cmqhero-be03",
-    "scoreItemId": "cmqhero-si05",
-    "supplierId": "cmqhero-bs01",
-    "score": "26.4",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr22",
-    "expertId": "cmqhero-be03",
-    "scoreItemId": "cmqhero-si03",
-    "supplierId": "cmqhero-bs02",
-    "score": "18.4",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr23",
-    "expertId": "cmqhero-be03",
-    "scoreItemId": "cmqhero-si04",
-    "supplierId": "cmqhero-bs02",
-    "score": "44",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-sr24",
-    "expertId": "cmqhero-be03",
-    "scoreItemId": "cmqhero-si05",
-    "supplierId": "cmqhero-bs02",
-    "score": "22.5",
-    "passed": null,
-    "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
-  },
-  {
     "id": "cmqfix-1781-qual-0",
     "expertId": "cmqfix-1781-be-1",
     "scoreItemId": "cmqgedld60010vkr4eickzssr",
@@ -738,5 +498,221 @@
     "passed": null,
     "reason": null,
     "createdAt": "2026-06-21T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr01",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si03",
+    "supplierId": "cmqhero-bs01",
+    "score": "82",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr02",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si04",
+    "supplierId": "cmqhero-bs01",
+    "score": "88",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr03",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si05",
+    "supplierId": "cmqhero-bs01",
+    "score": "85",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr04",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si03",
+    "supplierId": "cmqhero-bs02",
+    "score": "90",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr05",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si04",
+    "supplierId": "cmqhero-bs02",
+    "score": "92",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr06",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si05",
+    "supplierId": "cmqhero-bs02",
+    "score": "78",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr07",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si03",
+    "supplierId": "cmqhero-bs03",
+    "score": "85",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr08",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si04",
+    "supplierId": "cmqhero-bs03",
+    "score": "80",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr09",
+    "expertId": "cmqhero-be01",
+    "scoreItemId": "cmqhero-si05",
+    "supplierId": "cmqhero-bs03",
+    "score": "90",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr10",
+    "expertId": "cmqhero-be02",
+    "scoreItemId": "cmqhero-si03",
+    "supplierId": "cmqhero-bs01",
+    "score": "85",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr11",
+    "expertId": "cmqhero-be02",
+    "scoreItemId": "cmqhero-si04",
+    "supplierId": "cmqhero-bs01",
+    "score": "85",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr12",
+    "expertId": "cmqhero-be02",
+    "scoreItemId": "cmqhero-si05",
+    "supplierId": "cmqhero-bs01",
+    "score": "82",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr13",
+    "expertId": "cmqhero-be02",
+    "scoreItemId": "cmqhero-si03",
+    "supplierId": "cmqhero-bs02",
+    "score": "88",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr14",
+    "expertId": "cmqhero-be02",
+    "scoreItemId": "cmqhero-si04",
+    "supplierId": "cmqhero-bs02",
+    "score": "90",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr15",
+    "expertId": "cmqhero-be02",
+    "scoreItemId": "cmqhero-si05",
+    "supplierId": "cmqhero-bs02",
+    "score": "80",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr16",
+    "expertId": "cmqhero-be02",
+    "scoreItemId": "cmqhero-si03",
+    "supplierId": "cmqhero-bs03",
+    "score": "82",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr17",
+    "expertId": "cmqhero-be02",
+    "scoreItemId": "cmqhero-si04",
+    "supplierId": "cmqhero-bs03",
+    "score": "78",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr18",
+    "expertId": "cmqhero-be02",
+    "scoreItemId": "cmqhero-si05",
+    "supplierId": "cmqhero-bs03",
+    "score": "88",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr19",
+    "expertId": "cmqhero-be03",
+    "scoreItemId": "cmqhero-si03",
+    "supplierId": "cmqhero-bs01",
+    "score": "80",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr20",
+    "expertId": "cmqhero-be03",
+    "scoreItemId": "cmqhero-si04",
+    "supplierId": "cmqhero-bs01",
+    "score": "86",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr21",
+    "expertId": "cmqhero-be03",
+    "scoreItemId": "cmqhero-si05",
+    "supplierId": "cmqhero-bs01",
+    "score": "88",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr22",
+    "expertId": "cmqhero-be03",
+    "scoreItemId": "cmqhero-si03",
+    "supplierId": "cmqhero-bs02",
+    "score": "92",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr23",
+    "expertId": "cmqhero-be03",
+    "scoreItemId": "cmqhero-si04",
+    "supplierId": "cmqhero-bs02",
+    "score": "88",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-sr24",
+    "expertId": "cmqhero-be03",
+    "scoreItemId": "cmqhero-si05",
+    "supplierId": "cmqhero-bs02",
+    "score": "75",
+    "reason": null,
+    "createdAt": "2026-07-03T06:00:00.000Z"
   }
 ]
