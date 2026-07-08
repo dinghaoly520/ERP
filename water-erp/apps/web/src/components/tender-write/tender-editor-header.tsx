@@ -23,6 +23,7 @@ export function TenderEditorHeader({
           </span>
           <h2 className="text-[0.85rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
             {section.title}
+            <span className="ml-2 text-[9px] font-normal tracking-normal text-[color:var(--muted-foreground)]">{section.description}</span>
           </h2>
         </div>
         <div className="flex shrink-0 items-center gap-1">
