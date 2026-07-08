@@ -9339,6 +9339,16 @@ select.workbench-input {
 .page-hero__stat--info  { color: var(--accent); border-color: color-mix(in oklch, var(--accent) 25%, transparent); background: color-mix(in oklch, var(--accent) 6%, transparent); }
 
 /* ══════════════════════════════════════════════════════════════════
+   页面内容衬底 — 从左纯白渐变至右透明
+   包裹标题栏下方所有内容区，为透明/玻璃组件提供统一暖白底层
+   ══════════════════════════════════════════════════════════════════ */
+.page-content-sheet {
+  background:
+    linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, transparent 65%);
+  border-radius: 18px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
    阶段流 Pill — 项目卡内阶段时间线
    扁平彩色底（非 neumorphic — 小标签级不加凸起阴影）
    ══════════════════════════════════════════════════════════════════ */

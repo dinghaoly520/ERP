@@ -321,6 +321,7 @@ export function WorkArrangementsPageChairman({
         dailyPlan={dailyPlan}
       />
 
+      <div className="page-content-sheet p-4 flex flex-col gap-4">
       {linkedProject ? (
         <div className="flex flex-wrap items-center gap-3 rounded-[18px] border border-[rgba(96,139,239,0.25)] bg-[rgba(96,139,239,0.08)] px-4 py-3 text-sm text-[color:var(--foreground)]">
           <span className="rounded-[10px] bg-[rgba(96,139,239,0.12)] px-3 py-1 text-xs font-semibold text-[color:var(--accent)]">
@@ -363,6 +364,7 @@ export function WorkArrangementsPageChairman({
           </button>
         </div>
       )}
+      </div>{/* /page-content-sheet */}
     </div>
 
       {/* Modal - rendered at root level to avoid CSS containment issues */}
