@@ -31,13 +31,6 @@ const statusMeta: Record<AnnouncementStatus, { label: string; tone: 'green' | 'g
 type SortKey = 'publishDate' | 'viewCount' | 'type' | 'status';
 type SortDir = 'asc' | 'desc';
 
-/* ── neo-chip 色调（仅影响顶部色条 + 数字色）── */
-const chipTone = {
-  blue:   { bar: 'oklch(0.55 0.16 251)', num: 'var(--foreground)' },
-  green:  { bar: 'oklch(0.6 0.14 164)',  num: 'var(--foreground)' },
-  orange: { bar: 'oklch(0.62 0.14 72)',   num: 'var(--foreground)' },
-  gray:   { bar: 'oklch(0.52 0.02 258)', num: 'var(--muted-foreground)' },
-};
 
 export default function NoticePage() {
   const router = useRouter();
@@ -123,15 +116,23 @@ export default function NoticePage() {
   };
 
   /* ── 统计 ── */
-  const published = data.items.filter(i => i.status === 'PUBLISHED').length;
+  const now = new Date();
   const drafts = data.items.filter(i => i.status === 'DRAFT').length;
-  const archived = data.items.filter(i => i.status === 'ARCHIVED').length;
+  const published = data.items.filter(i => i.status === 'PUBLISHED').length;
+  const publishedThisMonth = data.items.filter(i => {
+    if (i.status !== 'PUBLISHED' || !i.publishDate) return false;
+    const d = new Date(i.publishDate);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
+  const totalViews = data.items.reduce((sum, i) => sum + (i.viewCount || 0), 0);
+  const missingBidDocs = data.items.filter(i =>
+    i.type === 'BID_NOTICE' && i.status === 'PUBLISHED' && !i.bidDocument
+  ).length;
 
   return (
     <div className="flex flex-col gap-5">
-      {/* ══════ page-hero — 标题卡片 + 内嵌 KPI 统计 ══════ */}
+      {/* ══════ page-hero — 标题卡片 + 内嵌 KPI 瓷片行 ══════ */}
       <div className="page-hero">
-        {/* 标题行 */}
         <div className="page-hero__row">
           <div className="page-hero__left">
             <div className="page-hero__icon">
@@ -153,15 +154,16 @@ export default function NoticePage() {
           </div>
         </div>
 
-        {/* KPI 统计行 — 浮在 hero 表面的凸起芯片，形成 hero(地基) → chips(浮起) 两层深度 */}
-        <div
-          className="grid grid-cols-2 gap-2.5 sm:grid-cols-4"
-          style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.875rem" }}
-        >
-          <NeoChip label="信息总数" value={data.total} tone="blue" />
-          <NeoChip label="已发布"   value={published} tone="green" />
-          <NeoChip label="草稿"     value={drafts}    tone="orange" />
-          <NeoChip label="已归档"   value={archived}  tone="gray" />
+        {/* hairline 分割线 — 与项目管理同款：oklch 淡色 1px + 紧凑上间距 */}
+        <div className="w-full" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.18)", paddingTop: "0.625rem" }} />
+
+        {/* KPI 行 — 对标采购进度的 kpi-card 模式：label / big-value / sub + signal */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          <HeroStat label="已发布" value={published} sub="已生效可见" />
+          <HeroStat label="待处理草稿" value={drafts} signal={drafts > 0 ? "warning" : "success"} sub={drafts > 0 ? "尽快发布" : "全部已发布"} />
+          <HeroStat label="本月发布" value={publishedThisMonth} sub="本月新增公告" valueStr={publishedThisMonth.toString()} />
+          <HeroStat label="浏览总量" value={totalViews} sub="累计曝光量" valueStr={totalViews >= 10000 ? `${(totalViews / 10000).toFixed(1)} 万` : totalViews.toLocaleString()} />
+          <HeroStat label="缺招标文件" value={missingBidDocs} signal={missingBidDocs > 0 ? "danger" : "success"} sub={missingBidDocs > 0 ? "需立即补齐" : "全部补齐"} />
         </div>
       </div>
 
@@ -318,28 +320,31 @@ export default function NoticePage() {
   );
 }
 
-/* ════════════ NeoChip — 浮在 hero 表面上的凸起指标芯片 ════════════
-   只用 CSS 变量驱动动态颜色（bar 和数字色），静态背景/阴影走 class。
-   bg/阴影值均来自 cgzxui neumorphic 色板。 */
-function NeoChip({ label, value, tone }: { label: string; value: number; tone: keyof typeof chipTone }) {
-  const t = chipTone[tone];
+/* ════════════ HeroStat — 对标采购进度 KpiCard 的紧凑指标瓷片 ════════════
+   kpi-card 基类：浅底凸起 + hover 抬升 + label/value/sub 纵向排版
+   有问题的值自动渲染 signal 徽标（warning/danger）*/
+function HeroStat({ label, value, sub, signal, valueStr }: {
+  label: string; value: number;
+  sub?: string;
+  signal?: "success" | "warning" | "danger";
+  valueStr?: string;
+}) {
+  const sc = signal === "success" ? "bg-[var(--success)]" : signal === "warning" ? "bg-[var(--warning)]" : signal === "danger" ? "bg-[var(--danger)]" : "";
+  const st = signal === "success" ? "text-[var(--success)]" : signal === "warning" ? "text-[var(--warning)]" : signal === "danger" ? "text-[var(--danger)]" : "";
   return (
-    <div
-      className="flex flex-col gap-0.5 rounded-[11px] px-3.5 pb-2.5 pt-2"
-      style={{
-        background: 'var(--neu-raised-bg)',
-        borderTop: `2px solid ${t.bar}`,
-        boxShadow:
-          'inset 0 1px 0 oklch(1 0 0 / 0.65), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 2px oklch(1 0 0 / 0.7)',
-        color: t.num,
-      } as React.CSSProperties}
-    >
-      <span className="text-[1.2rem] font-black tabular-nums leading-none tracking-[-0.03em]">
-        {value}
+    <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
+        {signal && (
+          <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] ${st}`}>
+            <span className={`h-1 w-1 rounded-full shrink-0 ${sc}`} />{signal === "warning" ? "待处理" : signal === "danger" ? "风险" : "正常"}
+          </span>
+        )}
+      </div>
+      <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">
+        {valueStr ?? (value >= 1000 ? value.toLocaleString() : value)}
       </span>
-      <span className="text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-        {label}
-      </span>
+      {sub && <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub}</span>}
     </div>
   );
 }
