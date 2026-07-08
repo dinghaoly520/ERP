@@ -23,6 +23,10 @@ export interface AiScoreItem {
   pass?: boolean;
   /** A2：多次采样差值大，提示专家重点复核 */
   unstable?: boolean;
+  /** per-item 正向事实（引用标书原文）；LLM 评分项产出，价格项为空 */
+  strengths?: string[];
+  /** per-item 需关注事项（引用原文或缺失说明） */
+  weaknesses?: string[];
 }
 export interface RequirementResponse {
   requirementId: string;
