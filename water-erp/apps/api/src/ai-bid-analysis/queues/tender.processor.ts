@@ -85,14 +85,20 @@ export class TenderProcessor extends WorkerHost {
             if (typeof item.sourcePage !== 'number' || item.sourcePage < 1) {
               item.sourcePage = 1;
             }
-            // 用 content 前 40 字在 tenderPages 中搜索，修正 sourcePage
+            // 用 content 渐进搜索（降级：40→25→15 字），克服 OCR 误差
             if (item.content && tenderPages.length > 0) {
-              const needle = (item.content as string).slice(0, 40);
-              for (const pg of tenderPages) {
-                if (pg.text && pg.text.includes(needle)) {
-                  item.sourcePage = pg.page;
-                  break; // 首次出现的页
+              const txt = (item.content as string);
+              for (const len of [40, 25, 15]) {
+                const needle = txt.slice(0, len);
+                let found = false;
+                for (const pg of tenderPages) {
+                  if (pg.text && pg.text.includes(needle)) {
+                    item.sourcePage = pg.page;
+                    found = true;
+                    break;
+                  }
                 }
+                if (found) break;
               }
             }
           });
