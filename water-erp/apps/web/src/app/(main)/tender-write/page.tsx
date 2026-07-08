@@ -14,13 +14,14 @@ declare global {
 }
 
 import { useEffect, useMemo, useState } from "react";
-import { Eraser, FileDown, History, Megaphone, Save, ScanText, Mail } from "lucide-react";
+import { Eraser, FileDown, FileText, History, Megaphone, Save, ScanText, Mail } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { LoginErrorDialog } from "@/components/login/login-error-dialog";
 import { TenderHistoryDialog } from "@/components/tender-write/tender-history-dialog";
 import { ImportAutofillButton } from "@/components/tender-write/import-autofill-button";
 import { ImportAutofillDialog } from "@/components/tender-write/import-autofill-dialog";
 import { TenderWriteWorkspace } from "@/components/tender-write/tender-write-workspace";
+import { TenderTypeSwitcher } from "@/components/tender-write/tender-type-switcher";
 import { AnnouncementDialog } from "@/components/tender-write/announcement-dialog";
 import { NotificationHubDialog } from "@/components/tender-write/notification-hub-dialog";
 import type { ImportAutofillFieldResult } from "@/lib/types/tender-write-import";
@@ -311,6 +312,11 @@ export default function TenderWritePage() {
     }
   };
 
+  const handleSelectType = (type: TenderDocumentType) => {
+    setSelectedType(type);
+    setActiveSectionKey("cover");
+  };
+
   const handleClearCurrent = async () => {
     if (!selectedType) {
       return;
@@ -428,18 +434,23 @@ export default function TenderWritePage() {
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         {selectedType ? (
-          <div className="mb-4 shrink-0 wb-panel p-2.5">
-            <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-              <div className="min-w-0 flex-1">
-                <div className="text-[0.9rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                  {selectedMeta?.label}
+          <div className="page-hero mb-4 !rounded-[16px]">
+            <div className="page-hero__row">
+              <div className="page-hero__left">
+                <div className="page-hero__icon">
+                  <FileText size={18} strokeWidth={1.8} />
                 </div>
-                <p className="mt-0.5 text-xs leading-5 text-[color:var(--muted-foreground)]">
-                  {selectedMeta?.description}
-                </p>
+                <div className="min-w-0">
+                  <div className="page-hero__title">
+                    {selectedMeta?.label}
+                  </div>
+                  <p className="page-hero__sub">
+                    {selectedMeta?.description}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <div className="flex flex-wrap items-center gap-2">
                 <ImportAutofillButton
                   disabled={!isReadyType}
                   onClick={() => setShowImportDialog(true)}
@@ -512,6 +523,13 @@ export default function TenderWritePage() {
               </div>
             </div>
 
+            <div className="mt-3 pt-2" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.12)" }}>
+              <TenderTypeSwitcher
+                options={TENDER_DOCUMENT_TYPES}
+                selectedType={selectedType}
+                onSelect={handleSelectType}
+              />
+            </div>
           </div>
         ) : null}
         {selectedMeta ? (<TenderWriteWorkspace
