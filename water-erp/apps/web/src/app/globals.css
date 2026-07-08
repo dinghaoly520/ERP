@@ -6511,7 +6511,7 @@ a {
   border: none;
   background: oklch(1 0 0 / 0.4);
   padding: 0.625rem 1rem;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--muted-foreground);
   cursor: pointer;
