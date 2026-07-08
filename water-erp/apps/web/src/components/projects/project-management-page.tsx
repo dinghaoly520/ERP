@@ -235,7 +235,7 @@ export function ProjectManagementPage() {
                 </button>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.5rem" }}>
+            <div className="flex flex-wrap items-center gap-3" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
               <div className="relative flex-1 min-w-[200px]">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)] z-10" />
                 <input
@@ -250,35 +250,37 @@ export function ProjectManagementPage() {
                   </button>
                 )}
               </div>
-              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                className="workbench-input !w-auto min-w-[110px]"
-              >
-                <option value="updatedAt">最近更新</option>
-                <option value="createdAt">最近创建</option>
-                <option value="budgetAmount">预算金额</option>
-                <option value="departmentNumber">部门编号</option>
-                <option value="title">项目名称</option>
-              </select>
-              <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">筛选</span>
-              <select
-                value={filterMethod}
-                onChange={(e) => setFilterMethod(e.target.value)}
-                className="workbench-input !w-auto min-w-[130px]"
-              >
-                <option value="">全部方式</option>
-                {methods.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-              <select
-                value={filterDepartment}
-                onChange={(e) => setFilterDepartment(e.target.value)}
-                className="workbench-input !w-auto min-w-[130px]"
-              >
-                <option value="">全部部门</option>
-                {departments.map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                  className="workbench-input !w-auto min-w-[110px]"
+                >
+                  <option value="updatedAt">最近更新</option>
+                  <option value="createdAt">最近创建</option>
+                  <option value="budgetAmount">预算金额</option>
+                  <option value="departmentNumber">部门编号</option>
+                  <option value="title">项目名称</option>
+                </select>
+                <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">筛选</span>
+                <select
+                  value={filterMethod}
+                  onChange={(e) => setFilterMethod(e.target.value)}
+                  className="workbench-input !w-auto min-w-[130px]"
+                >
+                  <option value="">全部方式</option>
+                  {methods.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <select
+                  value={filterDepartment}
+                  onChange={(e) => setFilterDepartment(e.target.value)}
+                  className="workbench-input !w-auto min-w-[130px]"
+                >
+                  <option value="">全部部门</option>
+                  {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
             </div>
           </div>
 
