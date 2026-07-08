@@ -475,7 +475,7 @@ export function TenderSectionEditor({
     <>
       {/* AI Error Alert */}
       {aiError && (
-        <div className="mb-4 rounded-[18px] border border-[rgba(230,129,102,0.22)] bg-[rgba(255,247,244,0.86)] px-4 py-3 text-sm text-[rgba(199,108,83,1)]">
+        <div className="mb-4 rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_22%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm text-[color:var(--danger)]">
           {aiError}
         </div>
       )}
