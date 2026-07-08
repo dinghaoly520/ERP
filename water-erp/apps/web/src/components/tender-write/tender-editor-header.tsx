@@ -14,7 +14,7 @@ export function TenderEditorHeader({
   isLast: boolean;
 }) {
   return (
-    <div className="wb-panel py-2 pl-3.5 pr-1.5">
+    <div className="wb-panel py-2 pl-3.5 pr-0">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <span className="rounded-[5px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color-mix(in_oklch,var(--accent)_75%,black)]">
@@ -28,7 +28,7 @@ export function TenderEditorHeader({
           <button type="button" onClick={onPrevious} disabled={isFirst} className="neu-btn-soft">
             上一组
           </button>
-          <button type="button" onClick={onNext} disabled={isLast} className="neu-btn-primary">
+          <button type="button" onClick={onNext} disabled={isLast} className="neu-btn-soft">
             下一组
           </button>
         </div>
