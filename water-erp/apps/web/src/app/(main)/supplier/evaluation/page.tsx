@@ -160,7 +160,7 @@ export default function SupplierEvaluationPage() {
       {/* Evaluation Modal */}
       {evalModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setEvalModal(null)}>
-          <div className="modal-content w-full max-w-2xl overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="modal-content w-full max-w-2xl overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
               <div>
                 <h3 className="text-base font-bold text-[#18243a]">供应商评价</h3>

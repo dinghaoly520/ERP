@@ -283,7 +283,7 @@ export default function SupplierRepositoryPage() {
       {/* Status change modal */}
       {statusModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setStatusModal(null)}>
-          <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="modal-content bg-[var(--background)] w-full max-w-md rounded-[24px] shadow-[0_20px_60px_rgba(0,0,0,0.12)]" onClick={e => e.stopPropagation()}>
             <div className="border-b border-[var(--border)] px-6 py-4">
               <h3 className="text-base font-bold text-[#18243a]">
                 {statusModal.type === 'disable' ? '停用供应商' : '加入黑名单'}

@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { AnnouncementService } from './announcement.service';
+import { AnnouncementAiService } from './announcement-ai.service';
 import { BidDocumentService } from './bid-document.service';
 import { AnnouncementAttachmentService } from './announcement-attachment.service';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -14,6 +15,7 @@ import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-annou
 export class AnnouncementController {
   constructor(
     private announcementService: AnnouncementService,
+    private announcementAiService: AnnouncementAiService,
     private bidDocumentService: BidDocumentService,
     private attachmentService: AnnouncementAttachmentService,
   ) {}
@@ -200,6 +202,24 @@ export class AnnouncementController {
   @ApiOperation({ summary: '更新公告' })
   async update(@Param('id') id: string, @Body() dto: UpdateAnnouncementDto) {
     return this.announcementService.update(id, dto);
+  }
+
+  @Post(':id/generate-summary')
+  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @ApiOperation({ summary: 'AI 重新生成摘要' })
+  async generateSummary(@Param('id') id: string) {
+    const ann = await this.announcementService.get(id);
+    if (!ann) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
+    if (!ann.content) throw new BadRequestException({ error: '公告无正文内容，无法生成摘要', code: 'NO_CONTENT' });
+    const typeMap: Record<string, string> = { BID_NOTICE:'招标公告', WIN_NOTICE:'中标公示', POLICY:'政策法规', PLATFORM:'平台通知' };
+    const summary = await this.announcementAiService.summarize({
+      title: ann.title,
+      type: typeMap[ann.type] ?? ann.type,
+      content: ann.content,
+    });
+    if (!summary) throw new BadRequestException({ error: 'AI 摘要生成失败，请确认 DeepSeek API Key 已配置且网络可达', code: 'AI_FAILED' });
+    await this.announcementService.update(id, { summary } as any);
+    return { summary };
   }
 
   @Delete(':id')

@@ -55,6 +55,7 @@ const navGroups: NavGroup[] = [
     items: [
       { key: "work-arrangements", label: "工作台", href: "/work-arrangements", icon: UserRound, meta: "工作安排" },
       { key: "personal-center", label: "个人中心", href: "/profile", icon: UserRound, meta: "管理个人资料与偏好" },
+      { key: "notifications", label: "通知中心", href: "/notifications", icon: Bell, meta: "消息与待办提醒" },
       { key: "assistant", label: "水叮当助手", href: "/assistant", icon: Sparkles, meta: "AI智能助手" },
     ],
   },
@@ -84,7 +85,6 @@ const navGroups: NavGroup[] = [
     icon: Megaphone,
     items: [
       { key: "notice", label: "信息发布中心", href: "/notice", icon: Megaphone, meta: "公告/公示/政策" },
-      { key: "notifications", label: "通知中心", href: "/notifications", icon: Bell, meta: "消息提醒" },
     ],
   },
   {

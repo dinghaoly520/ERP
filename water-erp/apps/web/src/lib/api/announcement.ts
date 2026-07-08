@@ -85,6 +85,10 @@ export function getAnnouncementStats() {
   return api.get<{ total: number; published: number; bidNotice: number; winNotice: number; policy: number }>('/announcements/stats');
 }
 
+export function generateSummary(id: string) {
+  return api.post<{ summary: string }>(`/announcements/${id}/generate-summary`, {});
+}
+
 export function createAnnouncement(data: {
   title: string; content: string; type: AnnouncementType;
   summary?: string; publishDate?: string; isTop?: boolean; relatedProjectCode?: string; metadata?: Record<string, any>; status?: AnnouncementStatus;

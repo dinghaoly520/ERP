@@ -748,7 +748,7 @@ export default function SupplierDetailPage() {
       {/* ═══ 变更审核弹窗 ═══ */}
       {reviewModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setReviewModal(null)}>
-          <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="modal-content bg-[var(--background)] w-full max-w-md rounded-[24px] shadow-[0_20px_60px_rgba(0,0,0,0.12)]" onClick={e => e.stopPropagation()}>
             <div className="border-b border-[var(--border)]/60 px-6 py-4 flex items-center gap-3">
               <FileText size={18} className="text-[#064ea2]" />
               <div><h3 className="text-base font-bold text-[#18243a]">{reviewModal.type === 'approve' ? '确认通过变更' : '拒绝变更'}</h3></div>
@@ -773,7 +773,7 @@ export default function SupplierDetailPage() {
       {/* ═══ 状态操作弹窗（停用/黑名单）═══ */}
       {actionModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setActionModal(null)}>
-          <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="modal-content bg-[var(--background)] w-full max-w-md rounded-[24px] shadow-[0_20px_60px_rgba(0,0,0,0.12)]" onClick={e => e.stopPropagation()}>
             <div className="border-b border-[var(--border)]/60 px-6 py-4 flex items-center gap-3">
               <Building2 size={18} className={actionModal.type === 'blacklist' ? 'text-[#e74c3c]' : 'text-[#5a6d8a]'} />
               <div><h3 className="text-base font-bold text-[#18243a]">{actionModal.type === 'disable' ? '停用供应商' : '加入黑名单'}</h3></div>
@@ -797,7 +797,7 @@ export default function SupplierDetailPage() {
       {/* ═══ 分类分配弹窗 ═══ */}
       {classModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setClassModal(false)}>
-          <div className="modal-content glass-card w-full max-w-md rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="modal-content bg-[var(--background)] w-full max-w-md rounded-[24px] shadow-[0_20px_60px_rgba(0,0,0,0.12)]" onClick={e => e.stopPropagation()}>
             <div className="border-b border-[var(--border)]/60 px-6 py-4 flex items-center gap-3">
               <Award size={18} className="text-[#064ea2]" />
               <div><h3 className="text-base font-bold text-[#18243a]">分配供应商分类</h3></div>
