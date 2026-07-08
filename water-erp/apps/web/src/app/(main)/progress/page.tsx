@@ -50,5 +50,6 @@ export default function ProgressPage() {
     );
   }
 
+  if (!user) return null;
   return <ProgressContent currentUserRole={user.role} />;
 }

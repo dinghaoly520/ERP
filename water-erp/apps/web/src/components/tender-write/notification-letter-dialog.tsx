@@ -426,35 +426,39 @@ export function NotificationLetterDialog({
         {/* Body */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {step === "upload" ? (
-            /* Upload step */
-            <div className="flex flex-1 items-center justify-center p-6">
+            {/* Upload step */}
+            <div className="flex flex-1 items-center justify-center p-8">
               <div className="w-full max-w-md">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={extracting}
-                  className="group w-full rounded-[18px] border-2 border-dashed border-[rgba(107,149,240,0.3)] bg-[rgba(244,248,255,0.5)] px-8 py-8 text-center transition-all duration-300 hover:border-[rgba(107,149,240,0.5)] hover:bg-[rgba(240,246,255,0.8)] hover:shadow-[0_12px_28px_rgba(59,89,143,0.08)]"
+                  className="group w-full rounded-[16px] bg-[oklch(0.985_0.005_258)] px-8 py-10 text-center transition-all duration-300 hover:bg-[oklch(0.975_0.008_258)]"
+                  style={{
+                    boxShadow: "inset 2px 2px 6px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 6px oklch(1 0 0 / 0.7)",
+                    border: "2px dashed oklch(0.55 0.05 258 / 0.18)",
+                  }}
                 >
                   {extracting ? (
                     <div className="flex items-center justify-center gap-3">
-                      <Loader2 size={20} className="animate-spin text-[rgba(107,149,240,0.7)]" />
+                      <Loader2 size={20} className="animate-spin text-[color:var(--accent)]" />
                       <div className="text-sm font-medium text-[color:var(--foreground)]">正在识别定标审批表...</div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(107,149,240,0.1)]">
-                        <Upload size={18} className="text-[rgba(107,149,240,0.7)]" />
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="neu-icon-well flex h-12 w-12 items-center justify-center rounded-[12px] text-[color:var(--accent)]">
+                        <Upload size={20} />
                       </div>
-                      <div className="text-left">
-                        <div className="text-sm font-medium text-[color:var(--foreground)]">点击上传定标审批表</div>
-                        <div className="text-xs text-[color:var(--muted-foreground)]">PDF 格式，系统自动识别中标信息</div>
+                      <div>
+                        <div className="text-sm font-semibold text-[color:var(--foreground)]">点击上传定标审批表</div>
+                        <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">PDF 格式，系统自动识别中标信息</div>
                       </div>
                     </div>
                   )}
                 </button>
                 {fileName && !extracting && (
-                  <div className="mt-3 flex items-center gap-2 rounded-[14px] border border-[color-mix(in_oklch,var(--success)_20%,transparent)] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-4 py-2">
-                    <FileText size={14} className="text-[rgba(78,150,124,1)]" />
+                  <div className="mt-3 flex items-center gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-4 py-2">
+                    <FileText size={14} className="text-[color:var(--success)]" />
                     <span className="text-sm text-[color:var(--foreground)]">{fileName}</span>
                   </div>
                 )}

@@ -4733,13 +4733,12 @@ a {
 }
 .dark .neu-table-card {
   background: rgba(30, 40, 60, 0.45);
-  border-color: rgba(70, 90, 140, 0.3);
 }
 .dark .neu-table-card:hover {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    3px 3px 12px rgba(0, 0, 0, 0.35),
-    -2px -2px 8px rgba(60, 80, 120, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    4px 4px 14px rgba(0, 0, 0, 0.38),
+    -3px -3px 10px rgba(60, 80, 120, 0.38);
 }
 
 .dark .flow-header {
@@ -8624,6 +8623,51 @@ textarea.neu-input {
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   文件拖放区 — .neu-drop-zone / .neu-attachment-item
+   内凹 surface 底区域 + 凸起附件列表项
+   ══════════════════════════════════════════════════════════════════ */
+.neu-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 12px;
+  text-align: center;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow:
+    inset 1px 1px 3px oklch(0.55 0.03 258 / 0.06),
+    inset -1px -1px 3px oklch(1 0 0 / 0.5);
+  transition: box-shadow 0.2s ease;
+}
+.neu-drop-zone:hover {
+  box-shadow:
+    inset 1px 1px 4px oklch(0.55 0.03 258 / 0.10),
+    inset -1px -1px 3px oklch(1 0 0 / 0.55);
+}
+
+.neu-attachment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.5),
+    1px 1px 2px oklch(0.55 0.03 258 / 0.05),
+    -1px -1px 1px oklch(1 0 0 / 0.6);
+  transition: box-shadow 0.2s ease;
+}
+.neu-attachment-item:hover {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.6),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.10),
+    -1px -1px 2px oklch(1 0 0 / 0.7);
+}
+
+/* ══════════════════════════════════════════════════════════════════
    表格表头 — .neu-thead
    内凹表头背景，与凸起卡片形成层次
    ══════════════════════════════════════════════════════════════════ */
@@ -8809,19 +8853,18 @@ select.workbench-input {
   background: oklch(1 0 0 / 0.50);
   backdrop-filter: blur(18px) saturate(135%);
   -webkit-backdrop-filter: blur(18px) saturate(135%);
-  border: 1.5px solid oklch(0.55 0.08 258 / 0.25);
   border-radius: 20px;
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.65),
-    2px 2px 8px oklch(0.55 0.03 258 / 0.08),
-    -1px -1px 5px oklch(1 0 0 / 0.8);
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    3px 3px 10px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 8px oklch(1 0 0 / 0.9);
   transition: box-shadow 0.35s ease;
 }
 .neu-table-card:hover {
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.75),
-    3px 3px 12px oklch(0.55 0.03 258 / 0.12),
-    -2px -2px 8px oklch(1 0 0 / 0.88);
+    inset 0 1px 0 oklch(1 0 0 / 0.82),
+    4px 4px 14px oklch(0.55 0.03 258 / 0.16),
+    -3px -3px 10px oklch(1 0 0 / 0.95);
 }
 .neu-table-card-header {
   padding: 14px 18px;

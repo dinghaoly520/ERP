@@ -50,5 +50,6 @@ export default function DashboardPage() {
     );
   }
 
+  if (!user) return null;
   return <DashboardHome currentUserRole={user.role} />;
 }
