@@ -270,7 +270,7 @@ function PreviewSection({
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
             {chapterLabel}
           </div>
-          <h3 className="mt-2 text-base font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+          <h3 className="mt-2 text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
             {title}
           </h3>
         </div>
@@ -280,7 +280,7 @@ function PreviewSection({
           </span>
         ) : null}
       </div>
-      <div className="mt-4 space-y-4 text-[0.93rem] leading-8 text-[color:var(--foreground)] tender-preview-typography">
+      <div className="mt-4 space-y-4 text-sm leading-8 text-[color:var(--foreground)] tender-preview-typography">
         {children}
       </div>
     </section>
@@ -380,10 +380,10 @@ function CompetitiveNegotiationPreview({
           onSectionClick={onSectionClick}
         >
           <div className="py-8 text-center">
-            <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
+            <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
-            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[var(--muted-foreground)]">
+            <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
               竞争性谈判采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
@@ -407,7 +407,7 @@ function CompetitiveNegotiationPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、项目基本情况
             </div>
-            <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>1.项目名称：<PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} /></p>
               <p>2.项目概况和采购内容：<PreviewValue value={draft.projectOverview} placeholder="{{项目概况和采购内容}}" fieldKey="projectOverview" onValueChange={onValueChange} /></p>
               <p>3.项目最高限价（含税）：最高限价<PreviewValue value={draft.maxPrice} placeholder="{{最高限价}}" fieldKey="maxPrice" onValueChange={onValueChange} />元。</p>
@@ -421,7 +421,7 @@ function CompetitiveNegotiationPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、供应商的资格要求（须同时满足）
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>1.供应商基本资格要求：</p>
               <p className="ml-4">1.1提供有效营业执照或事业单位法人证书；</p>
               <p className="ml-4">1.2未被市场监督管理机关在"国家企业信用信息公示系统"网站（www.gsxt.gov.cn）列入严重违法失信名单；</p>
@@ -435,7 +435,7 @@ function CompetitiveNegotiationPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               三、采购文件获取
             </div>
-            <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>1.时　　间：<PreviewValue value={draft.documentAcquireTime} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
               <p>2.方　　式：采购人以电子邮件的方式将采购文件发放给所有供应商。</p>
             </div>
@@ -444,7 +444,7 @@ function CompetitiveNegotiationPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               四、响应文件提交、开标
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>响应文件提交截止时间、开标时间：<PreviewValue value={draft.responseDeadline} placeholder="{{响应文件提交截至时间}}" fieldKey="responseDeadline" onValueChange={onValueChange} />。</p>
               <p className="mt-2">地　　点：成都市天府新区红莲街三段383号 B栋3楼。</p>
             </div>
@@ -453,7 +453,7 @@ function CompetitiveNegotiationPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               五、监督举报
             </div>
-            <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>监督部门：四川水发勘测设计研究有限公司纪检监察部</p>
               <p>地　　址：四川省成都市天府新区红莲街三段383号</p>
               <p>联 系 人：王先生、徐先生</p>
@@ -464,7 +464,7 @@ function CompetitiveNegotiationPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               六、联系人及联系电话
             </div>
-            <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>采 购 人：四川水发勘测设计研究有限公司</p>
               <p>地　　址：成都市天府新区红莲街三段383号</p>
               <p>联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} /></p>
@@ -574,7 +574,7 @@ function CompetitiveNegotiationPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               3. 采购文件构成
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>3.1 采购文件包括以下部分：</p>
               <p className="ml-4">第一章 采购邀请</p>
               <p className="ml-4">第二章 供应商须知</p>
@@ -606,7 +606,7 @@ function CompetitiveNegotiationPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、采购标的概述
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <PreviewValue
                 value={draft.projectOverview}
                 placeholder="{{项目概述及采购内容}}"
@@ -620,7 +620,7 @@ function CompetitiveNegotiationPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、商务要求
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <PreviewValue
                 value={draft.businessRequirements}
                 placeholder="{{商务要求}}"
@@ -634,7 +634,7 @@ function CompetitiveNegotiationPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               三、技术要求
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <PreviewValue
                 value={draft.technicalRequirements}
                 placeholder="{{技术要求}}"
@@ -658,7 +658,7 @@ function CompetitiveNegotiationPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               6. 报价表
             </div>
-            <div className="mt-3 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 text-sm leading-7 text-[color:var(--foreground)]">
               {draft.quotationLetterType === 'table' ? (
                 (() => {
                   const draftWithTable = draft as { quotationLetterTable?: TableData };
@@ -718,10 +718,10 @@ function SingleSourcePreview({
           onSectionClick={onSectionClick}
         >
           <div className="py-8 text-center">
-            <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
+            <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
-            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[var(--muted-foreground)]">
+            <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
               单源直接采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
@@ -742,10 +742,10 @@ function SingleSourcePreview({
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <p className="text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <p className="text-sm leading-7 text-[color:var(--foreground)]">
               <PreviewValue value={draft.supplierName} placeholder="{{供应商名称}}" fieldKey="supplierName" onValueChange={onValueChange} />：
             </p>
-            <p className="mt-3 indent-8 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <p className="mt-3 indent-8 text-sm leading-7 text-[color:var(--foreground)]">
               根据单位内部采购管理制度规定，该项目符合单源直接采购的适用条件。现正式向贵单位发出单源直接采购邀请，具体事宜如下：
             </p>
           </div>
@@ -829,7 +829,7 @@ function SingleSourcePreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、响应文件递交和谈判的时间及地点
             </div>
-            <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>
                 1．递交和谈判时间：<PreviewValue value={draft.submissionAndNegotiationTime} placeholder="{{递交和谈判时间}}" fieldKey="submissionAndNegotiationTime" onValueChange={onValueChange} />。
               </p>
@@ -843,7 +843,7 @@ function SingleSourcePreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               三、联系方式
             </div>
-            <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>采 购 人：四川水发勘测设计研究有限公司</p>
               <p>地　　址：四川省成都市双流区正兴街道红莲街三段383号四川水发集团B座</p>
               <p>
@@ -944,7 +944,7 @@ function SingleSourcePreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               响应文件构成
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>供应商编写的响应文件应包括下列内容：</p>
               <p className="mt-2">①报价函及报价函附录</p>
               <p>②营业执照</p>
@@ -975,7 +975,7 @@ function SingleSourcePreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、采购内容
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <PreviewValue
                 value={draft.procurementContent}
                 placeholder="{{采购内容}}"
@@ -989,7 +989,7 @@ function SingleSourcePreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、采购要求
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <PreviewValue
                 value={draft.procurementRequirements}
                 placeholder="{{采购要求}}"
@@ -1010,7 +1010,7 @@ function SingleSourcePreview({
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <div className="mt-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-1 text-sm leading-7 text-[color:var(--foreground)]">
               {typeof draft.contractText === 'string' && draft.contractText.trim() ? draft.contractText : (
                 <span className="rounded-[10px] bg-[rgba(234,188,110,0.12)] px-2 py-1 text-[rgba(178,124,42,1)]">
                   {"{{合同文本}}"}
@@ -1032,7 +1032,7 @@ function SingleSourcePreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、报价函及报价函附录
             </div>
-            <div className="mt-3 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 text-sm leading-7 text-[color:var(--foreground)]">
               {draft.quotationLetterType === 'table' ? (
                 (() => {
                   const draftWithTable = draft as { quotationLetterTable?: TableData };
@@ -1092,10 +1092,10 @@ function InquiryPurchasePreview({
           onSectionClick={onSectionClick}
         >
           <div className="py-8 text-center">
-            <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
+            <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
-            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[var(--muted-foreground)]">
+            <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
               询价采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
@@ -1187,17 +1187,17 @@ function InquiryPurchasePreview({
             </table>
           </div>
           <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
-            <div className="text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="text-sm leading-7 text-[color:var(--foreground)]">
               <span className="font-semibold">一、递交报价函截止时间：</span>
               <PreviewValue value={draft.submissionDeadline} placeholder="{{递交报价函截止时间}}" fieldKey="submissionDeadline" onValueChange={onValueChange} />
               。
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="text-sm leading-7 text-[color:var(--foreground)]">
               <span className="font-semibold">二、递交报价函地址及联系方式</span>
             </div>
-            <div className="mt-3 space-y-2 pl-4 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 space-y-2 pl-4 text-sm leading-7 text-[color:var(--foreground)]">
               <p>
                 地　　址：四川省成都市双流区正兴街道红莲街三段383号四川水发集团B座3楼
               </p>
@@ -1223,10 +1223,10 @@ function InquiryPurchasePreview({
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <div className="text-center text-lg font-semibold text-[color:var(--foreground)]">
+            <div className="text-center text-base font-semibold text-[color:var(--foreground)]">
               报价函
             </div>
-            <div className="mt-4 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-4 text-sm leading-7 text-[color:var(--foreground)]">
               <p className="indent-8">四川水发勘测设计研究有限公司：</p>
               <p className="mt-3 indent-8">根据<PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />询价文件要求，现郑重承诺如下：</p>
               <p className="mt-3 indent-8">我方已认真阅读并接受本询价文件的所有要求。</p>
@@ -1238,7 +1238,7 @@ function InquiryPurchasePreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               报价表
             </div>
-            <div className="mt-3 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 text-sm leading-7 text-[color:var(--foreground)]">
               {draft.quotationLetterType === 'table' ? (
                 (() => {
                   const draftWithTable = draft as { quotationLetterTable?: TableData };
@@ -1270,7 +1270,7 @@ function InquiryPurchasePreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="text-sm leading-7 text-[color:var(--foreground)]">
               <div className="flex justify-between">
                 <div>
                   <p>供 应 商：　　　　　　　　　　（盖单位章）</p>
@@ -1312,10 +1312,10 @@ function InternalBiddingPreview({
           onSectionClick={onSectionClick}
         >
           <div className="py-8 text-center">
-            <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
+            <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
-            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[var(--muted-foreground)]">
+            <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
               内部竞标（竞价）采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
@@ -1339,7 +1339,7 @@ function InternalBiddingPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、项目基本情况
             </div>
-            <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>1.项目名称：<PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} /></p>
               <p>2.项目概况和采购内容：<PreviewValue value={draft.projectOverview} placeholder="{{项目概况和采购内容}}" fieldKey="projectOverview" onValueChange={onValueChange} /></p>
               <p>3.项目最高限价（含税）：最高限价<PreviewValue value={draft.maxPrice} placeholder="{{最高限价}}" fieldKey="maxPrice" onValueChange={onValueChange} />元。</p>
@@ -1350,7 +1350,7 @@ function InternalBiddingPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、供应商的资格要求（须同时满足）
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>1.供应商基本资格要求：</p>
               <p className="ml-4">1.1 提供有效营业执照或事业单位法人证书；</p>
               <p className="ml-4">1.2 未被市场监督管理机关在"国家企业信用信息公示系统"网站（www.gsxt.gov.cn）列入严重违法失信名单；</p>
@@ -1372,7 +1372,7 @@ function InternalBiddingPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               三、采购文件获取
             </div>
-            <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>1.时　　间：<PreviewValue value={draft.documentAcquireTime} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
               <p>2.地　　点：四川省成都市双流区正兴街道红莲街三段383号四川水发集团B栋</p>
               <p>3.方　　式：邮箱发送/现场获取。</p>
@@ -1383,7 +1383,7 @@ function InternalBiddingPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               四、响应文件提交、开标
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>响应文件提交截止时间、开标时间：<PreviewValue value={draft.responseSubmissionTime} placeholder="{{响应文件提交时间}}" fieldKey="responseSubmissionTime" onValueChange={onValueChange} />。</p>
               <p className="mt-2">地　　点：四川省成都市双流区正兴街道红莲街三段383号四川水发集团B栋。</p>
             </div>
@@ -1392,7 +1392,7 @@ function InternalBiddingPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               五、发布公告的媒介
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               四川水发勘测设计研究有限公司官网(https://www.scswhi.com.cn/)。
             </div>
           </div>
@@ -1400,7 +1400,7 @@ function InternalBiddingPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               六、监督举报
             </div>
-            <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>监督部门：四川水发勘测设计研究有限公司纪检监察部</p>
               <p>地　　址：四川省成都市天府新区红莲街三段383号</p>
               <p>联 系 人：王先生、徐先生</p>
@@ -1411,7 +1411,7 @@ function InternalBiddingPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               七、联系人及联系电话
             </div>
-            <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>采 购 人：四川水发勘测设计研究有限公司</p>
               <p>地　　址：成都市天府新区红莲街三段383号</p>
               <p>联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} /></p>
@@ -1577,7 +1577,7 @@ function InternalBiddingPreview({
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <div className="text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="text-sm leading-7 text-[color:var(--foreground)]">
               <p>1. 本项目采用的评标方法：</p>
               {!draft.evaluationMethod ? (
                 <p className="ml-4 mt-2">
@@ -1609,7 +1609,7 @@ function InternalBiddingPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、采购项目概述
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <PreviewValue
                 value={draft.projectOverview}
                 placeholder="{{项目概述及采购内容}}"
@@ -1623,7 +1623,7 @@ function InternalBiddingPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、商务要求
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <PreviewValue
                 value={draft.businessRequirements}
                 placeholder="{{商务要求}}"
@@ -1637,7 +1637,7 @@ function InternalBiddingPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               三、技术要求
             </div>
-            <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <PreviewValue
                 value={draft.technicalRequirements}
                 placeholder="{{技术要求}}"
@@ -1661,7 +1661,7 @@ function InternalBiddingPreview({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               6. 报价表
             </div>
-            <div className="mt-3 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
+            <div className="mt-3 text-sm leading-7 text-[color:var(--foreground)]">
               {draft.quotationLetterType === 'table' ? (
                 (() => {
                   const draftWithTable = draft as { quotationLetterTable?: TableData };
