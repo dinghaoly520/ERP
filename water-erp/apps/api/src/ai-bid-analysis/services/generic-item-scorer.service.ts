@@ -137,9 +137,13 @@ export class GenericItemScorerService {
   }
 
   /**
-   * A2 self-consistency：对首轮 confidence < AI_SCORE_UNSTABLE_THRESHOLD（默认 0.6）的项，
-   * 用 temperature=0.3 + 新 seed 复跑 2 次（只对低置信子集构造 prompt，控制成本），
-   * 取中位数、重算 confidence、差值大则标 unstable。复跑失败保留首轮。
+   * A2 self-consistency：对「主观项（BUSINESS/TECHNICAL）」或「首轮 confidence < threshold 的项」
+   * 用 temperature=0.3 + 新 seed 复跑 2 次（只对重采样子集构造 prompt，控制成本），
+   * 取中位数、用采样方差重算 confidence、差值大则标 unstable。复跑失败保留首轮。
+   *
+   * B（工作流 Y）：主观项 LLM 自报 confidence 存在「自信偏见」（实测系统性 0.9-1.0），
+   * 故 BUSINESS/TECHNICAL 无条件重采样，confidence 改由采样一致性决定（1 − 变异系数），
+   * 不再信任 LLM 自报。客观项（资格/响应/价格）保留 LLM 自报，仅低置信时触发。
    */
   private async rescoreUnstable(
     llmItems: BidScoreItem[],
@@ -150,8 +154,11 @@ export class GenericItemScorerService {
     bidSupplierId: string,
   ): Promise<AiScoreItem[]> {
     const threshold = Number(process.env.AI_SCORE_UNSTABLE_THRESHOLD ?? 0.85);
+    const SUBJECTIVE_CATEGORIES = new Set(['BUSINESS', 'TECHNICAL']);
     const lowConf = firstResults.filter(
-      (r) => typeof r.confidence === 'number' && (r.confidence as number) < threshold,
+      (r) =>
+        SUBJECTIVE_CATEGORIES.has(r.category) ||
+        (typeof r.confidence === 'number' && (r.confidence as number) < threshold),
     );
     if (lowConf.length === 0) return firstResults;
 

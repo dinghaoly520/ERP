@@ -64,7 +64,9 @@ export class TenderProcessor extends WorkerHost {
       // C11 (15.9): 纳入已回复的澄清答疑，增强需求提取完整性
       let requirements: any = task.requirements;
       if (tenderText && !requirements) {
-        let extractionText = tenderText;
+        let extractionText = (tenderPages && Array.isArray(tenderPages) && tenderPages.length > 0)
+          ? tenderPages.map((p: any) => `【第${p.page}页】\n${p.text}`).join('\n\n')
+          : tenderText;
         const clarifications = await this.prisma.bidClarification.findMany({
           where: { projectId: task.projectId, status: '已回复' },
           select: { question: true, reply: true, supplierName: true },
@@ -73,7 +75,7 @@ export class TenderProcessor extends WorkerHost {
           const clarificationText = clarifications
             .map((c) => `【澄清答疑-${c.supplierName}】\n问：${c.question}\n答：${c.reply}`)
             .join('\n\n');
-          extractionText = `${tenderText}\n\n=== 澄清答疑（${clarifications.length} 条） ===\n${clarificationText}`;
+          extractionText = `${extractionText}\n\n=== 澄清答疑（${clarifications.length} 条） ===\n${clarificationText}`;
           this.logger.log(`Task ${taskId}: merged ${clarifications.length} clarifications into extraction text`);
         }
         requirements = await this.tenderExtractor.extract(extractionText, taskId);
