@@ -852,7 +852,7 @@ export function AnnouncementDialog({
                       key={cat}
                       type="button"
                       onClick={() => handleSelectCategory(cat)}
-                      className="group neu-card flex items-start gap-4 !rounded-[16px] px-5 py-4 text-left"
+                      className="group neu-card flex items-start gap-4 !rounded-[16px] !border-transparent px-5 py-4 text-left"
                     >
                       <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[color:var(--accent)] transition-transform duration-300 group-hover:scale-105">
                         <IconComponent size={18} />

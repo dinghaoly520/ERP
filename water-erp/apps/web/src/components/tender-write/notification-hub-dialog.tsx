@@ -92,7 +92,7 @@ export function NotificationHubDialog({
                 <button
                   type="button"
                   onClick={() => handleSelect("letter")}
-                  className="group neu-card flex items-start gap-4 !rounded-[16px] px-5 py-4 text-left"
+                  className="group neu-card flex items-start gap-4 !rounded-[16px] !border-transparent px-5 py-4 text-left"
                 >
                   <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[color:var(--success)] transition-transform duration-300 group-hover:scale-105">
                     <Mail size={18} />
@@ -110,7 +110,7 @@ export function NotificationHubDialog({
                 <button
                   type="button"
                   onClick={() => handleSelect("ledger")}
-                  className="group neu-card flex items-start gap-4 !rounded-[16px] px-5 py-4 text-left"
+                  className="group neu-card flex items-start gap-4 !rounded-[16px] !border-transparent px-5 py-4 text-left"
                 >
                   <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[color:var(--accent)] transition-transform duration-300 group-hover:scale-105">
                     <Table size={18} />
