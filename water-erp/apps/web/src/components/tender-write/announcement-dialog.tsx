@@ -167,7 +167,7 @@ function BidderEditor({
     "w-full rounded-[14px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-3 py-2.5 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]";
 
   return (
-    <div className="rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.18)] bg-[oklch(1_0_0_/_0.35)] px-4 py-3.5 transition-all duration-300">
+    <div className="neu-card-static !rounded-[16px] px-4 py-3.5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-[color:var(--foreground)]">
           投标单位（{bidders.length}家）
@@ -284,13 +284,12 @@ function AnnouncementFieldEditor({
   }, [value]);
 
   return (
-    <label
+    <div
       className={[
-        "block rounded-[18px] border px-4 py-3.5 transition-all duration-300",
-        hasValue
-          ? "border-[rgba(92,181,150,0.14)] bg-[rgba(92,181,150,0.04)]"
-          : "border-[oklch(0.6_0.04_258_/_0.18)] bg-[oklch(1_0_0_/_0.35)] hover:border-[oklch(0.6_0.04_258_/_0.35)]",
+        "py-3.5",
+        hasValue ? "" : "",
       ].join(" ")}
+      style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.12)" }}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-[color:var(--foreground)]">
@@ -312,10 +311,10 @@ function AnnouncementFieldEditor({
           )}
           <span
             className={[
-              "rounded-full px-2 py-0.5 text-[10px] font-semibold transition-all duration-200",
+              "rounded-[5px] px-2 py-0.5 text-[10px] font-semibold",
               hasValue
-                ? "bg-[rgba(92,181,150,0.1)] text-[rgba(78,150,124,1)]"
-                : "bg-[rgba(230,129,102,0.1)] text-[rgba(199,108,83,1)]",
+                ? "bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[color:var(--success)]"
+                : "bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] text-[color:var(--danger)]",
             ].join(" ")}
           >
             {hasValue ? "已填写" : "待补充"}
@@ -446,7 +445,7 @@ function AnnouncementFieldEditor({
           className={`${commonInputClass} mt-2`}
         />
       )}
-    </label>
+    </div>
   );
 }
 
@@ -947,7 +946,7 @@ export function AnnouncementDialog({
               </section>
 
               {/* Preview (right) */}
-              <aside className="flex min-h-0 flex-[1.1] flex-col overflow-hidden rounded-[22px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,250,255,0.92))] shadow-[0_18px_40px_rgba(59,89,143,0.08)]">
+              <aside className="flex min-h-0 flex-[1.1] flex-col overflow-hidden rounded-[24px] wb-panel">
                 <div className="shrink-0 px-5 py-3" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
                     预览区
@@ -960,7 +959,7 @@ export function AnnouncementDialog({
                   ref={previewScrollRef}
                   className="min-h-0 flex-1 overflow-y-auto tender-scroll"
                 >
-                  <div className="rounded-[18px] border border-[rgba(230,236,248,0.82)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,249,255,0.88))] m-3 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]">
+                  <div className="mx-3 my-2 px-2 py-2">
                     {draft && (
                       <AnnouncementPreviewDocument
                         tenderType={tenderType}
@@ -978,7 +977,7 @@ export function AnnouncementDialog({
 
         {/* Error message */}
         {errorMessage && (
-          <div className="shrink-0 border-t border-[rgba(230,129,102,0.16)] bg-[rgba(255,247,244,0.86)] px-6 py-3 text-sm text-[rgba(199,108,83,1)]">
+          <div className="shrink-0 px-6 py-3 text-sm text-[color:var(--danger)]" style={{ borderTop: "1px solid color-mix(in oklch, var(--danger) 20%, transparent)" }}>
             {errorMessage}
           </div>
         )}
@@ -986,7 +985,7 @@ export function AnnouncementDialog({
         {/* Success toast */}
         {successMessage && (
           <div className="absolute bottom-6 left-1/2 z-50 -translate-x-1/2 animate-fade-in">
-            <div className="rounded-full border border-[rgba(92,181,150,0.3)] bg-[rgba(92,181,150,0.95)] px-5 py-3 text-sm font-medium text-white shadow-lg">
+            <div className="rounded-[10px] border border-[color-mix(in_oklch,var(--success)_28%,transparent)] bg-[var(--success)] px-5 py-3 text-sm font-medium text-white shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
               {successMessage}
             </div>
           </div>
@@ -995,7 +994,7 @@ export function AnnouncementDialog({
         {/* AI / Import error toast */}
         {aiError && (
           <div className="absolute bottom-6 left-1/2 z-50 -translate-x-1/2 animate-fade-in">
-            <div className="rounded-full border border-[rgba(230,129,102,0.3)] bg-[rgba(230,129,102,0.95)] px-5 py-3 text-sm font-medium text-white shadow-lg">
+            <div className="rounded-[10px] border border-[color-mix(in_oklch,var(--danger)_28%,transparent)] bg-[var(--danger)] px-5 py-3 text-sm font-medium text-white shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
               {aiError}
             </div>
           </div>
