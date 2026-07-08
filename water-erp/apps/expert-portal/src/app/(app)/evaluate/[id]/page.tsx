@@ -126,9 +126,9 @@ export default function ExpertEvaluatePage() {
   const stepAccessible = (sKey: Step): boolean => {
     switch (sKey) {
       case 'verify': return true;
-      case 'documents': return !!expert?.signedIn;
-      case 'assist': return !!expert?.signedIn;
-      case 'compare': return !!expert?.signedIn;
+      case 'documents': return !!expert?.signedIn && !!expert?.avoidanceConfirmed;
+      case 'assist': return !!expert?.signedIn && !!expert?.avoidanceConfirmed;
+      case 'compare': return !!expert?.signedIn && !!expert?.avoidanceConfirmed;
       case 'scoring': return !!expert?.signedIn && !!expert?.avoidanceConfirmed;
       case 'report': return !!expert?.reportConfirmed || (expert?.progress ?? 0) >= 100;
     }
@@ -274,6 +274,15 @@ export default function ExpertEvaluatePage() {
   }, [project]);
 
   const expert = project?.myExpertRecord;
+
+  // Guard: redirect to verify if current step is not accessible
+  useEffect(() => {
+    if (!project) return;
+    if (!stepAccessible(step)) {
+      setStep('verify');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, expert?.signedIn, expert?.avoidanceConfirmed, confidentialityAgreed, disciplineAgreed]);
 
   const handleSignIn = async () => {
     setBusy(true);
