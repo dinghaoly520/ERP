@@ -259,15 +259,15 @@ function PreviewSection({
       data-section-key={sectionKey}
       onClick={() => onSectionClick?.(sectionKey)}
       className={[
-        'scroll-mt-6 rounded-[18px] border px-5 py-5 transition-all duration-300 cursor-pointer',
+        'scroll-mt-6 transition-all duration-300 cursor-pointer',
         isActive
-          ? 'border-[oklch(0.5_0.16_258_/_0.22)] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]'
-          : 'border-[oklch(0.55_0.05_258_/_0.12)] bg-[oklch(1_0_0_/_0.25)] hover:border-[oklch(0.5_0.08_258_/_0.2)] hover:bg-[oklch(1_0_0_/_0.45)] hover:translate-y-[-1px]',
+          ? 'rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-3 py-3'
+          : 'border-b border-[oklch(0.6_0.04_258_/_0.12)] px-0 pb-4 hover:bg-[oklch(1_0_0_/_0.2)]',
       ].join(' ')}
     >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[rgba(95,126,188,0.72)]">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
             {chapterLabel}
           </div>
           <h3 className="mt-2 text-base font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
@@ -369,7 +369,7 @@ function CompetitiveNegotiationPreview({
   const submissionRequirementsType = (draft as Record<string, string>).submissionRequirementsType;
 
   return (
-    <div className="neu-card-static !rounded-[20px] px-6 py-6">
+    <div className="pb-4">
       <div className="mx-auto max-w-[72ch] space-y-5">
         {/* 封面 */}
         <PreviewSection
@@ -379,11 +379,11 @@ function CompetitiveNegotiationPreview({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
-          <div className="rounded-[16px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.25)] px-6 py-8 text-center">
+          <div className="py-8 text-center">
             <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
-            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[rgba(80,102,146,0.92)]">
+            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[var(--muted-foreground)]">
               竞争性谈判采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
@@ -404,7 +404,7 @@ function CompetitiveNegotiationPreview({
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、项目基本情况
             </div>
             <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -418,7 +418,7 @@ function CompetitiveNegotiationPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、供应商的资格要求（须同时满足）
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -432,7 +432,7 @@ function CompetitiveNegotiationPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               三、采购文件获取
             </div>
             <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -441,7 +441,7 @@ function CompetitiveNegotiationPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               四、响应文件提交、开标
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -450,7 +450,7 @@ function CompetitiveNegotiationPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               五、监督举报
             </div>
             <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -461,7 +461,7 @@ function CompetitiveNegotiationPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               六、联系人及联系电话
             </div>
             <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -571,7 +571,7 @@ function CompetitiveNegotiationPreview({
             </div>
           </div>
           <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               3. 采购文件构成
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -603,7 +603,7 @@ function CompetitiveNegotiationPreview({
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、采购标的概述
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -617,7 +617,7 @@ function CompetitiveNegotiationPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、商务要求
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -631,7 +631,7 @@ function CompetitiveNegotiationPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               三、技术要求
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -655,7 +655,7 @@ function CompetitiveNegotiationPreview({
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               6. 报价表
             </div>
             <div className="mt-3 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -707,7 +707,7 @@ function SingleSourcePreview({
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
 }) {
   return (
-    <div className="neu-card-static !rounded-[20px] px-6 py-6">
+    <div className="pb-4">
       <div className="mx-auto max-w-[72ch] space-y-5">
         {/* 封面 */}
         <PreviewSection
@@ -717,11 +717,11 @@ function SingleSourcePreview({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
-          <div className="rounded-[16px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.25)] px-6 py-8 text-center">
+          <div className="py-8 text-center">
             <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
-            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[rgba(80,102,146,0.92)]">
+            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[var(--muted-foreground)]">
               单源直接采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
@@ -750,7 +750,7 @@ function SingleSourcePreview({
             </p>
           </div>
           <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、采购项目基本信息
             </div>
             {/* 采购项目基本信息表格 */}
@@ -826,7 +826,7 @@ function SingleSourcePreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、响应文件递交和谈判的时间及地点
             </div>
             <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -840,7 +840,7 @@ function SingleSourcePreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               三、联系方式
             </div>
             <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -941,7 +941,7 @@ function SingleSourcePreview({
             </div>
           </div>
           <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               响应文件构成
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -972,7 +972,7 @@ function SingleSourcePreview({
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、采购内容
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -986,7 +986,7 @@ function SingleSourcePreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、采购要求
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1029,7 +1029,7 @@ function SingleSourcePreview({
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、报价函及报价函附录
             </div>
             <div className="mt-3 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1081,7 +1081,7 @@ function InquiryPurchasePreview({
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
 }) {
   return (
-    <div className="neu-card-static !rounded-[20px] px-6 py-6">
+    <div className="pb-4">
       <div className="mx-auto max-w-[72ch] space-y-5">
         {/* 封面 */}
         <PreviewSection
@@ -1091,11 +1091,11 @@ function InquiryPurchasePreview({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
-          <div className="rounded-[16px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.25)] px-6 py-8 text-center">
+          <div className="py-8 text-center">
             <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
-            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[rgba(80,102,146,0.92)]">
+            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[var(--muted-foreground)]">
               询价采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
@@ -1235,7 +1235,7 @@ function InquiryPurchasePreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               报价表
             </div>
             <div className="mt-3 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1301,7 +1301,7 @@ function InternalBiddingPreview({
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
 }) {
   return (
-    <div className="neu-card-static !rounded-[20px] px-6 py-6">
+    <div className="pb-4">
       <div className="mx-auto max-w-[72ch] space-y-5">
         {/* 封面 */}
         <PreviewSection
@@ -1311,11 +1311,11 @@ function InternalBiddingPreview({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
-          <div className="rounded-[16px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.25)] px-6 py-8 text-center">
+          <div className="py-8 text-center">
             <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
-            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[rgba(80,102,146,0.92)]">
+            <div className="mt-4 text-[0.95rem] font-semibold tracking-[0.06em] text-[var(--muted-foreground)]">
               内部竞标（竞价）采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
@@ -1336,7 +1336,7 @@ function InternalBiddingPreview({
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、项目基本情况
             </div>
             <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1347,7 +1347,7 @@ function InternalBiddingPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、供应商的资格要求（须同时满足）
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1369,7 +1369,7 @@ function InternalBiddingPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               三、采购文件获取
             </div>
             <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1380,7 +1380,7 @@ function InternalBiddingPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               四、响应文件提交、开标
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1389,7 +1389,7 @@ function InternalBiddingPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               五、发布公告的媒介
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1397,7 +1397,7 @@ function InternalBiddingPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               六、监督举报
             </div>
             <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1408,7 +1408,7 @@ function InternalBiddingPreview({
             </div>
           </div>
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               七、联系人及联系电话
             </div>
             <div className="mt-3 space-y-2 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1606,7 +1606,7 @@ function InternalBiddingPreview({
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               一、采购项目概述
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1620,7 +1620,7 @@ function InternalBiddingPreview({
             </div>
           </div>
           <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               二、商务要求
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1634,7 +1634,7 @@ function InternalBiddingPreview({
             </div>
           </div>
           <div className="mt-4 rounded-[14px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] px-4 py-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               三、技术要求
             </div>
             <div className="mt-3 pl-1 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
@@ -1658,7 +1658,7 @@ function InternalBiddingPreview({
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
               6. 报价表
             </div>
             <div className="mt-3 text-[0.92rem] leading-7 text-[color:var(--foreground)]">
