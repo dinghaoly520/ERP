@@ -71,8 +71,8 @@ export function TenderHistoryDialog({
         className="absolute inset-0 bg-[rgba(242,246,255,0.42)] backdrop-blur-md"
         onClick={onClose}
       />
-      <div className="panel-surface chromatic-glass glass-calm relative z-10 flex w-full max-w-[min(720px,92vw)] max-h-[80vh] flex-col overflow-hidden rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(244,248,255,0.88))] shadow-[0_30px_80px_rgba(59,89,143,0.18)]">
-        <div className="border-b border-white/60 px-6 py-5">
+      <div className="relative z-10 flex w-full max-w-[min(720px,92vw)] max-h-[80vh] flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+        <div className="px-6 py-5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[rgba(94,126,189,0.76)]">
@@ -88,7 +88,7 @@ export function TenderHistoryDialog({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full border border-white/70 bg-white/80 p-2 text-[color:var(--muted-foreground)] transition-colors hover:text-[color:var(--foreground)]"
+              className="neu-btn-xs"
               aria-label="关闭历史记录弹窗"
             >
               <X size={16} />
@@ -103,11 +103,11 @@ export function TenderHistoryDialog({
               正在加载历史记录...
             </div>
           ) : errorMessage ? (
-            <div className="rounded-[20px] border border-[rgba(230,129,102,0.16)] bg-[rgba(255,247,244,0.86)] px-4 py-4 text-sm text-[rgba(199,108,83,1)]">
+            <div className="rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_20%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-4 text-sm text-[color:var(--danger)]">
               {errorMessage}
             </div>
           ) : records.length === 0 ? (
-            <div className="rounded-[20px] border border-white/70 bg-white/72 px-5 py-10 text-center text-sm text-[color:var(--muted-foreground)]">
+            <div className="wb-panel flex items-center justify-center px-5 py-10 text-center text-sm text-[color:var(--muted-foreground)]">
               当前类型还没有保存记录。
             </div>
           ) : (
@@ -115,7 +115,7 @@ export function TenderHistoryDialog({
               {records.map((record) => (
                 <div
                   key={record.id}
-                  className="rounded-[22px] border border-white/65 bg-white/78 px-4 py-4 shadow-[0_12px_28px_rgba(59,89,143,0.06)]"
+                  className="neu-card-static !rounded-[16px] px-4 py-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -139,7 +139,7 @@ export function TenderHistoryDialog({
                       <button
                         type="button"
                         onClick={() => onApply(record)}
-                        className="rounded-full border border-[rgba(96,139,239,0.22)] bg-[rgba(96,139,239,0.1)] px-4 py-2 text-sm font-semibold text-[color:var(--accent)] transition-colors hover:bg-[rgba(96,139,239,0.16)]"
+                        className="neu-btn-soft"
                       >
                         应用
                       </button>
@@ -147,7 +147,7 @@ export function TenderHistoryDialog({
                         type="button"
                         onClick={() => void handleDelete(record.id)}
                         disabled={deletingId === record.id}
-                        className="rounded-full border border-[rgba(230,129,102,0.22)] bg-[rgba(230,129,102,0.1)] px-3 py-2 text-sm font-semibold text-[rgba(199,108,83,1)] transition-colors hover:bg-[rgba(230,129,102,0.16)] disabled:opacity-50"
+                        className="neu-btn-soft is-danger"
                         title="删除此记录"
                       >
                         {deletingId === record.id ? (

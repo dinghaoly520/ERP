@@ -845,7 +845,7 @@ export function AnnouncementDialog({
                       key={cat}
                       type="button"
                       onClick={() => handleSelectCategory(cat)}
-                      className="group rounded-[22px] border border-white/60 bg-white/80 px-6 py-5 text-left transition-all duration-300 hover:border-[rgba(107,149,240,0.3)] hover:bg-[rgba(244,248,255,0.98)] hover:shadow-[0_12px_28px_rgba(59,89,143,0.1)]"
+                      className="group neu-card-static !rounded-[18px] px-6 py-5 text-left transition-all duration-300 hover:border-[rgba(107,149,240,0.3)] hover:bg-[oklch(1_0_0_/_0.7)]"
                     >
                       <div className="text-[1.05rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
                         {getAnnouncementLabel(tenderType, cat)}

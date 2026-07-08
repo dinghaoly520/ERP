@@ -233,10 +233,10 @@ export function ImportAutofillDialog({
 
   return (
     <>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm">
-        <div className="flex max-h-[85vh] w-[min(820px,92vw)] flex-col rounded-3xl border border-white/65 bg-white/95 shadow-[0_24px_64px_rgba(30,60,120,0.18)]">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm">
+        <div className="flex max-h-[85vh] w-[min(820px,92vw)] flex-col rounded-3xl bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
             <div>
               <h2 className="text-base font-semibold text-slate-800">
                 导入文件自动填写
@@ -308,7 +308,7 @@ export function ImportAutofillDialog({
               <button
                 type="button"
                 onClick={handleFileSelect}
-                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                className="neu-btn-primary"
               >
                 <FileUp size={15} />
                 选择文件开始分析

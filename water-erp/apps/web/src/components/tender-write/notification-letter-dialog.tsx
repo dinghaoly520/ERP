@@ -464,7 +464,7 @@ export function NotificationLetterDialog({
             /* Edit + Preview step */
             <div className="flex min-h-0 flex-1 flex-row gap-4 p-4">
               {/* Editor (left) */}
-              <section className="flex min-h-0 flex-1 flex-col rounded-[22px] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(245,248,255,0.8))] shadow-[0_18px_40px_rgba(59,89,143,0.08)]">
+              <section className="flex min-h-0 flex-1 flex-col rounded-[20px] wb-panel">
                 <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">编辑区</div>
                   <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
@@ -486,7 +486,7 @@ export function NotificationLetterDialog({
                             "block rounded-[18px] border px-4 py-3.5 transition-all duration-300",
                             hasValue
                               ? "border-[rgba(92,181,150,0.14)] bg-[rgba(92,181,150,0.04)]"
-                              : "border-white/40 bg-white/50 hover:border-white/70",
+                              : "border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] hover:border-[oklch(0.5_0.08_258_/_0.25)] hover:bg-[oklch(1_0_0_/_0.5)]",
                           ].join(" ")}
                         >
                           <div className="flex items-center justify-between gap-2">
