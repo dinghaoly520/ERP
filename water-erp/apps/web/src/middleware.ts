@@ -33,6 +33,6 @@ export const config = {
      *   /_next/*       — static assets & HMR
      *   / (root)       — handled by page.tsx itself
      */
-    '/((?!login|api|_next|$).+)',
+    '/((?!login|api|_next|$|.*\\.(?:png|jpe?g|gif|svg|ico|webp|woff2?|ttf|eot)$).+)',
   ],
 };

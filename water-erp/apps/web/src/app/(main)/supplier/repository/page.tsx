@@ -8,9 +8,9 @@ import {
   updateSupplierStatus, createClassification, updateClassification, deleteClassification,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierClassification, SupplierListResponse } from '@/lib/types';
-import { DataToolbar, MetricCard, PageHero, SectionCard, StatusBadge, TableSkeleton, EmptyState, Pagination } from '@/components/workbench';
+import { StatusBadge, TableSkeleton } from '@/components/workbench';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
-import { Building2, Layers, Search, Plus } from 'lucide-react';
+import { Building2, Layers, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
 export default function SupplierRepositoryPage() {
   const router = useRouter();
@@ -44,7 +44,7 @@ export default function SupplierRepositoryPage() {
         search: search || undefined, page, pageSize, sort: sortMode,
       });
       setData(res);
-    } catch { /* empty */ }
+    } catch {}
     setLoading(false);
   }, [filterStatus, filterClassification, search, page, pageSize, sortMode]);
 
@@ -57,6 +57,7 @@ export default function SupplierRepositoryPage() {
   useEffect(() => { refreshMeta(); }, [refreshMeta, data.total]);
   const { sortKey, sortDir, toggle, sorted } = useSort<Supplier>('createdAt', 'desc');
   const sortedItems = sorted(data.items);
+  const totalPages = Math.max(1, Math.ceil(data.total / pageSize));
 
   const handleStatusAction = async () => {
     if (!statusModal || !statusReason.trim()) { toast.error('请填写原因'); return; }
@@ -85,10 +86,8 @@ export default function SupplierRepositoryPage() {
   };
   const removeClass = async (c: SupplierClassification) => {
     if (!confirm(`确认删除分类「${c.name}」？`)) return;
-    try { await deleteClassification(c.id); toast.success('分类已删除'); refreshMeta(); }
-    catch (e: any) { toast.error(e?.message || '删除失败'); }
+    try { await deleteClassification(c.id); toast.success('分类已删除'); refreshMeta(); } catch (e: any) { toast.error(e?.message || '删除失败'); }
   };
-
 
   const STATUS_TABS = [
     { label: '全部', status: '' },
@@ -100,208 +99,198 @@ export default function SupplierRepositoryPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <PageHero
-         title="供应商库"
-        description="全量供应商目录、分类管理与状态维护。支持按状态、分类和关键词筛选。"
-        tone="green" icon={<Building2 size={14} />}
-        actions={
-          <button onClick={() => setShowClassMgr(v => !v)}
-            className="inline-flex items-center gap-2 rounded-xl border border-[#064ea2] bg-white px-4 py-2 text-sm font-bold text-[#064ea2] hover:bg-[#f0f5ff] transition">
-            <Layers size={16} />{showClassMgr ? '收起分类' : '分类管理'}
-          </button>
-        }
-      />
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <MetricCard label="供应商总数" value={stats.total} tone="blue" icon={<Building2 size={18} strokeWidth={1.7} />} />
-        <MetricCard label="已入库" value={stats.approved} tone="green" />
-        <MetricCard label="待审核" value={stats.pending} tone="orange" />
-        <MetricCard label="已停用" value={stats.disabled} tone="gray" />
+    <div className="flex flex-col gap-5">
+      {/* ══════ page-hero ══════ */}
+      <div className="page-hero">
+        <div className="page-hero__row">
+          <div className="page-hero__left">
+            <div className="page-hero__icon"><Building2 size={17} /></div>
+            <div>
+              <div className="page-hero__title">供应商库</div>
+              <div className="page-hero__sub">全量供应商目录、分类管理与状态维护</div>
+            </div>
+          </div>
+          <div className="page-hero__right">
+            <button onClick={loadData} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
+            <button onClick={() => setShowClassMgr(v => !v)} className="neu-btn-soft"><Layers size={15} />{showClassMgr ? '收起分类' : '分类管理'}</button>
+          </div>
+        </div>
+        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">供应商总数</span>
+            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.total}</span>
+            <span className="text-[10px] font-medium text-[var(--muted-foreground)]">全量入库</span>
+          </div>
+          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">已入库</span>
+            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.approved}</span>
+            <span className="text-[10px] font-medium text-[var(--muted-foreground)]">正常运营</span>
+          </div>
+          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">待审核</span>
+            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.pending}</span>
+            <span className="text-[10px] font-medium text-[var(--muted-foreground)]">新注册申请</span>
+          </div>
+          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">已停用</span>
+            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.disabled}</span>
+            <span className="text-[10px] font-medium text-[var(--muted-foreground)]">状态冻结</span>
+          </div>
+        </div>
+        </div>
       </div>
 
-      {/* Classification management panel */}
+      {/* ══════ 分类管理面板 ══════ */}
       {showClassMgr && (
-        <div className="mb-5 pb-5 border-b border-[rgba(184,199,227,0.4)]">
+        <div className="neu-table-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-black text-[var(--foreground)]">业务分类管理</h2>
-            <button onClick={() => openClassEditor(null)}
-              className="neu-btn-primary">
-              <Plus size={13} />新增分类
-            </button>
+            <button onClick={() => openClassEditor(null)} className="neu-btn-soft"><Plus size={13} />新增分类</button>
           </div>
-
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             {classifications.map(c => (
-              <div key={c.id} className="group rounded-lg px-3 py-3 border border-[rgba(184,199,227,0.25)] hover:border-[rgba(96,139,239,0.3)] transition-colors">
+              <div key={c.id} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-[#18243a]">{c.name}</span>
-                  <StatusBadge tone="blue">{c._count?.suppliers ?? 0} 家</StatusBadge>
+                  <span className="text-sm font-bold text-[var(--foreground)]">{c.name}</span>
+                  <span className="neu-tab-count">{c._count?.suppliers ?? 0}</span>
                 </div>
-                <div className="mt-1 font-mono text-xs text-[#8a99ad]">{c.code}</div>
-                {c.description && <div className="mt-1 text-xs text-[#5a6d8a] line-clamp-2">{c.description}</div>}
-                <div className="mt-2 flex gap-2">
-                  <button onClick={() => openClassEditor(c)} className="text-xs font-semibold text-[#064ea2] hover:underline">编辑</button>
-                  <button onClick={() => removeClass(c)} className="text-xs font-semibold text-red-500 hover:underline">删除</button>
+                <span className="font-mono text-[10px] text-[var(--muted-foreground)]">{c.code}</span>
+                {c.description && <span className="text-[10px] text-[var(--muted-foreground)] line-clamp-2">{c.description}</span>}
+                <div className="mt-1 flex gap-2">
+                  <button onClick={() => openClassEditor(c)} className="neu-btn-xs">编辑</button>
+                  <button onClick={() => removeClass(c)} className="neu-btn-xs is-danger">删除</button>
                 </div>
               </div>
             ))}
           </div>
-
-          {/* Classification editor */}
           {(editClass || classForm.name || classForm.code) && (
-            <div className="mb-4 pt-4 border-t border-[rgba(184,199,227,0.3)]">
+            <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.75rem" }}>
               <h3 className="text-sm font-black text-[var(--foreground)] mb-3">{editClass ? '编辑分类' : '新增分类'}</h3>
               <div className="grid grid-cols-3 gap-3 mb-3">
-                <input value={classForm.name} onChange={e => setClassForm({ ...classForm, name: e.target.value })}
-                  placeholder="分类名称" className="workbench-input text-sm" />
-                <input value={classForm.code} onChange={e => setClassForm({ ...classForm, code: e.target.value })}
-                  placeholder="分类代码（如 IT_INFO）" className="workbench-input text-sm font-mono" />
-                <input value={classForm.description} onChange={e => setClassForm({ ...classForm, description: e.target.value })}
-                  placeholder="描述（可选）" className="workbench-input text-sm" />
+                <input value={classForm.name} onChange={e => setClassForm({ ...classForm, name: e.target.value })} placeholder="分类名称" className="neu-input text-sm" />
+                <input value={classForm.code} onChange={e => setClassForm({ ...classForm, code: e.target.value })} placeholder="分类代码" className="neu-input text-sm font-mono" />
+                <input value={classForm.description} onChange={e => setClassForm({ ...classForm, description: e.target.value })} placeholder="描述（可选）" className="neu-input text-sm" />
               </div>
               <div className="flex gap-2">
-                <button onClick={saveClass} disabled={classSaving}
-                  className="neu-btn-primary">
-                  {classSaving ? '保存中...' : '保存'}
-                </button>
-                <button onClick={() => openClassEditor(null)}
-                  className="neu-btn-soft">取消</button>
+                <button onClick={saveClass} disabled={classSaving} className="neu-btn-soft">{classSaving ? '保存中...' : '保存'}</button>
+                <button onClick={() => openClassEditor(null)} className="neu-btn-soft">取消</button>
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Status filter tabs */}
-      <div className="flex flex-wrap gap-2">
-        {STATUS_TABS.map(t => (
-          <button key={t.label} onClick={() => { setFilterStatus(t.status); setPage(1); }}
-            className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
-              filterStatus === t.status
-                ? 'bg-[#064ea2] text-white shadow-sm'
-                : 'bg-white text-[#5a6d8a] border border-[var(--border)] hover:border-[#bcd0e8] hover:text-[#064ea2]'
-            }`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <DataToolbar>
-        <div className="flex items-center gap-2 flex-1">
-          <Search size={15} className="text-[#94a3b8] flex-shrink-0" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="搜索企业名称 / 信用代码" className="workbench-input flex-1 text-sm" />
+      {/* ══════ 工具栏卡片 ══════ */}
+      <div className="flex flex-wrap items-center gap-3 rounded-[16px] border border-[color-mix(in_oklch,var(--border)_80%,transparent)] bg-[var(--surface)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.65),2px_2px_6px_oklch(0.55_0.03_258/0.08),-1px_-1px_3px_oklch(1_0_0/0.85)]">
+        <div className="neu-tab-bar">
+          {STATUS_TABS.map(t => (
+            <button key={t.status} onClick={() => { setFilterStatus(t.status); setPage(1); }} className={`neu-tab ${filterStatus === t.status ? 'is-active' : ''}`}>
+              {t.label}
+            </button>
+          ))}
         </div>
-        <select value={filterClassification} onChange={e => { setFilterClassification(e.target.value); setPage(1); }}
-          className="workbench-input text-sm">
+        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索企业名称 / 信用代码" className="neu-input !pl-9" />
+          {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}
+        </div>
+        <select value={filterClassification} onChange={e => { setFilterClassification(e.target.value); setPage(1); }} className="workbench-input !w-auto min-w-[110px]">
           <option value="">全部分类</option>
           {classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <button onClick={() => { setSearch(''); setFilterStatus(''); setFilterClassification(''); setPage(1); }}
-          className="neu-btn-soft">重置</button>
-        <button
-          onClick={() => { setSortMode(s => s === 'completeness' ? 'createdAt' : 'completeness'); setPage(1); }}
-          className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
-            sortMode === 'completeness'
-              ? 'border-[#bfdbfe] bg-[#eff6ff] text-[#064ea2]'
-              : 'border-[var(--border)] text-[#5a6d8a] hover:bg-[#f8fafc]'
-          }`}
-        >
-          {sortMode === 'completeness' ? '资料完整度 ↑' : '最新注册 ↑'}
-        </button>
-      </DataToolbar>
+        <button onClick={() => { setSearch(''); setFilterStatus(''); setFilterClassification(''); setPage(1); }} className="neu-btn-xs">重置</button>
+      </div>
 
-      <SectionCard className="p-0">
-        <table className="workbench-table w-full min-w-[780px]">
-          <thead className="neu-thead [neu-thead text-[#5a6d8a] [&_th]:whitespace-nowrap_th]:whitespace-nowrap">
-            <tr>
-              <SortableTh label="企业名称" field="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-              <th className="px-4 py-3 text-center">统一社会信用代码</th>
-              <SortableTh label="企业类型" field="enterpriseType" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-              <th className="px-4 py-3 text-center">状态</th>
-              <th className="px-4 py-3 text-center">分类</th>
-              <SortableTh label="入库时间" field="createdAt" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-              <th className="px-4 py-3 text-center">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <TableSkeleton cols={7} rows={5} />
-            ) : sortedItems.length === 0 ? (
-              <tr><td colSpan={7}><EmptyState title="暂无供应商数据" description="供应商注册并通过审核后将出现在这里" /></td></tr>
-            ) : sortedItems.map((s: Supplier) => {
-              const statusTone = s.status === 'APPROVED' ? 'green' : s.status === 'PENDING' ? 'blue'
-                : s.status === 'RETURNED' ? 'orange' : s.status === 'DISABLED' ? 'gray'
-                : s.status === 'BLACKLIST' ? 'red' : 'gray';
-              const statusLabel = s.status === 'APPROVED' ? '已入库' : s.status === 'PENDING' ? '待审核'
-                : s.status === 'RETURNED' ? '退回补正' : s.status === 'DISABLED' ? '已停用'
-                : s.status === 'BLACKLIST' ? '黑名单' : s.status;
-              return (
-                <tr key={s.id} className="row-clickable" onClick={() => router.push(`/supplier/${s.id}`)}>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#064ea2] text-xs font-extrabold text-white">
-                        {s.name[0]}
+      {/* ══════ 数据表格 ══════ */}
+      <div className="neu-table-card">
+        <div className="overflow-x-auto">
+          <table className="neu-table w-full min-w-[780px]">
+            <thead>
+              <tr>
+                <SortableTh label="企业名称" field="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
+                <th className="text-center">统一社会信用代码</th>
+                <SortableTh label="企业类型" field="enterpriseType" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
+                <th className="text-center">状态</th>
+                <th className="text-center">分类</th>
+                <SortableTh label="入库时间" field="createdAt" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
+                <th className="text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <TableSkeleton cols={7} rows={5} />
+              ) : sortedItems.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-16">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><Building2 size={22} className="text-[var(--muted-foreground)]" /></div>
+                    <p className="text-sm text-[var(--muted-foreground)]">暂无供应商数据</p>
+                  </div>
+                </td></tr>
+              ) : sortedItems.map((s: Supplier) => {
+                const statusTone = s.status === 'APPROVED' ? 'green' : s.status === 'PENDING' ? 'blue' : s.status === 'RETURNED' ? 'orange' : s.status === 'DISABLED' ? 'gray' : s.status === 'BLACKLIST' ? 'red' : 'gray';
+                const statusLabel = s.status === 'APPROVED' ? '已入库' : s.status === 'PENDING' ? '待审核' : s.status === 'RETURNED' ? '退回补正' : s.status === 'DISABLED' ? '已停用' : s.status === 'BLACKLIST' ? '黑名单' : s.status;
+                return (
+                  <tr key={s.id} className="row-clickable" onClick={() => router.push(`/supplier/${s.id}`)}>
+                    <td>
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{s.name[0]}</div>
+                        <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors">{s.name}</span>
                       </div>
-                      <span className="text-sm font-bold text-[#18243a] cursor-pointer hover:text-[#064ea2] transition"
-                        onClick={() => router.push(`/supplier/${s.id}`)}>
-                        {s.name}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-center font-mono text-xs text-[#5a6d8a]">{s.creditCode || '—'}</td>
-                  <td className="px-4 py-3 text-center text-sm text-[#5a6d8a]">{s.enterpriseType || '—'}</td>
-                  <td className="px-4 py-3 text-center">
-                    <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge>
-                  </td>
-                  <td className="px-4 py-3 text-center text-sm text-[#5a6d8a]">{s.classification?.name || '—'}</td>
-                  <td className="px-4 py-3 text-center text-sm text-[#5a6d8a]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
-                  <td className="px-4 py-3 text-center">
-                    <div className="flex justify-center gap-1.5">
-                      <button onClick={(e) => { e.stopPropagation(); router.push(`/supplier/${s.id}`); }}
-                        className="neu-btn-xs is-info">详情</button>
-                      {s.status === 'APPROVED' && (
-                        <>
-                          <button onClick={(e) => { e.stopPropagation(); setStatusReason(''); setStatusModal({ type: 'disable', supplier: s }); }}
-                            className="neu-btn-xs is-warning">停用</button>
-                          <button onClick={(e) => { e.stopPropagation(); setStatusReason(''); setStatusModal({ type: 'blacklist', supplier: s }); }}
-                            className="neu-btn-xs is-danger">黑名单</button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    </td>
+                    <td className="text-center font-mono text-xs text-[var(--muted-foreground)]">{s.creditCode || '—'}</td>
+                    <td className="text-center text-sm text-[var(--muted-foreground)]">{s.enterpriseType || '—'}</td>
+                    <td className="text-center"><StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></td>
+                    <td className="text-center text-sm text-[var(--muted-foreground)]">{s.classification?.name || '—'}</td>
+                    <td className="text-center text-sm text-[var(--muted-foreground)]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <div className="flex flex-wrap justify-center gap-1">
+                        <button onClick={() => router.push(`/supplier/${s.id}`)} className="neu-btn-xs is-info">详情</button>
+                        {s.status === 'APPROVED' && (
+                          <>
+                            <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'disable', supplier: s }); }} className="neu-btn-xs is-warning">停用</button>
+                            <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'blacklist', supplier: s }); }} className="neu-btn-xs is-danger">黑名单</button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {data.total > 0 && (
+          <div className="neu-table-card-footer flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-[0.8rem] text-[var(--muted-foreground)] tabular-nums">共 <strong className="font-semibold text-[var(--foreground)]">{data.total}</strong> 条 · 第 {page}/{totalPages} 页</span>
+            <div className="flex gap-1.5">
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-[-90deg]" /></button>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-90" /></button>
+            </div>
+          </div>
+        )}
+      </div>
 
-        <Pagination total={data.total} page={page} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(ps) => { setPageSize(ps); setPage(1); }} />
-      </SectionCard>
-
-      {/* Status change modal */}
+      {/* ══════ 状态变更弹窗 ══════ */}
       {statusModal && (
-        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setStatusModal(null)}>
-          <div className="modal-content bg-[var(--background)] w-full max-w-md rounded-[24px] shadow-[0_20px_60px_rgba(0,0,0,0.12)]" onClick={e => e.stopPropagation()}>
-            <div className="border-b border-[var(--border)] px-6 py-4">
-              <h3 className="text-base font-bold text-[#18243a]">
-                {statusModal.type === 'disable' ? '停用供应商' : '加入黑名单'}
-              </h3>
-              <p className="mt-1 text-xs text-[#5a6d8a]">供应商：<strong className="text-[#18243a]">{statusModal.supplier.name}</strong></p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setStatusModal(null)}>
+          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-[min(420px,92vw)] rounded-[20px] bg-[var(--background)] p-0 shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)]" role="dialog" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-bold tracking-[-0.02em] text-[var(--foreground)]">{statusModal.type === 'disable' ? '停用供应商' : '加入黑名单'}</h2>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">供应商：<strong className="text-[var(--foreground)]">{statusModal.supplier.name}</strong></p>
+              </div>
+              <button onClick={() => setStatusModal(null)} className="neu-btn-xs"><X size={16} /></button>
             </div>
-            <div className="p-6">
-              <textarea value={statusReason} onChange={e => setStatusReason(e.target.value)}
-                placeholder="请填写原因..."
-                className="w-full rounded-xl border border-[var(--border)] px-3 py-2 text-sm placeholder-[#94a3b8] h-24 resize-none focus:outline-none focus:border-red-400" />
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 pb-2">
+              <textarea value={statusReason} onChange={e => setStatusReason(e.target.value)} placeholder="请填写原因..." className="neu-input w-full h-24 resize-none text-sm" />
             </div>
-            <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
-              <button onClick={() => setStatusModal(null)}
-                className="neu-btn-soft">取消</button>
-              <button onClick={handleStatusAction} disabled={statusLoading || !statusReason.trim()}
-                className="neu-btn-soft is-danger">
-                {statusLoading ? '处理中...' : '确认'}
-              </button>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-3 px-6 py-4">
+              <button onClick={() => setStatusModal(null)} className="neu-btn-soft">取消</button>
+              <button onClick={handleStatusAction} disabled={statusLoading || !statusReason.trim()} className="neu-btn-soft is-danger">{statusLoading ? '处理中...' : '确认'}</button>
             </div>
           </div>
         </div>

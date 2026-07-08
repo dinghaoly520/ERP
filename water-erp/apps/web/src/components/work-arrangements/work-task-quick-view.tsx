@@ -167,7 +167,7 @@ export function WorkTaskQuickView({
       {!isFinished && (
         <div className="mt-4 flex flex-wrap gap-2">
           {availableActions.includes('start') && (
-            <button type="button" onClick={onStart} aria-label="开始处理任务" className="neu-btn-primary">
+            <button type="button" onClick={onStart} aria-label="开始处理任务" className="neu-btn-soft">
               <PlayCircle size={16} />开始处理
             </button>
           )}

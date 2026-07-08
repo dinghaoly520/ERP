@@ -419,13 +419,13 @@ a {
   pointer-events: none;
 }
 
-/* Brand orb — 3D perspective tilt on hover */
+/* Brand orb — 悬停时 360° 旋转 */
 .brand-orb-3d {
   transform-style: preserve-3d;
-  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .brand-orb-3d:hover {
-  transform: perspective(700px) rotateY(16deg) rotateX(-8deg) scale(1.05);
+  transform: perspective(700px) rotateY(360deg) scale(1.08);
 }
 
 /* Diagonal light band — angled motion accent.
