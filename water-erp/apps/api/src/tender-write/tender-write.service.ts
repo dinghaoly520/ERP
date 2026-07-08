@@ -478,9 +478,10 @@ export class TenderWriteService {
    */
   async importWinningBidFromBuffer(
     fileBuffer: Buffer,
-    originalName: string,
+    originalName?: string,
   ): Promise<Array<{ name: string; price: string }>> {
-    const ext = path.extname(originalName).toLowerCase();
+    const safeName = originalName || 'unknown.pdf';
+    const ext = path.extname(safeName).toLowerCase();
     if (ext !== '.pdf') {
       throw new BadRequestException('请上传 PDF 格式的定标审批表文件。');
     }
@@ -607,7 +608,7 @@ export class TenderWriteService {
    */
   async extractNotificationDataFromBuffer(
     fileBuffer: Buffer,
-    originalName: string,
+    originalName?: string,
   ): Promise<{
     projectName: string;
     winnerName: string;
@@ -616,7 +617,8 @@ export class TenderWriteService {
     controlPrice: string;
     extractedText: string;
   }> {
-    const ext = path.extname(originalName).toLowerCase();
+    const safeName = originalName || 'unknown.pdf';
+    const ext = path.extname(safeName).toLowerCase();
     if (ext !== '.pdf') {
       throw new BadRequestException('请上传 PDF 格式的定标审批表文件。');
     }

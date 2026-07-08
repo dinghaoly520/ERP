@@ -109,9 +109,12 @@ export class TenderWriteController {
       throw new BadRequestException('请上传定标审批表文件。');
     }
 
+    const originalName = file.originalname
+      ? Buffer.from(file.originalname, 'latin1').toString('utf-8')
+      : undefined;
     return this.tenderWriteService.extractNotificationDataFromBuffer(
       file.buffer,
-      Buffer.from(file.originalname, 'latin1').toString('utf-8'),
+      originalName,
     );
   }
 

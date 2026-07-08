@@ -9,10 +9,11 @@ export type ParsedFile = {
 
 export async function parseUploadedFile(
   fileBuffer: Buffer,
-  originalName: string,
+  originalName?: string,
 ): Promise<ParsedFile> {
-  const ext = path.extname(originalName).toLowerCase();
-  const name = originalName;
+  const safeName = originalName || 'unknown.bin';
+  const ext = path.extname(safeName).toLowerCase();
+  const name = originalName || safeName;
 
   if (ext === '.doc') {
     throw new Error(
