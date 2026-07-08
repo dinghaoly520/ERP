@@ -125,6 +125,17 @@ export async function fetchWorkArrangementDailyPlan(date?: string) {
   return parseJsonResponse<WorkArrangementDailyPlan>(response);
 }
 
+export async function refreshWorkArrangementDailyPlan(date?: string) {
+  const suffix = date ? `?date=${encodeURIComponent(date)}` : '';
+  const response = await fetch(`${API_BASE}/work-arrangements/daily-plan/refresh${suffix}`, {
+    method: 'POST',
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  return parseJsonResponse<WorkArrangementDailyPlan>(response);
+}
+
 export async function fetchWorkArrangementGreeting() {
   const response = await fetch(`${API_BASE}/work-arrangements/greeting`, {
     credentials: 'include',

@@ -1788,3 +1788,17 @@ model ExtractionTask {
 
   @@index([status])
 }
+
+// ── 工作台每日计划缓存（持久化 AI 生成结果）──
+
+model WorkArrangementDailyPlanCache {
+  id        String   @id @default(cuid())
+  userId    String
+  date      String   // YYYY-MM-DD
+  plan      Json     // 完整的 dailyPlan 响应对象
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}

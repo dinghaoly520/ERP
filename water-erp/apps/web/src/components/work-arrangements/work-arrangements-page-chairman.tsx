@@ -14,6 +14,7 @@ import {
   deleteWorkArrangement,
   fetchWorkArrangementDailyPlan,
   fetchWorkArrangements,
+  refreshWorkArrangementDailyPlan,
   updateWorkArrangement,
   type WorkArrangementPayload,
 } from "@/lib/api/work-arrangements";
@@ -189,16 +190,21 @@ export function WorkArrangementsPageChairman({
 
   const loadWorkspace = async () => {
     try {
-      const [user, itemsRes, projectsRes, planRes] = await Promise.all([
+      // 核心数据（用户、任务、项目）先加载，AI 排程独立加载不阻塞首屏
+      const [user, itemsRes, projectsRes] = await Promise.all([
         fetchCurrentUser(),
         fetchWorkArrangements({}),
         fetchProjectManagementList(),
-        fetchWorkArrangementDailyPlan(),
       ]);
       setCurrentUser(user);
       setAllItems(itemsRes);
       setProjects(projectsRes);
-      setDailyPlan(planRes);
+
+      // AI 排程独立加载（DB 缓存命中时秒返）
+      try {
+        const plan = await fetchWorkArrangementDailyPlan();
+        setDailyPlan(plan);
+      } catch { /* 静默失败 */ }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "加载数据失败。");
     }
@@ -207,6 +213,18 @@ export function WorkArrangementsPageChairman({
   useEffect(() => {
     void loadWorkspace();
   }, []);
+
+  // 后台静默刷新每日计划（页面打开后滞后执行）
+  useEffect(() => {
+    if (!currentUser) return;
+    const timer = setTimeout(() => {
+      void refreshWorkArrangementDailyPlan()
+        .then((fresh) => { if (fresh) setDailyPlan(fresh); })
+        .catch(() => {});
+    }, 3000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   const refreshTasksOnly = async () => {
     try {
@@ -220,7 +238,7 @@ export function WorkArrangementsPageChairman({
   const handleRefreshPlan = async () => {
     setRefreshingPlan(true);
     try {
-      const plan = await fetchWorkArrangementDailyPlan();
+      const plan = await refreshWorkArrangementDailyPlan();
       setDailyPlan(plan);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "刷新简报失败。");

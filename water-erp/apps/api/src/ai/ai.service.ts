@@ -1316,8 +1316,8 @@ export class AiService {
         const titles = raw.map((i: any) => typeof i === 'string' ? i : (i.title || i.name || '')).filter(Boolean);
         return {
           label: b.label || '时间段',
-          start: b.startTime || b.start || '',
-          end: b.endTime || b.end || '',
+          start: this.normalizeTimeSlot(b.startTime || b.start),
+          end: this.normalizeTimeSlot(b.endTime || b.end),
           focus: b.focus || titles.join('、'),
           taskIds: Array.isArray(b.taskIds) ? b.taskIds : [],
         };
@@ -1345,6 +1345,16 @@ export class AiService {
         completionAdvice: '完成后复盘', projectBrief: '',
       };
     }
+  }
+
+  /** Normalize a time-slot string into HH:MM format, handling ISO 8601 and HH:MM inputs. */
+  private normalizeTimeSlot(raw: string | undefined | null): string {
+    if (!raw) return '';
+    const trimmed = raw.trim();
+    if (/^\d{2}:\d{2}(:\d{2})?$/.test(trimmed)) return trimmed.slice(0, 5);
+    const isoMatch = trimmed.match(/T(\d{2}):(\d{2})/);
+    if (isoMatch) return `${isoMatch[1]}:${isoMatch[2]}`;
+    return trimmed;
   }
 
   /** 项目详情分析 */

@@ -52,8 +52,16 @@ export class WorkArrangementsController {
   }
 
   @Post('daily-plan/refresh')
+  async refreshDailyPlan(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('date') date?: string,
+  ) {
+    return this.workArrangementsService.regenerateDailyPlan(user.sub, date);
+  }
+
+  @Post('daily-plan/refresh-all')
   @UseGuards(AuthGuard, AdminGuard)
-  async refreshDailyPlan() {
+  async refreshAllDailyPlans() {
     return this.workArrangementsService.refreshDailyGreeting();
   }
 

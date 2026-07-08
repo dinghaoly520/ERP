@@ -16,6 +16,7 @@ import {
   deleteWorkArrangement,
   fetchWorkArrangementDailyPlan,
   fetchWorkArrangements,
+  refreshWorkArrangementDailyPlan,
   postponeWorkArrangementReminder,
   type WorkArrangementPayload,
   type WorkArrangementQuery,
@@ -317,7 +318,8 @@ export function WorkArrangementsPage({
   const loadDailyPlan = async () => {
     try {
       setRefreshingPlan(true);
-      const nextPlan = await fetchWorkArrangementDailyPlan();
+      // 使用 POST /refresh 端点强制触发 AI 重新生成 + 更新 DB 缓存
+      const nextPlan = await refreshWorkArrangementDailyPlan();
       workspaceCache.dailyPlan = nextPlan;
       setDailyPlan(nextPlan);
       // Persist to localStorage for future instant loads
@@ -438,6 +440,24 @@ export function WorkArrangementsPage({
   }, [
     linkedProjectId,
   ]); // Only reload when linkedProjectId changes
+
+  // 后台静默刷新每日计划（页面打开后滞后执行，不阻塞首屏渲染）
+  useEffect(() => {
+    if (!currentUser) return;
+    const timer = setTimeout(() => {
+      void refreshWorkArrangementDailyPlan()
+        .then((fresh) => {
+          if (fresh) {
+            workspaceCache.dailyPlan = fresh;
+            setDailyPlan(fresh);
+            saveDailyPlanToStorage(currentUser.id, fresh);
+          }
+        })
+        .catch(() => { /* 静默失败，不影响用户体验 */ });
+    }, 3000); // 延迟 3 秒，确保首屏渲染完成
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   // 提醒检查：每分钟检查一次即将到期的任务
   useEffect(() => {

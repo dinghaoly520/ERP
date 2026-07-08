@@ -88,16 +88,150 @@ export class WorkArrangementsService {
     timestamp: number;
   }>();
 
+  /** 避免同一用户同时触发多次后台刷新（fire-and-forget lock） */
+  private dbRefreshLocks = new Map<string, Promise<void>>();
+  /** DB 缓存新鲜度窗口：2 小时内视为新鲜，直接返回无需刷新 */
+  private static readonly DB_CACHE_FRESH_MS = 2 * 60 * 60 * 1000;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
   ) {}
+
+  /** 从 DB 读取已缓存的每日计划（按用户 + 日期隔离） */
+  private async readDbCachedPlan(userId: string, date: string) {
+    const row = await this.prisma.workArrangementDailyPlanCache.findUnique({
+      where: { userId_date: { userId, date } },
+    });
+    return row ? (row.plan as Record<string, unknown>) : null;
+  }
+
+  /** 将每日计划持久化到 DB，upsert 保证幂等 */
+  private async saveDbCachedPlan(userId: string, date: string, plan: Record<string, any>) {
+    await this.prisma.workArrangementDailyPlanCache.upsert({
+      where: { userId_date: { userId, date } },
+      create: { userId, date, plan },
+      update: { plan },
+    });
+  }
+
+  /**
+   * 后台异步刷新每日计划 —— fire-and-forget，不阻塞当前请求。
+   * 同一用户同一天同时最多一个刷新任务，避免请求风暴导致重复调用 AI。
+   */
+  private refreshPlanInBackground(
+    userId: string,
+    dateStr: string,
+    dayStart: Date,
+    now: number,
+  ): void {
+    const lockKey = `${userId}:${dateStr}`;
+    if (this.dbRefreshLocks.has(lockKey)) return; // 已有刷新进行中
+
+    const promise = (async () => {
+      try {
+        // --- 复用 buildDailyPlan 的核心逻辑，生成最新的 AI 排程 ---
+        const [user, items] = await Promise.all([
+          this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { username: true, role: true, displayName: true },
+          }),
+          this.prisma.workArrangement.findMany({
+            where: {
+              userId,
+              status: { notIn: [WorkArrangementStatus.COMPLETED, WorkArrangementStatus.CANCELLED] },
+            },
+            orderBy: [{ urgency: 'desc' }, { dueAt: 'asc' }, { updatedAt: 'desc' }],
+            include: {
+              projectManagementItem: { select: { id: true, title: true, currentStage: true, status: true } },
+              dependencies: { include: { dependsOn: { select: { id: true, title: true, status: true } } } },
+            },
+          }),
+        ]);
+
+        // 董事长/领导模式
+        const isChairman = user?.username === 'Swhi-CGZX-00';
+        const needsProjectBrief = isChairman || user?.role === 'leader' || user?.role === 'admin';
+        let allProjects: any[] | undefined;
+        if (needsProjectBrief) {
+          allProjects = await this.prisma.projectManagementItem.findMany({
+            where: { status: { notIn: [ProjectManagementStatus.ARCHIVED] } },
+            orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
+            select: { id: true, title: true, currentStage: true, status: true, procurementMethod: true, budgetAmount: true, contractAmount: true, awardedSupplier: true, requesterDepartment: true },
+          });
+        }
+
+        const result = await this.aiService.analyzeWorkArrangementDailyPlan({
+          date: dayStart.toISOString(),
+          currentTime: new Date(now).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          items: items.map((item) => ({
+            id: item.id, title: item.title, description: item.description ?? '',
+            type: item.type, urgency: item.urgency, status: item.status,
+            dueAt: item.dueAt?.toISOString() ?? null,
+            reminderAt: item.reminderAt?.toISOString() ?? null,
+            estimatedMinutes: item.estimatedMinutes ?? null,
+            customTags: normalizeTags(item.customTags),
+            project: item.projectManagementItem ? { id: item.projectManagementItem.id, title: item.projectManagementItem.title, currentStage: item.projectManagementItem.currentStage, status: item.projectManagementItem.status } : null,
+            dependencies: item.dependencies.map((dep) => ({ id: dep.dependsOn.id, title: dep.dependsOn.title, status: dep.dependsOn.status })),
+          })),
+          userContext: user ? { role: user.role, displayName: user.displayName, username: user.username } : undefined,
+          chairmanMode: isChairman || undefined,
+          projects: allProjects,
+        });
+
+        // 更新内存缓存 L1
+        const { headerGreeting: _, namePraise: __, date: ___, ...contentWithoutHeader } = result;
+        this.headerGreetingCache.set(userId, {
+          headerGreeting: result.headerGreeting, namePraise: result.namePraise,
+          itemCount: items.length, timestamp: now,
+        });
+        this.contentCache.set(userId, { data: { ...contentWithoutHeader }, itemCount: items.length, timestamp: now });
+
+        // 持久化到 DB
+        await this.saveDbCachedPlan(userId, dateStr, {
+          date: dayStart.toISOString(),
+          headerGreeting: result.headerGreeting,
+          namePraise: result.namePraise,
+          dailyGreeting: result.dailyGreeting,
+          riskSummary: result.riskSummary,
+          aiSuggestion: result.aiSuggestion,
+          overview: result.overview,
+          focusItems: result.focusItems,
+          timeBlocks: result.timeBlocks,
+          riskAlerts: result.riskAlerts,
+          completionAdvice: result.completionAdvice,
+          projectBrief: result.projectBrief,
+        });
+      } catch (err) {
+        console.error('Background daily plan refresh failed:', err);
+      } finally {
+        this.dbRefreshLocks.delete(lockKey);
+      }
+    })();
+
+    this.dbRefreshLocks.set(lockKey, promise);
+  }
 
   // 刷新问候语缓存（管理员可调用）
   async refreshDailyGreeting() {
     this.headerGreetingCache.clear();
     this.contentCache.clear();
     return { success: true, message: '问候语缓存已刷新' };
+  }
+
+  /** 强制重新生成并缓存每日计划（供前端 Refresh 按钮使用） */
+  async regenerateDailyPlan(userId: string, date?: string) {
+    const anchor = date ? new Date(date) : new Date();
+    const dayStart = startOfDay(anchor);
+    const today = dayStart.toISOString().slice(0, 10);
+    const now = Date.now();
+
+    // 清空内存缓存，强制走完整生成流程
+    this.headerGreetingCache.delete(userId);
+    this.contentCache.delete(userId);
+
+    // 调用完整的 buildDailyPlan（无缓存时会走 AI 生成）
+    return this.buildDailyPlanInternal(userId, today, dayStart, now, true);
   }
 
   async list(userId: string, query: QueryWorkArrangementsDto) {
@@ -295,10 +429,32 @@ export class WorkArrangementsService {
   async buildDailyPlan(userId: string, date?: string) {
     const anchor = date ? new Date(date) : new Date();
     const dayStart = startOfDay(anchor);
+    const today = dayStart.toISOString().slice(0, 10);
     const now = Date.now();
-    const HEADER_CACHE_TTL = 30 * 60 * 1000; // 30分钟缓存（避免时段错位，如下午3点生成的问候到5点仍在显示）
+    const HEADER_CACHE_TTL = 30 * 60 * 1000; // 30分钟缓存（避免时段错位）
     const CONTENT_CACHE_TTL = 10 * 60 * 1000; // 10分钟缓存
 
+    // ── FAST PATH: 检查 DB 持久化缓存 ──
+    const dbCached = await this.readDbCachedPlan(userId, today);
+    if (dbCached) {
+      // 判断 DB 缓存的新鲜度
+      const dbRow = await this.prisma.workArrangementDailyPlanCache.findUnique({
+        where: { userId_date: { userId, date: today } },
+        select: { updatedAt: true },
+      });
+      const dbAge = dbRow ? now - dbRow.updatedAt.getTime() : Infinity;
+
+      if (dbAge < WorkArrangementsService.DB_CACHE_FRESH_MS) {
+        // DB 缓存新鲜（< 2 小时） → 直接返回，无需查询任务表
+        return dbCached;
+      }
+
+      // DB 缓存存在但已过期 → 先返回缓存数据，后台异步刷新
+      void this.refreshPlanInBackground(userId, today, dayStart, now);
+      return dbCached;
+    }
+
+    // ── SLOW PATH: 无 DB 缓存，需要完整生成（首次访问或缓存被清理）──
     const [user, items] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
@@ -342,165 +498,199 @@ export class WorkArrangementsService {
     const relevantItems = items;
     const hasItemsNow = relevantItems.length > 0;
 
-    // 检查 headerGreeting 缓存是否有效（按用户隔离）
+    // 检查 L1 内存缓存是否有效
     const headerCacheEntry = this.headerGreetingCache.get(userId);
     const headerCacheValid = headerCacheEntry &&
       (now - headerCacheEntry.timestamp) < HEADER_CACHE_TTL &&
       headerCacheEntry.itemCount > 0 === hasItemsNow;
 
-    // 检查内容缓存是否有效（按用户隔离）
     const contentCacheEntry = this.contentCache.get(userId);
     const contentCacheValid = contentCacheEntry &&
       (now - contentCacheEntry.timestamp) < CONTENT_CACHE_TTL &&
       contentCacheEntry.itemCount > 0 === hasItemsNow;
 
-    // 两者都有效，直接组装返回
+    // L1 缓存有效 → 组装返回 + 持久化到 DB（首次落盘）
     if (headerCacheValid && contentCacheValid) {
-      return {
+      const response = {
         date: dayStart.toISOString(),
         headerGreeting: headerCacheEntry!.headerGreeting,
         namePraise: headerCacheEntry!.namePraise,
         ...contentCacheEntry!.data,
       };
+      void this.saveDbCachedPlan(userId, today, response as any);
+      return response;
     }
 
     // 至少有一个缓存过期，需要调 AI
     let result;
 
-    // 董事长/领导/管理员：查询全量项目数据，用于生成项目简报
+    // 董事长/领导/管理员：查询全量项目数据
     const isChairman = user?.username === 'Swhi-CGZX-00';
     const needsProjectBrief = isChairman || user?.role === 'leader' || user?.role === 'admin';
     let allProjects: Array<{
-      id: string;
-      title: string;
-      currentStage: string;
-      status: string;
-      procurementMethod: string;
-      budgetAmount: number | null;
-      contractAmount: number | null;
-      awardedSupplier: string | null;
+      id: string; title: string; currentStage: string; status: string;
+      procurementMethod: string; budgetAmount: number | null;
+      contractAmount: number | null; awardedSupplier: string | null;
       requesterDepartment: string;
     }> | undefined;
 
     if (needsProjectBrief) {
-      const projects = await this.prisma.projectManagementItem.findMany({
-        where: {
-          status: { notIn: [ProjectManagementStatus.ARCHIVED] },
-        },
+      allProjects = (await this.prisma.projectManagementItem.findMany({
+        where: { status: { notIn: [ProjectManagementStatus.ARCHIVED] } },
         orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
         select: {
-          id: true,
-          title: true,
-          currentStage: true,
-          status: true,
-          procurementMethod: true,
-          budgetAmount: true,
-          contractAmount: true,
-          awardedSupplier: true,
+          id: true, title: true, currentStage: true, status: true,
+          procurementMethod: true, budgetAmount: true,
+          contractAmount: true, awardedSupplier: true,
           requesterDepartment: true,
         },
-      });
-      allProjects = projects.map((p) => ({
-        ...p,
-        budgetAmount: p.budgetAmount ? Number(p.budgetAmount) : null,
+      })).map((p) => ({
+        ...p, budgetAmount: p.budgetAmount ? Number(p.budgetAmount) : null,
         contractAmount: p.contractAmount ? Number(p.contractAmount) : null,
       }));
     }
 
     try {
+      const basePayload = {
+        date: dayStart.toISOString(),
+        currentTime: new Date(now).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        userContext: user ? { role: user.role, displayName: user.displayName, username: user.username } : undefined,
+        chairmanMode: isChairman || undefined,
+        projects: allProjects,
+      };
       if (relevantItems.length === 0) {
-        result = await this.aiService.analyzeWorkArrangementDailyPlan({
-          date: dayStart.toISOString(),
-          currentTime: new Date(now).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
-          items: [],
-          userContext: user ? { role: user.role, displayName: user.displayName, username: user.username } : undefined,
-          chairmanMode: isChairman || undefined,
-          projects: allProjects,
-        });
+        result = await this.aiService.analyzeWorkArrangementDailyPlan({ ...basePayload, items: [] });
       } else {
         result = await this.aiService.analyzeWorkArrangementDailyPlan({
-          date: dayStart.toISOString(),
-          currentTime: new Date(now).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          ...basePayload,
           items: relevantItems.map((item) => ({
-            id: item.id,
-            title: item.title,
-            description: item.description ?? '',
-            type: item.type,
-            urgency: item.urgency,
-            status: item.status,
+            id: item.id, title: item.title, description: item.description ?? '',
+            type: item.type, urgency: item.urgency, status: item.status,
             dueAt: item.dueAt?.toISOString() ?? null,
             reminderAt: item.reminderAt?.toISOString() ?? null,
             estimatedMinutes: item.estimatedMinutes ?? null,
             customTags: normalizeTags(item.customTags),
-            project: item.projectManagementItem
-              ? {
-                  id: item.projectManagementItem.id,
-                  title: item.projectManagementItem.title,
-                  currentStage: item.projectManagementItem.currentStage,
-                  status: item.projectManagementItem.status,
-                }
-              : null,
-            dependencies: item.dependencies.map((dependency) => ({
-              id: dependency.dependsOn.id,
-              title: dependency.dependsOn.title,
-              status: dependency.dependsOn.status,
+            project: item.projectManagementItem ? {
+              id: item.projectManagementItem.id, title: item.projectManagementItem.title,
+              currentStage: item.projectManagementItem.currentStage, status: item.projectManagementItem.status,
+            } : null,
+            dependencies: item.dependencies.map((dep) => ({
+              id: dep.dependsOn.id, title: dep.dependsOn.title, status: dep.dependsOn.status,
             })),
           })),
-          userContext: user ? { role: user.role, displayName: user.displayName, username: user.username } : undefined,
-          chairmanMode: isChairman || undefined,
-          projects: allProjects,
         });
       }
     } catch (error) {
       console.error('AI daily plan generation failed:', error);
       result = {
-        date: dayStart.toISOString(),
-        headerGreeting: '',
-        namePraise: '',
-        dailyGreeting: '',
-        riskSummary: '',
-        aiSuggestion: '',
-        overview: '',
-        focusItems: [],
-        timeBlocks: [],
-        riskAlerts: [],
-        completionAdvice: '',
-        projectBrief: '',
+        date: dayStart.toISOString(), headerGreeting: '', namePraise: '',
+        dailyGreeting: '', riskSummary: '', aiSuggestion: '', overview: '',
+        focusItems: [], timeBlocks: [], riskAlerts: [],
+        completionAdvice: '', projectBrief: '',
       };
     }
 
-    // 如果 headerGreeting 缓存仍有效，保留旧的；否则用新生成的
-    const finalHeaderGreeting = headerCacheValid
-      ? headerCacheEntry!.headerGreeting
-      : result.headerGreeting;
-    const finalNamePraise = headerCacheValid
-      ? headerCacheEntry!.namePraise
-      : result.namePraise;
+    // 如果 headerGreeting 缓存仍有效，保留旧的
+    const finalHeaderGreeting = headerCacheValid ? headerCacheEntry!.headerGreeting : result.headerGreeting;
+    const finalNamePraise = headerCacheValid ? headerCacheEntry!.namePraise : result.namePraise;
 
-    // 更新 headerGreeting 缓存（仅在失效时，按用户隔离）
     if (!headerCacheValid) {
       this.headerGreetingCache.set(userId, {
-        headerGreeting: finalHeaderGreeting,
-        namePraise: finalNamePraise,
-        itemCount: relevantItems.length,
-        timestamp: now,
+        headerGreeting: finalHeaderGreeting, namePraise: finalNamePraise,
+        itemCount: relevantItems.length, timestamp: now,
       });
     }
 
-    // 更新内容缓存（按用户隔离）
     const { headerGreeting: _, namePraise: ___, date: __, ...contentWithoutHeader } = result;
     this.contentCache.set(userId, {
-      data: { ...contentWithoutHeader },
-      itemCount: relevantItems.length,
-      timestamp: now,
+      data: { ...contentWithoutHeader }, itemCount: relevantItems.length, timestamp: now,
     });
 
-    return {
+    const response = {
       date: dayStart.toISOString(),
       headerGreeting: finalHeaderGreeting,
       namePraise: finalNamePraise,
       ...contentWithoutHeader,
     };
+
+    // 持久化到 DB
+    void this.saveDbCachedPlan(userId, today, response as any);
+
+    return response;
+  }
+
+  /**
+   * 内部方法：强制重新生成每日计划（regenerateDailyPlan 使用）
+   * 不检查 DB 缓存，直接走完整 AI 生成流程
+   */
+  private async buildDailyPlanInternal(
+    userId: string, today: string, dayStart: Date, now: number, force: boolean,
+  ) {
+    // 直接走完整生成（不检查任何缓存）
+    const [user, items] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { username: true, role: true, displayName: true },
+      }),
+      this.prisma.workArrangement.findMany({
+        where: { userId, status: { notIn: [WorkArrangementStatus.COMPLETED, WorkArrangementStatus.CANCELLED] } },
+        orderBy: [{ urgency: 'desc' }, { dueAt: 'asc' }, { updatedAt: 'desc' }],
+        include: {
+          projectManagementItem: { select: { id: true, title: true, currentStage: true, status: true } },
+          dependencies: { include: { dependsOn: { select: { id: true, title: true, status: true } } } },
+        },
+      }),
+    ]);
+
+    const isChairman = user?.username === 'Swhi-CGZX-00';
+    const needsProjectBrief = isChairman || user?.role === 'leader' || user?.role === 'admin';
+    let allProjects: any[] | undefined;
+    if (needsProjectBrief) {
+      allProjects = (await this.prisma.projectManagementItem.findMany({
+        where: { status: { notIn: [ProjectManagementStatus.ARCHIVED] } },
+        orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
+        select: { id: true, title: true, currentStage: true, status: true, procurementMethod: true, budgetAmount: true, contractAmount: true, awardedSupplier: true, requesterDepartment: true },
+      })).map((p) => ({ ...p, budgetAmount: p.budgetAmount ? Number(p.budgetAmount) : null, contractAmount: p.contractAmount ? Number(p.contractAmount) : null }));
+    }
+
+    let result;
+    try {
+      const basePayload = {
+        date: dayStart.toISOString(),
+        currentTime: new Date(now).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        userContext: user ? { role: user.role, displayName: user.displayName, username: user.username } : undefined,
+        chairmanMode: isChairman || undefined,
+        projects: allProjects,
+      };
+      if (items.length === 0) {
+        result = await this.aiService.analyzeWorkArrangementDailyPlan({ ...basePayload, items: [] });
+      } else {
+        result = await this.aiService.analyzeWorkArrangementDailyPlan({
+          ...basePayload,
+          items: items.map((item) => ({
+            id: item.id, title: item.title, description: item.description ?? '',
+            type: item.type, urgency: item.urgency, status: item.status,
+            dueAt: item.dueAt?.toISOString() ?? null,
+            reminderAt: item.reminderAt?.toISOString() ?? null,
+            estimatedMinutes: item.estimatedMinutes ?? null,
+            customTags: normalizeTags(item.customTags),
+            project: item.projectManagementItem ? { id: item.projectManagementItem.id, title: item.projectManagementItem.title, currentStage: item.projectManagementItem.currentStage, status: item.projectManagementItem.status } : null,
+            dependencies: item.dependencies.map((dep) => ({ id: dep.dependsOn.id, title: dep.dependsOn.title, status: dep.dependsOn.status })),
+          })),
+        });
+      }
+    } catch (error) {
+      console.error('AI daily plan generation failed:', error);
+      result = { date: dayStart.toISOString(), headerGreeting: '', namePraise: '', dailyGreeting: '', riskSummary: '', aiSuggestion: '', overview: '', focusItems: [], timeBlocks: [], riskAlerts: [], completionAdvice: '', projectBrief: '' };
+    }
+
+    this.headerGreetingCache.set(userId, { headerGreeting: result.headerGreeting, namePraise: result.namePraise, itemCount: items.length, timestamp: now });
+    const { headerGreeting: _, namePraise: ___, date: __, ...contentWithoutHeader } = result;
+    this.contentCache.set(userId, { data: { ...contentWithoutHeader }, itemCount: items.length, timestamp: now });
+
+    const response = { date: dayStart.toISOString(), headerGreeting: result.headerGreeting, namePraise: result.namePraise, ...contentWithoutHeader };
+    await this.saveDbCachedPlan(userId, today, response as any);
+    return response;
   }
 
   async listTemplates(userId: string) {

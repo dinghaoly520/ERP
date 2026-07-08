@@ -36,11 +36,12 @@ const routeToKey: Record<string, string> = {
   "/expert/evaluation": "expert-eval",
   "/expert": "expert-entry",
   // 集中目录管理
+  "/mall-management/central-catalog": "mall-central-catalog",
   "/mall-management/approval": "mall-approval",
   "/mall-management/price-entry": "mall-price",
   "/mall-management/catalog": "mall-catalog",
   "/mall-management/logs": "mall-logs",
-  "/mall-management": "mall-approval",
+  "/mall-management": "mall-central-catalog",
 };
 
 const routeToModule: Record<string, string> = {
