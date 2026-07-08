@@ -84,7 +84,7 @@ function normalizeSubmissionRequirements(value: string): string {
 function renderPreviewTable(tableData: TableData) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse border border-[rgba(200,210,230,0.6)]" style={{ tableLayout: 'fixed' }}>
+      <table className="w-full border-collapse border border-[oklch(0.55_0.05_258_/_0.2)]" style={{ tableLayout: 'fixed' }}>
         <tbody>
           {Array.from({ length: tableData.rows }).map((_, rowIndex) => (
             <tr key={rowIndex}>
@@ -96,7 +96,7 @@ function renderPreviewTable(tableData: TableData) {
                     key={colIndex}
                     rowSpan={cell.rowSpan}
                     colSpan={cell.colSpan}
-                    className="border border-[rgba(200,210,230,0.6)] px-2 py-1.5 text-sm"
+                    className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-1.5 text-sm"
                     style={{ textAlign: cell.align }}
                   >
                     {cell.content || ' '}
@@ -218,7 +218,7 @@ function PreviewValue({
             selection.addRange(range);
           }
         }}
-        className={`tender-preview-editable outline-none rounded-[4px] px-1 -mx-1 hover:bg-[rgba(96,139,239,0.08)] focus:bg-[rgba(96,139,239,0.12)] transition-colors cursor-text ${multiline ? 'whitespace-pre-wrap block' : ''} ${isEmpty && frozen === null ? 'tender-preview-placeholder min-w-[4rem] inline-block' : 'text-blue-600'}`}
+        className={`tender-preview-editable outline-none rounded-[4px] px-1 -mx-1 hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] focus:bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] transition-colors cursor-text ${multiline ? 'whitespace-pre-wrap block' : ''} ${isEmpty && frozen === null ? 'tender-preview-placeholder min-w-[4rem] inline-block' : 'text-[color:var(--accent-strong)]'}`}
       >
         {shouldRenderChildren ? childrenText : null}
       </span>
@@ -259,10 +259,10 @@ function PreviewSection({
       data-section-key={sectionKey}
       onClick={() => onSectionClick?.(sectionKey)}
       className={[
-        'scroll-mt-6 rounded-[22px] border px-5 py-5 transition-all duration-300 cursor-pointer tender-card-interactive',
+        'scroll-mt-6 rounded-[18px] border px-5 py-5 transition-all duration-300 cursor-pointer',
         isActive
-          ? 'border-[rgba(107,149,240,0.3)] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] shadow-[0_14px_30px_rgba(88,120,182,0.12)]'
-          : 'border-[oklch(0.55_0.05_258_/_0.18)] bg-[oklch(1_0_0_/_0.45)] hover:border-[rgba(107,149,240,0.22)] hover:bg-[oklch(1_0_0_/_0.65)]',
+          ? 'border-[oklch(0.5_0.16_258_/_0.22)] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]'
+          : 'border-[oklch(0.55_0.05_258_/_0.12)] bg-[oklch(1_0_0_/_0.25)] hover:border-[oklch(0.5_0.08_258_/_0.2)] hover:bg-[oklch(1_0_0_/_0.45)] hover:translate-y-[-1px]',
       ].join(' ')}
     >
       <div className="flex items-center justify-between gap-3">
@@ -275,7 +275,7 @@ function PreviewSection({
           </h3>
         </div>
         {isActive ? (
-          <span className="rounded-full border border-[rgba(107,149,240,0.24)] bg-[rgba(96,139,239,0.1)] px-2.5 py-1 text-[10px] font-semibold text-[rgba(87,126,214,1)] transition-all duration-200">
+          <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2.5 py-1 text-[10px] font-semibold text-[color:var(--accent)]">
             当前编辑
           </span>
         ) : null}
@@ -379,7 +379,7 @@ function CompetitiveNegotiationPreview({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
-          <div className="rounded-[18px] border border-[rgba(230,236,248,0.82)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,255,0.9))] px-6 py-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]">
+          <div className="rounded-[16px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.25)] px-6 py-8 text-center">
             <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
@@ -487,51 +487,51 @@ function CompetitiveNegotiationPreview({
               供应商须知前附表
             </div>
             <div className="mt-3 overflow-x-auto">
-              <table className="w-full border-collapse border border-[rgba(200,210,230,0.6)]">
+              <table className="w-full border-collapse border border-[oklch(0.55_0.05_258_/_0.2)]">
                 <tbody>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm w-[15%]">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm w-[15%]">
                       条款号
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm w-[25%]">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm w-[25%]">
                       条目
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
                       内容
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">7.2</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">报价</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">7.2</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">报价</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       最高限价：<PreviewValue value={draft.maxPrice} placeholder="{{最高限价}}" fieldKey="maxPrice" onValueChange={onValueChange} />元（含税）。超过最高限价的报价为无效报价。
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">8</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">响应有效期</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">8</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">响应有效期</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       自响应文件提交截止日期起算90日历天。
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">11.2</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">响应文件份数</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">11.2</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">响应文件份数</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       纸质版正本一份，副本4份，1份电子文档（U盘，电子文档为响应文件正本PDF扫描件）
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">15</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">确定中标人</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">15</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">确定中标人</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       经多轮报价，最低价中标，成交候选人并列的，按照以下方式确定成交供应商：再次报价，直到确定最低报价的供应商为止。
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">18.3</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">合同分包</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">18.3</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">合同分包</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       本项目是否允许分包：
                       {!draft.contractSubcontractingType ? (
                         <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{合同分包}}"}</span>
@@ -543,21 +543,21 @@ function CompetitiveNegotiationPreview({
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">20.1</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">询问</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">20.1</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">询问</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       询问的送达形式：书面报告。
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm" colSpan={2}>是否组织现场踏勘</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm" colSpan={2}>是否组织现场踏勘</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       <PreviewValue value={draft.siteSurvey} placeholder="{{是否组织现场踏勘}}" fieldKey="siteSurvey" onValueChange={onValueChange} />
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm" colSpan={2}>联系方式</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm" colSpan={2}>联系方式</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       接受询问和异议的联系方式：
                       <br />联系部门：四川水发勘测设计研究有限公司采购中心
                       <br />联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} />
@@ -717,7 +717,7 @@ function SingleSourcePreview({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
-          <div className="rounded-[18px] border border-[rgba(230,236,248,0.82)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,255,0.9))] px-6 py-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]">
+          <div className="rounded-[16px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.25)] px-6 py-8 text-center">
             <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
@@ -755,69 +755,69 @@ function SingleSourcePreview({
             </div>
             {/* 采购项目基本信息表格 */}
             <div className="mt-3 overflow-x-auto">
-              <table className="w-full border-collapse border border-[rgba(200,210,230,0.6)]">
+              <table className="w-full border-collapse border border-[oklch(0.55_0.05_258_/_0.2)]">
                 <tbody>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm w-[30%]">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm w-[30%]">
                       项目内容
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center font-semibold text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center font-semibold text-sm">
                       详细说明
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center text-sm">
                       项目名称
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
                       <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center text-sm">
                       采购内容
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
                       详见第三部分
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center text-sm">
                       项目预算
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
                       最高限价 <PreviewValue value={draft.projectBudget} placeholder="{{项目预算价格}}" fieldKey="projectBudget" onValueChange={onValueChange} /> 元（含税）
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center text-sm">
                       项目完成期限
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
                       <PreviewValue value={draft.projectDuration} placeholder="{{项目完成期限}}" fieldKey="projectDuration" onValueChange={onValueChange} />
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center text-sm">
                       采购文件获取时间
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
                       <PreviewValue value={draft.documentAcquireTime} placeholder="{{采购文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center text-sm">
                       采购文件领取地点
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
                       四川省成都市双流区正兴街道红莲街三段383号四川水发集团B座3楼
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center text-sm">
                       采购文件售价
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
                       人民币 <PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} /> 元/份
                     </td>
                   </tr>
@@ -872,42 +872,42 @@ function SingleSourcePreview({
               供应商须知前附表
             </div>
             <div className="mt-3 overflow-x-auto">
-              <table className="w-full border-collapse border border-[rgba(200,210,230,0.6)]">
+              <table className="w-full border-collapse border border-[oklch(0.55_0.05_258_/_0.2)]">
                 <tbody>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm w-[10%]">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm w-[10%]">
                       序号
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm w-[25%]">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm w-[25%]">
                       条款名称
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
                       说明与要求
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">1</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">项目名称</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">1</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">项目名称</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">2</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">采购人</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">四川水发勘测设计研究有限公司</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">2</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">采购人</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">四川水发勘测设计研究有限公司</td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">3</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">最高限价</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">3</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">最高限价</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       最高限价：<PreviewValue value={draft.projectBudget} placeholder="{{项目预算价格}}" fieldKey="projectBudget" onValueChange={onValueChange} />元（含税）。超过最高限价的报价为无效报价。
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">5</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">供应商询问</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">5</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">供应商询问</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       联系人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} />
                       <br />
                       联系电话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} />
@@ -916,23 +916,23 @@ function SingleSourcePreview({
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">6</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">递交响应文件截止时间</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">6</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">递交响应文件截止时间</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       <PreviewValue value={draft.submissionAndNegotiationTime} placeholder="{{递交和谈判时间}}" fieldKey="submissionAndNegotiationTime" onValueChange={onValueChange} />
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">7</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">谈判地点</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">7</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">谈判地点</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       四川省成都市双流区正兴街道红莲街三段 383 号四川水发集团 B 座3楼采购中心开标会议室。
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">8</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">响应文件份数</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">8</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">响应文件份数</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       文件要求：供应商的《响应文件》须 1 份正本和 2 份副本，且需提供响应的电子文档，每套响应文件须清楚地标明"正本"或"副本"并分别胶装装订成册。如不胶装装订，其《响应文件》将被拒绝。若正本和副本不符，以正本为准。
                     </td>
                   </tr>
@@ -1091,7 +1091,7 @@ function InquiryPurchasePreview({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
-          <div className="rounded-[18px] border border-[rgba(230,236,248,0.82)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,255,0.9))] px-6 py-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]">
+          <div className="rounded-[16px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.25)] px-6 py-8 text-center">
             <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
@@ -1117,69 +1117,69 @@ function InquiryPurchasePreview({
         >
           {/* 询价须知表格 */}
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-[rgba(200,210,230,0.6)]">
+            <table className="w-full border-collapse border border-[oklch(0.55_0.05_258_/_0.2)]">
               <tbody>
                 <tr>
-                  <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm w-[20%]">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm w-[20%]">
                     询价单位
                   </td>
-                  <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
                     四川水发勘测设计研究有限公司
                   </td>
                 </tr>
                 <tr>
-                  <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
                     项目名称
                   </td>
-                  <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
                     <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
                   </td>
                 </tr>
                 <tr>
-                  <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
                     项目介绍
                   </td>
-                  <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                     <PreviewValue value={draft.projectIntroduction} placeholder="{{项目介绍}}" multiline fieldKey="projectIntroduction" onValueChange={onValueChange} />
                   </td>
                 </tr>
                 <tr>
-                  <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
                     采购内容
                   </td>
-                  <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                     <PreviewValue value={draft.procurementContent} placeholder="{{采购内容}}" multiline fieldKey="procurementContent" onValueChange={onValueChange} />
                   </td>
                 </tr>
                 <tr>
-                  <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
                     报价要求
                   </td>
-                  <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                     报价函格式按照附件一要求
                   </td>
                 </tr>
                 <tr>
-                  <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
                     需提供资料
                   </td>
-                  <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                     <PreviewValue value={draft.requiredDocuments} placeholder="{{需提供的资料}}" fieldKey="requiredDocuments" onValueChange={onValueChange} />
                   </td>
                 </tr>
                 <tr>
-                  <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
                     评标方法
                   </td>
-                  <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                     采用最低价中标法，如遇相同报价以{draft.evaluationMethod ? draft.evaluationMethod : <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{评标方法}}"}</span>}。
                   </td>
                 </tr>
                 <tr>
-                  <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
                     限价要求
                   </td>
-                  <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                     最高限价：<PreviewValue value={draft.priceLimit} placeholder="{{最高限价}}" fieldKey="priceLimit" onValueChange={onValueChange} />元（含税）。超过最高限价的报价为无效报价
                   </td>
                 </tr>
@@ -1311,7 +1311,7 @@ function InternalBiddingPreview({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
-          <div className="rounded-[18px] border border-[rgba(230,236,248,0.82)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,255,0.9))] px-6 py-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]">
+          <div className="rounded-[16px] border border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.25)] px-6 py-8 text-center">
             <div className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
@@ -1434,30 +1434,30 @@ function InternalBiddingPreview({
               供应商须知前附表
             </div>
             <div className="mt-3 overflow-x-auto">
-              <table className="w-full border-collapse border border-[rgba(200,210,230,0.6)]">
+              <table className="w-full border-collapse border border-[oklch(0.55_0.05_258_/_0.2)]">
                 <tbody>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm w-[15%]">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm w-[15%]">
                       条款号
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm w-[25%]">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm w-[25%]">
                       条目
                     </td>
-                    <td className="border border-[rgba(200,210,230,0.6)] bg-[rgba(240,245,255,0.5)] px-3 py-2 text-center font-semibold text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
                       内容
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">7.2</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">报价</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">7.2</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">报价</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       最高限价：<PreviewValue value={draft.maxPrice} placeholder="{{最高限价}}" fieldKey="maxPrice" onValueChange={onValueChange} />元（含税）。超过最高限价的报价为无效报价。
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">8.1</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">响应保证金</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">8.1</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">响应保证金</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       本项目是否收取响应保证金：
                       {!draft.responseDepositType ? (
                         <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{响应保证金}}"}</span>
@@ -1481,30 +1481,30 @@ function InternalBiddingPreview({
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">9</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">响应有效期</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">9</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">响应有效期</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       自响应文件提交截止日期起算90日历天。
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">12.2</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">响应文件份数</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">12.2</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">响应文件份数</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       纸质版正本一份，副本<PreviewValue value={draft.copyCount} placeholder="{{副本份数}}" fieldKey="copyCount" onValueChange={onValueChange} />份，1份电子文档（U盘，电子文档为响应文件正本PDF扫描件）
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">16.1</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">确定中标人</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">16.1</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">确定中标人</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       最低价中标，如果两家供应商报价相同，且为最低价，则业绩数量丰富者中标，若业绩数量亦相同的，则由评标委员会推荐中标候选人。
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">19.1</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">履约保证金</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">19.1</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">履约保证金</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       本项目是否收取履约保证金：
                       {!draft.performanceDepositType ? (
                         <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{履约保证金}}"}</span>
@@ -1526,9 +1526,9 @@ function InternalBiddingPreview({
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">19.5</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">合同分包</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">19.5</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">合同分包</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       本项目是否允许分包：
                       {!draft.contractSubcontractingType ? (
                         <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{合同分包}}"}</span>
@@ -1540,21 +1540,21 @@ function InternalBiddingPreview({
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">20.1.1</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm">询问</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">20.1.1</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">询问</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       询问的送达形式：邮箱方式。
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm" colSpan={2}>是否组织现场踏勘</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm" colSpan={2}>是否组织现场踏勘</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       <PreviewValue value={draft.siteSurvey} placeholder="{{是否组织现场踏勘}}" fieldKey="siteSurvey" onValueChange={onValueChange} />
                     </td>
                   </tr>
                   <tr>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-center text-sm" colSpan={2}>联系方式</td>
-                    <td className="border border-[rgba(200,210,230,0.6)] px-3 py-2 text-sm">
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm" colSpan={2}>联系方式</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       接受询问和异议的联系方式：
                       <br />联系部门：四川水发勘测设计有限公司采购中心
                       <br />联系电话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} />
