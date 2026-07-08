@@ -18,7 +18,7 @@ export function TenderEditorHeader({
   );
 
   return (
-    <div className="wb-panel p-4">
+    <div className="wb-panel py-2.5 px-3.5">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-[0.85rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
@@ -44,7 +44,7 @@ export function TenderEditorHeader({
             </button>
           </div>
       </div>
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-3 flex items-center gap-3">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[oklch(0.55_0.03_258_/_0.1)]">
           <div
             className="h-full rounded-full transition-all duration-500"
