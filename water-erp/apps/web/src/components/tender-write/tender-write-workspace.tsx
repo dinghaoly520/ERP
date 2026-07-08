@@ -125,10 +125,10 @@ export function TenderWriteWorkspace({
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden xl:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden xl:flex-row xl:justify-center">
         <aside
           data-tender-panel="nav"
-          className="hidden min-h-0 w-[280px] shrink-0 flex-col overflow-hidden rounded-[24px] wb-panel p-3 xl:flex tender-section-enter"
+          className="hidden min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] wb-panel p-3 xl:flex tender-section-enter"
         >
           <TenderSectionNav
             sections={progress}

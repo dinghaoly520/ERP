@@ -96,7 +96,7 @@ export function TenderPreviewPane({
   return (
     <aside
       data-tender-panel="preview"
-      className="flex min-h-0 flex-1 flex-col overflow-hidden max-w-[380px] tender-section-enter-delay-2"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden tender-section-enter-delay-2"
     >
       {/* Header — lightweight, no nested card frames */}
       <div className="px-4 py-2.5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
