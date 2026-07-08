@@ -147,7 +147,6 @@ export default function TenderWritePage() {
     setDrafts(cached.drafts);
     // 默认进入竞争性谈判，有缓存则恢复
     setSelectedType(cached.selectedType || "COMPETITIVE_NEGOTIATION");
-    setShowTypeDialog(false);
   }, []);
 
   useEffect(() => {
