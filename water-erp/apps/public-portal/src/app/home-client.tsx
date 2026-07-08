@@ -312,7 +312,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                 <React.Fragment key={f.title}>
                   {idx > 0 && <div className="feature-divider" />}
                   <a href={f.href} target="_blank" rel="noopener noreferrer"
-                    className="relative flex flex-1 items-center gap-3.5 px-14 py-8 no-underline text-inherit overflow-hidden group feature-entry-card"
+                    className="relative flex flex-1 items-center gap-3 px-10 py-5 no-underline text-inherit overflow-hidden group feature-entry-card"
                     onMouseMove={e => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       e.currentTarget.style.setProperty('--glow-x', `${e.clientX - rect.left}px`);
@@ -321,14 +321,14 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                     {/* 悬停光晕 */}
                     <div className="feature-card-glow" />
                     {/* 图标 */}
-                    <div className="relative w-12 h-12 shrink-0">
+                    <div className="relative w-10 h-10 shrink-0">
                       <div className="feature-icon-ring" />
                       <div className="w-full h-full rounded-[10px] bg-[#eef3fb] text-[#064ea2] flex items-center justify-center group-hover:bg-[#064ea2] group-hover:text-white transition-all duration-300" dangerouslySetInnerHTML={{ __html: SVG_ICONS[f.icon] }} />
                     </div>
                     {/* 文字 */}
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <strong className="text-[22px] font-bold text-[#1c2941] group-hover:text-[#064ea2] transition-colors whitespace-nowrap">{f.title}</strong>
-                      <span className="text-[16px] text-[#8a96aa] group-hover:text-[#5a7da8] transition-colors whitespace-nowrap">{f.desc}</span>
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <strong className="text-[18px] font-bold text-[#1c2941] group-hover:text-[#064ea2] transition-colors whitespace-nowrap">{f.title}</strong>
+                      <span className="text-[13px] text-[#8a96aa] group-hover:text-[#5a7da8] transition-colors whitespace-nowrap">{f.desc}</span>
                     </div>
                     {/* 右侧箭头指示 */}
                     <span className="feature-card-arrow">
