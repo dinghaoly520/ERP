@@ -245,7 +245,7 @@ export default function NotificationsPage() {
             </div>
           </div>
         )}
-      </div>
+      </div>{/* /neu-table-card */}
     </div>
   );
 }
@@ -294,7 +294,7 @@ function HeroStat({ label, value, sub, signal }: {
 }
 
 /* ════════════ 可排序表头 ════════════ */
-function SortTh({ label, sortKey, current, dir, onToggle, align = 'left' }: {
+function SortTh({ label, sortKey, current, dir, onToggle, align = 'center' }: {
   label: string; sortKey: SortKey; current: SortKey | null; dir: SortDir; onToggle: (k: SortKey) => void; align?: 'left' | 'right' | 'center';
 }) {
   const active = current === sortKey;

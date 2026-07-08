@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { listExperts, getExpertEvalStats, createExpertEvaluation } from '@/lib/api/expert';
 import type { ExpertListItem, ExpertEvalStats } from '@/lib/api/expert';
-import { StatusBadge } from '@/components/workbench';
-import { CheckCircle2, Search, X, RefreshCw, ChevronUp } from 'lucide-react';
+import { StatusBadge, TableSkeleton } from '@/components/workbench';
+import { CheckCircle2, Search, X, RefreshCw, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
 const levelLabel: Record<string, string> = { A: '优秀', B: '良好', C: '合格', D: '不合格' };
 const DIMENSIONS: { key: 'attendanceScore' | 'qualityScore' | 'disciplineScore'; label: string; hint: string }[] = [
@@ -15,12 +15,19 @@ const DIMENSIONS: { key: 'attendanceScore' | 'qualityScore' | 'disciplineScore';
   { key: 'disciplineScore', label: '廉洁纪律', hint: '无违规、无利益输送' },
 ];
 
+type SortKey = 'name' | 'specialty' | 'evaluations';
+type SortDir = 'asc' | 'desc';
+
 export default function ExpertEvaluationPage() {
   const router = useRouter();
   const [experts, setExperts] = useState<ExpertListItem[]>([]);
   const [stats, setStats] = useState<ExpertEvalStats>({ levelCounts: { A: 0, B: 0, C: 0, D: 0 }, avgScore: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
   const [target, setTarget] = useState<ExpertListItem | null>(null);
   const [scores, setScores] = useState({ attendanceScore: 85, qualityScore: 85, disciplineScore: 90 });
   const [comment, setComment] = useState('');
@@ -29,6 +36,41 @@ export default function ExpertEvaluationPage() {
   const load = useCallback(async () => { setLoading(true); try { setExperts(await listExperts({ search: search || undefined }) as ExpertListItem[]); } catch {} setLoading(false); }, [search]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { getExpertEvalStats().then(setStats).catch(() => {}); }, [experts.length]);
+
+  const totalPages = Math.max(1, Math.ceil(experts.length / PAGE_SIZE));
+  const pagedExperts = useMemo(() => {
+    const list = !sortKey ? experts : [...experts].sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      let av: string | number = '', bv: string | number = '';
+      if (sortKey === 'name') { av = a.displayName; bv = b.displayName; }
+      else if (sortKey === 'specialty') { av = a.expertProfile?.specialty || ''; bv = b.expertProfile?.specialty || ''; }
+      else if (sortKey === 'evaluations') { av = a._count.expertEvaluations; bv = b._count.expertEvaluations; }
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+    return list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  }, [experts, sortKey, sortDir, page]);
+
+  const sortedExperts = useMemo(() => {
+    if (!sortKey) return experts;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...experts].sort((a, b) => {
+      let av: string | number = '', bv: string | number = '';
+      if (sortKey === 'name') { av = a.displayName; bv = b.displayName; }
+      else if (sortKey === 'specialty') { av = a.expertProfile?.specialty || ''; bv = b.expertProfile?.specialty || ''; }
+      else if (sortKey === 'evaluations') { av = a._count.expertEvaluations; bv = b._count.expertEvaluations; }
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }, [experts, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey !== key) { setSortKey(key); setSortDir('desc'); }
+    else if (sortDir === 'desc') setSortDir('asc');
+    else { setSortKey(null); setSortDir('desc'); }
+  };
 
   const overall = Math.round((scores.attendanceScore + scores.qualityScore + scores.disciplineScore) / 3);
   const previewLevel = overall >= 90 ? 'A' : overall >= 80 ? 'B' : overall >= 60 ? 'C' : 'D';
@@ -58,24 +100,32 @@ export default function ExpertEvaluationPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-[16px] border border-[color-mix(in_oklch,var(--border)_80%,transparent)] bg-[var(--surface)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.65),2px_2px_6px_oklch(0.55_0.03_258/0.08),-1px_-1px_3px_oklch(1_0_0/0.85)]">
+      <div className="wb-toolbar">
         <div className="flex items-center gap-4 text-sm mr-auto">
           <span className="text-[var(--muted-foreground)]">累计评价 <strong className="tabular-nums text-[var(--foreground)]">{stats.total}</strong> 次</span>
           <span className="text-[var(--muted-foreground)]">平均得分 <strong className="tabular-nums text-[var(--accent)]">{stats.avgScore}</strong></span>
         </div>
-        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索专家姓名" className="neu-input !pl-9" /></div>
+        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索专家姓名" className="neu-input !pl-9" />{search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}</div>
       </div>
 
       <div className="neu-table-card">
         <div className="overflow-x-auto">
-          <table className="neu-table w-full min-w-[550px]">
-            <thead><tr><th>专家</th><th className="text-center">专业</th><th className="text-center">工作单位</th><th className="text-center">获评次数</th><th className="text-center">操作</th></tr></thead>
+          <table className="neu-table w-full min-w-[700px]">
+            <thead>
+              <tr>
+                <SortableTh label="专家" sortKey="name" current={sortKey} dir={sortDir} onToggle={toggleSort} />
+                <SortableTh label="专业" sortKey="specialty" current={sortKey} dir={sortDir} onToggle={toggleSort} align="center" />
+                <th className="text-center">工作单位</th>
+                <SortableTh label="获评次数" sortKey="evaluations" current={sortKey} dir={sortDir} onToggle={toggleSort} align="center" />
+                <th className="text-center">操作</th>
+              </tr>
+            </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="px-4 py-16 text-center text-sm text-[var(--muted-foreground)]">加载中...</td></tr>
-              ) : experts.length === 0 ? (
+                <TableSkeleton cols={5} rows={5} />
+              ) : sortedExperts.length === 0 ? (
                 <tr><td colSpan={5} className="px-4 py-16"><div className="flex flex-col items-center gap-3"><div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><CheckCircle2 size={22} className="text-[var(--muted-foreground)]" /></div><p className="text-sm text-[var(--muted-foreground)]">暂无评审专家</p><button onClick={() => router.push('/expert/entry')} className="neu-btn-xs is-info">前往录入专家 →</button></div></td></tr>
-              ) : experts.map(e => (
+              ) : pagedExperts.map(e => (
                 <tr key={e.id} className="row-clickable" onClick={() => openModal(e)}>
                   <td><div className="flex items-center gap-2.5"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{e.displayName[0]}</div><span className="text-sm font-bold text-[var(--foreground)] hover:text-[var(--accent)] transition-colors">{e.displayName}</span></div></td>
                   <td className="text-center">{e.expertProfile?.specialty && <StatusBadge tone="blue">{e.expertProfile.specialty}</StatusBadge>}</td>
@@ -87,6 +137,16 @@ export default function ExpertEvaluationPage() {
             </tbody>
           </table>
         </div>
+
+        {experts.length > 0 && (
+          <div className="neu-table-card-footer flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-[0.8rem] text-[var(--muted-foreground)] tabular-nums">共 <strong className="font-semibold text-[var(--foreground)]">{experts.length}</strong> 位专家 · 第 {page}/{totalPages} 页</span>
+            <div className="flex gap-1.5">
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-[-90deg]" /></button>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-90" /></button>
+            </div>
+          </div>
+        )}
       </div>
 
       {target && (
@@ -117,5 +177,21 @@ export default function ExpertEvaluationPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/* ════════════ 可排序表头 ════════════ */
+function SortableTh({ label, sortKey, current, dir, onToggle, align = 'center' }: {
+  label: string; sortKey: SortKey; current: SortKey | null; dir: SortDir; onToggle: (k: SortKey) => void; align?: 'left' | 'center';
+}) {
+  const active = current === sortKey;
+  const Indicator = active ? (dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
+  return (
+    <th data-sortable="true" data-sort={active ? dir : undefined} style={{ textAlign: align }}>
+      <button type="button" className="neu-th-sort" onClick={() => onToggle(sortKey)}>
+        <span>{label}</span>
+        <span className="neu-sort-indicator"><Indicator size={12} /></span>
+      </button>
+    </th>
   );
 }

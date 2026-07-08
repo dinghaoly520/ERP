@@ -182,7 +182,7 @@ export default function SupplierRepositoryPage() {
       )}
 
       {/* ══════ 工具栏卡片 ══════ */}
-      <div className="flex flex-wrap items-center gap-3 rounded-[16px] border border-[color-mix(in_oklch,var(--border)_80%,transparent)] bg-[var(--surface)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.65),2px_2px_6px_oklch(0.55_0.03_258/0.08),-1px_-1px_3px_oklch(1_0_0/0.85)]">
+      <div className="wb-toolbar">
         <div className="neu-tab-bar">
           {STATUS_TABS.map(t => (
             <button key={t.status} onClick={() => { setFilterStatus(t.status); setPage(1); }} className={`neu-tab ${filterStatus === t.status ? 'is-active' : ''}`}>

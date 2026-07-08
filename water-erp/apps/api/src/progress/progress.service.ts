@@ -347,38 +347,39 @@ export class ProgressService {
       2,
     );
 
+    // Try DeepSeek LLM first, fall back to data-driven if it fails
+    const llmResult = await this.generateInsightsFromLLM(systemPrompt, userPrompt, stats, stageNames);
+    if (llmResult && llmResult.insights.length > 0) {
+      this.logger.log(`DeepSeek generated ${llmResult.insights.length} insights: ${llmResult.overview.substring(0, 50)}`);
+      return llmResult;
+    }
+    this.logger.log('DeepSeek unavailable, falling back to data-driven insights');
+    return this.generateInsightsFromData(stats, stageNames);
+  }
+
+  private async generateInsightsFromLLM(
+    systemPrompt: string,
+    userPrompt: string,
+    stats: ProgressStats,
+    stageNames: Record<string, string>,
+  ): Promise<{ overview: string; insights: ProgressAiInsight[] } | null> {
     try {
-      const content = await this.aiService.chatJson(systemPrompt, userPrompt, 0.4);
-
-      const parsed = JSON.parse(content) as {
-        overview?: string;
-        insights?: Array<{
-          type?: string;
-          message?: string;
-          urgency?: string;
-          projectTitles?: string[];
-          stageFilter?: string;
-          actionLabel?: string;
-        }>;
-      };
-
       const titleToIdMap = new Map(stats.projects.map((p) => [p.title, p.id]));
+      const parsed = await this.aiService.chatJson<any>(systemPrompt, userPrompt, 0.4);
+
+      if (!parsed || (!parsed.overview && (!Array.isArray(parsed.insights) || parsed.insights.length === 0))) {
+        return null;
+      }
 
       const resolveProjectIds = (titles: string[]): string[] => {
         const ids: string[] = [];
         for (const title of titles) {
           const exact = titleToIdMap.get(title);
-          if (exact) {
-            ids.push(exact);
-            continue;
-          }
-          // Fuzzy: check if the title contains or is contained by a real project title
+          if (exact) { ids.push(exact); continue; }
           const normalized = title.trim().toLowerCase();
           for (const [realTitle, id] of titleToIdMap) {
-            const normalizedReal = realTitle.trim().toLowerCase();
-            if (normalizedReal.includes(normalized) || normalized.includes(normalizedReal)) {
-              ids.push(id);
-              break;
+            if (realTitle.trim().toLowerCase().includes(normalized) || normalized.includes(realTitle.trim().toLowerCase())) {
+              ids.push(id); break;
             }
           }
         }
@@ -388,13 +389,11 @@ export class ProgressService {
       return {
         overview: parsed.overview ?? '',
         insights: Array.isArray(parsed.insights)
-          ? parsed.insights.map((item, idx) => ({
+          ? parsed.insights.map((item: any, idx: number) => ({
               id: `ai-insight-${idx}`,
               type: item.type ?? 'observation',
               message: item.message ?? '',
-              urgency: (['low', 'medium', 'high'].includes(item.urgency ?? '')
-                ? item.urgency
-                : 'low') as 'low' | 'medium' | 'high',
+              urgency: (['low', 'medium', 'high'].includes(item.urgency ?? '') ? item.urgency : 'low') as 'low' | 'medium' | 'high',
               relatedProjectIds: resolveProjectIds(item.projectTitles ?? []),
               relatedStageKey: item.stageFilter ?? null,
               actionLabel: item.actionLabel ?? null,
@@ -402,8 +401,179 @@ export class ProgressService {
           : [],
       };
     } catch (err) {
-      this.logger.warn(`AI insights generation failed: ${(err as Error).message}`);
-      return { overview: '', insights: [] };
+      this.logger.warn(`AI insights LLM call failed: ${(err as Error).message}`);
+      return null;
     }
   }
+
+  private generateInsightsFromData(
+    stats: ProgressStats,
+    stageNames: Record<string, string>,
+  ): { overview: string; insights: ProgressAiInsight[] } {
+    const projects = stats.projects;
+    const insights: ProgressAiInsight[] = [];
+
+    // Calculate stats
+    const total = projects.length;
+    const avgCompletion = total > 0
+      ? Math.round(projects.reduce((sum, p) => {
+          const c = p.stages.filter(s => s.status === 'COMPLETED').length;
+          return sum + (p.stages.length > 0 ? (c / p.stages.length) * 100 : 0);
+        }, 0) / total)
+      : 0;
+
+    const totalBudget = projects.reduce((sum, p) => sum + (p.budgetAmount || 0), 0);
+
+    // Stalled projects (>7 days)
+    const stalled = projects.filter(p => {
+      const days = Math.max(0, Math.floor((Date.now() - new Date(p.updatedAt).getTime()) / (1000 * 60 * 60 * 24)));
+      return days > 7;
+    });
+    const criticalStalled = stalled.filter(p => {
+      const days = Math.max(0, Math.floor((Date.now() - new Date(p.updatedAt).getTime()) / (1000 * 60 * 60 * 24)));
+      return days > 14;
+    });
+
+    // Stage concentration
+    const stageCounts = new Map<string, { count: number; projects: typeof projects }>();
+    for (const p of projects) {
+      const stage = stageNames[p.currentStage] || p.currentStage || '未设置';
+      if (!stageCounts.has(stage)) stageCounts.set(stage, { count: 0, projects: [] });
+      const entry = stageCounts.get(stage)!;
+      entry.count++;
+      entry.projects.push(p);
+    }
+    const topStage = [...stageCounts.entries()].sort((a, b) => b[1].count - a[1].count)[0];
+
+    // Top budget projects
+    const byBudget = [...projects].sort((a, b) => (b.budgetAmount || 0) - (a.budgetAmount || 0));
+    const topBudget = byBudget.slice(0, 3);
+
+    // Near completion (>=60%)
+    const nearComplete = projects.filter(p => {
+      const c = p.stages.filter(s => s.status === 'COMPLETED').length;
+      return p.stages.length > 0 && (c / p.stages.length) >= 0.6;
+    });
+
+    // Recently updated (last 3 days)
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const recentUpdates = projects.filter(p => new Date(p.updatedAt) >= threeDaysAgo);
+
+    // Overview
+    const overview = `${total}个进行中项目，整体平均完成度${avgCompletion}%，预算总额${(totalBudget/10000).toFixed(1)}万。${stalled.length > 0 ? `${stalled.length}个项目停滞超7天需关注。` : '暂无停滞项目。'}${topStage ? `当前最密集阶段为"${topStage[0]}"（${topStage[1].count}个项目）。` : ''}`;
+
+    // 1. Risk insights
+    if (criticalStalled.length > 0) {
+      insights.push({
+        id: 'data-risk-critical',
+        type: 'risk',
+        message: `${criticalStalled.map(p => {
+          const days = Math.max(0, Math.floor((Date.now() - new Date(p.updatedAt).getTime()) / (1000 * 60 * 60 * 24)));
+          return `"${p.title}"已停滞${days}天`;
+        }).join('、')}，当前处于${stageNames[criticalStalled[0].currentStage] || criticalStalled[0].currentStage}阶段。`,
+        urgency: 'high',
+        relatedProjectIds: criticalStalled.map(p => p.id),
+        relatedStageKey: null,
+        actionLabel: '查看详情',
+      });
+    } else if (stalled.length > 0) {
+      insights.push({
+        id: 'data-risk-stalled',
+        type: 'risk',
+        message: `${stalled.map(p => {
+          const days = Math.max(0, Math.floor((Date.now() - new Date(p.updatedAt).getTime()) / (1000 * 60 * 60 * 24)));
+          return `"${p.title}"停滞${days}天`;
+        }).join('、')}。`,
+        urgency: 'medium',
+        relatedProjectIds: stalled.map(p => p.id),
+        relatedStageKey: null,
+        actionLabel: '查看详情',
+      });
+    } else {
+      insights.push({
+        id: 'data-risk-none',
+        type: 'risk',
+        message: `全部${total}个项目均在7天内有更新，无停滞风险。`,
+        urgency: 'low',
+        relatedProjectIds: [],
+        relatedStageKey: null,
+        actionLabel: null,
+      });
+    }
+
+    // 2. Bottleneck
+    if (topStage && topStage[1].count >= 2) {
+      const names = topStage[1].projects.map(p => `"${p.title}"`).join('、');
+      insights.push({
+        id: 'data-bottleneck',
+        type: 'bottleneck',
+        message: `"${topStage[0]}"阶段聚集${topStage[1].count}个项目（${names}），占总数${Math.round((topStage[1].count/total)*100)}%。`,
+        urgency: topStage[1].count >= total * 0.4 ? 'high' : 'medium',
+        relatedProjectIds: topStage[1].projects.map(p => p.id),
+        relatedStageKey: projects.find(p => stageNames[p.currentStage] === topStage[0])?.currentStage ?? null,
+        actionLabel: '按阶段筛选',
+      });
+    }
+
+    // 3. Budget
+    if (topBudget.length > 0 && topBudget[0].budgetAmount) {
+      const biggest = topBudget[0];
+      const c2 = biggest.stages.filter(s => s.status === 'COMPLETED').length;
+      const pct2 = biggest.stages.length > 0 ? Math.round((c2 / biggest.stages.length) * 100) : 0;
+      insights.push({
+        id: 'data-budget',
+        type: 'budget',
+        message: `预算最高项目"${biggest.title}"（${((biggest.budgetAmount||0)/10000).toFixed(1)}万）完成度${pct2}%，${topBudget.slice(1).map(p => `"${p.title}"（${((p.budgetAmount||0)/10000).toFixed(1)}万）`).join('、')}紧随其后。`,
+        urgency: 'low',
+        relatedProjectIds: topBudget.map(p => p.id),
+        relatedStageKey: null,
+        actionLabel: '查看预算项目',
+      });
+    }
+
+    // 4. Completion
+    if (nearComplete.length > 0) {
+      const names = nearComplete.map(p => {
+        const c2 = p.stages.filter(s => s.status === 'COMPLETED').length;
+        const pct2 = p.stages.length > 0 ? Math.round((c2 / p.stages.length) * 100) : 0;
+        return `"${p.title}"完成度${pct2}%`;
+      }).join('、');
+      insights.push({
+        id: 'data-completion',
+        type: 'completion',
+        message: `${names}，均有望近期收尾。`,
+        urgency: 'low',
+        relatedProjectIds: nearComplete.map(p => p.id),
+        relatedStageKey: null,
+        actionLabel: '查看临近完成',
+      });
+    }
+
+    // 5. Rhythm
+    if (recentUpdates.length > 0) {
+      const names = recentUpdates.map(p => `"${p.title}"`).join('、');
+      const idle = total - recentUpdates.length;
+      insights.push({
+        id: 'data-rhythm',
+        type: 'rhythm',
+        message: `近3天${recentUpdates.length}个项目有更新（${names}）${idle > 0 ? `，${idle}个项目无动静` : ''}，整体推进节奏${idle > total/2 ? '偏缓' : '正常'}。`,
+        urgency: idle > total * 0.5 ? 'medium' : 'low',
+        relatedProjectIds: recentUpdates.map(p => p.id),
+        relatedStageKey: null,
+        actionLabel: null,
+      });
+    }
+
+    return { overview, insights };
+  }
+}
+
+export interface ProgressAiInsight {
+  id: string;
+  type: string;
+  message: string;
+  urgency: 'low' | 'medium' | 'high';
+  relatedProjectIds: string[];
+  relatedStageKey: string | null;
+  actionLabel: string | null;
 }

@@ -71,7 +71,7 @@ export async function fetchProgressStats(
 
   const url = `${API_BASE}/progress/stats${params.toString() ? `?${params.toString()}` : ''}`;
 
-  const response = await fetch(url);
+  const response = await fetch(url, { credentials: 'include' });
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Failed to fetch progress stats: ${errorText}`);
@@ -83,7 +83,7 @@ export async function fetchProgressStats(
 export async function fetchProgressAiInsights(): Promise<ProgressAiInsights> {
   const url = `${API_BASE}/progress/ai-insights`;
 
-  const response = await fetch(url);
+  const response = await fetch(url, { credentials: 'include' });
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Failed to fetch AI insights: ${errorText}`);

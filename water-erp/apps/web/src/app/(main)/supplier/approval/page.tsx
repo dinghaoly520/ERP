@@ -177,7 +177,7 @@ function SupplierApprovalPage() {
       </div>
 
       {/* ══════ 工具栏卡片（tab + 搜索） ══════ */}
-      <div className="flex flex-wrap items-center gap-3 rounded-[16px] border border-[color-mix(in_oklch,var(--border)_80%,transparent)] bg-[var(--surface)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.65),2px_2px_6px_oklch(0.55_0.03_258/0.08),-1px_-1px_3px_oklch(1_0_0/0.85)]">
+      <div className="wb-toolbar">
         <div className="neu-tab-bar">
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} className={`neu-tab ${tab === t.key ? 'is-active' : ''}`}>
@@ -351,7 +351,7 @@ function SupplierApprovalPage() {
 }
 
 /* ════════════ 可排序表头 ════════════ */
-function SortTh({ label, sortKey, current, dir, onToggle, align = 'left' }: {
+function SortTh({ label, sortKey, current, dir, onToggle, align = 'center' }: {
   label: string; sortKey: SortKey; current: SortKey | null; dir: SortDir; onToggle: (k: SortKey) => void; align?: 'left' | 'right' | 'center';
 }) {
   const active = current === sortKey;

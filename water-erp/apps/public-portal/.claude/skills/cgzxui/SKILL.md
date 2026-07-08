@@ -145,7 +145,7 @@ box-shadow:
 
 | 类名 | 用途 |
 |------|------|
-| `.wb-panel` | 工作台面板（透明背景 + 方向性双影，无可交互 hover） |
+| `.wb-panel` | 工作台面板（左纯白→右透明渐变 + 方向性双影，无可交互 hover） |
 | `.wb-panel-header` | 面板头部栏（`oklch(1 0 0 / 0.3)` 半透明底） |
 | `.wb-panel-body` | 面板内容区（flex-1，overflow-y:auto） |
 | `.neu-card` | 通用 neumorphic 卡片（glass 背景 + 内高光 + 双影，hover 抬升） |
@@ -154,9 +154,9 @@ box-shadow:
 | `.flow-pipe-shell` | 流程图谱外壳 |
 | `.flow-h-card` | 流程阶段卡片（`--card-color` 驱动配色） |
 | `.wb-section-rule` | 1px hairline 分割线（`oklch(0.6 0.04 258 / 0.16)`），替代裸 `border-t` |
-| `.page-hero` | **页面标题卡片**——玻璃渐变底 + 方向性双影 + ::after 彩色光晕 |
+| `.page-hero` | **页面标题卡片**——玻璃渐变底（左纯白→右半透）+ 方向性双影 + ::after 彩色光晕 |
 | `.kpi-card` | 页面标题卡片内的指标瓷片——凸起浅底 + hover 抬升 + label/value/sub 排版 |
-| `.neu-table-card` | **数据表格卡片**——透明毛玻璃 + 方向性双影 + hover 轻微抬升 |
+| `.neu-table-card` | **数据表格卡片**——左纯白→右透明渐变毛玻璃 + 方向性双影 + hover 轻微抬升 |
 | `.neu-table` | 数据表格基类——半透明 thead + 四层行交互（透明/hover/选中/press） |
 | `.neu-batch-bar` | 批量操作浮条——表格卡片顶部滑入；玻璃 + 内高光 + 双影 |
 | `.neu-tab-bar` / `.neu-tab` | 内凹 tab 容器 + 凸起 tab 项（hover 抬升/激活内凹） |
@@ -308,7 +308,7 @@ box-shadow:
 | `.page-hero__row` | 标题行容器 | `flex justify-between gap-1rem` |
 | `.page-hero__left` | 左侧：图标井 + 标题体 | `flex items-center gap-0.875rem` |
 | `.page-hero__icon` | 内凹图标井 | 40×40px，`inset 双影`，accent 色 |
-| `.page-hero__title` | 页面标题 | `font-display` 1.15rem 650-weight，-0.015em tracking |
+| `.page-hero__title` | 页面标题 | `font-display` 1.15rem 500-weight，-0.015em tracking |
 | `.page-hero__sub` | 副标题/统计摘要 | 0.75rem，muted-foreground |
 | `.page-hero__right` | 右侧操作区 | `flex items-center gap-0.5rem` |
 | `.page-hero__stat` | 统计 pill | 圆角 999px，边框 + 浅底 |
@@ -375,6 +375,36 @@ box-shadow:
   </div>
 </div>
 ```
+
+---
+
+## 渐变底板设计（.wb-panel / .neu-table-card 内置）
+
+`.wb-panel` 和 `.neu-table-card` 自带从左纯白到右透明的渐变背景，无需外层包裹 `<div>`。多个并列/堆叠的组件共同形成整页从左到右的明→透视觉流动，与 `.page-hero` 的渐变方向一致（105deg）。
+
+### 渐变值
+
+```css
+background:
+  linear-gradient(105deg,
+    oklch(1 0 0 / 0.94) 0%,              /* 左侧：近乎不透明纯白 */
+    oklch(0.99 0.003 258 / 0.62) 35%,    /* 过渡点：高不透度暖白 */
+    oklch(1 0 0 / 0.14) 70%              /* 右侧：高度透明 */
+  );
+```
+
+### 为何嵌入组件而非外层包裹
+
+- **零额外标记**：每个 `wb-panel` / `neu-table-card` 自动获得渐变，不需 `<div className="page-content-sheet">` 包裹层。
+- **多组件协同**：同一页面内多个组件各自的渐变区域叠加，形成连续的从左亮→右透的视觉流。
+- **方向一致**：渐变角度 105deg 与 `page-hero` 完全相同，整个页面从左到右呈现统一的明暗过渡。
+
+### 反模式
+
+| 错误 | 正确 |
+|------|------|
+| `<div className="page-content-sheet p-4"><div className="wb-panel">...` | 直接用 `<div className="wb-panel">`，渐变内置 |
+| 再套一层容器只为加背景 | 背景是组件 CSS 的一部分 |
 
 ---
 

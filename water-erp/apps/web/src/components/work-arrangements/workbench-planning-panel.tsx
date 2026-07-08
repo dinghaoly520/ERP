@@ -1,6 +1,19 @@
 import { CalendarClock, Lightbulb, Sparkles, RefreshCw, History } from 'lucide-react';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 
+/** Normalize a time-slot string (ISO 8601 or HH:MM) into a clean HH:MM display. */
+function formatTimeSlot(raw: string): string {
+  if (!raw) return '--:--';
+  const trimmed = raw.trim();
+  // Already HH:MM or HH:MM:SS
+  if (/^\d{2}:\d{2}(:\d{2})?$/.test(trimmed)) return trimmed.slice(0, 5);
+  // ISO 8601 — extract the HH:MM portion directly (ignore timezone, the LLM
+  // writes these as local-zone times with a Z suffix by mistake)
+  const isoMatch = trimmed.match(/T(\d{2}):(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}:${isoMatch[2]}`;
+  return trimmed;
+}
+
 export function WorkbenchPlanningPanel({
   dailyPlan, refreshingPlan, onSelectTimeBlock, onRefreshPlan, onShowHistory,
   showAiScheduling = true, isChairman = false,
@@ -21,7 +34,7 @@ export function WorkbenchPlanningPanel({
         <div className="grid gap-3 xl:grid-cols-2 mt-3">
             {dailyPlan?.timeBlocks.length ? dailyPlan.timeBlocks.map((block, i) => (
               <button key={`tb-${i}-${block.label}`} type="button" onClick={() => onSelectTimeBlock(block.taskIds ?? [])} className="wb-timeblock-card">
-                <div className="flex items-center justify-between gap-3"><span className="text-sm font-semibold text-[color:var(--foreground)]">{block.label}</span><span className="text-xs tabular-nums tracking-tight text-[color:var(--muted-foreground)]">{block.start} - {block.end}</span></div>
+                <div className="flex items-center justify-between gap-3"><span className="text-sm font-semibold text-[color:var(--foreground)]">{block.label}</span><span className="text-xs tabular-nums tracking-tight text-[color:var(--muted-foreground)]">{formatTimeSlot(block.start)} – {formatTimeSlot(block.end)}</span></div>
                 <p className="mt-1.5 text-xs leading-relaxed text-[color:var(--muted-foreground)]">{block.focus}</p>
                 <span className="block mt-2 text-[11px] font-medium text-[color:var(--accent)]">{block.taskIds?.length ?? 0} 项关联</span>
               </button>

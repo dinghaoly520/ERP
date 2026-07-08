@@ -396,12 +396,12 @@
   border-radius: 20px;
   border: none;
   background:
-    linear-gradient(105deg, oklch(1 0 0 / 0.72) 0%, oklch(0.985 0.005 258 / 0.55) 70%);
+    linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 55%);
   padding: 1.25rem 1.25rem;
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
     2px 2px 8px oklch(0.55 0.03 258 / 0.1),
-    -2px -2px 8px oklch(1 0 0 / 0.85);
+    -2px -2px 8px oklch(1 0 0 / 0.9);
 }
 
 /* 右上角彩色光晕装饰 —— 品牌蓝 + 成功绿色 radial 渐变 */
@@ -454,7 +454,7 @@
 .page-hero__title {
   font-family: var(--font-display);
   font-size: 1.15rem;
-  font-weight: 650;
+  font-weight: 500;
   letter-spacing: -0.015em;
   line-height: 1.15;
   color: var(--foreground);
@@ -463,7 +463,7 @@
 .page-hero__sub {
   margin-top: 0.2rem;
   font-size: 0.75rem;
-  font-weight: 450;
+  font-weight: 400;
   letter-spacing: 0.01em;
   line-height: 1.3;
   color: var(--muted-foreground);
@@ -539,16 +539,64 @@ Signal 徽标可选：`warning` → 橙色"待处理" / `danger` → 红色"风�
 
 ---
 
+## 工作台面板（.wb-panel）
+
+通用内容面板——左纯白→右透明渐变 + 方向性双影。用于工作台、个人中心、通知中心等内容区。**无可见 border**，纯阴影定义边界。与 `.neu-table-card` 共享相同的渐变底板公式。
+
+### CSS 规格
+
+```css
+.wb-panel {
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  background:
+    linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.14) 70%);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 14px oklch(0.5 0.06 258 / 0.18),
+    -3px -3px 10px oklch(1 0 0 / 0.95),
+    0 12px 24px oklch(0.48 0.07 258 / 0.14);
+  min-height: 0;
+}
+
+.wb-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  flex-shrink: 0;
+}
+
+.wb-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+```
+
+### 关键设计点
+
+- **渐变背景**：105deg 左纯白→右透明，与 `.page-hero` 方向一致。多个面板堆叠时形成连续的从左亮→右透的页面级视觉流。
+- **强凸起感**：4 层阴影（内高光 + 方向性双影 + 底部远方投影）产生比 `.neu-table-card` 更明显的"抬离页面"物理感。
+- **不响应 hover**：`wb-panel` 是纯容器，不抬升也不变色——交互由内部子元素（按钮、表格行）承载。
+- **头部/内容区分**：`wb-panel-header` 提供统一的标题栏 + 操作按钮区；`wb-panel-body` 提供可滚动的 flex-1 内容区。
+
+---
+
 ## 数据表格卡片（.neu-table-card）
 
-表格外壳——透明毛玻璃 + 方向性双影。**无 visible border**，纯阴影定义边界。
+表格外壳——左纯白→右透明渐变毛玻璃 + 方向性双影。**无 visible border**，纯阴影定义边界。与 `.wb-panel` 共享相同的渐变底板公式。
 
 ### CSS 规格
 
 ```css
 .neu-table-card {
   position: relative;
-  background: oklch(1 0 0 / 0.50);
+  background:
+    linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.14) 70%);
   backdrop-filter: blur(18px) saturate(135%);
   -webkit-backdrop-filter: blur(18px) saturate(135%);
   border-radius: 20px;
@@ -575,24 +623,26 @@ Signal 徽标可选：`warning` → 橙色"待处理" / `danger` → 红色"风�
   font-size: 14px;
 }
 
-/* thead: 半透明浅底 + 下缘 hairline 内阴影 */
+/* thead: 透明底叠加表卡片渐变 + 上下立体阴影与 tbody 分层 */
 .neu-table thead {
-  background: oklch(0.965 0.01 258 / 0.50);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: inset 0 -1px 0 oklch(0.55 0.03 258 / 0.07);
-  color: var(--muted-foreground);
+  background: transparent;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    0 2px 6px oklch(0.55 0.03 258 / 0.1);
 }
+/* thead 与卡片顶部圆角对齐 */
+.neu-table thead tr:first-child th:first-child { border-top-left-radius: 20px; }
+.neu-table thead tr:first-child th:last-child  { border-top-right-radius: 20px; }
 
 .neu-table th {
-  padding: 12px 16px;
+  padding: 14px 16px;
   font-weight: 700;
-  font-size: 12px;
-  text-align: left;
+  font-size: 11.5px;
+  text-align: center;
   white-space: nowrap;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--muted-foreground);
+  color: var(--foreground);
 }
 
 .neu-table td {
@@ -600,6 +650,7 @@ Signal 徽标可选：`warning` → 橙色"待处理" / `danger` → 红色"风�
   color: var(--foreground);
   border-top: 1px solid oklch(0.55 0.03 258 / 0.06);
   vertical-align: middle;
+  text-align: center;
 }
 ```
 
@@ -720,8 +771,9 @@ Signal 徽标可选：`warning` → 橙色"待处理" / `danger` → 红色"风�
 
 ### 关键设计点
 
+- **渐变底板**：内置 105deg 左纯白→右透明渐变，与 `.page-hero` / `.wb-panel` 方向一致
 - **无可见框线**：`.neu-table-card` 不含 `border` 属性，边界全靠方向性双影
-- **行透明默认**：默认行 `background: transparent`，融入卡片毛玻璃背景
+- **行透明默认**：默认行 `background: transparent`，融入卡片渐变背景
 - **四态递进**：默认 → hover 浮起 → 选中高亮 → press 按入，每层有不同阴影和变换
 - **选中唯一标识**：`inset 2px 0 0 var(--accent-strong)` 左侧 2px 色标——不是 banned 的 `border-left` 大于 1px 通用侧条，而是选中态的语义化视觉反馈（宽度 ≤ 2px + 仅选中时出现）
 - **排序反馈**：表头排序图标 opacity 随状态变化（默认 0.45 / hover 0.75 / active 1）

@@ -97,7 +97,7 @@ export default function SupplierEvaluationPage() {
       </div>
 
       {/* ══════ 工具栏 ══════ */}
-      <div className="flex flex-wrap items-center gap-3 rounded-[16px] border border-[color-mix(in_oklch,var(--border)_80%,transparent)] bg-[var(--surface)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.65),2px_2px_6px_oklch(0.55_0.03_258/0.08),-1px_-1px_3px_oklch(1_0_0/0.85)]">
+      <div className="wb-toolbar">
         <div className="flex items-center gap-4 text-sm">
           <span className="text-[var(--muted-foreground)]">累计评价 <strong className="tabular-nums text-[var(--foreground)]">{evalStats.total}</strong> 次</span>
           <span className="text-[var(--muted-foreground)]">平均得分 <strong className="tabular-nums text-[var(--accent)]">{evalStats.avgScore.toFixed(1)}</strong></span>

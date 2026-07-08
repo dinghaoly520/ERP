@@ -1,5 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
 export type SortDir = 'asc' | 'desc';
 
@@ -29,17 +30,18 @@ export function useSort<T>(defaultKey: string, defaultDir: SortDir = 'desc') {
   return { sortKey, sortDir, toggle, sorted };
 }
 
-/** Renders sort arrows in a th. */
+/** Renders sortable table header using .neu-table th + .neu-th-sort classes. */
 export function SortableTh({ label, field, sortKey, sortDir, onToggle }: {
   label: string; field: string; sortKey: string; sortDir: SortDir; onToggle: (f: string) => void;
 }) {
   const active = sortKey === field;
+  const Indicator = active ? (sortDir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
   return (
-    <th className="px-4 py-3 sortable text-center cursor-pointer select-none hover:text-[#064ea2] transition" onClick={() => onToggle(field)}>
-      <span className="inline-flex items-center gap-1">
-        {label}
-        {active && <span className="text-[10px] leading-none">{sortDir === 'asc' ? '↑' : '↓'}</span>}
-      </span>
+    <th data-sortable="true" data-sort={active ? sortDir : undefined}>
+      <button type="button" className="neu-th-sort" onClick={() => onToggle(field)}>
+        <span>{label}</span>
+        <span className="neu-sort-indicator"><Indicator size={12} /></span>
+      </button>
     </th>
   );
 }

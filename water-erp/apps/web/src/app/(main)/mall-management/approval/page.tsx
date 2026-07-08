@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { type CatalogApplication, listCatalogApplications, reviewCatalogApplication } from '@/lib/api/catalog';
 import { StatusBadge } from '@/components/workbench';
-import { CheckCircle, XCircle, RotateCcw, MessageSquare, ChevronDown, ChevronUp, ClipboardCheck, RefreshCw } from 'lucide-react';
+import { CheckCircle, XCircle, RotateCcw, MessageSquare, ChevronDown, ChevronUp, ClipboardCheck, RefreshCw, Search, X } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: '待审批', COUNTERED: '议价中', RETURNED: '已退回',
@@ -121,14 +121,14 @@ export default function PriceApprovalPage() {
       </div>
 
       {/* ══════ 工具栏卡片 ══════ */}
-      <div className="flex flex-wrap items-center gap-3 rounded-[16px] border border-[color-mix(in_oklch,var(--border)_80%,transparent)] bg-[var(--surface)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.65),2px_2px_6px_oklch(0.55_0.03_258/0.08),-1px_-1px_3px_oklch(1_0_0/0.85)]">
+      <div className="wb-toolbar">
         <div className="neu-tab-bar">
           {(['PENDING','COUNTERED','RETURNED','APPROVED','REJECTED','WITHDRAWN','全部'] as const).map(s => (
             <button key={s} onClick={() => setStatus(s)} className={`neu-tab ${status === s ? 'is-active' : ''}`}>{s === '全部' ? s : STATUS_LABELS[s]}</button>
           ))}
         </div>
         <select value={type} onChange={e => setType(e.target.value)} className="workbench-input !w-auto min-w-[110px]"><option value="全部">全部类型</option><option value="NEW_ITEM">新增品类</option><option value="JOIN_EXISTING">加入供货</option><option value="UPDATE_QUOTE">报价调整</option></select>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索供应商/目录" className="neu-input flex-1 min-w-[140px] text-sm" />
+        <div className="relative flex-1 min-w-[140px]"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索供应商/目录" className="neu-input !pl-9 w-full text-sm" />{search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}</div>
       </div>
 
       {/* ══════ 申请列表 ══════ */}

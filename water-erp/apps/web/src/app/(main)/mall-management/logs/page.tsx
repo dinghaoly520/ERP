@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { listCatalogAuditLogs, type CatalogAuditLog } from '@/lib/api/catalog-admin';
 import { StatusBadge } from '@/components/workbench';
-import { FileText, RefreshCw } from 'lucide-react';
+import { FileText, RefreshCw, X, Search } from 'lucide-react';
 
 const labels: Record<string, string> = {
   CATALOG_CREATED: '新增目录', CATALOG_UPDATED: '编辑目录', CATALOG_PRICE_CHANGED: '价格调整',
@@ -64,12 +64,12 @@ export default function MallManagementLogsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-[16px] border border-[color-mix(in_oklch,var(--border)_80%,transparent)] bg-[var(--surface)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.65),2px_2px_6px_oklch(0.55_0.03_258/0.08),-1px_-1px_3px_oklch(1_0_0/0.85)]">
+      <div className="wb-toolbar">
         <div className="neu-tab-bar">
           <button onClick={() => setAction('全部')} className={`neu-tab ${action === '全部' ? 'is-active' : ''}`}>全部</button>
           {Object.keys(labels).map(key => (<button key={key} onClick={() => setAction(key)} className={`neu-tab ${action === key ? 'is-active' : ''}`}>{labels[key]}</button>))}
         </div>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索操作对象或详情" className="neu-input flex-1 min-w-[160px] text-sm" />
+        <div className="relative flex-1 min-w-[160px]"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索操作对象或详情" className="neu-input !pl-9 w-full text-sm" />{search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}</div>
       </div>
 
       <div className="neu-table-card">
@@ -96,6 +96,12 @@ export default function MallManagementLogsPage() {
             </tbody>
           </table>
         </div>
+
+        {logs.length > 0 && (
+          <div className="neu-table-card-footer flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-[0.8rem] text-[var(--muted-foreground)] tabular-nums">共 <strong className="font-semibold text-[var(--foreground)]">{filtered.length}</strong> 条操作记录</span>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, FolderOpen, Recycle, Search, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   deleteProjectPermanently,
@@ -30,7 +30,6 @@ export function ProjectManagementPage() {
   const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'budgetAmount' | 'departmentNumber' | 'title'>('updatedAt');
   const [filterMethod, setFilterMethod] = useState<string>('');
   const [filterDepartment, setFilterDepartment] = useState<string>('');
-  const detailHostRef = useRef<HTMLDivElement | null>(null);
   const [portalReady, setPortalReady] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const { setPageContext } = useAssistant();
@@ -64,14 +63,16 @@ export function ProjectManagementPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedItemId) {
-      return;
-    }
+    const scrollContainer = document.querySelector('[data-app-shell-scroll="true"]');
+    if (!(scrollContainer instanceof HTMLElement)) return;
 
-    const scrollContainer = detailHostRef.current?.closest('[data-app-shell-scroll="true"]');
-    if (scrollContainer instanceof HTMLElement) {
+    if (selectedItemId) {
       scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
+      scrollContainer.style.overflowY = 'hidden';
+    } else {
+      scrollContainer.style.overflowY = '';
     }
+    return () => { scrollContainer.style.overflowY = ''; };
   }, [selectedItemId]);
 
   // Derived: unique departments + methods for filter dropdowns
@@ -329,13 +330,9 @@ export function ProjectManagementPage() {
           )}
         </div>
 
-        <div
-          ref={detailHostRef}
-          className={selectedItem ? 'absolute inset-0 z-[70]' : 'hidden'}
-        />
       </div>
 
-      {portalReady && selectedItem && detailHostRef.current
+      {portalReady && selectedItem
         ? createPortal(
             <ProjectDetailPanel
               item={selectedItem}
@@ -348,7 +345,7 @@ export function ProjectManagementPage() {
               canModify={canModifyProject(selectedItem)}
               currentUsername={currentUser?.username}
             />,
-            detailHostRef.current,
+            document.getElementById('app-main') || document.body,
           )
         : null}
 

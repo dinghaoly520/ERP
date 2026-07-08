@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { listExperts, listSpecialties, setExpertAvailability } from '@/lib/api/expert';
 import type { ExpertListItem } from '@/lib/api/expert';
-import { StatusBadge } from '@/components/workbench';
-import { UsersRound, PlusCircle, Search, RefreshCw } from 'lucide-react';
+import { StatusBadge, TableSkeleton } from '@/components/workbench';
+import { useSort, SortableTh } from '@/lib/hooks/use-sort';
+import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronUp } from 'lucide-react';
 
 export default function ExpertRepositoryPage() {
   const router = useRouter();
@@ -15,6 +16,8 @@ export default function ExpertRepositoryPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [specialty, setSpecialty] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -29,6 +32,12 @@ export default function ExpertRepositoryPage() {
     catch (err: any) { toast.error(err?.message || '操作失败'); }
   };
 
+  const { sortKey, sortDir, toggle: sortToggle, sorted } = useSort<ExpertListItem>('displayName', 'asc');
+  const sortedExperts = sorted(experts);
+
+  const totalPages = Math.max(1, Math.ceil(experts.length / PAGE_SIZE));
+  const pagedExperts = useMemo(() => sortedExperts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [sortedExperts, page]);
+
   const total = experts.length;
   const available = experts.filter(e => e.isActive && e.expertProfile?.availability === '可用').length;
   const inProgress = experts.reduce((s, e) => s + e.bidExperts.filter(a => a.project.stage !== 'ARCHIVED').length, 0);
@@ -36,6 +45,7 @@ export default function ExpertRepositoryPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      {/* ══════ page-hero ══════ */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -65,20 +75,37 @@ export default function ExpertRepositoryPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-[16px] border border-[color-mix(in_oklch,var(--border)_80%,transparent)] bg-[var(--surface)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.65),2px_2px_6px_oklch(0.55_0.03_258/0.08),-1px_-1px_3px_oklch(1_0_0/0.85)]">
-        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索专家姓名" className="neu-input !pl-9" /></div>
-        <select value={specialty} onChange={e => setSpecialty(e.target.value)} className="workbench-input !w-auto min-w-[110px]"><option value="">全部专业</option>{specialties.map(s => <option key={s} value={s}>{s}</option>)}</select>
-        {(search || specialty) && <button onClick={() => { setSearch(''); setSpecialty(''); }} className="neu-btn-xs">重置</button>}
+      {/* ══════ 工具栏 ══════ */}
+      <div className="wb-toolbar">
+        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索专家姓名" className="neu-input !pl-9" />
+          {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}
+        </div>
+        <select value={specialty} onChange={e => { setSpecialty(e.target.value); setPage(1); }} className="workbench-input !w-auto min-w-[110px]"><option value="">全部专业</option>{specialties.map(s => <option key={s} value={s}>{s}</option>)}</select>
+        {(search || specialty) && <button onClick={() => { setSearch(''); setSpecialty(''); setPage(1); }} className="neu-btn-xs">重置</button>}
       </div>
 
+      {/* ══════ 数据表格 ══════ */}
       <div className="neu-table-card">
         <div className="overflow-x-auto">
-          <table className="neu-table w-full min-w-[700px]">
-            <thead><tr><th>专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">工作单位</th><th className="text-center">参评项目</th><th className="text-center">评价次数</th><th className="text-center">状态</th><th className="text-center">操作</th></tr></thead>
+          <table className="neu-table w-full min-w-[780px]">
+            <thead>
+              <tr>
+                <SortableTh label="专家" field="displayName" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
+                <SortableTh label="专业" field="specialty" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
+                <SortableTh label="职称" field="title" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
+                <th className="text-center">部门</th>
+                <th className="text-center">参评项目</th>
+                <SortableTh label="评价次数" field="evaluations" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
+                <th className="text-center">状态</th>
+                <th className="text-center">操作</th>
+              </tr>
+            </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="px-4 py-16 text-center text-sm text-[var(--muted-foreground)]">加载中...</td></tr>
-              ) : experts.length === 0 ? (
+                <TableSkeleton cols={8} rows={5} />
+              ) : pagedExperts.length === 0 ? (
                 <tr><td colSpan={8} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><UsersRound size={22} className="text-[var(--muted-foreground)]" /></div>
@@ -86,14 +113,14 @@ export default function ExpertRepositoryPage() {
                     <button onClick={() => router.push('/expert/entry')} className="neu-btn-xs is-info">前往录入专家 →</button>
                   </div>
                 </td></tr>
-              ) : experts.map(e => {
+              ) : pagedExperts.map(e => {
                 const activeProjects = e.bidExperts.filter(a => a.project.stage !== 'ARCHIVED');
                 return (
                   <tr key={e.id} className="row-clickable" onClick={() => router.push(`/expert/${e.id}`)}>
                     <td>
                       <div className="flex items-center gap-2.5">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{e.displayName[0]}</div>
-                        <div><div className="text-sm font-bold text-[var(--foreground)] hover:text-[var(--accent)] transition-colors">{e.displayName}</div><div className="text-xs text-[var(--muted-foreground)]">{e.email || '—'}</div></div>
+                        <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors">{e.displayName}</span>
                       </div>
                     </td>
                     <td className="text-center">{e.expertProfile?.specialty && <StatusBadge tone="blue">{e.expertProfile.specialty}</StatusBadge>}</td>
@@ -111,6 +138,15 @@ export default function ExpertRepositoryPage() {
             </tbody>
           </table>
         </div>
+        {total > 0 && (
+          <div className="neu-table-card-footer flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-[0.8rem] text-[var(--muted-foreground)] tabular-nums">共 <strong className="font-semibold text-[var(--foreground)]">{total}</strong> 条 · 第 {page}/{totalPages} 页</span>
+            <div className="flex gap-1.5">
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-[-90deg]" /></button>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-90" /></button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

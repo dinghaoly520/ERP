@@ -114,6 +114,7 @@ const navGroups: NavGroup[] = [
     label: "集中目录管理",
     icon: ShoppingBag,
     items: [
+      { key: "mall-central-catalog", label: "集中采购目录", href: "/mall-management/central-catalog", icon: ShoppingBag, meta: "集采目录" },
       { key: "mall-approval", label: "价格审批", href: "/mall-management/approval", icon: ShoppingBag, meta: "供货审核" },
       { key: "mall-price", label: "价格录入", href: "/mall-management/price-entry", icon: ShoppingBag, meta: "手动/导入" },
       { key: "mall-catalog", label: "目录管理", href: "/mall-management/catalog", icon: ShoppingBag, meta: "采购目录" },
@@ -353,8 +354,8 @@ export function AppShell({
           </button>
         ) : null}
 
-        <section className="min-h-0 flex flex-1 overflow-visible px-1">
-          <main className="relative z-10 h-full min-h-0 flex flex-1 flex-col overflow-visible p-3.5 sm:p-4 lg:p-4">
+        <section className="min-h-0 flex flex-1 overflow-visible px-1 h-full">
+          <main id="app-main" className="relative z-10 h-full min-h-0 flex flex-1 flex-col overflow-visible p-3.5 sm:p-4 lg:p-4">
             <div
               data-app-shell-scroll="true"
               className={[
