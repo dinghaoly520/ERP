@@ -82,16 +82,9 @@ export function TenderPreviewPane({
 
   const completedSections = progress.filter((item) => item.missingFields === 0).length;
   const missingFieldCount = progress.reduce((sum, item) => sum + item.missingFields, 0);
-  const activeSectionTitle =
-    progress.find((item) => item.key === activeSectionKey)?.title ?? '未定位章节';
   const previewHeadline = useMemo(() => {
     return draft.projectName.trim() ? `${draft.projectName} · 成稿预览` : '成稿预览';
   }, [draft.projectName]);
-
-  const activeSectionIndex = Math.max(
-    progress.findIndex((item) => item.key === activeSectionKey),
-    0,
-  );
 
   return (
     <aside
@@ -111,9 +104,6 @@ export function TenderPreviewPane({
             <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[9px]">
               <span className="rounded-[4px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 font-medium text-[color:var(--accent)]">
                 {selectedMeta.label}
-              </span>
-              <span className="text-[color:var(--muted-foreground)]">
-                第 {activeSectionIndex + 1} 组 · {activeSectionTitle}
               </span>
             </div>
           </div>

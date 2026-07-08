@@ -267,10 +267,10 @@ function PreviewSection({
     >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+          <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
             {chapterLabel}
           </div>
-          <h3 className="mt-2 text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+          <h3 className="mt-1.5 text-xs font-semibold tracking-[-0.01em] text-[color:var(--foreground)]">
             {title}
           </h3>
         </div>
