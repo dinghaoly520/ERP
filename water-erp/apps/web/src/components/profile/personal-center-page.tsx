@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, UserRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { startTransition, useEffect, useState } from 'react';
 import { fetchCurrentUser, fetchDepartments, logout } from '@/lib/api/auth';
@@ -101,6 +101,19 @@ export function PersonalCenterPage() {
 
   return (
     <div className="flex h-[calc(100dvh-5rem)] flex-col gap-4">
+      <div className="page-hero">
+        <div className="page-hero__row">
+          <div className="page-hero__left">
+            <div className="page-hero__icon">
+              <UserRound size={20} strokeWidth={1.8} />
+            </div>
+            <div className="min-w-0">
+              <div className="page-hero__title">个人中心</div>
+              <div className="page-hero__sub">账号信息管理与安全设置</div>
+            </div>
+          </div>
+        </div>
+      </div>
       <PersonalCenterTabBar activeTab={activeTab} onTabChange={setActiveTab} />
       <div className="flex flex-1 min-h-0 gap-4">
         {/* Left: Hero — fills column via h-full */}

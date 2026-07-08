@@ -306,12 +306,12 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
         {/* ═══════════════════ 快捷入口 ═══════════════════ */}
         <section className="relative z-10 py-8">
           <div className="px-[clamp(40px,4vw,72px)]">
-            <div className="flex items-stretch justify-evenly max-w-[900px] mx-auto">
+            <div className="flex items-stretch justify-evenly max-w-[1500px] mx-auto gap-5">
               {features.map((f, idx) => (
                 <React.Fragment key={f.title}>
                   {idx > 0 && <div className="feature-divider" />}
                   <a href={f.href} target="_blank" rel="noopener noreferrer"
-                    className="relative flex items-center gap-3.5 px-5 py-3.5 no-underline text-inherit overflow-hidden group feature-entry-card"
+                    className="relative flex items-center gap-3.5 px-[100px] py-6 no-underline text-inherit overflow-hidden group feature-entry-card min-w-[360px]"
                     onMouseMove={e => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       e.currentTarget.style.setProperty('--glow-x', `${e.clientX - rect.left}px`);
@@ -326,8 +326,8 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                     </div>
                     {/* 文字 */}
                     <div className="flex flex-col gap-1 min-w-0">
-                      <strong className="text-[19px] font-bold text-[#1c2941] group-hover:text-[#064ea2] transition-colors whitespace-nowrap">{f.title}</strong>
-                      <span className="text-[14px] text-[#8a96aa] group-hover:text-[#5a7da8] transition-colors">{f.desc}</span>
+                      <strong className="text-[22px] font-bold text-[#1c2941] group-hover:text-[#064ea2] transition-colors whitespace-nowrap">{f.title}</strong>
+                      <span className="text-[16px] text-[#8a96aa] group-hover:text-[#5a7da8] transition-colors whitespace-nowrap">{f.desc}</span>
                     </div>
                     {/* 右侧箭头指示 */}
                     <span className="feature-card-arrow">

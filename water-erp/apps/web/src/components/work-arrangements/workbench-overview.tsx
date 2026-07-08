@@ -33,30 +33,38 @@ export function WorkbenchOverview({currentUser,dailyPlan}:{currentUser:AuthUser|
   const headerGreeting=dailyPlan?.headerGreeting??'';
   const dailyGreeting=dailyPlan?.dailyGreeting??'';
   return(
-    <section className="wb-panel">
-      <div className="px-6 py-5 flex items-start justify-between gap-6">
-        <div className="flex items-start gap-4 min-w-0 flex-1">
-          <Icon size={24} style={{color:'var(--accent)'}} className="shrink-0 mt-1"/>
+    <section className="page-hero">
+      <div className="page-hero__row">
+        <div className="page-hero__left">
+          <div className="page-hero__icon">
+            <Icon size={20} strokeWidth={1.8}/>
+          </div>
           <div className="min-w-0">
             {(()=>{
               const greet=loading?'':((headerGreeting||'').replace('{name}','').replace(userName,'').replace(rawUsername,'').replace(/^[，,]\s*/,'')||'你好呀');
               return(
-                <div className="text-[17px] text-[#18243a] leading-relaxed">
-                  <span className="font-bold">{userName}</span>
-                  <span className="text-[color:var(--muted-foreground)] font-normal">
-                    {loading?'，欢迎您':`，${greet}`}
-                  </span>
-                </div>
+                <>
+                  <div className="page-hero__title">
+                    <span className="font-bold">{userName}</span>
+                    <span className="font-normal text-[color:var(--muted-foreground)]">
+                      {loading?'，欢迎您':`，${greet}`}
+                    </span>
+                  </div>
+                  {!loading&&dailyGreeting?(
+                    <div className="page-hero__sub">
+                      {dailyGreeting.replace('{name}','').replace(userName,'').replace(rawUsername,'').replace(/^[，,]\s*/,'')}
+                    </div>
+                  ):(
+                    <div className="page-hero__sub">工作安排与任务管理</div>
+                  )}
+                </>
               );
             })()}
-            {!loading&&dailyGreeting?(
-              <div className="mt-2 text-[13px] text-[color:var(--muted-foreground)] leading-relaxed">
-                {dailyGreeting.replace('{name}','').replace(userName,'').replace(rawUsername,'').replace(/^[，,]\s*/,'')}
-              </div>
-            ):null}
           </div>
         </div>
-        <LiveClock/>
+        <div className="page-hero__right">
+          <LiveClock/>
+        </div>
       </div>
     </section>
   );
