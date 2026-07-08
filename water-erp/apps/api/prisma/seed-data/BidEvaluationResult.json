@@ -68,6 +68,7 @@
     "averageScore": "86.33",
     "rank": 1,
     "recommended": true,
+    "disqualified": false,
     "generatedAt": "2026-07-03T08:00:00.000Z"
   },
   {
@@ -79,6 +80,7 @@
     "averageScore": "84.5",
     "rank": 2,
     "recommended": false,
+    "disqualified": false,
     "generatedAt": "2026-07-03T08:00:00.000Z"
   }
 ]

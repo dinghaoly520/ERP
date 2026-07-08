@@ -51,6 +51,7 @@
     "supplierId": null,
     "status": "待回复",
     "reply": null,
+    "aiSummary": null,
     "createdAt": "2026-07-02T03:00:00.000Z",
     "updatedAt": "2026-07-02T03:00:00.000Z"
   },
@@ -64,6 +65,7 @@
     "supplierId": null,
     "status": "已回复",
     "reply": "本平台鼓励国产化替代方案，允许采用华为昇思MindSpore等国产AI框架。需满足以下要求：(1)提供完整API兼容性测试报告；(2)支持与现有TensorFlow Serving推理服务协议互通；(3)提供迁移技术方案和性能对比数据；(4)提供至少1个类似规模的国产框架生产案例。",
+    "aiSummary": null,
     "createdAt": "2026-07-02T06:00:00.000Z",
     "updatedAt": "2026-07-02T08:00:00.000Z"
   }

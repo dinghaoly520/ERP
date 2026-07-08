@@ -505,6 +505,7 @@
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs01",
     "score": "82",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -514,6 +515,7 @@
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs01",
     "score": "88",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -523,6 +525,7 @@
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs01",
     "score": "85",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -532,6 +535,7 @@
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs02",
     "score": "90",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -541,6 +545,7 @@
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs02",
     "score": "92",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -550,6 +555,7 @@
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs02",
     "score": "78",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -559,6 +565,7 @@
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs03",
     "score": "85",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -568,6 +575,7 @@
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs03",
     "score": "80",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -577,6 +585,7 @@
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs03",
     "score": "90",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -586,6 +595,7 @@
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs01",
     "score": "85",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -595,6 +605,7 @@
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs01",
     "score": "85",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -604,6 +615,7 @@
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs01",
     "score": "82",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -613,6 +625,7 @@
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs02",
     "score": "88",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -622,6 +635,7 @@
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs02",
     "score": "90",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -631,6 +645,7 @@
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs02",
     "score": "80",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -640,6 +655,7 @@
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs03",
     "score": "82",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -649,6 +665,7 @@
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs03",
     "score": "78",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -658,6 +675,7 @@
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs03",
     "score": "88",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -667,6 +685,7 @@
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs01",
     "score": "80",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -676,6 +695,7 @@
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs01",
     "score": "86",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -685,6 +705,7 @@
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs01",
     "score": "88",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -694,6 +715,7 @@
     "scoreItemId": "cmqhero-si03",
     "supplierId": "cmqhero-bs02",
     "score": "92",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -703,6 +725,7 @@
     "scoreItemId": "cmqhero-si04",
     "supplierId": "cmqhero-bs02",
     "score": "88",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   },
@@ -712,6 +735,7 @@
     "scoreItemId": "cmqhero-si05",
     "supplierId": "cmqhero-bs02",
     "score": "75",
+    "passed": null,
     "reason": null,
     "createdAt": "2026-07-03T06:00:00.000Z"
   }

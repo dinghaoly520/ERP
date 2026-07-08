@@ -225,6 +225,9 @@
     "category": "QUALIFICATION",
     "name": "资格性审查",
     "maxScore": "0",
+    "scoringCriteria": null,
+    "evidenceHint": null,
+    "criteriaSource": null,
     "createdAt": "2026-06-10T08:30:00.000Z"
   },
   {
@@ -233,6 +236,9 @@
     "category": "RESPONSIVE",
     "name": "符合性审查",
     "maxScore": "0",
+    "scoringCriteria": null,
+    "evidenceHint": null,
+    "criteriaSource": null,
     "createdAt": "2026-06-10T08:30:00.000Z"
   },
   {
@@ -241,6 +247,9 @@
     "category": "BUSINESS",
     "name": "商务评分",
     "maxScore": "20",
+    "scoringCriteria": null,
+    "evidenceHint": null,
+    "criteriaSource": null,
     "createdAt": "2026-06-10T08:30:00.000Z"
   },
   {
@@ -249,6 +258,9 @@
     "category": "TECHNICAL",
     "name": "技术评分",
     "maxScore": "50",
+    "scoringCriteria": null,
+    "evidenceHint": null,
+    "criteriaSource": null,
     "createdAt": "2026-06-10T08:30:00.000Z"
   },
   {
@@ -257,6 +269,9 @@
     "category": "PRICE",
     "name": "价格评分",
     "maxScore": "30",
+    "scoringCriteria": null,
+    "evidenceHint": null,
+    "criteriaSource": null,
     "createdAt": "2026-06-10T08:30:00.000Z"
   }
 ]

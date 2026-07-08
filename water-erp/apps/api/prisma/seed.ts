@@ -36,76 +36,118 @@ function load<T = Record<string, unknown>[]>(name: string): T {
   return JSON.parse(readFileSync(join(dataDir, `${name}.json`), 'utf-8')) as T;
 }
 
-// 所有业务表名（共 32 张，不含 Prisma 内部的 _prisma_migrations）。
+// 所有业务表名（共 73 张，不含 Prisma 内部的 _prisma_migrations）。
 const ALL_TABLES = [
+  'Announcement', 'AnnouncementAttachment', 'AssistantActionLog',
+  'Attachment', 'AuditLog',
+  'BidArchiveItem', 'BidClarification', 'BidDocument', 'BidDocumentAccess',
+  'BidEvaluationResult', 'BidExpert', 'BidOpeningRecord', 'BidOpeningSession',
+  'BidProject', 'BidScoreItem', 'BidScoreRecord',
+  'BidSupervisionAnnotation', 'BidSupervisionLog', 'BidSupplier',
   'BudgetItem', 'BudgetList',
-  'BidDocumentAccess', 'BidDocument', 'AnnouncementAttachment',
-  'BidClarification', 'BidOpeningRecord', 'BidScoreRecord', 'BidSupervisionLog',
-  'SupplierBidSubmission', 'SupplierChangeRecord', 'SupplierContact',
+  'CatalogItem', 'CatalogSupplier', 'ComplianceRule', 'Contact',
+  'Department', 'DocumentChunk',
+  'ExpertEvaluation', 'ExpertProfile', 'ExtractionTask',
+  'FileAsset', 'ImportBatch',
+  'KnowledgeBase', 'KnowledgeFile',
+  'Notification', 'NotificationDeliveryLog',
+  'PasswordChangeRequest', 'PasswordResetRequest',
+  'PriceHistory', 'ProcurementProject', 'ProcurementRound', 'Project',
+  'ProjectManagementItem', 'ProjectManagementStage',
+  'ReviewTask', 'RoundParticipant',
+  'Supplier', 'SupplierBidSubmission', 'SupplierCatalogApplication',
+  'SupplierChangeRecord', 'SupplierClassification', 'SupplierContact',
   'SupplierEvaluation', 'SupplierQualification',
-  'ExpertEvaluation', 'ExpertProfile', 'BidExpert', 'BidScoreItem',
-  'BidArchiveItem', 'BidOpeningSession', 'BidSupplier',
-  'FileAsset', 'ProcurementProject', 'Notification', 'NotificationDeliveryLog',
-  'BidSupervisionAnnotation', 'Announcement',
-  'CatalogItem', 'SupplierClassification', 'Supplier', 'BidProject',
-  'User', 'Department', 'PriceHistory',
-  'UserFavorite', 'AuditLog',
-  'SupplierCatalogApplication', 'CatalogSupplier',
-  'AssistantActionLog', 'assistant_conversations', 'assistant_messages', 'assistant_alerts',
-  'BidEvaluationResult', 'WorkArrangementNote', 'WorkArrangement',
+  'TenderDocumentHistory', 'TenderFieldSample',
+  'User', 'UserFavorite', 'UserSettings',
+  'WorkArrangement', 'WorkArrangementDailyPlanCache',
+  'WorkArrangementDependency', 'WorkArrangementNote', 'WorkArrangementTemplate',
+  // @@map 表名（与模型名不同，TRUNCATE 需要实际 DB 表名）
+  'ai_bid_analysis_tasks', 'ai_bid_reports',
+  'ai_bidder_results', 'ai_concordance_results',
+  'assistant_alerts', 'assistant_conversations', 'assistant_messages',
+  'bid_requirement_reviews', 'bid_score_deltas',
 ] as const;
 
-// 按外键依赖分三层写入（父表在前）。空快照 createMany 等价于空操作。
+// 按外键依赖分层写入（父表在前）。空快照 createMany 等价于空操作。
 const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient]> = [
-  // Level 0 —— 无外键
+  // Level 0 —— 无外键 / 独立表
   ['Department', 'department'],
+  ['SupplierClassification', 'supplierClassification'],
   ['BidProject', 'bidProject'],
   ['Announcement', 'announcement'],
   ['CatalogItem', 'catalogItem'],
-  ['PriceHistory', 'priceHistory'],
+  ['BudgetList', 'budgetList'],
+  ['ProcurementProject', 'procurementProject'],
   // Level 1 —— 依赖 Level 0
   ['User', 'user'],
-  ['SupplierClassification', 'supplierClassification'],
-  ['ProcurementProject', 'procurementProject'],
   ['FileAsset', 'fileAsset'],
   ['ExpertProfile', 'expertProfile'],
   ['Notification', 'notification'],
-  ['ExpertEvaluation', 'expertEvaluation'],
   ['Supplier', 'supplier'],
   ['BidSupplier', 'bidSupplier'],
   ['BidExpert', 'bidExpert'],
   ['BidScoreItem', 'bidScoreItem'],
   ['BidOpeningSession', 'bidOpeningSession'],
   ['BidArchiveItem', 'bidArchiveItem'],
-  ['BudgetList', 'budgetList'],
+  ['PriceHistory', 'priceHistory'],
+  ['ImportBatch', 'importBatch'],
+  ['Project', 'project'],
+  ['ProjectManagementItem', 'projectManagementItem'],
+  ['ProcurementRound', 'procurementRound'],
+  ['KnowledgeBase', 'knowledgeBase'],
+  ['Contact', 'contact'],
   // Level 2 —— 依赖 Level 1
+  ['UserSettings', 'userSettings'],
+  ['PasswordChangeRequest', 'passwordChangeRequest'],
+  ['PasswordResetRequest', 'passwordResetRequest'],
   ['SupplierContact', 'supplierContact'],
   ['SupplierQualification', 'supplierQualification'],
   ['SupplierEvaluation', 'supplierEvaluation'],
   ['SupplierChangeRecord', 'supplierChangeRecord'],
   ['SupplierBidSubmission', 'supplierBidSubmission'],
   ['BidScoreRecord', 'bidScoreRecord'],
+  ['BidScoreDelta', 'bidScoreDelta'],
   ['BidOpeningRecord', 'bidOpeningRecord'],
   ['BidClarification', 'bidClarification'],
   ['BidSupervisionLog', 'bidSupervisionLog'],
   ['BidSupervisionAnnotation', 'bidSupervisionAnnotation'],
-  ['NotificationDeliveryLog', 'notificationDeliveryLog'],
-  ['BudgetItem', 'budgetItem'],
-  ['AnnouncementAttachment', 'announcementAttachment'],
   ['BidDocument', 'bidDocument'],
   ['BidDocumentAccess', 'bidDocumentAccess'],
-  ['UserFavorite', 'userFavorite'], // Level 2：依赖 User + CatalogItem
-  ['AuditLog', 'auditLog'], // Level 2：依赖 User
-  ['assistant_conversations', 'assistantConversation'], // Level 2：依赖 User（可选 userId）
-  ['assistant_alerts', 'assistantAlert'], // Level 2：依赖 User
-  ['SupplierCatalogApplication', 'supplierCatalogApplication'], // Level 2：依赖 Supplier + CatalogItem
-  ['CatalogSupplier', 'catalogSupplier'], // Level 2：依赖 CatalogItem + Supplier
-  ['assistant_messages', 'assistantMessage'], // Level 2：依赖 assistant_conversations
-  ['AssistantActionLog', 'assistantActionLog'], // Level 2：依赖 assistant_conversations（可选）
-  ['BidEvaluationResult', 'bidEvaluationResult'], // Level 2：依赖 BidProject
-  ['WorkArrangement', 'workArrangement'], // Level 2：依赖 User
+  ['BidRequirementReview', 'bidRequirementReview'],
+  ['BidEvaluationResult', 'bidEvaluationResult'],
+  ['BudgetItem', 'budgetItem'],
+  ['AnnouncementAttachment', 'announcementAttachment'],
+  ['NotificationDeliveryLog', 'notificationDeliveryLog'],
+  ['UserFavorite', 'userFavorite'],
+  ['AuditLog', 'auditLog'],
+  ['CatalogSupplier', 'catalogSupplier'],
+  ['SupplierCatalogApplication', 'supplierCatalogApplication'],
+  ['AssistantConversation', 'assistantConversation'],
+  ['AssistantAlert', 'assistantAlert'],
+  ['AssistantMessage', 'assistantMessage'],
+  ['AssistantActionLog', 'assistantActionLog'],
+  ['ExpertEvaluation', 'expertEvaluation'],
+  ['RoundParticipant', 'roundParticipant'],
+  ['ProjectManagementStage', 'projectManagementStage'],
+  ['WorkArrangement', 'workArrangement'],
+  ['WorkArrangementTemplate', 'workArrangementTemplate'],
+  ['Attachment', 'attachment'],
+  ['KnowledgeFile', 'knowledgeFile'],
+  ['ComplianceRule', 'complianceRule'],
+  ['ReviewTask', 'reviewTask'],
+  ['TenderFieldSample', 'tenderFieldSample'],
+  ['TenderDocumentHistory', 'tenderDocumentHistory'],
+  ['ExtractionTask', 'extractionTask'],
+  ['DocumentChunk', 'documentChunk'],
+  ['AiBidAnalysisTask', 'aiBidAnalysisTask'],
   // Level 3 —— 依赖 Level 2
+  ['WorkArrangementDailyPlanCache', 'workArrangementDailyPlanCache'],
+  ['WorkArrangementDependency', 'workArrangementDependency'],
   ['WorkArrangementNote', 'workArrangementNote'],
+  ['AiBidderResult', 'aiBidderResult'],
+  ['AiBidReport', 'aiBidReport'],
+  ['AiConcordanceResult', 'aiConcordanceResult'],
 ];
 
 /**
