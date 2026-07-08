@@ -272,7 +272,7 @@ export function AppShell({
             </div>
           </header>
 
-          <div aria-hidden className="mx-3.5 h-px bg-[linear-gradient(90deg,transparent,rgba(184,199,227,0.55),transparent)]" />
+          <div aria-hidden className="mx-3.5 h-px bg-[linear-gradient(90deg,transparent,rgba(160,178,210,0.70),transparent)]" />
 
           <nav className="sidebar-scroll sidebar-nav mt-1.5 min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-1">
             {visibleGroups.map((group) => {
@@ -301,7 +301,7 @@ export function AppShell({
                   </button>
 
                   {/* 分组子项 */}
-                  <div className={`sidebar-group-panel ml-1 border-l border-white/40 pl-1.5 ${!isCollapsed ? "is-open" : ""}`}>
+                  <div className={`sidebar-group-panel ml-1 border-l border-white/60 pl-1.5 ${!isCollapsed ? "is-open" : ""}`}>
                       <div className="space-y-0.5">
                       {group.items.map((item) => {
                         const Icon = item.icon;
@@ -336,7 +336,7 @@ export function AppShell({
             type="button"
             onClick={() => setSidebarHidden(true)}
             aria-label="收起菜单栏"
-            className="sidebar-edge-tab group absolute right-0 top-1/2 z-20 flex h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-l-[7px] border border-r-0 border-white/70 bg-[linear-gradient(90deg,rgba(241,245,251,0.45),rgba(255,255,255,0.92))] text-[color:var(--muted-foreground)] shadow-[-4px_0_7px_-3px_rgba(69,99,158,0.16)] transition-colors duration-200 hover:bg-white hover:text-[color:var(--accent)]"
+            className="sidebar-edge-tab group absolute right-0 top-1/2 z-20 flex h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-l-[7px] border border-r-0 border-white/85 bg-[linear-gradient(90deg,rgba(241,245,251,0.62),rgba(255,255,255,0.95))] text-[color:var(--muted-foreground)] shadow-[-4px_0_7px_-3px_rgba(69,99,158,0.22)] transition-colors duration-200 hover:bg-white hover:text-[color:var(--accent)]"
           >
             <ChevronLeft size={12} />
           </button>
@@ -347,7 +347,7 @@ export function AppShell({
             type="button"
             onClick={() => setSidebarHidden(false)}
             aria-label="展开菜单栏"
-            className="sidebar-edge-tab interactive-surface group fixed left-0 top-1/2 z-30 hidden h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-r-[7px] border border-l-0 border-white/70 bg-[linear-gradient(270deg,rgba(241,245,251,0.45),rgba(255,255,255,0.92))] text-[color:var(--muted-foreground)] shadow-[4px_0_7px_-3px_rgba(69,99,158,0.16)] transition-colors duration-200 hover:bg-white hover:text-[color:var(--accent)] lg:flex"
+            className="sidebar-edge-tab interactive-surface group fixed left-0 top-1/2 z-30 hidden h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-r-[7px] border border-l-0 border-white/85 bg-[linear-gradient(270deg,rgba(241,245,251,0.62),rgba(255,255,255,0.95))] text-[color:var(--muted-foreground)] shadow-[4px_0_7px_-3px_rgba(69,99,158,0.22)] transition-colors duration-200 hover:bg-white hover:text-[color:var(--accent)] lg:flex"
           >
             <ChevronRight size={12} />
           </button>

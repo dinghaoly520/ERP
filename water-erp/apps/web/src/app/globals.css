@@ -8828,10 +8828,9 @@ select.workbench-input {
 .neu-table tbody tr:hover {
   background: oklch(0.97 0.008 258);
 }
-/* 选中行 — 内凹 + 品牌色左侧条 */
+/* 选中行 — 内凹 + 品牌蓝淡底 */
 .neu-table tbody tr[data-selected="true"] {
   background: oklch(0.96 0.03 251 / 0.32);
-  box-shadow: inset 3px 0 0 var(--accent-strong);
 }
 .neu-table tbody tr[data-selected="true"]:hover {
   background: oklch(0.95 0.035 251 / 0.4);

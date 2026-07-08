@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertCircle, ArrowDown, ArrowRight, ArrowUp,
@@ -406,6 +407,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
   const [showDP,setShowDP] = useState(false);
   const [startDate,setStartDate] = useState("");
   const [endDate,setEndDate] = useState("");
+  const dateBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(()=>{fetchAiCalibration().then(setCalibration).catch(()=>{});},[]);
 
@@ -478,8 +480,9 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
             )}
             <div className="relative">
               {showDP && <div className="fixed inset-0 z-[999]" onClick={()=>setShowDP(false)}/>}
-              <button onClick={()=>setShowDP(!showDP)} className="neu-btn-xs flex items-center gap-1.5"><CalendarRange size={12}/> {data.range.startDate??"起始"} ~ {data.range.endDate??"至今"}</button>
-              {showDP && <div className="absolute right-0 top-full mt-2 z-[1000] w-[288px] rounded-[18px] bg-[var(--background)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.15)] ring-1 ring-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
+              <button ref={dateBtnRef} onClick={()=>setShowDP(!showDP)} className="neu-btn-xs flex items-center gap-1.5"><CalendarRange size={12}/> {data.range.startDate??"起始"} ~ {data.range.endDate??"至今"}</button>
+              {showDP && createPortal(
+                <div className="fixed z-[1000] w-[288px] rounded-[18px] bg-[var(--background)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.15)] ring-1 ring-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]" style={{top: (dateBtnRef.current?.getBoundingClientRect().bottom ?? 120) + 8, right: window.innerWidth - (dateBtnRef.current?.getBoundingClientRect().right ?? window.innerWidth - 16)}}>
                 <div className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-2">快捷选择</div>
                 <div className="grid grid-cols-3 gap-1.5 mb-3">
                   {(["tm","tq","fh","fy","lm","lq"] as const).map(k=><button key={k} onClick={()=>dp[k]()} className="neu-btn-xs !px-2 !py-1 !text-[10px]">{{tm:"本月",tq:"本季度",fh:"上半年",fy:"全年",lm:"上月",lq:"上季度"}[k]}</button>)}
@@ -488,7 +491,9 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
                 <div className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-2 mt-3">自定义范围</div>
                 <div className="grid grid-cols-2 gap-2 mb-3"><div><label className="text-xs text-[var(--muted-foreground)] mb-1 block">起始</label><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="neu-input !h-[32px] !text-[10px] !px-2"/></div><div><label className="text-xs text-[var(--muted-foreground)] mb-1 block">结束</label><input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className="neu-input !h-[32px] !text-[10px] !px-2"/></div></div>
                 <div className="flex items-center justify-between"><button onClick={hrdr} className="neu-btn-soft !py-1 !px-3 !text-[10px]">重置</button><button onClick={hadr} className="neu-btn-primary !h-[32px] !text-[10px] !px-3">应用</button></div>
-              </div>}
+              </div>,
+                document.body
+              )}
             </div>
           </div>
         </div>
