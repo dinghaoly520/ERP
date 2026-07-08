@@ -139,7 +139,7 @@ export function TenderWriteWorkspace({
 
         <section
           data-tender-panel="editor"
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] wb-panel p-3 tender-section-enter-delay-1"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] wb-panel p-2 tender-section-enter-delay-1"
         >
           <div className="flex min-h-0 flex-1 flex-col">
             <div
