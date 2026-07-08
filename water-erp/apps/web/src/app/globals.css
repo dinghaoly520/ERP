@@ -6271,27 +6271,19 @@ a {
   position: relative;
   display: grid;
   gap: 0.75rem;
-  padding: 0 0 0.75rem;
-  border-radius: 0;
+  padding: 0.625rem 0.75rem;
+  border-radius: 8px;
   border: none;
-  border-bottom: 1px solid oklch(0.6 0.04 258 / 0.14);
-  background: transparent;
-  transition:
-    border-color 0.25s ease,
-    background 0.25s ease;
-}
-.tender-field-card:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+  background: oklch(0.55 0.02 258 / 0.03);
+  transition: background 0.25s ease;
 }
 .tender-field-card:hover {
-  border-bottom-color: oklch(0.55 0.08 258 / 0.22);
+  background: oklch(1 0 0 / 0.2);
 }
 .tender-field-card--filled,
 .tender-field-card--active,
 .tender-field-card--recent {
-  border-bottom-color: oklch(0.6 0.04 258 / 0.14);
-  background: transparent;
+  background: oklch(0.55 0.02 258 / 0.03);
 }
 
 .tender-field-meta {
