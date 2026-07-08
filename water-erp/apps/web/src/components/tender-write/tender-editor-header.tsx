@@ -37,7 +37,7 @@ export function TenderEditorHeader({
               <span className="text-[10px] text-[color:var(--muted-foreground)]">{statusText}</span>
             )}
           </div>
-          <h2 className="mt-2.5 text-[1.05rem] font-semibold tracking-[-0.025em] text-[color:var(--foreground)]">
+          <h2 className="mt-2 text-[0.85rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
             {section.title}
           </h2>
           <p className="mt-1.5 max-w-[58ch] text-xs leading-5 text-[color:var(--muted-foreground)]">
