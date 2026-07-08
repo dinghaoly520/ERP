@@ -23,7 +23,7 @@ export function TenderEditorHeader({
       : `还差 ${remainingFields} 项即可完成本节填写。`;
 
   return (
-    <div className="wb-panel p-5">
+    <div className="wb-panel p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
