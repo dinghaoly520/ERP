@@ -6275,10 +6275,6 @@ a {
   border-radius: 0;
   border: none;
   background: transparent;
-  transition: background 0.25s ease;
-}
-.tender-field-card:hover {
-  background: oklch(1 0 0 / 0.15);
 }
 .tender-field-card--filled,
 .tender-field-card--active,
