@@ -6283,17 +6283,11 @@ a {
   border-color: oklch(0.55 0.05 258 / 0.1);
   background: oklch(1 0 0 / 0.2);
 }
-.tender-field-card--filled {
-  border-color: oklch(0.6 0.1 164 / 0.12);
-  background: oklch(0.96 0.02 164 / 0.15);
-}
-.tender-field-card--active {
-  border-color: oklch(0.5 0.16 258 / 0.2);
-  background: oklch(0.5 0.16 258 / 0.06);
-}
+.tender-field-card--filled,
+.tender-field-card--active,
 .tender-field-card--recent {
-  border-color: oklch(0.5 0.16 258 / 0.18);
-  background: oklch(0.5 0.16 258 / 0.08);
+  border-color: transparent;
+  background: transparent;
 }
 
 .tender-field-meta {
