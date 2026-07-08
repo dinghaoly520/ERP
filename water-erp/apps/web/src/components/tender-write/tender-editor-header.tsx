@@ -44,24 +44,24 @@ export function TenderEditorHeader({
             {section.description}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={onPrevious}
-            disabled={isFirst}
-            className="neu-btn-soft"
-          >
-            上一组
-          </button>
-          <button
-            type="button"
-            onClick={onNext}
-            disabled={isLast}
-            className="neu-btn-primary"
-          >
-            下一组
-          </button>
-        </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={onPrevious}
+              disabled={isFirst}
+              className="neu-btn-soft !h-[44px]"
+            >
+              上一组
+            </button>
+            <button
+              type="button"
+              onClick={onNext}
+              disabled={isLast}
+              className="neu-btn-primary !h-[44px]"
+            >
+              下一组
+            </button>
+          </div>
       </div>
       <div className="mt-4 flex items-center gap-3">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[oklch(0.55_0.03_258_/_0.1)]">

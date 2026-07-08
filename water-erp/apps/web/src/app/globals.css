@@ -6322,35 +6322,33 @@ a {
   min-height: 48px;
   width: 100%;
   border-radius: 10px;
-  border: 1px solid oklch(0.6 0.04 258 / 0.25);
-  background: oklch(1 0 0 / 0.5);
+  border: 1px solid oklch(0.55 0.05 258 / 0.18);
+  background: oklch(0.99 0.004 258);
   padding: 0.75rem 0.875rem;
   font-size: 0.875rem;
   line-height: 1.65;
   color: var(--foreground);
   outline: none;
   box-shadow:
-    inset 1px 1px 3px oklch(0.55 0.03 258 / 0.06),
-    inset -1px -1px 2px oklch(1 0 0 / 0.5);
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12),
+    inset -2px -2px 5px oklch(1 0 0 / 0.8);
   transition:
     border-color 0.2s var(--ease-out-quint),
     box-shadow 0.2s var(--ease-out-quint),
     background 0.2s var(--ease-out-quint);
 }
 .tender-field-input:hover {
-  border-color: oklch(0.55 0.06 258 / 0.35);
-  background: oklch(1 0 0 / 0.65);
+  border-color: oklch(0.5 0.08 258 / 0.25);
 }
 .tender-field-input:focus {
-  border-color: oklch(0.5 0.16 258 / 0.35);
-  background: oklch(1 0 0 / 0.8);
+  border-color: oklch(0.5 0.16 258 / 0.4);
   box-shadow:
-    inset 1px 1px 3px oklch(0.55 0.03 258 / 0.04),
-    inset -1px -1px 2px oklch(1 0 0 / 0.35),
-    0 0 0 3px oklch(0.5 0.16 258 / 0.06);
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.08),
+    inset -2px -2px 5px oklch(1 0 0 / 0.6),
+    0 0 0 3px oklch(0.5 0.16 258 / 0.08);
 }
 .tender-field-input::placeholder {
-  color: oklch(0.6 0.03 258 / 0.6);
+  color: oklch(0.58 0.03 258 / 0.55);
 }
 
 /* Month input picker styling */
