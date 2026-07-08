@@ -6271,19 +6271,19 @@ a {
   position: relative;
   display: grid;
   gap: 0.75rem;
-  padding: 0.75rem 0.875rem;
-  border-radius: 8px;
+  padding: 0.625rem 0.5rem;
+  border-radius: 0;
   border: none;
-  background: oklch(0.97 0.008 258);
+  background: transparent;
   transition: background 0.25s ease;
 }
 .tender-field-card:hover {
-  background: oklch(1 0 0 / 0.2);
+  background: oklch(1 0 0 / 0.15);
 }
 .tender-field-card--filled,
 .tender-field-card--active,
 .tender-field-card--recent {
-  background: oklch(0.97 0.008 258);
+  background: transparent;
 }
 
 .tender-field-meta {
