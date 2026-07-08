@@ -20,6 +20,7 @@ import {
   Sparkles,
   TrendingUp,
   User,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { type AuthRole } from "@/lib/api/auth";
@@ -587,6 +588,40 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
           <KpiCard label="平均停滞" value={avgStalled} sub="天未更新" signal={avgStalled > 7 ? "danger" : avgStalled > 3 ? "warning" : undefined} index={6} reducedMotion={reducedMotion} />
           <KpiCard label="集中阶段" value={dominantStage?.label ?? "暂无"} sub="项目最密集阶段" index={7} reducedMotion={reducedMotion} />
         </div>
+        </div>
+
+        {/* 搜索 + 排序/筛选行 */}
+        <div className="flex flex-wrap items-center gap-3" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.8rem" }}>
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)] z-10" />
+            <input type="text" value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="搜索项目、申请人、部门..." className="neu-input !pl-9" />
+            {keyword && (
+              <button onClick={() => setKeyword('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[color:var(--muted-foreground)] z-10">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="workbench-input !w-auto min-w-[110px]">
+              <option value="updatedAt">按更新时间</option>
+              <option value="budgetDesc">预算 高→低</option>
+              <option value="progressAsc">完成度 低→高</option>
+              <option value="stalledDesc">停滞天数 高→低</option>
+            </select>
+            <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">筛选</span>
+            <select value={selectedStage ?? ""} onChange={(e) => setSelectedStage(e.target.value || null)} className="workbench-input !w-auto min-w-[110px]">
+              <option value="">全部阶段</option>
+              {PROJECT_WORKFLOW_STAGES_ALL.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
+            </select>
+            <select value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} className="workbench-input !w-auto min-w-[110px]">
+              <option value="">全部项目</option>
+              {projectNames.map((n, i) => (<option key={`${n}-${i}`} value={n}>{n}</option>))}
+            </select>
+          </div>
+          {activeFilterCount > 0 && (
+            <button onClick={clearAll} className="neu-btn-soft is-danger"><Filter size={11} /> 清除</button>
+          )}
         </div>
       </motion.div>
 
