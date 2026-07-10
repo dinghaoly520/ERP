@@ -13,8 +13,6 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["lucide-react", "framer-motion"],
     // 缓存 Server Component fetch 响应，加速 HMR
     serverComponentsHmrCache: true,
-    // 降低 Webpack 内存峰值
-    webpackMemoryOptimizations: true,
   },
   async rewrites() {
     return [
