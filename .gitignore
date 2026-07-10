@@ -11,6 +11,7 @@ dist/
 .claude/
 .superpowers/
 .worktrees/
+water-erp/apps/api/uploads/
 
 # Build artifacts & caches (auto-generated; do not track)
 *.tsbuildinfo

@@ -1,4 +1,8 @@
-import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import { execSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ExpertConflictService } from './expert-conflict.service';
@@ -417,7 +421,39 @@ export class ExpertService {
       },
     });
 
-    return { buffer: plaintext, fileName: doc.fileAsset.originalName, mimeType: 'application/pdf' };
+    return { buffer: this.maybeConvertDocxToPdf(plaintext, doc.fileAsset.originalName), fileName: this.pdfFileName(doc.fileAsset.originalName), mimeType: 'application/pdf' };
+  }
+
+  /** 如果 plaintext 是 .docx/.doc，则用 LibreOffice 转换为 PDF；否则原样返回。 */
+  private maybeConvertDocxToPdf(plaintext: Buffer, originalName: string): Buffer {
+    if (!/\.docx?$/i.test(originalName)) return plaintext;
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tender-docx-'));
+    try {
+      const docxPath = path.join(tmpDir, originalName);
+      fs.writeFileSync(docxPath, plaintext);
+      execSync(`libreoffice --headless --convert-to pdf --outdir "${tmpDir}" "${docxPath}"`, {
+        timeout: 60_000,
+        stdio: 'pipe',
+      });
+      const pdfPath = path.join(tmpDir, originalName.replace(/\.docx?$/i, '.pdf'));
+      if (fs.existsSync(pdfPath)) {
+        return fs.readFileSync(pdfPath);
+      }
+      return plaintext;
+    } catch (err: any) {
+      console.warn(`[ExpertService] LibreOffice docx→pdf failed for ${originalName}: ${err?.message ?? err}`);
+      return plaintext;
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  /** 把 .docx/.doc 文件名的扩展名替换为 .pdf；非 Word 文件保留原名。 */
+  private pdfFileName(originalName: string): string {
+    if (/\.docx?$/i.test(originalName)) {
+      return originalName.replace(/\.docx?$/i, '.pdf');
+    }
+    return originalName;
   }
 
   /* ── 投标文件解密下载（专家预览投标人 PDF）── */

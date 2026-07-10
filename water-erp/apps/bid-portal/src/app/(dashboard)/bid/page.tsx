@@ -385,7 +385,7 @@ export default function BidDashboard() {
       </DataToolbar>
 
       {/* ── Project table ── */}
-      <SectionCard title="项目状态" className="overflow-hidden p-0">
+      <SectionCard title="项目状态" className="overflow-hidden pt-5 px-5 pb-0">
         <div className="overflow-x-auto">
           {loading ? (
             <TableSkeleton rows={8} cols={8} />
