@@ -77,10 +77,9 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['BidProject', 'bidProject'],
   ['Announcement', 'announcement'],
   ['CatalogItem', 'catalogItem'],
-  ['BudgetList', 'budgetList'],
-  ['ProcurementProject', 'procurementProject'],
   // Level 1 —— 依赖 Level 0
   ['User', 'user'],
+  ['ProcurementProject', 'procurementProject'],
   ['FileAsset', 'fileAsset'],
   ['ExpertProfile', 'expertProfile'],
   ['Notification', 'notification'],
@@ -97,6 +96,7 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['ProcurementRound', 'procurementRound'],
   ['KnowledgeBase', 'knowledgeBase'],
   ['Contact', 'contact'],
+  ['BudgetList', 'budgetList'],
   // Level 2 —— 依赖 Level 1
   ['UserSettings', 'userSettings'],
   ['PasswordChangeRequest', 'passwordChangeRequest'],
