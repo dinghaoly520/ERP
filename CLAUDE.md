@@ -193,7 +193,7 @@ pnpm --filter <app> lint
 
 ### Node 24 + Turbopack
 
-Next.js 16 defaults to Turbopack which depends on `lightningcss` (unsupported on Node 24). **Workaround:** all Next.js `dev` scripts use `--webpack`. Do NOT merge `--webpack` to `main`; remove once lightningcss adds Node 24 support.
+Next.js 16 defaults to Turbopack, and all `dev` scripts use it (no `--webpack`). An earlier Node 24 incompatibility with `lightningcss` (the Turbopack CSS backend) once forced every `dev` script onto `--webpack`; this is resolved as of `lightningcss` 1.32.0 on Node 24.16, so `--webpack` has been removed and the webpack-only `webpackMemoryOptimizations` flag dropped from `web/next.config.ts`. Do not reintroduce `--webpack`. If a Turbopack CSS regression appears, verify the native binding before falling back: `node -e "require('lightningcss').transform({filename:'a.css',code:Buffer.from('.a{color:red}')})"`.
 
 `packages/config` and `packages/shared` compile to `dist/` — re-run their build after editing either.
 
