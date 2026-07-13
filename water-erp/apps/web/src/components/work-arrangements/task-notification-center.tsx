@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, UserCheck, Tag, AlertTriangle, Bell } from 'lucide-react';
 import { AiPlanningPanel } from '@/components/work-arrangements/ai-planning-panel';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
-import { useNotifications } from '@/lib/hooks/use-notifications';
 import type { NotificationItem } from '@/lib/api/notification';
-
+import { useNotifications } from '@/lib/hooks/use-notifications';
 export interface PlannedItem {
   title: string;
   estimatedMinutes: number;
@@ -75,7 +74,7 @@ export function TaskNotificationCenter({
   onShowHistory,
 }: TaskNotificationCenterProps) {
   const router = useRouter();
-  const { recent, markRead } = useNotifications();
+  const { recent } = useNotifications();
 
   const groups = useMemo(() => {
     const byType = new Map<string, NotificationItem[]>();
@@ -105,10 +104,7 @@ export function TaskNotificationCenter({
       );
   }, [recent]);
 
-  const handleGroupClick = async (def: GroupDef, items: NotificationItem[]) => {
-    for (const item of items.filter((n) => !n.isRead)) {
-      await markRead(item.id);
-    }
+  const handleGroupClick = (def: GroupDef) => {
     router.push(def.link);
   };
 
@@ -142,18 +138,11 @@ export function TaskNotificationCenter({
       <div className="wb-panel-body flex flex-col gap-3">
         {/* 按模块分组，每行一组 */}
         {groups.map((g) => {
-          const byType = new Map<string, NotificationItem[]>();
-          for (const item of recent) {
-            const list = byType.get(item.type) || [];
-            list.push(item);
-            byType.set(item.type, list);
-          }
-          const items = byType.get(g.type) || [];
           return (
             <button
               key={g.type}
               type="button"
-              onClick={() => handleGroupClick(g, items)}
+              onClick={() => handleGroupClick(g)}
               className="group flex items-center gap-3 rounded-[12px] px-3.5 py-2.5 text-left transition hover:bg-[var(--accent-soft)]/10"
             >
               {/* 图标 */}
