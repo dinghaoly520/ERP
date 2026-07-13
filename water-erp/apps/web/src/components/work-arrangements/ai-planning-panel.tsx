@@ -42,10 +42,7 @@ export function AiPlanningPanel({
     <section className="flex flex-col">
       {/* 标题行 */}
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]">
-          <Sparkles size={14} className="mr-1.5 inline-block" />
-          AI 辅助
-        </p>
+        <p className="text-[15px] font-bold text-[#18243a]">AI 辅助</p>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
