@@ -39,7 +39,7 @@ describe('Bid Lifecycle (e2e)', () => {
 
     prisma = app.get(PrismaService);
 
-    adminCookie = await loginAs(app, 'caigou', 'caigou@2026', 'web');
+    adminCookie = await loginAs(app, '陈主任', 'czr@2026', 'web');
     supplierCookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
   });
 
@@ -53,10 +53,11 @@ describe('Bid Lifecycle (e2e)', () => {
   });
 
   let createdProjectId: string;
+  let createdProjectCode: string;
   let createdSupplierId: string;
 
-  it('管理员可创建招标项目', () => {
-    return request(app.getHttpServer())
+  it('管理员可创建招标项目', async () => {
+    const res = await request(app.getHttpServer())
       .post('/api/bid/projects')
       .set('Cookie', adminCookie)
       .set('X-Portal', 'web')
@@ -66,13 +67,27 @@ describe('Bid Lifecycle (e2e)', () => {
         openTime: '2099-12-31T09:00:00Z',
         deadline: '2099-12-30T17:00:00Z',
       })
-      .expect(201)
-      .expect(res => {
-        expect(res.body).toHaveProperty('id');
-        expect(res.body).toHaveProperty('projectCode');
-        expect(res.body.stage).toBe('DOWNLOAD');
-        createdProjectId = res.body.id;
-      });
+      .expect(201);
+    expect(res.body).toHaveProperty('id');
+    expect(res.body).toHaveProperty('projectCode');
+    expect(res.body.stage).toBe('DOWNLOAD');
+    createdProjectId = res.body.id;
+    createdProjectCode = res.body.projectCode;
+
+    // G3：开放投递（DOWNLOAD→SUBMIT）前必须先发布关联的招标公示，否则 openSubmission 抛 409
+    await request(app.getHttpServer())
+      .post('/api/announcements')
+      .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
+      .send({
+        title: `E2E招标公示-${Date.now()}`,
+        content: '<p>E2E 测试招标公示</p>',
+        type: 'BID_NOTICE',
+        status: 'PUBLISHED',
+        relatedProjectCode: createdProjectCode,
+        aiSummary: 'E2E 测试摘要', // 给定 aiSummary 跳过 LLM 摘要调用
+      })
+      .expect(201);
   });
 
   it('管理员可推进阶段 DOWNLOAD → SUBMIT', () => {

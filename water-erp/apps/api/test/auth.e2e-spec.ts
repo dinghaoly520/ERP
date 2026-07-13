@@ -90,7 +90,7 @@ describe('Auth (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/login')
       .set('X-Portal', 'web')
-      .send({ username: 'caigou', password: 'caigou@2026' })
+      .send({ username: '陈主任', password: 'czr@2026' })
       .expect(200);
 
     expect(res.headers['set-cookie']).toBeDefined();
@@ -146,7 +146,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('专家不能创建招标项目', async () => {
-      const cookie = await loginAs(app, 'wangjg', 'wangjg@2026', 'expert');
+      const cookie = await loginAs(app, '刘苡池', 'expert@2026', 'expert');
 
       await request(app.getHttpServer())
         .post('/api/bid/projects')
@@ -157,7 +157,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('专家不能访问 AI 管理端接口', async () => {
-      const cookie = await loginAs(app, 'wangjg', 'wangjg@2026', 'expert');
+      const cookie = await loginAs(app, '刘苡池', 'expert@2026', 'expert');
 
       await request(app.getHttpServer())
         .get('/api/ai/projects/fake-id/anomalies')
