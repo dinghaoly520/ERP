@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { WorkbenchOverview } from "@/components/work-arrangements/workbench-overview";
 import { SchedulePanel } from "@/components/work-arrangements/schedule-panel";
-import { TaskDetailPanel } from "@/components/work-arrangements/task-detail-panel";
-import { AiAssistPanel } from "@/components/work-arrangements/ai-assist-panel";
+import { TaskNotificationCenter } from "@/components/work-arrangements/task-notification-center";
+import { TaskDetailModal } from "@/components/work-arrangements/task-detail-modal";
+import type { PlannedItem } from "@/components/work-arrangements/ai-planning-panel";
 import { WorkTaskEditorDrawer } from "@/components/work-arrangements/work-task-editor-drawer";
 import { HistoryDrawer } from "@/components/work-arrangements/history-drawer";
 import { ReminderBanner } from "@/components/work-arrangements/reminder-banner";
@@ -253,8 +254,8 @@ export function WorkArrangementsPage({
   const [noteType, setNoteType] = useState<WorkArrangementNoteType>("PROGRESS");
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<string[]>([]);
   const [showFullEditor, setShowFullEditor] = useState(false);
-  const [showNotesPanel, setShowNotesPanel] = useState(false);
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
   const [activeReminders, setActiveReminders] = useState<ReminderInfo[]>([]);
 
   const linkedProject =
@@ -547,6 +548,7 @@ export function WorkArrangementsPage({
     setSelectedItemId(taskId);
     setNoteDraft("");
     setCreating(false);
+    setShowTaskModal(true);
   };
 
   const handleSave = async () => {
@@ -679,6 +681,56 @@ export function WorkArrangementsPage({
     }
   };
 
+  const handleAddToCalendar = async (plannedItems: PlannedItem[]) => {
+    setSaving(true);
+    setErrorMessage(null);
+    let createdCount = 0;
+    try {
+      for (const item of plannedItems) {
+        const now = new Date();
+        const startHour = 10 + Math.floor(createdCount * 0.5);
+        const startMinute = (createdCount * 30) % 60;
+        const blockStart = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          startHour,
+          startMinute,
+        );
+        const blockEnd = new Date(
+          blockStart.getTime() + item.estimatedMinutes * 60 * 1000,
+        );
+        await createWorkArrangement({
+          title: `[待办] ${item.title}`,
+          description: item.notificationId
+            ? `关联通知: ${item.notificationId}`
+            : undefined,
+          type: 'FOLLOW_UP',
+          urgency: 'HIGH',
+          status: 'TODO',
+          dueAt: blockEnd.toISOString(),
+          reminderAt: blockStart.toISOString(),
+          estimatedMinutes: item.estimatedMinutes,
+          isAllDay: false,
+          customTags: ['AI安排'],
+          recurrence: 'NONE',
+          projectManagementItemId: null,
+          dependencyIds: [],
+          completionSummary: null,
+          reflectionSummary: null,
+        });
+        createdCount++;
+      }
+      const { toast } = await import('sonner');
+      toast.success(`已添加 ${createdCount} 个事项到今日日程`);
+      await loadWorkspace(false, true);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '添加日程失败。');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // 处理提醒 Banner 的操作
   const handleReminderView = (taskId: string) => {
     handleSelectTask(taskId);
@@ -765,8 +817,13 @@ export function WorkArrangementsPage({
           </div>
           {/* 右列 — 自然高度 */}
           <div className="flex-1 min-w-0 flex flex-col gap-4">
-            <TaskDetailPanel item={selectedItem} reminderState={selectedReminderState} noteType={noteType} noteDraft={noteDraft} noteSubmitting={noteSubmitting} showNotesPanel={showNotesPanel} onStart={() => void handleQuickStatusUpdate('IN_PROGRESS')} onComplete={() => void handleQuickStatusUpdate('COMPLETED')} onBlock={() => void handleQuickStatusUpdate('BLOCKED')} onUnblock={() => void handleUnblock()} onCancel={() => void handleCancel()} onPostponeReminder={() => void handlePostponeReminder()} onOpenFullEditor={() => setShowFullEditor(true)} onOpenNotes={() => setShowNotesPanel(true)} onNoteTypeChange={setNoteType} onNoteDraftChange={setNoteDraft} onSubmitNote={() => void handleAddNote()}/>
-            <AiAssistPanel dailyPlan={dailyPlan} refreshingPlan={refreshingPlan} isChairman={false} showProjectBrief={currentUser?.role === 'leader' || currentUser?.role === 'admin'} onSelectTimeBlock={(taskIds) => { setHighlightedTaskIds(taskIds); const id = taskIds[0]; if (id) handleSelectTask(id); }} onRefreshPlan={() => void loadDailyPlan()} onShowHistory={() => setShowHistoryDrawer(true)}/>
+            <TaskNotificationCenter
+              dailyPlan={dailyPlan}
+              refreshingPlan={refreshingPlan}
+              onRefreshPlan={() => void loadDailyPlan()}
+              onAddToCalendar={handleAddToCalendar}
+              onShowHistory={() => setShowHistoryDrawer(true)}
+            />
           </div>
         </div>
 
@@ -803,6 +860,33 @@ export function WorkArrangementsPage({
         onSave={() => void handleSave()}
         onDelete={() => void handleDelete()}
         onChange={setEditor}
+      />
+
+      {/* 任务详情弹窗 */}
+      <TaskDetailModal
+        open={showTaskModal}
+        item={selectedItem}
+        reminderState={selectedReminderState}
+        noteType={noteType}
+        noteDraft={noteDraft}
+        noteSubmitting={noteSubmitting}
+        onClose={() => {
+          setShowTaskModal(false);
+          refreshTasksOnly(true);
+        }}
+        onStart={() => void handleQuickStatusUpdate('IN_PROGRESS')}
+        onComplete={() => void handleQuickStatusUpdate('COMPLETED')}
+        onBlock={() => void handleQuickStatusUpdate('BLOCKED')}
+        onUnblock={() => void handleUnblock()}
+        onCancel={() => void handleCancel()}
+        onPostponeReminder={() => void handlePostponeReminder()}
+        onOpenFullEditor={() => {
+          setShowTaskModal(false);
+          setShowFullEditor(true);
+        }}
+        onNoteTypeChange={setNoteType}
+        onNoteDraftChange={setNoteDraft}
+        onSubmitNote={() => void handleAddNote()}
       />
 
       {/* 历史记录抽屉 */}

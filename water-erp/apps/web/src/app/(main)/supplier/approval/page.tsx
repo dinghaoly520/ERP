@@ -296,10 +296,10 @@ function SupplierApprovalPage() {
               共 <strong className="font-semibold text-[var(--foreground)]">{data.total}</strong> 条 · 第 {page}/{totalPages} 页
             </span>
             <div className="flex gap-1.5">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-30">
+              <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="neu-btn-xs disabled:opacity-30">
                 <ChevronUp size={14} className="rotate-[-90deg]" />
               </button>
-              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-30">
+              <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="neu-btn-xs disabled:opacity-30">
                 <ChevronUp size={14} className="rotate-90" />
               </button>
             </div>

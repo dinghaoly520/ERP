@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { WorkbenchOverview } from "@/components/work-arrangements/workbench-overview";
 import { SchedulePanel } from "@/components/work-arrangements/schedule-panel";
-import { TaskDetailPanel } from "@/components/work-arrangements/task-detail-panel";
+import { TaskDetailModal } from "@/components/work-arrangements/task-detail-modal";
 import { AiAssistPanel } from "@/components/work-arrangements/ai-assist-panel";
 import { WorkTaskEditorDrawer } from "@/components/work-arrangements/work-task-editor-drawer";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
@@ -145,6 +145,7 @@ export function WorkArrangementsPageChairman({
   const [noteSubmitting, setNoteSubmitting] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteType, setNoteType] = useState<WorkArrangementNoteType>("PROGRESS");
+  const [showTaskModal, setShowTaskModal] = useState(false);
 
   const linkedProject = useMemo(
     () =>
@@ -253,6 +254,7 @@ export function WorkArrangementsPageChairman({
     if (nextId) {
       const task = allItems.find((item) => item.id === nextId);
       if (task) setEditor(editorFromTask(task));
+      setShowTaskModal(true);
     }
   };
 
@@ -364,7 +366,6 @@ export function WorkArrangementsPageChairman({
           <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} />
         </div>
         <div className="flex-1 min-w-0 flex flex-col gap-4">
-          <TaskDetailPanel item={selectedItem} reminderState={selectedReminderState ?? ('NONE' as WorkArrangementReminderState)} noteType={noteType} noteDraft={noteDraft} noteSubmitting={noteSubmitting} showNotesPanel={!!selectedItem} onStart={() => void handleQuickStatusUpdate("IN_PROGRESS")} onComplete={() => void handleQuickStatusUpdate("COMPLETED")} onBlock={() => void handleQuickStatusUpdate("BLOCKED")} onUnblock={() => void handleQuickStatusUpdate("TODO")} onCancel={() => void handleQuickStatusUpdate("CANCELLED")} onPostponeReminder={async () => {}} onOpenFullEditor={handleOpenEditor} onOpenNotes={() => { if (selectedItem) { setNoteDraft(""); setNoteType("PROGRESS"); } }} onNoteTypeChange={setNoteType} onNoteDraftChange={setNoteDraft} onSubmitNote={() => void handleAddNote()} />
           <AiAssistPanel dailyPlan={dailyPlan} refreshingPlan={refreshingPlan} isChairman={true} showProjectBrief={false} onSelectTimeBlock={() => {}} onRefreshPlan={handleRefreshPlan} onShowHistory={() => {}} />
         </div>
       </div>
@@ -397,6 +398,32 @@ export function WorkArrangementsPageChairman({
         onDelete={() => void handleDelete()}
         onChange={setEditor}
       />
-    </>
+      {/* Task Detail Modal */}
+    <TaskDetailModal
+      open={showTaskModal}
+      item={selectedItem}
+      reminderState={selectedReminderState ?? ('NONE' as WorkArrangementReminderState)}
+      noteType={noteType}
+      noteDraft={noteDraft}
+      noteSubmitting={noteSubmitting}
+      onClose={() => {
+        setShowTaskModal(false);
+        refreshTasksOnly();
+      }}
+      onStart={() => void handleQuickStatusUpdate('IN_PROGRESS')}
+      onComplete={() => void handleQuickStatusUpdate('COMPLETED')}
+      onBlock={() => void handleQuickStatusUpdate('BLOCKED')}
+      onUnblock={() => void handleQuickStatusUpdate('TODO')}
+      onCancel={() => void handleQuickStatusUpdate('CANCELLED')}
+      onPostponeReminder={() => {}}
+      onOpenFullEditor={() => {
+        setShowTaskModal(false);
+        handleOpenEditor();
+      }}
+      onNoteTypeChange={setNoteType}
+      onNoteDraftChange={setNoteDraft}
+      onSubmitNote={() => void handleAddNote()}
+    />
+  </>
   );
 }
