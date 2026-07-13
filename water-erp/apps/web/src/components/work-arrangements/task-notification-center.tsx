@@ -106,15 +106,18 @@ export function TaskNotificationCenter({
         {/* KPI 区 */}
         <NotificationKpiBar derivedTodo={derivedTodo} todoItems={todoItems} />
 
-        {/* 通知卡片流 */}
+        {/* 通知内容流 — 直接展示每条通知的标题和内容 */}
         {sortedItems.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
+          <div className="flex flex-col">
+            <div className="mb-2.5 flex items-center justify-between">
               <span className="text-xs font-semibold text-[color:var(--muted-foreground)]">
-                待办事项 · {sortedItems.length} 项
+                通知内容 · {sortedItems.length} 条
               </span>
+              <span className="text-[10px] text-[color:var(--muted-foreground)]">
+                  {sortedItems.filter((n) => !n.isRead).length} 条未读
+                </span>
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2.5">
               {visibleItems.map((item) => (
                 <NotificationCard
                   key={item.id}
