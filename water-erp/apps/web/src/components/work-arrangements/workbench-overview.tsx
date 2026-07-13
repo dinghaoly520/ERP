@@ -60,9 +60,8 @@ export function WorkbenchOverview({
   const loading = !dailyPlan;
   const headerGreeting = dailyPlan?.headerGreeting ?? '';
 
-  const { derivedTodo } = useNotifications();
-  const notificationCount =
-    derivedTodo.supplierPending + derivedTodo.priceReview + derivedTodo.expiringQualifications;
+  const { recent } = useNotifications();
+  const notificationCount = recent.filter((n) => !n.isRead).length;
 
   const badges: StatBadge[] = [
     { key: 'notif', label: '通知待办', value: notificationCount, icon: Bell, color: '#7c3aed', bg: '#f5f3ff' },
