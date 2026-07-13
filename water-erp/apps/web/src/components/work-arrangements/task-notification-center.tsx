@@ -78,13 +78,13 @@ export function TaskNotificationCenter({
   onShowHistory,
 }: TaskNotificationCenterProps) {
   const router = useRouter();
-  const { derivedTodo, todoItems, markRead } = useNotifications();
+  const { recent, markRead } = useNotifications();
   const [expanded, setExpanded] = useState(false);
 
-  const sortedItems = useMemo(() => sortByUrgency(todoItems), [todoItems]);
+  const allItems = useMemo(() => sortByUrgency(recent), [recent]);
 
-  const visibleItems = expanded ? sortedItems : sortedItems.slice(0, MAX_VISIBLE);
-  const hiddenCount = Math.max(0, sortedItems.length - MAX_VISIBLE);
+  const visibleItems = expanded ? allItems : allItems.slice(0, MAX_VISIBLE);
+  const hiddenCount = Math.max(0, allItems.length - MAX_VISIBLE);
 
   const handleAction = async (item: NotificationItem) => {
     await markRead(item.id);
@@ -103,14 +103,14 @@ export function TaskNotificationCenter({
       </div>
       <div className="wb-panel-body flex flex-col gap-4">
         {/* 通知内容 */}
-        {sortedItems.length > 0 && (
+        {allItems.length > 0 && (
           <div className="flex flex-col">
             <div className="mb-2.5 flex items-center justify-between">
               <span className="text-xs font-semibold text-[color:var(--muted-foreground)]">
-                通知内容 · {sortedItems.length} 条
+                通知内容 · {allItems.length} 条
               </span>
               <span className="text-[10px] text-[color:var(--muted-foreground)]">
-                {sortedItems.filter((n) => !n.isRead).length} 条未读
+                {allItems.filter((n) => !n.isRead).length} 条未读
               </span>
             </div>
             <div className="flex flex-col divide-y divide-[#eef3f8]">
