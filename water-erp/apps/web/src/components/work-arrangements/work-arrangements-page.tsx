@@ -783,6 +783,7 @@ export function WorkArrangementsPage({
         <WorkbenchOverview
           currentUser={currentUser}
           dailyPlan={dailyPlan}
+          summary={workbenchSummary}
         />
 
         {linkedProject ? (

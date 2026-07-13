@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Sun, Sunset, Moon, CloudSun } from 'lucide-react';
-import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
+import { Sun, Sunset, Moon, CloudSun, ListTodo, PlayCircle, CalendarDays, AlertTriangle } from 'lucide-react';
+import type { WorkArrangementDailyPlan, WorkArrangementWorkbenchOverview } from '@/lib/types/work-arrangements';
 import type { AuthUser } from '@/lib/api/auth';
 
 type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night';
@@ -24,46 +24,114 @@ function LiveClock(){
 const TDC={morning:{icon:Sun},afternoon:{icon:CloudSun},evening:{icon:Sunset},night:{icon:Moon}} as const;
 function gtod2(h:number):TimeOfDay{if(h>=6&&h<11)return'morning';if(h>=11&&h<18)return'afternoon';if(h>=18&&h<24)return'evening';return'night';}
 
-export function WorkbenchOverview({currentUser,dailyPlan}:{currentUser:AuthUser|null;dailyPlan:WorkArrangementDailyPlan|null}){
-  const now=new Date();
-  const Icon=TDC[gtod2(now.getHours())].icon;
-  const userName=currentUser?.username==='Swhi-CGZX-00'?'尊敬的张宏董事长':currentUser?.displayName||'用户';
+function periodLabel(h: number): string {
+  if (h >= 6 && h < 11) return '早上好';
+  if (h >= 11 && h < 14) return '中午好';
+  if (h >= 14 && h < 18) return '下午好';
+  return '晚上好';
+}
+
+interface StatBadge {
+  key: string;
+  label: string;
+  value: number;
+  icon: typeof ListTodo;
+  color: string;
+  bg: string;
+}
+
+export function WorkbenchOverview({
+  currentUser,
+  dailyPlan,
+  summary,
+}: {
+  currentUser: AuthUser | null;
+  dailyPlan: WorkArrangementDailyPlan | null;
+  summary: WorkArrangementWorkbenchOverview;
+}) {
+  const now = new Date();
+  const Icon = TDC[gtod2(now.getHours())].icon;
+  const period = periodLabel(now.getHours());
+  const userName = currentUser?.username === 'Swhi-CGZX-00'
+    ? '张宏董事长'
+    : currentUser?.displayName || '用户';
   const rawUsername = currentUser?.username ?? '';
-  const loading=!dailyPlan;
-  const headerGreeting=dailyPlan?.headerGreeting??'';
-  const dailyGreeting=dailyPlan?.dailyGreeting??'';
-  return(
+  const loading = !dailyPlan;
+  const headerGreeting = dailyPlan?.headerGreeting ?? '';
+
+  const badges: StatBadge[] = [
+    { key: 'todo', label: '待办', value: summary.todoCount, icon: ListTodo, color: '#6366f1', bg: '#eef2ff' },
+    { key: 'progress', label: '进行中', value: summary.inProgressCount, icon: PlayCircle, color: '#0ea5e9', bg: '#f0f9ff' },
+    { key: 'today', label: '今日到期', value: summary.dueTodayCount, icon: CalendarDays, color: '#f59e0b', bg: '#fffbeb' },
+    { key: 'risk', label: '风险项', value: summary.riskCount, icon: AlertTriangle, color: '#ef4444', bg: '#fef2f2' },
+  ];
+
+  return (
     <section className="page-hero">
+      {/* ═══ 第一行：图标 + 问候 + 时钟 ═══ */}
       <div className="page-hero__row">
         <div className="page-hero__left">
           <div className="page-hero__icon">
-            <Icon size={20} strokeWidth={1.8}/>
+            <Icon size={20} strokeWidth={1.8} />
           </div>
           <div className="min-w-0">
-            {(()=>{
-              const greet=loading?'':((headerGreeting||'').replace('{name}','').replace(userName,'').replace(rawUsername,'').replace(/^[，,]\s*/,'')||'你好呀');
-              return(
-                <>
-                  <div className="page-hero__title">
-                    <span className="font-bold">{userName}</span>
-                    <span className="font-normal text-[color:var(--muted-foreground)]">
-                      {loading?'，欢迎您':`，${greet}`}
-                    </span>
-                  </div>
-                  {!loading&&dailyGreeting?(
-                    <div className="page-hero__sub">
-                      {dailyGreeting.replace('{name}','').replace(userName,'').replace(rawUsername,'').replace(/^[，,]\s*/,'')}
-                    </div>
-                  ):(
-                    <div className="page-hero__sub">工作安排与任务管理</div>
-                  )}
-                </>
-              );
-            })()}
+            <div className="page-hero__title">
+              <span className="font-normal text-[color:var(--muted-foreground)]">
+                {period}
+              </span>
+              <span className="font-bold">，{userName}</span>
+            </div>
           </div>
         </div>
         <div className="page-hero__right">
-          <LiveClock/>
+          <LiveClock />
+        </div>
+      </div>
+
+      {/* ═══ 第二行：关怀问候文本 ═══ */}
+      <div className="page-hero__row mt-3">
+        <div className="flex-1">
+          {loading ? (
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-[color:var(--accent)]" />
+              <span className="text-[14px] leading-relaxed text-[color:var(--muted-foreground)]">
+                正在为您准备今日工作简报...
+              </span>
+            </div>
+          ) : (
+            <p className="max-w-[640px] text-[14px] leading-relaxed text-pretty text-[color:var(--foreground)]">
+              {headerGreeting
+                .replace('{name}', '')
+                .replace(userName, '')
+                .replace(rawUsername, '')
+                .replace(/^[，,]\s*/, '') ||
+                `${period}，${userName}。今天先处理重点事项，再推进进行中工作。`}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* ═══ 第三行：统计徽章 ═══ */}
+      <div className="page-hero__row mt-3.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {badges.map((b) => (
+            <div
+              key={b.key}
+              className="flex items-center gap-2 rounded-xl px-3.5 py-2"
+              style={{ backgroundColor: b.bg }}
+            >
+              <b.icon size={14} style={{ color: b.color }} />
+              <span className="text-[13px] font-bold tabular-nums" style={{ color: b.color }}>
+                {b.value}
+              </span>
+              <span className="text-[11px] font-semibold text-[#5a6d8a]">{b.label}</span>
+            </div>
+          ))}
+          {badges.every((b) => b.value === 0) && (
+            <span className="text-[12px] text-[color:var(--muted-foreground)]">
+              今日暂无待办，可以规划新任务或复盘已完成工作
+            </span>
+          )}
         </div>
       </div>
     </section>

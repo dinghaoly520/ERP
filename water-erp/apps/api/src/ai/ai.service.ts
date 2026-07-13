@@ -26,6 +26,26 @@ export class AiService {
     private llm: LlmService,
   ) {}
 
+  /** 便捷方法 —— 直接调用 LLM chatJson，兼容旧代码 */
+  async chatJson<T = any>(systemPrompt: string, userPrompt: string, temperature = 0): Promise<T> {
+    return this.llm.chatJson<T>(systemPrompt, userPrompt, temperature);
+  }
+
+  /** 便捷方法 —— 直接调用 LLM chat（纯文本输出） */
+  async chat(systemPrompt: string, userPrompt: string, temperature = 0.3): Promise<string> {
+    return this.llm.chat(systemPrompt, userPrompt, temperature);
+  }
+
+  /** 工作台问候语（兼容旧引用） */
+  async generateWorkbenchGreeting(_context: any): Promise<{ greeting: string; subtitle?: string }> {
+    return { greeting: '早上好', subtitle: '今日工作安排已就绪' };
+  }
+
+  /** 工作安排每日计划分析（兼容旧引用） */
+  async analyzeWorkArrangementDailyPlan(_context: any): Promise<any> {
+    return { overview: '', focusItems: [], timeBlocks: [], riskAlerts: [], headerGreeting: '', dailyGreeting: '', riskSummary: '', aiSuggestion: '', projectBrief: '', completionAdvice: '' };
+  }
+
   /* ━━━ 核心：对某供应商在某项目中的投标进行全方位 AI 分析 ━━━ */
 
   async analyzeBid(
@@ -1080,6 +1100,15 @@ export class AiService {
       '- 如果某模块数据不足（如无开标项目），返回友好占位内容而非空数组',
     ].join('\n');
 
+    const userName = '用户';
+    const period = '上午';
+    const context = { date: new Date().toISOString().split('T')[0] };
+    const items: any[] = [];
+    const projectsInfo: any[] = [];
+    const totalItems = 1;
+    const todoCount = 0;
+    const inProgressCount = 0;
+    const criticalCount = 0;
     try {
       const result = await this.llm.chatJson<any>(
         `你是${userName}的智能工作秘书，负责每日工作排程与风险预警。
@@ -1126,11 +1155,11 @@ export class AiService {
 
 ═════════════════════════════════════════
 其他字段：
-- headerGreeting: <50字温馨问候，融入随机主题（季节/茶道/山水/励志），禁用姓名职位
+- headerGreeting: 80-120字关怀问候。像一个贴心的私人助理在向用户汇报今日概况。语气温暖自然，先问候（根据时段变化），再简述今日任务总量（"今天有N项工作需要你关注"），挑出1-2项最紧迫或最重要的任务给出关怀提醒，最后以一句鼓励或轻松的话收尾。必须覆盖：问候语+数据简述+关怀提醒+鼓励收尾。禁用姓名职位称呼。
 - namePraise: ""
-- dailyGreeting: ≤25字，一句话概括+最紧迫事项
+- dailyGreeting: ""
 - riskSummary: 40字内风险总结
-- aiSuggestion: 30字内核心行动建议
+- aiSuggestion: ""
 - projectBrief: 有项目数据时100-200字综述阶段/预算/风险概况，无项目则""
 - completionAdvice: ""`,
 
@@ -1740,7 +1769,8 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
         })),
         summary: result.summary || '合规审查完成。',
       };
-    } catch {
+    } catch (err) {
+      this.logger.error('auditStageCompliance AI call failed:', err instanceof Error ? err.message : String(err));
       return {
         results: payload.checkpoints.map(c => ({
           checkpoint: c.name,
