@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Sun, Sunset, Moon, CloudSun, ListTodo, PlayCircle, CalendarDays, AlertTriangle, Bell } from 'lucide-react';
 import type { WorkArrangementDailyPlan, WorkArrangementWorkbenchOverview } from '@/lib/types/work-arrangements';
 import type { AuthUser } from '@/lib/api/auth';
-import { useNotifications } from '@/lib/hooks/use-notifications';
+import { listNotifications, type NotificationItem } from '@/lib/api/notification';
 
 type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night';
 const TDP: Record<TimeOfDay,{g:string;gl:string;r:string;s:string;t:string;d:string}> = {
@@ -60,8 +60,18 @@ export function WorkbenchOverview({
   const loading = !dailyPlan;
   const headerGreeting = dailyPlan?.headerGreeting ?? '';
 
-  const { recent } = useNotifications();
-  const notificationCount = recent.filter((n) => !n.isRead).length;
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  // 直接拉 50 条通知，确保和下方任务通知面板数据一致
+  useEffect(() => {
+    let cancelled = false;
+    listNotifications('all', 1, 50).then((res) => {
+      if (!cancelled) {
+        setNotificationCount(res.items.filter((n) => !n.isRead).length);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const badges: StatBadge[] = [
     { key: 'notif', label: '通知待办', value: notificationCount, icon: Bell, color: '#7c3aed', bg: '#f5f3ff' },
