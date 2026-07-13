@@ -5,7 +5,7 @@ import { WorkbenchOverview } from "@/components/work-arrangements/workbench-over
 import { SchedulePanel } from "@/components/work-arrangements/schedule-panel";
 import { TaskNotificationCenter } from "@/components/work-arrangements/task-notification-center";
 import { TaskDetailModal } from "@/components/work-arrangements/task-detail-modal";
-import type { PlannedItem } from "@/components/work-arrangements/ai-planning-panel";
+import type { PlannedItem } from "@/components/work-arrangements/task-notification-center";
 import { WorkTaskEditorDrawer } from "@/components/work-arrangements/work-task-editor-drawer";
 import { HistoryDrawer } from "@/components/work-arrangements/history-drawer";
 import { ReminderBanner } from "@/components/work-arrangements/reminder-banner";

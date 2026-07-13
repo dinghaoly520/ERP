@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import * as LucideIcons from 'lucide-react';
 import { getNotificationMeta, statusTone } from '@water-erp/shared';
 import type { NotificationItem } from '@/lib/api/notification';
@@ -17,24 +18,32 @@ function getUrgency(type: string): NotificationUrgency {
   return URGENCY_MAP[type] ?? 'normal';
 }
 
-const urgencyStyles: Record<
+const urgencyConfig: Record<
   NotificationUrgency,
-  { bar: string; label: string; labelColor: string }
+  {
+    bar: string;
+    barBg: string;
+    label: string;
+    tagClass: string;
+  }
 > = {
   urgent: {
-    bar: 'bg-[#ef4444]',
+    bar: '#ef4444',
+    barBg: 'bg-[#ef4444]',
     label: '紧急',
-    labelColor: 'text-[#ef4444] bg-[#fef2f2]',
+    tagClass: 'text-[#ef4444] bg-[#fef2f2] border-[#fecaca]',
   },
   important: {
-    bar: 'bg-[#f59e0b]',
+    bar: '#f59e0b',
+    barBg: 'bg-[#f59e0b]',
     label: '重要',
-    labelColor: 'text-[#f59e0b] bg-[#fffbeb]',
+    tagClass: 'text-[#d97706] bg-[#fffbeb] border-[#fde68a]',
   },
   normal: {
-    bar: 'bg-[#3b82f6]',
+    bar: '#3b82f6',
+    barBg: 'bg-[#3b82f6]',
     label: '普通',
-    labelColor: 'text-[#3b82f6] bg-[#eff6ff]',
+    tagClass: 'text-[#2563eb] bg-[#eff6ff] border-[#bfdbfe]',
   },
 };
 
@@ -58,53 +67,80 @@ export function NotificationCard({ item, onAction }: NotificationCardProps) {
   const Icon = (LucideIcons as any)[meta.icon] ?? LucideIcons.Bell;
   const tone = statusTone[meta.tone] ?? statusTone.gray;
   const urgency = getUrgency(item.type);
-  const urgStyle = urgencyStyles[urgency];
+  const urg = urgencyConfig[urgency];
   const resolved = !!item.resolvedAt;
 
   return (
     <button
       type="button"
       onClick={() => onAction(item)}
-      className={`neu-card group relative flex w-full cursor-pointer items-start gap-3 px-4 py-3 text-left transition ${
-        resolved ? 'opacity-60' : ''
-      }`}
+      className={`neu-card group relative flex w-full cursor-pointer items-start gap-3 px-3.5 py-3 text-left transition-all duration-200 hover:-translate-y-px ${
+        resolved ? 'opacity-55' : ''
+      } ${!item.isRead ? 'shadow-[0_2px_8px_rgba(96,139,239,0.1)]' : ''}`}
     >
-      {/* 紧急度左侧色条 */}
-      <div className={`absolute left-0 top-2 bottom-2 w-[3px] rounded-full ${urgStyle.bar}`} />
+      {/* 左侧色条 */}
+      <div
+        className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
+        style={{ backgroundColor: urg.bar }}
+      />
 
-      {/* 未读小圆点 */}
+      {/* 未读指示 */}
       {!item.isRead && (
-        <span className="absolute left-[7px] top-2 h-1.5 w-1.5 rounded-full bg-[#064ea2]" />
+        <span className="absolute left-1.5 top-3.5 h-[6px] w-[6px] rounded-full bg-[#064ea2]" />
       )}
 
       {/* 图标 */}
       <span
-        className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
-        style={{ color: tone.color, backgroundColor: tone.bg }}
+        className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border transition-shadow duration-200 group-hover:shadow-sm"
+        style={{
+          color: tone.color,
+          backgroundColor: tone.bg,
+          borderColor: `${tone.color}22`,
+        }}
       >
-        <Icon size={14} strokeWidth={2} />
+        <Icon size={15} strokeWidth={1.8} />
       </span>
 
-      {/* 内容 */}
+      {/* 正文 */}
       <span className="min-w-0 flex-1">
+        {/* 第一行：紧急度标签 + 时间 */}
         <span className="flex items-center gap-2">
           <span
-            className={`inline-flex items-center rounded-[6px] px-1.5 py-0.5 text-[10px] font-bold ${urgStyle.labelColor}`}
+            className={`inline-flex items-center rounded-md border px-1.5 py-px text-[10px] font-bold ${urg.tagClass}`}
           >
-            {urgStyle.label}
+            {urg.label}
           </span>
-          <span className="text-[11px] text-[#8a99ad] tabular-nums">
+          <span className="text-[11px] tabular-nums text-[#8a99ad]">
             {relTime(item.createdAt)}
           </span>
+          {resolved && (
+            <span className="rounded-full bg-[#ecfdf5] px-1.5 py-px text-[10px] font-semibold text-[#11a874]">
+              已处理
+            </span>
+          )}
         </span>
-        <span className="mt-1 block text-[13px] font-semibold leading-snug text-[#18243a]">
+
+        {/* 标题 */}
+        <span
+          className={`mt-1.5 block text-[13px] font-semibold leading-snug ${
+            resolved
+              ? 'text-[color:var(--muted-foreground)] line-through'
+              : 'text-[#18243a]'
+          }`}
+        >
           {item.title}
         </span>
-        <span className="mt-0.5 block truncate text-[11px] leading-relaxed text-[#5a6d8a]">
-          {item.content}
-        </span>
+
+        {/* 摘要 */}
+        {item.content && (
+          <span className="mt-0.5 block text-[11px] leading-relaxed text-[#5a6d8a] line-clamp-2">
+            {item.content}
+          </span>
+        )}
+
+        {/* 操作提示 — hover 可见 */}
         <span className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#064ea2] opacity-0 transition group-hover:opacity-100">
-          {meta.actionable && !resolved ? '去处理' : '查看'}
+          {meta.actionable && !resolved ? '去处理' : '查看详情'}
           <LucideIcons.ArrowRight size={11} />
         </span>
       </span>
