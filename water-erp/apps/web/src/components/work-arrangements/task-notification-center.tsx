@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
@@ -8,6 +8,7 @@ import { getNotificationMeta, statusTone } from '@water-erp/shared';
 import { AiPlanningPanel } from '@/components/work-arrangements/ai-planning-panel';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import type { NotificationItem } from '@/lib/api/notification';
+import { listNotifications } from '@/lib/api/notification';
 import { useNotifications } from '@/lib/hooks/use-notifications';
 
 export interface PlannedItem {
@@ -17,34 +18,32 @@ export interface PlannedItem {
 }
 
 // ── 名称提取 ──
-// 中文引号 U+201C (") U+201D (")
-const LQ = '“';
-const RQ = '”';
 
 function extractName(item: NotificationItem): string {
   const c = item.content || '';
 
-  // 1) 中文引号包裹的名称
-  const re = new RegExp(`${LQ}([^${LQ}${RQ}]{2,20})${RQ}`);
-  const m = c.match(re);
-  if (m) return m[1];
-
-  // 2) 商品名/项目名 (在明确动作关键字之前)
-  const kws = '报价调整|申请加入|价格调整|投标截止|评标已结|已发布招标|将于.*开标|已通过审核|审核不通过|已被退回|已回复|即将到期|提交了入库';
-  const kw = c.match(new RegExp(`^(.+?)(${kws})`));
-  if (kw) {
-    const raw = kw[1].replace(/[""'',，。]/g, '').trim();
-    if (raw.length >= 2 && raw.length <= 22) return raw;
+  // 按中文引号切分，取引号内的内容
+  const segments = c.split(/[\u201C\u201D]/);
+  for (let i = 1; i < segments.length; i += 2) {
+    const s = segments[i].trim();
+    if (s.length >= 2 && s.length <= 24) return s;
   }
 
-  // 3) 标题去前缀
+  // 无边引号：在动作关键字前截断
+  const kw = c.match(
+    /^([\u4e00-\u9fa5a-zA-Z0-9\-]{2,26}?)(?:报价调整|申请加入|价格调整|投标截止|评标已结|已发布招标|将于|开标|已通过|审核不|已被退回|已回复|即将到期|提交了|资质不全|已生成)/,
+  );
+  if (kw) {
+    const raw = kw[1].replace(/^供应商|^项目|^采购/, '').trim();
+    if (raw) return raw;
+  }
+
+  // 标题兜底
   const t = (item.title || '').replace(/^(新供应商|供应商|采购目录|新增品类|月度|周度|系统)/, '');
   if (t.length >= 2 && t.length <= 16) return t;
 
   return c.slice(0, 12);
-}
-
-// ── 中文标签 + 跳转链接 ──
+}// ── 中文标签 + 跳转链接 ──
 
 const TYPE_LABELS: Record<string, string> = {
   SUPPLIER_PENDING:       '供应商审批',
@@ -101,10 +100,22 @@ export function TaskNotificationCenter({
 }: TaskNotificationCenterProps) {
   const router = useRouter();
   const { recent } = useNotifications();
+  const [directItems, setDirectItems] = useState<NotificationItem[] | null>(null);
+
+  // 直接拉 50 条确保覆盖所有类型（hook 的 recent 只取 8 条，类型不全）
+  useEffect(() => {
+    let cancelled = false;
+    listNotifications('all', 1, 50).then((res) => {
+      if (!cancelled) setDirectItems(res.items);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const source = directItems && directItems.length > 0 ? directItems : recent;
 
   const groups = useMemo(() => {
     const byType = new Map<string, NotificationItem[]>();
-    for (const item of recent) {
+    for (const item of source) {
       const list = byType.get(item.type) || [];
       list.push(item);
       byType.set(item.type, list);
@@ -136,7 +147,7 @@ export function TaskNotificationCenter({
         if (bi !== -1) return 1;
         return a.label.localeCompare(b.label, 'zh');
       });
-  }, [recent]);
+  }, [source]);
 
   return (
     <section className="wb-panel">
