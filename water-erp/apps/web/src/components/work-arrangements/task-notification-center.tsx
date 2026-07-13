@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
@@ -8,6 +8,7 @@ import { getNotificationMeta, statusTone } from '@water-erp/shared';
 import { AiPlanningPanel } from '@/components/work-arrangements/ai-planning-panel';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import { useNotifications } from '@/lib/hooks/use-notifications';
+import { listNotifications } from '@/lib/api/notification';
 import type { NotificationItem } from '@/lib/api/notification';
 
 export interface PlannedItem {
@@ -78,10 +79,34 @@ export function TaskNotificationCenter({
   onShowHistory,
 }: TaskNotificationCenterProps) {
   const router = useRouter();
-  const { recent, markRead } = useNotifications();
+  const { recent, todoItems, markRead } = useNotifications();
   const [expanded, setExpanded] = useState(false);
+  const [directItems, setDirectItems] = useState<NotificationItem[] | null>(null);
 
-  const allItems = useMemo(() => sortByUrgency(recent), [recent]);
+  // 直接调用 API 获取通知，绕过 hook 可能的数据问题
+  useEffect(() => {
+    let cancelled = false;
+    listNotifications('all', 1, 20).then((res) => {
+      if (!cancelled) setDirectItems(res.items);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // 优先用直接 API 数据，兜底用 hook 数据
+  const rawItems = useMemo(
+    () => (directItems && directItems.length > 0 ? directItems : [...recent, ...todoItems]),
+    [directItems, recent, todoItems],
+  );
+
+  // 合并去重后按紧急度排序
+  const allItems = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: NotificationItem[] = [];
+    for (const item of rawItems) {
+      if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+    }
+    return sortByUrgency(merged);
+  }, [rawItems]);
 
   const visibleItems = expanded ? allItems : allItems.slice(0, MAX_VISIBLE);
   const hiddenCount = Math.max(0, allItems.length - MAX_VISIBLE);
