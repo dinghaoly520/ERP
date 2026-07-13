@@ -41,9 +41,128 @@ export class AiService {
     return { greeting: '早上好', subtitle: '今日工作安排已就绪' };
   }
 
-  /** 工作安排每日计划分析（兼容旧引用） */
-  async analyzeWorkArrangementDailyPlan(_context: any): Promise<any> {
-    return { overview: '', focusItems: [], timeBlocks: [], riskAlerts: [], headerGreeting: '', dailyGreeting: '', riskSummary: '', aiSuggestion: '', projectBrief: '', completionAdvice: '' };
+  /** 工作安排每日计划分析 */
+  async analyzeWorkArrangementDailyPlan(context: {
+    date: string;
+    currentTime?: string;
+    items?: any[];
+    userContext?: { role?: string; displayName?: string; username?: string };
+    chairmanMode?: boolean;
+    projects?: any[];
+  }): Promise<{
+    date: string; headerGreeting: string; namePraise: string;
+    dailyGreeting: string; riskSummary: string; aiSuggestion: string;
+    overview: string; focusItems: any[]; timeBlocks: any[];
+    riskAlerts: any[]; completionAdvice: string; projectBrief: string;
+  }> {
+    const EN2ZH: Record<string,string> = {TODO:'待处理',IN_PROGRESS:'进行中',BLOCKED:'阻塞',COMPLETED:'已完成',CANCELLED:'已取消',CRITICAL:'紧急',HIGH:'高',MEDIUM:'中',LOW:'低'};
+    const zh = (s:string)=>EN2ZH[s]||s;
+    const items = (context.items||[]).map((i:any)=>({...i,status:zh(i.status),urgency:zh(i.urgency)}));
+    const todoCount = items.filter((i:any)=>i.status==='待处理').length;
+    const inProgressCount = items.filter((i:any)=>i.status==='进行中').length;
+    const criticalCount = items.filter((i:any)=>i.urgency==='紧急').length;
+    const totalItems = items.length;
+    const projects = (context.projects||[]);
+    const projectsInfo = projects.length>0?` 项目数据:${JSON.stringify(projects.slice(0,10))}`:'';
+    const userName = context.userContext?.displayName||context.userContext?.username||'用户';
+    const hour=parseInt((context.currentTime||'9:00').split(':')[0])||9;
+    const period=hour<11?'上午':hour<14?'中午':hour<18?'下午':'晚上';
+
+    try {
+      const result = await this.llm.chatJson<any>(
+        `你是${userName}的智能工作秘书，负责每日工作排程与风险预警。
+
+═════════════════════════════════════════
+【overview — 今日排程总览 · 严格100-200字】
+═════════════════════════════════════════
+用流畅的自然语言撰写一段充实的今日排程总览，严格控制在100-200字之间，太短会退回重写。必须覆盖以下5点：
+1. 总量概况：任务总数、待办数、进行中数、紧急数，用数据说话
+2. 最紧迫事项：挑出1-2件最紧迫的事，说明紧迫原因（截止时间、等待时长、影响范围）
+3. 关键风险：如果有积压或到期风险，点明后果
+4. 时间分配建议：上午适合做什么、下午适合做什么，结合时段特点给出理由
+5. 核心策略：一句总结性的行动方针
+
+═════════════════════════════════════════
+【focusItems — 重点事项 · 3-5项】
+═════════════════════════════════════════
+从任务列表中挑出最需要关注的事项，每条：
+- id: 任务ID
+- title: 任务标题
+- priorityRank: 数字越小越优先（1-5）
+- reason: 为什么这是重点，15-30字
+
+═════════════════════════════════════════
+【timeBlocks — 时间块 · 3-4个】
+═════════════════════════════════════════
+按优先级将今日任务分配到时段，每个块：
+- label: 3-6字短标签
+- startTime/endTime: HH:MM格式
+- focus: 20-40字，描述该时段要完成的具体任务和预期成果
+- taskIds: 关联的任务ID数组
+
+═════════════════════════════════════════
+【riskAlerts — 风险提醒 · 按实际情况】
+═════════════════════════════════════════
+- level: "high"|"medium"|"low"
+- title: 8-15字
+- description: 20-40字
+无明显风险返回空数组[]
+
+═════════════════════════════════════════
+其他字段：
+- headerGreeting: 80-120字关怀问候。像一个贴心的私人助理在汇报今日概况。语气温暖自然，先问候，再简述今日任务总量，挑出1-2项最紧迫的任务给出关怀提醒，最后以鼓励收尾。禁用姓名职位称呼。示例："下午好。今天有8项工作需要你关注，其中3项比较紧急——供应商审批已经等了快一天了，价格复核也有2项需要你的判断。不过别担心，我已经帮你排好了时间顺序。今天一定能顺利处理的。"
+- namePraise: ""
+- dailyGreeting: ""
+- riskSummary: 40字内风险总结
+- aiSuggestion: ""
+- projectBrief: 有项目数据时100-200字综述阶段/预算/风险概况，无项目则""
+- completionAdvice: ""`,
+
+        `时段:${period} | 日期:${context.date}
+用户:${userName}
+任务总览: ${totalItems}项（待处理${todoCount} · 进行中${inProgressCount} · 紧急${criticalCount}）
+${items.length > 0 ? '任务列表:\n' + JSON.stringify(items.slice(0,20), null, 2) : '今日暂无任务安排。'}
+${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
+      );
+      const safeTimeBlocks = (result.timeBlocks || []).map((b: any) => {
+        const raw = Array.isArray(b.items) ? b.items : [];
+        const titles = raw.map((i: any) => typeof i === 'string' ? i : (i.title || i.name || '')).filter(Boolean);
+        return {
+          label: b.label || '时间段',
+          start: this.normalizeTimeSlot(b.startTime || b.start),
+          end: this.normalizeTimeSlot(b.endTime || b.end),
+          focus: b.focus || titles.join('、'),
+          taskIds: Array.isArray(b.taskIds) ? b.taskIds : [],
+        };
+      });
+      return {
+        date: context.date,
+        headerGreeting: result.headerGreeting || `${period}好。今天有${totalItems}项任务需要关注，${criticalCount}项比较紧急。别担心，按优先级一步步处理就好。`,
+        namePraise: result.namePraise || '',
+        dailyGreeting: '',
+        riskSummary: result.riskSummary || (todoCount > 5 ? '待办事项较多' : '风险可控'),
+        aiSuggestion: '',
+        overview: result.overview || `共${totalItems}项任务 | ${todoCount}待办`,
+        focusItems: result.focusItems || [],
+        timeBlocks: safeTimeBlocks,
+        riskAlerts: result.riskAlerts || [],
+        completionAdvice: '',
+        projectBrief: result.projectBrief || '',
+      };
+    } catch {
+      return {
+        date: context.date,
+        headerGreeting: `${period}好。今天有${totalItems}项任务需要关注，别担心，按优先级逐步处理就好。`,
+        namePraise: '',
+        dailyGreeting: '',
+        riskSummary: '风险可控',
+        aiSuggestion: '',
+        overview: `${totalItems}项任务`,
+        focusItems: [], timeBlocks: [], riskAlerts: [],
+        completionAdvice: '',
+        projectBrief: '',
+      };
+    }
   }
 
   /* ━━━ 核心：对某供应商在某项目中的投标进行全方位 AI 分析 ━━━ */
