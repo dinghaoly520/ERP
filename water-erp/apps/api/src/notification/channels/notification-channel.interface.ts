@@ -1,4 +1,4 @@
-export type ChannelName = 'inApp' | 'email' | 'sms';
+export type ChannelName = 'inApp' | 'email' | 'sms' | 'phone';
 
 export interface DispatchPayload {
   userId: string;
@@ -26,5 +26,6 @@ export function shouldDispatch(channel: ChannelName, user: { email?: string | nu
   if (channel === 'inApp') return true;
   if (channel === 'email') return !!user.email;
   if (channel === 'sms') return !!user.phone;
+  if (channel === 'phone') return !!user.phone;
   return false;
 }

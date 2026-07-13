@@ -23,14 +23,13 @@ export function TenderTypeSwitcher({
             type="button"
             onClick={() => onSelect(option.type)}
             className={[
-              "rounded-[8px] px-3.5 py-2 text-sm font-semibold transition-all duration-200",
+              "rounded-[8px] px-3.5 py-2 text-xs font-semibold transition-all duration-200",
               active
-                ? "bg-[oklch(0.96_0.008_258)] text-[color:var(--foreground)]"
-                : "neu-btn-soft",
+                ? "bg-[color-mix(in_oklch,var(--accent-soft)_55%,transparent)] text-[color:var(--accent)]"
+                : "text-[color:var(--muted-foreground)] hover:bg-[color-mix(in_oklch,var(--muted)_40%,transparent)]",
             ].join(" ")}
             style={active ? {
-              boxShadow: "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5)",
-              border: "none",
+              boxShadow: "inset 1px 2px 3px oklch(0.55 0.03 258 / 0.1), inset -1px -1px 2px oklch(1 0 0 / 0.4)",
             } : undefined}
           >
             {option.label}

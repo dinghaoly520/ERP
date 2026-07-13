@@ -14,12 +14,10 @@ export function ImportAutofillButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="tender-btn tender-btn--blue"
+      className="neu-btn-soft"
       title="导入文件识别并自动填写"
     >
-      <span className="tb-icon tb-icon--blue tb-anim-scan">
-        <ScanText size={13} />
-      </span>
+      <ScanText size={14} />
       导入识别
     </button>
   );

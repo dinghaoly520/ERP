@@ -25,6 +25,7 @@ description: Use when building or restyling ANY visual element in public-portal 
 3. **oklch() 色彩空间**：禁止 `rgba()`/`hex` 用于阴影。
 4. **三态完整**：默认凸起 → hover 抬升 → active 内凹。任何一态缺失 = bug。
 5. **reduced-motion 降级**：所有过渡在 `@media (prefers-reduced-motion)` 下禁用。
+6. **禁止外侧框线**：卡片、面板、容器等块级表面**不得**添加 `border` 框线。层次感由方向性双影 + 内高光线 + 玻璃背景差异化提供，外侧框线是对 neumorphic 美学的破坏——它把"从页面浮起"的物理感退化成了"贴上去的带框方块"。
 
 ## 页面骨架（复制即用）
 
@@ -148,8 +149,8 @@ box-shadow:
 | `.wb-panel` | 工作台面板（左纯白→右透明渐变 + 方向性双影，无可交互 hover） |
 | `.wb-panel-header` | 面板头部栏（`oklch(1 0 0 / 0.3)` 半透明底） |
 | `.wb-panel-body` | 面板内容区（flex-1，overflow-y:auto） |
-| `.neu-card` | 通用 neumorphic 卡片（glass 背景 + 内高光 + 双影，hover 抬升） |
-| `.glass` | 基础玻璃面板 |
+| `.neu-card` | 通用 neumorphic 卡片（glass 背景 + 内高光 + 双影，hover 抬升，**无外侧框线**） |
+| `.glass` | 基础玻璃面板（**无外侧框线**） |
 | `.flow-cta` | CTA 底栏（glass + 径向光芒） |
 | `.flow-pipe-shell` | 流程图谱外壳 |
 | `.flow-h-card` | 流程阶段卡片（`--card-color` 驱动配色） |
@@ -212,6 +213,7 @@ box-shadow:
 | `box-shadow: 0 4px 20px rgba(...)` | 没有方向性，丧失浮起物理感 | "阴影强一点更明显" |
 | `className="bg-white rounded-[24px] shadow-2xl"` | 纯白与页面背景脱节，像贴上去的 | "弹窗就是要独立于页面" |
 | `className="rounded-full border border-gray-200 bg-white"` | 非 cgzxui 风格，无三态，无内凹 | "按钮不就该有个边吗" |
+| 给卡片/面板/容器加 `border` 或 `border-[...]` | 框线把 neumorphic"浮起"感退化为"贴上去的带框方块"，方向性双影已足够表达层次 | "卡片总得有个边吧" |
 | 漏 `:active` | 按下无反馈 | "hover 就够了" |
 | 保存按钮默认 44px 高于取消 38px | 底部按钮不齐平 | "高度不一样没关系" |
 | 给文字/标签/badge 加 neumorphic shadow | 小元素变臃肿模糊 | "让标签突出一点" |
@@ -223,6 +225,7 @@ box-shadow:
 - ❌ 文件中有 `style={{ }}`（CSS 变量传递如 `--item-accent` 除外）
 - ❌ 文件中有 `bg-white`、`border-gray-200`、`rounded-full` 修饰的按钮/输入框
 - ❌ 文件中有 `shadow-lg`、`shadow-2xl` 或内联 `boxShadow`
+- ❌ 卡片/面板/容器组件上有 `border` 或 `border-[...]` 类名（`border-t` hairline 内部分割线除外）
 
 ## 反模式（为什么错）
 

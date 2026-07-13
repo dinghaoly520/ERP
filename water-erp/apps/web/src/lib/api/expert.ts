@@ -36,12 +36,27 @@ export interface ExtractionSelected {
   role: '正选' | '候补';
 }
 
+/** 候选池专家（供手动替换使用） */
+export interface CandidatePoolItem {
+  userId: string;
+  name: string;
+  specialty: string;
+  title?: string;
+  employer?: string;
+  matchScore: number;
+  evaluationLevel?: string;
+  currentLoadStatus?: string;
+  reason: string;
+}
+
 export interface ExtractionPreview {
   engine: 'deepseek' | 'rules';
   model: string;
+  extractMode: 'specialty_match' | 'random' | 'merit_best';
   analysis: string;
   requiredSpecialties: { specialty: string; count: number; reason: string }[];
   eligiblePool: number;
+  candidatePool: CandidatePoolItem[];
   selected: ExtractionSelected[];
   alternatives: ExtractionSelected[];
   shortages: { specialty: string; needed: number; available: number }[];
@@ -52,6 +67,11 @@ export interface ExpertEvalStats {
   levelCounts: { A: number; B: number; C: number; D: number };
   avgScore: number;
   total: number;
+}
+
+export interface NotifyResult {
+  userId: string;
+  results: Record<string, string>;
 }
 
 /* ── 专家库 / 录入 ── */
@@ -97,6 +117,8 @@ export function previewExtraction(data: {
   projectId: string;
   totalNeeded?: number;
   alternatives?: number;
+  extractMode?: 'specialty_match' | 'random' | 'merit_best';
+  /** @deprecated 兼容旧UI，优先用 extractMode */
   mode?: 'weighted' | 'fair';
   manualQuotas?: { specialty: string; count: number }[];
 }) {
@@ -104,7 +126,25 @@ export function previewExtraction(data: {
 }
 
 export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string }[] }) {
-  return api.post<{ success: boolean; count: number }>('/expert-admin/extract/confirm', data);
+  return api.post<{ success: boolean; count: number; expertIds: string[] }>('/expert-admin/extract/confirm', data);
+}
+
+export function sendExtractionNotify(data: {
+  projectId: string;
+  expertIds: string[];
+  channels: string[];
+  message: string;
+}) {
+  return api.post<{ projectId: string; projectName: string; results: NotifyResult[] }>('/expert-admin/extract/notify', data);
+}
+
+export function getExtractionHistory(params?: { projectId?: string; page?: number; pageSize?: number }) {
+  const q = new URLSearchParams();
+  if (params?.projectId) q.set('projectId', params.projectId);
+  if (params?.page) q.set('page', String(params.page));
+  if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+  const qs = q.toString();
+  return api.get<{ total: number; page: number; pageSize: number; items: any[] }>(`/expert-admin/extract/history${qs ? '?' + qs : ''}`);
 }
 
 /* ── 专家评价 ── */

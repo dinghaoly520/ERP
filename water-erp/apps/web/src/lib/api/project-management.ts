@@ -397,6 +397,33 @@ export async function refreshProjectSummary(projectId: string) {
   return parseJsonResponse<{ summary: string }>(response);
 }
 
+export type ComplianceAuditResult = {
+  checkpoint: string;
+  dimension: string;
+  verdict: '通过' | '警告' | '违规';
+  evidence: string;
+  suggestion: string;
+  regulationRef: string;
+};
+
+export type ComplianceAuditResponse = {
+  results: ComplianceAuditResult[];
+  summary: string;
+};
+
+export async function auditStageCompliance(
+  projectId: string,
+  stageKey?: string,
+): Promise<ComplianceAuditResponse> {
+  const params = stageKey ? `?stageKey=${stageKey}` : '';
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/audit-compliance${params}`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  return parseJsonResponse<ComplianceAuditResponse>(response);
+}
+
 export async function fetchProjectAttributions(): Promise<ProjectAttribution[]> {
   const response = await fetch(`${API_BASE}/project-management/project-attributions`, {
     credentials: 'include',

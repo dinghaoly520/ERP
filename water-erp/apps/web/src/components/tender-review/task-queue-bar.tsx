@@ -22,11 +22,11 @@ export default function TaskQueueBar() {
   }
 
   return (
-    <div className="panel-surface rounded-[16px] overflow-hidden shrink-0">
+    <div className="wb-panel rounded-[16px] overflow-hidden shrink-0">
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-3 hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center justify-between p-3 hover:bg-[color-mix(in_oklch,var(--muted)_15%,transparent)] transition-colors"
       >
         <div className="flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin text-[var(--accent)]" />

@@ -285,12 +285,12 @@ function LedgerRow({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group rounded-[14px] border border-[oklch(0.55_0.08_258_/_0.2)] bg-[oklch(1_0_0_/_0.45)] backdrop-blur-[14px] transition-all hover:border-[oklch(0.5_0.16_258_/_0.25)] hover:translate-y-[-2px]"
+      className="group rounded-[14px] bg-[oklch(1_0_0_/_0.45)] backdrop-blur-[14px] transition-all hover:translate-y-[-2px]"
       style={{
         boxShadow: isExpanded
           ? "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5)"
           : "inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.8)",
-        transition: "box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease",
+        transition: "box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
       {/* Main Row */}

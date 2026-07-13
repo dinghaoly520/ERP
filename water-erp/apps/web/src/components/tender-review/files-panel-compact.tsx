@@ -99,7 +99,7 @@ export default function FilesPanelCompact() {
       />
 
       {/* KB Info Header */}
-      <div className="flex items-center gap-3 p-3 rounded-[14px] bg-[var(--accent)]/5 border border-[var(--accent)]/20">
+      <div className="flex items-center gap-3 p-3 rounded-[14px]" style={{background:"color-mix(in oklch,var(--accent-soft) 30%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 4px oklch(0.55 0.03 258 / 0.06)"}}>
         <Database className="h-5 w-5 text-[var(--accent)]" />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-[var(--foreground)]">{selectedKb.name}</div>
@@ -118,7 +118,7 @@ export default function FilesPanelCompact() {
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
           className="flex items-center gap-2 rounded-[12px] px-4 py-2.5 text-sm font-medium
-            bg-[var(--accent)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+            neu-btn-primary !rounded-[12px] !h-[40px]"
         >
           {uploading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -131,7 +131,7 @@ export default function FilesPanelCompact() {
           onClick={handleReindex}
           disabled={reindexing}
           className="flex items-center gap-2 rounded-[12px] px-4 py-2.5 text-sm font-medium
-            bg-white/5 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/10 transition-colors disabled:opacity-50"
+            neu-btn-soft !rounded-[12px] !h-[40px]"
         >
           {reindexing ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -152,7 +152,7 @@ export default function FilesPanelCompact() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 p-3 rounded-[12px] bg-[rgba(234,188,110,0.14)] border border-[rgba(234,188,110,0.25)]"
+          className="flex items-center gap-3 p-3 rounded-[12px] bg-[color-mix(in_oklch,var(--warning)_12%,transparent)]"
         >
           <Shield className="h-5 w-5 text-[rgba(234,188,110,1)] shrink-0" />
           <div className="flex-1 min-w-0">
@@ -183,7 +183,7 @@ export default function FilesPanelCompact() {
                 key={file.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-center justify-between gap-3 p-3 rounded-[12px] bg-white/[0.02] hover:bg-white/[0.04] transition-colors"
+                className="flex items-center justify-between gap-3 p-3 rounded-[12px] hover:bg-[color-mix(in_oklch,var(--muted)_20%,transparent)] transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <FileText className="h-5 w-5 text-[var(--accent)] shrink-0" />

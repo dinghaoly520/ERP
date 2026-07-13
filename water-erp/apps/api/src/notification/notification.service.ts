@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { EmailChannel } from './channels/email.channel';
 import { SmsChannel } from './channels/sms.channel';
+import { PhoneChannel } from './channels/phone.channel';
 import { shouldDispatch } from './channels/notification-channel.interface';
 
 @Injectable()
@@ -11,6 +12,7 @@ export class NotificationService {
     private prisma: PrismaService,
     private emailChannel: EmailChannel,
     private smsChannel: SmsChannel,
+    private phoneChannel: PhoneChannel,
   ) {}
 
   /** 写一条投递日志（Track A：多渠道投递可观测性）。失败不阻断主流程。 */
@@ -20,10 +22,9 @@ export class NotificationService {
     }).catch(() => {});
   }
 
-  /** 站内信创建后，按用户联系方式异步分发到 Email/SMS（失败不阻断主流程）。 */
+  /** 站内信创建后，按用户联系方式异步分发到 Email/SMS/Phone（失败不阻断主流程）。 */
   private async dispatchExternal(userId: string, notificationId: string, payload: { type: string; title: string; content: string; link?: string | null }) {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null);
-    // User 当前无 phone 字段，sms 渠道恒 skip（待加 User.phone 后生效）
     const contact = { email: user?.email ?? null, phone: null as string | null };
     const tasks: Promise<unknown>[] = [];
     if (shouldDispatch('email', contact)) {
@@ -38,7 +39,68 @@ export class NotificationService {
           .then(r => this.logDelivery(userId, notificationId, 'sms', r)),
       );
     }
+    if (shouldDispatch('phone', contact)) {
+      tasks.push(
+        this.phoneChannel.send({ userId, ...contact, ...payload })
+          .then(r => this.logDelivery(userId, notificationId, 'phone', r)),
+      );
+    }
     await Promise.allSettled(tasks);
+  }
+
+  /** 指定渠道向单个用户发送通知 + 投递。phone 从 ExpertProfile 获取。 */
+  async sendToUser(
+    userId: string,
+    channels: string[],
+    payload: { type: string; title: string; content: string; link?: string | null },
+  ): Promise<{ userId: string; results: Record<string, string> }> {
+    const [user, profile] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null),
+      this.prisma.expertProfile.findUnique({ where: { userId }, select: { phone: true } }).catch(() => null),
+    ]);
+    const contact = { email: user?.email ?? null, phone: profile?.phone ?? null };
+
+    // 站内信
+    let notificationId: string | null = null;
+    if (channels.includes('in_app')) {
+      const n = await this.prisma.notification.create({
+        data: { userId, type: payload.type, title: payload.title, content: payload.content, link: payload.link },
+      });
+      notificationId = n.id;
+      await this.logDelivery(userId, notificationId, 'in_app', { status: 'sent' });
+    }
+
+    const results: Record<string, string> = {};
+    const tasks: Promise<void>[] = [];
+
+    if (channels.includes('email') && shouldDispatch('email', contact)) {
+      tasks.push(
+        this.emailChannel.send({ userId, ...contact, ...payload }).then(r => {
+          results.email = r.status;
+          return this.logDelivery(userId, notificationId, 'email', r);
+        }),
+      );
+    }
+    if (channels.includes('sms') && shouldDispatch('sms', contact)) {
+      tasks.push(
+        this.smsChannel.send({ userId, ...contact, ...payload }).then(r => {
+          results.sms = r.status;
+          return this.logDelivery(userId, notificationId, 'sms', r);
+        }),
+      );
+    }
+    if (channels.includes('phone') && shouldDispatch('phone', contact)) {
+      tasks.push(
+        this.phoneChannel.send({ userId, ...contact, ...payload }).then(r => {
+          results.phone = r.status;
+          return this.logDelivery(userId, notificationId, 'phone', r);
+        }),
+      );
+    }
+
+    await Promise.allSettled(tasks);
+    if (channels.includes('in_app')) results.in_app = 'sent';
+    return { userId, results };
   }
 
   async create(dto: CreateNotificationDto) {

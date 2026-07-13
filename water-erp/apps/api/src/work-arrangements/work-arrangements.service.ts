@@ -421,7 +421,7 @@ export class WorkArrangementsService {
     } catch (error) {
       console.error('AI greeting generation failed:', error);
       return {
-        greeting: `${userName || '你好'}，欢迎来到工作台，祝你今天工作顺利。`,
+        greeting: '欢迎来到工作台，祝你今天工作顺利。',
       };
     }
   }

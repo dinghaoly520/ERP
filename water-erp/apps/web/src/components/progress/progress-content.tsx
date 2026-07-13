@@ -201,7 +201,7 @@ function PieChart({ items }: { items: Array<{ name: string; count: number }> }) 
 function PieChartBlock({ icon, label, items, accent }: { icon: ReactNode; label: string; items: Array<{ name: string; count: number }>; accent: string }) {
   const topItems = items.slice(0, 6);
   return (
-    <div className="rounded-[10px] border border-[oklch(1_0_0_/_0.5)] bg-[oklch(1_0_0_/_0.3)] p-2.5">
+    <div className="rounded-[10px] bg-[oklch(1_0_0_/_0.3)] p-2.5">
       <div className="flex items-center gap-1.5">
         <div className="flex h-[18px] w-[18px] items-center justify-center rounded-[5px]" style={{ backgroundColor: `color-mix(in oklch, ${accent} 8%, transparent)`, color: accent } as React.CSSProperties}>
           {icon}
@@ -241,7 +241,7 @@ function ProjectCard({ project, index, reducedMotion }: { project: DerivedProjec
 
   return (
     <motion.div {...{ initial, animate, transition }}>
-      <Link href={`/projects?id=${project.id}`} className="neu-card group block px-3.5 py-3">
+      <Link href={`/projects?id=${project.id}`} className="neu-card group block !border-none px-3.5 py-3">
         {/* Header row */}
         <div className="flex items-start justify-between gap-2.5">
           <div className="min-w-0 flex-1">
@@ -632,7 +632,7 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
               ) : aiInsights ? (
                 <>
                   {aiInsights.overview && (
-                    <div className="neu-card-static mb-3 !rounded-[12px] px-3 py-2.5">
+                    <div className="neu-card-static mb-3 !rounded-[12px] !border-none px-3 py-2.5">
                       <p className="text-xs leading-[1.65] text-[color:var(--foreground)]">{aiInsights.overview}</p>
                     </div>
                   )}

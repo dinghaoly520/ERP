@@ -109,7 +109,7 @@ export default function ReportsPanelCompact() {
               key={task.id}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className={`p-2.5 rounded-[12px] bg-white/[0.02] hover:bg-white/[0.04] transition-colors
+              className={`p-2.5 rounded-[12px] hover:bg-[color-mix(in_oklch,var(--muted)_20%,transparent)] transition-colors
                 ${task.status === 'completed' ? 'cursor-pointer' : task.status === 'failed' ? 'opacity-60' : 'opacity-60'}`}
               onClick={() => task.status === 'completed' && setLocalSelectedTask(task)}
             >

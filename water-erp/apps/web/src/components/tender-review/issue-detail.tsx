@@ -24,8 +24,8 @@ export default function IssueDetail({
   return (
     <div className="space-y-6">
       {/* Problem detail */}
-      <section className="rounded-[18px] border border-white/45 bg-white/50 shadow-sm p-4">
-        <div className="text-xs font-semibold text-[var(--muted-foreground)] mb-3 flex items-center gap-2">
+      <section className="rounded-[18px] p-4" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+        <div className="text-xs font-semibold text-[color:var(--muted-foreground)] mb-3 flex items-center gap-2">
           {issue.notApplicable ? (
             <span>⬜ 不适用</span>
           ) : issue.passed ? (
@@ -37,15 +37,15 @@ export default function IssueDetail({
             </span>
           )}
           {issue.source === 'llm-free' && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[rgba(96,139,239,0.12)] text-[rgba(96,139,239,1)] font-medium">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-[4px] bg-[color-mix(in_oklch,var(--accent-soft)_45%,transparent)] text-[color:var(--accent)] font-medium">
               AI 自主判断
             </span>
           )}
         </div>
-        <div className={`rounded-[14px] border-l-[3px] p-3.5 ${
+        <div className={`rounded-[14px] p-3.5 border ${
           issue.notApplicable
-            ? 'bg-[var(--muted-foreground)]/[0.02] border-[var(--muted-foreground)]/20'
-            : 'bg-[rgba(230,129,102,0.04)] border-[rgba(230,129,102,0.6)]'
+            ? 'bg-[color-mix(in_oklch,var(--muted)_15%,transparent)] border-[color-mix(in_oklch,var(--muted-foreground)_15%,transparent)]'
+            : 'bg-[color-mix(in_oklch,var(--danger)_6%,transparent)] border-[color-mix(in_oklch,var(--danger)_18%,transparent)]'
         }`}>
           <div className="flex items-center gap-1.5 mb-2">
             <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${SEVERITY_COLORS[issue.severity]}`}>
@@ -65,7 +65,7 @@ export default function IssueDetail({
 
       {/* Original text comparison */}
       {issue.documentExcerpt || issue.documentLocation?.excerpt || issue.kbExcerpt || issue.knowledgeBaseReferences?.[0]?.clauseContent ? (
-        <section className="rounded-[18px] border border-white/45 bg-white/50 shadow-sm p-4">
+        <section className="rounded-[18px] p-4" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
           <OriginalTextCompare
             documentExcerpt={issue.documentExcerpt}
             documentFileName={documentName}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Award, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Edit3, FileText, Landmark, Loader2, Paperclip, Pencil, Recycle, RefreshCw, Save, UploadCloud, Users, X } from 'lucide-react';
+import { Archive, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, Paperclip, Pencil, Recycle, RefreshCw, Save, Shield, UploadCloud, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import {
@@ -11,6 +11,8 @@ import {
   updateProjectStage,
   updateProjectExtractedInfo,
   uploadProjectStageAttachment,
+  auditStageCompliance,
+  type ComplianceAuditResponse,
   type ExtractedInfo,
 } from '@/lib/api/project-management';
 import {
@@ -24,166 +26,6 @@ import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 
 // ─── Extracted Info Field Components ───────────────────────────────────────────
-
-function DateField({
-  label,
-  value,
-  isEditing,
-  editValue,
-  onEditValueChange,
-  onStartEdit,
-  onSave,
-  formatValue,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-  isEditing: boolean;
-  editValue: string;
-  onEditValueChange: (value: string) => void;
-  onStartEdit: () => void;
-  onSave: () => void;
-  formatValue?: (value: string | number | null | undefined) => string;
-}) {
-  const hasValue = value !== null && value !== undefined && value !== '';
-  const displayValue = formatValue ? formatValue(value) : String(value ?? '');
-
-  return (
-    <div className="pm-info-card pm-info-card--editable">
-      {isEditing ? (
-        <div className="extracted-field__edit">
-          <input
-            type="date"
-            value={editValue}
-            onChange={(e) => onEditValueChange(e.target.value)}
-            className="extracted-field__input extracted-field__input--date"
-            autoFocus
-          />
-          <button type="button" onClick={onSave} className="extracted-field__save">
-            <Save size={14} />
-          </button>
-        </div>
-      ) : (
-        <button type="button" onClick={onStartEdit} className="pm-info-card__editable-trigger">
-          <div className="pm-info-card__label">{label}</div>
-          <div className={`pm-info-card__value ${hasValue ? '' : 'pm-info-card__value--empty'}`}>
-            {hasValue ? displayValue : '待补充'}
-          </div>
-          <Pencil size={10} className="pm-info-card__edit-icon" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  isEditing,
-  editValue,
-  onEditValueChange,
-  onStartEdit,
-  onSave,
-  options,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-  isEditing: boolean;
-  editValue: string;
-  onEditValueChange: (value: string) => void;
-  onStartEdit: () => void;
-  onSave: () => void;
-  options: readonly string[];
-}) {
-  const hasValue = value !== null && value !== undefined && value !== '';
-
-  return (
-    <div className="extracted-field extracted-field--select">
-      {isEditing ? (
-        <div className="extracted-field__edit">
-          <select
-            value={editValue}
-            onChange={(e) => onEditValueChange(e.target.value)}
-            className="extracted-field__input extracted-field__input--select"
-            autoFocus
-          >
-            <option value="">请选择</option>
-            {options.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-          <button type="button" onClick={onSave} className="extracted-field__save">
-            <Save size={14} />
-          </button>
-        </div>
-      ) : (
-        <button type="button" onClick={onStartEdit} className="extracted-field__display extracted-field__display--select">
-          <div className="extracted-field__icon">
-            <ClipboardCheck size={16} />
-          </div>
-          <div className="extracted-field__content">
-            <span className="extracted-field__label">{label}</span>
-            <span className={`extracted-field__value ${hasValue ? '' : 'extracted-field__value--empty'}`}>
-              {hasValue ? String(value) : '待选择'}
-            </span>
-          </div>
-          <Pencil size={12} className="extracted-field__edit-icon" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-function TextareaField({
-  label,
-  value,
-  isEditing,
-  editValue,
-  onEditValueChange,
-  onStartEdit,
-  onSave,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-  isEditing: boolean;
-  editValue: string;
-  onEditValueChange: (value: string) => void;
-  onStartEdit: () => void;
-  onSave: () => void;
-}) {
-  const hasValue = value !== null && value !== undefined && value !== '';
-
-  return (
-    <div className="extracted-field extracted-field--textarea">
-      {isEditing ? (
-        <div className="extracted-field__edit extracted-field__edit--textarea">
-          <textarea
-            value={editValue}
-            onChange={(e) => onEditValueChange(e.target.value)}
-            className="extracted-field__input extracted-field__input--textarea"
-            rows={3}
-            autoFocus
-          />
-          <button type="button" onClick={onSave} className="extracted-field__save">
-            <Save size={14} />
-          </button>
-        </div>
-      ) : (
-        <button type="button" onClick={onStartEdit} className="extracted-field__display extracted-field__display--textarea">
-          <div className="extracted-field__icon">
-            <Users size={16} />
-          </div>
-          <div className="extracted-field__content">
-            <span className="extracted-field__label">{label}</span>
-            <span className={`extracted-field__value extracted-field__value--multiline ${hasValue ? '' : 'extracted-field__value--empty'}`}>
-              {hasValue ? String(value) : '待补充'}
-            </span>
-          </div>
-          <Pencil size={12} className="extracted-field__edit-icon" />
-        </button>
-      )}
-    </div>
-  );
-}
 
 // Expert info display component - handles structured expert data
 function ExpertInfoField({
@@ -247,112 +89,50 @@ function ExpertInfoField({
   };
 
   return (
-    <div className="expert-info-field">
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">专家信息</span>
+        {!isEditing && (
+          <button type="button" onClick={onStartEdit} className="text-[11px] font-medium text-[color:var(--accent)] hover:underline">
+            <Pencil size={11} className="inline mr-1" />{hasValue ? `编辑（${experts.length}人）` : '添加专家'}
+          </button>
+        )}
+      </div>
+
       {isEditing ? (
-        <div className="expert-info-field__edit">
-          <div className="expert-info-table">
-            <div className="expert-info-table__header">
-              <div className="expert-info-table__cell">姓名</div>
-              <div className="expert-info-table__cell">部门</div>
-              <div className="expert-info-table__cell">专业</div>
-              <div className="expert-info-table__cell">职称</div>
-              <div className="expert-info-table__cell expert-info-table__cell--action"></div>
+        <div className="space-y-2">
+          {editExperts.map((expert, i) => (
+            <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-1.5 items-center">
+              <input type="text" value={expert.name} onChange={(e) => updateExpertField(i, 'name', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="姓名" />
+              <input type="text" value={expert.department} onChange={(e) => updateExpertField(i, 'department', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="部门" />
+              <input type="text" value={expert.specialty} onChange={(e) => updateExpertField(i, 'specialty', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="专业" />
+              <input type="text" value={expert.title} onChange={(e) => updateExpertField(i, 'title', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="职称" />
+              <button type="button" onClick={() => removeExpertRow(i)} className="neu-btn-xs !px-2"><X size={13} /></button>
             </div>
-            {editExperts.map((expert, i) => (
-              <div key={i} className="expert-info-table__row">
-                <div className="expert-info-table__cell">
-                  <input
-                    type="text"
-                    value={expert.name}
-                    onChange={(e) => updateExpertField(i, 'name', e.target.value)}
-                    className="expert-info-table__input"
-                    placeholder="姓名"
-                  />
-                </div>
-                <div className="expert-info-table__cell">
-                  <input
-                    type="text"
-                    value={expert.department}
-                    onChange={(e) => updateExpertField(i, 'department', e.target.value)}
-                    className="expert-info-table__input"
-                    placeholder="部门"
-                  />
-                </div>
-                <div className="expert-info-table__cell">
-                  <input
-                    type="text"
-                    value={expert.specialty}
-                    onChange={(e) => updateExpertField(i, 'specialty', e.target.value)}
-                    className="expert-info-table__input"
-                    placeholder="专业"
-                  />
-                </div>
-                <div className="expert-info-table__cell">
-                  <input
-                    type="text"
-                    value={expert.title}
-                    onChange={(e) => updateExpertField(i, 'title', e.target.value)}
-                    className="expert-info-table__input"
-                    placeholder="职称"
-                  />
-                </div>
-                <div className="expert-info-table__cell expert-info-table__cell--action">
-                  <button
-                    type="button"
-                    onClick={() => removeExpertRow(i)}
-                    className="expert-info-table__remove"
-                    title="删除"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-            <button type="button" onClick={addExpertRow} className="expert-info-table__add">
-              + 添加专家
-            </button>
-          </div>
-          <div className="expert-info-field__edit-actions">
-            <span className="expert-info-field__edit-count">{editExperts.length} 位专家</span>
-            <button type="button" onClick={onSave} className="expert-info-field__save">
-              <Save size={14} />
-            </button>
+          ))}
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={addExpertRow} className="text-[11px] font-medium text-[color:var(--accent)] hover:underline">+ 添加专家</button>
+            <span className="text-[10px] text-[color:var(--muted-foreground)]">{editExperts.length} 人</span>
+            <div className="flex-1" />
+            <button type="button" onClick={onSave} className="neu-btn-xs"><Save size={13} />保存</button>
           </div>
         </div>
+      ) : hasValue && experts.length > 0 ? (
+        <div className="space-y-1">
+          {experts.map((expert, i) => (
+            <div key={i} className="flex items-baseline gap-2 text-sm">
+              <span className="font-semibold text-[color:var(--foreground)]">{expert.name}</span>
+              <span className="text-[color:var(--muted-foreground)]/70">·</span>
+              <span className="text-[color:var(--muted-foreground)]">{expert.department}</span>
+              <span className="text-[color:var(--muted-foreground)]/70">·</span>
+              <span className="text-[color:var(--muted-foreground)]">{expert.specialty}</span>
+              <span className="text-[color:var(--muted-foreground)]/70">·</span>
+              <span className="text-[color:var(--muted-foreground)]">{expert.title}</span>
+            </div>
+          ))}
+        </div>
       ) : (
-        <button type="button" onClick={onStartEdit} className="expert-info-field__display">
-          <div className="expert-info-field__header">
-            <div className="expert-info-field__icon">
-              <Users size={16} />
-            </div>
-            <span className="expert-info-field__label">专家信息</span>
-            {hasValue && (
-              <span className="expert-info-field__count">{experts.length} 人</span>
-            )}
-          </div>
-          {hasValue && experts.length > 0 ? (
-            <div className="expert-info-field__list">
-              {experts.map((expert, i) => (
-                <div key={i} className="expert-info-card">
-                  <div className="expert-info-card__index">{i + 1}</div>
-                  <div className="expert-info-card__content">
-                    <div className="expert-info-card__name">{expert.name}</div>
-                    <div className="expert-info-card__details">
-                      <span className="expert-info-card__dept">{expert.department}</span>
-                      <span className="expert-info-card__divider">·</span>
-                      <span className="expert-info-card__specialty">{expert.specialty}</span>
-                      <span className="expert-info-card__divider">·</span>
-                      <span className="expert-info-card__title">{expert.title}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="expert-info-field__empty">待补充专家信息</div>
-          )}
-          <Pencil size={12} className="expert-info-field__edit-icon" />
-        </button>
+        <div className="text-sm text-[color:var(--muted-foreground)]/50">待补充</div>
       )}
     </div>
   );
@@ -403,182 +183,40 @@ function BiddingUnitsField({
   };
 
   return (
-    <div className="extracted-field extracted-field--bidding">
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-1.5">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">{label}</span>
+        {!isEditing && (
+          <button type="button" onClick={onStartEdit} className="text-[11px] font-medium text-[color:var(--accent)] hover:underline">
+            <Pencil size={11} className="inline mr-1" />{hasValue && units.length > 0 ? `编辑（${units.length}家）` : '添加'}
+          </button>
+        )}
+      </div>
+
       {isEditing ? (
-        <div className="extracted-field__edit extracted-field__edit--textarea">
-          <div className="bidding-units-table">
-            <div className="bidding-units-table__header">
-              <div className="bidding-units-table__cell bidding-units-table__cell--index">序号</div>
-              <div className="bidding-units-table__cell">投标单位名称</div>
-              <div className="bidding-units-table__cell bidding-units-table__cell--action"></div>
+        <div className="space-y-2">
+          {editUnits.map((unit, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <span className="w-5 text-center text-[11px] font-semibold text-[color:var(--muted-foreground)]">{i + 1}</span>
+              <input type="text" value={unit} onChange={(e) => updateUnit(i, e.target.value)} className="workbench-input !h-[32px] !text-xs flex-1" placeholder="投标单位名称" />
+              <button type="button" onClick={() => removeUnitRow(i)} className="neu-btn-xs !px-2"><X size={13} /></button>
             </div>
-            {editUnits.map((unit, i) => (
-              <div key={i} className="bidding-units-table__row">
-                <div className="bidding-units-table__cell bidding-units-table__cell--index">
-                  {i + 1}
-                </div>
-                <div className="bidding-units-table__cell">
-                  <input
-                    type="text"
-                    value={unit}
-                    onChange={(e) => updateUnit(i, e.target.value)}
-                    className="bidding-units-table__input"
-                    placeholder="投标单位名称"
-                  />
-                </div>
-                <div className="bidding-units-table__cell bidding-units-table__cell--action">
-                  <button
-                    type="button"
-                    onClick={() => removeUnitRow(i)}
-                    className="bidding-units-table__remove"
-                    title="删除"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-            <button type="button" onClick={addUnitRow} className="bidding-units-table__add">
-              + 添加投标单位
-            </button>
-          </div>
-          <div className="extracted-field__edit-actions">
-            <span className="extracted-field__edit-count">{editUnits.length} 家单位</span>
-            <button type="button" onClick={onSave} className="extracted-field__save">
-              <Save size={14} />
-            </button>
+          ))}
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={addUnitRow} className="text-[11px] font-medium text-[color:var(--accent)] hover:underline">+ 添加投标单位</button>
+            <span className="text-[10px] text-[color:var(--muted-foreground)]">{editUnits.length} 家</span>
+            <div className="flex-1" />
+            <button type="button" onClick={onSave} className="neu-btn-xs"><Save size={13} />保存</button>
           </div>
         </div>
-      ) : (
-        <button type="button" onClick={onStartEdit} className="extracted-field__display extracted-field__display--bidding">
-          <div className="extracted-field__icon">
-            <FileText size={16} />
-          </div>
-          <div className="extracted-field__content">
-            <span className="extracted-field__label">{label}</span>
-            {hasValue && units.length > 0 ? (
-              <div className="extracted-field__list">
-                {units.map((unit, i) => (
-                  <div key={i} className="extracted-field__list-item">
-                    <span className="extracted-field__list-index">{i + 1}</span>
-                    <span className="extracted-field__list-value">{unit.trim()}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <span className="extracted-field__value extracted-field__value--empty">待补充</span>
-            )}
-          </div>
-          <Pencil size={12} className="extracted-field__edit-icon" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-function AwardedSupplierField({
-  label,
-  value,
-  isEditing,
-  editValue,
-  onEditValueChange,
-  onStartEdit,
-  onSave,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-  isEditing: boolean;
-  editValue: string;
-  onEditValueChange: (value: string) => void;
-  onStartEdit: () => void;
-  onSave: () => void;
-}) {
-  const hasValue = value !== null && value !== undefined && value !== '';
-
-  return (
-    <div className="extracted-field extracted-field--awarded">
-      {isEditing ? (
-        <div className="extracted-field__edit">
-          <input
-            type="text"
-            value={editValue}
-            onChange={(e) => onEditValueChange(e.target.value)}
-            className="extracted-field__input"
-            autoFocus
-          />
-          <button type="button" onClick={onSave} className="extracted-field__save">
-            <Save size={14} />
-          </button>
+      ) : hasValue && units.length > 0 ? (
+        <div className="space-y-0.5">
+          {units.map((unit, i) => (
+            <div key={i} className="text-sm text-[color:var(--foreground)]">{i + 1}. {unit.trim()}</div>
+          ))}
         </div>
       ) : (
-        <button type="button" onClick={onStartEdit} className="extracted-field__display extracted-field__display--awarded">
-          <div className="extracted-field__icon extracted-field__icon--highlight">
-            <Award size={16} />
-          </div>
-          <div className="extracted-field__content">
-            <span className="extracted-field__label">{label}</span>
-            <span className={`extracted-field__value extracted-field__value--highlight ${hasValue ? '' : 'extracted-field__value--empty'}`}>
-              {hasValue ? String(value) : '待确定'}
-            </span>
-          </div>
-          <Pencil size={12} className="extracted-field__edit-icon" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-function AmountField({
-  label,
-  value,
-  isEditing,
-  editValue,
-  onEditValueChange,
-  onStartEdit,
-  onSave,
-  formatValue,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-  isEditing: boolean;
-  editValue: string;
-  onEditValueChange: (value: string) => void;
-  onStartEdit: () => void;
-  onSave: () => void;
-  formatValue?: (value: string | number | null | undefined) => string;
-}) {
-  const hasValue = value !== null && value !== undefined && value !== '';
-  const displayValue = formatValue ? formatValue(value) : String(value ?? '');
-
-  return (
-    <div className="extracted-field extracted-field--amount">
-      {isEditing ? (
-        <div className="extracted-field__edit">
-          <input
-            type="number"
-            value={editValue}
-            onChange={(e) => onEditValueChange(e.target.value)}
-            className="extracted-field__input extracted-field__input--amount"
-            placeholder="输入金额"
-            autoFocus
-          />
-          <button type="button" onClick={onSave} className="extracted-field__save">
-            <Save size={14} />
-          </button>
-        </div>
-      ) : (
-        <button type="button" onClick={onStartEdit} className="extracted-field__display extracted-field__display--amount">
-          <div className="extracted-field__icon extracted-field__icon--amount">
-            <Landmark size={16} />
-          </div>
-          <div className="extracted-field__content">
-            <span className="extracted-field__label">{label}</span>
-            <span className={`extracted-field__value extracted-field__value--amount ${hasValue ? '' : 'extracted-field__value--empty'}`}>
-              {hasValue ? displayValue : '待确定'}
-            </span>
-          </div>
-          <Pencil size={12} className="extracted-field__edit-icon" />
-        </button>
+        <div className="text-sm text-[color:var(--muted-foreground)]/50">待补充</div>
       )}
     </div>
   );
@@ -701,6 +339,25 @@ export function ProjectDetailPanel({
   // 用于触发文件分析刷新的计数器（仅在文件上传后增加）
   const [summaryRefreshing, setSummaryRefreshing] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+
+  // 步骤检查状态
+  const [complianceAudit, setComplianceAudit] = useState<ComplianceAuditResponse | null>(null);
+  const [complianceLoading, setComplianceLoading] = useState(false);
+  const [complianceError, setComplianceError] = useState<string | null>(null);
+  const [complianceExpanded, setComplianceExpanded] = useState(true);
+
+  // 自动触发步骤检查：阶段切换或首次加载时自动执行
+  const runComplianceAudit = () => {
+    setComplianceLoading(true);
+    setComplianceError(null);
+    auditStageCompliance(item.id, selectedStage.stageKey)
+      .then((result) => { setComplianceAudit(result); })
+      .catch((err) => { setComplianceError(err instanceof Error ? err.message : '步骤检查请求失败'); })
+      .finally(() => setComplianceLoading(false));
+  };
+  useEffect(() => {
+    runComplianceAudit();
+  }, [item.id, selectedStage.stageKey]);
 
   // Load project attributions for autocomplete
   useEffect(() => {
@@ -1046,7 +703,7 @@ export function ProjectDetailPanel({
                 刷新简报
               </button>
             </div>
-            <div className="rounded-[16px] bg-[color-mix(in_oklch,var(--muted)_40%,transparent)] px-4 py-4 min-h-[80px]">
+            <div className="rounded-[16px] bg-[color-mix(in_oklch,var(--muted)_30%,transparent)] px-4 py-4 min-h-[80px]" style={{boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
               <div className="text-sm leading-6 text-[color:var(--foreground)]">
                 {analysisLoading
                   ? '正在生成项目简报...'
@@ -1105,454 +762,417 @@ export function ProjectDetailPanel({
           </div>
         </div>
 
-        {/* ══════ 双栏正文 ══════ */}
-        <div className="grid gap-5 px-5 pb-5 sm:px-6 lg:px-7 xl:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)]">
-          {/* ── 左栏：项目基本信息 ── */}
-          <div className="wb-panel p-5 sm:p-6">
-            <div className="text-base font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
-              项目基本信息
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="pm-info-card pm-info-card--stage">
-                <div className="pm-info-card__label">当前阶段</div>
-                <div className="pm-info-card__value pm-info-card__value--status">
-                  {selectedStage.stageName}
-                  <span className={`pm-status-dot pm-status-dot--${selectedStage.status.toLowerCase()} ml-2`} />
-                  {PROJECT_STAGE_STATUS_LABELS[selectedStage.status]}
+        {/* ══════ 双栏正文 —— 列 bg 无外层 px 包裹，文本左缘 = page-hero 左缘(均为 px-5) ══════ */}
+        <div className="pb-5">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)]">
+            {/* ── 左栏：wb-panel 玻璃容器（渐变 + 内高光 + 方向性三影）── */}
+            <div className="wb-panel gap-5 px-5 py-5">
+              <div className="flex items-center gap-2.5 -mx-5 -mt-5 px-5 py-3.5 rounded-t-[20px]"
+                style={{
+                  background: "linear-gradient(105deg, oklch(1 0 0 / 0.9) 0%, oklch(0.98 0.003 258 / 0.55) 60%)",
+                  borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)",
+                }}>
+                <div className="flex h-8 w-8 items-center justify-center rounded-[10px]"
+                  style={{background:"color-mix(in oklch,var(--accent-soft) 45%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)"}}>
+                  <FileText size={15} className="text-[color:var(--accent)]" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                    项目基本信息
+                  </div>
                 </div>
               </div>
-              <DateField
-                label="立项时间"
-                value={extractedInfoOverride?.initiationDate ?? item.initiationDate}
-                isEditing={editingField === 'initiationDate'}
-                editValue={editValues.initiationDate}
-                onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, initiationDate: v }))}
-                onStartEdit={() => handleStartEdit('initiationDate', extractedInfoOverride?.initiationDate ?? item.initiationDate)}
-                onSave={() => void handleSaveField('initiationDate')}
-                formatValue={formatDate}
-              />
-            </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div className="pm-info-card">
-                <div className="pm-info-card__label">采购类别</div>
-                <div className="pm-info-card__value">{item.procurementCategory || '待补充'}</div>
-              </div>
-              <div className={`pm-info-card pm-info-card--editable ${editingField === 'demandProject' ? 'pm-info-card--editing' : ''}`}>
-                {editingField === 'demandProject' ? (
-                  <div className="pm-info-card__edit-row">
-                    <div className="pm-info-card__edit-input-wrap" ref={attributionInputRef}>
-                      <input
-                        type="text"
-                        value={editValues.demandProject}
-                        onChange={(e) => {
-                          setEditValues((prev) => ({ ...prev, demandProject: e.target.value }));
-                          openAttributionDropdown();
-                        }}
-                        onFocus={openAttributionDropdown}
-                        onScroll={(e) => e.stopPropagation()}
-                        className="pm-info-card__input"
-                        placeholder="输入或选择归属项目"
-                        autoFocus
-                      />
-                      {showAttributionDropdown && (
-                        <div className="pm-info-card__dropdown" style={dropdownStyle}>
-                          {filteredAttributions.slice(0, 7).map((attr) => (
-                            <button
-                              key={attr.name}
-                              type="button"
-                              onClick={() => {
-                                setEditValues((prev) => ({
-                                  ...prev,
-                                  demandProject: attr.name,
-                                  demandContractNumber: attr.contractNumber || prev.demandContractNumber,
-                                }));
-                                setShowAttributionDropdown(false);
-                              }}
-                              className="pm-info-card__dropdown-item"
-                            >
-                              {attr.name}
-                              {attr.contractNumber && (
-                                <span className="pm-info-card__dropdown-hint">{attr.contractNumber}</span>
-                              )}
-                            </button>
-                          ))}
-                          {!filteredAttributions.some((a) => a.name === '其他') && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditValues((prev) => ({ ...prev, demandProject: '其他' }));
-                                setShowAttributionDropdown(false);
-                              }}
-                              className="pm-info-card__dropdown-item"
-                            >
-                              其他
-                            </button>
-                          )}
-                        </div>
-                      )}
+              {/* ── 进度信息 ── */}
+              <div className="grid grid-cols-2 gap-4 rounded-[18px] px-4 py-3.5"
+                style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">当前阶段</span>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className={`pm-status-dot pm-status-dot--${selectedStage.status.toLowerCase()}`} />
+                    <span className="text-sm font-bold text-[color:var(--foreground)]">{selectedStage.stageName}</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">立项时间</span>
+                  {editingField === 'initiationDate' ? (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <input type="date" value={editValues.initiationDate} onChange={(e) => setEditValues((prev) => ({ ...prev, initiationDate: e.target.value }))} className="workbench-input !h-[32px] !text-xs" autoFocus />
+                      <button type="button" onClick={() => void handleSaveField('initiationDate')} className="neu-btn-xs"><Save size={13} /></button>
                     </div>
-                    <button type="button" onClick={() => void handleSaveField('demandProject')} className="pm-info-card__save-btn">
-                      <Save size={14} />
+                  ) : (
+                    <button type="button" onClick={() => handleStartEdit('initiationDate', extractedInfoOverride?.initiationDate ?? item.initiationDate)} className="group mt-1 flex items-center gap-1.5">
+                      <span className="text-sm font-semibold text-[color:var(--foreground)]">{formatDate(extractedInfoOverride?.initiationDate ?? item.initiationDate) || '待补充'}</span>
+                      <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
                     </button>
+                  )}
+                </div>
+              </div>
+
+              {/* ── 项目归属 ── */}
+              <div className="grid grid-cols-2 gap-4 rounded-[18px] px-4 py-3.5"
+                style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购类别</span>
+                  <div className="mt-1 text-sm font-semibold text-[color:var(--foreground)]">{item.procurementCategory || '待补充'}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">所属项目</span>
+                  {editingField === 'demandProject' ? (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <div ref={attributionInputRef} className="relative flex-1">
+                        <input type="text" value={editValues.demandProject} onChange={(e) => { setEditValues((prev) => ({ ...prev, demandProject: e.target.value })); openAttributionDropdown(); }} onFocus={openAttributionDropdown} onScroll={(e) => e.stopPropagation()} className="workbench-input !h-[32px] !text-xs" placeholder="输入或选择归属项目" autoFocus />
+                        {showAttributionDropdown && (
+                          <div className="absolute left-0 right-0 top-full z-[200] mt-1 overflow-hidden rounded-xl border border-[color-mix(in_oklch,var(--border)_60%,transparent)] bg-[var(--background)] shadow-[0_12px_32px_rgba(0,0,0,0.1)] py-1">
+                            {filteredAttributions.slice(0, 7).map((attr) => (
+                              <button key={attr.name} type="button" onClick={() => { setEditValues((prev) => ({ ...prev, demandProject: attr.name, demandContractNumber: attr.contractNumber || prev.demandContractNumber })); setShowAttributionDropdown(false); }} className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-[color:var(--muted)]">
+                                <span className="text-[color:var(--foreground)]">{attr.name}</span>
+                                {attr.contractNumber && <span className="text-[11px] text-[color:var(--muted-foreground)]">{attr.contractNumber}</span>}
+                              </button>
+                            ))}
+                            {!filteredAttributions.some((a) => a.name === '其他') && (
+                              <button type="button" onClick={() => { setEditValues((prev) => ({ ...prev, demandProject: '其他' })); setShowAttributionDropdown(false); }} className="flex w-full items-center px-3 py-1.5 text-left text-sm hover:bg-[color:var(--muted)] text-[color:var(--foreground)]">其他</button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <button type="button" onClick={() => void handleSaveField('demandProject')} className="neu-btn-xs"><Save size={13} /></button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => { handleStartEdit('demandProject', item.demandProject || ''); setAttributionSearch(item.demandProject || ''); }} className="group mt-1 flex items-center gap-1.5">
+                      <span className={`text-sm font-semibold ${item.demandProject ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/60'}`}>{item.demandProject || '待补充'}</span>
+                      <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* ── 关联编号 ── */}
+              <div className="grid grid-cols-2 gap-4 rounded-[18px] px-4 py-3.5"
+                style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">合同编号</span>
+                  {editingField === 'contractNumber' ? (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <input type="text" value={editValues.contractNumber} onChange={(e) => setEditValues((prev) => ({ ...prev, contractNumber: e.target.value }))} className="workbench-input !h-[32px] !text-xs" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('contractNumber'); if (e.key === 'Escape') setEditingField(null); }} />
+                      <button type="button" onClick={() => void handleSaveField('contractNumber')} className="neu-btn-xs"><Save size={13} /></button>
+                      <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => handleStartEdit('contractNumber', extractedInfoOverride?.contractNumber ?? (item.contractNumber || item.demandContractNumber || ''))} className="group mt-1 flex items-center gap-1.5">
+                      <span className="text-sm font-semibold text-[color:var(--foreground)]">{extractedInfoOverride?.contractNumber ?? item.contractNumber ?? item.demandContractNumber ?? '无'}</span>
+                      <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
+                    </button>
+                  )}
+                </div>
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">部门编号</span>
+                  {currentUsername === 'Swhi-CGZX-07' && editingField === 'departmentNumber' ? (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <input type="text" value={editValues.departmentNumber} onChange={(e) => setEditValues((prev) => ({ ...prev, departmentNumber: e.target.value }))} className="workbench-input !h-[32px] !text-xs" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('departmentNumber'); if (e.key === 'Escape') setEditingField(null); }} />
+                      <button type="button" onClick={() => void handleSaveField('departmentNumber')} className="neu-btn-xs"><Save size={13} /></button>
+                      <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-sm font-semibold text-[color:var(--foreground)]">{item.departmentNumber || '无'}</div>
+                  )}
+                </div>
+              </div>
+
+              <hr className="wb-section-rule" />
+
+              {/* ── 专家信息 ── */}
+              <div className="rounded-[18px] px-4 py-3.5"
+                style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+                <ExpertInfoField
+                  value={extractedInfoOverride?.expertInfo ?? item.expertInfo}
+                  isEditing={editingField === 'expertInfo'}
+                  editValue={editValues.expertInfo}
+                  onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, expertInfo: v }))}
+                  onStartEdit={() => handleStartEdit('expertInfo', extractedInfoOverride?.expertInfo ?? item.expertInfo)}
+                  onSave={() => void handleSaveField('expertInfo')}
+                />
+              </div>
+
+              {/* ── 投标单位 ── */}
+              <div className="rounded-[18px] px-4 py-3.5"
+                style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+                <BiddingUnitsField
+                  label="投标单位"
+                  value={extractedInfoOverride?.biddingUnits ?? item.biddingUnits}
+                  isEditing={editingField === 'biddingUnits'}
+                  editValue={editValues.biddingUnits}
+                  onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, biddingUnits: v }))}
+                  onStartEdit={() => handleStartEdit('biddingUnits', extractedInfoOverride?.biddingUnits ?? item.biddingUnits)}
+                  onSave={() => void handleSaveField('biddingUnits')}
+                />
+              </div>
+
+              {/* ── 金额信息 ── */}
+              <div className="grid grid-cols-2 gap-4 rounded-[18px] px-4 py-3.5"
+                style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">预算金额</span>
+                  <div className="mt-1 text-base font-black tracking-[-0.03em] tabular-nums text-[color:var(--foreground)]">
+                    {item.budgetAmount.toLocaleString('zh-CN')} <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">元</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">合同金额</span>
+                  {editingField === 'contractAmount' ? (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <input type="number" value={editValues.contractAmount} onChange={(e) => setEditValues((prev) => ({ ...prev, contractAmount: e.target.value }))} className="workbench-input !h-[32px] !text-xs" placeholder="输入金额" autoFocus />
+                      <button type="button" onClick={() => void handleSaveField('contractAmount')} className="neu-btn-xs"><Save size={13} /></button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => handleStartEdit('contractAmount', extractedInfoOverride?.contractAmount ?? item.contractAmount)} className="group mt-1 flex items-center gap-1.5">
+                      <span className="text-base font-black tracking-[-0.03em] tabular-nums text-[color:var(--foreground)]">{formatAmount(extractedInfoOverride?.contractAmount ?? item.contractAmount) || '待确定'}</span>
+                      <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* ── 中标单位 ── */}
+              <div className="rounded-[18px] px-4 py-3.5"
+                style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">中标单位</span>
+                {editingField === 'awardedSupplier' ? (
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <input type="text" value={editValues.awardedSupplier} onChange={(e) => setEditValues((prev) => ({ ...prev, awardedSupplier: e.target.value }))} className="workbench-input !h-[32px] !text-xs" autoFocus />
+                    <button type="button" onClick={() => void handleSaveField('awardedSupplier')} className="neu-btn-xs"><Save size={13} /></button>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleStartEdit('demandProject', item.demandProject || '');
-                      setAttributionSearch(item.demandProject || '');
-                    }}
-                    className="pm-info-card__editable-trigger"
-                  >
-                    <div className="pm-info-card__label">所属项目</div>
-                    <div className={`pm-info-card__value ${item.demandProject ? '' : 'pm-info-card__value--empty'}`}>
-                      {item.demandProject || '待补充'}
-                    </div>
-                    <Pencil size={10} className="pm-info-card__edit-icon" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div className="pm-info-card">
-                <div className="pm-info-card__label">合同编号</div>
-                {editingField === 'contractNumber' ? (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      value={editValues.contractNumber}
-                      onChange={(e) => setEditValues((prev) => ({ ...prev, contractNumber: e.target.value }))}
-                      className="pm-info-card__edit-input"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void handleSaveField('contractNumber');
-                        if (e.key === 'Escape') setEditingField(null);
-                      }}
-                    />
-                    <button type="button" onClick={() => void handleSaveField('contractNumber')} className="pm-info-card__save-btn">
-                      <Save size={12} />
-                    </button>
-                    <button type="button" onClick={() => setEditingField(null)} className="pm-info-card__cancel-btn">
-                      <X size={12} />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleStartEdit('contractNumber', extractedInfoOverride?.contractNumber ?? (item.contractNumber || item.demandContractNumber || ''));
-                    }}
-                    className="pm-info-card__editable-trigger"
-                  >
-                    <div className={`pm-info-card__value ${(extractedInfoOverride?.contractNumber ?? item.contractNumber ?? item.demandContractNumber) ? '' : 'pm-info-card__value--empty'}`}>
-                      {extractedInfoOverride?.contractNumber ?? item.contractNumber ?? item.demandContractNumber ?? '无'}
-                    </div>
-                    <Pencil size={10} className="pm-info-card__edit-icon" />
-                  </button>
-                )}
-              </div>
-              <div className="pm-info-card">
-                <div className="pm-info-card__label">部门编号</div>
-                {currentUsername === 'Swhi-CGZX-07' && editingField === 'departmentNumber' ? (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      value={editValues.departmentNumber}
-                      onChange={(e) => setEditValues((prev) => ({ ...prev, departmentNumber: e.target.value }))}
-                      className="pm-info-card__input min-w-0 flex-1"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void handleSaveField('departmentNumber');
-                        if (e.key === 'Escape') setEditingField(null);
-                      }}
-                    />
-                    <button type="button" onClick={() => void handleSaveField('departmentNumber')} className="pm-info-card__save-btn">
-                      <Save size={12} />
-                    </button>
-                    <button type="button" onClick={() => setEditingField(null)} className="pm-info-card__cancel-btn">
-                      <X size={12} />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (currentUsername === 'Swhi-CGZX-07') {
-                        handleStartEdit('departmentNumber', item.departmentNumber || '');
-                      }
-                    }}
-                    className="pm-info-card__editable-wrap"
-                  >
-                    <div className="pm-info-card__value">{item.departmentNumber || '无'}</div>
-                    {currentUsername === 'Swhi-CGZX-07' && <Pencil size={10} className="pm-info-card__edit-icon" />}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <hr className="wb-section-rule my-5" />
-
-            <div>
-              <ExpertInfoField
-                value={extractedInfoOverride?.expertInfo ?? item.expertInfo}
-                isEditing={editingField === 'expertInfo'}
-                editValue={editValues.expertInfo}
-                onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, expertInfo: v }))}
-                onStartEdit={() => handleStartEdit('expertInfo', extractedInfoOverride?.expertInfo ?? item.expertInfo)}
-                onSave={() => void handleSaveField('expertInfo')}
-              />
-            </div>
-
-            <div className="mt-3">
-              <BiddingUnitsField
-                label="投标单位"
-                value={extractedInfoOverride?.biddingUnits ?? item.biddingUnits}
-                isEditing={editingField === 'biddingUnits'}
-                editValue={editValues.biddingUnits}
-                onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, biddingUnits: v }))}
-                onStartEdit={() => handleStartEdit('biddingUnits', extractedInfoOverride?.biddingUnits ?? item.biddingUnits)}
-                onSave={() => void handleSaveField('biddingUnits')}
-              />
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div className="extracted-field extracted-field--amount">
-                <div className="extracted-field__display extracted-field__display--amount extracted-field__display--static">
-                  <div className="extracted-field__icon extracted-field__icon--amount">
-                    <Landmark size={16} />
-                  </div>
-                  <div className="extracted-field__content">
-                    <span className="extracted-field__label">预算金额</span>
-                    <span className="extracted-field__value extracted-field__value--amount extracted-field__value--highlight">
-                      {item.budgetAmount.toLocaleString('zh-CN')} 元
+                  <button type="button" onClick={() => handleStartEdit('awardedSupplier', extractedInfoOverride?.awardedSupplier ?? item.awardedSupplier)} className="group mt-1 flex items-center gap-1.5">
+                    <span className={`text-sm font-bold ${(extractedInfoOverride?.awardedSupplier ?? item.awardedSupplier) ? 'text-[color:var(--accent)]' : 'text-[color:var(--muted-foreground)]/60'}`}>
+                      {extractedInfoOverride?.awardedSupplier ?? item.awardedSupplier ?? '待确定'}
                     </span>
+                    <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
+                  </button>
+                )}
+              </div>
+
+              <hr className="wb-section-rule" />
+
+              {/* ── 事由与要求 ── */}
+              <div className="rounded-[18px] px-4 py-3.5"
+                style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+                <div className="mb-4">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">申请立项事由</span>
+                  <div className="mt-1.5 text-sm leading-6 text-[color:var(--foreground)]">{item.projectReason || '待补充'}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">对供方的主要要求</span>
+                  <div className="mt-1.5 text-sm leading-6 text-[color:var(--foreground)]">{item.supplierRequirements || '无'}</div>
+                </div>
+              </div>
+
+              {/* 阶段提示 */}
+              <div className="flex items-start gap-3 rounded-xl bg-[color-mix(in_oklch,var(--accent-soft)_30%,transparent)] px-4 py-3">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-0.5 shrink-0 text-[color:var(--accent)]">
+                  <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+                </svg>
+                <span className="text-xs leading-5 text-[color:var(--foreground)]">
+                  {isCurrentStage ? '当前阶段可以继续补充材料，完成后系统会自动解锁下一步。' : stageLocked ? '该阶段尚未解锁，需要先完成前一个阶段。' : '该阶段已完成，可继续查看或补充附件。'}
+                </span>
+              </div>
+            </div>
+
+            {/* ── 右栏：wb-panel 玻璃容器（渐变 + 内高光 + 方向性三影）── */}
+            <div className="wb-panel gap-5 px-5 py-5">
+              {/* 阶段标题行 —— cgzxui header bar */}
+              <div className="flex items-center justify-between gap-3 -mx-5 -mt-5 px-5 py-3.5 rounded-t-[20px]"
+                style={{
+                  background: "linear-gradient(105deg, oklch(1 0 0 / 0.9) 0%, oklch(0.98 0.003 258 / 0.55) 60%)",
+                  borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)",
+                }}>
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-[10px]"
+                    style={{background:"color-mix(in oklch,var(--accent-soft) 45%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)"}}>
+                    <UploadCloud size={15} className="text-[color:var(--accent)]" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">{selectedStage.stageName}</div>
                   </div>
                 </div>
+                <span className="inline-flex shrink-0 items-center rounded-[5px] px-2 py-0.5 text-[10px] font-semibold tracking-[0.1em]"
+                  style={{background:"color-mix(in oklch,var(--accent-soft) 40%,transparent)",color:"var(--accent)"}}>
+                  {PROJECT_STAGE_STATUS_LABELS[selectedStage.status]}
+                </span>
               </div>
-              <AmountField
-                label="合同金额"
-                value={extractedInfoOverride?.contractAmount ?? item.contractAmount}
-                isEditing={editingField === 'contractAmount'}
-                editValue={editValues.contractAmount}
-                onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, contractAmount: v }))}
-                onStartEdit={() => handleStartEdit('contractAmount', extractedInfoOverride?.contractAmount ?? item.contractAmount)}
-                onSave={() => void handleSaveField('contractAmount')}
-                formatValue={formatAmount}
-              />
-            </div>
 
-            <div className="mt-3">
-              <AwardedSupplierField
-                label="中标单位"
-                value={extractedInfoOverride?.awardedSupplier ?? item.awardedSupplier}
-                isEditing={editingField === 'awardedSupplier'}
-                editValue={editValues.awardedSupplier}
-                onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, awardedSupplier: v }))}
-                onStartEdit={() => handleStartEdit('awardedSupplier', extractedInfoOverride?.awardedSupplier ?? item.awardedSupplier)}
-                onSave={() => void handleSaveField('awardedSupplier')}
-              />
-            </div>
+              {/* 阶段描述 */}
+              <p className="text-sm leading-6 text-[color:var(--muted-foreground)]">
+                {stageLocked ? '当前阶段尚未解锁。请先完成上一个阶段，再继续上传当前材料。' : selectedStage.status === 'COMPLETED' ? '当前阶段已完成。仍可继续补充材料，保持归档完整。' : '请上传当前阶段所需材料，确认无误后再推进到下一阶段。'}
+              </p>
 
-            <hr className="wb-section-rule my-5" />
-
-            <div className="pm-reason-block">
-              <div className="pm-reason-block__item">
-                <div className="pm-reason-block__label">申请立项事由</div>
-                <div className="pm-reason-block__content">{item.projectReason || '待补充'}</div>
-              </div>
-              <div className="pm-reason-block__item">
-                <div className="pm-reason-block__label">对供方的主要要求</div>
-                <div className="pm-reason-block__content">{item.supplierRequirements || '无'}</div>
-              </div>
-            </div>
-
-            <div className="pm-stage-tip mt-5">
-              <div className="pm-stage-tip__icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4M12 8h.01" />
-                </svg>
-              </div>
-              <div className="pm-stage-tip__text">
-                {isCurrentStage
-                  ? '当前阶段可以继续补充材料，完成后系统会自动解锁下一步。'
-                  : stageLocked
-                    ? '该阶段尚未解锁，需要先完成前一个阶段。'
-                    : '该阶段已完成，可继续查看或补充附件。'}
-              </div>
-            </div>
-          </div>
-
-          {/* ── 右栏：阶段工作区 ── */}
-          <div className="wb-panel p-5 sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="text-[1.08rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
-                  {selectedStage.stageName}
-                </div>
-                <p className="mt-2 max-w-[58ch] text-sm leading-6 text-[color:var(--muted-foreground)]">
-                  {stageLocked
-                    ? '当前阶段尚未解锁。请先完成上一个阶段，再继续上传当前材料。'
-                    : selectedStage.status === 'COMPLETED'
-                      ? '当前阶段已完成。仍可继续补充材料，保持归档完整。'
-                      : '请上传当前阶段所需材料，确认无误后再推进到下一阶段。'}
-                </p>
-              </div>
-              <span className="inline-flex shrink-0 items-center rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--accent)]">
-                {PROJECT_STAGE_STATUS_LABELS[selectedStage.status]}
-              </span>
-            </div>
-
-            <div className="mt-5">
+              {/* 已上传文件列表 */}
               <StageFileList
                 files={selectedStage.attachments}
                 projectId={item.id}
                 onDeleted={async (deletedObjectKey) => {
                   await onUpdated();
-                  if (analysis) {
-                    setAnalysis({
-                      ...analysis,
-                      fileAnalyses: analysis.fileAnalyses.filter((fa) => fa.objectKey !== deletedObjectKey),
-                    });
-                  }
+                  if (analysis) { setAnalysis({ ...analysis, fileAnalyses: analysis.fileAnalyses.filter((fa) => fa.objectKey !== deletedObjectKey) }); }
                 }}
               />
-            </div>
 
-            {/* ── 上传区 ── */}
-            <div className="mt-5 rounded-[16px] bg-[color-mix(in_oklch,var(--muted)_35%,transparent)] p-4 sm:p-5">
-              <label
-                className={`flex cursor-pointer items-center justify-center gap-3 rounded-xl px-5 py-3 transition ${
-                  stageLocked
-                    ? 'cursor-not-allowed bg-[color-mix(in_oklch,var(--muted)_20%,transparent)] opacity-50'
-                    : 'bg-[color-mix(in_oklch,var(--muted)_50%,transparent)] hover:bg-[color-mix(in_oklch,var(--muted)_70%,transparent)]'
-                }`}
-              >
-                <UploadCloud size={20} className="shrink-0 text-[color:var(--muted-foreground)]" />
-                <div className="min-w-0 text-left">
-                  <span className="text-sm font-medium text-[color:var(--foreground)]">
-                    {selectedFiles.length > 0 ? `已选择 ${selectedFiles.length} 个文件` : '选取文件（支持多选）'}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-[color:var(--muted-foreground)]">
-                    {selectedFiles.length > 0 ? '点击重新选择' : '点击浏览或拖拽文件到此区域'}
-                  </span>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file" multiple disabled={stageLocked}
-                  onChange={(event) => setSelectedFiles(Array.from(event.target.files ?? []))}
-                  className="sr-only"
-                />
-              </label>
+              {/* ── 上传区 —— cgzxui 内凹底 ── */}
+              <div className="rounded-xl p-4" style={{background:"color-mix(in oklch,var(--muted) 25%,transparent)",boxShadow:"inset 1px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -1px -1px 2px oklch(1 0 0 / 0.5)"}}>
+                <label className={`flex cursor-pointer items-center justify-center gap-3 rounded-lg px-4 py-3 transition ${stageLocked ? 'cursor-not-allowed opacity-40' : 'bg-[oklch(1_0_0/0.5)] hover:bg-[oklch(1_0_0/0.75)]'}`} style={stageLocked ? {} : {boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)"}}>
+                  <UploadCloud size={20} className="shrink-0 text-[color:var(--muted-foreground)]" />
+                  <div className="min-w-0 text-left">
+                    <span className="text-sm font-medium text-[color:var(--foreground)]">{selectedFiles.length > 0 ? `已选择 ${selectedFiles.length} 个文件` : '选取文件（支持多选）'}</span>
+                    <span className="mt-0.5 block text-xs text-[color:var(--muted-foreground)]">{selectedFiles.length > 0 ? '点击重新选择' : '点击浏览或拖拽文件到此区域'}</span>
+                  </div>
+                  <input ref={fileInputRef} type="file" multiple disabled={stageLocked} onChange={(event) => setSelectedFiles(Array.from(event.target.files ?? []))} className="sr-only" />
+                </label>
 
-              {selectedFiles.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {selectedFiles.map((file, index) => (
-                    <span key={index} className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--accent-soft)_40%,transparent)] px-3 py-1 text-xs text-[color:var(--foreground)]">
-                      <Paperclip size={11} className="text-[color:var(--muted-foreground)]" />
-                      {file.name}
-                    </span>
-                  ))}
-                </div>
-              )}
+                {selectedFiles.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedFiles.map((file, index) => (
+                      <span key={index} className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--accent-soft)_40%,transparent)] px-3 py-1 text-xs text-[color:var(--foreground)]">
+                        <Paperclip size={11} className="text-[color:var(--muted-foreground)]" />{file.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
-              {(uploading || analysisLoading) && (
-                <div className="mt-4 flex items-center gap-3 rounded-[12px] bg-[color-mix(in_oklch,var(--muted)_60%,transparent)] px-4 py-3">
-                  <div className="flex items-center gap-2.5">
+                {(uploading || analysisLoading) && (
+                  <div className="mt-3 flex items-center gap-3 rounded-lg bg-[color-mix(in_oklch,var(--muted)_55%,transparent)] px-4 py-3">
                     <Loader2 size={14} className="animate-spin text-[color:var(--accent)]" />
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[0.82rem] font-semibold text-[color:var(--foreground)]">
-                        {uploading ? '正在上传文件…' : '正在智能分析文件内容…'}
-                      </span>
-                      <span className="text-[11px] text-[color:var(--muted-foreground)]">
-                        {uploading
-                          ? `已完成 ${uploadProgress?.completed ?? 0} / ${uploadProgress?.total ?? selectedFiles.length}`
-                          : 'AI 正在识别文件类型与内容，分析完成后即可确认阶段完成'}
-                      </span>
+                      <span className="text-[0.82rem] font-semibold text-[color:var(--foreground)]">{uploading ? '正在上传文件…' : '正在智能分析文件内容…'}</span>
+                      <span className="text-[11px] text-[color:var(--muted-foreground)]">{uploading ? `已完成 ${uploadProgress?.completed ?? 0} / ${uploadProgress?.total ?? selectedFiles.length}` : 'AI 正在识别文件类型与内容，分析完成后即可确认阶段完成'}</span>
                     </div>
+                    {uploadProgress && uploading && (
+                      <div className="ml-auto h-1.5 w-24 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_15%,transparent)]">
+                        <div className="h-full rounded-full bg-[color:var(--accent)] transition-all duration-500" style={{ width: `${((uploadProgress.completed + 0.3) / Math.max(uploadProgress.total, 1)) * 100}%` }} />
+                      </div>
+                    )}
                   </div>
-                  {uploadProgress && uploading && (
-                    <div className="ml-auto h-1.5 w-24 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_15%,transparent)]">
-                      <div
-                        className="h-full rounded-full bg-[color:var(--accent)] transition-all duration-500"
-                        style={{ width: `${((uploadProgress.completed + 0.3) / Math.max(uploadProgress.total, 1)) * 100}%` }}
-                      />
-                    </div>
+                )}
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={() => void uploadStageFiles()} disabled={uploading || selectedFiles.length === 0 || stageLocked} className="neu-btn-primary">
+                    {uploading ? (<><Loader2 size={15} className="animate-spin" />上传中…</>) : (<><UploadCloud size={15} />{selectedStage.status === 'COMPLETED' ? '补充材料' : '上传所选文件'}</>)}
+                  </button>
+                  <button type="button" onClick={() => void markStageCompleted(selectedStage)} disabled={!canCompleteStage || submitting} className="neu-btn-primary is-success">
+                    {submitting ? (<><Loader2 size={15} className="animate-spin" />提交中…</>) : selectedStage.status === 'COMPLETED' ? (<><CheckCircle2 size={15} />已完成</>) : stageProcessing ? (<><Loader2 size={15} className="animate-spin opacity-50" />等待分析完成…</>) : (<><CheckCircle2 size={15} />标记本阶段完成</>)}
+                  </button>
+                  {selectedFiles.length > 0 && !uploading && (
+                    <button type="button" onClick={() => { setSelectedFiles([]); if (fileInputRef.current) fileInputRef.current.value = ''; }} className="neu-btn-soft !px-3 !py-1.5 !text-[11px]"><X size={12} />清空选择</button>
                   )}
                 </div>
-              )}
+              </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button
-                  type="button" onClick={() => void uploadStageFiles()}
-                  disabled={uploading || selectedFiles.length === 0 || stageLocked}
-                  className="neu-btn-primary"
-                >
-                  {uploading ? (<><Loader2 size={15} className="animate-spin" />上传中…</>) : (<><UploadCloud size={15} />{selectedStage.status === 'COMPLETED' ? '补充材料' : '上传所选文件'}</>)}
-                </button>
-                <button
-                  type="button" onClick={() => void markStageCompleted(selectedStage)}
-                  disabled={!canCompleteStage || submitting}
-                  className="neu-btn-primary is-success"
-                >
-                  {submitting ? (<><Loader2 size={15} className="animate-spin" />提交中…</>) : selectedStage.status === 'COMPLETED' ? (<><CheckCircle2 size={15} />已完成</>) : stageProcessing ? (<><Loader2 size={15} className="animate-spin opacity-50" />等待分析完成…</>) : (<><CheckCircle2 size={15} />标记本阶段完成</>)}
-                </button>
-                {selectedFiles.length > 0 && !uploading && (
-                  <button type="button" onClick={() => { setSelectedFiles([]); if (fileInputRef.current) fileInputRef.current.value = ''; }} className="neu-btn-soft !px-3 !py-1.5 !text-[11px]">
-                    <X size={12} />清空选择
-                  </button>
+              {/* ── 文件分析 ── */}
+              <hr className="wb-section-rule" />
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[0.95rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">文件分析</span>
+                <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">已上传 {stageFileAnalysis.length} 份</span>
+              </div>
+
+              <div className="max-h-[320px] overflow-y-auto pr-1">
+                {analysisError ? (
+                  <div className="rounded-lg px-4 py-4 text-sm leading-6" style={{background:"color-mix(in oklch,var(--danger) 8%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.1)"}}>{analysisError}</div>
+                ) : analysisLoading ? (
+                  <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>正在分析已上传文件...</div>
+                ) : currentFileAnalysis ? (
+                  <div className="rounded-lg px-4 py-4" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
+                    <div className="text-sm font-semibold text-[color:var(--foreground)]">{currentFileAnalysis.fileName}</div>
+                    <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)]">与当前步骤是否匹配</div>
+                    <div className="mt-1 text-sm leading-6 text-[color:var(--foreground)]">{currentFileAnalysis.stageMatch}</div>
+                    <div className="mt-3 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)]">核心内容摘要</div>
+                    <div className="mt-1 text-sm leading-6 text-[color:var(--foreground)] whitespace-pre-wrap">{currentFileAnalysis.contentSummary}</div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>当前还没有可分析的上传文件。</div>
                 )}
               </div>
-            </div>
 
-            {/* ── 文件分析（不再嵌套卡片） ── */}
-            <hr className="wb-section-rule mt-5 mb-4" />
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[0.98rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">文件分析</span>
-              <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">已上传 {stageFileAnalysis.length} 份</span>
-            </div>
-
-            <div className="mt-4 max-h-[320px] overflow-y-auto pr-1">
-              {analysisError ? (
-                <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-4 text-sm leading-6 text-[color:var(--danger)]">
-                  {analysisError}
-                </div>
-              ) : analysisLoading ? (
-                <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--muted)_40%,transparent)] px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]">
-                  正在分析已上传文件...
-                </div>
-              ) : currentFileAnalysis ? (
-                <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--muted)_40%,transparent)] px-4 py-4">
-                  <div className="text-sm font-semibold text-[color:var(--foreground)]">{currentFileAnalysis.fileName}</div>
-                  <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)]">与当前步骤是否匹配</div>
-                  <div className="mt-1 text-sm leading-6 text-[color:var(--foreground)]">{currentFileAnalysis.stageMatch}</div>
-                  <div className="mt-3 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)]">核心内容摘要</div>
-                  <div className="mt-1 text-sm leading-6 text-[color:var(--foreground)] whitespace-pre-wrap">{currentFileAnalysis.contentSummary}</div>
-                </div>
-              ) : (
-                <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--muted)_40%,transparent)] px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]">
-                  当前还没有可分析的上传文件。
+              {stageFileAnalysis.length > 1 && !analysisLoading && (
+                <div className="flex items-center justify-between gap-3">
+                  <button type="button" onClick={() => setCurrentFileIndex(Math.max(0, currentFileIndex - 1))} disabled={currentFileIndex === 0} className="neu-btn-xs"><ChevronLeft size={14} />上一份</button>
+                  <span className="text-xs font-semibold text-[color:var(--muted-foreground)]">{currentFileIndex + 1} / {stageFileAnalysis.length}</span>
+                  <button type="button" onClick={() => setCurrentFileIndex(Math.min(stageFileAnalysis.length - 1, currentFileIndex + 1))} disabled={currentFileIndex === stageFileAnalysis.length - 1} className="neu-btn-xs"><ChevronRight size={14} />下一份</button>
                 </div>
               )}
+
+            {/* ══════ 步骤检查 —— 放在右栏文件分析下方 ══════ */}
+            <hr className="wb-section-rule" />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Shield size={15} className="text-[color:var(--accent)]" />
+                <span className="text-[0.95rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">步骤检查</span>
+                {complianceAudit && (
+                  <span className="text-[10px] font-semibold text-[color:var(--muted-foreground)]">
+                    {complianceAudit.results.filter(r => r.verdict === '通过').length}通过 / {complianceAudit.results.filter(r => r.verdict === '警告').length}警告 / {complianceAudit.results.filter(r => r.verdict === '违规').length}违规
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={complianceLoading || stageLocked}
+                onClick={() => { runComplianceAudit(); setComplianceExpanded(true); }}
+                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-[color:var(--accent)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent-soft)_30%,transparent)] disabled:opacity-50"
+              >
+                {complianceLoading ? (
+                  <><Loader2 size={12} className="animate-spin" />审查中...</>
+                ) : (
+                  <><Shield size={12} />{complianceLoading ? '检查中...' : '重新检查'}</>
+                )}
+              </button>
             </div>
 
-            {stageFileAnalysis.length > 1 && !analysisLoading && (
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <button type="button" onClick={() => setCurrentFileIndex(Math.max(0, currentFileIndex - 1))} disabled={currentFileIndex === 0} className="neu-btn-xs">
-                  <ChevronLeft size={14} />上一份
-                </button>
-                <span className="text-xs font-semibold text-[color:var(--muted-foreground)]">{currentFileIndex + 1} / {stageFileAnalysis.length}</span>
-                <button type="button" onClick={() => setCurrentFileIndex(Math.min(stageFileAnalysis.length - 1, currentFileIndex + 1))} disabled={currentFileIndex === stageFileAnalysis.length - 1} className="neu-btn-xs">
-                  <ChevronRight size={14} />下一份
-                </button>
+            {complianceError && (
+              <div className="rounded-lg px-3 py-2 text-xs text-[color:var(--danger)]" style={{background:"color-mix(in oklch,var(--danger) 6%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.1)"}}>
+                {complianceError}
+              </div>
+            )}
+
+            {complianceLoading && !complianceAudit && (
+              <div className="rounded-lg px-4 py-4 text-sm text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12)"}}>
+                正在调用 AI 进行步骤检查，请稍候...
+              </div>
+            )}
+
+            {complianceAudit && (
+              <div className="space-y-3">
+                <div className="rounded-lg px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]" style={{background:"color-mix(in oklch,var(--accent-soft) 20%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.5)"}}>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">审查总结</span>
+                  <div className="mt-1">{complianceAudit.summary}</div>
+                </div>
+                {complianceAudit.results.map((item, i) => {
+                  const iconColor = item.verdict === '通过' ? 'var(--success)' : item.verdict === '警告' ? 'var(--warning)' : 'var(--danger)';
+                  const bgColor = item.verdict === '通过' ? 'color-mix(in oklch,var(--success) 6%,transparent)' : item.verdict === '警告' ? 'color-mix(in oklch,var(--warning) 8%,transparent)' : 'color-mix(in oklch,var(--danger) 6%,transparent)';
+                  return (
+                    <div key={i} className="rounded-lg px-4 py-3 text-sm" style={{background:bgColor}}>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">{item.dimension}</span>
+                          <span className="text-sm font-semibold text-[color:var(--foreground)]">{item.checkpoint}</span>
+                        </div>
+                        <span className="shrink-0 rounded-[4px] px-2 py-0.5 text-[10px] font-bold" style={{color:iconColor,background:`color-mix(in oklch,${iconColor} 12%,transparent)`}}>
+                          {item.verdict}
+                        </span>
+                      </div>
+                      <div className="text-xs leading-5 text-[color:var(--foreground)] mt-1">{item.evidence}</div>
+                      {item.suggestion && (
+                        <div className="mt-2 flex items-start gap-1.5 text-xs leading-5">
+                          <span className="shrink-0 text-[color:var(--accent)] font-semibold">建议：</span>
+                          <span className="text-[color:var(--foreground)]">{item.suggestion}</span>
+                        </div>
+                      )}
+                      <div className="mt-1.5 text-[10px] text-[color:var(--muted-foreground)]/60 leading-relaxed">{item.regulationRef}</div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
-      </section>
+      </div>
+    </section>
 
       <LoginErrorDialog
         isOpen={Boolean(errorMessage)}

@@ -237,11 +237,16 @@ export class ExpertAdminService {
 
   /* ── 专家智能抽取 ── */
 
-  /** 预览抽取：AI 分析 + 合规过滤 + 随机抽取（不落库） */
+  /**
+   * 预览抽取：AI 分析 + 合规过滤 + 模式驱动抽取（不落库）。
+   * 三种模式：specialty_match（专业匹配）/ random（随机抽取）/ merit_best（综合择优）
+   */
   async previewExtraction(projectId: string, dto: ExtractPreviewDto) {
     const totalNeeded = Math.min(Math.max(dto.totalNeeded ?? 5, 1), 9);
     const alternatives = Math.min(Math.max(dto.alternatives ?? 2, 0), 5);
-    const mode: 'weighted' | 'fair' = dto.mode === 'fair' ? 'fair' : 'weighted';
+    // 新 extractMode 优先，兼容旧 mode 参数（weighted→specialty_match, fair→random）
+    const extractMode: 'specialty_match' | 'random' | 'merit_best' =
+      dto.extractMode ?? (dto.mode === 'fair' ? 'random' : 'specialty_match');
 
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
@@ -264,39 +269,107 @@ export class ExpertAdminService {
       },
     });
     const eligible = experts.filter((u) => {
-      if (u.bidExperts.length > 0) return false; // 已分配
+      if (u.bidExperts.length > 0) return false;
       const emp = u.expertProfile?.employer?.trim();
       if (emp) {
         for (const sn of supplierNames) {
-          if (sn && (emp.includes(sn) || sn.includes(emp))) return false; // 供应商回避
+          if (sn && (emp.includes(sn) || sn.includes(emp))) return false;
         }
       }
       return true;
     });
 
-    // 历史履职均分
-    const evalAgg = await this.prisma.expertEvaluation.groupBy({
-      by: ['expertUserId'],
-      where: { expertUserId: { in: eligible.map(e => e.id) } },
-      _avg: { overallScore: true },
-    });
+    const eligibleIds = eligible.map(e => e.id);
+    const twelveMonthsAgo = new Date(Date.now() - 365 * 24 * 3600 * 1000);
+
+    // 批量拉取多维度数据
+    const [evalAgg, allEvals, allDeltas, allActiveAssigns, allRecentAssigns] = await Promise.all([
+      // 历史履职均分
+      this.prisma.expertEvaluation.groupBy({
+        by: ['expertUserId'],
+        where: { expertUserId: { in: eligibleIds } },
+        _avg: { overallScore: true },
+      }),
+      // 每位专家的最新履职评价（用于等级/出勤/质量/廉洁）
+      this.prisma.expertEvaluation.findMany({
+        where: { expertUserId: { in: eligibleIds } },
+        orderBy: { createdAt: 'desc' },
+        select: { expertUserId: true, level: true, attendanceScore: true, qualityScore: true, disciplineScore: true, overallScore: true, createdAt: true },
+      }),
+      // 评分偏离度
+      this.prisma.bidScoreDelta.findMany({
+        where: { expertId: { in: eligibleIds } },
+        select: { expertId: true, delta: true },
+      }),
+      // 当前活跃负荷（progress < 100 的项目）
+      this.prisma.bidExpert.findMany({
+        where: { userId: { in: eligibleIds }, progress: { lt: 100 } },
+        select: { userId: true },
+      }),
+      // 近12月项目数
+      this.prisma.bidExpert.findMany({
+        where: { userId: { in: eligibleIds }, createdAt: { gte: twelveMonthsAgo } },
+        select: { userId: true },
+      }),
+    ]);
+
     const evalAvgMap = new Map(evalAgg.map(a => [a.expertUserId, a._avg.overallScore ?? 0]));
 
-    const candidates = eligible.map(u => ({
-      id: u.id,
-      displayName: u.displayName,
-      specialty: u.expertProfile?.specialty || '综合',
-      title: u.expertProfile?.title ?? undefined,
-      employer: u.expertProfile?.employer ?? undefined,
-      pastProjects: u._count.bidExperts,
-      pastAvgScore: Math.round((evalAvgMap.get(u.id) ?? 0) * 10) / 10,
-    }));
+    // 最新评价 Map（按时间降序，取第一条）
+    const latestEvalMap = new Map<string, { level: string; attendanceScore: number; qualityScore: number; disciplineScore: number; overallScore: number }>();
+    for (const ev of allEvals) {
+      if (!latestEvalMap.has(ev.expertUserId)) {
+        latestEvalMap.set(ev.expertUserId, { level: ev.level, attendanceScore: ev.attendanceScore, qualityScore: ev.qualityScore, disciplineScore: ev.disciplineScore, overallScore: ev.overallScore });
+      }
+    }
 
-    // AI 分析
+    // 偏离度 Map：每人平均 delta
+    const deltaMap = new Map<string, number>();
+    const deltaCountMap = new Map<string, number>();
+    for (const d of allDeltas) {
+      deltaMap.set(d.expertId, (deltaMap.get(d.expertId) ?? 0) + Number(d.delta));
+      deltaCountMap.set(d.expertId, (deltaCountMap.get(d.expertId) ?? 0) + 1);
+    }
+    const deviationMap = new Map<string, number>();
+    for (const [id, sum] of deltaMap) {
+      deviationMap.set(id, Math.round((sum / (deltaCountMap.get(id) ?? 1)) * 10) / 10);
+    }
+
+    // 负荷 Map
+    const loadMap = new Map<string, number>();
+    for (const a of allActiveAssigns) loadMap.set(a.userId, (loadMap.get(a.userId) ?? 0) + 1);
+    const recentMap = new Map<string, number>();
+    for (const a of allRecentAssigns) recentMap.set(a.userId, (recentMap.get(a.userId) ?? 0) + 1);
+
+    // 构建富化候选人
+    const candidates = eligible.map(u => {
+      const latest = latestEvalMap.get(u.id);
+      const load = loadMap.get(u.id) ?? 0;
+      return {
+        id: u.id,
+        displayName: u.displayName,
+        specialty: u.expertProfile?.specialty || '综合',
+        title: u.expertProfile?.title ?? undefined,
+        employer: u.expertProfile?.employer ?? undefined,
+        pastProjects: u._count.bidExperts,
+        pastAvgScore: Math.round((evalAvgMap.get(u.id) ?? 0) * 10) / 10,
+        evaluationLevel: latest?.level,
+        attendanceScore: latest?.attendanceScore,
+        qualityScore: latest?.qualityScore,
+        disciplineScore: latest?.disciplineScore,
+        scoreDeviation: deviationMap.get(u.id),
+        recentProjects12m: recentMap.get(u.id) ?? 0,
+        currentLoad: load,
+        currentLoadStatus: load === 0 ? '空闲' : load <= 2 ? '正常' : '繁忙',
+      };
+    });
+
+    // AI 分析（带模式指令）
     const llm = await this.extractionAi.analyzeAndScore(
       { name: project.name, procurementMethod: project.procurementMethod, scope: project.riskNote || project.name, budget: undefined },
       candidates,
       totalNeeded,
+      extractMode,
     );
 
     let analysis: string;
@@ -311,11 +384,10 @@ export class ExpertAdminService {
         ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '' }))
         : llm.requiredSpecialties;
       for (const s of llm.scoredExperts) scoreMap.set(s.id, { matchScore: s.matchScore, fitSpecialty: s.fitSpecialty, reason: s.reason });
-      // 降级：LLM 未覆盖的候选人由规则评分兜底（避免 UI 显示「0 较低」）
       for (const c of candidates) {
         if (!scoreMap.has(c.id)) {
           scoreMap.set(c.id, {
-            matchScore: this.ruleScore(c),
+            matchScore: extractMode === 'merit_best' ? this.extendedRuleScore(c) : this.ruleScore(c),
             fitSpecialty: c.specialty,
             reason: `专业「${c.specialty}」${c.title ? '、' + c.title : ''}，历史项目 ${c.pastProjects} 个。`,
           });
@@ -323,19 +395,21 @@ export class ExpertAdminService {
       }
     } else {
       engine = 'rules';
-      analysis = `基于专业匹配与历史履职的规则评分（共 ${eligible.length} 名合规专家）。`;
+      const modeLabel = extractMode === 'specialty_match' ? '专业匹配' : extractMode === 'random' ? '随机抽取' : '综合择优';
+      analysis = `基于${modeLabel}规则评分（共 ${eligible.length} 名合规专家）。`;
       requiredSpecialties = dto.manualQuotas?.length
         ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '' }))
         : this.ruleComposition(candidates, totalNeeded);
       for (const c of candidates) {
-        scoreMap.set(c.id, { matchScore: this.ruleScore(c), fitSpecialty: c.specialty, reason: `专业「${c.specialty}」${c.title ? '、' + c.title : ''}，历史项目 ${c.pastProjects} 个。` });
+        const score = extractMode === 'merit_best' ? this.extendedRuleScore(c) : this.ruleScore(c);
+        scoreMap.set(c.id, { matchScore: score, fitSpecialty: c.specialty, reason: `专业「${c.specialty}」${c.title ? '、' + c.title : ''}，历史项目 ${c.pastProjects} 个。` });
       }
     }
 
-    // 归一化配额到 totalNeeded
+    // 归一化配额
     const quotas = this.normalizeQuotas(requiredSpecialties, totalNeeded);
 
-    // 按专业分组（每位专家分到其最契合专业组，避免重复）
+    // 按专业分组
     const groups = new Map<string, typeof candidates>();
     for (const c of candidates) {
       const fit = scoreMap.get(c.id)?.fitSpecialty || c.specialty;
@@ -344,28 +418,25 @@ export class ExpertAdminService {
       groups.get(key)!.push(c);
     }
 
-    // 抽取：每组内按模式抽样
+    // 模式驱动抽取
     const selected: any[] = [];
     const shortages: { specialty: string; needed: number; available: number }[] = [];
     const usedIds = new Set<string>();
+
     for (const q of quotas) {
       const group = (groups.get(q.specialty) || []).filter(c => !usedIds.has(c.id));
-      if (group.length === 0) {
-        // 该专业无匹配专家：放宽到全部合规候选
-        const fallback = candidates.filter(c => !usedIds.has(c.id));
-        shortages.push({ specialty: q.specialty, needed: q.count, available: 0 });
-        const drawn = this.draw(fallback, Math.min(q.count, fallback.length), mode, scoreMap);
-        for (const c of drawn) { usedIds.add(c.id); selected.push(this.toSelection(c, q.specialty, '正选', scoreMap)); }
-        continue;
-      }
-      if (group.length < q.count) shortages.push({ specialty: q.specialty, needed: q.count, available: group.length });
-      const drawn = this.draw(group, Math.min(q.count, group.length), mode, scoreMap);
+      const fallback = candidates.filter(c => !usedIds.has(c.id));
+      const pool = group.length > 0 ? group : fallback;
+      if (group.length === 0) shortages.push({ specialty: q.specialty, needed: q.count, available: 0 });
+      else if (group.length < q.count) shortages.push({ specialty: q.specialty, needed: q.count, available: group.length });
+
+      const drawn = this.drawByMode(pool, Math.min(q.count, pool.length), extractMode, scoreMap);
       for (const c of drawn) { usedIds.add(c.id); selected.push(this.toSelection(c, q.specialty, '正选', scoreMap)); }
     }
 
-    // 候补：从未中选者按匹配度取 top N
+    // 候补
     const remaining = candidates.filter(c => !usedIds.has(c.id)).sort((a, b) => (scoreMap.get(b.id)?.matchScore ?? 0) - (scoreMap.get(a.id)?.matchScore ?? 0));
-    const altDrawn = mode === 'fair'
+    const altDrawn = extractMode === 'random'
       ? this.fairShuffle(remaining).slice(0, alternatives)
       : remaining.slice(0, alternatives);
     const alternativeList = altDrawn.map(c => this.toSelection(c, scoreMap.get(c.id)?.fitSpecialty || c.specialty, '候补', scoreMap));
@@ -373,9 +444,21 @@ export class ExpertAdminService {
     return {
       engine,
       model: engine === 'deepseek' ? process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash' : 'WaterERP Rules Engine',
+      extractMode,
       analysis,
       requiredSpecialties: quotas,
       eligiblePool: eligible.length,
+      candidatePool: candidates.map(c => ({
+        userId: c.id,
+        name: c.displayName,
+        specialty: c.specialty,
+        title: c.title,
+        employer: c.employer,
+        matchScore: scoreMap.get(c.id)?.matchScore ?? 0,
+        evaluationLevel: c.evaluationLevel,
+        currentLoadStatus: c.currentLoadStatus,
+        reason: scoreMap.get(c.id)?.reason ?? '',
+      })),
       selected,
       alternatives: alternativeList,
       shortages,
@@ -383,22 +466,102 @@ export class ExpertAdminService {
     };
   }
 
-  /** 确认抽取：为选中的专家创建 BidExpert 记录 */
-  async confirmExtraction(projectId: string, dto: ConfirmExtractionDto) {
+  /** 确认抽取：创建 BidExpert + 写入审计日志 */
+  async confirmExtraction(projectId: string, dto: ConfirmExtractionDto, operatorId?: string) {
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project) throw new NotFoundException('项目不存在');
     if (!dto.experts?.length) throw new BadRequestException({ error: '请选择专家', code: 'NO_EXPERTS' });
 
-    const created = await this.prisma.$transaction(
-      dto.experts.map(e =>
-        this.prisma.bidExpert.upsert({
-          where: { projectId_userId: { projectId, userId: e.userId } },
-          update: { expertName: e.expertName, major: e.major },
-          create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major },
+    const [created] = await Promise.all([
+      this.prisma.$transaction(
+        dto.experts.map(e =>
+          this.prisma.bidExpert.upsert({
+            where: { projectId_userId: { projectId, userId: e.userId } },
+            update: { expertName: e.expertName, major: e.major },
+            create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major },
+          }),
+        ),
+      ),
+      // 审计日志（不阻断主流程）
+      this.prisma.auditLog.create({
+        data: {
+          userId: operatorId ?? 'system',
+          action: 'EXPERT_EXTRACTION_CONFIRMED',
+          resourceType: 'BidProject',
+          resourceId: projectId,
+          details: {
+            projectName: project.name,
+            expertCount: dto.experts.length,
+            experts: dto.experts.map(e => ({ userId: e.userId, name: e.expertName, major: e.major })),
+          },
+        },
+      }).catch(() => {}),
+    ]);
+
+    return { success: true, count: created.length, expertIds: dto.experts.map(e => e.userId) };
+  }
+
+  /** 抽取确认后发送通知（逐专家逐渠道投递） */
+  async sendExtractionNotify(
+    projectId: string,
+    expertIds: string[],
+    channels: string[],
+    message: string,
+  ) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { name: true, projectCode: true },
+    });
+    if (!project) throw new NotFoundException('项目不存在');
+
+    const experts = await this.prisma.user.findMany({
+      where: { id: { in: expertIds }, role: 'bid_expert' },
+      select: { id: true, displayName: true, expertProfile: { select: { phone: true } } },
+    });
+
+    const results = await Promise.all(
+      experts.map(expert =>
+        this.notification.sendToUser(expert.id, channels, {
+          type: 'EXPERT_ASSIGNED',
+          title: `评审任务通知 - ${project.name}`,
+          content: message || `您已被选为「${project.name}（${project.projectCode}）」评审专家，请登录专家门户查看详情。`,
+          link: '/',
         }),
       ),
     );
-    return { success: true, count: created.length };
+
+    return {
+      projectId,
+      projectName: project.name,
+      results,
+    };
+  }
+
+  /** 查询项目的抽取历史（从审计日志中提取） */
+  async getExtractionHistory(projectId?: string, page = 1, pageSize = 20) {
+    const where: any = { action: 'EXPERT_EXTRACTION_CONFIRMED' };
+    if (projectId) where.resourceId = projectId;
+
+    const [total, items] = await Promise.all([
+      this.prisma.auditLog.count({ where }),
+      this.prisma.auditLog.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          userId: true,
+          action: true,
+          resourceId: true,
+          details: true,
+          createdAt: true,
+          user: { select: { displayName: true } },
+        },
+      }),
+    ]);
+
+    return { total, page, pageSize, items };
   }
 
   /* ── 大屏聚合统计（公开，无需登录）── */
@@ -746,9 +909,22 @@ export class ExpertAdminService {
     return partial ? partial.specialty : (quotas[0]?.specialty || fitSpecialty);
   }
 
-  private draw(group: any[], n: number, mode: 'weighted' | 'fair', scoreMap: Map<string, { matchScore: number }>) {
-    if (mode === 'fair') return this.fairShuffle(group).slice(0, n);
-    // 加权随机无放回
+  /** 模式驱动抽样 */
+  private drawByMode(
+    group: any[],
+    n: number,
+    mode: 'specialty_match' | 'random' | 'merit_best',
+    scoreMap: Map<string, { matchScore: number }>,
+  ) {
+    if (n <= 0 || group.length === 0) return [];
+    if (mode === 'random') return this.fairShuffle(group).slice(0, n);
+
+    // merit_best: 按得分降序取 top-N（择优），高位者优先中选
+    if (mode === 'merit_best') {
+      return [...group].sort((a, b) => (scoreMap.get(b.id)?.matchScore ?? 0) - (scoreMap.get(a.id)?.matchScore ?? 0)).slice(0, n);
+    }
+
+    // specialty_match（默认）: 加权随机无放回
     const pool = group.map(c => ({ c, w: Math.max(1, scoreMap.get(c.id)?.matchScore ?? 50) }));
     const chosen: any[] = [];
     for (let i = 0; i < n && pool.length > 0; i++) {
@@ -795,6 +971,48 @@ export class ExpertAdminService {
     else if (c.title?.includes('高工') || c.title?.includes('高级')) s += 8;
     s += Math.min(15, c.pastProjects * 3);
     s += Math.min(15, c.pastAvgScore * 0.15);
+    return Math.max(0, Math.min(100, Math.round(s)));
+  }
+
+  /** 综合择优规则评分（AI 降级时使用）：纳入履职评价/偏离度/负荷等多维度数据 */
+  private extendedRuleScore(c: {
+    specialty: string; title?: string; pastProjects: number; pastAvgScore: number;
+    evaluationLevel?: string; attendanceScore?: number; qualityScore?: number;
+    disciplineScore?: number; scoreDeviation?: number; currentLoad?: number; currentLoadStatus?: string;
+  }): number {
+    let s = 50;
+    // 职称（15分）
+    if (c.title?.includes('教授') || c.title?.includes('正高')) s += 15;
+    else if (c.title?.includes('高工') || c.title?.includes('高级')) s += 10;
+    else if (c.title?.includes('工程师') || c.title?.includes('中级')) s += 5;
+
+    // 履职等级（30分）
+    if (c.evaluationLevel === 'A') s += 30;
+    else if (c.evaluationLevel === 'B') s += 22;
+    else if (c.evaluationLevel === 'C') s += 12;
+    else if (c.evaluationLevel === 'D') s -= 10;
+
+    // 偏离度（15分）—— 越接近 0 越好
+    if (c.scoreDeviation != null) {
+      const absDev = Math.abs(c.scoreDeviation);
+      if (absDev <= 3) s += 15;
+      else if (absDev <= 6) s += 10;
+      else if (absDev <= 10) s += 5;
+      else s -= 5;
+    }
+
+    // 历史经验（15分）
+    s += Math.min(15, c.pastProjects * 3);
+    s += Math.min(10, c.pastAvgScore * 0.1);
+
+    // 负荷均衡（10分）—— 空闲者加分
+    if (c.currentLoadStatus === '空闲') s += 10;
+    else if (c.currentLoadStatus === '正常') s += 5;
+    // 繁忙不加分
+
+    // 近期活跃（5分）—— 暂未实现该字段，跳过
+    // if (c.recentProjects12m != null && c.recentProjects12m > 0) s += Math.min(5, c.recentProjects12m);
+
     return Math.max(0, Math.min(100, Math.round(s)));
   }
 

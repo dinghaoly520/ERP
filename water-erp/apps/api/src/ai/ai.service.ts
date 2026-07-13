@@ -1250,12 +1250,12 @@ export class AiService {
     const dueToday = context.dueTodayCount ?? 0;
     try {
       const result = await this.llm.chatJson<{ greeting: string; subtitle?: string }>(
-        '你是智能工作助手，根据用户的任务统计生成简洁温暖的问候语（30字以内）。返回JSON: {greeting, subtitle?}',
-        `用户 ${name}，待办${pending}项，今日截止${dueToday}项。请生成问候语。`,
+        '你是智能工作助手，根据任务统计生成简洁温暖的问候语（30字以内）。禁止使用用户名、姓名或职位称呼。返回JSON: {greeting, subtitle?}',
+        `待办${pending}项，今日截止${dueToday}项。请生成问候语。`,
       );
-      return { greeting: result.greeting || `${name}，新的一天！`, subtitle: result.subtitle };
+      return { greeting: result.greeting || '新的一天！', subtitle: result.subtitle };
     } catch {
-      return { greeting: `${name}，今天有${pending}项待办，${dueToday}项今日截止。` };
+      return { greeting: `今天有${pending}项待办，${dueToday}项今日截止。` };
     }
   }
 
@@ -1291,10 +1291,9 @@ export class AiService {
         `你是${userName}的私人工作秘书。
 
 【headerGreeting，50字温馨多样】
-- 以"{name}，{时段}好"开头，融入季节/茶道/山水/励志等随机主题
-- 每次与前次不同，语气如老友关怀
-- 示例:"{name}，下午好。日影西斜，一盏清茶正温——今日虽忙碌，但每一份付出都在为明天筑基。"
-- 禁止用职位代替姓名
+- 融入季节/茶道/山水/励志等随机主题，每次与前次不同
+- 禁止使用用户名、姓名或职位称呼（如"陈总"、"李主任"）
+- 示例:"下午好。日影西斜，一盏清茶正温——今日虽忙碌，但每一份付出都在为明天筑基。"
 
 【dailyGreeting，≤30字纯中文】
 - 一句话概括总量+紧急数+最紧迫事项，禁止英文
@@ -1324,7 +1323,7 @@ export class AiService {
       });
       return {
         date: context.date,
-        headerGreeting: result.headerGreeting || `{name}，${period}好。新的一天，愿你从容应对每一件事。`,
+        headerGreeting: result.headerGreeting || `${period}好。新的一天，愿你从容应对每一件事。`,
         namePraise: result.namePraise || '',
         dailyGreeting: result.dailyGreeting || `今日共${totalItems}项任务，${todoCount}项待处理，${criticalCount}项紧急。`,
         riskSummary: result.riskSummary || (todoCount > 5 ? '待办事项较多' : '风险可控'),
@@ -1338,7 +1337,7 @@ export class AiService {
       };
     } catch {
       return {
-        date: context.date, headerGreeting: `{name}，${period}好。`, namePraise: '',
+        date: context.date, headerGreeting: `${period}好。`, namePraise: '',
         dailyGreeting: `今日共${totalItems}项任务`, riskSummary: '风险可控',
         aiSuggestion: '按优先级处理', overview: `${totalItems}项任务`,
         focusItems: [], timeBlocks: [], riskAlerts: [],
@@ -1357,27 +1356,185 @@ export class AiService {
     return trimmed;
   }
 
-  /** 项目详情分析 */
+  /** 项目详情分析 — 基于文件 OCR 提取文本 + 项目上下文的双维度匹配分析 */
   async analyzeProjectDetail(context: {
     title?: string; method?: string; budget?: string;
     stages?: { name: string; status: string }[];
     files?: { objectKey?: string; fileName?: string; name?: string; mimeType?: string; fileSize?: number; createdAt?: string; extractedText?: string }[];
     project?: any; currentStage?: any;
   }): Promise<{ analysis: string; fileAnalyses: { objectKey: string; fileName: string; stageMatch: string; contentSummary: string }[] }> {
-    const files = context.files || [];
+    const files = (context.files || []).map(f => ({ objectKey: f.objectKey || '', fileName: f.fileName || f.name || '', mimeType: f.mimeType }));
+    const project = context.project || {};
+    const currentStage = context.currentStage || {};
+    const stageKey = currentStage.stageKey || '';
+
+    const systemPrompt = `
+你是项目采购文件分析助手，负责阅读项目文件内容并输出简洁、专业的总结性分析。
+
+请输出一个 JSON 对象，结构固定为：
+{
+  "summary": {
+    "stageMatch": "项目简报",
+    "contentSummary": "..."
+  },
+  "fileAnalyses": [
+    {
+      "objectKey": "...",
+      "fileName": "...",
+      "stageMatch": "...",
+      "contentSummary": "..."
+    }
+  ]
+}
+
+【项目简报规则】
+1. summary.stageMatch 固定输出"项目简报"，不要写成文件匹配判断。
+2. summary.contentSummary 必须扩展为一段更完整的项目简报（150-200字），至少覆盖：项目采购目标、当前推进到哪一步、已上传材料覆盖情况、项目整体推进状态。
+
+【简报写作格式要求 - 非常重要】
+1. 使用流畅的自然语言叙述，不要使用 Markdown 格式（禁止使用 ** 加粗符号）
+2. 不要使用"项目名称：xxx"、"申请人：xxx"等键值对格式
+3. 采用连贯的段落式表达，例如："本项目采购华测i93pro RTK测量仪器，由兰小平申请，当前处于评标过程阶段..."
+4. 信息之间用逗号或句号连接，形成完整的叙述句
+5. 保持专业、简洁的公文风格
+
+【文件分析规则】
+1. fileAnalyses 只分析当前阶段下的文件，不分析其他阶段文件。
+2. 对每个文件进行内容分析，contentSummary 输出一段总结性文字（100-150字），要求：
+   - 阅读文件的 extractedText 内容，理解文件的核心信息
+   - 用流畅的自然语言总结文件的主要内容，不要使用列表或结构化格式
+   - 同样禁止使用 ** 加粗符号和键值对格式
+   - 禁止使用"归档"、"已归档"、"归档完成"等表述，因为用户正在进行归档工作
+   - 只描述文件本身的内容，不要对整个项目流程做总结性判断
+3. 根据文件类型把握分析重点：
+   - 审批表类：概括采购事项、申请人、预算、审批流转情况
+   - 招标文件类：概括采购范围、资格要求、技术规格要点、评标办法
+   - 投标/评标类：概括供应商信息、报价、评分结果、评标意见
+   - 合同类：概括合同双方、金额、履约期限、主要条款
+   - 其他文档：概括文档核心内容
+
+【文件与步骤匹配规则 - 非常重要】
+用户输入中包含 currentStage.stageKey，表示当前项目所处的步骤。你需要从两个维度判断文件是否适合该步骤。
+
+**维度一：文件类型匹配（判断文件是否放错了步骤）**
+通过文件名关键词快速判断文件是否属于其他步骤：
+- 如果文件名关键词直接表明它属于其他步骤，则文件类型不匹配
+- 例如：当前步骤是采购需求，但文件名含"立项申请"、"公告"、"合同"等关键词
+
+步骤标识对照表：
+- PROCUREMENT_DEMAND = 采购需求步骤
+- INITIATION = 项目立项步骤
+- TENDER_DOCUMENT = 采购文件步骤
+- PUBLIC_ANNOUNCEMENT = 采购公示步骤
+- EXPERT_SELECTION = 专家抽取步骤
+- BID_EVALUATION = 评标过程步骤
+- AWARD_DECISION = 定标步骤
+- CONTRACT = 合同步骤
+
+各步骤对应的典型文件关键词：
+- PROCUREMENT_DEMAND（采购需求）：采购需求申请表、需求申请表、采购申请表、需求计划表、采购需求
+- INITIATION（项目立项）：采购立项申请表、立项申请表、项目立项审批单、立项申请、立项审批
+- TENDER_DOCUMENT（采购文件）：招标文件、采购文件、投标邀请书、技术规格书、评标办法、招标、采购文件（不含"公告"、"公示"）
+- PUBLIC_ANNOUNCEMENT（采购公示）：招标公告、采购公告、采购公示、邀请招标公告、竞争性谈判公告、成交公示、中标公示、公告、公示
+- EXPERT_SELECTION（专家抽取）：专家抽取申请、专家名单、评标专家抽取结果、专家抽取、抽取结果
+- BID_EVALUATION（评标过程）：投标文件、开标记录、评标报告、评分表、投标、评标、开标
+- AWARD_DECISION（定标）：定标报告、中标通知书、定标审批表、定标、中标通知
+- CONTRACT（合同）：合同、合同草案、合同审批表、履约保证金
+
+**维度二：内容匹配（判断文件内容与项目信息是否一致 - 非常重要）**
+**这是判断文件是否属于当前项目的核心依据，必须严格检查！**
+
+需要阅读文件内容后判断：
+1. **提取文件中的项目名称/采购项目名称**：文件内容中通常会明确写出该项目名称
+2. **与当前项目标题（project.title）进行比对**：
+   - 项目标题中的关键实体（如"土溪口水库"、"人事档案数字化"）必须与文件中的项目名称一致
+   - 不同项目的文件内容绝对不能判定为"匹配"
+3. **检查文件内容是否与项目需求（project.projectReason）一致**
+4. **检查文件内容是否与立项内容相符**
+
+**内容不匹配的典型情况：**
+- 文件中的项目名称与当前项目标题完全不同（如文件是"土溪口水库"项目，但当前项目是"人事档案数字化"）
+- 文件内容涉及的项目与当前项目无关
+- 文件明显属于其他采购项目
+
+**内容匹配的标准：**
+- 文件中出现的项目名称/采购项目名称与 project.title 核心关键词一致
+- 文件内容描述的采购事项与当前项目相符
+
+**强制要求：如果文件内容中的项目名称与 project.title 明显不同，必须判定为"内容：不匹配"，无论文件类型是否正确！**
+
+**输出格式**
+stageMatch 字段需要输出两部分判断结果：
+
+格式："文件类型：XX | 内容：XX"
+
+文件类型判断（必填）：
+- "匹配" — 文件名关键词表明文件属于当前步骤
+- "不匹配，属于XX步骤" — 文件名关键词表明文件属于其他步骤（XX为中文步骤名）
+
+内容判断（必填）：
+- "匹配" — 文件内容与项目标题、需求、立项内容一致
+- "不匹配" — 文件内容与项目标题、需求、立项内容不一致，或明显属于其他项目
+- "无法判断" — 文件内容无法解析或信息不足
+
+输出示例：
+- 当前步骤是采购需求，文件名含"需求申请表"，内容与项目需求一致 → 输出"文件类型：匹配 | 内容：匹配"
+- 当前步骤是采购需求，文件名含"立项申请表"，但内容与项目一致 → 输出"文件类型：不匹配，属于采购立项步骤 | 内容：匹配"
+- 当前步骤是采购立项，文件名含"立项申请表"，但内容涉及其他项目 → 输出"文件类型：匹配 | 内容：不匹配"
+- 当前步骤是采购文件，文件名含"招标公告" → 输出"文件类型：不匹配，属于采购公示步骤 | 内容：匹配"
+- 当前步骤是评标过程，文件名含"评标报告"，但内容与项目标题无关 → 输出"文件类型：匹配 | 内容：不匹配"
+- 当前步骤是合同，文件名含"合同"，内容与项目一致 → 输出"文件类型：匹配 | 内容：匹配"
+- 文件内容无法解析 → 输出"文件类型：匹配 | 内容：无法判断"
+
+【重要提示】
+- 必须分别判断文件类型和内容两个维度
+- 文件类型判断依据文件名关键词，内容判断依据文件实际内容
+- 两个维度的判断相互独立，不要混淆
+- **内容匹配判断必须严格核对项目名称，不同项目的文件必须判定为"内容：不匹配"**
+
+【内容匹配判断示例 - 重点参考】
+假设当前项目标题是"人资-人事档案数字化服务（竞争性谈判）"：
+
+错误判断示例：
+- 文件内容提到"土溪口水库工程拱坝应力分析"，但判定为"内容：匹配" (错误)
+- 这是因为没有核对项目名称，只看了文件类型
+
+正确判断示例：
+- 文件名是"抽取结果单"，属于专家抽取步骤 → 文件类型：匹配
+- 但文件内容是"土溪口水库工程"，与当前项目"人事档案数字化"完全不同 → 内容：不匹配
+- 最终输出："文件类型：匹配 | 内容：不匹配"
+
+再假设当前项目标题是"土溪口水库工程拱坝应力分析及整体安全性综合评价"：
+- 文件名是"抽取结果单"，内容提到"土溪口水库工程" → 文件类型：匹配 | 内容：匹配
+
+【强约束】
+1. 必须基于文件的 extractedText 内容进行分析，不得编造文件中不存在的信息
+2. 如果文件内容为空或无法解析，明确说明"文件内容无法解析"
+3. 用语专业、简洁，全部使用中文输出
+4. 不输出风险提示或下一步建议
+5. 项目简报的结束语必须严格按照 currentStage 的 stageKey 判断：
+   - 如果 stageKey 为"CONTRACT"且 status 为"COMPLETED"：简报末尾自然过渡到归档完成的表述，如"至此，本项目采购流程已完整归档"、"各项材料齐备，归档工作已顺利完成"等，文字要有变化，与前文内容连贯衔接
+   - 其他情况：只能描述当前所处阶段，如"当前处于XX阶段"，绝对不能出现"归档完成"、"归档资料齐备"等表述
+`.trim();
+
+    const userPrompt = JSON.stringify({ project, currentStage, files: context.files }, null, 2);
+
     try {
-      const result = await this.llm.chatJson<{ analysis: string; fileAnalyses: { objectKey: string; fileName: string; stageMatch: string; contentSummary: string }[] }>(
-        '你是采购项目分析师，分析项目文件与阶段匹配。返回JSON: {analysis, fileAnalyses:[{objectKey,fileName,stageMatch,contentSummary}]}',
-        JSON.stringify({ title: context.title, files: files.map(f => ({ objectKey: f.objectKey, fileName: f.fileName||f.name, mimeType: f.mimeType })) }),
-      );
+      const result = await this.llm.chatJson<{
+        summary: { stageMatch: string; contentSummary: string };
+        fileAnalyses: Array<{ objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>;
+      }>(systemPrompt, userPrompt, 0.2);
+
       return {
-        analysis: result.analysis || '项目文件分析完成',
-        fileAnalyses: result.fileAnalyses || files.map(f => ({ objectKey: f.objectKey||'', fileName: f.fileName||f.name||'', stageMatch: '未分类', contentSummary: '' })),
+        analysis: result.summary?.contentSummary || `项目"${project.title || ''}"本轮共分析${files.length}个文件。`,
+        fileAnalyses: Array.isArray(result.fileAnalyses)
+          ? result.fileAnalyses.map(f => ({ objectKey: f.objectKey || '', fileName: f.fileName || '', stageMatch: f.stageMatch || '', contentSummary: f.contentSummary || '' }))
+          : files.map(f => ({ objectKey: f.objectKey || '', fileName: f.fileName || '', stageMatch: '未分析', contentSummary: 'AI 未返回分析结果' })),
       };
     } catch {
       return {
-        analysis: `项目"${context.title||''}"共${files.length}个文件`,
-        fileAnalyses: files.map(f => ({ objectKey: f.objectKey||'', fileName: f.fileName||f.name||'', stageMatch: '待分析', contentSummary: '' })),
+        analysis: `项目"${project.title || ''}"共${files.length}个文件。`,
+        fileAnalyses: files.map(f => ({ objectKey: f.objectKey || '', fileName: f.fileName || '', stageMatch: '分析失败', contentSummary: 'AI 服务暂不可用，已记录文件信息。' })),
       };
     }
   }
@@ -1520,7 +1677,7 @@ export class AiService {
     }
   }
 
-  /** 生成项目摘要 — 接受灵活参数 */
+  /** 生成项目摘要 — 基于项目全量信息 + 各阶段文件分析结果的深度综述，支持归档模式 */
   async generateProjectSummary(context: {
     title?: string; method?: string; category?: string;
     budget?: string; stageCount?: number; completedStages?: number;
@@ -1530,17 +1687,241 @@ export class AiService {
     const p = context.project || {};
     const title = context.title || p.title || '未命名项目';
     const method = context.method || p.procurementMethod || '未知';
+    const category = context.category || p.procurementCategory || '未知';
     const budget = context.budget || p.budgetAmount || '未知';
+    const requesterName = p.requesterName || '未知';
+    const requesterDepartment = p.requesterDepartment || '未知';
+    const currentStage = p.currentStage || '未知';
+    const projectReason = (p.projectReason || '无').slice(0, 300);
+    const supplierRequirements = (p.supplierRequirements || '无').slice(0, 300);
     const stageCount = context.stageCount ?? (p.stages?.length || 0);
     const completedStages = context.completedStages ?? (p.stages?.filter((s: any) => s.status === 'COMPLETED').length || 0);
+
+    const stageNames: Record<string, string> = {
+      PROCUREMENT_DEMAND: '采购需求',
+      INITIATION: '项目立项',
+      TENDER_DOCUMENT: '采购文件',
+      PUBLIC_ANNOUNCEMENT: '采购公示',
+      EXPERT_SELECTION: '专家抽取',
+      BID_EVALUATION: '评标过程',
+      AWARD_DECISION: '定标',
+      CONTRACT: '合同',
+    };
+
+    const systemPrompt = `
+你是项目采购简报生成助手，负责基于已有的文件分析结果生成项目整体简报。
+
+【重要】根据项目状态选择输出模式：
+
+一、如果当前状态为"已归档完成"，输出详细的归档总结简报（300-400字），必须包含：
+1. 项目采购目标、背景和立项依据
+2. 采购方式及执行过程概述（招标、专家抽取、评标、定标等关键环节）
+3. 投标单位竞争情况（如有）
+4. 中标结果：中标单位、合同金额（与预算对比）
+5. 全流程材料归档情况：各阶段上传的材料清单和完整性评价
+6. 项目整体评价：采购流程规范性、材料完备性、执行效率等
+
+二、如果当前状态不是"已归档完成"，输出阶段性简报（150-200字），包含：
+1. 项目采购目标和背景
+2. 当前推进到哪个阶段
+3. 已上传材料的情况概述
+4. 项目整体推进状态
+
+【写作格式要求 - 非常重要】
+1. 使用流畅的自然语言叙述，不要使用 Markdown 格式（禁止使用 ** 加粗符号）
+2. 不要使用"项目名称：xxx"、"申请人：xxx"等键值对格式
+3. 采用连贯的段落式表达，信息之间用逗号或句号连接，形成完整的叙述句
+4. 保持专业、简洁的公文风格
+5. 归档简报应分段落叙述，层次清晰
+
+约束：
+1. 直接基于输入的文件分析结果进行综合，不要重新分析文件内容
+2. 如果文件分析结果为空或内容不可用，说明"文件内容暂无法获取"
+3. 用语专业、简洁，全部使用中文输出
+4. 只输出简报文本，不要输出 JSON 或其他格式
+5. 归档简报结束语必须体现归档完成状态，如"至此，本项目采购流程已完整归档，各项材料齐备可查"
+`.trim();
+
+    const fileAnalysisResults = context.fileAnalysisResults || [];
+    const fileAnalysisText = fileAnalysisResults
+      .map((f: any) => `【${stageNames[f.stageKey] || f.stageKey || f.stageName || ''}阶段 - ${f.fileName || ''}】\n${f.contentSummary || ''}`)
+      .join('\n\n');
+
+    const currentStageLabel = context.isCompleted
+      ? '已归档完成'
+      : (stageNames[currentStage] || currentStage);
+
+    // Build archive info section if completed
+    const archiveInfoSection = context.isCompleted ? `
+归档信息：
+- 中标单位：${p.awardedSupplier || '暂缺'}
+- 合同金额：${p.contractAmount ? `${Number(p.contractAmount).toLocaleString('zh-CN')} 元` : '暂缺'}
+- 预算金额：${p.budgetAmount ? `${Number(p.budgetAmount).toLocaleString('zh-CN')} 元` : '暂缺'}
+- 专家信息：${p.expertInfo || '暂缺'}
+- 投标单位：${p.biddingUnits || '暂缺'}
+` : '';
+
+    const userPrompt = `
+项目信息：
+- 项目名称：${title}
+- 申请人：${requesterName}
+- 申请部门：${requesterDepartment}
+- 采购方式：${method}
+- 采购类别：${category}
+- 当前状态：${currentStageLabel}
+- 申请事由：${projectReason}
+- 供应商要求：${supplierRequirements}
+${archiveInfoSection}
+已上传文件的分析结果：
+${fileAnalysisText || '（暂无文件分析结果）'}
+
+请生成项目简报。
+`.trim();
+
     try {
-      const result = await this.llm.chatJson<{ summary: string }>(
-        '为项目生成简洁摘要（30-60字）。返回JSON: {summary}',
-        JSON.stringify({ title, method, budget, stageCount, completedStages, isCompleted: context.isCompleted }),
-      );
-      return result.summary || `${title}（${method}），${completedStages}/${stageCount}阶段完成。`;
+      const result = await this.llm.chat(systemPrompt, userPrompt, 0.3);
+      return result.trim() || `${requesterDepartment}发起「${title}」（${method}），预算${budget}。${context.isCompleted ? '项目已完成归档。' : `${completedStages}/${stageCount}阶段完成。`}`;
     } catch {
-      return `${title}（${method}），预算${budget}，${completedStages}/${stageCount}阶段完成。`;
+      return `${requesterDepartment}发起「${title}」（${method}），预算${budget}。${context.isCompleted ? '项目已完成归档。' : `${completedStages}/${stageCount}阶段完成，当前处于${currentStageLabel}阶段。`}`;
+    }
+  }
+
+  /**
+   * 阶段合规审查（步骤检查）—— 基于法规条款逐项审查当前阶段
+   * 返回结构化结果：通过项、警告项、违规项
+   */
+  async auditStageCompliance(payload: {
+    stageKey: string;
+    stageName: string;
+    checkpoints: Array<{ name: string; dimension: string; criteria: string; regulationRef: string }>;
+    project: {
+      title: string;
+      requesterName: string;
+      requesterDepartment: string;
+      procurementMethod: string;
+      procurementCategory: string;
+      currentStage: string;
+      projectReason: string;
+      supplierRequirements: string;
+      budgetAmount?: number | null;
+      contractAmount?: number | null;
+      awardedSupplier?: string;
+      expertInfo?: string;
+      biddingUnits?: string;
+    };
+    files: Array<{ fileName: string; stageMatch: string; contentSummary: string }>;
+    fileAnalysisResults?: Array<{ fileName: string; stageKey: string; contentSummary: string }>;
+  }) {
+    const stageLabelMap: Record<string, string> = {
+      PROCUREMENT_DEMAND: '采购需求',
+      INITIATION: '项目立项',
+      TENDER_DOCUMENT: '采购文件',
+      PUBLIC_ANNOUNCEMENT: '采购公示',
+      EXPERT_SELECTION: '专家抽取',
+      BID_EVALUATION: '评标过程',
+      AWARD_DECISION: '定标',
+      CONTRACT: '合同',
+    };
+    const stageLabel = stageLabelMap[payload.stageKey] || payload.stageName;
+
+    const checkpointsText = payload.checkpoints
+      .map((c, i) => `${i + 1}. 【${c.dimension}】${c.name}：${c.criteria}\n   法规依据：${c.regulationRef}`)
+      .join('\n\n');
+
+    const fileSummaries = (payload.files || [])
+      .map(f => `- ${f.fileName}：${f.stageMatch}\n  摘要：${f.contentSummary}`)
+      .join('\n') || '（无文件分析结果）';
+
+    const systemPrompt = [
+      '你是"水叮当"——四川水发集团招采ERP的 AI 采购合规审查专家，负责对采购项目的每个阶段进行合规性审查。',
+      '',
+      '# 角色设定',
+      '你是一位在国有企业采购管理领域有15年经验的合规审计专家，现转型为 AI 审查助手。你的审查风格：',
+      '- 严格依据法规条款逐项审查，不得凭主观印象判断。',
+      '- 每项审查必须有明确的通过/不通过结论，并引用具体证据。',
+      '- 发现违规或风险点必须明确指出违规性质和整改建议。',
+      '- 实事求是，如果信息不足以作出判断，应说明"信息不足，无法判断"。',
+      '',
+      '# 审查方法',
+      '你需要对照审查要点（checkpoints），逐一分析项目信息和文件内容，给出每项审查结论。',
+      '审查结论分为三种：',
+      '- "通过"：项目信息/文件内容符合审查要点中列出的法规要求。',
+      '- "警告"：信息不足以完全确认合规性，但未发现明显违规，或存在轻微不完善之处。',
+      '- "违规"：明确违反法规要求，或文件内容与审查要点的要求明显不符。',
+      '',
+      '# 输出格式',
+      '严格返回 JSON（不要任何其他文本、代码块标记或解释）：',
+      '{',
+      '  "results": [',
+      '    {',
+      '      "checkpoint": "审查项名称（与输入中的 name 字段一致）",',
+      '      "dimension": "审查维度",',
+      '      "verdict": "通过 / 警告 / 违规",',
+      '      "evidence": "证据描述（40-80字），引用项目信息或文件内容中的具体事实",',
+      '      "suggestion": "整改建议（20-50字），仅在 verdict 为"警告"或"违规"时提供，否则为空字符串",',
+      '      "regulationRef": "法规依据（与输入一致）"',
+      '    }',
+      '  ],',
+      '  "summary": "审查总结（50-100字）：总体结论、关键发现、建议"',
+      '}',
+    ].join('\n');
+
+    const userPrompt = [
+      `=== 审查任务 ===`,
+      `审查阶段：${stageLabel}（${payload.stageKey}）`,
+      `审查项数量：${payload.checkpoints.length} 项`,
+      '',
+      `=== 项目基本信息 ===`,
+      `项目名称：${payload.project.title}`,
+      `申请部门：${payload.project.requesterDepartment}`,
+      `申请人：${payload.project.requesterName}`,
+      `采购方式：${payload.project.procurementMethod}`,
+      `采购类别：${payload.project.procurementCategory}`,
+      `当前阶段：${payload.project.currentStage}`,
+      `立项事由：${payload.project.projectReason}`,
+      `供应商要求：${payload.project.supplierRequirements}`,
+      `预算金额：${payload.project.budgetAmount ? `${Number(payload.project.budgetAmount).toLocaleString('zh-CN')} 元` : '未知'}`,
+      `合同金额：${payload.project.contractAmount ? `${Number(payload.project.contractAmount).toLocaleString('zh-CN')} 元` : '未知'}`,
+      `中标单位：${payload.project.awardedSupplier || '未知'}`,
+      `专家信息：${payload.project.expertInfo || '未知'}`,
+      `投标单位：${payload.project.biddingUnits || '未知'}`,
+      '',
+      `=== 文件分析结果 ===`,
+      fileSummaries,
+      '',
+      `=== 审查要点 ===`,
+      checkpointsText,
+    ].join('\n');
+
+    try {
+      const result = await this.llm.chatJson<{
+        results: Array<{ checkpoint: string; dimension: string; verdict: string; evidence: string; suggestion: string; regulationRef: string }>;
+        summary: string;
+      }>(systemPrompt, userPrompt, 0.1);
+
+      return {
+        results: (result.results || []).map(r => ({
+          checkpoint: r.checkpoint || '',
+          dimension: r.dimension || '',
+          verdict: (['通过', '警告', '违规'].includes(r.verdict) ? r.verdict : '警告') as '通过' | '警告' | '违规',
+          evidence: r.evidence || '',
+          suggestion: r.verdict === '通过' ? '' : (r.suggestion || ''),
+          regulationRef: r.regulationRef || '',
+        })),
+        summary: result.summary || '合规审查完成。',
+      };
+    } catch {
+      return {
+        results: payload.checkpoints.map(c => ({
+          checkpoint: c.name,
+          dimension: c.dimension,
+          verdict: '警告' as const,
+          evidence: 'AI 审查服务暂不可用，请稍后重试。',
+          suggestion: '请人工核实此审查项。',
+          regulationRef: c.regulationRef,
+        })),
+        summary: 'AI 合规审查服务当前不可用，已记录所有审查要点供人工查阅。',
+      };
     }
   }
 }

@@ -455,70 +455,23 @@ export default function TenderWritePage() {
                   disabled={!isReadyType}
                   onClick={() => setShowImportDialog(true)}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowAnnouncementDialog(true)}
-                  disabled={!isReadyType}
-                  className="tender-btn tender-btn--purple disabled:cursor-not-allowed"
-                >
-                  <span className="tb-icon tb-icon--purple tb-anim-bounce">
-                    <Megaphone size={13} />
-                  </span>
-                  公告
+                <button type="button" onClick={() => setShowAnnouncementDialog(true)} disabled={!isReadyType} className="neu-btn-soft">
+                  <Megaphone size={14} />公告
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowNotificationDialog(true)}
-                  disabled={!isReadyType}
-                  className="tender-btn tender-btn--green disabled:cursor-not-allowed"
-                >
-                  <span className="tb-icon tb-icon--green tb-anim-bounce">
-                    <Mail size={13} />
-                  </span>
-                  通知书
+                <button type="button" onClick={() => setShowNotificationDialog(true)} disabled={!isReadyType} className="neu-btn-soft">
+                  <Mail size={14} />通知书
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void handleClearCurrent()}
-                  disabled={clearing}
-                  className="tender-btn tender-btn--amber"
-                >
-                  <span className="tb-icon tb-icon--amber tb-anim-shake">
-                    <Eraser size={13} />
-                  </span>
-                  {clearing ? "清除中..." : "一键清除"}
+                <button type="button" onClick={() => void handleClearCurrent()} disabled={clearing} className="neu-btn-soft is-danger">
+                  <Eraser size={14} />{clearing ? "清除中..." : "一键清除"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSaveCurrent()}
-                  disabled={savingHistory}
-                  className="tender-btn tender-btn--green"
-                >
-                  <span className="tb-icon tb-icon--green tb-anim-bounce">
-                    <Save size={13} />
-                  </span>
-                  {savingHistory ? "保存中..." : "保存当前"}
+                <button type="button" onClick={() => void handleSaveCurrent()} disabled={savingHistory} className="neu-btn-soft">
+                  <Save size={14} />{savingHistory ? "保存中..." : "保存当前"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowHistoryDialog(true)}
-                  className="tender-btn tender-btn--slate"
-                >
-                  <span className="tb-icon tb-icon--slate tb-anim-rotate">
-                    <History size={13} />
-                  </span>
-                  历史记录
+                <button type="button" onClick={() => setShowHistoryDialog(true)} className="neu-btn-soft">
+                  <History size={14} />历史记录
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void handleExport()}
-                  disabled={exporting || selectedMeta?.availability !== "ready"}
-                  className="tender-btn tender-btn--export disabled:cursor-not-allowed"
-                >
-                  <span className="tb-icon tb-anim-bob">
-                    <FileDown size={13} />
-                  </span>
-                  {exporting ? "导出中..." : "导出招标文件"}
+                <button type="button" onClick={() => void handleExport()} disabled={exporting || selectedMeta?.availability !== "ready"} className="neu-btn-primary">
+                  <FileDown size={14} />{exporting ? "导出中..." : "导出招标文件"}
                 </button>
               </div>
             </div>

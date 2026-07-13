@@ -19,11 +19,9 @@ import {
   Users,
   Megaphone,
   ShoppingBag,
-  Bell,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Settings,
 } from "lucide-react";
 import { AppUserActions } from "@/components/app-user-actions";
 import { UnifiedHeader } from "@/components/workbench/unified-header";
@@ -55,7 +53,6 @@ const navGroups: NavGroup[] = [
     items: [
       { key: "work-arrangements", label: "工作台", href: "/work-arrangements", icon: UserRound, meta: "工作安排" },
       { key: "personal-center", label: "个人中心", href: "/profile", icon: UserRound, meta: "管理个人资料与偏好" },
-      { key: "notifications", label: "通知中心", href: "/notifications", icon: Bell, meta: "消息与待办提醒" },
       { key: "assistant", label: "水叮当助手", href: "/assistant", icon: Sparkles, meta: "AI智能助手" },
     ],
   },

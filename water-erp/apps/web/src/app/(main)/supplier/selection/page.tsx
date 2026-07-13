@@ -14,7 +14,6 @@ import { RulesPopover } from '@/components/rules-popover';
 const scoreVar = (s: number): string => (s >= 85 ? 'var(--success)' : s >= 70 ? 'var(--accent)' : s >= 55 ? 'var(--warning)' : 'var(--danger)');
 const scoreLabel = (s: number) => (s >= 85 ? '强匹配' : s >= 70 ? '较匹配' : s >= 55 ? '可考虑' : '弱匹配');
 
-const ENTERPRISE_TYPES = ['有限责任公司','股份有限公司','国有企业','集体企业','合伙企业','个人独资企业','外商投资企业','其他'];
 const PROMPT_TEMPLATE = `【项目概况】
 （描述项目名称、建设地点、规模、投资概算）
 
@@ -35,10 +34,7 @@ export default function SupplierSelectionPage() {
   const [projectDetail, setProjectDetail] = useState<BidProjectDetail | null>(null);
   const [requirement, setRequirement] = useState('');
   const [classificationId, setClassificationId] = useState('');
-  const [enterpriseFilter, setEnterpriseFilter] = useState<string[]>([]);
-  const [minScore, setMinScore] = useState(0);
   const [maxCount, setMaxCount] = useState(10);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<SupplierSelectionResult | null>(null);
@@ -88,21 +84,41 @@ export default function SupplierSelectionPage() {
         <div><span className="text-sm font-bold text-[var(--foreground)]">需求配置</span><span className="ml-2 text-xs text-[var(--muted-foreground)]">描述采购需求，关联项目，配置 AI 匹配参数</span></div>
       </div>
 
+      {/* ── 前置筛选 —— */}
       <div>
-        <label className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">项目关联（可选）</label>
-        <select value={projectId} onChange={e => setProjectId(e.target.value)} className="neu-input text-sm w-full">
-          <option value="">不关联项目</option>
-          {projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}
-        </select>
-        {selectedProject && projectDetail && (
-          <div className="mt-2 flex flex-wrap gap-2 text-xs">
-            <span className="rounded-lg bg-[var(--surface)] px-2 py-1 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">采购方式：{selectedProject.procurementMethod}</span>
-            <span className="rounded-lg bg-[var(--surface)] px-2 py-1 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">阶段：{selectedProject.stage}</span>
-            {projectDetail.suppliers?.length > 0 && (
-              <span className="w-full rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs text-[var(--warning)]">已有：{projectDetail.suppliers.map(s => s.supplierName).join('、')}</span>
+        <div className="flex items-center gap-2.5 mb-4">
+          <span className="flex h-[7px] w-[7px] flex-shrink-0 rounded-full bg-[var(--foreground)]/50" />
+          <span className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--foreground)]/70">筛选范围</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="text-[11px] font-semibold text-[var(--muted-foreground)] block mb-1.5">项目关联</label>
+            <select value={projectId} onChange={e => setProjectId(e.target.value)} className="neu-input text-sm w-full">
+              <option value="">不关联项目</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}
+            </select>
+            {selectedProject && projectDetail && (
+              <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+                <span className="rounded-md bg-[var(--surface)] px-2 py-0.5 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">{selectedProject.procurementMethod}</span>
+                <span className="rounded-md bg-[var(--surface)] px-2 py-0.5 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">{selectedProject.stage}</span>
+                {projectDetail.suppliers?.length > 0 && (
+                  <span className="w-full rounded-md bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1 text-xs text-[var(--warning)]">已有参与：{projectDetail.suppliers.map(s => s.supplierName).join('、')}</span>
+                )}
+              </div>
             )}
           </div>
-        )}
+
+          <div>
+            <label className="text-[11px] font-semibold text-[var(--muted-foreground)] block mb-1.5">供应商分类</label>
+            <select value={classificationId} onChange={e => setClassificationId(e.target.value)} className="neu-input text-sm w-full">
+              <option value="">全部分类</option>
+              {classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <p className="mt-2.5 text-[11px] text-[var(--muted-foreground)]/50 leading-relaxed">指定分类后 AI 将在该分类范围内进行语义匹配与排序，精准限定可显著提升推荐质量</p>
       </div>
 
       <hr className="wb-section-rule" />
@@ -118,32 +134,6 @@ export default function SupplierSelectionPage() {
           <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">推荐数量 <select value={maxCount} onChange={e => setMaxCount(Number(e.target.value))} className="workbench-input text-xs py-1.5 !h-auto">{[5,8,10,15,20].map(n => <option key={n} value={n}>{n} 家</option>)}</select></div>
           <button onClick={run} disabled={loading || !requirement.trim()} className="neu-btn-soft"><Wand2 size={15} />{loading ? '智能匹配中...' : '智能推荐'}</button>
         </div>
-      </div>
-
-      <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.75rem" }}>
-        <button onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center gap-1.5 text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition">
-          {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}高级筛选 · 分类 · 企业类型 · 评分门槛
-        </button>
-        {showAdvanced && (
-          <div className="mt-4 space-y-4">
-            <label className="space-y-1 text-xs font-semibold text-[var(--muted-foreground)] block">供应商分类
-              <select value={classificationId} onChange={e => setClassificationId(e.target.value)} className="neu-input text-sm w-full"><option value="">全部分类</option>{classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-            </label>
-            <div>
-              <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-2">企业类型偏好（可多选）</span>
-              <div className="flex flex-wrap gap-2">
-                {ENTERPRISE_TYPES.map(t => (
-                  <button key={t} onClick={() => setEnterpriseFilter(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}
-                    className={`neu-tab text-[11px] ${enterpriseFilter.includes(t) ? 'is-active' : ''}`}>{t}</button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-2">最低评价分数：<strong className="text-[var(--accent)]">{minScore > 0 ? `≥ ${minScore} 分` : '不限'}</strong></span>
-              <input type="range" min={0} max={100} step={5} value={minScore} onChange={e => setMinScore(Number(e.target.value))} className="w-full accent-[var(--accent)]" />
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

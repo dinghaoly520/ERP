@@ -72,18 +72,19 @@ export default function ReviewWorkspaceContent() {
   ];
 
   return (
-    <div className="panel-surface rounded-[20px] h-full flex flex-col overflow-hidden">
+    <div className="wb-panel rounded-[20px] h-full flex flex-col overflow-hidden">
       {/* Tab header */}
-      <div className="flex items-center gap-1 p-2 border-b border-white/10 shrink-0 overflow-x-auto">
+      <div className="flex items-center gap-1 p-2 shrink-0 overflow-x-auto" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-sm font-medium transition-colors whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
               activeTab === tab.id
-                ? 'bg-[var(--accent)]/10 text-[var(--accent)]'
-                : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/[0.02]'
+                ? 'bg-[color-mix(in_oklch,var(--accent-soft)_55%,transparent)] text-[color:var(--accent)]'
+                : 'text-[color:var(--muted-foreground)] hover:bg-[color-mix(in_oklch,var(--muted)_30%,transparent)]'
             }`}
+            style={activeTab === tab.id ? {boxShadow:"inset 1px 2px 3px oklch(0.55 0.03 258 / 0.1), inset -1px -1px 2px oklch(1 0 0 / 0.4)"} : undefined}
           >
             <tab.icon className="h-3.5 w-3.5" />
             {tab.label}
@@ -155,7 +156,8 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
         <div className="relative">
           <button
             onClick={() => setShowKbDropdown(!showKbDropdown)}
-            className="w-full flex items-center justify-center gap-3 p-3 rounded-[14px] bg-[var(--accent)]/5 border border-[var(--accent)]/20 hover:bg-[var(--accent)]/10 transition-colors"
+            className="w-full flex items-center justify-center gap-3 p-3 rounded-[14px] transition-colors"
+            style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}
           >
             <Database className="h-5 w-5 text-[var(--accent)]" />
             {selectedKb ? (
@@ -175,7 +177,8 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="absolute top-full left-0 right-0 mt-1 z-10 panel-surface rounded-[14px] border border-white/10 overflow-hidden"
+              className="absolute top-full left-0 right-0 mt-1 z-10 rounded-[14px] overflow-hidden border border-[color-mix(in_oklch,var(--border)_50%,transparent)]"
+              style={{background: "oklch(1 0 0 / 0.94)", boxShadow: "0 12px 32px oklch(0.48 0.07 258 / 0.18), inset 0 1px 0 oklch(1 0 0 / 0.8)"}}
             >
               {knowledgeBases.length === 0 ? (
                 <div className="p-4 text-center text-xs text-[var(--muted-foreground)]">
@@ -221,11 +224,12 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
           <button
             onClick={() => setMode('strict')}
             disabled={!selectedKbId}
-            className={`rounded-[14px] p-3 text-center border transition-all ${
+            className={`rounded-[14px] p-3 text-center transition-all ${
               mode === 'strict'
-                ? 'border-[var(--accent)]/50 bg-[var(--accent)]/5'
-                : 'border-white/40 bg-white/60 hover:bg-white/85'
+                ? 'border border-[color-mix(in_oklch,var(--accent)_25%,transparent)]'
+                : 'hover:bg-[color-mix(in_oklch,var(--muted)_25%,transparent)]'
             } disabled:opacity-40`}
+            style={mode === 'strict' ? {background:"color-mix(in oklch,var(--accent-soft) 30%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 4px oklch(0.55 0.03 258 / 0.06), -1px -1px 2px oklch(1 0 0 / 0.5)"} : {background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}
           >
             <div className="font-medium text-sm text-[var(--foreground)]">严格审查</div>
             <div className="text-xs text-[var(--muted-foreground)] mt-0.5">
@@ -235,11 +239,12 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
           <button
             onClick={() => setMode('general')}
             disabled={!selectedKbId}
-            className={`rounded-[14px] p-3 text-center border transition-all ${
+            className={`rounded-[14px] p-3 text-center transition-all ${
               mode === 'general'
-                ? 'border-[var(--accent)]/50 bg-[var(--accent)]/5'
-                : 'border-white/40 bg-white/60 hover:bg-white/85'
+                ? 'border border-[color-mix(in_oklch,var(--accent)_25%,transparent)]'
+                : 'hover:bg-[color-mix(in_oklch,var(--muted)_25%,transparent)]'
             } disabled:opacity-40`}
+            style={mode === 'general' ? {background:"color-mix(in oklch,var(--accent-soft) 30%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 4px oklch(0.55 0.03 258 / 0.06), -1px -1px 2px oklch(1 0 0 / 0.5)"} : {background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}
           >
             <div className="font-medium text-sm text-[var(--foreground)]">通用审查</div>
             <div className="text-xs text-[var(--muted-foreground)] mt-0.5">
@@ -262,8 +267,8 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={!selectedKbId}
-          className="w-full rounded-[14px] border border-dashed border-white/15 p-5 text-center
-            hover:border-[var(--accent)]/40 hover:bg-[var(--accent)]/[0.03] transition-colors disabled:opacity-40"
+          className="w-full rounded-[14px] p-5 text-center transition-colors disabled:opacity-40"
+          style={{background:"color-mix(in oklch,var(--muted) 25%,transparent)",boxShadow:"inset 1px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -1px -1px 2px oklch(1 0 0 / 0.5)"}}
         >
           {file ? (
             <div className="flex items-center justify-center gap-2">
@@ -286,9 +291,7 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
       <button
         onClick={handleExecute}
         disabled={executing || !selectedKbId || !file}
-        className="w-full flex items-center justify-center gap-2 rounded-[14px] py-2.5 text-sm font-semibold
-          bg-[var(--accent)] text-white hover:opacity-90 transition-opacity
-          disabled:opacity-40 disabled:cursor-not-allowed"
+        className="neu-btn-primary w-full flex items-center justify-center gap-2 !rounded-[14px] py-2.5"
       >
         {executing ? (
           <Loader2 className="h-4 w-4 animate-spin" />

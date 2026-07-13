@@ -13,6 +13,7 @@ import { CreateProjectFromInitiationDto } from './dto/create-project-from-initia
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './project-management.types';
+import { getStageComplianceRules } from './stage-compliance-rules';
 
 type ProjectManagementStatusValue = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED';
 type ProjectStageStatusValue = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
@@ -3169,6 +3170,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
         currentStage: project.currentStage,
         projectReason: project.projectReason,
         supplierRequirements: project.supplierRequirements,
+        awardedSupplier: project.awardedSupplier || undefined,
+        contractAmount: project.contractAmount ?? undefined,
+        budgetAmount: project.budgetAmount ?? undefined,
+        expertInfo: project.expertInfo || undefined,
+        biddingUnits: project.biddingUnits || undefined,
       },
       fileAnalysisResults,
       isCompleted,
@@ -3182,6 +3188,80 @@ ${JSON.stringify(algorithmResult, null, 2)}
     );
 
     return { summary };
+  }
+
+  async auditStageCompliance(projectId: string, stageKey?: string) {
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      include: {
+        stages: {
+          orderBy: { stageOrder: 'asc' },
+          include: { attachments: true },
+        },
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    const targetStage = stageKey
+      ? project.stages.find((s) => s.stageKey === stageKey) ?? project.stages[0]
+      : project.stages[0];
+
+    if (!targetStage) {
+      throw new NotFoundException('未找到项目阶段。');
+    }
+
+    // 加载该阶段的合规审查规则
+    const checkpoints = getStageComplianceRules(targetStage.stageKey);
+
+    // 收集当前阶段的文件分析结果（如果有缓存）
+    const stageFiles: Array<{ fileName: string; stageMatch: string; contentSummary: string }> = [];
+    if (targetStage.attachments.length > 0) {
+      const cachePath = this.getStageAnalysisCachePath(projectId, targetStage.stageKey);
+      try {
+        const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
+          files?: Array<{ objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>;
+        };
+        if (Array.isArray(cached.files)) {
+          stageFiles.push(...cached.files.map(f => ({
+            fileName: f.fileName,
+            stageMatch: f.stageMatch,
+            contentSummary: f.contentSummary,
+          })));
+        }
+      } catch {
+        // 无缓存时使用附件列表
+        stageFiles.push(...targetStage.attachments.map(a => ({
+          fileName: a.fileName,
+          stageMatch: '未分析',
+          contentSummary: '暂未进行AI文件分析',
+        })));
+      }
+    }
+
+    return this.aiService.auditStageCompliance({
+      stageKey: targetStage.stageKey,
+      stageName: targetStage.stageName,
+      checkpoints,
+      project: {
+        title: project.title,
+        requesterName: project.requesterName,
+        requesterDepartment: project.requesterDepartment,
+        procurementMethod: project.procurementMethod || '',
+        procurementCategory: project.procurementCategory || '',
+        currentStage: project.currentStage || '',
+        projectReason: project.projectReason || '',
+        supplierRequirements: project.supplierRequirements || '',
+        budgetAmount: project.budgetAmount ? Number(project.budgetAmount) : undefined,
+        contractAmount: project.contractAmount ? Number(project.contractAmount) : undefined,
+        awardedSupplier: project.awardedSupplier || undefined,
+        expertInfo: project.expertInfo || undefined,
+        biddingUnits: project.biddingUnits || undefined,
+      },
+      files: stageFiles,
+    });
   }
 
   async analyzeProject(projectId: string, stageKey?: string) {
@@ -3199,9 +3279,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
-    // Load the project summary from cache (generated when stage is completed)
+    // Load the project summary from cache, or generate if missing (but only when there are files to analyze)
     const summaryCachePath = this.getProjectSummaryCachePath(project.id);
-    let summary = '当前还没有生成项目简报。请在完成阶段推进后重新查看。';
+    let summary = '';
+    let summaryFromCache = false;
 
     try {
       const cachedSummary = JSON.parse(
@@ -3209,9 +3290,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
       ) as { summary?: string };
       if (cachedSummary.summary?.trim()) {
         summary = cachedSummary.summary;
+        summaryFromCache = true;
       }
     } catch {
-      // fall back to default summary when no cache exists yet
+      // will generate below if file analyses are available
     }
 
     // Collect file analyses from relevant stages
@@ -3347,6 +3429,47 @@ ${JSON.stringify(algorithmResult, null, 2)}
           stageMatch: this.normalizeStageMatchText(f.stageMatch),
         })));
       }
+    }
+
+    // If summary was NOT loaded from cache AND we have file analyses, auto-generate summary
+    if (!summaryFromCache && allFileAnalyses.length > 0) {
+      try {
+        const contractStage = project.stages.find((s) => s.stageKey === 'CONTRACT');
+        const isCompleted = contractStage?.status === 'COMPLETED';
+        const generated = await this.aiService.generateProjectSummary({
+          project: {
+            title: project.title,
+            requesterName: project.requesterName,
+            requesterDepartment: project.requesterDepartment,
+            procurementMethod: project.procurementMethod,
+            procurementCategory: project.procurementCategory,
+            currentStage: project.currentStage,
+            projectReason: project.projectReason,
+            supplierRequirements: project.supplierRequirements,
+            awardedSupplier: project.awardedSupplier || undefined,
+            budgetAmount: project.budgetAmount ? Number(project.budgetAmount) : undefined,
+            contractAmount: project.contractAmount ? Number(project.contractAmount) : undefined,
+            expertInfo: project.expertInfo || undefined,
+            biddingUnits: project.biddingUnits || undefined,
+          },
+          fileAnalysisResults: allFileAnalyses.map(f => ({
+            fileName: f.fileName,
+            stageKey: f.stageMatch,
+            contentSummary: f.contentSummary,
+          })),
+          isCompleted,
+        });
+        summary = generated;
+        // Cache the generated summary
+        await mkdir(this.getUploadDir(), { recursive: true });
+        await writeFile(summaryCachePath, JSON.stringify({ summary: generated }, null, 2), 'utf8');
+      } catch {
+        summary = '项目简报生成中，请稍后点击刷新。';
+      }
+    }
+
+    if (!summary) {
+      summary = '当前还没有可供分析的项目文件内容。';
     }
 
     return {

@@ -283,8 +283,8 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
             disabled={!hasModifications}
             className={`flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium transition-colors ${
               hasModifications
-                ? 'bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20'
-                : 'bg-white/5 text-[var(--muted-foreground)]/40 cursor-not-allowed'
+                ? 'bg-[color-mix(in_oklch,var(--accent-soft)_45%,transparent)] text-[color:var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent-soft)_65%,transparent)]'
+                : 'bg-[color-mix(in_oklch,var(--muted)_20%,transparent)] text-[color:var(--muted-foreground)]/40 cursor-not-allowed'
             }`}
           >
             <Download className="h-3 w-3" />
@@ -294,7 +294,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
       </div>
 
       {/* Stats bar with filter buttons */}
-      <div className="flex items-center gap-2 px-4 py-2.5 rounded-[14px] bg-white/[0.02] shrink-0">
+      <div className="flex items-center gap-2 px-4 py-2.5 rounded-[14px] shrink-0" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
         {FILTER_OPTIONS.map((opt) => {
           const count = counts[opt.key];
           if (count === 0 && opt.key !== 'all') return null;
@@ -303,14 +303,12 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
             <button
               key={opt.key}
               onClick={() => setFilter(opt.key)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] font-medium transition-colors ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] font-medium transition-colors ${
                 isSelected
-                  ? opt.key === 'all'
-                    ? 'bg-[var(--accent)] text-white'
-                    : `bg-white/10 ${opt.colorClass}`
-                  : 'bg-white/[0.02] text-[var(--muted-foreground)] hover:bg-white/[0.05]'
+                  ? 'bg-[color-mix(in_oklch,var(--accent-soft)_45%,transparent)] text-[color:var(--accent)]'
+                  : 'text-[color:var(--muted-foreground)] hover:bg-[color-mix(in_oklch,var(--muted)_25%,transparent)]'
               }`}
-              style={{ fontSize: 12 }}
+              style={isSelected ? {boxShadow:"inset 1px 2px 3px oklch(0.55 0.03 258 / 0.1)", fontSize:12} : {fontSize:12}}
             >
               {opt.icon && <span className={opt.colorClass}>{opt.icon}</span>}
               <span>{opt.label}</span>
@@ -323,11 +321,11 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
 
         {/* Progress */}
         {totalIssues > 0 && (
-          <div className="ml-auto flex items-center gap-2 pl-4 border-l border-white/10">
+          <div className="ml-auto flex items-center gap-2 pl-4" style={{borderLeft:"1px solid oklch(0.6 0.04 258 / 0.16)"}}>
             <span className="text-xs text-[var(--muted-foreground)]">
               {resolvedCount}/{totalIssues} 已处理
             </span>
-            <div className="w-20 h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
+            <div className="w-20 h-1.5 rounded-full bg-[oklch(0.55 0.03 258 / 0.1)] overflow-hidden">
               <div
                 className="h-full bg-[var(--accent)] transition-all"
                 style={{ width: `${(resolvedCount / totalIssues) * 100}%` }}
@@ -340,7 +338,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
       {/* Main content: left navigator + right detail */}
       <div className="flex-1 flex gap-3 min-h-0">
         {/* Left: Issue navigator */}
-        <div className="w-[220px] xl:w-[280px] shrink-0 panel-surface rounded-[16px] overflow-hidden flex flex-col">
+        <div className="w-[220px] xl:w-[280px] shrink-0 wb-panel rounded-[16px] overflow-hidden flex flex-col">
           {/* Issue groups */}
           <div className="flex-1 overflow-y-auto">
             {filteredGroups.map((group) => {
@@ -352,7 +350,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
                   {/* Group header */}
                   <button
                     onClick={() => toggleGroup(group.key)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 text-[var(--muted-foreground)] hover:bg-white/[0.02] transition-colors"
+                    className="w-full flex items-center justify-between px-3 py-2.5 text-[color:var(--muted-foreground)] hover:bg-[color-mix(in_oklch,var(--muted)_20%,transparent)] transition-colors"
                   >
                     <div className="flex items-center gap-2">
                       <span className={group.iconColor}>{group.icon}</span>
@@ -373,8 +371,8 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
                           onClick={() => setSelectedIndex(originalIndex)}
                           className={`w-full text-left flex items-start gap-2 px-3 py-2 transition-colors ${
                             selectedIndex === originalIndex
-                              ? 'bg-[var(--accent)]/5 border-l-2 border-[var(--accent)]'
-                              : 'hover:bg-white/[0.02] border-l-2 border-transparent'
+                              ? 'bg-[color-mix(in_oklch,var(--accent-soft)_40%,transparent)]'
+                              : 'hover:bg-[color-mix(in_oklch,var(--muted)_20%,transparent)]'
                           }`}
                         >
                           <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${group.dotColor}`} />
@@ -416,7 +414,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
         </div>
 
         {/* Right: Issue detail */}
-        <div className="flex-1 panel-surface rounded-[16px] overflow-hidden flex flex-col">
+        <div className="flex-1 wb-panel rounded-[16px] overflow-hidden flex flex-col">
           <div className="flex-1 overflow-y-auto p-4">
             {selectedIssue ? (
               <motion.div
@@ -426,7 +424,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
                 className="space-y-4"
               >
                 {/* Problem detail */}
-                <section className="rounded-[14px] bg-white/[0.02] p-4">
+                <section className="rounded-[14px] p-4" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
                   <div className="text-xs font-semibold text-[var(--muted-foreground)] mb-3 flex items-center gap-1.5">
                     {selectedIssue.notApplicable ? '⬜ 不适用' : selectedIssue.passed ? '✅ 通过' : (
                       <>
@@ -435,26 +433,26 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
                       </>
                     )}
                   </div>
-                  <div className={`rounded-[12px] border-l-[3px] p-3 ${
+                  <div className={`rounded-[12px] border p-3 ${
                     selectedIssue.notApplicable
-                      ? 'bg-gray-400/5 border-gray-400/30'
+                      ? 'bg-[color-mix(in_oklch,var(--muted)_15%,transparent)] border-[color-mix(in_oklch,var(--muted-foreground)_15%,transparent)]'
                       : selectedIssue.passed
-                      ? 'bg-[rgba(92,181,150,0.05)] border-[rgba(92,181,150,0.3)]'
-                      : 'bg-[rgba(230,129,102,0.05)] border-[rgba(230,129,102,0.3)]'
+                      ? 'bg-[color-mix(in_oklch,var(--success)_6%,transparent)] border-[color-mix(in_oklch,var(--success)_18%,transparent)]'
+                      : 'bg-[color-mix(in_oklch,var(--danger)_6%,transparent)] border-[color-mix(in_oklch,var(--danger)_18%,transparent)]'
                   }`}>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${SEVERITY_COLORS[selectedIssue.severity]}`}>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-[4px] font-medium ${SEVERITY_COLORS[selectedIssue.severity]}`}>
                         {SEVERITY_LABELS[selectedIssue.severity]}
                       </span>
                       {selectedIssue.source === 'llm-free' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[rgba(96,139,239,0.12)] text-[rgba(96,139,239,1)] font-medium">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-[4px] bg-[color-mix(in_oklch,var(--accent-soft)_45%,transparent)] text-[color:var(--accent)] font-medium">
                           AI 自主判断
                         </span>
                       )}
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                        selectedIssue.status === 'accepted' ? 'bg-[rgba(92,181,150,0.12)] text-[rgba(92,181,150,1)]' :
-                        selectedIssue.status === 'rejected' ? 'bg-[rgba(230,129,102,0.12)] text-[rgba(230,129,102,1)]' :
-                        'bg-white/10 text-[var(--muted-foreground)]'
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-[4px] ${
+                        selectedIssue.status === 'accepted' ? 'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[color:var(--success)]' :
+                        selectedIssue.status === 'rejected' ? 'bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] text-[color:var(--danger)]' :
+                        'bg-[color-mix(in_oklch,var(--muted)_25%,transparent)] text-[color:var(--muted-foreground)]'
                       }`}>
                         {selectedIssue.status === 'accepted' ? '已采纳' :
                          selectedIssue.status === 'rejected' ? '已拒绝' : '待处理'}
@@ -473,7 +471,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
 
                 {/* Original text comparison */}
                 {(selectedIssue.documentExcerpt || selectedIssue.documentLocation?.excerpt || selectedIssue.kbExcerpt || selectedIssue.knowledgeBaseReferences?.[0]?.clauseContent) && (
-                  <section className="rounded-[14px] bg-white/[0.02] p-4">
+                  <section className="rounded-[14px] p-4" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
                     <OriginalTextCompare
                       documentExcerpt={selectedIssue.documentExcerpt}
                       documentFileName={task.documentName}
@@ -486,7 +484,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
 
                 {/* Suggestion editor */}
                 {selectedIssue.passed !== true && !selectedIssue.notApplicable && !selectedIssue.dataMissing && (
-                  <section className="rounded-[14px] bg-white/[0.02] p-4">
+                  <section className="rounded-[14px] p-4" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
                     <SuggestionEditor
                       taskId={task.id}
                       issueIndex={selectedIndex}

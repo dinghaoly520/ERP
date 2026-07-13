@@ -614,7 +614,7 @@ export function TenderSectionEditor({
                       )}
                       <span
                         className={[
-                          'rounded-full px-2.5 py-1 text-[10px] font-semibold transition-all duration-200',
+                          'rounded-[5px] px-2.5 py-1 text-[10px] font-semibold transition-all duration-200',
                           typeValue
                             ? 'bg-[rgba(92,181,150,0.1)] text-[rgba(78,150,124,1)]'
                             : 'bg-[rgba(230,129,102,0.1)] text-[rgba(199,108,83,1)]',
@@ -749,7 +749,7 @@ export function TenderSectionEditor({
                     </div>
                     <span
                       className={[
-                        'rounded-full px-2.5 py-1 text-[10px] font-semibold transition-all duration-200',
+                        'rounded-[5px] px-2.5 py-1 text-[10px] font-semibold transition-all duration-200',
                         hasSelected
                           ? 'bg-[rgba(92,181,150,0.1)] text-[rgba(78,150,124,1)]'
                           : 'bg-[rgba(230,129,102,0.1)] text-[rgba(199,108,83,1)]',
@@ -808,7 +808,7 @@ export function TenderSectionEditor({
                     </div>
                     <span
                       className={[
-                        'rounded-full px-2.5 py-1 text-[10px] font-semibold transition-all duration-200',
+                        'rounded-[5px] px-2.5 py-1 text-[10px] font-semibold transition-all duration-200',
                         selectedOption
                           ? 'bg-[rgba(92,181,150,0.1)] text-[rgba(78,150,124,1)]'
                           : 'bg-[rgba(230,129,102,0.1)] text-[rgba(199,108,83,1)]',
@@ -898,7 +898,7 @@ export function TenderSectionEditor({
                       />
                       <span
                         className={[
-                          'rounded-full px-2.5 py-1 text-[10px] font-semibold transition-all duration-200',
+                          'rounded-[5px] px-2.5 py-1 text-[10px] font-semibold transition-all duration-200',
                           (isText && value.trim()) || (isTable && tableData)
                             ? 'bg-[rgba(92,181,150,0.1)] text-[rgba(78,150,124,1)]'
                             : 'bg-[rgba(230,129,102,0.1)] text-[rgba(199,108,83,1)]',
@@ -995,7 +995,7 @@ export function TenderSectionEditor({
                     />
                     <span
                       className={[
-                        'rounded-full px-2.5 py-1 text-[10px] font-semibold transition-all duration-200',
+                        'rounded-[5px] px-2.5 py-1 text-[10px] font-semibold transition-all duration-200',
                         hasValue
                           ? 'bg-[rgba(92,181,150,0.1)] text-[rgba(78,150,124,1)]'
                           : 'bg-[rgba(230,129,102,0.1)] text-[rgba(199,108,83,1)]',

@@ -6,6 +6,7 @@ import { ExpertAdminService } from './expert-admin.service';
 import { CreateExpertDto } from './dto/create-expert.dto';
 import { ExtractPreviewDto } from './dto/extract-preview.dto';
 import { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
+import { ExtractionNotifyDto } from './dto/extraction-notify.dto';
 import { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
 
 @ApiTags('专家管理')
@@ -48,18 +49,35 @@ export class ExpertAdminController {
   }
 
   @Post('extract')
-  @ApiOperation({ summary: 'AI智能专家抽取（预览）' })
+  @ApiOperation({ summary: '专家智能抽取预览（三种模式：specialty_match/random/merit_best）' })
   previewExtraction(@Body() dto: ExtractPreviewDto) {
     return this.expertAdminService.previewExtraction(dto.projectId, dto);
   }
 
   @Post('extract/confirm')
-  @ApiOperation({
-    summary: '确认专家抽取（建 BidExpert）',
-    description: '调用前请先调 POST /expert-admin/extract 获取预览结果，将响应中 selected 数组的每个元素映射为 { userId, expertName: name, major: specialty } 作为 experts 字段传入。所有预览中的正选专家应在一次请求中全部确认。',
-  })
-  confirmExtraction(@Body() dto: ConfirmExtractionDto) {
-    return this.expertAdminService.confirmExtraction(dto.projectId, dto);
+  @ApiOperation({ summary: '确认专家抽取（建 BidExpert + 写审计日志）' })
+  confirmExtraction(@Body() dto: ConfirmExtractionDto, @Request() req: any) {
+    return this.expertAdminService.confirmExtraction(dto.projectId, dto, req.user?.sub);
+  }
+
+  @Post('extract/notify')
+  @ApiOperation({ summary: '抽取确认后发送通知（OA/短信/电话多渠道）' })
+  sendExtractionNotify(@Body() dto: ExtractionNotifyDto) {
+    return this.expertAdminService.sendExtractionNotify(dto.projectId, dto.expertIds, dto.channels, dto.message);
+  }
+
+  @Get('extract/history')
+  @ApiOperation({ summary: '抽取历史记录（从审计日志查询）' })
+  getExtractionHistory(
+    @Query('projectId') projectId?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.expertAdminService.getExtractionHistory(
+      projectId,
+      page ? parseInt(page, 10) : 1,
+      pageSize ? parseInt(pageSize, 10) : 20,
+    );
   }
 
   @Get('retire-candidates')
