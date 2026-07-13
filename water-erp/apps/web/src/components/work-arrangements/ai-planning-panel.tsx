@@ -145,10 +145,10 @@ export function AiPlanningPanel({
               </p>
               {dailyPlan.riskAlerts && dailyPlan.riskAlerts.length > 0 && (
                 <div className="mt-2 space-y-1">
-                  {dailyPlan.riskAlerts.slice(0, 3).map((alert, idx) => (
+                  {dailyPlan.riskAlerts.slice(0, 3).map((alert: any, idx) => (
                     <div key={idx} className="flex items-start gap-1.5 text-[11px] text-[#92400e]">
                       <span className="mt-0.5 h-1 w-1 flex-shrink-0 rounded-full bg-[#f5a623]" />
-                      {alert}
+                      {typeof alert === 'string' ? alert : alert.title || alert.description || JSON.stringify(alert)}
                     </div>
                   ))}
                 </div>
