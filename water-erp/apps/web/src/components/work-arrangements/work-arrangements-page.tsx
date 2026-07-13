@@ -818,7 +818,7 @@ export function WorkArrangementsPage({
               dailyPlan={dailyPlan}
               refreshingPlan={refreshingPlan}
               showProjectBrief={currentUser?.role === 'leader' || currentUser?.role === 'admin'}
-              onRefreshPlan={(_ctx?: string) => void loadDailyPlan()}
+              onRefreshPlan={() => void loadDailyPlan()}
               onSelectTimeBlock={(taskIds) => {
                 setHighlightedTaskIds(taskIds);
                 const id = taskIds[0];

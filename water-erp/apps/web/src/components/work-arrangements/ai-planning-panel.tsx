@@ -6,7 +6,6 @@ import {
   History,
   Lightbulb,
   CalendarClock,
-  Bell,
 } from 'lucide-react';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import { ProjectBriefCard } from '@/components/work-arrangements/project-brief-card';
@@ -21,36 +20,23 @@ function formatTimeSlot(raw: string): string {
   return trimmed;
 }
 
-export interface NotificationContext {
-  supplierPending: number;
-  priceReview: number;
-  expiringQualifications: number;
-}
-
 interface AiPlanningPanelProps {
   dailyPlan: WorkArrangementDailyPlan | null;
   refreshingPlan: boolean;
   showProjectBrief?: boolean;
-  notificationContext: NotificationContext;
-  onRefreshPlan: (notificationContext?: string) => void;
+  onRefreshPlan: () => void;
   onSelectTimeBlock: (taskIds: string[]) => void;
   onShowHistory: () => void;
-}
-
-function hasNotifications(ctx: NotificationContext): boolean {
-  return ctx.supplierPending > 0 || ctx.priceReview > 0 || ctx.expiringQualifications > 0;
 }
 
 export function AiPlanningPanel({
   dailyPlan,
   refreshingPlan,
   showProjectBrief = false,
-  notificationContext,
   onRefreshPlan,
   onSelectTimeBlock,
   onShowHistory,
 }: AiPlanningPanelProps) {
-  const notificationsExist = hasNotifications(notificationContext);
 
   return (
     <section className="flex flex-col">
@@ -63,10 +49,9 @@ export function AiPlanningPanel({
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => onRefreshPlan()}
+            onClick={onRefreshPlan}
             disabled={refreshingPlan}
             className="neu-btn-xs"
-            title="让 AI 重新分析当前的任务和通知，生成新的排程计划"
           >
             <RefreshCw
               size={12}
@@ -85,28 +70,6 @@ export function AiPlanningPanel({
         </div>
       </div>
 
-      {/* 通知上下文提示条 — AI 排程时已考虑这些 */}
-      {notificationsExist && (
-        <p className="mt-2 flex items-center gap-1.5 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
-          <Bell size={11} className="shrink-0 text-[color:var(--accent)]" />
-          AI 排程已考虑当前待办：
-          {notificationContext.supplierPending > 0 && (
-            <span className="font-semibold text-[color:var(--accent)]">
-              {notificationContext.supplierPending}项供应商审批
-            </span>
-          )}
-          {notificationContext.priceReview > 0 && (
-            <span className="font-semibold text-[color:var(--accent)]">
-              {notificationContext.supplierPending > 0 ? '、' : ''}{notificationContext.priceReview}项价格复核
-            </span>
-          )}
-          {notificationContext.expiringQualifications > 0 && (
-            <span className="font-semibold text-[color:var(--accent)]">
-              {notificationContext.supplierPending > 0 || notificationContext.priceReview > 0 ? '、' : ''}{notificationContext.expiringQualifications}项资质到期
-            </span>
-          )}
-        </p>
-      )}
 
       {refreshingPlan ? (
         <div className="flex flex-col items-center gap-3 py-6">
@@ -117,9 +80,7 @@ export function AiPlanningPanel({
             />
           </div>
           <span className="text-center text-sm text-[color:var(--muted-foreground)]">
-            {notificationsExist
-              ? 'AI 正在综合分析你的任务和待办通知，规划今日排程...'
-              : '正在分析你的待办事项...'}
+            正在分析你的待办事项...
           </span>
         </div>
       ) : (

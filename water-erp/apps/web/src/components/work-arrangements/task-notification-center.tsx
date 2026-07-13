@@ -62,7 +62,7 @@ interface TaskNotificationCenterProps {
   dailyPlan: WorkArrangementDailyPlan | null;
   refreshingPlan: boolean;
   showProjectBrief?: boolean;
-  onRefreshPlan: (notificationContext?: string) => void;
+  onRefreshPlan: () => void;
   onSelectTimeBlock: (taskIds: string[]) => void;
   onAddToCalendar: (items: PlannedItem[]) => void;
   onShowHistory: () => void;
@@ -94,15 +94,6 @@ export function TaskNotificationCenter({
     } else if (item.link) {
       router.push(item.link);
     }
-  };
-
-  const handleRefreshWithNotifications = () => {
-    const parts: string[] = [];
-    if (derivedTodo.supplierPending > 0) parts.push(`${derivedTodo.supplierPending}项供应商审批`);
-    if (derivedTodo.priceReview > 0) parts.push(`${derivedTodo.priceReview}项价格复核`);
-    if (derivedTodo.expiringQualifications > 0) parts.push(`${derivedTodo.expiringQualifications}项资质到期`);
-    const ctx = parts.length > 0 ? parts.join('、') : undefined;
-    onRefreshPlan(ctx);
   };
 
   return (
@@ -233,12 +224,7 @@ export function TaskNotificationCenter({
           dailyPlan={dailyPlan}
           refreshingPlan={refreshingPlan}
           showProjectBrief={showProjectBrief}
-          notificationContext={{
-            supplierPending: derivedTodo.supplierPending,
-            priceReview: derivedTodo.priceReview,
-            expiringQualifications: derivedTodo.expiringQualifications,
-          }}
-          onRefreshPlan={handleRefreshWithNotifications}
+          onRefreshPlan={() => onRefreshPlan()}
           onSelectTimeBlock={onSelectTimeBlock}
           onShowHistory={onShowHistory}
         />
