@@ -157,49 +157,95 @@ export function AiPlanningPanel({
           )}
 
           {/* ───────────────────────────────────────────── */}
-          {/* Section 2: 时间块建议                         */}
+          {/* Section 2: 时间线排程                         */}
           {/* ───────────────────────────────────────────── */}
           {dailyPlan.timeBlocks && dailyPlan.timeBlocks.length > 0 ? (
             <>
               <hr className="wb-section-rule" />
               <p className="text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]">
                 <CalendarClock size={14} className="mr-1.5 inline-block" />
-                时间块建议
+                时间线排程
               </p>
-              <div className="mt-3 grid gap-3 xl:grid-cols-2">
-                {dailyPlan.timeBlocks.map((block, i) => (
-                  <button
-                    key={`tb-${i}-${block.label}`}
-                    type="button"
-                    onClick={() => onSelectTimeBlock(block.taskIds ?? [])}
-                    className="wb-timeblock-card"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-semibold text-[color:var(--foreground)]">
-                        {block.label}
-                      </span>
-                      <span className="text-xs tabular-nums tracking-tight text-[color:var(--muted-foreground)]">
-                        {formatTimeSlot(block.start)} – {formatTimeSlot(block.end)}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-xs leading-relaxed text-[color:var(--muted-foreground)]">
-                      {block.focus}
-                    </p>
-                    <span className="mt-2 block text-[11px] font-medium text-[color:var(--accent)]">
-                      {block.taskIds?.length ?? 0} 项关联
-                    </span>
-                  </button>
-                ))}
+
+              {/* 时间线 */}
+              <div className="mt-3">
+                <div className="relative pl-7">
+                  {/* 左侧竖线 */}
+                  <div
+                    className="absolute bottom-0 left-[11px] top-1.5 w-px"
+                    style={{
+                      background:
+                        'linear-gradient(180deg, var(--accent) 0%, var(--accent-soft) 100%)',
+                    }}
+                  />
+
+                  <div className="flex flex-col gap-4">
+                    {dailyPlan.timeBlocks.map((block, i) => {
+                      const start = formatTimeSlot(block.start);
+                      const end = formatTimeSlot(block.end);
+                      const taskCount = block.taskIds?.length ?? 0;
+                      return (
+                        <button
+                          key={`tb-${i}-${block.label}`}
+                          type="button"
+                          onClick={() => onSelectTimeBlock(block.taskIds ?? [])}
+                          className="relative text-left"
+                        >
+                          {/* 时间节点圆点 */}
+                          <div className="absolute -left-[21px] top-1 flex flex-col items-center">
+                            <div
+                              className={`h-[9px] w-[9px] rounded-full border-2 ${
+                                i === 0
+                                  ? 'border-[color:var(--accent)] bg-[color:var(--accent)]'
+                                  : 'border-[color:var(--accent)] bg-white'
+                              }`}
+                            />
+                          </div>
+
+                          {/* 时间标签 */}
+                          <div className="mb-2 flex items-center gap-2">
+                            <span className="rounded-full bg-[rgba(96,139,239,0.12)] px-2 py-0.5 text-[11px] font-bold tabular-nums text-[color:var(--accent)]">
+                              {start}
+                            </span>
+                            <span className="text-[11px] text-[color:var(--muted-foreground)]">
+                              —
+                            </span>
+                            <span className="rounded-full bg-[rgba(96,139,239,0.08)] px-2 py-0.5 text-[11px] font-bold tabular-nums text-[color:var(--accent)]">
+                              {end}
+                            </span>
+                          </div>
+
+                          {/* 时段标签 + 内容卡片 */}
+                          <div className="rounded-[14px] bg-[var(--accent-soft)]/8 p-3.5 transition hover:bg-[var(--accent-soft)]/14">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[13px] font-bold text-[#18243a]">
+                                {block.label}
+                              </span>
+                              {taskCount > 0 && (
+                                <span className="flex-shrink-0 rounded-md bg-[rgba(96,139,239,0.12)] px-2 py-0.5 text-[10px] font-bold tabular-nums text-[color:var(--accent)]">
+                                  {taskCount} 项任务
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1.5 text-[12px] leading-relaxed text-[#5a6d8a]">
+                              {block.focus}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </>
           ) : (
             <>
               <hr className="wb-section-rule" />
               <div
-                className="neu-content-block text-sm text-[color:var(--muted-foreground)]"
+                className="neu-content-block py-4 text-center text-sm text-[color:var(--muted-foreground)]"
                 style={{ '--block-accent': 'var(--accent)' } as React.CSSProperties}
               >
-                暂无时间块建议，可用于整理资料、补记录或完成复盘。
+                暂无时间块建议，点击「AI 安排」生成排程
               </div>
             </>
           )}
