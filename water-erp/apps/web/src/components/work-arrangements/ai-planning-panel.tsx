@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Target,
   Lightbulb,
+  Clock3,
 } from 'lucide-react';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import { ProjectBriefCard } from '@/components/work-arrangements/project-brief-card';
@@ -30,6 +31,16 @@ interface AiPlanningPanelProps {
   onShowHistory: () => void;
 }
 
+function deriveStats(plan: WorkArrangementDailyPlan | null) {
+  if (!plan) return null;
+  const focusCount = plan.focusItems?.length ?? 0;
+  const blockCount = plan.timeBlocks?.length ?? 0;
+  const riskCount = plan.riskAlerts?.length ?? 0;
+  // Count total task references across all time blocks
+  const taskRefs = plan.timeBlocks?.reduce((s, b) => s + (b.taskIds?.length ?? 0), 0) ?? 0;
+  return { focusCount, blockCount, riskCount, taskRefs };
+}
+
 export function AiPlanningPanel({
   dailyPlan,
   refreshingPlan,
@@ -38,24 +49,67 @@ export function AiPlanningPanel({
   onSelectTimeBlock,
   onShowHistory,
 }: AiPlanningPanelProps) {
+  const stats = deriveStats(dailyPlan);
+
   return (
     <section className="flex flex-col">
-      {/* 标题行 */}
-      <div className="flex items-center justify-between">
-        <p className="text-[15px] font-bold text-[#18243a]">AI 辅助</p>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button" onClick={onRefreshPlan} disabled={refreshingPlan}
-            className="neu-btn-xs"
-          >
-            <RefreshCw size={12} className={refreshingPlan ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">AI 安排</span>
-          </button>
-          <button type="button" onClick={onShowHistory} className="neu-btn-xs">
-            <History size={12} />
-            <span className="hidden sm:inline">历史</span>
-          </button>
+      {/* ═══════════════════════════════════════════════════ */}
+      {/* 标题栏 — 加高 + 摘要信息                           */}
+      {/* ═══════════════════════════════════════════════════ */}
+      <div className="rounded-[16px] bg-[var(--accent-soft)]/8 px-4 py-3.5">
+        {/* 第一行：标题 + 操作按钮 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <p className="text-[15px] font-bold text-[#18243a]">AI 辅助</p>
+            {stats && !refreshingPlan && (
+              <div className="flex items-center gap-1.5">
+                {/* 分隔点 */}
+                <span className="h-1 w-1 rounded-full bg-[#cdd5e0]" />
+                {/* 摘要统计 */}
+                <span className="flex items-center gap-1 text-[11px] tabular-nums text-[color:var(--muted-foreground)]">
+                  <Target size={10} className="text-[color:var(--accent)]" />
+                  {stats.focusCount + stats.taskRefs} 项任务
+                </span>
+                <span className="flex items-center gap-1 text-[11px] tabular-nums text-[color:var(--muted-foreground)]">
+                  <CalendarClock size={10} className="text-[color:var(--accent)]" />
+                  {stats.blockCount} 个时间块
+                </span>
+                {stats.riskCount > 0 && (
+                  <span className="flex items-center gap-1 text-[11px] tabular-nums text-[#d97706]">
+                    <AlertTriangle size={10} />
+                    {stats.riskCount} 个风险
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button" onClick={onRefreshPlan} disabled={refreshingPlan}
+              className="neu-btn-xs"
+            >
+              <RefreshCw size={12} className={refreshingPlan ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">AI 安排</span>
+            </button>
+            <button type="button" onClick={onShowHistory} className="neu-btn-xs">
+              <History size={12} />
+              <span className="hidden sm:inline">历史</span>
+            </button>
+          </div>
         </div>
+
+        {/* 第二行：AI 生成的状态/问候语 */}
+        {dailyPlan && !refreshingPlan && dailyPlan.aiSuggestion ? (
+          <p className="mt-1.5 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
+            <Sparkles size={10} className="mr-1 inline-block text-[color:var(--accent)]" />
+            {dailyPlan.aiSuggestion}
+          </p>
+        ) : refreshingPlan ? (
+          <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[color:var(--muted-foreground)]">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[color:var(--accent)]" />
+            正在分析...
+          </p>
+        ) : null}
       </div>
 
       {refreshingPlan ? (
@@ -64,101 +118,82 @@ export function AiPlanningPanel({
             <Sparkles size={18} className="animate-pulse text-[color:var(--accent)]" />
           </div>
           <span className="text-center text-sm text-[color:var(--muted-foreground)]">
-            正在分析你的待办事项...
+            正在综合任务和通知，规划今日最优排程...
           </span>
         </div>
       ) : dailyPlan ? (
         <>
-          {/* ───────────────────────────────────────────── */}
-          {/* Section 1: AI 今日排程（丰富版）              */}
-          {/* ───────────────────────────────────────────── */}
-
-          {/* 概览文本 */}
-          <div className="mt-4 rounded-[16px] bg-[var(--accent-soft)]/8 p-4">
-            <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-[color:var(--accent)]">
-              <Sparkles size={13} />
-              AI 今日排程
-            </p>
-            <p className="mt-2.5 text-[14px] leading-relaxed text-[color:var(--foreground)]">
-              {dailyPlan.overview}
-            </p>
-
-            {/* 统计数据条 */}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {dailyPlan.focusItems && dailyPlan.focusItems.length > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(96,139,239,0.1)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--accent)]">
-                  <Target size={10} />
-                  {dailyPlan.focusItems.length} 个重点事项
-                </span>
-              )}
-              {dailyPlan.riskAlerts && dailyPlan.riskAlerts.length > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(245,166,35,0.1)] px-2.5 py-1 text-[11px] font-semibold text-[#d97706]">
-                  <AlertTriangle size={10} />
-                  {dailyPlan.riskAlerts.length} 个风险提醒
-                </span>
-              )}
+          {/* Section 1: AI 今日排程（概览文本） */}
+          <div className="mt-4 space-y-3">
+            {/* 概览文本 */}
+            <div className="rounded-[16px] bg-[var(--accent-soft)]/6 p-4">
+              <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-[color:var(--accent)]">
+                <Sparkles size={13} />
+                AI 今日排程
+              </p>
+              <p className="mt-2.5 text-[14px] leading-relaxed text-[color:var(--foreground)]">
+                {dailyPlan.overview}
+              </p>
             </div>
+
+            {/* 重点事项卡片 */}
+            {dailyPlan.focusItems && dailyPlan.focusItems.length > 0 && (
+              <div className="space-y-2">
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[color:var(--accent)]">
+                  <Target size={12} />
+                  重点事项
+                </p>
+                {dailyPlan.focusItems.map((item, idx) => (
+                  <div
+                    key={item.id || idx}
+                    className="neu-surface-subtle flex items-start gap-3 rounded-[12px] px-3.5 py-2.5"
+                  >
+                    <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[rgba(96,139,239,0.15)] text-[10px] font-bold tabular-nums text-[color:var(--accent)]">
+                      {idx + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-semibold leading-snug text-[#18243a]">
+                        {item.title}
+                      </p>
+                      {item.reason && (
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-[#5a6d8a]">
+                          {item.reason}
+                        </p>
+                      )}
+                    </div>
+                    <span className="mt-0.5 flex-shrink-0 rounded-md bg-[rgba(96,139,239,0.08)] px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[color:var(--accent)]">
+                      P{item.priorityRank || idx + 1}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 风险提醒 */}
+            {dailyPlan.riskSummary && (
+              <div className="rounded-[12px] border border-[rgba(245,166,35,0.2)] bg-[rgba(245,166,35,0.04)] px-3.5 py-2.5">
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#d97706]">
+                  <AlertTriangle size={11} />
+                  风险提醒
+                </p>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-[#92400e]">
+                  {dailyPlan.riskSummary}
+                </p>
+                {dailyPlan.riskAlerts && dailyPlan.riskAlerts.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {dailyPlan.riskAlerts.slice(0, 3).map((alert: any, idx) => (
+                      <div key={idx} className="flex items-start gap-1.5 text-[11px] text-[#92400e]">
+                        <span className="mt-0.5 h-1 w-1 flex-shrink-0 rounded-full bg-[#f5a623]" />
+                        {typeof alert === 'string' ? alert : alert.title || alert.description || JSON.stringify(alert)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* 重点事项卡片 */}
-          {dailyPlan.focusItems && dailyPlan.focusItems.length > 0 && (
-            <div className="mt-3 space-y-2">
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[color:var(--accent)]">
-                <Target size={12} />
-                重点事项
-              </p>
-              {dailyPlan.focusItems.map((item, idx) => (
-                <div
-                  key={item.id || idx}
-                  className="neu-surface-subtle flex items-start gap-3 rounded-[12px] px-3.5 py-2.5"
-                >
-                  <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[rgba(96,139,239,0.15)] text-[10px] font-bold tabular-nums text-[color:var(--accent)]">
-                    {idx + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-semibold leading-snug text-[#18243a]">
-                      {item.title}
-                    </p>
-                    {item.reason && (
-                      <p className="mt-0.5 text-[11px] leading-relaxed text-[#5a6d8a]">
-                        {item.reason}
-                      </p>
-                    )}
-                  </div>
-                  <span className="mt-0.5 flex-shrink-0 rounded-md bg-[rgba(96,139,239,0.08)] px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[color:var(--accent)]">
-                    P{item.priorityRank || idx + 1}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* 风险提醒 */}
-          {dailyPlan.riskSummary && (
-            <div className="mt-3 rounded-[12px] border border-[rgba(245,166,35,0.2)] bg-[rgba(245,166,35,0.04)] px-3.5 py-2.5">
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#d97706]">
-                <AlertTriangle size={11} />
-                风险提醒
-              </p>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-[#92400e]">
-                {dailyPlan.riskSummary}
-              </p>
-              {dailyPlan.riskAlerts && dailyPlan.riskAlerts.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {dailyPlan.riskAlerts.slice(0, 3).map((alert: any, idx) => (
-                    <div key={idx} className="flex items-start gap-1.5 text-[11px] text-[#92400e]">
-                      <span className="mt-0.5 h-1 w-1 flex-shrink-0 rounded-full bg-[#f5a623]" />
-                      {typeof alert === 'string' ? alert : alert.title || alert.description || JSON.stringify(alert)}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ───────────────────────────────────────────── */}
-          {/* Section 2: 时间线排程                         */}
-          {/* ───────────────────────────────────────────── */}
+          {/* Section 2: 时间线排程 */}
           {dailyPlan.timeBlocks && dailyPlan.timeBlocks.length > 0 ? (
             <>
               <hr className="wb-section-rule" />
@@ -167,10 +202,9 @@ export function AiPlanningPanel({
                 时间线排程
               </p>
 
-              {/* 时间线 */}
               <div className="mt-3">
                 <div className="relative pl-7">
-                  {/* 左侧竖线 */}
+                  {/* 竖线 */}
                   <div
                     className="absolute bottom-0 left-[11px] top-1.5 w-px"
                     style={{
@@ -191,7 +225,7 @@ export function AiPlanningPanel({
                           onClick={() => onSelectTimeBlock(block.taskIds ?? [])}
                           className="relative text-left"
                         >
-                          {/* 时间节点圆点 */}
+                          {/* 时间节点 */}
                           <div className="absolute -left-[21px] top-1 flex flex-col items-center">
                             <div
                               className={`h-[9px] w-[9px] rounded-full border-2 ${
@@ -215,7 +249,7 @@ export function AiPlanningPanel({
                             </span>
                           </div>
 
-                          {/* 时段标签 + 内容卡片 */}
+                          {/* 内容卡片 */}
                           <div className="rounded-[14px] bg-[var(--accent-soft)]/8 p-3.5 transition hover:bg-[var(--accent-soft)]/14">
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-[13px] font-bold text-[#18243a]">
@@ -250,9 +284,7 @@ export function AiPlanningPanel({
             </>
           )}
 
-          {/* ───────────────────────────────────────────── */}
-          {/* Section 3: 项目简报                           */}
-          {/* ───────────────────────────────────────────── */}
+          {/* Section 3: 项目简报 */}
           {showProjectBrief && dailyPlan ? (
             <div className="mt-4">
               <ProjectBriefCard dailyPlan={dailyPlan} />
