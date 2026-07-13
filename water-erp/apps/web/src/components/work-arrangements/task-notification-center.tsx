@@ -162,7 +162,7 @@ export function TaskNotificationCenter({
                 key={g.type}
                 type="button"
                 onClick={() => router.push(g.link)}
-                className="group flex items-start gap-3 border-b border-[#eef3f8] px-1 py-2.5 text-left transition last:border-b-0 hover:bg-[var(--accent-soft)]/8"
+                className="group flex items-start gap-3 border-b border-[#eef3f8] px-4 py-2.5 text-left transition last:border-b-0 hover:bg-[var(--accent-soft)]/8"
               >
                 <span
                   className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md"
