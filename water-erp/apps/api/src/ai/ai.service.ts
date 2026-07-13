@@ -1082,233 +1082,61 @@ export class AiService {
 
     try {
       const result = await this.llm.chatJson<any>(
-        sys, '以下是最新运营数据，请生成分析报告：\n\n' + snap + '\n\n严格按JSON格式输出，不要输出markdown或解释：',
-        0.3, AbortSignal.timeout(35000),
-      );
-      logger.log('DeepSeek bigscreen insight OK');
-      return {
-        insight: result.insight || { kpis: [{label:'总预算',value:fm(totalBudget),barPct:100},{label:'已签约',value:fm(signedAmt),barPct:Math.round(signedAmt/Math.max(totalBudget,1)*100)},{label:'节资',value:fm(savings),barPct:pct}] },
-        alerts: result.alerts || { events: [], summary: { label: '', value: '' } },
-        trend: result.trend || { bars: [], predictions: [] },
-        actions: result.actions || { steps: [], completedCount: 0 },
-        watch: result.watch || { items: [] },
-        archive: result.archive || { items: [] },
-        ticker: result.ticker || { items: [] },
-        summary: result.summary || { insights: [] },
-      };
-    } catch (err: any) {
-      logger.warn('DeepSeek failed, fallback: ' + err.message);
-      return this.fallbackBigscreenInsight({
-        totalBudget, signedAmt, savings, pct, budgetData,
-        supTotal, supOk, supWait, supOff, supBlock, expiringQuals,
-        expAvail, expBusy, expOff,
-        arcOk, arcIng, arcNo, arcAll, activeBids, timeStr,
-        decryptAnomalies, disputedConfirms, topExpiringQuals,
-        openingSessions, stalledProjects, monthlyBuckets, maxMonthly,
-      });
-    }
-  }
+        `你是${userName}的智能工作秘书，负责每日工作排程与风险预警。
 
-  private fallbackBigscreenInsight(d: any) {
-    const fm = (n: number) => n >= 1e8 ? '¥' + (n / 1e8).toFixed(2) + '亿' : n >= 1e4 ? '¥' + Math.round(n / 1e4) + '万' : '¥' + n;
-    const stageCN: Record<string, string> = { OPENING: '开标', EVALUATING: '评标', SUBMIT: '提交' };
-    const now = new Date();
+═════════════════════════════════════════
+【overview — 今日排程总览 · 80-120字】
+═════════════════════════════════════════
+用流畅的自然语言总结今日全貌，必须覆盖：
+1. 总量概况（任务数、待办数、紧急数）
+2. 最紧迫的1-2件事是什么、为什么紧迫
+3. 今日建议的核心策略（一句话）
+格式示例："今日共8项任务，其中3项紧急待处理。最紧迫的是供应商审批——有2家新供应商已等待超过24小时，可能影响后续采购进度。建议上午集中处理审批类工作，下午推进项目任务。"
 
-    const insight = {
-      kpis: [
-        { label: '总预算', value: fm(d.totalBudget), barPct: 100 },
-        { label: '已签约', value: fm(d.signedAmt), barPct: d.totalBudget > 0 ? Math.round(d.signedAmt / d.totalBudget * 100) : 0 },
-        { label: '节资', value: fm(d.savings), barPct: d.pct },
-      ],
-    };
+═════════════════════════════════════════
+【focusItems — 重点事项 · 3-5项】
+═════════════════════════════════════════
+从任务列表中挑出最需要关注的事项（综合紧迫性和影响面），每条：
+- id: 任务ID
+- title: 任务标题
+- priorityRank: 数字越小越优先（1-5）
+- reason: 为什么这是重点，15-30字，说明具体影响或紧迫性
+示例：{id:"task_1",title:"核验供应商资质",priorityRank:1,reason:"2家供应商的CCC证书30天内到期，如未续期将从名录移除"}
 
-    const ev: any[] = [];
-    if (d.topExpiringQuals && d.topExpiringQuals.length > 0) {
-      var topQ = d.topExpiringQuals[0];
-      var daysLeft = Math.ceil((new Date(topQ.validTo).getTime() - now.getTime()) / 86400000);
-      ev.push({ level: 'high', count: d.expiringQuals, label: topQ.supplier.name + '等资质临期(' + daysLeft + '天)' });
-    } else if (d.expiringQuals > 0) {
-      ev.push({ level: 'high', count: d.expiringQuals, label: '资质临期' });
-    }
-    if (d.decryptAnomalies > 0) ev.push({ level: 'high', count: d.decryptAnomalies, label: '解密异常' });
-    if (d.supWait > 0) ev.push({ level: 'mid', count: d.supWait, label: '待批供应商' });
-    if (d.stalledProjects && d.stalledProjects.length > 0) ev.push({ level: 'mid', count: d.stalledProjects.length, label: '项目阶段停滞' });
-    if (ev.length === 0) ev.push({ level: 'info', count: 0, label: '运行平稳' });
-    const alerts = { events: ev.slice(0, 4), summary: { label: '供应商库', value: d.supTotal + '家' } };
+═════════════════════════════════════════
+【timeBlocks — 时间块 · 3-4个】
+═════════════════════════════════════════
+按优先级将今日任务分配到时段，每个块：
+- label: 3-6字短标签，如"上午重点""午后处理"
+- startTime/endTime: HH:MM格式
+- focus: 20-40字，描述该时段要完成的具体任务和预期成果
+- taskIds: 关联的任务ID数组
+必须覆盖所有紧急任务。
 
-    // 趋势：基于月度数据 or 活跃项目数生成
-    var bars = [];
-    if (d.monthlyBuckets && Object.keys(d.monthlyBuckets).length > 0) {
-      var entries = Object.entries(d.monthlyBuckets).sort();
-      var maxM = d.maxMonthly || 1;
-      // 扩展到15个点
-      for (var i = 0; i < 15; i++) {
-        var ei = Math.floor(i / 15 * entries.length);
-        var v = entries.length > 0 ? (entries[Math.min(ei, entries.length - 1)][1] as number) : 3;
-        bars.push({ heightPct: Math.round(v / maxM * 90 + 5), direction: i >= 12 ? 'up' : (i % 2 === 0 ? 'up' : '') });
-      }
-    } else {
-      bars = Array.from({ length: 15 }, function(_, i) { return { heightPct: 35 + Math.round(Math.sin(i * 0.7) * 20 + 10), direction: i >= 10 ? 'up' : (i % 3 === 0 ? 'up' : '') }; });
-    }
-    const trend = { bars, predictions: [
-      { label: '节资率', value: d.pct + '%', direction: d.pct > 18 ? 'up' : 'down' },
-      { label: '活跃项目', value: d.activeBids.length + '个', direction: d.activeBids.length > 3 ? 'up' : 'down' },
-    ]};
+═════════════════════════════════════════
+【riskAlerts — 风险提醒 · 按实际情况】
+═════════════════════════════════════════
+识别今日风险点，每条：
+- level: "high" | "medium" | "low"
+- title: 8-15字简短标题
+- description: 20-40字具体影响
+常见风险：截止时间超期/任务阻塞/依赖未完成/资质到期/供应商积压。无明显风险则返回空数组[]。
 
-    const st: any[] = [];
-    if (d.topExpiringQuals && d.topExpiringQuals.length > 0) {
-      st.push({ label: '催办' + d.topExpiringQuals[0].supplier.name + '资质年审', status: 'active' });
-    }
-    if (d.supWait > 0) st.push({ label: '审核' + d.supWait + '家待批供应商', status: 'active' });
-    if (d.stalledProjects && d.stalledProjects.length > 0) st.push({ label: '推进' + d.stalledProjects[0].name + '阶段推进', status: 'pending' });
-    if (st.length === 0) st.push({ label: '系统运行平稳', status: 'done' });
-    const actions = { steps: st.slice(0, 3), completedCount: st.filter(function(s: any) { return s.status === 'done'; }).length };
+═════════════════════════════════════════
+其他字段：
+- headerGreeting: <50字温馨问候，融入随机主题（季节/茶道/山水/励志），禁用姓名职位
+- namePraise: ""
+- dailyGreeting: ≤25字，一句话概括+最紧迫事项
+- riskSummary: 40字内风险总结
+- aiSuggestion: 30字内核心行动建议
+- projectBrief: 有项目数据时100-200字综述阶段/预算/风险概况，无项目则""
+- completionAdvice: ""`,
 
-    var wi = [];
-    if (d.openingSessions && d.openingSessions.length > 0) {
-      wi = d.openingSessions.slice(0, 2).map(function(s: any) {
-        var r = (s.remainingSeconds || 0);
-        var p = Math.min(100, Math.max(5, Math.round(r / 18))); // ~1800s=100%
-        return { name: s.project?.name || '--', subLabel: '剩余' + Math.ceil(r / 60) + '分钟', pct: p, color: r < 600 ? '#f87171' : '#fbbf24' };
-      });
-    } else if (d.activeBids && d.activeBids.length > 0) {
-      wi = d.activeBids.filter(function(b: any) { return b.stage === 'OPENING'; }).slice(0, 2).map(function(b: any) {
-        return { name: b.name, subLabel: b._count.suppliers + '家供方', pct: 50, color: '#38bdf8' };
-      });
-    }
-    if (wi.length === 0) wi = [{ name: '暂无开标', subLabel: '--', pct: 0, color: '#38bdf8' }];
-    var cd = 0;
-    if (d.openingSessions && d.openingSessions.length > 0) cd = Math.ceil((d.openingSessions[0].remainingSeconds || 0) / 60);
-    const watch: any = { items: wi };
-    if (cd > 0) watch.countdownMins = cd;
-
-    const archive = {
-      items: [
-        { label: '项目归档', value: Math.min(d.arcOk, 99) + '/' + d.arcAll, barPct: d.arcAll > 0 ? Math.round(d.arcOk / d.arcAll * 100) : 0 },
-        { label: '哈希验证', value: d.arcOk > 0 ? '✓' : '--', barPct: d.arcOk > 0 ? 100 : 0 },
-        { label: '审计追溯', value: d.arcOk > 0 ? '✓' : '--', barPct: d.arcOk > 0 ? 100 : 0 },
-      ],
-    };
-
-    var ti: any[] = [
-      { dot: 'live', time: d.timeStr, text: '系统正常 · ' + d.budgetData._count + '个采购项目' },
-    ];
-    if (d.decryptAnomalies > 0) ti.push({ dot: 'alert', time: d.timeStr, text: '解密异常 ' + d.decryptAnomalies + ' 家供应商' });
-    if (d.supWait > 0) ti.push({ dot: 'alert', text: '供应商 ' + d.supWait + ' 家待审核' });
-    ti.push({ dot: 'info', text: '预算' + fm(d.totalBudget) + ' · 签约' + fm(d.signedAmt) + ' · 节资' + d.pct + '%' });
-    if (d.expiringQuals > 0) ti.push({ dot: 'alert', text: '资质临期 ' + d.expiringQuals + ' 项' });
-    ti.push({ dot: 'success', text: '供应商库' + d.supTotal + '家 · 已批准' + d.supOk });
-    if (d.openingSessions && d.openingSessions.length > 0) {
-      ti.push({ dot: 'live', text: '开标中: ' + d.openingSessions.map(function(s: any) { return s.project?.name || '--'; }).join(' · ') });
-    }
-    if (d.stalledProjects && d.stalledProjects.length > 0) ti.push({ dot: 'warn', text: '项目停滞: ' + d.stalledProjects[0].name });
-    ti.push({ dot: 'info', text: '专家' + d.expAvail + '人可用 · 占用' + d.expBusy + '人' });
-    if (d.arcOk > 0) ti.push({ dot: 'success', text: d.arcOk + '项已归档 · 可追溯' });
-    ti.push({ dot: 'info', text: '活跃项目' + d.activeBids.length + '个' });
-    if (d.budgetData._count > 0) ti.push({ dot: 'info', text: '月度趋势: ' + (d.activeBids.length > 5 ? '上升' : '平稳') });
-    const ticker = { items: ti };
-
-    var summary = { insights: [
-      '[\u5b9e\u65f6] 系统运行正常 · 采购项目' + (d.budgetData?._count||0) + '个 · 供应商' + (d.supTotal||0) + '家 · 专家' + ((d.expAvail||0)+(d.expBusy||0)+(d.expOff||0)) + '人',
-      '[\u5f02\u5e38] 供应商资质临期 ' + (d.expiringQuals||0) + ' 项 · 待审核 ' + (d.supWait||0) + ' 家 · 解密异常 ' + (d.decryptAnomalies||0) + ' 家',
-      '[\u8d8b\u52bf] 预算' + fm(d.totalBudget||0) + ' · 签约' + fm(d.signedAmt||0) + ' · 节资率 ' + (d.pct||0) + '%',
-      '[\u5efa\u8bae] 催办资质年审 · 协调开标专家资源 · 推进待归档项目',
-      '[\u6570\u636e] 开标中 ' + (d.activeBids?d.activeBids.filter(function(b: any){return b.stage==='OPENING'}).length:0) + ' 项 · 评标中 ' + (d.activeBids?d.activeBids.filter(function(b: any){return b.stage==='EVALUATING'}).length:0) + ' 项 · 待归档 ' + ((d.arcNo||0)+(d.arcIng||0)) + ' 项'
-    ] };
-    return { insight, alerts, trend, actions, watch, archive, ticker, summary };
-  }
-
-  // ═══════════════════════════════════════════════════
-  // 采购中心迁入方法（从 procurement AiService 适配）
-  // ═══════════════════════════════════════════════════
-
-  /** LLM JSON 对话（委托给 LlmService） */
-  async chatJson<T = any>(
-    systemPrompt: string,
-    userPrompt: string,
-    temperature = 0,
-  ): Promise<T> {
-    return this.llm.chatJson<T>(systemPrompt, userPrompt, temperature);
-  }
-
-  /** 工作台问候语 */
-  async generateWorkbenchGreeting(context: {
-    userName?: string;
-    username?: string;
-    displayName?: string;
-    hourOfDay?: number;
-    pendingCount?: number;
-    inProgressCount?: number;
-    overdueCount?: number;
-    dueTodayCount?: number;
-    completedCount?: number;
-    completedTodayCount?: number;
-    isLeader?: boolean;
-  }): Promise<{ greeting: string; subtitle?: string }> {
-    const name = context.displayName || context.userName || context.username || '用户';
-    const pending = context.pendingCount ?? 0;
-    const dueToday = context.dueTodayCount ?? 0;
-    try {
-      const result = await this.llm.chatJson<{ greeting: string; subtitle?: string }>(
-        '你是智能工作助手，根据任务统计生成简洁温暖的问候语（30字以内）。禁止使用用户名、姓名或职位称呼。返回JSON: {greeting, subtitle?}',
-        `待办${pending}项，今日截止${dueToday}项。请生成问候语。`,
-      );
-      return { greeting: result.greeting || '新的一天！', subtitle: result.subtitle };
-    } catch {
-      return { greeting: `今天有${pending}项待办，${dueToday}项今日截止。` };
-    }
-  }
-
-  /** 工作安排日计划分析 */
-  async analyzeWorkArrangementDailyPlan(context: {
-    date: string;
-    currentTime?: string;
-    items?: any[];
-    userContext?: { role?: string; displayName?: string; username?: string };
-    chairmanMode?: boolean;
-    projects?: any[];
-  }): Promise<{
-    date: string; headerGreeting: string; namePraise: string;
-    dailyGreeting: string; riskSummary: string; aiSuggestion: string;
-    overview: string; focusItems: any[]; timeBlocks: any[];
-    riskAlerts: any[]; completionAdvice: string; projectBrief: string;
-  }> {
-    const EN2ZH: Record<string,string> = {TODO:'待处理',IN_PROGRESS:'进行中',BLOCKED:'阻塞',COMPLETED:'已完成',CANCELLED:'已取消',CRITICAL:'紧急',HIGH:'高',MEDIUM:'中',LOW:'低'};
-    const zh = (s:string)=>EN2ZH[s]||s;
-    const items = (context.items||[]).map((i:any)=>({...i,status:zh(i.status),urgency:zh(i.urgency)}));
-    const todoCount = items.filter((i:any)=>i.status==='待处理').length;
-    const inProgressCount = items.filter((i:any)=>i.status==='进行中').length;
-    const criticalCount = items.filter((i:any)=>i.urgency==='紧急').length;
-    const totalItems = items.length;
-    const projects = (context.projects||[]);
-    const projectsInfo = projects.length>0?` 项目数据:${JSON.stringify(projects.slice(0,10))}`:'';
-    const userName = context.userContext?.displayName||context.userContext?.username||'用户';
-    const hour=parseInt((context.currentTime||'9:00').split(':')[0])||9;
-    const period=hour<11?'上午':hour<14?'中午':hour<18?'下午':'晚上';
-
-    try {
-      const result = await this.llm.chatJson<any>(
-        `你是${userName}的私人工作秘书。
-
-【headerGreeting，50字温馨多样】
-- 融入季节/茶道/山水/励志等随机主题，每次与前次不同
-- 禁止使用用户名、姓名或职位称呼（如"陈总"、"李主任"）
-- 示例:"下午好。日影西斜，一盏清茶正温——今日虽忙碌，但每一份付出都在为明天筑基。"
-
-【dailyGreeting，≤30字纯中文】
-- 一句话概括总量+紧急数+最紧迫事项，禁止英文
-
-【projectBrief，有项目数据时150-300字，无项目时返回空字符串""】
-- 综述各项目阶段、预算、风险概况
-
-【timeBlocks，按任务优先级和时段划分，每个timeBlock必须包含focus字段】
-- focus字段为20-40字的纯中文描述，必须包含该时段要完成的**具体任务名称**
-- 示例："专注处理催办财政专项资金审批与督办跨部门协作遗留问题，确保今日超期事项全部闭环"
-- items字段为该时段关联的任务对象数组[{id,title}]
-- 必须生成3-4个时间块
-
-返回JSON: {headerGreeting,namePraise,dailyGreeting,riskSummary,aiSuggestion,overview,focusItems:[{id,title,reason}],timeBlocks:[{label,startTime,endTime,focus,items}],riskAlerts:[{level,title,description}],completionAdvice,projectBrief}`,
-        `用户:${userName} 时段:${period} 日期:${context.date} 任务:共${totalItems}项(待处理${todoCount},进行中${inProgressCount},紧急${criticalCount}) ${JSON.stringify(items.slice(0,20))}${projectsInfo}`,
+        `时段:${period} | 日期:${context.date}
+用户:${userName}
+任务总览: ${totalItems}项（待处理${todoCount} · 进行中${inProgressCount} · 紧急${criticalCount}）
+${items.length > 0 ? '任务列表:\n' + JSON.stringify(items.slice(0,20), null, 2) : '今日暂无任务安排。'}
+${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       );
       const safeTimeBlocks = (result.timeBlocks || []).map((b: any) => {
         const raw = Array.isArray(b.items) ? b.items : [];
