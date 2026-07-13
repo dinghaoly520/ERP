@@ -50,7 +50,9 @@ const MAX_VISIBLE = 6;
 interface TaskNotificationCenterProps {
   dailyPlan: WorkArrangementDailyPlan | null;
   refreshingPlan: boolean;
+  showProjectBrief?: boolean;
   onRefreshPlan: () => void;
+  onSelectTimeBlock: (taskIds: string[]) => void;
   onAddToCalendar: (items: PlannedItem[]) => void;
   onShowHistory: () => void;
 }
@@ -58,7 +60,9 @@ interface TaskNotificationCenterProps {
 export function TaskNotificationCenter({
   dailyPlan,
   refreshingPlan,
+  showProjectBrief = false,
   onRefreshPlan,
+  onSelectTimeBlock,
   onAddToCalendar,
   onShowHistory,
 }: TaskNotificationCenterProps) {
@@ -141,7 +145,9 @@ export function TaskNotificationCenter({
           derivedTodo={derivedTodo}
           todoItems={todoItems}
           refreshingPlan={refreshingPlan}
+          showProjectBrief={showProjectBrief}
           onRefreshPlan={onRefreshPlan}
+          onSelectTimeBlock={onSelectTimeBlock}
           onAddToCalendar={onAddToCalendar}
           onShowHistory={onShowHistory}
         />

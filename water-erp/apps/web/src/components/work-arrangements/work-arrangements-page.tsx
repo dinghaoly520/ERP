@@ -820,7 +820,13 @@ export function WorkArrangementsPage({
             <TaskNotificationCenter
               dailyPlan={dailyPlan}
               refreshingPlan={refreshingPlan}
+              showProjectBrief={currentUser?.role === 'leader' || currentUser?.role === 'admin'}
               onRefreshPlan={() => void loadDailyPlan()}
+              onSelectTimeBlock={(taskIds) => {
+                setHighlightedTaskIds(taskIds);
+                const id = taskIds[0];
+                if (id) handleSelectTask(id);
+              }}
               onAddToCalendar={handleAddToCalendar}
               onShowHistory={() => setShowHistoryDrawer(true)}
             />

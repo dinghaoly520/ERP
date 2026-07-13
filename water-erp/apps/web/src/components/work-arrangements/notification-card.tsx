@@ -55,7 +55,7 @@ interface NotificationCardProps {
 
 export function NotificationCard({ item, onAction }: NotificationCardProps) {
   const meta = getNotificationMeta(item.type);
-  const Icon = (LucideIcons as Record<string, React.ComponentType<{ size?: number; strokeWidth?: number }>>)[meta.icon] ?? LucideIcons.Bell;
+  const Icon = (LucideIcons as any)[meta.icon] ?? LucideIcons.Bell;
   const tone = statusTone[meta.tone] ?? statusTone.gray;
   const urgency = getUrgency(item.type);
   const urgStyle = urgencyStyles[urgency];
