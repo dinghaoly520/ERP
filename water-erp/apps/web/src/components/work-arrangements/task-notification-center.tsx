@@ -16,13 +16,41 @@ export interface PlannedItem {
   link: string;
 }
 
-// ── 完整通知类型 → 中文标签 ──
+// ── 名称提取 ──
+// 中文引号 U+201C (") U+201D (")
+const LQ = '“';
+const RQ = '”';
+
+function extractName(item: NotificationItem): string {
+  const c = item.content || '';
+
+  // 1) 中文引号包裹的名称
+  const re = new RegExp(`${LQ}([^${LQ}${RQ}]{2,20})${RQ}`);
+  const m = c.match(re);
+  if (m) return m[1];
+
+  // 2) 商品名/项目名 (在明确动作关键字之前)
+  const kws = '报价调整|申请加入|价格调整|投标截止|评标已结|已发布招标|将于.*开标|已通过审核|审核不通过|已被退回|已回复|即将到期|提交了入库';
+  const kw = c.match(new RegExp(`^(.+?)(${kws})`));
+  if (kw) {
+    const raw = kw[1].replace(/[""'',，。]/g, '').trim();
+    if (raw.length >= 2 && raw.length <= 22) return raw;
+  }
+
+  // 3) 标题去前缀
+  const t = (item.title || '').replace(/^(新供应商|供应商|采购目录|新增品类|月度|周度|系统)/, '');
+  if (t.length >= 2 && t.length <= 16) return t;
+
+  return c.slice(0, 12);
+}
+
+// ── 中文标签 + 跳转链接 ──
 
 const TYPE_LABELS: Record<string, string> = {
   SUPPLIER_PENDING:       '供应商审批',
   SUPPLIER_APPROVED:      '供应商入库',
   SUPPLIER_REJECTED:      '供应商驳回',
-  SUPPLIER_RETURNED:      '供应商退回补正',
+  SUPPLIER_RETURNED:      '退回补正',
   PRICE_REVIEW:           '价格复核',
   QUALIFICATION_EXPIRING: '资质到期',
   BID_PUBLISHED:          '招标公告',
@@ -33,8 +61,6 @@ const TYPE_LABELS: Record<string, string> = {
   CATALOG_APPLICATION:    '目录申请',
   SYSTEM:                 '系统通知',
 };
-
-// ── 通知类型 → 跳转链接 ──
 
 const TYPE_LINKS: Record<string, string> = {
   SUPPLIER_PENDING:       '/supplier/approval',
@@ -52,35 +78,10 @@ const TYPE_LINKS: Record<string, string> = {
   SYSTEM:                 '/notifications',
 };
 
-// ── 可操作的（待办类）类型排前面 ──
-
 const ACTIONABLE_ORDER = [
   'SUPPLIER_PENDING', 'PRICE_REVIEW', 'QUALIFICATION_EXPIRING',
   'BID_REMINDER', 'SUPPLIER_RETURNED',
 ];
-
-// ── 从通知内容中提取核心名称 ──
-
-function extractName(item: NotificationItem): string {
-  const c = item.content || '';
-  // 引号包裹的名称
-  const quoted = c.match(/[""]([^""]{2,20})[""]/);
-  if (quoted) return quoted[1];
-  // 项目名
-  const pj = c.match(/项目[""]([^""]{2,16})[""]/);
-  if (pj) return pj[1];
-  // 标题本身可能包含名称
-  if (item.title && item.title.length <= 20) return item.title;
-  return c.slice(0, 12);
-}
-
-function labelFor(type: string): string {
-  return TYPE_LABELS[type] ?? type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function linkFor(type: string): string {
-  return TYPE_LINKS[type] ?? '/notifications';
-}
 
 // ── 主组件 ──
 
@@ -117,17 +118,14 @@ export function TaskNotificationCenter({
         const names = items
           .filter((n) => !n.isRead)
           .map(extractName)
-          .slice(0, 4);
+          .filter(Boolean)
+          .slice(0, 5);
         return {
-          type,
-          label: labelFor(type),
-          link: linkFor(type),
-          icon: meta.icon,
-          toneColor: tone.color,
-          toneBg: tone.bg,
-          count: items.length,
-          unread,
-          names,
+          type, items,
+          label: TYPE_LABELS[type] ?? type,
+          link: TYPE_LINKS[type] ?? '/notifications',
+          icon: meta.icon, toneColor: tone.color, toneBg: tone.bg,
+          count: items.length, unread, names,
         };
       })
       .sort((a, b) => {
@@ -142,16 +140,21 @@ export function TaskNotificationCenter({
 
   return (
     <section className="wb-panel">
-      <div className="wb-panel-header">
+      <div className="wb-panel-header flex items-center justify-between">
         <span className="text-[15px] font-bold text-[#18243a]">任务通知</span>
+        {groups.length > 0 && (
+          <span className="text-[11px] tabular-nums text-[color:var(--muted-foreground)]">
+            {groups.length} 类 · {groups.reduce((s, g) => s + g.count, 0)} 条
+          </span>
+        )}
       </div>
 
       {groups.length === 0 ? (
-        <div className="wb-panel-body py-6 text-center text-sm text-[color:var(--muted-foreground)]">
+        <div className="flex-1 py-10 text-center text-sm text-[color:var(--muted-foreground)]">
           暂无通知
         </div>
       ) : (
-        <div className="wb-panel-body flex flex-col gap-2">
+        <div className="flex flex-1 flex-col">
           {groups.map((g) => {
             const Icon = (LucideIcons as any)[g.icon] ?? LucideIcons.Bell;
             return (
@@ -159,32 +162,31 @@ export function TaskNotificationCenter({
                 key={g.type}
                 type="button"
                 onClick={() => router.push(g.link)}
-                className="group flex items-center gap-3 rounded-[12px] px-3.5 py-2.5 text-left transition hover:bg-[var(--accent-soft)]/10"
+                className="group flex items-start gap-3 border-b border-[#eef3f8] px-1 py-2.5 text-left transition last:border-b-0 hover:bg-[var(--accent-soft)]/8"
               >
-                {/* 图标 */}
                 <span
-                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+                  className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md"
                   style={{ backgroundColor: g.toneBg }}
                 >
-                  <Icon size={13} style={{ color: g.toneColor }} />
+                  <Icon size={12} style={{ color: g.toneColor }} />
                 </span>
 
-                {/* 标签 + 名称 */}
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-2">
                     <span className="text-[13px] font-bold text-[#18243a]">{g.label}</span>
-                    <span
-                      className="rounded-md px-1.5 py-px text-[11px] font-bold tabular-nums"
-                      style={{
-                        color: g.unread > 0 ? g.toneColor : '#8a99ad',
-                        backgroundColor: g.unread > 0 ? `${g.toneColor}14` : 'transparent',
-                      }}
-                    >
-                      {g.unread > 0 ? `${g.unread}条待处理` : `${g.count}条`}
-                    </span>
+                    {g.unread > 0 ? (
+                      <span
+                        className="rounded-md px-1.5 py-px text-[10px] font-bold tabular-nums"
+                        style={{ color: g.toneColor, backgroundColor: `${g.toneColor}15` }}
+                      >
+                        {g.unread}条待处理
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-[#8a99ad]">{g.count}条</span>
+                    )}
                   </span>
                   {g.names.length > 0 && (
-                    <span className="mt-0.5 block truncate text-[11px] leading-relaxed text-[#5a6d8a]">
+                    <span className="mt-0.5 block text-[11px] leading-snug text-[#5a6d8a] line-clamp-2">
                       {g.names.join('、')}
                     </span>
                   )}
@@ -192,7 +194,7 @@ export function TaskNotificationCenter({
 
                 <ArrowRight
                   size={13}
-                  className="flex-shrink-0 text-[color:var(--accent)] opacity-0 transition group-hover:opacity-100"
+                  className="mt-0.5 flex-shrink-0 text-[color:var(--accent)] opacity-0 transition group-hover:opacity-100"
                 />
               </button>
             );

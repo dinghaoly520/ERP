@@ -570,5 +570,170 @@
     "resolvedAt": "2026-07-11T19:00:00.000Z",
     "link": "/projects",
     "createdAt": "2026-07-11T11:00:00.000Z"
+  },
+  {
+    "id": "cm6151d1061a894365b74832",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "SUPPLIER_PENDING",
+    "title": "供应商变更申请待审核",
+    "content": "供应商“德力西电气有限公司”提交了注册资本变更申请，由5000万变更为8000万。请审核。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/supplier/approval",
+    "createdAt": "2026-07-13T02:00:00.000Z"
+  },
+  {
+    "id": "cmd637c9855bf94b17a84228",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "SUPPLIER_PENDING",
+    "title": "供应商重新入库申请",
+    "content": "供应商“成都华西物资供应有限公司”重新提交了入库申请，资质已更新。请审核。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/supplier/approval",
+    "createdAt": "2026-07-13T00:00:00.000Z"
+  },
+  {
+    "id": "cm7f5c167a19b74bb5ac8f3e",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "SUPPLIER_APPROVED",
+    "title": "供应商审核通过",
+    "content": "供应商“施耐德电气（中国）有限公司”已通过审核，正式入库。",
+    "isRead": true,
+    "resolvedAt": "2026-07-10T11:00:00.000Z",
+    "link": "/supplier/repository",
+    "createdAt": "2026-07-10T08:00:00.000Z"
+  },
+  {
+    "id": "cm5654b1ecd0a44922835e36",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "SUPPLIER_APPROVED",
+    "title": "供应商审核通过",
+    "content": "供应商“正泰电器股份有限公司”已通过审核，资质评分92分，分类为设备类供应商。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/supplier/repository",
+    "createdAt": "2026-07-12T11:00:00.000Z"
+  },
+  {
+    "id": "cm157c00a80b6947fab71c96",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "SUPPLIER_REJECTED",
+    "title": "供应商审核不通过",
+    "content": "供应商“某电气设备公司”资质不齐全，审核不通过。请通知供应商补正后重新提交。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/supplier/approval",
+    "createdAt": "2026-07-12T07:00:00.000Z"
+  },
+  {
+    "id": "cmd86f360cbf7346e2b22b37",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "SUPPLIER_RETURNED",
+    "title": "供应商申请退回补正",
+    "content": "供应商“重庆蜀通岩土工程有限公司”的入库申请已被退回，需补充安全生产许可证扫描件。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/supplier/approval",
+    "createdAt": "2026-07-12T17:00:00.000Z"
+  },
+  {
+    "id": "cmb2bd219990bf4767a54d17",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "BID_OPENING",
+    "title": "开标通知",
+    "content": "项目“都江堰灌区现代化改造工程设备采购”将于2026年7月18日开标，请准备开标。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bid",
+    "createdAt": "2026-07-12T13:00:00.000Z"
+  },
+  {
+    "id": "cm4e7a46247bad4ea1be50a1",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "BID_OPENING",
+    "title": "开标通知",
+    "content": "项目“智慧水务信息化系统建设项目”将于2026年7月22日开标，请确认开标流程。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bid",
+    "createdAt": "2026-07-12T09:00:00.000Z"
+  },
+  {
+    "id": "cm21b793387fd345468ca085",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "BID_EVALUATION_RESULT",
+    "title": "评标结果公示",
+    "content": "项目“2026年度智慧水利大数据平台建设项目”评标已结束，中科院成都信息技术股份有限公司综合排名第一。请确认。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bid",
+    "createdAt": "2026-07-12T01:00:00.000Z"
+  },
+  {
+    "id": "cm0ab99bafc2d04dbdb61693",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "CLARIFICATION_REPLIED",
+    "title": "澄清答疑已回复",
+    "content": "供应商对项目“水库大坝安全监测自动化改造项目”提出的3条澄清问题已回复，请查看。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bid/clarifications",
+    "createdAt": "2026-07-12T21:00:00.000Z"
+  },
+  {
+    "id": "cm8fd5cbf5ecf145e0afff8a",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "CLARIFICATION_REPLIED",
+    "title": "澄清答疑已回复",
+    "content": "供应商对项目“岷江流域水质在线监测站建设项目”的技术参数疑问已解答，请确认。",
+    "isRead": true,
+    "resolvedAt": "2026-07-10T23:00:00.000Z",
+    "link": "/bid/clarifications",
+    "createdAt": "2026-07-10T18:00:00.000Z"
+  },
+  {
+    "id": "cm87bc60e1e5c8441cb0c30b",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "CATALOG_APPLICATION",
+    "title": "目录加入申请",
+    "content": "供应商“德力西电气有限公司”申请加入“低压配电”目录，提交了5个品类的报价。请审核。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/mall-management/catalog",
+    "createdAt": "2026-07-12T23:00:00.000Z"
+  },
+  {
+    "id": "cmbbebab60493b49f28e0cee",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "CATALOG_APPLICATION",
+    "title": "目录加入申请",
+    "content": "供应商“上海良信电器股份有限公司”申请加入“智能控制”目录，提交了3个品类的报价。请审核。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/mall-management/catalog",
+    "createdAt": "2026-07-12T22:00:00.000Z"
+  },
+  {
+    "id": "cm296e0cc8b52a4fcd934c6e",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "SYSTEM",
+    "title": "周度工作简报",
+    "content": "本周共审核通过供应商3家，驳回1家，退回补正2家。价格复核完成8项。请查看详细周报。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/dashboard",
+    "createdAt": "2026-07-13T03:00:00.000Z"
+  },
+  {
+    "id": "cm22740cc270514dfe930af0",
+    "userId": "cmrai35fr0000koddvbs7wjep",
+    "type": "SYSTEM",
+    "title": "待办提醒",
+    "content": "您有3项待办事项已超过24小时未处理，请及时处理以免影响后续采购流程。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/notifications",
+    "createdAt": "2026-07-13T05:00:00.000Z"
   }
 ]
