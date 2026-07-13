@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationService } from './notification.service';
 import { EmailChannel } from './channels/email.channel';
 import { SmsChannel } from './channels/sms.channel';
+import { PhoneChannel } from './channels/phone.channel';
 import { PrismaService } from '../prisma/prisma.service';
 
 describe('NotificationService', () => {
@@ -20,6 +21,7 @@ describe('NotificationService', () => {
   };
   const emailChannel = { send: jest.fn().mockResolvedValue({ status: 'skipped' }) } as any;
   const smsChannel = { send: jest.fn().mockResolvedValue({ status: 'skipped' }) } as any;
+  const phoneChannel = { send: jest.fn().mockResolvedValue({ status: 'skipped' }) } as any;
 
   beforeEach(async () => {
     const mod: TestingModule = await Test.createTestingModule({
@@ -27,6 +29,7 @@ describe('NotificationService', () => {
         NotificationService,
         { provide: EmailChannel, useValue: emailChannel },
         { provide: SmsChannel, useValue: smsChannel },
+        { provide: PhoneChannel, useValue: phoneChannel },
         { provide: PrismaService, useValue: prisma },
       ],
     }).compile();
