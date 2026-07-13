@@ -156,7 +156,8 @@ describe('GenericItemScorerService — per-item 评分测试 (C13)', () => {
       expect(result.totalScore).toBe(25);
       expect(result.scoreItems).toHaveLength(2);
       expect(result.overallComment).toBe('整体良好');
-      expect(mockLlm.chatJson).toHaveBeenCalledTimes(1);
+      // TECHNICAL 为主观项 → A2 无条件 self-consistency 复跑 2 轮 → 共 3 次 chatJson
+      expect(mockLlm.chatJson).toHaveBeenCalledTimes(3);
     });
 
     it('混合 LLM + 价格项', async () => {
@@ -327,7 +328,9 @@ describe('GenericItemScorerService — per-item 评分测试 (C13)', () => {
         items: [{ scoreItemId: 'si-1', score: 16, confidence: 0.85 }],
         overallComment: 'OK',
       });
-      const items = [makeScoreItem({ id: 'si-1', maxScore: 20 })];
+      // 用非主观项(QUALIFICATION) + 高置信，验证「非主观且高置信 → 不复跑」；
+      // 主观项(BUSINESS/TECHNICAL)无论置信度都无条件复跑（LLM 自报 confidence 系统性偏高）
+      const items = [makeScoreItem({ id: 'si-1', category: 'QUALIFICATION', maxScore: 20 })];
       await service.score(items, {}, null, 'task-1', 'bs-1', []);
       expect(mockLlm.chatJson).toHaveBeenCalledTimes(1);
     });
