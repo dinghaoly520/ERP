@@ -238,6 +238,7 @@ export function TaskNotificationCenter({
         <AiPlanningPanel
           dailyPlan={dailyPlan}
           refreshingPlan={refreshingPlan}
+          showProjectBrief={showProjectBrief}
           onRefreshPlan={onRefreshPlan}
           onSelectTimeBlock={onSelectTimeBlock}
           onShowHistory={onShowHistory}

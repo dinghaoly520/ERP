@@ -8,6 +8,7 @@ import {
   CalendarClock,
 } from 'lucide-react';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
+import { ProjectBriefCard } from '@/components/work-arrangements/project-brief-card';
 
 /** Normalize a time-slot string into clean HH:MM display. */
 function formatTimeSlot(raw: string): string {
@@ -22,6 +23,7 @@ function formatTimeSlot(raw: string): string {
 interface AiPlanningPanelProps {
   dailyPlan: WorkArrangementDailyPlan | null;
   refreshingPlan: boolean;
+  showProjectBrief?: boolean;
   onRefreshPlan: () => void;
   onSelectTimeBlock: (taskIds: string[]) => void;
   onShowHistory: () => void;
@@ -30,6 +32,7 @@ interface AiPlanningPanelProps {
 export function AiPlanningPanel({
   dailyPlan,
   refreshingPlan,
+  showProjectBrief = false,
   onRefreshPlan,
   onSelectTimeBlock,
   onShowHistory,
@@ -223,6 +226,13 @@ export function AiPlanningPanel({
                 </>
               );
             })()
+          ) : null}
+
+          {/* Section 4: 项目简报 */}
+          {showProjectBrief && dailyPlan ? (
+            <div className="mt-4">
+              <ProjectBriefCard dailyPlan={dailyPlan} />
+            </div>
           ) : null}
         </>
       )}
