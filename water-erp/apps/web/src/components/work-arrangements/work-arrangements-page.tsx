@@ -702,9 +702,6 @@ export function WorkArrangementsPage({
         );
         await createWorkArrangement({
           title: `[待办] ${item.title}`,
-          description: item.notificationId
-            ? `关联通知: ${item.notificationId}`
-            : undefined,
           type: 'FOLLOW_UP',
           urgency: 'HIGH',
           status: 'TODO',
@@ -821,7 +818,7 @@ export function WorkArrangementsPage({
               dailyPlan={dailyPlan}
               refreshingPlan={refreshingPlan}
               showProjectBrief={currentUser?.role === 'leader' || currentUser?.role === 'admin'}
-              onRefreshPlan={() => void loadDailyPlan()}
+              onRefreshPlan={(_ctx?: string) => void loadDailyPlan()}
               onSelectTimeBlock={(taskIds) => {
                 setHighlightedTaskIds(taskIds);
                 const id = taskIds[0];

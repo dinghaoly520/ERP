@@ -6,6 +6,7 @@ import {
   History,
   Lightbulb,
   CalendarClock,
+  Bell,
 } from 'lucide-react';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import { ProjectBriefCard } from '@/components/work-arrangements/project-brief-card';
@@ -20,23 +21,37 @@ function formatTimeSlot(raw: string): string {
   return trimmed;
 }
 
+export interface NotificationContext {
+  supplierPending: number;
+  priceReview: number;
+  expiringQualifications: number;
+}
+
 interface AiPlanningPanelProps {
   dailyPlan: WorkArrangementDailyPlan | null;
   refreshingPlan: boolean;
   showProjectBrief?: boolean;
-  onRefreshPlan: () => void;
+  notificationContext: NotificationContext;
+  onRefreshPlan: (notificationContext?: string) => void;
   onSelectTimeBlock: (taskIds: string[]) => void;
   onShowHistory: () => void;
+}
+
+function hasNotifications(ctx: NotificationContext): boolean {
+  return ctx.supplierPending > 0 || ctx.priceReview > 0 || ctx.expiringQualifications > 0;
 }
 
 export function AiPlanningPanel({
   dailyPlan,
   refreshingPlan,
   showProjectBrief = false,
+  notificationContext,
   onRefreshPlan,
   onSelectTimeBlock,
   onShowHistory,
 }: AiPlanningPanelProps) {
+  const notificationsExist = hasNotifications(notificationContext);
+
   return (
     <section className="flex flex-col">
       {/* 标题行 */}
@@ -48,9 +63,10 @@ export function AiPlanningPanel({
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={onRefreshPlan}
+            onClick={() => onRefreshPlan()}
             disabled={refreshingPlan}
             className="neu-btn-xs"
+            title="让 AI 重新分析当前的任务和通知，生成新的排程计划"
           >
             <RefreshCw
               size={12}
@@ -69,6 +85,32 @@ export function AiPlanningPanel({
         </div>
       </div>
 
+      {/* 通知上下文提示条 — AI 排程时已考虑这些 */}
+      {notificationsExist && (
+        <div className="mt-2 flex items-center gap-2 rounded-[10px] bg-[var(--accent-soft)]/10 px-3 py-2">
+          <Bell size={12} className="shrink-0 text-[color:var(--accent)]" />
+          <span className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
+            AI 排程已考虑当前待办通知：
+            {notificationContext.supplierPending > 0 && (
+              <span className="ml-1 font-semibold text-[color:var(--accent)]">
+                {notificationContext.supplierPending}项供应商审批
+              </span>
+            )}
+            {notificationContext.priceReview > 0 && (
+              <span className="ml-1 font-semibold text-[color:var(--accent)]">
+                · {notificationContext.priceReview}项价格复核
+              </span>
+            )}
+            {notificationContext.expiringQualifications > 0 && (
+              <span className="ml-1 font-semibold text-[color:var(--accent)]">
+                · {notificationContext.expiringQualifications}项资质到期
+              </span>
+            )}
+            。下方排程已为通知处理预留时间。
+          </span>
+        </div>
+      )}
+
       {refreshingPlan ? (
         <div className="flex flex-col items-center gap-3 py-6">
           <div className="neu-icon-well flex h-10 w-10 items-center justify-center rounded-xl">
@@ -77,18 +119,18 @@ export function AiPlanningPanel({
               className="animate-pulse text-[color:var(--accent)]"
             />
           </div>
-          <span className="text-sm text-[color:var(--muted-foreground)]">
-            正在分析你的待办事项...
+          <span className="text-center text-sm text-[color:var(--muted-foreground)]">
+            {notificationsExist
+              ? 'AI 正在综合分析你的任务和待办通知，规划今日排程...'
+              : '正在分析你的待办事项...'}
           </span>
         </div>
       ) : (
         <>
-          {/* ============================================================ */}
-          {/* Section 1: AI 今日排程概览                                    */}
-          {/* ============================================================ */}
+          {/* Section 1: AI 今日排程概览 */}
           {dailyPlan?.overview ? (
             <>
-              <p className="mt-2 text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]">
+              <p className="mt-3 text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]">
                 <Sparkles size={14} className="mr-1.5 inline-block" />
                 AI 今日排程
               </p>
@@ -98,9 +140,7 @@ export function AiPlanningPanel({
             </>
           ) : null}
 
-          {/* ============================================================ */}
-          {/* Section 2: 时间块建议                                         */}
-          {/* ============================================================ */}
+          {/* Section 2: 时间块建议 */}
           {dailyPlan?.timeBlocks && dailyPlan.timeBlocks.length > 0 ? (
             <>
               <hr className="wb-section-rule" />
@@ -146,9 +186,7 @@ export function AiPlanningPanel({
             </>
           ) : null}
 
-          {/* ============================================================ */}
-          {/* Section 3: 具体建议 / 完成建议                                 */}
-          {/* ============================================================ */}
+          {/* Section 3: 具体建议 */}
           {dailyPlan?.completionAdvice ? (
             (() => {
               const advText = dailyPlan.completionAdvice;
