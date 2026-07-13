@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Sun, Sunset, Moon, CloudSun, ListTodo, PlayCircle, CalendarDays, AlertTriangle } from 'lucide-react';
+import { Sun, Sunset, Moon, CloudSun, ListTodo, PlayCircle, CalendarDays, AlertTriangle, Bell } from 'lucide-react';
 import type { WorkArrangementDailyPlan, WorkArrangementWorkbenchOverview } from '@/lib/types/work-arrangements';
 import type { AuthUser } from '@/lib/api/auth';
+import { useNotifications } from '@/lib/hooks/use-notifications';
 
 type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night';
 const TDP: Record<TimeOfDay,{g:string;gl:string;r:string;s:string;t:string;d:string}> = {
@@ -59,7 +60,12 @@ export function WorkbenchOverview({
   const loading = !dailyPlan;
   const headerGreeting = dailyPlan?.headerGreeting ?? '';
 
+  const { derivedTodo } = useNotifications();
+  const notificationCount =
+    derivedTodo.supplierPending + derivedTodo.priceReview + derivedTodo.expiringQualifications;
+
   const badges: StatBadge[] = [
+    { key: 'notif', label: '通知待办', value: notificationCount, icon: Bell, color: '#7c3aed', bg: '#f5f3ff' },
     { key: 'todo', label: '待办', value: summary.todoCount, icon: ListTodo, color: '#6366f1', bg: '#eef2ff' },
     { key: 'progress', label: '进行中', value: summary.inProgressCount, icon: PlayCircle, color: '#0ea5e9', bg: '#f0f9ff' },
     { key: 'today', label: '今日到期', value: summary.dueTodayCount, icon: CalendarDays, color: '#f59e0b', bg: '#fffbeb' },
@@ -129,7 +135,7 @@ export function WorkbenchOverview({
           ))}
           {badges.every((b) => b.value === 0) && (
             <span className="text-[12px] text-[color:var(--muted-foreground)]">
-              今日暂无待办，可以规划新任务或复盘已完成工作
+              今日暂无待办和通知，可以规划新任务或复盘已完成工作
             </span>
           )}
         </div>
