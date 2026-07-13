@@ -1,14 +1,11 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
-import * as LucideIcons from 'lucide-react';
-import { getNotificationMeta, statusTone } from '@water-erp/shared';
+import { ArrowRight, UserCheck, Tag, AlertTriangle, Bell } from 'lucide-react';
 import { AiPlanningPanel } from '@/components/work-arrangements/ai-planning-panel';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import { useNotifications } from '@/lib/hooks/use-notifications';
-import { listNotifications } from '@/lib/api/notification';
 import type { NotificationItem } from '@/lib/api/notification';
 
 export interface PlannedItem {
@@ -17,45 +14,44 @@ export interface PlannedItem {
   link: string;
 }
 
-// ── helpers ──
+// ── 从通知内容中提取核心名称 ──
 
-type NotificationUrgency = 'urgent' | 'important' | 'normal';
-
-const URGENCY_MAP: Record<string, NotificationUrgency> = {
-  SUPPLIER_PENDING: 'urgent', PRICE_REVIEW: 'important',
-  QUALIFICATION_EXPIRING: 'important', BID_REMINDER: 'normal',
-};
-const URGENCY_ORDER: Record<NotificationUrgency, number> = { urgent: 0, important: 1, normal: 2 };
-
-const urgencyColors: Record<NotificationUrgency, { dot: string; label: string }> = {
-  urgent:    { dot: 'bg-[#ef4444]', label: '紧急' },
-  important: { dot: 'bg-[#f59e0b]', label: '重要' },
-  normal:    { dot: 'bg-[#3b82f6]', label: '普通' },
-};
-
-function getUrgency(type: string): NotificationUrgency { return URGENCY_MAP[type] ?? 'normal'; }
-
-function sortByUrgency(items: NotificationItem[]): NotificationItem[] {
-  return [...items].sort((a, b) => {
-    const ua = URGENCY_ORDER[getUrgency(a.type)] ?? 99;
-    const ub = URGENCY_ORDER[getUrgency(b.type)] ?? 99;
-    if (ua !== ub) return ua - ub;
-    if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
+function extractName(item: NotificationItem): string {
+  const c = item.content || '';
+  // 供应商名称："供应商"xxx"提交" → xxx
+  const quoted = c.match(/[""]([^""]{2,20})[""]/);
+  if (quoted) return quoted[1];
+  // 商品名："断路器CDB6i" 等
+  const itemMatch = c.match(/([^""]+?)报价调整|申请加入|价格调整|即将到期|投标截止/);
+  if (itemMatch) return itemMatch[1].replace(/[「」""]/g, '').slice(0, 12);
+  // 项目名：项目"xxx"
+  const pj = c.match(/项目[""]([^""]{2,16})[""]/);
+  if (pj) return pj[1];
+  // 兜底：取前12字
+  return c.slice(0, 12);
 }
 
-function relTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return '刚刚';
-  if (m < 60) return `${m} 分钟前`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h} 小时前`;
-  return `${Math.floor(h / 24)} 天前`;
+// ── 分组定义 ──
+
+interface GroupDef {
+  type: string;
+  label: string;
+  icon: typeof UserCheck;
+  iconBg: string;
+  iconColor: string;
+  link: string;
 }
 
-const MAX_VISIBLE = 6;
+const GROUP_DEFS: GroupDef[] = [
+  { type: 'SUPPLIER_PENDING',      label: '供应商审批', icon: UserCheck,     iconBg: '#eff6ff', iconColor: '#064ea2', link: '/supplier/approval' },
+  { type: 'PRICE_REVIEW',          label: '价格复核',   icon: Tag,           iconBg: '#f5f3ff', iconColor: '#7c3aed', link: '/mall-management/approval' },
+  { type: 'QUALIFICATION_EXPIRING',label: '资质到期',   icon: AlertTriangle, iconBg: '#fff7ed', iconColor: '#f5a623', link: '/supplier/repository' },
+  { type: 'BID_REMINDER',          label: '投标提醒',   icon: Bell,          iconBg: '#fff7ed', iconColor: '#d97706', link: '/projects' },
+  { type: 'BID_PUBLISHED',         label: '招标公告',   icon: Bell,          iconBg: '#eff6ff', iconColor: '#2563eb', link: '/projects' },
+  { type: 'SYSTEM',                label: '系统通知',   icon: Bell,          iconBg: '#f8fafc', iconColor: '#5a6d8a', link: '/notifications' },
+];
+
+const GROUP_ORDER = ['SUPPLIER_PENDING', 'PRICE_REVIEW', 'QUALIFICATION_EXPIRING', 'BID_REMINDER', 'BID_PUBLISHED', 'SYSTEM'];
 
 // ── 主组件 ──
 
@@ -79,186 +75,139 @@ export function TaskNotificationCenter({
   onShowHistory,
 }: TaskNotificationCenterProps) {
   const router = useRouter();
-  const { recent, todoItems, markRead } = useNotifications();
-  const [expanded, setExpanded] = useState(false);
-  const [directItems, setDirectItems] = useState<NotificationItem[] | null>(null);
+  const { recent, markRead } = useNotifications();
 
-  // 直接调用 API 获取通知，绕过 hook 可能的数据问题
-  useEffect(() => {
-    let cancelled = false;
-    listNotifications('all', 1, 20).then((res) => {
-      if (!cancelled) setDirectItems(res.items);
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  // 优先用直接 API 数据，兜底用 hook 数据
-  const rawItems = useMemo(
-    () => (directItems && directItems.length > 0 ? directItems : [...recent, ...todoItems]),
-    [directItems, recent, todoItems],
-  );
-
-  // 合并去重后按紧急度排序
-  const allItems = useMemo(() => {
-    const seen = new Set<string>();
-    const merged: NotificationItem[] = [];
-    for (const item of rawItems) {
-      if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+  const groups = useMemo(() => {
+    const byType = new Map<string, NotificationItem[]>();
+    for (const item of recent) {
+      const list = byType.get(item.type) || [];
+      list.push(item);
+      byType.set(item.type, list);
     }
-    return sortByUrgency(merged);
-  }, [rawItems]);
 
-  const visibleItems = expanded ? allItems : allItems.slice(0, MAX_VISIBLE);
-  const hiddenCount = Math.max(0, allItems.length - MAX_VISIBLE);
+    return GROUP_DEFS
+      .filter((def) => {
+        const items = byType.get(def.type);
+        return items && items.length > 0;
+      })
+      .map((def) => {
+        const items = byType.get(def.type)!;
+        const unread = items.filter((n) => !n.isRead).length;
+        const names = items
+          .filter((n) => !n.isRead)
+          .map(extractName)
+          .slice(0, 4);
+        return { ...def, count: items.length, unread, names };
+      })
+      .sort(
+        (a, b) =>
+          GROUP_ORDER.indexOf(a.type) - GROUP_ORDER.indexOf(b.type),
+      );
+  }, [recent]);
 
-  const handleAction = async (item: NotificationItem) => {
-    await markRead(item.id);
-    const meta = getNotificationMeta(item.type);
-    if (meta.actionable && item.link) {
-      router.push(item.link);
-    } else if (item.link) {
-      router.push(item.link);
+  const handleGroupClick = async (def: GroupDef, items: NotificationItem[]) => {
+    for (const item of items.filter((n) => !n.isRead)) {
+      await markRead(item.id);
     }
+    router.push(def.link);
   };
+
+  if (groups.length === 0) {
+    return (
+      <section className="wb-panel">
+        <div className="wb-panel-header">
+          <span className="text-[15px] font-bold text-[#18243a]">任务通知</span>
+        </div>
+        <div className="wb-panel-body py-6 text-center text-sm text-[color:var(--muted-foreground)]">
+          暂无通知
+        </div>
+        <hr className="wb-section-rule" />
+        <div className="wb-panel-body">
+          <AiPlanningPanel
+            dailyPlan={dailyPlan} refreshingPlan={refreshingPlan}
+            showProjectBrief={showProjectBrief}
+            onRefreshPlan={() => onRefreshPlan()}
+            onSelectTimeBlock={onSelectTimeBlock} onShowHistory={onShowHistory}
+          />
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="wb-panel">
       <div className="wb-panel-header">
         <span className="text-[15px] font-bold text-[#18243a]">任务通知</span>
       </div>
-      <div className="wb-panel-body flex flex-col gap-4">
-        {/* 通知内容 */}
-        <div className="flex flex-col">
-          <div className="mb-2.5 flex items-center justify-between">
-            <span className="text-xs font-semibold text-[color:var(--muted-foreground)]">
-              通知内容 · {allItems.length} 条
-            </span>
-            <span className="text-[10px] text-[color:var(--muted-foreground)]">
-              {allItems.filter((n) => !n.isRead).length} 条未读
-            </span>
-          </div>
+      <div className="wb-panel-body flex flex-col gap-3">
+        {/* 按模块分组，每行一组 */}
+        {groups.map((g) => {
+          const byType = new Map<string, NotificationItem[]>();
+          for (const item of recent) {
+            const list = byType.get(item.type) || [];
+            list.push(item);
+            byType.set(item.type, list);
+          }
+          const items = byType.get(g.type) || [];
+          return (
+            <button
+              key={g.type}
+              type="button"
+              onClick={() => handleGroupClick(g, items)}
+              className="group flex items-center gap-3 rounded-[12px] px-3.5 py-2.5 text-left transition hover:bg-[var(--accent-soft)]/10"
+            >
+              {/* 图标 */}
+              <span
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+                style={{ backgroundColor: g.iconBg }}
+              >
+                <g.icon size={13} style={{ color: g.iconColor }} />
+              </span>
 
-          {allItems.length === 0 ? (
-            <div className="py-8 text-center text-sm text-[color:var(--muted-foreground)]">
-              暂无通知
-            </div>
-          ) : (
-            <>
-              <div className="flex flex-col divide-y divide-[#eef3f8]">
-                {visibleItems.map((item) => {
-                  const meta = getNotificationMeta(item.type);
-                  const Icon = (LucideIcons as any)[meta.icon] ?? LucideIcons.Bell;
-                  const tone = statusTone[meta.tone] ?? statusTone.gray;
-                  const urgency = getUrgency(item.type);
-                  const colors = urgencyColors[urgency];
-                  const resolved = !!item.resolvedAt;
+              {/* 标签 + 名称列表 */}
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline gap-2">
+                  <span className="text-[13px] font-bold text-[#18243a]">
+                    {g.label}
+                  </span>
+                  <span
+                    className="rounded-md px-1.5 py-px text-[11px] font-bold tabular-nums"
+                    style={{
+                      color: g.unread > 0 ? g.iconColor : '#8a99ad',
+                      backgroundColor:
+                        g.unread > 0
+                          ? `${g.iconColor}14`
+                          : 'transparent',
+                    }}
+                  >
+                    {g.unread > 0 ? `${g.unread}条待处理` : '全部已处理'}
+                  </span>
+                </span>
+                {g.names.length > 0 && (
+                  <span className="mt-0.5 block truncate text-[11px] leading-relaxed text-[#5a6d8a]">
+                    {g.names.join('、')}
+                  </span>
+                )}
+              </span>
 
-                  return (
-                    <div
-                      key={item.id}
-                      className={`group py-3 first:pt-0 last:pb-0 ${
-                        resolved ? 'opacity-50' : ''
-                      }`}
-                    >
-                      {/* 元信息行：图标 + 紧急度 + 时间 */}
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-md"
-                          style={{ color: tone.color, backgroundColor: tone.bg }}
-                        >
-                          <Icon size={11} strokeWidth={2} />
-                        </span>
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[10px] font-bold ${
-                            urgency === 'urgent'
-                              ? 'bg-[#fef2f2] text-[#ef4444]'
-                              : urgency === 'important'
-                                ? 'bg-[#fffbeb] text-[#d97706]'
-                                : 'bg-[#eff6ff] text-[#2563eb]'
-                          }`}
-                        >
-                          <span className={`h-1.5 w-1.5 rounded-full ${colors.dot}`} />
-                          {colors.label}
-                        </span>
-                        <span className="text-[11px] tabular-nums text-[#8a99ad]">
-                          {relTime(item.createdAt)}
-                        </span>
-                        {resolved && (
-                          <span className="rounded-full bg-[#ecfdf5] px-1.5 py-px text-[10px] font-semibold text-[#11a874]">
-                            已处理
-                          </span>
-                        )}
-                      </div>
+              {/* 箭头 */}
+              <ArrowRight
+                size={13}
+                className="flex-shrink-0 text-[color:var(--accent)] opacity-0 transition group-hover:opacity-100"
+              />
+            </button>
+          );
+        })}
+      </div>
 
-                      {/* 标题 */}
-                      <p
-                        className={`mt-1.5 text-[13px] font-semibold leading-snug ${
-                          resolved
-                            ? 'text-[color:var(--muted-foreground)] line-through'
-                            : 'text-[#18243a]'
-                        }`}
-                      >
-                        {item.title}
-                      </p>
+      <hr className="wb-section-rule" />
 
-                      {/* 内容 */}
-                      {item.content && (
-                        <p className="mt-0.5 text-[11px] leading-relaxed text-[#5a6d8a]">
-                          {item.content}
-                        </p>
-                      )}
-
-                      {/* 操作 */}
-                      {meta.actionable && !resolved && item.link ? (
-                        <button
-                          type="button"
-                          onClick={() => handleAction(item)}
-                          className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-[rgba(96,139,239,0.08)] px-2.5 py-1 text-[11px] font-bold text-[color:var(--accent)] transition hover:bg-[rgba(96,139,239,0.15)]"
-                        >
-                          去处理
-                          <ArrowRight size={10} />
-                        </button>
-                      ) : item.link ? (
-                        <button
-                          type="button"
-                          onClick={() => handleAction(item)}
-                          className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-[rgba(140,140,140,0.08)] px-2.5 py-1 text-[11px] font-semibold text-[#5a6d8a] transition hover:bg-[rgba(140,140,140,0.15)]"
-                        >
-                          查看
-                          <ArrowRight size={10} />
-                        </button>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-              {hiddenCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setExpanded((v) => !v)}
-                  className="neu-btn-xs mx-auto mt-3"
-                >
-                  {expanded ? (
-                    <><ChevronUp size={12} />收起</>
-                  ) : (
-                    <><ChevronDown size={12} />查看全部 {hiddenCount} 条</>
-                  )}
-                </button>
-              )}
-            </>
-          )}
-        </div>
-
-        <hr className="wb-section-rule" />
-
-        {/* AI 智能规划 */}
+      <div className="wb-panel-body">
         <AiPlanningPanel
-          dailyPlan={dailyPlan}
-          refreshingPlan={refreshingPlan}
+          dailyPlan={dailyPlan} refreshingPlan={refreshingPlan}
           showProjectBrief={showProjectBrief}
           onRefreshPlan={() => onRefreshPlan()}
-          onSelectTimeBlock={onSelectTimeBlock}
-          onShowHistory={onShowHistory}
+          onSelectTimeBlock={onSelectTimeBlock} onShowHistory={onShowHistory}
         />
       </div>
     </section>
