@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   Target,
   Lightbulb,
-  Clock3,
 } from 'lucide-react';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import { ProjectBriefCard } from '@/components/work-arrangements/project-brief-card';
@@ -31,15 +30,6 @@ interface AiPlanningPanelProps {
   onShowHistory: () => void;
 }
 
-function deriveStats(plan: WorkArrangementDailyPlan | null) {
-  if (!plan) return null;
-  const focusCount = plan.focusItems?.length ?? 0;
-  const blockCount = plan.timeBlocks?.length ?? 0;
-  const riskCount = plan.riskAlerts?.length ?? 0;
-  // Count total task references across all time blocks
-  const taskRefs = plan.timeBlocks?.reduce((s, b) => s + (b.taskIds?.length ?? 0), 0) ?? 0;
-  return { focusCount, blockCount, riskCount, taskRefs };
-}
 
 export function AiPlanningPanel({
   dailyPlan,
@@ -49,67 +39,24 @@ export function AiPlanningPanel({
   onSelectTimeBlock,
   onShowHistory,
 }: AiPlanningPanelProps) {
-  const stats = deriveStats(dailyPlan);
-
   return (
     <section className="flex flex-col">
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* 标题栏 — 加高 + 摘要信息                           */}
-      {/* ═══════════════════════════════════════════════════ */}
-      <div className="rounded-[16px] bg-[var(--accent-soft)]/8 px-4 py-3.5">
-        {/* 第一行：标题 + 操作按钮 */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <p className="text-[15px] font-bold text-[#18243a]">AI 辅助</p>
-            {stats && !refreshingPlan && (
-              <div className="flex items-center gap-1.5">
-                {/* 分隔点 */}
-                <span className="h-1 w-1 rounded-full bg-[#cdd5e0]" />
-                {/* 摘要统计 */}
-                <span className="flex items-center gap-1 text-[11px] tabular-nums text-[color:var(--muted-foreground)]">
-                  <Target size={10} className="text-[color:var(--accent)]" />
-                  {stats.focusCount + stats.taskRefs} 项任务
-                </span>
-                <span className="flex items-center gap-1 text-[11px] tabular-nums text-[color:var(--muted-foreground)]">
-                  <CalendarClock size={10} className="text-[color:var(--accent)]" />
-                  {stats.blockCount} 个时间块
-                </span>
-                {stats.riskCount > 0 && (
-                  <span className="flex items-center gap-1 text-[11px] tabular-nums text-[#d97706]">
-                    <AlertTriangle size={10} />
-                    {stats.riskCount} 个风险
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button" onClick={onRefreshPlan} disabled={refreshingPlan}
-              className="neu-btn-xs"
-            >
-              <RefreshCw size={12} className={refreshingPlan ? 'animate-spin' : ''} />
-              <span className="hidden sm:inline">AI 安排</span>
-            </button>
-            <button type="button" onClick={onShowHistory} className="neu-btn-xs">
-              <History size={12} />
-              <span className="hidden sm:inline">历史</span>
-            </button>
-          </div>
+      {/* 标题行 */}
+      <div className="flex items-center justify-between">
+        <p className="text-[15px] font-bold text-[#18243a]">AI 辅助</p>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button" onClick={onRefreshPlan} disabled={refreshingPlan}
+            className="neu-btn-xs"
+          >
+            <RefreshCw size={12} className={refreshingPlan ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">AI 安排</span>
+          </button>
+          <button type="button" onClick={onShowHistory} className="neu-btn-xs">
+            <History size={12} />
+            <span className="hidden sm:inline">历史</span>
+          </button>
         </div>
-
-        {/* 第二行：AI 生成的状态/问候语 */}
-        {dailyPlan && !refreshingPlan && dailyPlan.aiSuggestion ? (
-          <p className="mt-1.5 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
-            <Sparkles size={10} className="mr-1 inline-block text-[color:var(--accent)]" />
-            {dailyPlan.aiSuggestion}
-          </p>
-        ) : refreshingPlan ? (
-          <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[color:var(--muted-foreground)]">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[color:var(--accent)]" />
-            正在分析...
-          </p>
-        ) : null}
       </div>
 
       {refreshingPlan ? (
