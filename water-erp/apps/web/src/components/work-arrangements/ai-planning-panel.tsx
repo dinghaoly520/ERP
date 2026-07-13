@@ -87,28 +87,25 @@ export function AiPlanningPanel({
 
       {/* 通知上下文提示条 — AI 排程时已考虑这些 */}
       {notificationsExist && (
-        <div className="mt-2 flex items-center gap-2 rounded-[10px] bg-[var(--accent-soft)]/10 px-3 py-2">
-          <Bell size={12} className="shrink-0 text-[color:var(--accent)]" />
-          <span className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
-            AI 排程已考虑当前待办通知：
-            {notificationContext.supplierPending > 0 && (
-              <span className="ml-1 font-semibold text-[color:var(--accent)]">
-                {notificationContext.supplierPending}项供应商审批
-              </span>
-            )}
-            {notificationContext.priceReview > 0 && (
-              <span className="ml-1 font-semibold text-[color:var(--accent)]">
-                · {notificationContext.priceReview}项价格复核
-              </span>
-            )}
-            {notificationContext.expiringQualifications > 0 && (
-              <span className="ml-1 font-semibold text-[color:var(--accent)]">
-                · {notificationContext.expiringQualifications}项资质到期
-              </span>
-            )}
-            。下方排程已为通知处理预留时间。
-          </span>
-        </div>
+        <p className="mt-2 flex items-center gap-1.5 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
+          <Bell size={11} className="shrink-0 text-[color:var(--accent)]" />
+          AI 排程已考虑当前待办：
+          {notificationContext.supplierPending > 0 && (
+            <span className="font-semibold text-[color:var(--accent)]">
+              {notificationContext.supplierPending}项供应商审批
+            </span>
+          )}
+          {notificationContext.priceReview > 0 && (
+            <span className="font-semibold text-[color:var(--accent)]">
+              {notificationContext.supplierPending > 0 ? '、' : ''}{notificationContext.priceReview}项价格复核
+            </span>
+          )}
+          {notificationContext.expiringQualifications > 0 && (
+            <span className="font-semibold text-[color:var(--accent)]">
+              {notificationContext.supplierPending > 0 || notificationContext.priceReview > 0 ? '、' : ''}{notificationContext.expiringQualifications}项资质到期
+            </span>
+          )}
+        </p>
       )}
 
       {refreshingPlan ? (

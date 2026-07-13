@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { getNotificationMeta, statusTone } from '@water-erp/shared';
-import { NotificationKpiBar } from '@/components/work-arrangements/notification-kpi-bar';
 import { AiPlanningPanel } from '@/components/work-arrangements/ai-planning-panel';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import { useNotifications } from '@/lib/hooks/use-notifications';
@@ -112,9 +111,6 @@ export function TaskNotificationCenter({
         <span className="text-[15px] font-bold text-[#18243a]">任务通知</span>
       </div>
       <div className="wb-panel-body flex flex-col gap-4">
-        {/* KPI */}
-        <NotificationKpiBar derivedTodo={derivedTodo} todoItems={todoItems} />
-
         {/* 通知内容 */}
         {sortedItems.length > 0 && (
           <div className="flex flex-col">
