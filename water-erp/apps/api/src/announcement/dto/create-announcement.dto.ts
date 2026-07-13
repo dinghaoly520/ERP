@@ -1,9 +1,13 @@
 import { IsString, IsNotEmpty, IsOptional, IsEnum, IsBoolean, IsDateString, IsObject } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { sanitizeHtmlContent } from '../../common/html-sanitize.util';
 
 export class CreateAnnouncementDto {
   @IsString() @IsNotEmpty()
   title: string;
 
+  // 写时消毒 HTML，剥离 script/事件处理器/危险协议，防存储型 XSS
+  @Transform(({ value }) => (value ? sanitizeHtmlContent(value) : value))
   @IsString() @IsNotEmpty()
   content: string;
 
@@ -36,6 +40,7 @@ export class UpdateAnnouncementDto {
   @IsString() @IsOptional()
   title?: string;
 
+  @Transform(({ value }) => (value ? sanitizeHtmlContent(value) : value))
   @IsString() @IsOptional()
   content?: string;
 

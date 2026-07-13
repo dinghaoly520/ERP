@@ -1,5 +1,6 @@
 import { Controller, Post, Get, Patch, Body, Res, Req, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -44,7 +45,17 @@ function normalizeIp(ip: string): string {
   return ip;
 }
 
-const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax' as const, maxAge: 7 * 24 * 3600 * 1000 };
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// secure 标志环境门控：仅 production 生效，保证 dev/e2e（NODE_ENV=test）在 http 下仍可登录。
+// path 固定 '/'，登出 clearCookie 须传同样 opts 才能匹配删除浏览器 cookie。
+const COOKIE_OPTS = {
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  secure: IS_PRODUCTION,
+  path: '/',
+  maxAge: 7 * 24 * 3600 * 1000,
+};
 
 @ApiTags('认证')
 @Controller('auth')
@@ -56,6 +67,7 @@ export class AuthController {
 
   @Post('register')
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: '注册新用户' })
   async register(@Body() dto: RegisterDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.register(dto);
@@ -68,6 +80,7 @@ export class AuthController {
   @Post('login')
   @Public()
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: '用户登录' })
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const requestPortal = portalFromRequest(req);
@@ -113,10 +126,11 @@ export class AuthController {
       },
     });
 
-    // 清除当前门户的 cookie（按 X-Portal / 来源端口），同时清除旧版 token
+    // 清除当前门户的 cookie（按 X-Portal / 来源端口），同时清除旧版 token。
+    // clearCookie 须传与 set 一致的 path/secure/sameSite，浏览器才会匹配删除。
     const portal = portalFromRequest(req);
-    if (portal) res.clearCookie(cookieNameForPortal(portal));
-    res.clearCookie(LEGACY_COOKIE);
+    if (portal) res.clearCookie(cookieNameForPortal(portal), COOKIE_OPTS);
+    res.clearCookie(LEGACY_COOKIE, COOKIE_OPTS);
     return { ok: true };
   }
 

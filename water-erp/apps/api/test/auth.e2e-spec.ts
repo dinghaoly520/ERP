@@ -105,6 +105,21 @@ describe('Auth (e2e)', () => {
       .expect(401);
   });
 
+  it('/api/auth/logout (POST) — 登出应清除 token cookie', async () => {
+    const cookie = await loginAs(app, 'caigou', 'caigou@2026', 'web');
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/logout')
+      .set('Cookie', cookie)
+      .set('X-Portal', 'web');
+
+    expect(res.status).toBe(200);
+    // clearCookie 会以空值 + 过去时间下发，浏览器据此删除
+    const setCookie = res.headers['set-cookie'];
+    const cookieStr = Array.isArray(setCookie) ? setCookie.join(';') : setCookie;
+    expect(cookieStr).toMatch(/token_web=;/);
+    expect(cookieStr.toLowerCase()).toMatch(/expires=thu, 01 jan 1970/);
+  });
+
   /* ── 角色权限隔离 ── */
 
   describe('角色权限隔离', () => {
