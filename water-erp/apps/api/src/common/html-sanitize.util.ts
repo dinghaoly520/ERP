@@ -1,4 +1,7 @@
-import sanitizeHtml from 'sanitize-html';
+// sanitize-html 是 CJS（export = function，require() 直接返回函数）。
+// 项目 tsconfig 未开 esModuleInterop（仅 allowSyntheticDefaultImports），
+// 默认 import 会编译成 sanitize_html_1.default → undefined。用 import = require 才稳。
+import sanitizeHtml = require('sanitize-html');
 
 /**
  * 公告 / 富文本允许的标签白名单。

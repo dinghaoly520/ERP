@@ -3,7 +3,11 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
-  "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+  "transform": { "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": { "allowJs": true } }] },
+  "transformIgnorePatterns": [
+    "node_modules/\\.pnpm/(?!(htmlparser2|entities|domelementtype|domhandler|domutils|dom-serializer|@paralleldrive\\+cuid2|nanoid|@noble\\+hashes)@)",
+    "node_modules/(?!(htmlparser2|entities|domelementtype|domhandler|domutils|dom-serializer|@paralleldrive/cuid2|nanoid|@noble/hashes|\\.pnpm)/)"
+  ],
   "moduleNameMapper": {
     "^src/(.*)$": "<rootDir>/../src/$1",
     "^@water-erp/config$": "<rootDir>/../../../packages/config/src/index.ts"

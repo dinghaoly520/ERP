@@ -106,17 +106,18 @@ describe('Auth (e2e)', () => {
   });
 
   it('/api/auth/logout (POST) — 登出应清除 token cookie', async () => {
-    const cookie = await loginAs(app, 'caigou', 'caigou@2026', 'web');
+    // 用 seed 中存在的 supplier1（caigou/wangjg 在当前 seed 中未生成，见既有 e2e 用例的同类失败）
+    const cookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
     const res = await request(app.getHttpServer())
       .post('/api/auth/logout')
       .set('Cookie', cookie)
-      .set('X-Portal', 'web');
+      .set('X-Portal', 'supplier');
 
     expect(res.status).toBe(200);
     // clearCookie 会以空值 + 过去时间下发，浏览器据此删除
     const setCookie = res.headers['set-cookie'];
     const cookieStr = Array.isArray(setCookie) ? setCookie.join(';') : setCookie;
-    expect(cookieStr).toMatch(/token_web=;/);
+    expect(cookieStr).toMatch(/token_supplier=;/);
     expect(cookieStr.toLowerCase()).toMatch(/expires=thu, 01 jan 1970/);
   });
 
