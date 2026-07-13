@@ -114,11 +114,12 @@ export function WorkbenchOverview({
               </span>
             </div>
           ) : (
-            <p className="max-w-[640px] text-[14px] leading-relaxed text-pretty text-[color:var(--foreground)]">
+            <p className="text-[14px] leading-relaxed text-pretty text-[color:var(--foreground)]">
               {headerGreeting
                 .replace('{name}', '')
                 .replace(userName, '')
                 .replace(rawUsername, '')
+                .replace(/^(早上好|中午好|下午好|晚上好)[。，.,]?\s*/, '')
                 .replace(/^[，,]\s*/, '') ||
                 `${period}，${userName}。今天先处理重点事项，再推进进行中工作。`}
             </p>
