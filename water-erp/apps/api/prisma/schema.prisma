@@ -940,6 +940,64 @@ model ProcurementProject {
   @@index([status])
 }
 
+// ── 品类树节点 ──
+
+model CatalogCategory {
+  id        Int       @id @default(autoincrement())
+  name      String
+  code      String?   @unique
+  parentId  Int?
+  parent    CatalogCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children  CatalogCategory[] @relation("CategoryHierarchy")
+  sortOrder Int       @default(0)
+  status    String    @default("ACTIVE") // ACTIVE | INACTIVE
+  isLeaf    Boolean   @default(false)
+  icon      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  attributeTemplates CategoryAttributeTemplate[]
+  catalogItems       CatalogItem[]
+
+  @@index([parentId])
+  @@index([code])
+}
+
+// ── 品类属性模板 ──
+
+model CategoryAttributeTemplate {
+  id         Int             @id @default(autoincrement())
+  categoryId Int
+  category   CatalogCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name       String
+  fieldKey   String
+  fieldType  String          // TEXT | NUMBER | SELECT | DATE | BOOLEAN
+  required   Boolean         @default(false)
+  options    Json?
+  unit       String?
+  sortOrder  Int             @default(0)
+  createdAt  DateTime        @default(now())
+
+  itemAttributes CatalogItemAttribute[]
+
+  @@unique([categoryId, fieldKey])
+  @@index([categoryId])
+}
+
+// ── 目录项属性值 (EAV) ──
+
+model CatalogItemAttribute {
+  id            Int                        @id @default(autoincrement())
+  catalogItemId String
+  catalogItem   CatalogItem                @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  templateId    Int
+  template      CategoryAttributeTemplate @relation(fields: [templateId], references: [id])
+  value         String
+
+  @@unique([catalogItemId, templateId])
+  @@index([catalogItemId])
+}
+
 // ── 电子商城采购目录 ──
 
 model CatalogItem {
@@ -949,6 +1007,8 @@ model CatalogItem {
   specification       String
   category            String
   group               String
+  categoryId          Int?
+  categoryRel         CatalogCategory?             @relation(fields: [categoryId], references: [id])
   unit                String
   referencePrice      Decimal                      @db.Decimal(12, 2)
   priceMin            Decimal                      @db.Decimal(12, 2)
@@ -973,9 +1033,11 @@ model CatalogItem {
   favoritedBy         UserFavorite[]
   catalogApplications SupplierCatalogApplication[]
   catalogSuppliers    CatalogSupplier[]
+  attributes          CatalogItemAttribute[]
 
   @@index([category])
   @@index([group])
+  @@index([categoryId])
   @@index([status])
 }
 
