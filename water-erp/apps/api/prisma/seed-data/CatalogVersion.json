@@ -1621,7 +1621,7 @@
         {
           "id": 1,
           "name": "信息化设备",
-          "code": "信息化设",
+          "code": "CG-001",
           "parentId": null,
           "sortOrder": 1,
           "status": "ACTIVE",
@@ -1633,7 +1633,7 @@
         {
           "id": 2,
           "name": "仪器仪表",
-          "code": "信息-仪器",
+          "code": "CG-002",
           "parentId": 1,
           "sortOrder": 2,
           "status": "ACTIVE",
@@ -1645,7 +1645,7 @@
         {
           "id": 3,
           "name": "传感器",
-          "code": "信息-传感",
+          "code": "CG-003",
           "parentId": 1,
           "sortOrder": 3,
           "status": "ACTIVE",
@@ -1657,7 +1657,7 @@
         {
           "id": 4,
           "name": "安防监控",
-          "code": "信息-安防",
+          "code": "CG-004",
           "parentId": 1,
           "sortOrder": 4,
           "status": "ACTIVE",
@@ -1669,7 +1669,7 @@
         {
           "id": 5,
           "name": "网络通信",
-          "code": "信息-网络",
+          "code": "CG-005",
           "parentId": 1,
           "sortOrder": 5,
           "status": "ACTIVE",
@@ -1681,7 +1681,7 @@
         {
           "id": 6,
           "name": "自动化设备",
-          "code": "信息-自动",
+          "code": "CG-006",
           "parentId": 1,
           "sortOrder": 6,
           "status": "ACTIVE",
@@ -1693,7 +1693,7 @@
         {
           "id": 7,
           "name": "软件系统",
-          "code": "信息-软件",
+          "code": "CG-007",
           "parentId": 1,
           "sortOrder": 7,
           "status": "ACTIVE",
@@ -1705,7 +1705,7 @@
         {
           "id": 8,
           "name": "办公后勤",
-          "code": "办公后勤",
+          "code": "CG-008",
           "parentId": null,
           "sortOrder": 8,
           "status": "ACTIVE",
@@ -1717,7 +1717,7 @@
         {
           "id": 9,
           "name": "办公家具",
-          "code": "办公-办公",
+          "code": "CG-009",
           "parentId": 8,
           "sortOrder": 9,
           "status": "ACTIVE",
@@ -1729,7 +1729,7 @@
         {
           "id": 10,
           "name": "办公设备",
-          "code": "办公-办公",
+          "code": "CG-010",
           "parentId": 8,
           "sortOrder": 10,
           "status": "ACTIVE",
@@ -1741,7 +1741,7 @@
         {
           "id": 11,
           "name": "油料能源",
-          "code": "办公-油料",
+          "code": "CG-011",
           "parentId": 8,
           "sortOrder": 11,
           "status": "ACTIVE",
@@ -1753,7 +1753,7 @@
         {
           "id": 12,
           "name": "劳保及通用物资",
-          "code": "劳保及通",
+          "code": "CG-012",
           "parentId": null,
           "sortOrder": 12,
           "status": "ACTIVE",
@@ -1765,7 +1765,7 @@
         {
           "id": 13,
           "name": "劳保用品",
-          "code": "劳保-劳保",
+          "code": "CG-013",
           "parentId": 12,
           "sortOrder": 13,
           "status": "ACTIVE",
@@ -1777,7 +1777,7 @@
         {
           "id": 14,
           "name": "工程材料",
-          "code": "工程材料",
+          "code": "CG-014",
           "parentId": null,
           "sortOrder": 14,
           "status": "ACTIVE",
@@ -1789,7 +1789,7 @@
         {
           "id": 15,
           "name": "土工材料",
-          "code": "工程-土工",
+          "code": "CG-015",
           "parentId": 14,
           "sortOrder": 15,
           "status": "ACTIVE",
@@ -1801,7 +1801,7 @@
         {
           "id": 16,
           "name": "外加剂",
-          "code": "工程-外加",
+          "code": "CG-016",
           "parentId": 14,
           "sortOrder": 16,
           "status": "ACTIVE",
@@ -1813,7 +1813,7 @@
         {
           "id": 17,
           "name": "模板脚手架",
-          "code": "工程-模板",
+          "code": "CG-017",
           "parentId": 14,
           "sortOrder": 17,
           "status": "ACTIVE",
@@ -1825,7 +1825,7 @@
         {
           "id": 18,
           "name": "水泥",
-          "code": "工程-水泥",
+          "code": "CG-018",
           "parentId": 14,
           "sortOrder": 18,
           "status": "ACTIVE",
@@ -1837,7 +1837,7 @@
         {
           "id": 19,
           "name": "混凝土",
-          "code": "工程-混凝",
+          "code": "CG-019",
           "parentId": 14,
           "sortOrder": 19,
           "status": "ACTIVE",
@@ -1849,7 +1849,7 @@
         {
           "id": 20,
           "name": "灌浆材料",
-          "code": "工程-灌浆",
+          "code": "CG-020",
           "parentId": 14,
           "sortOrder": 20,
           "status": "ACTIVE",
@@ -1861,7 +1861,7 @@
         {
           "id": 21,
           "name": "砂石骨料",
-          "code": "工程-砂石",
+          "code": "CG-021",
           "parentId": 14,
           "sortOrder": 21,
           "status": "ACTIVE",
@@ -1873,7 +1873,7 @@
         {
           "id": 22,
           "name": "管件",
-          "code": "工程-管件",
+          "code": "CG-022",
           "parentId": 14,
           "sortOrder": 22,
           "status": "ACTIVE",
@@ -1885,7 +1885,7 @@
         {
           "id": 23,
           "name": "管材",
-          "code": "工程-管材",
+          "code": "CG-023",
           "parentId": 14,
           "sortOrder": 23,
           "status": "ACTIVE",
@@ -1897,7 +1897,7 @@
         {
           "id": 24,
           "name": "给排水管材",
-          "code": "工程-给排",
+          "code": "CG-024",
           "parentId": 14,
           "sortOrder": 24,
           "status": "ACTIVE",
@@ -1909,7 +1909,7 @@
         {
           "id": 25,
           "name": "钢材",
-          "code": "工程-钢材",
+          "code": "CG-025",
           "parentId": 14,
           "sortOrder": 25,
           "status": "ACTIVE",
@@ -1921,7 +1921,7 @@
         {
           "id": 26,
           "name": "钢筋",
-          "code": "工程-钢筋",
+          "code": "CG-026",
           "parentId": 14,
           "sortOrder": 26,
           "status": "ACTIVE",
@@ -1933,7 +1933,7 @@
         {
           "id": 27,
           "name": "防水材料",
-          "code": "工程-防水",
+          "code": "CG-027",
           "parentId": 14,
           "sortOrder": 27,
           "status": "ACTIVE",
@@ -1945,7 +1945,7 @@
         {
           "id": 28,
           "name": "服务采购",
-          "code": "服务采购",
+          "code": "CG-028",
           "parentId": null,
           "sortOrder": 28,
           "status": "ACTIVE",
@@ -1957,7 +1957,7 @@
         {
           "id": 29,
           "name": "专业服务",
-          "code": "服务-专业",
+          "code": "CG-029",
           "parentId": 28,
           "sortOrder": 29,
           "status": "ACTIVE",
@@ -1969,7 +1969,7 @@
         {
           "id": 30,
           "name": "检测监测服务",
-          "code": "服务-检测",
+          "code": "CG-030",
           "parentId": 28,
           "sortOrder": 30,
           "status": "ACTIVE",
@@ -1981,7 +1981,7 @@
         {
           "id": 31,
           "name": "物流运输服务",
-          "code": "服务-物流",
+          "code": "CG-031",
           "parentId": 28,
           "sortOrder": 31,
           "status": "ACTIVE",
@@ -1993,7 +1993,7 @@
         {
           "id": 32,
           "name": "运维服务",
-          "code": "服务-运维",
+          "code": "CG-032",
           "parentId": 28,
           "sortOrder": 32,
           "status": "ACTIVE",
@@ -2005,7 +2005,7 @@
         {
           "id": 33,
           "name": "机电设备",
-          "code": "机电设备",
+          "code": "CG-033",
           "parentId": null,
           "sortOrder": 33,
           "status": "ACTIVE",
@@ -2017,7 +2017,7 @@
         {
           "id": 34,
           "name": "加药消毒设备",
-          "code": "机电-加药",
+          "code": "CG-034",
           "parentId": 33,
           "sortOrder": 34,
           "status": "ACTIVE",
@@ -2029,7 +2029,7 @@
         {
           "id": 35,
           "name": "发电机组",
-          "code": "机电-发电",
+          "code": "CG-035",
           "parentId": 33,
           "sortOrder": 35,
           "status": "ACTIVE",
@@ -2041,7 +2041,7 @@
         {
           "id": 36,
           "name": "水处理设备",
-          "code": "机电-水处",
+          "code": "CG-036",
           "parentId": 33,
           "sortOrder": 36,
           "status": "ACTIVE",
@@ -2053,7 +2053,7 @@
         {
           "id": 37,
           "name": "水泵",
-          "code": "机电-水泵",
+          "code": "CG-037",
           "parentId": 33,
           "sortOrder": 37,
           "status": "ACTIVE",
@@ -2065,7 +2065,7 @@
         {
           "id": 38,
           "name": "泵站设备",
-          "code": "机电-泵站",
+          "code": "CG-038",
           "parentId": 33,
           "sortOrder": 38,
           "status": "ACTIVE",
@@ -2077,7 +2077,7 @@
         {
           "id": 39,
           "name": "电气设备",
-          "code": "机电-电气",
+          "code": "CG-039",
           "parentId": 33,
           "sortOrder": 39,
           "status": "ACTIVE",
@@ -2089,7 +2089,7 @@
         {
           "id": 40,
           "name": "阀门",
-          "code": "机电-阀门",
+          "code": "CG-040",
           "parentId": 33,
           "sortOrder": 40,
           "status": "ACTIVE",
@@ -2102,6 +2102,6 @@
       "capturedAt": "2026-01-01T00:00:00.000Z"
     },
     "createdAt": "2026-01-01T00:00:00.000Z",
-    "createdBy": "Swhi-CGZX-00"
+    "createdBy": "cmqbysdbl0002koh10l78cjr3"
   }
 ]

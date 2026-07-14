@@ -43,7 +43,7 @@
     "createdAt": "2026-01-01T00:00:00.000Z"
   },
   {
-    "id": 7,
+    "id": 4,
     "categoryId": 22,
     "name": "公称直径",
     "fieldKey": "dn",
@@ -61,7 +61,7 @@
     "createdAt": "2026-01-01T00:00:00.000Z"
   },
   {
-    "id": 8,
+    "id": 5,
     "categoryId": 22,
     "name": "壁厚",
     "fieldKey": "wallThickness",
@@ -73,7 +73,7 @@
     "createdAt": "2026-01-01T00:00:00.000Z"
   },
   {
-    "id": 4,
+    "id": 6,
     "categoryId": 25,
     "name": "材质",
     "fieldKey": "material",
@@ -90,7 +90,7 @@
     "createdAt": "2026-01-01T00:00:00.000Z"
   },
   {
-    "id": 5,
+    "id": 7,
     "categoryId": 25,
     "name": "直径",
     "fieldKey": "diameter",
@@ -110,7 +110,7 @@
     "createdAt": "2026-01-01T00:00:00.000Z"
   },
   {
-    "id": 6,
+    "id": 8,
     "categoryId": 25,
     "name": "长度",
     "fieldKey": "length",

@@ -2,7 +2,7 @@
   {
     "id": 1,
     "name": "价格涨幅过大",
-    "categoryId": 2,
+    "categoryId": 25,
     "alertType": "PRICE_SURGE",
     "threshold": 20.0,
     "enabled": true,
@@ -17,7 +17,7 @@
   },
   {
     "id": 2,
-    "name": "价格即将过期",
+    "name": "目录项即将过期",
     "categoryId": null,
     "alertType": "EXPIRING",
     "threshold": 30.0,
@@ -33,7 +33,7 @@
   },
   {
     "id": 3,
-    "name": "偏离品类均价",
+    "name": "偏离品类均价（2倍标准差）",
     "categoryId": null,
     "alertType": "DEVIATION",
     "threshold": 2.0,
