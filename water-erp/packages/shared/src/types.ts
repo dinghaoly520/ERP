@@ -100,6 +100,8 @@ export interface BidExpert {
   phoneVerified?: boolean;
   phoneMasked?: string | null;
   avoidanceConfirmed: boolean;
+  aiConsentConfirmed?: boolean;
+  aiConsentAt?: string | null;
   progress: number;
   totalScore: number;
   reportConfirmed?: boolean;
