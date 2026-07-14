@@ -171,6 +171,17 @@ export class CatalogController {
     return this.catalogService.setItemAttributes(id, body.attributes);
   }
 
+  // ── 价格预警 ──
+
+  @Get('admin/alert-rules') @Roles('admin', 'procurement_staff') async listAlertRules() { return this.catalogService.listAlertRules(); }
+  @Post('admin/alert-rules') @Roles('admin') async createAlertRule(@Body() dto: any) { return this.catalogService.createAlertRule(dto); }
+  @Patch('admin/alert-rules/:id') @Roles('admin') async updateAlertRule(@Param('id', new ParseIntPipe()) id: number, @Body() dto: any) { return this.catalogService.updateAlertRule(id, dto); }
+  @Delete('admin/alert-rules/:id') @Roles('admin') async deleteAlertRule(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.deleteAlertRule(id); }
+  @Patch('admin/alert-rules/:id/toggle') @Roles('admin') async toggleAlertRule(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.toggleAlertRule(id); }
+  @Get('admin/alerts') @Roles('admin', 'procurement_staff') async listAlerts(@Query('isRead') isRead?: string, @Query('isResolved') isResolved?: string) { return this.catalogService.listAlerts({ isRead: isRead !== undefined ? isRead === 'true' : undefined, isResolved: isResolved !== undefined ? isResolved === 'true' : undefined }); }
+  @Patch('admin/alerts/:id/read') @Roles('admin', 'procurement_staff') async markAlertRead(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.markAlertRead(id); }
+  @Patch('admin/alerts/:id/resolve') @Roles('admin', 'procurement_staff') async markAlertResolved(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.markAlertResolved(id); }
+
   // ── 供应商目录供货申请（管理员审核）──
 
   @Get('applications')

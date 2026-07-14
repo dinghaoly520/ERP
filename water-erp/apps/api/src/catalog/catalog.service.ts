@@ -780,6 +780,17 @@ export class CatalogService {
     return rows.map(r => ({ ...r, quotedPrice: Number(r.quotedPrice) }));
   }
 
+  // ── 价格预警 ──
+
+  async listAlertRules() { return this.prisma.priceAlertRule.findMany({ orderBy: { createdAt: 'desc' }, include: { category: { select: { id: true, name: true } } } }); }
+  async createAlertRule(dto: any) { return this.prisma.priceAlertRule.create({ data: { name: dto.name.trim(), categoryId: dto.categoryId ?? null, alertType: dto.alertType, threshold: dto.threshold, enabled: dto.enabled ?? true, notifyRoles: dto.notifyRoles ?? ['admin', 'procurement_staff'] } }); }
+  async updateAlertRule(id: number, dto: any) { const data: any = {}; if (dto.name) data.name = dto.name.trim(); if (dto.alertType) data.alertType = dto.alertType; if (dto.threshold !== undefined) data.threshold = dto.threshold; if (dto.enabled !== undefined) data.enabled = dto.enabled; if (dto.notifyRoles) data.notifyRoles = dto.notifyRoles; return this.prisma.priceAlertRule.update({ where: { id }, data }); }
+  async deleteAlertRule(id: number) { await this.prisma.priceAlertRule.delete({ where: { id } }); return { success: true }; }
+  async toggleAlertRule(id: number) { const r = await this.prisma.priceAlertRule.findUnique({ where: { id } }); if (!r) throw new BadRequestException({ error: '规则不存在', code: 'NOT_FOUND' }); return this.prisma.priceAlertRule.update({ where: { id }, data: { enabled: !r.enabled } }); }
+  async listAlerts(params: { isRead?: boolean; isResolved?: boolean }) { const where: any = {}; if (params.isRead !== undefined) where.isRead = params.isRead; if (params.isResolved !== undefined) where.isResolved = params.isResolved; return this.prisma.priceAlert.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100, include: { catalogItem: { select: { id: true, code: true, name: true } }, rule: { select: { id: true, name: true } } } }); }
+  async markAlertRead(id: number) { return this.prisma.priceAlert.update({ where: { id }, data: { isRead: true } }); }
+  async markAlertResolved(id: number) { return this.prisma.priceAlert.update({ where: { id }, data: { isResolved: true } }); }
+
   private appTitle(app: any): string {
     if (app.type === 'NEW_ITEM') return `新增品类·${app.proposedName || '未命名'}`;
     return `${app.catalogItem?.name || '目录物资'}`;
