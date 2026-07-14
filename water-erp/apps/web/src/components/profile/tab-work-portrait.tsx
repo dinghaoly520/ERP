@@ -1,24 +1,55 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
-  Loader2, Star, Zap, TrendingUp, Calendar, Target, Sparkles,
+  Loader2, Star, Zap, TrendingUp, Calendar, Target, Sparkles, RefreshCw,
 } from 'lucide-react';
 import { fetchWorkPortrait, type WorkPortrait } from '@/lib/api/work-arrangements';
 
+// Module-level cache — persists across tab switches within the same session
+let portraitCache: { data: WorkPortrait; timestamp: number } | null = null;
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
 export function TabWorkPortrait() {
-  const [portrait, setPortrait] = useState<WorkPortrait | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [portrait, setPortrait] = useState<WorkPortrait | null>(
+    () => (portraitCache && Date.now() - portraitCache.timestamp < CACHE_TTL) ? portraitCache.data : null,
+  );
+  const [loading, setLoading] = useState(!portraitCache);
   const [error, setError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const fetchedRef = useRef(false);
+
+  const loadPortrait = async (force: boolean = false) => {
+    if (!force && portraitCache && Date.now() - portraitCache.timestamp < CACHE_TTL) {
+      setPortrait(portraitCache.data);
+      setLoading(false);
+      return;
+    }
+    setRefreshing(true);
+    try {
+      const data = await fetchWorkPortrait();
+      if (!fetchedRef.current) {
+        portraitCache = { data, timestamp: Date.now() };
+        setPortrait(data);
+        setLoading(false);
+        setError(false);
+      }
+    } catch {
+      if (!fetchedRef.current) setError(true);
+    } finally {
+      if (!fetchedRef.current) setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    let cancelled = false;
-    fetchWorkPortrait().then((data) => {
-      if (!cancelled) { setPortrait(data); setLoading(false); }
-    }).catch(() => {
-      if (!cancelled) { setError(true); setLoading(false); }
-    });
-    return () => { cancelled = true; };
+    fetchedRef.current = true;
+    if (!portraitCache || Date.now() - portraitCache.timestamp >= CACHE_TTL) {
+      loadPortrait();
+    } else {
+      setPortrait(portraitCache.data);
+      setLoading(false);
+    }
+    return () => { fetchedRef.current = false; };
   }, []);
 
   if (loading) {
@@ -55,18 +86,29 @@ export function TabWorkPortrait() {
           <Sparkles size={64} strokeWidth={1} className="text-[color:var(--accent)]" />
         </div>
         <div className="relative">
-          <div className="flex items-center gap-2">
-            <span
-              className="inline-flex items-center rounded-[10px] px-2.5 py-0.5 text-[11px] font-bold"
-              style={{ backgroundColor: 'rgba(96,139,239,0.12)', color: 'var(--accent)' }}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-flex items-center rounded-[10px] px-2.5 py-0.5 text-[11px] font-bold"
+                style={{ backgroundColor: 'rgba(96,139,239,0.12)', color: 'var(--accent)' }}
+              >
+                <Sparkles size={11} className="mr-1" />AI 工作画像
+              </span>
+              <span className="text-[11px] text-[color:var(--muted-foreground)]">
+                基于你的操作数据生成
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => loadPortrait(true)}
+              disabled={refreshing}
+              className="neu-btn-xs"
+              title="重新生成画像"
             >
-              <Sparkles size={11} className="mr-1" />AI 工作画像
-            </span>
-            <span className="text-[11px] text-[color:var(--muted-foreground)]">
-              基于你的操作数据生成
-            </span>
+              <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} />
+            </button>
           </div>
-          <p className="mt-3 max-w-[600px] text-[14px] leading-relaxed text-[#18243a]">
+          <p className="mt-3 w-full text-[14px] leading-relaxed break-words text-[#18243a]">
             {narrative}
           </p>
         </div>
