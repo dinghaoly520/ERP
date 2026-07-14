@@ -185,6 +185,7 @@ function ItemsTab() {
       </div>
     </div>
   );
+}
 
 // ── 品类树 Tab ──
 
