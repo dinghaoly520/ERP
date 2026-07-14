@@ -351,6 +351,8 @@ model BidExpert {
   signedIn              Boolean          @default(false)
   phoneVerified         Boolean          @default(false)
   avoidanceConfirmed    Boolean          @default(false)
+  aiConsentConfirmed    Boolean          @default(false)
+  aiConsentAt           DateTime?
   conflictedSupplierIds Json             @default("[]")
   progress              Int              @default(0)
   totalScore            Decimal          @default("0") @db.Decimal(8, 1)

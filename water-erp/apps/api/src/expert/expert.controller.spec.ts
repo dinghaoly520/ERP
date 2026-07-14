@@ -10,6 +10,7 @@ describe('ExpertController', () => {
     expertService = {
       getTenderDocument: jest.fn(),
       downloadTenderDocument: jest.fn(),
+      confirmAiConsent: jest.fn(),
     };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ExpertController],
@@ -43,6 +44,14 @@ describe('ExpertController', () => {
         expect.stringContaining('inline'),
       );
       expect(res.send).toHaveBeenCalledWith(buffer);
+    });
+  });
+
+  describe('confirmAiConsent', () => {
+    it('透传给 service', async () => {
+      expertService.confirmAiConsent.mockResolvedValue({ aiConsentConfirmed: true });
+      await controller.confirmAiConsent('user-1', 'proj-1');
+      expect(expertService.confirmAiConsent).toHaveBeenCalledWith('user-1', 'proj-1');
     });
   });
 });
