@@ -56,6 +56,11 @@ export class ExpertController {
     return this.expertService.confirmAvoidance(userId, projectId, body?.conflictedSupplierIds);
   }
 
+  @Post('projects/:projectId/ai-consent')
+  confirmAiConsent(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.expertService.confirmAiConsent(userId, projectId);
+  }
+
   /* ── 标书解密获取 ── */
   @Get('projects/:projectId/documents/:supplierId')
   getDecryptedDocuments(
