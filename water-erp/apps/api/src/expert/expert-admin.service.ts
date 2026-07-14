@@ -283,7 +283,7 @@ export class ExpertAdminService {
     const twelveMonthsAgo = new Date(Date.now() - 365 * 24 * 3600 * 1000);
 
     // 批量拉取多维度数据
-    const [evalAgg, allEvals, allDeltas, allActiveAssigns, allRecentAssigns] = await Promise.all([
+    const [evalAgg, allEvals, allActiveAssigns, allRecentAssigns, scoreRecords] = await Promise.all([
       // 历史履职均分
       this.prisma.expertEvaluation.groupBy({
         by: ['expertUserId'],
@@ -296,11 +296,6 @@ export class ExpertAdminService {
         orderBy: { createdAt: 'desc' },
         select: { expertUserId: true, level: true, attendanceScore: true, qualityScore: true, disciplineScore: true, overallScore: true, createdAt: true },
       }),
-      // 评分偏离度
-      this.prisma.bidScoreDelta.findMany({
-        where: { expertId: { in: eligibleIds } },
-        select: { expertId: true, delta: true },
-      }),
       // 当前活跃负荷（progress < 100 的项目）
       this.prisma.bidExpert.findMany({
         where: { userId: { in: eligibleIds }, progress: { lt: 100 } },
@@ -310,6 +305,11 @@ export class ExpertAdminService {
       this.prisma.bidExpert.findMany({
         where: { userId: { in: eligibleIds }, createdAt: { gte: twelveMonthsAgo } },
         select: { userId: true },
+      }),
+      // 评分偏离度（通过 BidScoreRecord → expert.userId 关联）
+      this.prisma.bidScoreRecord.findMany({
+        where: { expert: { userId: { in: eligibleIds } } },
+        select: { score: true, scoreItemId: true, supplierId: true, expert: { select: { userId: true } } },
       }),
     ]);
 
@@ -323,17 +323,16 @@ export class ExpertAdminService {
       }
     }
 
-    // 偏离度 Map：每人平均 delta
-    const deltaMap = new Map<string, number>();
-    const deltaCountMap = new Map<string, number>();
-    for (const d of allDeltas) {
-      deltaMap.set(d.expertId, (deltaMap.get(d.expertId) ?? 0) + Number(d.delta));
-      deltaCountMap.set(d.expertId, (deltaCountMap.get(d.expertId) ?? 0) + 1);
-    }
-    const deviationMap = new Map<string, number>();
-    for (const [id, sum] of deltaMap) {
-      deviationMap.set(id, Math.round((sum / (deltaCountMap.get(id) ?? 1)) * 10) / 10);
-    }
+    // 偏离度 Map（通过 computeExpertMeanDeviations，使用 User.id）
+    const deviations = computeExpertMeanDeviations(
+      scoreRecords.map(r => ({
+        expertId: r.expert.userId,
+        scoreItemId: r.scoreItemId,
+        supplierId: r.supplierId,
+        score: Number(r.score),
+      })),
+    );
+    const deviationMap = new Map(deviations.map(d => [d.expertId, Math.round(d.meanDeviation * 10) / 10]));
 
     // 负荷 Map
     const loadMap = new Map<string, number>();

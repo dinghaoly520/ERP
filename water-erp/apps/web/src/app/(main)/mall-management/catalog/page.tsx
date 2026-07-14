@@ -384,52 +384,79 @@ function ApprovalTab() {
 // ── 价格趋势 Tab ──
 
 function TrendsTab() {
-  const { tree, loading: treeLoading, error: treeError } = useCategoryTree();
+  const { tree, loading: treeLoading } = useCategoryTree();
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
-  const [items, setItems] = useState<CatalogItem[]>([]);
   const [seriesData, setSeriesData] = useState<{ name: string; color: string; data: { date: string; price: number }[] }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [allItems, setAllItems] = useState<CatalogItem[]>([]);
+  const [initLoading, setInitLoading] = useState(true);
 
+  // Load ALL items + price histories on mount
+  useEffect(() => {
+    let cancelled = false;
+    listCatalogItems({})
+      .then(async items => {
+        if (cancelled) return;
+        setAllItems(items);
+        const candidates = items.filter(i => i.priceMin !== i.priceMax).slice(0, 5);
+        if (candidates.length === 0) { setInitLoading(false); return; }
+        const series = await Promise.all(candidates.map(async (item, i) => {
+          try {
+            const res = await fetch('/api/catalog/' + item.id + '/history', { credentials: 'include', headers: { 'X-Portal': 'web' } });
+            if (!res.ok) return null;
+            const h = await res.json();
+            if (!Array.isArray(h) || h.length < 2) return null;
+            return { name: item.name, color: PALETTE[i % PALETTE.length], data: h.map((p: any) => ({ date: (p.recordedAt || '').slice(0, 10), price: Number(p.price) || 0 })) };
+          } catch { return null; }
+        }));
+        if (!cancelled) setSeriesData(series.filter((s): s is NonNullable<typeof s> => s != null));
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setInitLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleCategoryChange = (id: number | null) => {
     setSelectedCategoryId(id);
-    if (!id) { setItems([]); setSeriesData([]); return; }
-    setLoading(true); setSeriesData([]);
-    listCatalogItems({ categoryId: id })
-      .then(allItems => {
-        setItems(allItems);
-        if (allItems.length === 0) { setLoading(false); return; }
-        const top5 = allItems.slice(0, 5);
-        return Promise.all(top5.map(async (item, i) => {
-          const res = await fetch(`/api/catalog/${item.id}/history`, { credentials: 'include', headers: { 'X-Portal': 'web' } });
-          if (!res.ok) return null;
-          const h = await res.json();
-          if (!h?.length) return null;
-          return { name: `${item.name} (${item.code})`, color: PALETTE[i % PALETTE.length], data: h.map((p: any) => ({ date: p.recordedAt?.slice(0, 10) || '', price: Number(p.price) || 0 })) };
-        }).then(results => {
-          const valid = results.filter(Boolean);
-          setSeriesData(valid);
-        }));
-      })
-      .catch((e: any) => toast.error(e.message || '加载目录项失败'))
-      .finally(() => setLoading(false));
+    if (!id) { setSeriesData([]); return; }
+    setLoading(true);
+    const filtered = allItems.filter(i => String(i.categoryId) === String(id) || (i as any).categoryId === id);
+    if (filtered.length === 0) { setLoading(false); return; }
+    const top5 = filtered.slice(0, 5);
+    Promise.all(top5.map(async (item, i) => {
+      try {
+        const res = await fetch('/api/catalog/' + item.id + '/history', { credentials: 'include', headers: { 'X-Portal': 'web' } });
+        if (!res.ok) return null;
+        const h = await res.json();
+        if (!Array.isArray(h) || h.length < 2) return null;
+        return { name: item.name, color: PALETTE[i % PALETTE.length], data: h.map((p: any) => ({ date: (p.recordedAt || '').slice(0, 10), price: Number(p.price) || 0 })) };
+      } catch { return null; }
+    })).then(results => {
+      setSeriesData(results.filter((s): s is NonNullable<typeof s> => s != null));
+      setLoading(false);
+    });
   };
-
-  if (treeLoading) return <div className="flex items-center justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>;
-  if (treeError) return <div className="flex items-center justify-center py-16 text-sm text-red-500">品类树加载失败：{treeError}</div>;
 
   return (
     <div className="flex flex-col gap-4" style={{ minHeight: 'calc(100vh - 340px)' }}>
       <div className="flex items-center gap-3">
-        <CategoryTreeSelect value={selectedCategoryId} onChange={handleCategoryChange} placeholder="选择品类查看价格趋势" className="min-w-[200px]" />
-        {seriesData.length > 0 && <span className="text-xs text-[var(--muted-foreground)]">显示 {seriesData.length} 个目录项</span>}
+        <CategoryTreeSelect value={selectedCategoryId} onChange={handleCategoryChange} placeholder="选择品类过滤" className="min-w-[200px]" />
+        <span className="text-xs text-[var(--muted-foreground)]">
+          {treeLoading ? '加载品类中...' : tree.length > 0 ? getLeafNodes(tree).length + ' 个叶子品类 · ' + allItems.length + ' 个目录项' : ''}
+          {seriesData.length > 0 && <span className="text-[var(--accent)] font-semibold ml-2">已加载 {seriesData.length} 条价格曲线</span>}
+        </span>
       </div>
-      {loading ? <div className="flex items-center justify-center flex-1"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
+      {initLoading ? <div className="flex items-center justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
         : seriesData.length > 0 ? <PriceTrendChart series={seriesData} title="" />
-        : <div className="flex items-center justify-center flex-1 text-sm text-[var(--muted-foreground)]">{selectedCategoryId ? '该品类暂无目录项或价格历史' : '👆 从上方选择品类，自动展示该品类下目录项的价格趋势'}</div>}
+        : <div className="flex flex-col items-center justify-center py-16 gap-2 text-sm text-[var(--muted-foreground)]">
+            <TrendingUp size={32} className="opacity-30" />
+            <p>{allItems.length === 0 ? '暂无目录项数据' : '所选品类下无足够价格历史'}</p>
+          </div>}
     </div>
   );
 }
+
+
 
 // ── 价格预警 Tab ──
 
