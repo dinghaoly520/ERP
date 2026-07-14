@@ -119,21 +119,23 @@ export default function ExpertEvaluatePage() {
   // P2: per-supplier conflict declaration
   const [conflictedSupplierIds, setConflictedSupplierIds] = useState<Set<string>>(new Set());
   const [avoiding, setAvoiding] = useState(false);
+  // ④ AI 辅助评标声明：勾选门控（确认态以服务端 expert.aiConsentConfirmed 为准）
+  const [aiConsentChecked, setAiConsentChecked] = useState(false);
 
   // P2: step gating — each step is unlocked only when its preconditions are met
   const stepAccessible = (sKey: Step): boolean => {
     switch (sKey) {
       case 'verify': return true;
-      case 'documents': return !!expert?.signedIn && !!expert?.avoidanceConfirmed;
-      case 'assist': return !!expert?.signedIn && !!expert?.avoidanceConfirmed;
-      case 'compare': return !!expert?.signedIn && !!expert?.avoidanceConfirmed;
-      case 'scoring': return !!expert?.signedIn && !!expert?.avoidanceConfirmed;
+      case 'documents': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
+      case 'assist': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
+      case 'compare': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
+      case 'scoring': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
       case 'report': return !!expert?.reportConfirmed || (expert?.progress ?? 0) >= 100;
     }
   };
   const stepCompleted = (sKey: Step): boolean => {
     switch (sKey) {
-      case 'verify': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && confidentialityAgreed && disciplineAgreed;
+      case 'verify': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed && confidentialityAgreed && disciplineAgreed;
       case 'documents': return false; // no "complete" state for browsing docs
       case 'assist': return false;
       case 'compare': return false;
@@ -279,7 +281,7 @@ export default function ExpertEvaluatePage() {
     if (!stepAccessible(step)) {
       setStep('verify');
     }
-  }, [step, expert?.signedIn, expert?.avoidanceConfirmed, expert?.reportConfirmed, expert?.progress, confidentialityAgreed, disciplineAgreed]);
+  }, [step, expert?.signedIn, expert?.avoidanceConfirmed, expert?.aiConsentConfirmed, expert?.reportConfirmed, expert?.progress, confidentialityAgreed, disciplineAgreed]);
 
   const handleSignIn = async () => {
     setBusy(true);
@@ -351,6 +353,19 @@ export default function ExpertEvaluatePage() {
     }
     catch (e: any) { toast.error(e.message || '操作失败'); }
     setAvoiding(false);
+  };
+
+  const handleConfirmAiConsent = async () => {
+    if (!aiConsentChecked) return;
+    setBusy(true);
+    try {
+      await api.post(`/expert/projects/${projectId}/ai-consent`, {});
+      loadProject();
+      toast.success('AI 辅助评标声明已确认');
+    } catch (e: any) {
+      toast.error(e.message || '确认失败');
+    }
+    setBusy(false);
   };
 
   const loadDocuments = async (sid: string, sharedSeq?: number) => {
@@ -970,6 +985,70 @@ export default function ExpertEvaluatePage() {
                     </div>
                   )}
                 </div>
+
+                {/* ===== ④ AI 辅助评标声明 — 评标纪律确认后解锁 ===== */}
+                <div className={!disciplineAgreed ? 'opacity-50 pointer-events-none select-none' : ''}>
+                  <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
+                    expert?.aiConsentConfirmed ? 'bg-emerald-50 border-emerald-200'
+                    : disciplineAgreed ? 'bg-white/70 border-[oklch(0.91_0.006_264)]'
+                    : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
+                      expert?.aiConsentConfirmed ? 'bg-emerald-500 text-white'
+                      : disciplineAgreed ? 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'
+                      : 'bg-gray-200 text-gray-400'
+                    }`}>
+                      {expert?.aiConsentConfirmed ? <Check size={18} strokeWidth={2.5} /> : disciplineAgreed ? '4' : <Lock size={16} strokeWidth={1.5} />}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className={`font-bold ${
+                        expert?.aiConsentConfirmed ? 'text-emerald-600'
+                        : disciplineAgreed ? 'text-[oklch(0.18_0.012_265)]'
+                        : 'text-gray-400'
+                      }`}>AI 辅助评标声明</h3>
+                      <p className="text-sm text-[oklch(0.55_0.01_264)]">确认 AI 辅助结果仅供参考</p>
+                    </div>
+                    {!disciplineAgreed && (
+                      <span className="text-xs text-[oklch(0.72_0.008_264)] bg-[oklch(0.96_0.004_264)] px-2 py-1 rounded font-semibold">需先确认评标纪律</span>
+                    )}
+                    {disciplineAgreed && !expert?.aiConsentConfirmed && (
+                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded font-semibold">待签署</span>
+                    )}
+                  </div>
+                  {/* AI 声明书 — 解锁后且未确认时显示 */}
+                  {disciplineAgreed && !expert?.aiConsentConfirmed && (
+                    <div className="mt-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                      <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-2 flex items-center gap-2">
+                        <Sparkles size={14} strokeWidth={1.5} /> AI 辅助评标使用声明
+                      </h3>
+                      <p className="text-sm text-[oklch(0.55_0.01_264)] leading-relaxed mb-3">
+                        本项目评审引入人工智能（大语言模型与文档识别）辅助工具，可对投标文件进行合规性检查、风险提示与评分参考分析。本人郑重声明并知悉：
+                      </p>
+                      <ol className="space-y-2 text-sm text-[oklch(0.55_0.01_264)] mb-4 list-decimal pl-5">
+                        <li>AI 辅助工具生成的合规判断、风险提示、评分建议等内容，性质均为<strong className="text-[oklch(0.18_0.012_265)]">辅助参考</strong>，不构成评审结论；</li>
+                        <li>上述 AI 意见仅供本人在评标过程中参考，<strong className="text-[oklch(0.18_0.012_265)]">不得干预或干扰本人的独立职业判断</strong>；</li>
+                        <li>任何 AI 输出均<strong className="text-[oklch(0.18_0.012_265)]">不得作为本人打分的直接依据或唯一理由</strong>，本人对每一项评分及其理由独立负责；</li>
+                        <li>最终评审意见与评分结果，由本人依据招标文件规定的标准和方法、结合专业判断独立作出，不由 AI 决定，亦不因 AI 意见而免除本人的评审责任。</li>
+                      </ol>
+                      <label className="flex items-center gap-3 cursor-pointer mb-3">
+                        <input type="checkbox" checked={aiConsentChecked} onChange={e => setAiConsentChecked(e.target.checked)}
+                          className="w-4 h-4 rounded border-blue-200 text-[#064ea2] focus:ring-[#064ea2]" />
+                        <span className="text-sm text-[oklch(0.18_0.012_265)] font-semibold">本人已阅读并知悉以上声明</span>
+                      </label>
+                      <button onClick={handleConfirmAiConsent} disabled={!aiConsentChecked || busy}
+                        className="px-5 py-2 bg-[#064ea2] text-white rounded-lg font-bold text-sm hover:bg-[#054280] transition disabled:opacity-50">
+                        {busy ? '确认中…' : '确认同意'}
+                      </button>
+                    </div>
+                  )}
+                  {/* 已确认条 */}
+                  {disciplineAgreed && expert?.aiConsentConfirmed && (
+                    <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
+                      <CheckCircle size={14} strokeWidth={1.5} className="text-emerald-500" />
+                      <span className="text-sm text-emerald-600 font-semibold">已确认 AI 辅助评标声明</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* P2: per-supplier avoidance declaration */}
@@ -1012,7 +1091,7 @@ export default function ExpertEvaluatePage() {
                 </div>
               )}
 
-              {confidentialityAgreed && disciplineAgreed && expert?.signedIn && expert?.avoidanceConfirmed && (
+              {confidentialityAgreed && disciplineAgreed && expert?.signedIn && expert?.avoidanceConfirmed && expert?.aiConsentConfirmed && (
                 <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-3">
                   <CheckCircle size={20} strokeWidth={1.5} className="text-emerald-500" />
                   <div>
