@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, Loader2, UserRound } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { startTransition, useEffect, useState } from 'react';
 import { fetchCurrentUser, fetchDepartments, logout } from '@/lib/api/auth';
@@ -59,8 +59,9 @@ export function PersonalCenterPage() {
 
   if (loadingUser) {
     return (
-      <div className="flex h-[calc(100dvh-5rem)] flex-col">
-        <div className="wb-panel flex h-full flex-1 flex-col items-center justify-center gap-4">
+      <div className="flex flex-col gap-4">
+        <PersonalCenterTabBar activeTab="work-overview" onTabChange={() => {}} />
+        <div className="wb-panel flex flex-col items-center justify-center gap-4 py-20">
           <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
             <Loader2 size={24} strokeWidth={1.4} className="animate-spin text-[color:var(--accent)]" />
           </div>
@@ -75,8 +76,9 @@ export function PersonalCenterPage() {
 
   if (!user) {
     return (
-      <div className="flex h-[calc(100dvh-5rem)] flex-col">
-        <div className="wb-panel flex h-full flex-1 flex-col items-center justify-center gap-4">
+      <div className="flex flex-col gap-4">
+        <PersonalCenterTabBar activeTab="work-overview" onTabChange={() => {}} />
+        <div className="wb-panel flex flex-col items-center justify-center gap-4 py-20">
           <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
             <AlertTriangle size={24} strokeWidth={1.4} className="text-[color:var(--danger)]" />
           </div>
@@ -104,24 +106,14 @@ export function PersonalCenterPage() {
   };
 
   return (
-    <div className="flex h-[calc(100dvh-5rem)] flex-col gap-4">
-      <div className="page-hero">
-        <div className="page-hero__row">
-          <div className="page-hero__left">
-            <div className="page-hero__icon">
-              <UserRound size={20} strokeWidth={1.8} />
-            </div>
-            <div className="min-w-0">
-              <div className="page-hero__title">个人中心</div>
-              <div className="page-hero__sub">账号信息管理与安全设置</div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-col gap-4 pb-8">
+      {/* Tab 栏 — 全宽顶部 */}
       <PersonalCenterTabBar activeTab={activeTab} onTabChange={setActiveTab} />
-      <div className="flex flex-1 min-h-0 gap-4">
-        {/* Left: Hero — fills column via h-full */}
-        <div className="hidden w-[280px] shrink-0 xl:block">
+
+      {/* 主内容区：左卡片 + 右内容 */}
+      <div className="flex gap-4">
+        {/* 左侧个人信息卡 */}
+        <div className="hidden w-[240px] shrink-0 xl:block">
           <PersonalCenterHero
             user={user}
             onEdit={() => setActiveTab('basic-info')}
@@ -131,8 +123,8 @@ export function PersonalCenterPage() {
           />
         </div>
 
-        {/* Right: Tab content area — h-full for fixed height, overflow-y-auto for scroll */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* 右侧内容区 */}
+        <div className="min-w-0 flex-1">
           {renderTabContent()}
         </div>
       </div>

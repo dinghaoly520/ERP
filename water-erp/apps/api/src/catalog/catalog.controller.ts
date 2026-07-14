@@ -15,14 +15,7 @@ export class CatalogController {
   @Get()
   @ApiOperation({ summary: '采购目录列表' })
   async list(@Query() query: CatalogAdminListQueryDto) {
-    return this.catalogService.list({
-      category: query.category,
-      region: query.region,
-      status: query.status,
-      source: query.source,
-      search: query.search,
-      includeInactive: query.includeInactive,
-    });
+    return this.catalogService.list(query);
   }
 
   // ── Admin endpoints (must be static routes before dynamic :id routes) ──
@@ -173,38 +166,38 @@ export class CatalogController {
 
   // ── 价格预警 ──
 
-  @Get('admin/alert-rules') @Roles('admin', 'procurement_staff') async listAlertRules() { return this.catalogService.listAlertRules(); }
+  @Get('admin/alert-rules') @Roles('admin', 'procurement_staff', 'leader', 'staff') async listAlertRules() { return this.catalogService.listAlertRules(); }
   @Post('admin/alert-rules') @Roles('admin') async createAlertRule(@Body() dto: any) { return this.catalogService.createAlertRule(dto); }
   @Patch('admin/alert-rules/:id') @Roles('admin') async updateAlertRule(@Param('id', new ParseIntPipe()) id: number, @Body() dto: any) { return this.catalogService.updateAlertRule(id, dto); }
   @Delete('admin/alert-rules/:id') @Roles('admin') async deleteAlertRule(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.deleteAlertRule(id); }
   @Patch('admin/alert-rules/:id/toggle') @Roles('admin') async toggleAlertRule(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.toggleAlertRule(id); }
-  @Get('admin/alerts') @Roles('admin', 'procurement_staff') async listAlerts(@Query('isRead') isRead?: string, @Query('isResolved') isResolved?: string) { return this.catalogService.listAlerts({ isRead: isRead !== undefined ? isRead === 'true' : undefined, isResolved: isResolved !== undefined ? isResolved === 'true' : undefined }); }
-  @Patch('admin/alerts/:id/read') @Roles('admin', 'procurement_staff') async markAlertRead(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.markAlertRead(id); }
-  @Patch('admin/alerts/:id/resolve') @Roles('admin', 'procurement_staff') async markAlertResolved(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.markAlertResolved(id); }
+  @Get('admin/alerts') @Roles('admin', 'procurement_staff', 'leader', 'staff') async listAlerts(@Query('isRead') isRead?: string, @Query('isResolved') isResolved?: string) { return this.catalogService.listAlerts({ isRead: isRead !== undefined ? isRead === 'true' : undefined, isResolved: isResolved !== undefined ? isResolved === 'true' : undefined }); }
+  @Patch('admin/alerts/:id/read') @Roles('admin', 'procurement_staff', 'leader', 'staff') async markAlertRead(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.markAlertRead(id); }
+  @Patch('admin/alerts/:id/resolve') @Roles('admin', 'procurement_staff', 'leader', 'staff') async markAlertResolved(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.markAlertResolved(id); }
 
   // ── 目录版本 ──
 
-  @Get('admin/versions') @Roles('admin', 'procurement_staff') async listVersions() { return this.catalogService.listVersions(); }
-  @Get('admin/versions/:id') @Roles('admin', 'procurement_staff') async getVersion(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.getVersion(id); }
+  @Get('admin/versions') @Roles('admin', 'procurement_staff', 'leader', 'staff') async listVersions() { return this.catalogService.listVersions(); }
+  @Get('admin/versions/:id') @Roles('admin', 'procurement_staff', 'leader', 'staff') async getVersion(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.getVersion(id); }
   @Post('admin/versions') @Roles('admin') async createVersion(@Request() req: any, @Body() dto: any) { return this.catalogService.createVersion(req.user.sub, dto); }
   @Patch('admin/versions/:id/status') @Roles('admin') async changeVersionStatus(@Param('id', new ParseIntPipe()) id: number, @Body('status') status: string) { return this.catalogService.changeVersionStatus(id, status); }
-  @Get('admin/versions/compare') @Roles('admin', 'procurement_staff') async compareVersions(@Query('a', new ParseIntPipe()) a: number, @Query('b', new ParseIntPipe()) b: number) { return this.catalogService.compareVersions(a, b); }
+  @Get('admin/versions/compare') @Roles('admin', 'procurement_staff', 'leader', 'staff') async compareVersions(@Query('a', new ParseIntPipe()) a: number, @Query('b', new ParseIntPipe()) b: number) { return this.catalogService.compareVersions(a, b); }
 
   // ── 询价 ──
 
-  @Get('admin/inquiries') @Roles('admin', 'procurement_staff') async listInquiries() { return this.catalogService.listInquiries(); }
-  @Post('admin/inquiries') @Roles('admin', 'procurement_staff') async createInquiry(@Request() req: any, @Body() dto: any) { return this.catalogService.createInquiry(req.user.sub, dto); }
+  @Get('admin/inquiries') @Roles('admin', 'procurement_staff', 'leader', 'staff') async listInquiries() { return this.catalogService.listInquiries(); }
+  @Post('admin/inquiries') @Roles('admin', 'procurement_staff', 'leader', 'staff') async createInquiry(@Request() req: any, @Body() dto: any) { return this.catalogService.createInquiry(req.user.sub, dto); }
 
   // ── 合同价格 ──
 
-  @Get('admin/contract-prices') @Roles('admin', 'procurement_staff') async listContractPrices(@Query('catalogItemId') catalogItemId?: string, @Query('supplierId') supplierId?: string) { return this.catalogService.listContractPrices({ catalogItemId, supplierId }); }
+  @Get('admin/contract-prices') @Roles('admin', 'procurement_staff', 'leader', 'staff') async listContractPrices(@Query('catalogItemId') catalogItemId?: string, @Query('supplierId') supplierId?: string) { return this.catalogService.listContractPrices({ catalogItemId, supplierId }); }
   @Post('admin/contract-prices') @Roles('admin') async createContractPrice(@Body() dto: any) { return this.catalogService.createContractPrice(dto); }
   @Patch('admin/contract-prices/:id') @Roles('admin') async updateContractPrice(@Param('id', new ParseIntPipe()) id: number, @Body() dto: any) { return this.catalogService.updateContractPrice(id, dto); }
 
   // ── 供应商维度 ──
 
-  @Get('admin/supplier-coverage') @Roles('admin', 'procurement_staff') async supplierCoverage() { return this.catalogService.supplierCoverage(); }
-  @Get('admin/supplier-price-comparison') @Roles('admin', 'procurement_staff') async supplierPriceComparison(@Query('categoryId') categoryId?: string) { return this.catalogService.supplierPriceComparison(categoryId ? Number(categoryId) : undefined); }
+  @Get('admin/supplier-coverage') @Roles('admin', 'procurement_staff', 'leader', 'staff') async supplierCoverage() { return this.catalogService.supplierCoverage(); }
+  @Get('admin/supplier-price-comparison') @Roles('admin', 'procurement_staff', 'leader', 'staff') async supplierPriceComparison(@Query('categoryId') categoryId?: string) { return this.catalogService.supplierPriceComparison(categoryId ? Number(categoryId) : undefined); }
 
   // ── 目录项关联 ──
 

@@ -157,7 +157,6 @@ export default function SupplierRepositoryPage() {
             <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
             <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
             <button onClick={loadData} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
-            <button onClick={() => setShowClassMgr(v => !v)} className="neu-btn-soft"><Layers size={15} />{showClassMgr ? '收起分类' : '分类管理'}</button>
           </div>
         </div>
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
@@ -245,7 +244,9 @@ export default function SupplierRepositoryPage() {
           {classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <button onClick={() => { setSearch(''); setFilterStatus(''); setFilterClassification(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs">重置</button>
+        <button onClick={() => router.push('/supplier/approval')} className="neu-btn-xs gap-1">供应商审批</button>
         <button onClick={() => setShowAdvanced(!showAdvanced)} className="neu-btn-xs gap-1 text-[var(--muted-foreground)]">{showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}高级筛选</button>
+        <button onClick={() => setShowClassMgr(v => !v)} className="neu-btn-xs gap-1">{showClassMgr ? '收起分类' : '分类管理'}</button>
         <button onClick={() => exportSuppliersToExcel(data.items)} className="neu-btn-xs gap-1"><FileSpreadsheet size={12} />导出 Excel</button>
       </div>
 

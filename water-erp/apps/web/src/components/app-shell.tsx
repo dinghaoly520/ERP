@@ -89,7 +89,6 @@ const navGroups: NavGroup[] = [
     label: "供应商管理",
     icon: Building2,
     items: [
-      { key: "supplier-approval", label: "供应商审批", href: "/supplier/approval", icon: Building2, meta: "入库审核" },
       { key: "supplier-repo", label: "供应商库", href: "/supplier/repository", icon: Building2, meta: "资源池管理" },
       { key: "supplier-select", label: "供应商选取", href: "/supplier/selection", icon: Building2, meta: "智能匹配" },
       { key: "supplier-eval", label: "供应商评价", href: "/supplier/evaluation", icon: Building2, meta: "绩效管理" },
