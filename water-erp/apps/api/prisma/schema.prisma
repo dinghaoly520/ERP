@@ -67,6 +67,7 @@ model User {
   updatedRounds                  ProcurementRound[]        @relation("RoundUpdatedBy")
   assistantConversations         AssistantConversation[]
   assistantAlerts                AssistantAlert[]
+  catalogSubscriptions           CatalogSubscription[]
   catalogVersions                CatalogVersion[]
   catalogInquiries               CatalogInquiry[]
 
@@ -1132,6 +1133,8 @@ model CatalogItem {
   minOrder            String
   remark              String?
   status              String                       @default("有效")
+  lifecycleStage      String                       @default("有效") // 草稿|待审核|有效|价格异常|即将过期|已下架|已归档
+  nationalStandard    String?                                         // GB/T 1499.2-2018
   validUntil          DateTime?
   createdAt           DateTime                     @default(now())
   updatedAt           DateTime                     @updatedAt
@@ -1145,11 +1148,50 @@ model CatalogItem {
   relations           CatalogItemRelation[]  @relation("ItemRelations")
   relatedTo           CatalogItemRelation[]  @relation("RelatedItems")
   contractPrices      ContractPrice[]
+  attachments         CatalogItemAttachment[]
+  subscriptions       CatalogSubscription[]
 
   @@index([category])
   @@index([group])
   @@index([categoryId])
   @@index([status])
+}
+
+// ── 目录项附件 ──
+
+model CatalogItemAttachment {
+  id            String      @id @default(cuid())
+  catalogItemId String
+  catalogItem   CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  fileName      String
+  fileUrl       String
+  fileType      String      // IMAGE | PDF | CERTIFICATE | OTHER
+  fileSize      Int
+  uploadedAt    DateTime    @default(now())
+  @@index([catalogItemId])
+}
+
+// ── 搜索日志（搜了没有的词）──
+
+model CatalogSearchLog {
+  id        Int      @id @default(autoincrement())
+  keyword   String
+  userId    String?
+  createdAt DateTime @default(now())
+  @@index([keyword])
+  @@index([createdAt])
+}
+
+// ── 目录变更订阅 ──
+
+model CatalogSubscription {
+  id            Int         @id @default(autoincrement())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  catalogItemId String
+  catalogItem   CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  @@unique([userId, catalogItemId])
 }
 
 // ── 电子商城预算清单 ──

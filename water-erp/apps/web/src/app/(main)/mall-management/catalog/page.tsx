@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import {
   ShoppingCart, Package, RefreshCw, ChevronUp, X, Search, GitBranch,
   PenLine, CheckCircle, TrendingUp, Bell, Archive, Building2, FileText,
-  Upload, Download, Plus, ChevronRight, Heart,
+  Upload, Download, Plus, ChevronRight, Heart, Image, BookOpen, Clock,
+  Star, Layers, FileWarning, Zap, BarChart3, Eye, Trash2, AlertTriangle,
 } from 'lucide-react';
 import { StatusBadge } from '@/components/workbench';
 import {
@@ -63,6 +64,11 @@ function ItemsTab() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [detailItem, setDetailItem] = useState<CatalogItem | null>(null);
+
+  const [dashboard, setDashboard] = useState<{total:number,active:number,priceSurge:number,expiring:number,healthScore:number,categoryGapCount:number,categoryCount:number} | null>(null);
+  const loadDashboard = async () => { try { const d = await (await fetch('/api/catalog/admin/dashboard-stats', { credentials: 'include', headers: { 'X-Portal': 'web' } })).json(); setDashboard(d); } catch {} };
+  useEffect(() => { loadDashboard(); }, []);
 
   const load = async () => {
     setLoading(true);
@@ -132,16 +138,17 @@ function ItemsTab() {
               {loading ? <tr><td colSpan={7} className="px-4 py-16 text-center"><RefreshCw size={22} className="animate-spin mx-auto text-[var(--muted-foreground)]" /><p className="text-xs mt-2 text-[var(--muted-foreground)]">加载中...</p></td></tr>
                 : pagedItems.length === 0 ? <tr><td colSpan={7} className="px-4 py-16 text-center"><p className="text-sm text-[var(--muted-foreground)]">暂无目录</p></td></tr>
                 : pagedItems.map(item => (
-                  <tr key={item.id} className="row-clickable">
+                  <tr key={item.id} className="row-clickable" onClick={() => setDetailItem(detailItem?.id === item.id ? null : item)}>
                     <td className="text-center font-mono text-xs text-[var(--accent)]">{item.code}</td>
                     <td><div className="font-bold text-[var(--foreground)]">{item.name}</div><div className="text-xs text-[var(--muted-foreground)]">{item.specification}</div></td>
                     <td className="text-center text-xs text-[var(--muted-foreground)]">{item.categoryPath || `${item.group || ''} > ${item.category}`}</td>
                     <td className="text-center font-bold tabular-nums">¥{item.referencePrice.toLocaleString('zh-CN')}</td>
                     <td className="text-center">{item.supplier}</td>
-                    <td className="text-center"><StatusBadge tone={tone(item.status)}>{item.status}</StatusBadge></td>
+                    <td className="text-center"><StatusBadge tone={tone(item.status)}>{item.status}</StatusBadge>{(item as any).lifecycleStage && (item as any).lifecycleStage !== item.status ? <span className="text-[10px] block text-[var(--muted-foreground)]">{(item as any).lifecycleStage}</span> : null}</td>
                     <td onClick={e => e.stopPropagation()} className="text-center">
                       {item.status === '有效' ? <button onClick={() => setItemStatus(item, '下架')} className="neu-btn-xs is-warning">下架</button>
                         : <button onClick={() => setItemStatus(item, '有效')} className="neu-btn-xs is-success">启用</button>}
+                      <button onClick={async (e) => { e.stopPropagation(); try { await (await fetch('/api/catalog/' + item.id + '/subscribe', { method: 'POST', credentials: 'include', headers: { 'X-Portal': 'web' } })).json(); toast.success('已订阅'); } catch {} }} className="neu-btn-xs ml-1" title="订阅变更通知"><Bell size={11}/></button>
                     </td>
                   </tr>
                 ))}
@@ -157,10 +164,24 @@ function ItemsTab() {
             </div>
           </div>
         )}
+        {detailItem && (
+          <div className="neu-card rounded-2xl p-5 mt-3">
+            <div className="flex items-center justify-between mb-3"><h4 className="text-sm font-bold">{detailItem.name}</h4><button onClick={() => setDetailItem(null)} className="neu-btn-xs"><X size={14}/></button></div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+              <div><span className="text-[var(--muted-foreground)] text-xs">编码</span><p className="font-mono text-xs">{detailItem.code}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">规格</span><p>{detailItem.specification || '—'}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">参考价</span><p className="font-bold tabular-nums">¥{detailItem.referencePrice.toLocaleString('zh-CN')}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">国标号</span><p>{(detailItem as any).nationalStandard || '—'}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">生命周期</span><p><span className="text-xs px-1.5 py-0.5 rounded bg-[rgba(96,139,239,0.08)]">{(detailItem as any).lifecycleStage || detailItem.status}</span></p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">供应商</span><p>{detailItem.supplier || '—'}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">区域</span><p>{detailItem.region}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">有效期</span><p>{detailItem.validUntil?.slice(0, 10) || '—'}</p></div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
-}
 
 // ── 品类树 Tab ──
 
@@ -390,6 +411,8 @@ function TrendsTab() {
   const [loading, setLoading] = useState(false);
   const [allItems, setAllItems] = useState<CatalogItem[]>([]);
   const [initLoading, setInitLoading] = useState(true);
+  const [opportunity, setOpportunity] = useState<string | null>(null);
+  const [predictionData, setPredictionData] = useState<{date: string; price: number}[]>([]);
 
   // Load ALL items + price histories on mount
   useEffect(() => {
@@ -413,6 +436,24 @@ function TrendsTab() {
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setInitLoading(false); });
+      const firstItem = items.find((i: any) => i.priceMin !== i.priceMax);
+      if (firstItem) {
+        try {
+          const res = await fetch('/api/catalog/' + firstItem.id + '/prediction', { credentials: 'include', headers: { 'X-Portal': 'web' } });
+          if (res.ok) {
+            const pred = await res.json();
+            setOpportunity(pred.opportunity);
+            if (pred.predictions?.length) {
+              const lastDate = new Date();
+              setPredictionData(pred.predictions.map((p: any, i: number) => {
+                const d = new Date(lastDate); d.setMonth(d.getMonth() + i + 1);
+                return { date: d.toISOString().slice(0, 10), price: p.price };
+              }));
+            }
+          }
+        } catch {}
+      }
+    })();
     return () => { cancelled = true; };
   }, []);
 
@@ -447,7 +488,8 @@ function TrendsTab() {
         </span>
       </div>
       {initLoading ? <div className="flex items-center justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
-        : seriesData.length > 0 ? <PriceTrendChart series={seriesData} title="" />
+        : (opportunity ? <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-50 text-sm text-green-700 mb-2"><Zap size={16}/>{opportunity}</div> : null)}
+        {seriesData.length > 0 ? <PriceTrendChart series={seriesData} title="" predictionData={predictionData.length > 0 ? predictionData : undefined} />
         : <div className="flex flex-col items-center justify-center py-16 gap-2 text-sm text-[var(--muted-foreground)]">
             <TrendingUp size={32} className="opacity-30" />
             <p>{allItems.length === 0 ? '暂无目录项数据' : '所选品类下无足够价格历史'}</p>
@@ -465,6 +507,21 @@ function AlertsTab() {
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ruleForm, setRuleForm] = useState<{name:string,alertType:string,threshold:number}|null>(null);
+  const [editingRule, setEditingRule] = useState<number|null>(null);
+
+  const saveRule = async () => {
+    if (!ruleForm) return;
+    try {
+      if (editingRule) {
+        await (await fetch('/api/catalog/admin/alert-rules/' + editingRule, { method: 'PATCH', credentials: 'include', headers: { 'X-Portal': 'web', 'Content-Type': 'application/json' }, body: JSON.stringify(ruleForm) })).json();
+      } else {
+        await (await fetch('/api/catalog/admin/alert-rules', { method: 'POST', credentials: 'include', headers: { 'X-Portal': 'web', 'Content-Type': 'application/json' }, body: JSON.stringify(ruleForm) })).json();
+      }
+      toast.success(editingRule ? '规则已更新' : '规则已创建');
+      setRuleForm(null); setEditingRule(null); loadRules();
+    } catch (e: any) { toast.error(e.message); }
+  };
 
   const loadRules = async () => { try { setRules(await listAlertRules()); } catch (e: any) { toast.error(e.message); } };
   const loadAlerts = async () => { try { setAlerts(await listAlerts()); } catch (e: any) { toast.error(e.message); } };
@@ -492,6 +549,7 @@ function AlertsTab() {
                       <td className="text-center">{r.enabled ? <span className="text-green-600 text-xs font-semibold">启用</span> : <span className="text-gray-400 text-xs">停用</span>}</td>
                       <td className="text-center">
                         <button onClick={async () => { await toggleAlertRule(r.id); loadRules(); }} className="neu-btn-xs">{r.enabled ? '停用' : '启用'}</button>
+                        <button onClick={() => { setRuleForm({name:r.name,alertType:r.alertType,threshold:r.threshold}); setEditingRule(r.id); }} className="neu-btn-xs ml-1"><PenLine size={12}/></button>
                         <button onClick={async () => { if (confirm('删除？')) { await deleteAlertRule(r.id); loadRules(); } }} className="neu-btn-xs is-warning ml-1"><X size={12} /></button>
                       </td>
                     </tr>
@@ -593,13 +651,21 @@ function VersionsTab() {
 // ── 供应商维度 Tab ──
 
 function SuppliersTab() {
-  const [tab, setTab] = useState<'coverage' | 'price'>('coverage');
+  const [tab, setTab] = useState<'coverage' | 'price' | 'radar' | 'insights'>('coverage');
   const [coverage, setCoverage] = useState<SupplierCoverage[]>([]);
   const [priceData, setPriceData] = useState<SupplierPriceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
+  const [radarData, setRadarData] = useState<{items:any[],outliers:any[],minPrice:number|null,avgPrice:number|null}>({items:[],outliers:[],minPrice:null,avgPrice:null});
+  const [insights, setInsights] = useState<{gapKeywords:{keyword:string,count:number}[],topSearches:{keyword:string,count:number}[]}>({gapKeywords:[],topSearches:[]});
+  const [radarLoading, setRadarLoading] = useState(false);
+
+  const loadRadar = async () => { setRadarLoading(true); try { setRadarData(await (await fetch('/api/catalog/admin/price-radar', { credentials: 'include', headers: { 'X-Portal': 'web' } })).json()); } catch {} finally { setRadarLoading(false); } };
+  const loadInsights = async () => { try { setInsights(await (await fetch('/api/catalog/admin/search-insights', { credentials: 'include', headers: { 'X-Portal': 'web' } })).json()); } catch {} };
 
   useEffect(() => {
+    if (tab === 'radar') { loadRadar(); return; }
+    if (tab === 'insights') { loadInsights(); return; }
     setLoading(true);
     (tab === 'coverage' ? getSupplierCoverage() : getSupplierPriceComparison())
       .then(d => { if (tab === 'coverage') setCoverage(d as unknown as SupplierCoverage[]); else setPriceData(d as unknown as SupplierPriceItem[]); })
@@ -611,6 +677,8 @@ function SuppliersTab() {
       <div className="flex items-center gap-2">
         <button onClick={() => setTab('coverage')} className={`neu-tab ${tab === 'coverage' ? 'is-active' : ''}`}>品类覆盖</button>
         <button onClick={() => setTab('price')} className={`neu-tab ${tab === 'price' ? 'is-active' : ''}`}>价格对比</button>
+        <button onClick={() => setTab('radar')} className={`neu-tab ${tab === 'radar' ? 'is-active' : ''}`}>比价雷达</button>
+        <button onClick={() => setTab('insights')} className={`neu-tab ${tab === 'insights' ? 'is-active' : ''}`}>搜索洞察</button>
       </div>
       {loading ? <div className="flex justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
         : tab === 'coverage' ? (

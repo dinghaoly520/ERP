@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense, useMemo } from 'react';
+import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected } from '@/lib/api/expert';
@@ -55,10 +55,11 @@ export function ExpertExtractPage({ hideHeader, defaultProjectTitle }: { hideHea
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyData, setHistoryData] = useState<{ total: number; page: number; pageSize: number; items: any[] } | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
+  const autoAnalyzeRef = useRef(false);
 
   useEffect(() => { listBidProjects().then(setProjects).catch(() => {}); listSpecialties().then(setSpecs).catch(() => {}); }, []);
 
-  // 根据项目名称自动匹配招标项目
+  // 根据项目名称自动匹配采购项目
   useEffect(() => {
     if (!defaultProjectTitle || pid || projects.length === 0) return;
     const match = projects.find(
@@ -69,6 +70,29 @@ export function ExpertExtractPage({ hideHeader, defaultProjectTitle }: { hideHea
 
   useEffect(() => { if (!pid) { setPd(null); return; } getBidProjectDetail(pid).then(setPd).catch(() => setPd(null)); }, [pid]);
   useEffect(() => { if (!pid || specs.length === 0) return; Promise.all(specs.map(s => listExperts({ specialty: s }).then(l => ({ s, c: Array.isArray(l) ? l.length : 0 })))).then(rs => { const m = new Map<string, number>(); rs.forEach(({ s, c }) => { if (c > 0) m.set(s, c); }); setPool(m); }).catch(() => {}); }, [pid, specs]);
+
+  // 从弹窗进入且项目自动匹配后，AI 自动分析专业配置
+  useEffect(() => {
+    if (!defaultProjectTitle || !pid || !pd || autoAnalyzeRef.current) return;
+    autoAnalyzeRef.current = true;
+
+    (async () => {
+      try {
+        const result = await previewExtraction({
+          projectId: pid,
+          totalNeeded: 5,
+          alternatives: 2,
+          extractMode: 'specialty_match',
+        });
+        if (result?.requiredSpecialties?.length > 0) {
+          const qs = result.requiredSpecialties.map(r => ({ specialty: r.specialty, count: r.count }));
+          setQuotas(qs);
+        }
+      } catch {
+        // 静默失败，用户可手动配置
+      }
+    })();
+  }, [defaultProjectTitle, pid, pd]);
 
   const sel = useMemo(() => projects.find(p => p.id === pid), [projects, pid]);
   const addQ = () => setQuotas(p => [...p, { specialty: '', count: 1 }]);
@@ -95,7 +119,7 @@ export function ExpertExtractPage({ hideHeader, defaultProjectTitle }: { hideHea
   [availablePool, replaceSearch]);
 
   const run = async () => {
-    if (!pid) { setError('请选择招标项目'); return; }
+    if (!pid) { setError('请选择采购项目'); return; }
     if (extractMode === 'specialty_match' && !quotas.some(q => q.specialty.trim())) { setError('请至少配置一个专业配额'); return; }
     setError(''); setLoading(true); setPreview(null); setDone(false);
     toast.loading('AI 正在分析项目需求并抽取专家组...', { id: 'extract-loading' });
@@ -119,7 +143,7 @@ export function ExpertExtractPage({ hideHeader, defaultProjectTitle }: { hideHea
         setSelectedExperts([...result.selected]);
         setAlternativeExperts([...result.alternatives]);
       }
-      setNotifyMessage(`您已被选为「${sel?.name || '招标项目'}」评审专家，请登录专家门户查看详情并完成评审任务。`);
+      setNotifyMessage(`您已被选为「${sel?.name || '采购项目'}」评审专家，请登录专家门户查看详情并完成评审任务。`);
       toast.dismiss('extract-loading');
     } catch (e: any) {
       toast.dismiss('extract-loading');
@@ -210,8 +234,15 @@ export function ExpertExtractPage({ hideHeader, defaultProjectTitle }: { hideHea
         <div><span className="text-sm font-bold text-[var(--foreground)]">抽取配置</span><span className="ml-2 text-xs text-[var(--muted-foreground)]">{MODE_LABELS[extractMode]} · {et}人</span></div>
       </div>
       <div>
-        <label className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">招标项目 *</label>
-        <select value={pid} onChange={e => setPid(e.target.value)} className="neu-input text-sm w-full"><option value="">请选择需要组建评审组的项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}</select>
+        <label className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">采购项目 *</label>
+        {defaultProjectTitle ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-[var(--foreground)] truncate">{defaultProjectTitle}</span>
+            {sel && <span className="text-[11px] text-[var(--muted-foreground)]">（{sel.projectCode}）</span>}
+          </div>
+        ) : (
+          <select value={pid} onChange={e => setPid(e.target.value)} className="neu-input text-sm w-full"><option value="">请选择需要组建评审组的项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}</select>
+        )}
       </div>
       {sel && pd && (
         <div className="flex flex-wrap gap-2 text-xs">
@@ -652,7 +683,7 @@ export function ExpertExtractPage({ hideHeader, defaultProjectTitle }: { hideHea
                               {/* 第一行：项目名 + 时间 */}
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-[13px] font-bold text-[var(--foreground)] truncate">
-                                  {d.projectName || '招标项目'}
+                                  {d.projectName || '采购项目'}
                                 </span>
                                 <span className="text-[10px] tabular-nums text-[var(--muted-foreground)] shrink-0">
                                   {time}

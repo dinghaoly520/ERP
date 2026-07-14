@@ -280,6 +280,25 @@ export class CatalogController {
     return this.catalogService.getHistory(id);
   }
 
+  // ── 新增端点：仪表盘 / 预测 / 附件 / 搜索 / 订阅 / 比价雷达 ──
+
+  @Get('admin/dashboard-stats') @Roles('admin', 'procurement_staff', 'leader', 'staff') async dashboardStats() { return this.catalogService.dashboardStats(); }
+
+  @Get(':id/prediction') async prediction(@Param('id') id: string) { return this.catalogService.pricePrediction(id); }
+  @Get(':id/attachments') async attachments(@Param('id') id: string) { return this.catalogService.listAttachments(id); }
+
+  @Post('admin/search-log') @Roles('admin', 'procurement_staff', 'leader', 'staff') async logSearch(@Request() req: any, @Body() dto: { keyword: string }) { return this.catalogService.logSearch(dto.keyword, req.user?.sub); }
+  @Get('admin/search-insights') @Roles('admin', 'procurement_staff', 'leader', 'staff') async searchInsights() { return this.catalogService.searchInsights(); }
+
+  @Post('admin/items/:id/attachments') @Roles('admin', 'procurement_staff', 'leader', 'staff') async uploadAttachment(@Param('id') id: string, @Body() dto: { fileName: string; fileUrl: string; fileType: string; fileSize: number }) { return this.catalogService.createAttachment(id, dto.fileName, dto.fileUrl, dto.fileType, dto.fileSize); }
+  @Delete('admin/attachments/:id') @Roles('admin', 'procurement_staff', 'leader', 'staff') async deleteAttachment(@Param('id') id: string) { return this.catalogService.deleteAttachment(id); }
+
+  @Post(':id/subscribe') async subscribe(@Request() req: any, @Param('id') id: string) { return this.catalogService.subscribe(req.user.sub, id); }
+  @Delete(':id/subscribe') async unsubscribe(@Request() req: any, @Param('id') id: string) { return this.catalogService.unsubscribe(req.user.sub, id); }
+  @Get('admin/subscriptions') @Roles('admin', 'procurement_staff', 'leader', 'staff') async subscriptions(@Request() req: any) { return this.catalogService.listSubscriptions(req.user.sub); }
+
+  @Get('admin/price-radar') @Roles('admin', 'procurement_staff', 'leader', 'staff') async priceRadar(@Query('categoryId') categoryId?: string) { return this.catalogService.priceRadar(categoryId ? Number(categoryId) : undefined); }
+
   @Get(':id')
   @ApiOperation({ summary: '采购目录详情' })
   async get(@Param('id') id: string) {

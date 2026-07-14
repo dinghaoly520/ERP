@@ -3,9 +3,9 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface PriceSeries { name: string; color: string; data: { date: string; price: number }[] }
-interface Props { series: PriceSeries[]; title?: string; }
+interface Props { series: PriceSeries[]; title?: string; predictionData?: { date: string; price: number }[]; }
 
-export function PriceTrendChart({ series, title }: Props) {
+export function PriceTrendChart({ series, title, predictionData }: Props) {
   const dateMap = new Map<string, Record<string, number>>();
   series.forEach(s => s.data.forEach(p => {
     const entry = dateMap.get(p.date) || {};
@@ -15,6 +15,9 @@ export function PriceTrendChart({ series, title }: Props) {
   const data = Array.from(dateMap.entries())
     .map(([date, prices]) => ({ date, ...prices }))
     .sort((a, b) => a.date.localeCompare(b.date));
+  if (predictionData?.length) {
+    for (const p of predictionData) { data.push({ date: p.date, ['预测']: p.price } as any); }
+  }
 
   return (
     <div className="neu-card rounded-2xl p-5">
@@ -29,6 +32,9 @@ export function PriceTrendChart({ series, title }: Props) {
           {series.map(s => (
             <Line key={s.name} type="monotone" dataKey={s.name} stroke={s.color} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
           ))}
+          {predictionData && predictionData.length > 0 && (
+            <Line name="预测" dataKey="price" data={predictionData} stroke="oklch(0.55 0.18 30)" strokeDasharray="6 3" strokeWidth={2} dot={{ r: 4, fill: 'oklch(0.55 0.18 30)' }} connectNulls={false} />
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>

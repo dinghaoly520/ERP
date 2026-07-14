@@ -162,7 +162,7 @@ export function getExpertEvalStats() {
   return api.get<ExpertEvalStats>('/expert-admin/evaluations/stats');
 }
 
-/* ── 招标项目（抽取页选择用）── */
+/* ── 采购项目（抽取页选择用）── */
 
 export interface BidProjectOption {
   id: string; name: string; projectCode: string; stage: string;

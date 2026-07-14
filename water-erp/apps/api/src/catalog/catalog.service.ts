@@ -878,6 +878,107 @@ export class CatalogService {
 
   async deleteItemRelation(id: number) { await this.prisma.catalogItemRelation.delete({ where: { id } }); return { success: true }; }
 
+  // ── 仪表盘聚合 ──
+
+  async dashboardStats() {
+    const [total, active, priceSurge, expiring, inactive, categoryCount] = await Promise.all([
+      this.prisma.catalogItem.count(),
+      this.prisma.catalogItem.count({ where: { status: '有效' } }),
+      this.prisma.catalogItem.count({ where: { status: '价格波动' } }),
+      this.prisma.catalogItem.count({ where: { status: '即将过期' } }),
+      this.prisma.catalogItem.count({ where: { status: { in: ['下架', '停用'] } } }),
+      this.prisma.catalogCategory.count({ where: { isLeaf: true, status: 'ACTIVE' } }),
+    ]);
+    const healthScore = total > 0 ? Math.round((active / total) * 100 - (priceSurge + expiring) * 2) : 0;
+    const categoryGapCount = await this.prisma.catalogCategory.count({ where: { isLeaf: true, status: 'ACTIVE', catalogItems: { none: {} } } });
+    return { total, active, priceSurge, expiring, inactive, healthScore: Math.max(0, healthScore), categoryGapCount, categoryCount };
+  }
+
+  // ── 附件上传 ──
+
+  async createAttachment(itemId: string, fileName: string, fileUrl: string, fileType: string, fileSize: number) {
+    return this.prisma.catalogItemAttachment.create({ data: { catalogItemId: itemId, fileName, fileUrl, fileType, fileSize } });
+  }
+
+  async listAttachments(itemId: string) {
+    return this.prisma.catalogItemAttachment.findMany({ where: { catalogItemId: itemId }, orderBy: { uploadedAt: 'desc' } });
+  }
+
+  async deleteAttachment(id: string) { await this.prisma.catalogItemAttachment.delete({ where: { id } }); return { success: true }; }
+
+  // ── 搜索日志 + 洞察 ──
+
+  async logSearch(keyword: string, userId?: string) {
+    return this.prisma.catalogSearchLog.create({ data: { keyword: keyword.trim(), userId: userId || null } });
+  }
+
+  async searchInsights() {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
+    const logs = await this.prisma.catalogSearchLog.findMany({ where: { createdAt: { gte: thirtyDaysAgo } }, select: { keyword: true } });
+    const freq: Record<string, number> = {};
+    for (const l of logs) { freq[l.keyword] = (freq[l.keyword] || 0) + 1; }
+    // Find keywords that yielded no results — checked against catalog codes/names
+    const items = await this.prisma.catalogItem.findMany({ select: { code: true, name: true } });
+    const allNames = new Set(items.map(i => i.name.toLowerCase()));
+    const gaps = Object.entries(freq).filter(([kw]) => !allNames.has(kw.toLowerCase()) && ![...allNames].some(n => n.includes(kw.toLowerCase()))).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([keyword, count]) => ({ keyword, count }));
+    const topSearches = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([keyword, count]) => ({ keyword, count }));
+    return { gapKeywords: gaps, topSearches };
+  }
+
+  // ── 价格预测 ──
+
+  async pricePrediction(itemId: string) {
+    const history = await this.prisma.priceHistory.findMany({ where: { catalogItemId: itemId }, orderBy: { recordedAt: 'asc' }, select: { recordedAt: true, price: true } });
+    if (history.length < 3) return { prediction: null, opportunity: null, trend: 'insufficient_data' };
+    // Simple linear regression
+    const n = history.length;
+    const xValues = history.map((_, i) => i);
+    const yValues = history.map(h => Number(h.price));
+    const meanX = xValues.reduce((a, b) => a + b, 0) / n;
+    const meanY = yValues.reduce((a, b) => a + b, 0) / n;
+    let num = 0, den = 0;
+    for (let i = 0; i < n; i++) { num += (xValues[i] - meanX) * (yValues[i] - meanY); den += (xValues[i] - meanX) ** 2; }
+    const slope = den ? num / den : 0;
+    const predictions = [];
+    for (let i = 0; i < 6; i++) { const p = n + i; predictions.push({ month: p, price: Math.round((meanY + slope * (p - meanX)) * 100) / 100 }); }
+    const lastPrice = yValues[n - 1];
+    const predPrice = predictions[predictions.length - 1]?.price || lastPrice;
+    const trend = slope > 0.01 ? 'up' : slope < -0.01 ? 'down' : 'stable';
+    const isLow = lastPrice < meanY * 0.9;
+    return { predictions, opportunity: isLow ? '当前价格处于近12个月低位，建议关注采购时机' : null, trend, lastPrice, meanPrice: Math.round(meanY * 100) / 100 };
+  }
+
+  // ── 订阅 ──
+
+  async subscribe(userId: string, itemId: string) {
+    await this.prisma.catalogSubscription.upsert({ where: { userId_catalogItemId: { userId, catalogItemId: itemId } }, create: { userId, catalogItemId: itemId }, update: {} });
+    return { subscribed: true };
+  }
+
+  async unsubscribe(userId: string, itemId: string) {
+    await this.prisma.catalogSubscription.deleteMany({ where: { userId, catalogItemId: itemId } });
+    return { subscribed: false };
+  }
+
+  async listSubscriptions(userId: string) {
+    return this.prisma.catalogSubscription.findMany({ where: { userId }, include: { catalogItem: { select: { id: true, code: true, name: true, referencePrice: true, status: true } } }, orderBy: { createdAt: 'desc' } });
+  }
+
+  // ── 比价雷达 ──
+
+  async priceRadar(categoryId?: number) {
+    const where: any = categoryId ? { categoryId } : {};
+    const items = await this.prisma.catalogItem.findMany({ where, select: { id: true, code: true, name: true, referencePrice: true, supplier: true, categoryId: true, status: true } });
+    const prices = items.filter(i => i.status === '有效' && i.supplier).map(i => Number(i.referencePrice));
+    if (prices.length === 0) return { minPrice: null, avgPrice: null, outliers: [], items: [] };
+    const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
+    const std = Math.sqrt(prices.map(p => (p - mean) ** 2).reduce((a, b) => a + b, 0) / prices.length);
+    const minPrice = Math.min(...prices);
+    const threshold = mean + 2 * std;
+    const result = items.filter(i => i.status === '有效' && i.supplier).map(i => ({ ...i, referencePrice: Number(i.referencePrice), isLowest: Number(i.referencePrice) === minPrice, isOutlier: Number(i.referencePrice) > threshold }));
+    return { minPrice, avgPrice: Math.round(mean * 100) / 100, stdDeviation: Math.round(std * 100) / 100, outliers: result.filter(i => i.isOutlier), items: result };
+  }
+
   private appTitle(app: any): string {
     if (app.type === 'NEW_ITEM') return `新增品类·${app.proposedName || '未命名'}`;
     return `${app.catalogItem?.name || '目录物资'}`;

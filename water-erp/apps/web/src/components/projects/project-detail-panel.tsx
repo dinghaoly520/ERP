@@ -1336,6 +1336,7 @@ export function ProjectDetailPanel({
       <ExpertExtractModal
         isOpen={expertExtractOpen}
         onClose={() => setExpertExtractOpen(false)}
+        defaultProjectTitle={item.title}
       />
     </>
   );
