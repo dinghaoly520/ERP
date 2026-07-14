@@ -9,6 +9,7 @@ import {
   CalendarDays,
   TrendingUp,
   ArrowRight,
+  Sparkles,
 } from 'lucide-react';
 import { fetchMyActivities, AUDIT_ACTION_LABELS, type AuditLogItem } from '@/lib/api/audit-log';
 import { fetchWorkArrangements } from '@/lib/api/work-arrangements';
@@ -88,12 +89,13 @@ export function TabWorkOverview() {
     const load = async () => {
       try {
         const [actRes, taskRes, projRes] = await Promise.all([
-          fetchMyActivities({ limit: 5 }),
+          fetchMyActivities({ limit: 50 }),
           fetchWorkArrangements({ scope: 'ALL', includeCompleted: true }),
           fetchProjectManagementList('ACTIVE'),
         ]);
         if (!cancelled) {
-          setActivities(actRes.items);
+          // Filter out LOGIN/LOGOUT — only show meaningful actions
+          setActivities(actRes.items.filter(a => a.action !== 'LOGIN' && a.action !== 'LOGOUT').slice(0, 5));
           setItems(taskRes);
           setProjectCount(projRes.length);
         }
@@ -128,95 +130,91 @@ export function TabWorkOverview() {
     );
   }
 
+  // Check if there's any meaningful data to show
+  const hasData = stats && (stats.approvalTotal > 0 || stats.weekCreated > 0 || (projectCount ?? 0) > 0);
+
   return (
-    <div className="flex flex-col gap-4 overflow-y-auto">
-      {/* ═══ KPI 卡片行 ═══ */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {/* 本月审批处理 */}
-        <div className="neu-card flex flex-col gap-2 p-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#eef2ff]">
-              <ClipboardCheck size={15} className="text-[#6366f1]" />
-            </span>
-            <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">
-              本月审核
-            </span>
+    <div className="flex flex-col gap-4">
+      {!hasData ? (
+        /* ═══ 无数据时：引导卡片 ═══ */
+        <div className="neu-card flex flex-col items-center gap-4 px-6 py-10 text-center">
+          <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
+            <Sparkles size={24} className="text-[color:var(--accent)]" />
           </div>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-black tabular-nums text-[#18243a]">
-              {stats?.approvalTotal ?? '-'}
-            </span>
-            <span className="text-[11px] text-[color:var(--muted-foreground)]">项</span>
+          <div>
+            <p className="text-[15px] font-bold text-[#18243a]">开始你的工作之旅</p>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-[#5a6d8a]">
+              还没有工作数据。前往
+              <a href="/work-arrangements" className="mx-1 font-bold text-[color:var(--accent)] underline">工作台</a>
+              创建你的第一个任务，处理供应商审批或价格复核。
+              <br />
+              随着工作推进，这里会展示你的审核统计、项目进展和完成趋势。
+            </p>
           </div>
-          <span className="text-[10px] text-[color:var(--muted-foreground)]">
-            {stats ? `已完成${stats.monthlyCompleted} · 待处理${stats.notificationTotal}` : '-'}
-          </span>
         </div>
-
-        {/* 参与项目 */}
-        <div className="neu-card flex flex-col gap-2 p-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f0f9ff]">
-              <FolderKanban size={15} className="text-[#0ea5e9]" />
-            </span>
-            <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">
-              活跃项目
-            </span>
+      ) : (
+        <>
+          {/* ═══ KPI 卡片行 ═══ */}
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <div className="neu-card flex flex-col gap-2 p-4">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#eef2ff]">
+                  <ClipboardCheck size={15} className="text-[#6366f1]" />
+                </span>
+                <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">本月审核</span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-black tabular-nums text-[#18243a]">{stats?.approvalTotal ?? '-'}</span>
+                <span className="text-[11px] text-[color:var(--muted-foreground)]">项</span>
+              </div>
+              <span className="text-[10px] text-[color:var(--muted-foreground)]">
+                {stats ? `已完成${stats.monthlyCompleted} · 待处理${stats.notificationTotal}` : '-'}
+              </span>
+            </div>
+            <div className="neu-card flex flex-col gap-2 p-4">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f0f9ff]">
+                  <FolderKanban size={15} className="text-[#0ea5e9]" />
+                </span>
+                <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">活跃项目</span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-black tabular-nums text-[#18243a]">{projectCount ?? '-'}</span>
+                <span className="text-[11px] text-[color:var(--muted-foreground)]">个</span>
+              </div>
+              <span className="text-[10px] text-[color:var(--muted-foreground)]">当前进行中的采购项目</span>
+            </div>
+            <div className="neu-card flex flex-col gap-2 p-4">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f0fdf4]">
+                  <CheckCircle2 size={15} className="text-[#11a874]" />
+                </span>
+                <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">任务完成率</span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-black tabular-nums text-[#18243a]">{stats ? `${stats.rate}%` : '-'}</span>
+              </div>
+              <span className="text-[10px] text-[color:var(--muted-foreground)]">本月创建任务的完成比例</span>
+            </div>
+            <div className="neu-card flex flex-col gap-2 p-4">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#fffbeb]">
+                  <CalendarDays size={15} className="text-[#f59e0b]" />
+                </span>
+                <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">本周新建</span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-black tabular-nums text-[#18243a]">{stats?.weekCreated ?? '-'}</span>
+                <span className="text-[11px] text-[color:var(--muted-foreground)]">项</span>
+              </div>
+              <span className="text-[10px] text-[color:var(--muted-foreground)]">本周新增的工作任务</span>
+            </div>
           </div>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-black tabular-nums text-[#18243a]">
-              {projectCount ?? '-'}
-            </span>
-            <span className="text-[11px] text-[color:var(--muted-foreground)]">个</span>
-          </div>
-          <span className="text-[10px] text-[color:var(--muted-foreground)]">
-            当前进行中的采购项目
-          </span>
-        </div>
-
-        {/* 完成率 */}
-        <div className="neu-card flex flex-col gap-2 p-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f0fdf4]">
-              <CheckCircle2 size={15} className="text-[#11a874]" />
-            </span>
-            <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">
-              任务完成率
-            </span>
-          </div>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-black tabular-nums text-[#18243a]">
-              {stats ? `${stats.rate}%` : '-'}
-            </span>
-          </div>
-          <span className="text-[10px] text-[color:var(--muted-foreground)]">
-            本月创建任务的完成比例
-          </span>
-        </div>
-
-        {/* 本周工作量 */}
-        <div className="neu-card flex flex-col gap-2 p-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#fffbeb]">
-              <CalendarDays size={15} className="text-[#f59e0b]" />
-            </span>
-            <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">
-              本周新建
-            </span>
-          </div>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-black tabular-nums text-[#18243a]">
-              {stats?.weekCreated ?? '-'}
-            </span>
-            <span className="text-[11px] text-[color:var(--muted-foreground)]">项</span>
-          </div>
-          <span className="text-[10px] text-[color:var(--muted-foreground)]">
-            本周新增的工作任务
-          </span>
-        </div>
-      </div>
+        </>
+      )}
 
       {/* ═══ 近期趋势 + 最近操作 ═══ */}
+      {hasData && (
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {/* 趋势图 */}
         <div className="neu-card p-4">
@@ -289,6 +287,7 @@ export function TabWorkOverview() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

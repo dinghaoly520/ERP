@@ -37,7 +37,16 @@ export function PersonalCenterHero({ user, onEdit, onChangePassword, onLogout, l
   useEffect(() => {
     let cancelled = false;
     fetchLoginHistory().then((data) => {
-      if (!cancelled) setLoginHistory(data);
+      if (!cancelled) {
+        // Deduplicate: only show unique browser entries
+        const seen = new Set<string>();
+        const unique: typeof data = [];
+        for (const entry of data) {
+          const key = parseBrowser(entry.userAgent);
+          if (!seen.has(key)) { seen.add(key); unique.push(entry); }
+        }
+        setLoginHistory(unique.slice(0, 2));
+      }
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
