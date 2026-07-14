@@ -138,3 +138,130 @@ export class CatalogStatusDto {
   @IsString()
   reason?: string;
 }
+
+// ── 品类树 ──
+
+export class CreateCatalogCategoryDto {
+  @IsString()
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  code?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  parentId?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  sortOrder?: number;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  isLeaf?: boolean;
+
+  @IsOptional()
+  @IsString()
+  icon?: string;
+}
+
+export class UpdateCatalogCategoryDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  code?: string | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  sortOrder?: number;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  isLeaf?: boolean;
+
+  @IsOptional()
+  @IsString()
+  icon?: string | null;
+}
+
+export class MoveCategoryDto {
+  @Type(() => Number)
+  @IsNumber()
+  newSortOrder!: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  newParentId?: number | null;
+}
+
+export class CreateAttributeTemplateDto {
+  @IsString()
+  name!: string;
+
+  @IsString()
+  fieldKey!: string;
+
+  @IsString()
+  @IsIn(['TEXT', 'NUMBER', 'SELECT', 'DATE', 'BOOLEAN'])
+  fieldType!: string;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  required?: boolean;
+
+  @IsOptional()
+  options?: string[];
+
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  sortOrder?: number;
+}
+
+export class UpdateAttributeTemplateDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['TEXT', 'NUMBER', 'SELECT', 'DATE', 'BOOLEAN'])
+  fieldType?: string;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  required?: boolean;
+
+  @IsOptional()
+  options?: string[];
+
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  sortOrder?: number;
+}
+
+export class SetItemAttributesDto {
+  @Type(() => Array)
+  attributes!: { templateId: number; value: string }[];
+}

@@ -381,6 +381,155 @@ export class CatalogService {
     return Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
   }
 
+  // ── 品类树 ──
+
+  async getCategoryTree() {
+    const all = await this.prisma.catalogCategory.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      include: { attributeTemplates: { orderBy: { sortOrder: 'asc' } } },
+    });
+    return this.buildTree(all);
+  }
+
+  private buildTree(all: any[], parentId: number | null = null): any[] {
+    return all
+      .filter((c: any) => c.parentId === parentId)
+      .map((c: any) => ({
+        ...c,
+        children: this.buildTree(all, c.id),
+      }));
+  }
+
+  async getCategory(id: number) {
+    const c = await this.prisma.catalogCategory.findUnique({
+      where: { id },
+      include: { attributeTemplates: { orderBy: { sortOrder: 'asc' } } },
+    });
+    if (!c) throw new BadRequestException({ error: '品类不存在', code: 'NOT_FOUND' });
+    return c;
+  }
+
+  async createCategory(userId: string, dto: any) {
+    const data: any = {
+      name: dto.name.trim(),
+      code: dto.code?.trim() || null,
+      parentId: dto.parentId ?? null,
+      sortOrder: dto.sortOrder ?? 0,
+      isLeaf: dto.isLeaf ?? false,
+      icon: dto.icon?.trim() || null,
+    };
+    if (data.parentId) {
+      const parent = await this.prisma.catalogCategory.findUnique({ where: { id: data.parentId } });
+      if (!parent) throw new BadRequestException({ error: '父节点不存在', code: 'NOT_FOUND' });
+    }
+    const created = await this.prisma.catalogCategory.create({ data, include: { attributeTemplates: true } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATEGORY_CREATED', resourceType: created.name, details: { categoryId: created.id, parentId: created.parentId } } });
+    return created;
+  }
+
+  async updateCategory(userId: string, id: number, dto: any) {
+    const existing = await this.prisma.catalogCategory.findUnique({ where: { id } });
+    if (!existing) throw new BadRequestException({ error: '品类不存在', code: 'NOT_FOUND' });
+    const data: any = {};
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if (dto.code !== undefined) data.code = dto.code?.trim() || null;
+    if (dto.sortOrder !== undefined) data.sortOrder = dto.sortOrder;
+    if (dto.isLeaf !== undefined) data.isLeaf = dto.isLeaf;
+    if (dto.icon !== undefined) data.icon = dto.icon?.trim() || null;
+    const updated = await this.prisma.catalogCategory.update({ where: { id }, data, include: { attributeTemplates: true } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATEGORY_UPDATED', resourceType: updated.name, details: { categoryId: id, changedFields: Object.keys(data) } } });
+    return updated;
+  }
+
+  async deleteCategory(userId: string, id: number) {
+    const existing = await this.prisma.catalogCategory.findUnique({
+      where: { id },
+      include: { children: true, catalogItems: { take: 1 } },
+    });
+    if (!existing) throw new BadRequestException({ error: '品类不存在', code: 'NOT_FOUND' });
+    if (existing.children.length > 0) throw new BadRequestException({ error: '该品类下有子节点，请先删除子节点', code: 'HAS_CHILDREN' });
+    if (existing.catalogItems.length > 0) throw new BadRequestException({ error: '该品类下有目录项，请先迁移目录项', code: 'HAS_ITEMS' });
+    await this.prisma.catalogCategory.delete({ where: { id } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATEGORY_DELETED', resourceType: existing.name, details: { categoryId: id } } });
+    return { success: true };
+  }
+
+  async moveCategory(userId: string, id: number, dto: { newSortOrder: number; newParentId?: number | null }) {
+    const existing = await this.prisma.catalogCategory.findUnique({ where: { id } });
+    if (!existing) throw new BadRequestException({ error: '品类不存在', code: 'NOT_FOUND' });
+    if (dto.newParentId != null) {
+      if (dto.newParentId === id) throw new BadRequestException({ error: '不能将节点移动到自身下', code: 'INVALID_PARENT' });
+      const parent = await this.prisma.catalogCategory.findUnique({ where: { id: dto.newParentId } });
+      if (!parent) throw new BadRequestException({ error: '目标父节点不存在', code: 'NOT_FOUND' });
+    }
+    const updated = await this.prisma.catalogCategory.update({
+      where: { id },
+      data: { sortOrder: dto.newSortOrder, parentId: dto.newParentId != null ? dto.newParentId : existing.parentId },
+    });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATEGORY_MOVED', resourceType: updated.name, details: { categoryId: id, fromParentId: existing.parentId, toParentId: updated.parentId, sortOrder: dto.newSortOrder } } });
+    return updated;
+  }
+
+  async toggleCategoryStatus(userId: string, id: number) {
+    const existing = await this.prisma.catalogCategory.findUnique({ where: { id } });
+    if (!existing) throw new BadRequestException({ error: '品类不存在', code: 'NOT_FOUND' });
+    const nextStatus = existing.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const updated = await this.prisma.catalogCategory.update({ where: { id }, data: { status: nextStatus } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'CATEGORY_STATUS_CHANGED', resourceType: updated.name, details: { categoryId: id, from: existing.status, to: nextStatus } } });
+    return updated;
+  }
+
+  // ── 属性模板 ──
+
+  async createAttributeTemplate(userId: string, categoryId: number, dto: any) {
+    const category = await this.prisma.catalogCategory.findUnique({ where: { id: categoryId } });
+    if (!category) throw new BadRequestException({ error: '品类不存在', code: 'NOT_FOUND' });
+    const data = {
+      categoryId, name: dto.name.trim(), fieldKey: dto.fieldKey.trim(),
+      fieldType: dto.fieldType, required: dto.required ?? false,
+      options: dto.options ?? null, unit: dto.unit?.trim() || null, sortOrder: dto.sortOrder ?? 0,
+    };
+    const created = await this.prisma.categoryAttributeTemplate.create({ data });
+    await this.prisma.auditLog.create({ data: { userId, action: 'ATTR_TEMPLATE_CREATED', resourceType: `${category.name}/${created.name}`, details: { categoryId, templateId: created.id, fieldKey: created.fieldKey } } });
+    return created;
+  }
+
+  async updateAttributeTemplate(userId: string, id: number, dto: any) {
+    const existing = await this.prisma.categoryAttributeTemplate.findUnique({ where: { id } });
+    if (!existing) throw new BadRequestException({ error: '属性模板不存在', code: 'NOT_FOUND' });
+    const data: any = {};
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if (dto.fieldType !== undefined) data.fieldType = dto.fieldType;
+    if (dto.required !== undefined) data.required = dto.required;
+    if (dto.options !== undefined) data.options = dto.options;
+    if (dto.unit !== undefined) data.unit = dto.unit?.trim() || null;
+    if (dto.sortOrder !== undefined) data.sortOrder = dto.sortOrder;
+    return this.prisma.categoryAttributeTemplate.update({ where: { id }, data });
+  }
+
+  async deleteAttributeTemplate(userId: string, id: number) {
+    const existing = await this.prisma.categoryAttributeTemplate.findUnique({ where: { id } });
+    if (!existing) throw new BadRequestException({ error: '属性模板不存在', code: 'NOT_FOUND' });
+    await this.prisma.categoryAttributeTemplate.delete({ where: { id } });
+    await this.prisma.auditLog.create({ data: { userId, action: 'ATTR_TEMPLATE_DELETED', resourceType: existing.name, details: { templateId: id, fieldKey: existing.fieldKey } } });
+    return { success: true };
+  }
+
+  async setItemAttributes(itemId: string, attributes: { templateId: number; value: string }[]) {
+    const item = await this.prisma.catalogItem.findUnique({ where: { id: itemId } });
+    if (!item) throw new BadRequestException({ error: '目录项不存在', code: 'NOT_FOUND' });
+    await this.prisma.$transaction(async (tx: any) => {
+      for (const attr of attributes) {
+        await tx.catalogItemAttribute.upsert({
+          where: { catalogItemId_templateId: { catalogItemId: itemId, templateId: attr.templateId } },
+          create: { catalogItemId: itemId, templateId: attr.templateId, value: attr.value },
+          update: { value: attr.value },
+        });
+      }
+    });
+    return this.get(itemId);
+  }
+
   // ─── 供应商目录供货申请（管理员审核）───
 
   private serializeApplication(a: any) {

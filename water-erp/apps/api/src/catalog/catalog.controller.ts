@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Request, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Request, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CatalogService } from './catalog.service';
-import { CatalogAdminListQueryDto, CatalogItemAdminDto, CatalogStatusDto } from './dto';
+import { CatalogAdminListQueryDto, CatalogItemAdminDto, CatalogStatusDto, CreateCatalogCategoryDto, UpdateCatalogCategoryDto, MoveCategoryDto, CreateAttributeTemplateDto, UpdateAttributeTemplateDto, SetItemAttributesDto } from './dto';
 
 @ApiTags('采购目录')
 @ApiCookieAuth('token')
@@ -82,6 +82,93 @@ export class CatalogController {
   @ApiOperation({ summary: '电子商城管理操作日志' })
   async adminAuditLogs() {
     return this.catalogService.adminAuditLogs();
+  }
+
+  // ── 品类树管理 ──
+
+  @Get('categories/tree')
+  @ApiOperation({ summary: '获取完整品类树' })
+  async categoryTree() {
+    return this.catalogService.getCategoryTree();
+  }
+
+  @Get('categories/:id')
+  @ApiOperation({ summary: '获取品类节点详情' })
+  async categoryDetail(@Param('id', new ParseIntPipe()) id: number) {
+    return this.catalogService.getCategory(id);
+  }
+
+  @Post('admin/categories')
+  @Roles('admin')
+  @ApiOperation({ summary: '创建品类节点' })
+  async createCategory(@Request() req: any, @Body() dto: CreateCatalogCategoryDto) {
+    return this.catalogService.createCategory(req.user.sub, dto);
+  }
+
+  @Patch('admin/categories/:id')
+  @Roles('admin')
+  @ApiOperation({ summary: '更新品类节点' })
+  async updateCategory(@Request() req: any, @Param('id', new ParseIntPipe()) id: number, @Body() dto: UpdateCatalogCategoryDto) {
+    return this.catalogService.updateCategory(req.user.sub, id, dto);
+  }
+
+  @Delete('admin/categories/:id')
+  @Roles('admin')
+  @ApiOperation({ summary: '删除品类节点' })
+  async deleteCategory(@Request() req: any, @Param('id', new ParseIntPipe()) id: number) {
+    return this.catalogService.deleteCategory(req.user.sub, id);
+  }
+
+  @Patch('admin/categories/:id/sort')
+  @Roles('admin')
+  @ApiOperation({ summary: '移动品类节点' })
+  async moveCategory(@Request() req: any, @Param('id', new ParseIntPipe()) id: number, @Body() dto: MoveCategoryDto) {
+    return this.catalogService.moveCategory(req.user.sub, id, dto);
+  }
+
+  @Patch('admin/categories/:id/status')
+  @Roles('admin')
+  @ApiOperation({ summary: '启用/停用品类节点' })
+  async toggleCategoryStatus(@Request() req: any, @Param('id', new ParseIntPipe()) id: number) {
+    return this.catalogService.toggleCategoryStatus(req.user.sub, id);
+  }
+
+  // ── 属性模板 ──
+
+  @Get('categories/:id/attribute-templates')
+  @ApiOperation({ summary: '获取品类的属性模板列表' })
+  async categoryAttributeTemplates(@Param('id', new ParseIntPipe()) id: number) {
+    return this.catalogService.getCategory(id);
+  }
+
+  @Post('admin/categories/:id/attribute-templates')
+  @Roles('admin')
+  @ApiOperation({ summary: '新增属性模板' })
+  async createAttributeTemplate(@Request() req: any, @Param('id', new ParseIntPipe()) id: number, @Body() dto: CreateAttributeTemplateDto) {
+    return this.catalogService.createAttributeTemplate(req.user.sub, id, dto);
+  }
+
+  @Patch('admin/attribute-templates/:id')
+  @Roles('admin')
+  @ApiOperation({ summary: '更新属性模板' })
+  async updateAttributeTemplate(@Request() req: any, @Param('id', new ParseIntPipe()) id: number, @Body() dto: UpdateAttributeTemplateDto) {
+    return this.catalogService.updateAttributeTemplate(req.user.sub, id, dto);
+  }
+
+  @Delete('admin/attribute-templates/:id')
+  @Roles('admin')
+  @ApiOperation({ summary: '删除属性模板' })
+  async deleteAttributeTemplate(@Request() req: any, @Param('id', new ParseIntPipe()) id: number) {
+    return this.catalogService.deleteAttributeTemplate(req.user.sub, id);
+  }
+
+  // ── 目录项属性值 ──
+
+  @Patch('admin/items/:id/attributes')
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @ApiOperation({ summary: '设置目录项属性值' })
+  async setItemAttributes(@Param('id') id: string, @Body() body: SetItemAttributesDto) {
+    return this.catalogService.setItemAttributes(id, body.attributes);
   }
 
   // ── 供应商目录供货申请（管理员审核）──
