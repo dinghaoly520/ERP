@@ -13,10 +13,11 @@ import { TabBasicInfo } from './tab-basic-info';
 import { TabSecurity } from './tab-security';
 import { TabActivityLog } from './tab-activity-log';
 import { TabPreferences } from './tab-preferences';
+import { TabWorkOverview } from './tab-work-overview';
 
 export function PersonalCenterPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabKey>('basic-info');
+  const [activeTab, setActiveTab] = useState<TabKey>('work-overview');
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [departments, setDepartments] = useState<DepartmentItem[]>([]);
@@ -92,6 +93,7 @@ export function PersonalCenterPage() {
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'work-overview': return <TabWorkOverview />;
       case 'basic-info': return <TabBasicInfo user={user} departments={departments} onUserUpdated={handleUserUpdated} />;
       case 'security': return <TabSecurity user={user} />;
       case 'activity-log': return <TabActivityLog />;
