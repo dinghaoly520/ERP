@@ -20,7 +20,22 @@ const MODE_DESCS: Record<ExtractMode, string> = {
   merit_best: '综合履职评价/偏离度/经验等多维度择优',
 };
 
-export function ExpertExtractPage({ hideHeader, defaultProjectTitle }: { hideHeader?: boolean; defaultProjectTitle?: string }) {
+export function ExpertExtractPage({
+  hideHeader,
+  defaultProjectTitle,
+  autoExtractResult,
+}: {
+  hideHeader?: boolean;
+  defaultProjectTitle?: string;
+  autoExtractResult?: {
+    preview: ExtractionPreview;
+    selected: ExtractionSelected[];
+    alternatives: ExtractionSelected[];
+    quotas: { specialty: string; count: number }[];
+    pid: string;
+    notifyMessage: string;
+  } | null;
+}) {
   const router = useRouter(); const q = useSearchParams();
   const [projects, setProjects] = useState<BidProjectOption[]>([]);
   const [specs, setSpecs] = useState<string[]>([]);
@@ -55,44 +70,74 @@ export function ExpertExtractPage({ hideHeader, defaultProjectTitle }: { hideHea
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyData, setHistoryData] = useState<{ total: number; page: number; pageSize: number; items: any[] } | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
-  const autoAnalyzeRef = useRef(false);
+  const autoAnalyzedRef = useRef(false);
+
+  // 接收模态框传入的预计算结果，直接填充状态
+  useEffect(() => {
+    if (!autoExtractResult || autoAnalyzedRef.current) return;
+    autoAnalyzedRef.current = true;
+    setPid(autoExtractResult.pid);
+    setQuotas(autoExtractResult.quotas);
+    setPreview(autoExtractResult.preview);
+    setSelectedExperts(autoExtractResult.selected);
+    setAlternativeExperts(autoExtractResult.alternatives);
+    setNotifyMessage(autoExtractResult.notifyMessage);
+  }, [autoExtractResult]);
 
   useEffect(() => { listBidProjects().then(setProjects).catch(() => {}); listSpecialties().then(setSpecs).catch(() => {}); }, []);
 
-  // 根据项目名称自动匹配采购项目
+  // 根据项目名称自动匹配招标项目，匹配成功后自动执行 AI 抽取
   useEffect(() => {
-    if (!defaultProjectTitle || pid || projects.length === 0) return;
+    if (!defaultProjectTitle || !projects.length || autoAnalyzedRef.current) return;
     const match = projects.find(
       p => p.name === defaultProjectTitle || p.name.includes(defaultProjectTitle) || defaultProjectTitle.includes(p.name),
     );
-    if (match) setPid(match.id);
-  }, [defaultProjectTitle, pid, projects]);
+    if (!match) return;
+    autoAnalyzedRef.current = true;
+    setPid(match.id);
 
-  useEffect(() => { if (!pid) { setPd(null); return; } getBidProjectDetail(pid).then(setPd).catch(() => setPd(null)); }, [pid]);
-  useEffect(() => { if (!pid || specs.length === 0) return; Promise.all(specs.map(s => listExperts({ specialty: s }).then(l => ({ s, c: Array.isArray(l) ? l.length : 0 })))).then(rs => { const m = new Map<string, number>(); rs.forEach(({ s, c }) => { if (c > 0) m.set(s, c); }); setPool(m); }).catch(() => {}); }, [pid, specs]);
-
-  // 从弹窗进入且项目自动匹配后，AI 自动分析专业配置
-  useEffect(() => {
-    if (!defaultProjectTitle || !pid || !pd || autoAnalyzeRef.current) return;
-    autoAnalyzeRef.current = true;
-
+    // 匹配成功后自动执行：分析专业 → 执行抽取
     (async () => {
       try {
-        const result = await previewExtraction({
-          projectId: pid,
+        // 第一步：AI 分析项目需求，获取推荐专业和人数
+        const analysis = await previewExtraction({
+          projectId: match.id,
           totalNeeded: 5,
           alternatives: 2,
           extractMode: 'specialty_match',
         });
-        if (result?.requiredSpecialties?.length > 0) {
-          const qs = result.requiredSpecialties.map(r => ({ specialty: r.specialty, count: r.count }));
+
+        if (analysis?.requiredSpecialties?.length > 0) {
+          const qs = analysis.requiredSpecialties.map(r => ({ specialty: r.specialty, count: r.count }));
           setQuotas(qs);
+
+          const total = qs.reduce((s, q) => s + q.count, 0);
+          const manualQuotas = qs.map(q => ({ specialty: q.specialty, count: q.count }));
+
+          // 第二步：用 AI 推荐的专业配额执行正式抽取
+          const result = await previewExtraction({
+            projectId: match.id,
+            totalNeeded: Math.max(total, 1),
+            alternatives: 2,
+            extractMode: 'specialty_match',
+            manualQuotas,
+          });
+
+          if (result?.selected) {
+            setPreview(result);
+            setSelectedExperts([...result.selected]);
+            setAlternativeExperts([...result.alternatives]);
+            setNotifyMessage(`您已被选为「${defaultProjectTitle}」评审专家，请登录专家门户查看详情并完成评审任务。`);
+          }
         }
       } catch {
-        // 静默失败，用户可手动配置
+        // 自动抽取失败，用户可手动操作
       }
     })();
-  }, [defaultProjectTitle, pid, pd]);
+  }, [defaultProjectTitle, projects]);
+
+  useEffect(() => { if (!pid) { setPd(null); return; } getBidProjectDetail(pid).then(setPd).catch(() => setPd(null)); }, [pid]);
+  useEffect(() => { if (!pid || specs.length === 0) return; Promise.all(specs.map(s => listExperts({ specialty: s }).then(l => ({ s, c: Array.isArray(l) ? l.length : 0 })))).then(rs => { const m = new Map<string, number>(); rs.forEach(({ s, c }) => { if (c > 0) m.set(s, c); }); setPool(m); }).catch(() => {}); }, [pid, specs]);
 
   const sel = useMemo(() => projects.find(p => p.id === pid), [projects, pid]);
   const addQ = () => setQuotas(p => [...p, { specialty: '', count: 1 }]);

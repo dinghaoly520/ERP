@@ -172,6 +172,19 @@ export function listBidProjects() {
   return api.get<BidProjectOption[]>('/bid/projects');
 }
 
+export function createBidProject(data: {
+  name: string;
+  procurementMethod: string;
+  openTime: string;
+  deadline: string;
+  budget?: number;
+  scope?: string;
+  qualification?: string;
+  contact?: string;
+}) {
+  return api.post<BidProjectOption>('/bid/projects', data);
+}
+
 export interface BidProjectDetail {
   id: string; name: string; projectCode: string; stage: string;
   procurementMethod: string; openTime: string; deadline: string; riskNote?: string | null;

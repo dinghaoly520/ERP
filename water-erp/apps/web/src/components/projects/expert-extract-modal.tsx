@@ -1,18 +1,30 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
-import { Users, X } from 'lucide-react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { RefreshCw, Users, X } from 'lucide-react';
 import { ExpertExtractPage } from '@/app/(main)/expert/extract/page';
 import { RulesPopover } from '@/components/rules-popover';
+import type { ProjectManagementItem } from '@/lib/types/project-management';
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  defaultProjectTitle?: string;
+  project: ProjectManagementItem | null;
 };
 
-export function ExpertExtractModal({ isOpen, onClose, defaultProjectTitle }: Props) {
+export function ExpertExtractModal({ isOpen, onClose, project }: Props) {
   const [ready, setReady] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setReady(false);
+      return;
+    }
+    // 延迟展示界面，确保初始数据加载完成 + 让用户看到加载屏
+    timerRef.current = setTimeout(() => setReady(true), 600);
+    return () => clearTimeout(timerRef.current);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -23,28 +35,15 @@ export function ExpertExtractModal({ isOpen, onClose, defaultProjectTitle }: Pro
     return () => document.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
 
-  // 关闭时重置，重新打开时延迟显示界面以等待初始数据加载
-  useEffect(() => {
-    if (!isOpen) {
-      setReady(false);
-      return;
-    }
-    const timer = setTimeout(() => setReady(true), 1600);
-    return () => clearTimeout(timer);
-  }, [isOpen]);
-
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[500] flex flex-col">
-      {/* 遮罩 */}
       <div
         className="absolute inset-0"
         style={{ background: 'oklch(0.975 0.012 258 / 0.72)', backdropFilter: 'blur(5px)' }}
         onClick={onClose}
       />
-
-      {/* 窗口容器 */}
       <div
         className="relative z-10 mx-5 my-5 flex flex-1 flex-col overflow-hidden rounded-[28px]"
         style={{
@@ -53,7 +52,6 @@ export function ExpertExtractModal({ isOpen, onClose, defaultProjectTitle }: Pro
             'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)',
         }}
       >
-        {/* 标题栏 */}
         <div
           className="flex shrink-0 items-center justify-between gap-3 px-6 py-4"
           style={{
@@ -99,7 +97,6 @@ export function ExpertExtractModal({ isOpen, onClose, defaultProjectTitle }: Pro
           </div>
         </div>
 
-        {/* 正文 */}
         <div
           className="flex-1 min-h-0 overflow-y-auto"
           style={{
@@ -114,30 +111,23 @@ export function ExpertExtractModal({ isOpen, onClose, defaultProjectTitle }: Pro
                 加载抽取配置...
               </div>
             }>
-              <ExpertExtractPage hideHeader defaultProjectTitle={defaultProjectTitle} />
+              <ExpertExtractPage
+                hideHeader
+                defaultProjectTitle={project?.title}
+              />
             </Suspense>
           ) : (
             <div className="flex-1 flex items-center justify-center min-h-[300px]">
-              <div className="flex flex-col items-center gap-4 w-full max-w-[380px]">
-                <Users size={36} className="text-[var(--muted-foreground)]" />
+              <div className="flex flex-col items-center gap-4 w-full max-w-[400px]">
+                <RefreshCw size={36} className="text-[var(--accent)] animate-spin" />
                 <div className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">
-                  正在加载专家抽取配置
+                  AI 正在智能组建专家组
                 </div>
                 <div className="text-[11px] text-[var(--muted-foreground)] text-center leading-[1.55]">
-                  正在获取招标项目列表、专业分类和专家库容量，请稍候…
+                  AI 正在分析项目需求、自动匹配专业分类与人数，并从专家库中智能抽取合适的评审专家，请稍候…
                 </div>
-                <div className="w-full space-y-2">
-                  <div className="flex justify-between text-[10px] font-semibold text-[var(--muted-foreground)]">
-                    <span>初始化专家抽取环境</span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-[oklch(0.55_0.03_258_/_0.1)]">
-                    <div
-                      className="h-full rounded-full animate-loading-progress"
-                      style={{
-                        background: 'linear-gradient(90deg, oklch(0.5 0.16 258 / 0.9), oklch(0.6 0.1 258 / 0.7))',
-                      }}
-                    />
-                  </div>
+                <div className="w-full h-1.5 rounded-full bg-[oklch(0.55_0.03_258_/_0.1)] overflow-hidden">
+                  <div className="h-full rounded-full animate-loading-progress" style={{ background: 'linear-gradient(90deg, oklch(0.5 0.16 258 / 0.9), oklch(0.6 0.1 258 / 0.7))' }} />
                 </div>
               </div>
             </div>
