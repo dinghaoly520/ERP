@@ -116,6 +116,8 @@ const navGroups: NavGroup[] = [
       { key: "mall-approval", label: "价格审批", href: "/mall-management/approval", icon: ShoppingBag, meta: "供货审核" },
       { key: "mall-price", label: "价格录入", href: "/mall-management/price-entry", icon: ShoppingBag, meta: "手动/导入" },
       { key: "mall-catalog", label: "目录管理", href: "/mall-management/catalog", icon: ShoppingBag, meta: "采购目录" },
+      { key: "mall-price-trends", label: "价格趋势", href: "/mall-management/price-trends", icon: ShoppingBag, meta: "趋势分析" },
+      { key: "mall-price-alerts", label: "价格预警", href: "/mall-management/price-alerts", icon: ShoppingBag, meta: "预警配置" },
       { key: "mall-logs", label: "操作日志", href: "/mall-management/logs", icon: ShoppingBag, meta: "同步记录" },
     ],
   },

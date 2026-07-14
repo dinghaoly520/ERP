@@ -22,6 +22,7 @@ type TimelineEntryBase = {
 type SelectableTimelineEntry = TimelineEntryBase & {
   selectable: true;
   stageKey: ProjectWorkflowStageKey;
+  isInProgress: boolean;
 };
 
 type ArchiveTimelineEntry = TimelineEntryBase & {
@@ -52,16 +53,30 @@ function getArchiveStepStatusLabel(state: ArchiveStepState) {
   }
 }
 
+// 阶段快捷操作标签
+const STAGE_ACTION_LABELS: Record<string, string> = {
+  PROCUREMENT_DEMAND: '采购需求编制',
+  INITIATION: '项目立项',
+  TENDER_DOCUMENT: '采购文件编写',
+  PUBLIC_ANNOUNCEMENT: '公告公示制作',
+  EXPERT_SELECTION: '专家抽取',
+  BID_EVALUATION: '开评标管理',
+  AWARD_DECISION: '中标通知书制作',
+  CONTRACT: '合同编制',
+};
+
 export function ProjectStageTimeline({
   stages,
   activeStageKey,
   onSelect,
+  onStageAction,
   showArchiveStep,
   archiveStepState,
 }: {
   stages: ProjectManagementStage[];
   activeStageKey: ProjectWorkflowStageKey;
   onSelect: (stageKey: ProjectWorkflowStageKey) => void;
+  onStageAction?: (stageKey: ProjectWorkflowStageKey) => void;
   showArchiveStep: boolean;
   archiveStepState: ArchiveStepState;
 }) {
@@ -91,6 +106,7 @@ export function ProjectStageTimeline({
           : 'pm-stage-node--idle',
       selectable: true,
       stageKey: stage.stageKey,
+      isInProgress,
       progressLabel: isCompleted ? '已完成' : isInProgress ? '进行中' : '待解锁',
       progressClassName: isCompleted
         ? 'pm-stage-progress--completed'
@@ -146,6 +162,7 @@ export function ProjectStageTimeline({
           if (entry.selectable) {
             const isSelected = entry.stageKey === activeStageKey;
             const stageKey = entry.stageKey;
+            const actionLabel = STAGE_ACTION_LABELS[stageKey];
 
             return (
               <div key={entry.key} className={segmentClassName}>
@@ -159,6 +176,7 @@ export function ProjectStageTimeline({
                   ].join(' ')}
                 >
                   <span aria-hidden="true" className="pm-stage-card__flow" />
+
                   <div className="flex items-start justify-between gap-3">
                     <span
                       className={[
@@ -175,16 +193,28 @@ export function ProjectStageTimeline({
                     </div>
                   </div>
 
-                  <div className="mt-4 flex-1">
-                    <div className={['pm-stage-card__title text-[15px] font-semibold leading-6 sm:text-[15px]', entry.accentClassName].join(' ')}>
-                      {entry.title}
+                  <div className="mt-4 flex-1 flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className={['pm-stage-card__title text-[15px] font-semibold leading-6 sm:text-[15px]', entry.accentClassName].join(' ')}>
+                        {entry.title}
+                      </div>
+                      <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] sm:text-[11px]">
+                        {entry.statusLabel}
+                      </div>
                     </div>
-                    <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] sm:text-[11px]">
-                      {entry.statusLabel}
-                    </div>
-                    <div className="mt-3 text-xs leading-6 text-[color:var(--muted-foreground)] sm:text-xs">
-                      {entry.summary}
-                    </div>
+                    {actionLabel && onStageAction && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onStageAction(stageKey); }}
+                        className="pm-stage-action-btn shrink-0"
+                      >
+                        {actionLabel}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-3 text-xs leading-6 text-[color:var(--muted-foreground)] sm:text-xs">
+                    {entry.summary}
                   </div>
                 </button>
               </div>

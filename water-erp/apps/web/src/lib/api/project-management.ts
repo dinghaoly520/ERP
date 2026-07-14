@@ -414,9 +414,13 @@ export type ComplianceAuditResponse = {
 export async function auditStageCompliance(
   projectId: string,
   stageKey?: string,
+  force?: boolean,
 ): Promise<ComplianceAuditResponse> {
-  const params = stageKey ? `?stageKey=${stageKey}` : '';
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/audit-compliance${params}`, {
+  const params = new URLSearchParams();
+  if (stageKey) params.set('stageKey', stageKey);
+  if (force) params.set('force', 'true');
+  const qs = params.toString();
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/audit-compliance${qs ? `?${qs}` : ''}`, {
     method: 'POST',
     credentials: 'include',
   });

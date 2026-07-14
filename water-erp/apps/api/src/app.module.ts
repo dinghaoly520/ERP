@@ -41,6 +41,7 @@ import { KnowledgeModule } from './knowledge/knowledge.module';
 import { TenderReviewModule } from './tender-review/tender-review.module';
 import { TenderWriteModule } from './tender-write/tender-write.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { SearchModule } from './search/search.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -88,6 +89,7 @@ import { AppController } from './app.controller';
     TenderReviewModule,
     TenderWriteModule,
     DashboardModule,
+    SearchModule,
   ],
   controllers: [AppController],
   providers: [

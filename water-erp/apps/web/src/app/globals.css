@@ -5463,6 +5463,47 @@ a {
   color: var(--muted-foreground);
 }
 
+/* ─── 阶段快捷操作按钮 ──────────────────────────────────────────────────────────── */
+
+.pm-stage-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2.25rem;
+  border-radius: 12px;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--accent);
+  background: oklch(1 0 0 / 0.72);
+  box-shadow:
+    2.5px 3px 6px oklch(0.48 0.05 258 / 0.14),
+    -1.5px -1.5px 3px oklch(1 0 0 / 0.9),
+    inset 0 1px 0 oklch(1 0 0 / 0.85);
+  transition:
+    transform 220ms var(--ease-out-quint),
+    box-shadow 220ms var(--ease-out-quint);
+  cursor: pointer;
+}
+
+.pm-stage-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    3px 5px 10px oklch(0.42 0.07 258 / 0.18),
+    -2px -2px 4px oklch(1 0 0 / 0.95),
+    inset 0 1px 0 oklch(1 0 0 / 0.92);
+}
+
+.pm-stage-action-btn:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 3px 6px oklch(0.5 0.04 258 / 0.16),
+    inset -1px -2px 3px oklch(0.98 0.002 258 / 0.55);
+}
+
 /* ─── Expert Info Field Styles ─────────────────────────────────────────────────── */
 
 .expert-info-field {
@@ -6609,6 +6650,106 @@ a {
   margin-top: 0;
 }
 
+/* ─── Tender Write Neumorphic Overrides ────────────────────────────────────────── */
+
+/* 弹出面板 — 浮起于页面上方，方向性双影 + 内高光 + hairline */
+.tender-popup {
+  background: linear-gradient(170deg, oklch(1 0 0 / 0.96), oklch(0.985 0.004 258 / 0.68));
+  border: none;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    2px 4px 16px oklch(0.44 0.07 258 / 0.16),
+    -2px -2px 8px oklch(1 0 0 / 0.85);
+}
+
+/* 编辑器文本域 — neumorphic 内凹 + focus 加深内凹 */
+.tender-textarea {
+  min-height: 168px;
+  border-radius: 18px;
+  border: none;
+  background: oklch(1 0 0 / 0.52);
+  box-shadow:
+    inset 1px 2px 5px oklch(0.5 0.04 258 / 0.14),
+    inset -1px -1px 2px oklch(1 0 0 / 0.5);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  outline: none;
+  transition: box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  resize: vertical;
+}
+
+.tender-textarea:hover {
+  box-shadow:
+    inset 1px 2px 5px oklch(0.48 0.05 258 / 0.16),
+    inset -1px -1px 2px oklch(1 0 0 / 0.6);
+}
+
+.tender-textarea:focus {
+  box-shadow:
+    inset 2px 3px 8px oklch(0.45 0.07 258 / 0.18),
+    inset -1px -2px 3px oklch(1 0 0 / 0.55),
+    0 0 0 1px oklch(0.58 0.16 250 / 0.22);
+}
+
+/* 输入框 — neumorphic 内凹，与 .workbench-input 风格一致 */
+.tender-input {
+  height: 40px;
+  border-radius: 12px;
+  border: none;
+  background: oklch(1 0 0 / 0.52);
+  box-shadow:
+    inset 1px 2px 5px oklch(0.5 0.04 258 / 0.14),
+    inset -1px -1px 2px oklch(1 0 0 / 0.5);
+  padding: 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--foreground);
+  outline: none;
+  transition: box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tender-input:focus {
+  box-shadow:
+    inset 2px 3px 8px oklch(0.45 0.07 258 / 0.18),
+    inset -1px -2px 3px oklch(1 0 0 / 0.55),
+    0 0 0 1px oklch(0.58 0.16 250 / 0.22);
+}
+
+/* 阶段性高亮提示 — 当前操作区微发光 */
+.tender-active-well {
+  background: oklch(1 0 0 / 0.65);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.82),
+    0 0 22px oklch(0.58 0.12 250 / 0.06),
+    2px 2px 5px oklch(0.5 0.04 258 / 0.08),
+    -1px -1px 3px oklch(1 0 0 / 0.7);
+}
+
+/* 弹窗容器 — 浮起 neumorphic 面板，无 border，纯方向性双影 + 内高光 */
+.tender-dialog {
+  border: none;
+  background: linear-gradient(170deg, oklch(1 0 0 / 0.94), oklch(0.985 0.005 258 / 0.6));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    3px 5px 18px oklch(0.44 0.07 258 / 0.18),
+    -2px -3px 10px oklch(1 0 0 / 0.9);
+}
+
+/* 信息提示条 — 微凸起通知，方向性双影 */
+.tender-toast {
+  border: none;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    1.5px 2px 6px oklch(0.48 0.05 258 / 0.12),
+    -1px -1px 3px oklch(1 0 0 / 0.75);
+}
+
+/* 遮罩层 — 页面 bg 基准，避免纯黑 rgba */
+.tender-backdrop {
+  background: oklch(0.975 0.012 258 / 0.65);
+  backdrop-filter: blur(5px);
+}
+
 @keyframes shimmer {
   0% {
     transform: translateX(-100%);
@@ -6616,6 +6757,18 @@ a {
   100% {
     transform: translateX(100%);
   }
+}
+
+@keyframes loadingProgress {
+  0% { width: 0%; }
+  60% { width: 70%; }
+  90% { width: 92%; }
+  100% { width: 96%; }
+}
+
+.animate-loading-progress {
+  animation: loadingProgress 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  width: 0%;
 }
 
 

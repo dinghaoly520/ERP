@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeft, Loader2, Pencil, Plus, Trash2, User, X } from "lucide-react";
 import {
   createContact,
@@ -136,7 +137,7 @@ export function ContactPickerDialog({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 py-6">
       <div
         className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-md"
@@ -233,6 +234,7 @@ export function ContactPickerDialog({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

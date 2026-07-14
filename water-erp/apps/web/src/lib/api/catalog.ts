@@ -46,10 +46,6 @@ export function listCatalogApplications(params: { status?: string; type?: string
   return api.get<CatalogApplication[]>(`/catalog/applications${query ? '?' + query : ''}`);
 }
 
-export function getCatalogApplication(id: string) {
-  return api.get<CatalogApplication>(`/catalog/applications/${id}`);
-}
-
 export function reviewCatalogApplication(
   id: string,
   body: {
@@ -67,15 +63,4 @@ export function reviewCatalogApplication(
   },
 ) {
   return api.post<CatalogApplication>(`/catalog/applications/${id}/review`, body);
-}
-
-export function listCatalogItemSuppliers(itemId: string) {
-  return api.get<Array<{
-    id: string;
-    quotedPrice: number;
-    status: string;
-    region?: string | null;
-    minOrder?: string | null;
-    supplier: { id: string; name: string; status: string };
-  }>>(`/catalog/items/${itemId}/suppliers`);
 }

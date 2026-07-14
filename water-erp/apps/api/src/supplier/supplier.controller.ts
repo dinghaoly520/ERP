@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Request, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { SupplierService } from './supplier.service';
 import { AuthGuard } from '../auth/auth.guard';
@@ -52,8 +52,17 @@ export class SupplierController {
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
     @Query('sort') sort?: 'completeness' | 'createdAt',
+    @Query('enterpriseTypes') enterpriseTypes?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('evalLevel') evalLevel?: string,
+    @Query('qualificationStatus') qualificationStatus?: string,
   ) {
-    return this.supplierService.list({ status, classificationId, search, page, pageSize, sort });
+    return this.supplierService.list({
+      status, classificationId, search, page, pageSize, sort,
+      enterpriseTypes: enterpriseTypes ? enterpriseTypes.split(',').filter(Boolean) : undefined,
+      dateFrom, dateTo, evalLevel, qualificationStatus,
+    });
   }
 
   // ─── 静态路由（必须在动态 :id 路由之前，否则会被吞掉）───
@@ -112,6 +121,38 @@ export class SupplierController {
     return this.supplierService.reviewEliminationCandidates();
   }
 
+  @Get('qualification-alerts')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @ApiOperation({ summary: '资质到期预警看板' })
+  async getQualificationAlerts() {
+    return this.supplierService.getQualificationAlerts();
+  }
+
+  @Get('favorites/list')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @ApiOperation({ summary: '获取当前用户收藏列表' })
+  async getFavorites(@Request() req: any) {
+    return this.supplierService.getFavorites(req.user?.sub);
+  }
+
+  @Get('recent-activities')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @ApiOperation({ summary: '近期动态' })
+  async getRecentActivities(@Query('limit') limit?: number) {
+    return this.supplierService.getRecentActivities(limit ?? 15);
+  }
+
+  @Get('evaluations/dimension-stats')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @ApiOperation({ summary: '评价五维度统计' })
+  async getDimensionStats() {
+    return this.supplierService.getEvaluationDimensionStats();
+  }
+
   // ─── 动态路由 ───
 
   @Get(':id')
@@ -123,22 +164,22 @@ export class SupplierController {
   @Post(':id/approve')
   @UseGuards(ProcurementGuard)
   @ApiOperation({ summary: '审核通过' })
-  async approve(@Param('id') id: string) {
-    return this.supplierService.approve(id);
+  async approve(@Param('id') id: string, @Request() req: any) {
+    return this.supplierService.approve(id, req.user?.sub);
   }
 
   @Post(':id/reject')
   @UseGuards(ProcurementGuard)
   @ApiOperation({ summary: '审核不通过' })
-  async reject(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto) {
-    return this.supplierService.reject(id, dto.reason);
+  async reject(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Request() req: any) {
+    return this.supplierService.reject(id, dto.reason, req.user?.sub);
   }
 
   @Post(':id/return')
   @UseGuards(ProcurementGuard)
   @ApiOperation({ summary: '退回补正' })
-  async return(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto) {
-    return this.supplierService.return(id, dto.reason);
+  async return(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Request() req: any) {
+    return this.supplierService.return(id, dto.reason, req.user?.sub);
   }
 
   @Patch(':id/status')
@@ -148,8 +189,9 @@ export class SupplierController {
     @Param('id') id: string,
     @Query('status') status: 'DISABLED' | 'BLACKLIST',
     @Body() dto: UpdateSupplierStatusDto,
+    @Request() req: any,
   ) {
-    return this.supplierService.updateStatus(id, status, dto.reason);
+    return this.supplierService.updateStatus(id, status, dto.reason, req.user?.sub);
   }
 
   @Get(':id/changes')
@@ -231,7 +273,50 @@ export class SupplierController {
   @Post(':id/eliminate')
   @UseGuards(ProcurementGuard)
   @ApiOperation({ summary: '人工确认供应商淘汰' })
-  async confirmEliminate(@Param('id') id: string, @Body() body: { reason: string }) {
-    return this.supplierService.confirmEliminate(id, body.reason);
+  async confirmEliminate(@Param('id') id: string, @Body() body: { reason: string }, @Request() req: any) {
+    return this.supplierService.confirmEliminate(id, body.reason, req.user?.sub);
+  }
+
+  @Get(':id/timeline')
+  @UseGuards(ProcurementGuard)
+  @ApiOperation({ summary: '供应商生命周期时间线' })
+  async getTimeline(@Param('id') id: string) {
+    return this.supplierService.getSupplierTimeline(id);
+  }
+
+  @Post(':id/favorite')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @ApiOperation({ summary: '切换供应商收藏' })
+  async toggleFavorite(@Param('id') id: string, @Request() req: any) {
+    return this.supplierService.toggleFavorite(id, req.user?.sub);
+  }
+
+  @Get(':id/communications')
+  @UseGuards(ProcurementGuard)
+  @ApiOperation({ summary: '供应商沟通记录' })
+  async getCommunications(@Param('id') id: string) {
+    return this.supplierService.getSupplierCommunications(id);
+  }
+
+  @Get(':id/documents')
+  @UseGuards(ProcurementGuard)
+  @ApiOperation({ summary: '供应商文件档案列表' })
+  async listDocuments(@Param('id') id: string) {
+    return this.supplierService.listDocuments(id);
+  }
+
+  @Post(':id/documents')
+  @UseGuards(ProcurementGuard)
+  @ApiOperation({ summary: '上传供应商文件' })
+  async uploadDocument(@Param('id') id: string, @Body() body: { type: string; name: string; fileUrl: string; fileSize?: number; note?: string }, @Request() req: any) {
+    return this.supplierService.uploadDocument(id, body, req.user?.sub);
+  }
+
+  @Delete(':id/documents/:docId')
+  @UseGuards(ProcurementGuard)
+  @ApiOperation({ summary: '删除供应商文件' })
+  async deleteDocument(@Param('docId') docId: string) {
+    return this.supplierService.deleteDocument(docId);
   }
 }

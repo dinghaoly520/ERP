@@ -5,9 +5,13 @@ import { toast } from 'sonner';
 import { useFormAutosave, useUnsavedGuard } from '@/lib/hooks/use-form-autosave';
 import { PenLine, Upload, Download, FileSpreadsheet } from 'lucide-react';
 import {
-  createCatalogItem, downloadImportTemplate, importCatalogFile,
+  createCatalogItem, downloadImportTemplate, importCatalogFile, setItemAttributes,
   type CatalogItemInput, type ImportResult,
 } from '@/lib/api/catalog-admin';
+import { CategoryTreeSelect } from '@/components/catalog/CategoryTreeSelect';
+import { AttributeValueEditor } from '@/components/catalog/AttributeValueEditor';
+import { buildDynamicFields, extractAttributeValues, type DynamicField } from '@/lib/attribute-template-utils';
+import type { CategoryNode } from '@/lib/category-tree-utils';
 
 type FormFields = CatalogItemInput;
 const INITIAL: FormFields = {
@@ -26,6 +30,7 @@ export default function PriceEntryPage() {
   const [importing, setImporting] = useState(false);
   const [serverError, setServerError] = useState('');
   const [errors, setErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
+  const [dynamicFields, setDynamicFields] = useState<DynamicField[]>([]);
   const hasChanges = Object.entries(form).some(([k, v]) => v !== (INITIAL as any)[k]);
   const { getDraft, clearDraft } = useFormAutosave('price-entry', form as unknown as Record<string, unknown>);
   useUnsavedGuard(hasChanges);
@@ -46,6 +51,15 @@ export default function PriceEntryPage() {
     if (serverError) setServerError('');
   };
 
+  const handleCategoryChange = (categoryId: number | null, node?: CategoryNode) => {
+    setField('categoryId' as any, categoryId);
+    if (node?.attributeTemplates && node.attributeTemplates.length > 0) {
+      setDynamicFields(buildDynamicFields(node.attributeTemplates as any));
+    } else {
+      setDynamicFields([]);
+    }
+  };
+
   const validate = (): boolean => {
     const e: Partial<Record<keyof FormFields, string>> = {};
     if (!form.code.trim()) e.code = '请输入目录编码';
@@ -58,7 +72,14 @@ export default function PriceEntryPage() {
   const submit = async () => {
     setServerError(''); if (!validate()) return;
     setSaving(true);
-    try { await createCatalogItem(form); toast.success('目录已新增'); clearDraft(); setForm(INITIAL); }
+    try {
+      const created = await createCatalogItem(form);
+      if (dynamicFields.length > 0) {
+        const attrs = extractAttributeValues(dynamicFields);
+        if (attrs.length > 0) await setItemAttributes(created.id, attrs);
+      }
+      toast.success('目录已新增'); clearDraft(); setForm(INITIAL); setDynamicFields([]);
+    }
     catch (err: any) { setServerError(err.message || '新增失败'); }
     finally { setSaving(false); }
   };
@@ -148,11 +169,15 @@ export default function PriceEntryPage() {
             {txtField('code', '目录编码', '唯一编码，如 CG-2025-001', true)}
             {txtField('name', '商品名称', '商品通用名称', true)}
             {txtField('specification', '规格型号', '如 500ml×24瓶')}
-            {txtField('category', '分类', '如 办公用品')}
-            {txtField('group', '分组', '如 文具耗材')}
             {txtField('unit', '单位', '如 个、箱、件')}
           </div>
+          <div className="mt-4 max-w-xs">
+            <label className="text-xs font-semibold text-[var(--muted-foreground)] mb-1 block">品类 <span className="text-red-400">*</span></label>
+            <CategoryTreeSelect value={form.categoryId as number | null} onChange={handleCategoryChange} placeholder="选择品类" />
+          </div>
         </fieldset>
+
+        {dynamicFields.length > 0 && <AttributeValueEditor fields={dynamicFields} onChange={setDynamicFields} />}
 
         <hr className="wb-section-rule" />
 

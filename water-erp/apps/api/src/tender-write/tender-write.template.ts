@@ -1174,12 +1174,12 @@ function mergeSplitPlaceholders(xml: string): string {
 
     const runs = Array.from(
       paragraph.matchAll(/<w:r(?:\s[^>]*)?>[\s\S]*?<\/w:r>/g),
-    ).map((match) => ({
+    ).map((match: RegExpMatchArray) => ({
       start: match.index ?? 0,
       end: (match.index ?? 0) + match[0].length,
       xml: match[0],
       text: Array.from(match[0].matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g))
-        .map((textMatch) => textMatch[1])
+        .map((textMatch: RegExpMatchArray) => textMatch[1])
         .join(''),
     }));
 

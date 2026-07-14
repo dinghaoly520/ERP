@@ -6,11 +6,13 @@ import { toast } from 'sonner';
 import {
   getSupplierList, getSupplierStats, getClassifications,
   updateSupplierStatus, createClassification, updateClassification, deleteClassification,
+  toggleFavorite,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierClassification, SupplierListResponse } from '@/lib/types';
 import { StatusBadge, TableSkeleton } from '@/components/workbench';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
-import { Building2, Layers, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { Building2, Layers, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, ChevronsUpDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2 } from 'lucide-react';
+import { exportSuppliersToExcel } from '@/lib/excel-export';
 
 export default function SupplierRepositoryPage() {
   const router = useRouter();
@@ -25,6 +27,40 @@ export default function SupplierRepositoryPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [advEnterpriseTypes, setAdvEnterpriseTypes] = useState<string[]>([]);
+  const [advDateFrom, setAdvDateFrom] = useState('');
+  const [advDateTo, setAdvDateTo] = useState('');
+  const [advEvalLevel, setAdvEvalLevel] = useState('');
+  const [advQualStatus, setAdvQualStatus] = useState('');
+
+  const ENTERPRISE_TYPES = ['有限责任公司','股份有限公司','国有企业','集体企业','合伙企业','个人独资企业','外商投资企业','其他'];
+
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [batchModal, setBatchModal] = useState<{ type: 'DISABLED' | 'BLACKLIST' } | null>(null);
+  const [batchReason, setBatchReason] = useState('');
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [favIds, setFavIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => {
+    if (selected.size === sortedItems.length) setSelected(new Set());
+    else setSelected(new Set(sortedItems.map(s => (s as Supplier).id)));
+  };
+  const handleBatch = async () => {
+    if (!batchModal || !batchReason.trim()) { toast.error('请填写原因'); return; }
+    setBatchLoading(true); let done = 0;
+    for (const id of selected) { try { await updateSupplierStatus(id, batchModal.type, batchReason); done++; } catch {} }
+    toast.success(`已批量${batchModal.type === 'DISABLED' ? '停用' : '拉黑'} ${done} 个供应商`);
+    setBatchModal(null); setBatchReason(''); setSelected(new Set()); setBatchLoading(false); loadData();
+  };
+
+  const handleToggleFav = async (supplierId: string) => {
+    try {
+      const res = await toggleFavorite(supplierId);
+      setFavIds(prev => { const n = new Set(prev); res.favorited ? n.add(supplierId) : n.delete(supplierId); return n; });
+    } catch {}
+  };
 
   const [statusModal, setStatusModal] = useState<{ type: 'disable' | 'blacklist'; supplier: Supplier } | null>(null);
   const [statusReason, setStatusReason] = useState('');
@@ -38,15 +74,21 @@ export default function SupplierRepositoryPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getSupplierList({
+      const params: any = {
         status: filterStatus || undefined,
         classificationId: filterClassification || undefined,
         search: search || undefined, page, pageSize, sort: sortMode,
-      });
+      };
+      if (advEnterpriseTypes.length > 0) params.enterpriseTypes = advEnterpriseTypes.join(',');
+      if (advDateFrom) params.dateFrom = advDateFrom;
+      if (advDateTo) params.dateTo = advDateTo;
+      if (advEvalLevel) params.evalLevel = advEvalLevel;
+      if (advQualStatus) params.qualificationStatus = advQualStatus;
+      const res = await getSupplierList(params);
       setData(res);
     } catch {}
     setLoading(false);
-  }, [filterStatus, filterClassification, search, page, pageSize, sortMode]);
+  }, [filterStatus, filterClassification, search, page, pageSize, sortMode, advEnterpriseTypes, advDateFrom, advDateTo, advEvalLevel, advQualStatus]);
 
   const refreshMeta = useCallback(() => {
     getSupplierStats().then(setStats).catch(() => {});
@@ -111,6 +153,9 @@ export default function SupplierRepositoryPage() {
             </div>
           </div>
           <div className="page-hero__right">
+            <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
+            <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
+            <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
             <button onClick={loadData} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
             <button onClick={() => setShowClassMgr(v => !v)} className="neu-btn-soft"><Layers size={15} />{showClassMgr ? '收起分类' : '分类管理'}</button>
           </div>
@@ -199,15 +244,52 @@ export default function SupplierRepositoryPage() {
           <option value="">全部分类</option>
           {classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <button onClick={() => { setSearch(''); setFilterStatus(''); setFilterClassification(''); setPage(1); }} className="neu-btn-xs">重置</button>
+        <button onClick={() => { setSearch(''); setFilterStatus(''); setFilterClassification(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs">重置</button>
+        <button onClick={() => setShowAdvanced(!showAdvanced)} className="neu-btn-xs gap-1 text-[var(--muted-foreground)]">{showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}高级筛选</button>
+        <button onClick={() => exportSuppliersToExcel(data.items)} className="neu-btn-xs gap-1"><FileSpreadsheet size={12} />导出 Excel</button>
       </div>
+
+      {showAdvanced && (
+        <div className="wb-toolbar !gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] text-[var(--muted-foreground)]/70 mr-1">企业类型：</span>
+            {ENTERPRISE_TYPES.map(t => (
+              <button key={t} onClick={() => setAdvEnterpriseTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}
+                className={`neu-tab text-[11px] !px-2 !py-1 ${advEnterpriseTypes.includes(t) ? 'is-active' : ''}`}>{t}</button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)]">
+            入库时间：<input type="date" value={advDateFrom} onChange={e => setAdvDateFrom(e.target.value)} className="neu-input !h-7 !text-[11px] !w-auto !px-2" /> ~ <input type="date" value={advDateTo} onChange={e => setAdvDateTo(e.target.value)} className="neu-input !h-7 !text-[11px] !w-auto !px-2" />
+          </div>
+          <select value={advEvalLevel} onChange={e => setAdvEvalLevel(e.target.value)} className="workbench-input !w-auto !h-7 !text-[11px]">
+            <option value="">评价等级</option>
+            {['A','B','C','D'].map(l => <option key={l} value={l}>{l} 级</option>)}
+          </select>
+          <select value={advQualStatus} onChange={e => setAdvQualStatus(e.target.value)} className="workbench-input !w-auto !h-7 !text-[11px]">
+            <option value="">资质状态</option>
+            <option value="有效">有效</option>
+            <option value="即将过期">即将过期</option>
+            <option value="已过期">已过期</option>
+          </select>
+        </div>
+      )}
 
       {/* ══════ 数据表格 ══════ */}
       <div className="neu-table-card">
+        {selected.size > 0 && (
+          <div className="neu-batch-bar">
+            <span className="neu-batch-bar-count">已选 <strong>{selected.size}</strong> 条</span>
+            <div className="neu-batch-bar-spacer" />
+            <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'DISABLED' }); }} className="neu-btn-xs is-warning">批量停用</button>
+            <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'BLACKLIST' }); }} className="neu-btn-xs is-danger">批量拉黑</button>
+            <button onClick={() => setSelected(new Set())} className="neu-btn-xs"><X size={12} />取消选择</button>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="neu-table w-full min-w-[780px]">
             <thead>
               <tr>
+                <th style={{ width: 36 }}><input type="checkbox" className="neu-checkbox" checked={selected.size > 0 && selected.size === sortedItems.length} ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < sortedItems.length; }} onChange={toggleAll} /></th>
                 <SortableTh label="企业名称" field="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
                 <th className="text-center">统一社会信用代码</th>
                 <SortableTh label="企业类型" field="enterpriseType" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
@@ -219,9 +301,9 @@ export default function SupplierRepositoryPage() {
             </thead>
             <tbody>
               {loading ? (
-                <TableSkeleton cols={7} rows={5} />
+                <TableSkeleton cols={8} rows={5} />
               ) : sortedItems.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-16">
+                <tr><td colSpan={8} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><Building2 size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无供应商数据</p>
@@ -232,10 +314,16 @@ export default function SupplierRepositoryPage() {
                 const statusLabel = s.status === 'APPROVED' ? '已入库' : s.status === 'PENDING' ? '待审核' : s.status === 'RETURNED' ? '退回补正' : s.status === 'DISABLED' ? '已停用' : s.status === 'BLACKLIST' ? '黑名单' : s.status;
                 return (
                   <tr key={s.id} className="row-clickable" onClick={() => router.push(`/supplier/${s.id}`)}>
+                    <td onClick={e => e.stopPropagation()} className="pl-3">
+                      <input type="checkbox" className="neu-checkbox" checked={selected.has(s.id)} onChange={() => toggleSelect(s.id)} />
+                    </td>
                     <td>
                       <div className="flex items-center gap-2.5">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{s.name[0]}</div>
                         <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors">{s.name}</span>
+                        <button onClick={e => { e.stopPropagation(); handleToggleFav(s.id); }} className="text-[var(--muted-foreground)]/30 hover:text-[var(--warning)] transition" title={favIds.has(s.id) ? '取消收藏' : '收藏'}>
+                          <Star size={13} fill={favIds.has(s.id) ? 'var(--warning)' : 'none'} stroke={favIds.has(s.id) ? 'var(--warning)' : 'currentColor'} />
+                        </button>
                       </div>
                     </td>
                     <td className="text-center font-mono text-xs text-[var(--muted-foreground)]">{s.creditCode || '—'}</td>
@@ -270,6 +358,27 @@ export default function SupplierRepositoryPage() {
           </div>
         )}
       </div>
+
+      {/* ══════ 批量操作弹窗 ══════ */}
+      {batchModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setBatchModal(null)}>
+          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-[min(420px,92vw)] rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)]" role="dialog" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 px-6 py-4">
+              <div><h2 className="text-lg font-bold text-[var(--foreground)]">{batchModal.type === 'DISABLED' ? '批量停用' : '批量拉黑'}</h2>
+              <p className="mt-1 text-xs text-[var(--muted-foreground)]">将对选中的 <strong>{selected.size}</strong> 个供应商统一处理</p></div>
+              <button onClick={() => setBatchModal(null)} className="neu-btn-xs"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 pb-2"><textarea value={batchReason} onChange={e => setBatchReason(e.target.value)} placeholder="请填写原因..." className="neu-input w-full h-24 resize-none text-sm" /></div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-3 px-6 py-4">
+              <button onClick={() => setBatchModal(null)} className="neu-btn-soft">取消</button>
+              <button onClick={handleBatch} disabled={batchLoading || !batchReason.trim()} className={`neu-btn-soft ${batchModal.type === 'DISABLED' ? 'is-warning' : 'is-danger'}`}>{batchLoading ? '处理中...' : '确认'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══════ 状态变更弹窗 ══════ */}
       {statusModal && (

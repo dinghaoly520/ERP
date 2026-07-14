@@ -8,9 +8,11 @@ import { useFormAutosave, useUnsavedGuard } from '@/lib/hooks/use-form-autosave'
 import { UserPlus, Eye, EyeOff } from 'lucide-react';
 
 const TITLES = ['教授级高级工程师','高级工程师','高级经济师','高级会计师','工程师','注册造价工程师','注册监理工程师'];
+const EDUCATIONS = ['博士','硕士','本科','大专','其他'];
+const ETHNICITIES = ['汉族','蒙古族','回族','藏族','维吾尔族','苗族','彝族','壮族','布依族','朝鲜族','满族','侗族','瑶族','白族','土家族','其他'];
 
-type FormFields = { username: string; displayName: string; password: string; specialty: string; title: string; employer: string; phone: string; idNumber: string; email: string; notes: string; };
-const INITIAL: FormFields = { username: '', displayName: '', password: '', specialty: '', title: '', employer: '', phone: '', idNumber: '', email: '', notes: '' };
+type FormFields = { username: string; displayName: string; password: string; specialty: string; title: string; employer: string; phone: string; idNumber: string; email: string; notes: string; ethnicity: string; education: string; licenseNo: string; };
+const INITIAL: FormFields = { username: '', displayName: '', password: '', specialty: '', title: '', employer: '', phone: '', idNumber: '', email: '', notes: '', ethnicity: '', education: '', licenseNo: '' };
 
 export default function ExpertEntryPage() {
   const router = useRouter();
@@ -40,10 +42,14 @@ export default function ExpertEntryPage() {
     if (!form.password.trim()) e.password = '请输入初始密码';
     else if (form.password.length < 6) e.password = '密码至少 6 位';
     if (!form.specialty.trim()) e.specialty = '请选择或输入专业领域';
+    if (form.phone.trim() && !validatePhone(form.phone)) e.phone = '手机号格式不正确（11位数字）';
+    if (form.idNumber.trim() && !validateIdNumber(form.idNumber)) e.idNumber = '身份证号格式不正确（18位）';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
   const submit = async () => { setServerError(''); if (!validate()) return; setSaving(true); try { await createExpert(form); toast.success('专家录入成功'); clearDraft(); router.push('/expert/repository'); } catch (e: any) { setServerError(e?.message || '录入失败'); } setSaving(false); };
+  const validatePhone = (v: string) => /^1[3-9]\d{9}$/.test(v.trim());
+  const validateIdNumber = (v: string) => /^\d{17}[\dXx]$/.test(v.trim());
 
   const inputCls = (field: keyof FormFields) => `neu-input w-full text-sm ${errors[field] ? '!border-[var(--danger)]' : ''}`;
   const FieldError = ({ field }: { field: keyof FormFields }) => errors[field] ? <p className="text-xs font-medium text-[var(--danger)] mt-0.5">{errors[field]}</p> : null;
@@ -101,9 +107,20 @@ export default function ExpertEntryPage() {
         </fieldset>
         <hr className="wb-section-rule" />
 
-        {/* ④ 补充信息 */}
+        {/* ④ 档案信息 */}
         <fieldset>
-          <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={4} />补充信息</legend>
+          <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={4} />档案信息</legend>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">民族</span><input value={form.ethnicity} onChange={e => set('ethnicity', e.target.value)} list="ethnicity-list" placeholder="如 汉族" className={inputCls('ethnicity')} /><datalist id="ethnicity-list">{ETHNICITIES.map(t => <option key={t} value={t} />)}</datalist></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">学历</span><input value={form.education} onChange={e => set('education', e.target.value)} list="edu-list" placeholder="如 硕士" className={inputCls('education')} /><datalist id="edu-list">{EDUCATIONS.map(t => <option key={t} value={t} />)}</datalist></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格证号</span><input value={form.licenseNo} onChange={e => set('licenseNo', e.target.value)} placeholder="执业资格证号" className={inputCls('licenseNo') + ' font-mono'} /></label>
+          </div>
+        </fieldset>
+        <hr className="wb-section-rule" />
+
+        {/* ⑤ 补充信息 */}
+        <fieldset>
+          <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={5} />补充信息</legend>
           <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">备注</span><textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="补充说明、特殊资质说明、回避事项等" rows={3} className={inputCls('notes') + ' resize-y'} /></label>
         </fieldset>
 

@@ -38,20 +38,6 @@ export default function ExpertEvaluationPage() {
   useEffect(() => { getExpertEvalStats().then(setStats).catch(() => {}); }, [experts.length]);
 
   const totalPages = Math.max(1, Math.ceil(experts.length / PAGE_SIZE));
-  const pagedExperts = useMemo(() => {
-    const list = !sortKey ? experts : [...experts].sort((a, b) => {
-      const dir = sortDir === 'asc' ? 1 : -1;
-      let av: string | number = '', bv: string | number = '';
-      if (sortKey === 'name') { av = a.displayName; bv = b.displayName; }
-      else if (sortKey === 'specialty') { av = a.expertProfile?.specialty || ''; bv = b.expertProfile?.specialty || ''; }
-      else if (sortKey === 'evaluations') { av = a._count.expertEvaluations; bv = b._count.expertEvaluations; }
-      if (av < bv) return -1 * dir;
-      if (av > bv) return 1 * dir;
-      return 0;
-    });
-    return list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  }, [experts, sortKey, sortDir, page]);
-
   const sortedExperts = useMemo(() => {
     if (!sortKey) return experts;
     const dir = sortDir === 'asc' ? 1 : -1;
@@ -65,6 +51,7 @@ export default function ExpertEvaluationPage() {
       return 0;
     });
   }, [experts, sortKey, sortDir]);
+  const pagedExperts = useMemo(() => sortedExperts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [sortedExperts, page]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey !== key) { setSortKey(key); setSortDir('desc'); }

@@ -9,12 +9,6 @@ export async function fetchKnowledgeBases(): Promise<KnowledgeBase[]> {
   return res.json();
 }
 
-export async function fetchKnowledgeBase(id: string): Promise<KnowledgeBase> {
-  const res = await fetch(`${API_BASE}/knowledge/${id}`, { credentials: 'include' });
-  if (!res.ok) throw new Error('Failed to fetch knowledge base');
-  return res.json();
-}
-
 export async function createKnowledgeBase(data: {
   name: string;
   description?: string;

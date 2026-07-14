@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplierList, getEvaluationStats, getSupplierEvaluations, createEvaluation } from '@/lib/api/supplier';
+import { getSupplierList, getEvaluationStats, getSupplierEvaluations, createEvaluation, getEvaluationDimensionStats } from '@/lib/api/supplier';
+import type { DimensionStats } from '@/lib/api/supplier';
 import type { Supplier, SupplierEvaluation, SupplierListResponse } from '@/lib/types';
 import { StatusBadge, TableSkeleton } from '@/components/workbench';
 import { CheckCircle2, Search, X, RefreshCw, ChevronUp } from 'lucide-react';
@@ -37,8 +38,9 @@ export default function SupplierEvaluationPage() {
     setLoading(false);
   }, [search, page]);
 
+  const [dimStats, setDimStats] = useState<DimensionStats | null>(null);
   useEffect(() => { loadData(); }, [loadData]);
-  useEffect(() => { getEvaluationStats().then(setEvalStats).catch(() => {}); }, [data.total]);
+  useEffect(() => { getEvaluationStats().then(setEvalStats).catch(() => {}); getEvaluationDimensionStats().then(setDimStats).catch(() => {}); }, [data.total]);
 
   const openEvalModal = async (s: Supplier) => {
     setEvalModal(s);
@@ -108,6 +110,35 @@ export default function SupplierEvaluationPage() {
           {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}
         </div>
       </div>
+
+      {/* ══════ 维度分析 ══════ */}
+      {dimStats && dimStats.total > 0 && (
+        <div className="neu-table-card p-5">
+          <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4">五维评分分布（全局均分）</h3>
+          <div className="space-y-3">
+            {[
+              { label: '资料完整性', key: 'completenessAvg' as const, max: 20 },
+              { label: '响应及时性', key: 'responsivenessAvg' as const, max: 30 },
+              { label: '配合协作度', key: 'cooperationAvg' as const, max: 20 },
+              { label: '合规守信度', key: 'complianceAvg' as const, max: 20 },
+              { label: '综合满意度', key: 'overallAvg' as const, max: 10 },
+            ].map(d => {
+              const score = dimStats[d.key];
+              const pct = (score / d.max) * 100;
+              const color = pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--accent)' : pct >= 40 ? 'var(--warning)' : 'var(--danger)';
+              return (
+                <div key={d.key} className="flex items-center gap-3">
+                  <span className="text-[11px] font-semibold text-[var(--foreground)] w-20">{d.label}</span>
+                  <div className="flex-1 h-5 rounded-md bg-[var(--muted)]/20 overflow-hidden">
+                    <div className="h-full rounded-md transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.6 }} />
+                  </div>
+                  <span className="text-[11px] tabular-nums font-semibold text-[var(--muted-foreground)] w-16 text-right">{score}/{d.max}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ══════ 数据表格 ══════ */}
       <div className="neu-table-card">

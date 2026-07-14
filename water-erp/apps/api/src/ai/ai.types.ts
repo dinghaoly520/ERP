@@ -51,6 +51,8 @@ export interface SupplierRecommendation {
   legalPerson?: string;
   enterpriseType?: string;
   contacts?: { name: string; phone: string; isPrimary: boolean }[];
+  evaluation?: { level: string; avgScore: number; count: number };
+  activeProjects: number;
 }
 
 export interface SupplierSelectionResult {

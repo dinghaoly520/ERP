@@ -6,5 +6,5 @@ export type {
   DecryptedDocuments, AssistData, EvaluationReport,
   Supplier, SupplierContact, SupplierQualification,
   SupplierClassification, SupplierEvaluation, SupplierChangeRecord,
-  SupplierListResponse, Notification, Announcement,
+  SupplierListResponse,
 } from '@water-erp/shared';

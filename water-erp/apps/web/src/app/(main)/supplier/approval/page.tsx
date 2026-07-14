@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplierList, approveSupplier, rejectSupplier, returnSupplier } from '@/lib/api/supplier';
+import { getSupplierList, approveSupplier, rejectSupplier, returnSupplier, getClassifications, assignClassification } from '@/lib/api/supplier';
+import type { SupplierClassification } from '@/lib/types';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
 import { StatusBadge, TableSkeleton } from '@/components/workbench';
 import { Building2, Check, RefreshCw, Search, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
@@ -32,8 +33,11 @@ function SupplierApprovalPage() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchApproving, setBatchApproving] = useState(false);
+  const [classifications, setClassifications] = useState<SupplierClassification[]>([]);
   const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return'; supplier: Supplier } | null>(null);
   const [actionReason, setActionReason] = useState('');
+
+  useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); }, []);
 
   const [sortKey, setSortKey] = useState<SortKey | null>('createdAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -70,6 +74,27 @@ function SupplierApprovalPage() {
     toast.success(`已批量通过 ${done} 个供应商`);
     setSelected(new Set());
     setBatchApproving(false);
+    loadData();
+  };
+
+  const [batchModal, setBatchModal] = useState<{ type: 'return' | 'reject'; ids: Set<string> } | null>(null);
+  const [batchReason, setBatchReason] = useState('');
+
+  const executeBatchReturnReject = async () => {
+    if (!batchModal || !batchReason.trim()) { toast.error('请填写原因'); return; }
+    const { type, ids } = batchModal;
+    let done = 0;
+    for (const id of ids) {
+      try {
+        if (type === 'return') await returnSupplier(id, batchReason);
+        else await rejectSupplier(id, batchReason);
+        done++;
+      } catch {}
+    }
+    toast.success(`已批量${type === 'return' ? '退回' : '拒绝'} ${done} 个供应商`);
+    setBatchModal(null);
+    setBatchReason('');
+    setSelected(new Set());
     loadData();
   };
 
@@ -195,9 +220,17 @@ function SupplierApprovalPage() {
             <span className="neu-batch-bar-count">已选 <strong>{selected.size}</strong> 条</span>
             <div className="neu-batch-bar-spacer" />
             {tab !== 'REJECTED' && (
-              <button onClick={batchApprove} disabled={batchApproving} className="neu-btn-xs is-success">
-                <Check size={12} />{batchApproving ? '批量通过中...' : '批量通过'}
-              </button>
+              <>
+                <button onClick={batchApprove} disabled={batchApproving} className="neu-btn-xs is-success">
+                  <Check size={12} />{batchApproving ? '批量通过中...' : '批量通过'}
+                </button>
+                <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'return', ids: new Set(selected) }); }} className="neu-btn-xs is-warning">
+                  批量退回
+                </button>
+                <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'reject', ids: new Set(selected) }); }} className="neu-btn-xs is-danger">
+                  批量拒绝
+                </button>
+              </>
             )}
             <button onClick={() => setSelected(new Set())} className="neu-btn-xs"><X size={12} /> 取消选择</button>
           </div>
@@ -276,6 +309,26 @@ function SupplierApprovalPage() {
                         <button onClick={() => router.push(`/supplier/${s.id}`)} className="neu-btn-xs is-info">详情</button>
                         {tab !== 'REJECTED' && (
                           <>
+                            {classifications.length > 0 && (
+                              <select
+                                value={s.classificationId || ''}
+                                onChange={async (ev) => {
+                                  const cid = ev.target.value;
+                                  if (!cid) return;
+                                  try {
+                                    await assignClassification(s.id, cid);
+                                    toast.success(`已为「${s.name}」分配分类`);
+                                  } catch (err: any) { toast.error(err?.message || '分配失败'); }
+                                }}
+                                onClick={e => e.stopPropagation()}
+                                className="neu-input !h-7 !text-[11px] !px-2 !py-0 !w-auto"
+                              >
+                                <option value="">分配分类</option>
+                                {classifications.map(c => (
+                                  <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                              </select>
+                            )}
                             <button onClick={() => setActionModal({ type: 'approve', supplier: s })} className="neu-btn-xs is-success">通过</button>
                             <button onClick={() => { setActionReason(''); setActionModal({ type: 'return', supplier: s }); }} className="neu-btn-xs is-warning">退回</button>
                             <button onClick={() => { setActionReason(''); setActionModal({ type: 'reject', supplier: s }); }} className="neu-btn-xs is-danger">拒绝</button>
@@ -342,6 +395,36 @@ function SupplierApprovalPage() {
                 disabled={actionModal.type !== 'approve' && !actionReason.trim()}
                 className={`neu-btn-soft ${actionModal.type === 'approve' ? 'is-success' : actionModal.type === 'return' ? 'is-warning' : 'is-danger'}`}
               >确认</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════ 批量退回/拒绝弹窗 ══════ */}
+      {batchModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setBatchModal(null)}>
+          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-[min(420px,92vw)] rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)]" role="dialog" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-[var(--foreground)]">
+                  {batchModal.type === 'return' ? '批量退回补正' : '批量审核不通过'}
+                </h2>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">将对选中的 <strong>{batchModal.ids.size}</strong> 个供应商统一处理</p>
+              </div>
+              <button onClick={() => setBatchModal(null)} className="neu-btn-xs"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 pb-2">
+              <textarea value={batchReason} onChange={e => setBatchReason(e.target.value)}
+                placeholder={batchModal.type === 'return' ? '请填写批量退回补正原因...' : '请填写批量不通过原因...'}
+                className="neu-input w-full h-24 resize-none text-sm" />
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-3 px-6 py-4">
+              <button onClick={() => setBatchModal(null)} className="neu-btn-soft">取消</button>
+              <button onClick={executeBatchReturnReject} disabled={!batchReason.trim()}
+                className={`neu-btn-soft ${batchModal.type === 'return' ? 'is-warning' : 'is-danger'}`}>确认</button>
             </div>
           </div>
         </div>

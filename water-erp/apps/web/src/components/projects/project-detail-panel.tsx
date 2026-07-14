@@ -1,7 +1,7 @@
 "use client";
 
 import { Archive, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, Paperclip, Pencil, Recycle, RefreshCw, Save, Shield, UploadCloud, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import {
   analyzeProjectManagementItem,
@@ -24,6 +24,8 @@ import {
 } from '@/lib/types/project-management';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
+import { TenderWriteModal } from './tender-write-modal';
+import { ExpertExtractModal } from './expert-extract-modal';
 
 // ─── Extracted Info Field Components ───────────────────────────────────────────
 
@@ -329,6 +331,7 @@ export function ProjectDetailPanel({
     isCurrentStage && selectedStage.status !== 'COMPLETED' && !stageLocked && !stageProcessing;
   const canArchive = archiveStepState === 'READY';
   const focusAccentClassName = `pm-stage-accent--${selectedStage.stageKey.toLowerCase()}`;
+
   const stageFileAnalysis = useMemo(
     () => analysis?.fileAnalyses ?? [],
     [analysis],
@@ -339,25 +342,58 @@ export function ProjectDetailPanel({
   // 用于触发文件分析刷新的计数器（仅在文件上传后增加）
   const [summaryRefreshing, setSummaryRefreshing] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [tenderWriteStageAction, setTenderWriteStageAction] = useState<string | null>(null);
+  const [expertExtractOpen, setExpertExtractOpen] = useState(false);
 
-  // 步骤检查状态
+  // 步骤检查状态 —— 按 stageKey 缓存结果
+  const complianceCache = useRef<Map<string, ComplianceAuditResponse>>(new Map());
   const [complianceAudit, setComplianceAudit] = useState<ComplianceAuditResponse | null>(null);
   const [complianceLoading, setComplianceLoading] = useState(false);
   const [complianceError, setComplianceError] = useState<string | null>(null);
-  const [complianceExpanded, setComplianceExpanded] = useState(true);
+  const [showComplianceDetail, setShowComplianceDetail] = useState(false);
 
-  // 自动触发步骤检查：阶段切换或首次加载时自动执行
-  const runComplianceAudit = () => {
+  // 自动触发步骤检查：阶段切换时优先使用缓存，缓存未命中时请求 API
+  // 未开始的阶段（NOT_STARTED）不触发步骤检查
+  const runComplianceAudit = useCallback((force = false) => {
+    if (stageLocked) {
+      setComplianceAudit(null);
+      setComplianceError(null);
+      setComplianceLoading(false);
+      return;
+    }
+    const cacheKey = `${item.id}:${selectedStage.stageKey}`;
+    if (!force) {
+      const cached = complianceCache.current.get(cacheKey);
+      if (cached) {
+        setComplianceAudit(cached);
+        setComplianceError(null);
+        return;
+      }
+    }
     setComplianceLoading(true);
     setComplianceError(null);
-    auditStageCompliance(item.id, selectedStage.stageKey)
-      .then((result) => { setComplianceAudit(result); })
+    auditStageCompliance(item.id, selectedStage.stageKey, force)
+      .then((result) => {
+        // Only cache successful results (not AI fallback)
+        const isFallback = result.results.every(r => r.evidence.includes('AI 审查服务暂不可用'));
+        if (!isFallback) {
+          complianceCache.current.set(cacheKey, result);
+        }
+        setComplianceAudit(result);
+      })
       .catch((err) => { setComplianceError(err instanceof Error ? err.message : '步骤检查请求失败'); })
       .finally(() => setComplianceLoading(false));
-  };
+  }, [item.id, selectedStage.stageKey, stageLocked]);
+  // 项目切换时清空步骤检查缓存
+  useEffect(() => {
+    complianceCache.current.clear();
+    setComplianceAudit(null);
+    setComplianceError(null);
+  }, [item.id]);
+
   useEffect(() => {
     runComplianceAudit();
-  }, [item.id, selectedStage.stageKey]);
+  }, [runComplianceAudit]);
 
   // Load project attributions for autocomplete
   useEffect(() => {
@@ -423,34 +459,18 @@ export function ProjectDetailPanel({
 
   // 文件分析：组件挂载或切换阶段时加载（使用缓存）
   // 上传后的分析由 uploadStageFiles 直接调用，避免 useEffect 竞态
-  useEffect(() => {
-    let active = true;
-
-    const loadAnalysis = async () => {
-      setAnalysisLoading(true);
-      setAnalysisError(null);
-      try {
-        const nextAnalysis = await analyzeProjectManagementItem(item.id, selectedStage.stageKey);
-        if (active) {
-          setAnalysis(nextAnalysis);
-        }
-      } catch (error) {
-        if (active) {
-          setAnalysisError(error instanceof Error ? error.message : 'AI 分析暂不可用。');
-        }
-      } finally {
-        if (active) {
-          setAnalysisLoading(false);
-        }
-      }
-    };
-
-    void loadAnalysis();
-
-    return () => {
-      active = false;
-    };
+  const loadAnalysis = useCallback(() => {
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    analyzeProjectManagementItem(item.id, selectedStage.stageKey)
+      .then((nextAnalysis) => { setAnalysis(nextAnalysis); })
+      .catch((error) => { setAnalysisError(error instanceof Error ? error.message : 'AI 分析暂不可用。'); })
+      .finally(() => { setAnalysisLoading(false); });
   }, [item.id, selectedStage.stageKey]);
+
+  useEffect(() => {
+    loadAnalysis();
+  }, [loadAnalysis]);
 
 
   const markStageCompleted = async (stage: ProjectManagementStage) => {
@@ -725,6 +745,13 @@ export function ProjectDetailPanel({
               stages={item.stages}
               activeStageKey={selectedStage.stageKey}
               onSelect={setSelectedStageKey}
+              onStageAction={(stageKey) => {
+                if (stageKey === 'TENDER_DOCUMENT') {
+                  setTenderWriteStageAction(stageKey);
+                } else if (stageKey === 'EXPERT_SELECTION') {
+                  setExpertExtractOpen(true);
+                }
+              }}
               showArchiveStep={showArchiveStep}
               archiveStepState={archiveStepState}
             />
@@ -1069,7 +1096,17 @@ export function ProjectDetailPanel({
               <hr className="wb-section-rule" />
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[0.95rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">文件分析</span>
-                <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">已上传 {stageFileAnalysis.length} 份</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">已上传 {stageFileAnalysis.length} 份</span>
+                  <button
+                    type="button"
+                    disabled={analysisLoading || stageLocked || stageFileAnalysis.length === 0}
+                    onClick={() => { loadAnalysis(); }}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium text-[color:var(--accent)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent-soft)_30%,transparent)] disabled:opacity-50"
+                  >
+                    <RefreshCw size={11} className={analysisLoading ? 'animate-spin' : ''} />重新分析
+                  </button>
+                </div>
               </div>
 
               <div className="max-h-[320px] overflow-y-auto pr-1">
@@ -1113,7 +1150,10 @@ export function ProjectDetailPanel({
               <button
                 type="button"
                 disabled={complianceLoading || stageLocked}
-                onClick={() => { runComplianceAudit(); setComplianceExpanded(true); }}
+                onClick={() => {
+                  complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}`);
+                  runComplianceAudit(true);
+                }}
                 className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-[color:var(--accent)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent-soft)_30%,transparent)] disabled:opacity-50"
               >
                 {complianceLoading ? (
@@ -1130,49 +1170,104 @@ export function ProjectDetailPanel({
               </div>
             )}
 
-            {complianceLoading && !complianceAudit && (
+            {stageLocked && (
+              <div className="rounded-lg px-4 py-3 text-xs text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 20%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
+                当前阶段尚未开始，无需进行步骤检查。
+              </div>
+            )}
+
+            {complianceLoading && !complianceAudit && !stageLocked && (
               <div className="rounded-lg px-4 py-4 text-sm text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12)"}}>
                 正在调用 AI 进行步骤检查，请稍候...
               </div>
             )}
 
-            {complianceAudit && (
-              <div className="space-y-3">
+            {complianceAudit && !stageLocked && (
+              <div className="space-y-2">
+                {/* 审查总结 — 紧凑版 */}
                 <div className="rounded-lg px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]" style={{background:"color-mix(in oklch,var(--accent-soft) 20%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.5)"}}>
                   <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">审查总结</span>
-                  <div className="mt-1">{complianceAudit.summary}</div>
+                  <div className="mt-1 line-clamp-3">
+                    {complianceAudit.summary.split(/(不通过)/g).map((part, i) =>
+                      part === '不通过' ? (
+                        <span key={i} className="font-semibold text-[color:var(--danger)]">{part}</span>
+                      ) : (
+                        part
+                      ),
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowComplianceDetail(true)}
+                    className="inline-flex items-center gap-1 mt-2 text-[11px] font-medium text-[color:var(--accent)] hover:underline"
+                  >
+                    查看具体信息 →
+                  </button>
                 </div>
-                {complianceAudit.results.map((item, i) => {
-                  const iconColor = item.verdict === '通过' ? 'var(--success)' : item.verdict === '警告' ? 'var(--warning)' : 'var(--danger)';
-                  const bgColor = item.verdict === '通过' ? 'color-mix(in oklch,var(--success) 6%,transparent)' : item.verdict === '警告' ? 'color-mix(in oklch,var(--warning) 8%,transparent)' : 'color-mix(in oklch,var(--danger) 6%,transparent)';
-                  return (
-                    <div key={i} className="rounded-lg px-4 py-3 text-sm" style={{background:bgColor}}>
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">{item.dimension}</span>
-                          <span className="text-sm font-semibold text-[color:var(--foreground)]">{item.checkpoint}</span>
-                        </div>
-                        <span className="shrink-0 rounded-[4px] px-2 py-0.5 text-[10px] font-bold" style={{color:iconColor,background:`color-mix(in oklch,${iconColor} 12%,transparent)`}}>
-                          {item.verdict}
-                        </span>
-                      </div>
-                      <div className="text-xs leading-5 text-[color:var(--foreground)] mt-1">{item.evidence}</div>
-                      {item.suggestion && (
-                        <div className="mt-2 flex items-start gap-1.5 text-xs leading-5">
-                          <span className="shrink-0 text-[color:var(--accent)] font-semibold">建议：</span>
-                          <span className="text-[color:var(--foreground)]">{item.suggestion}</span>
-                        </div>
-                      )}
-                      <div className="mt-1.5 text-[10px] text-[color:var(--muted-foreground)]/60 leading-relaxed">{item.regulationRef}</div>
-                    </div>
-                  );
-                })}
               </div>
             )}
           </div>
         </div>
       </div>
     </section>
+
+      {/* ══════ 步骤检查详情弹窗 ══════ */}
+      {showComplianceDetail && complianceAudit && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center">
+          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-[3px]" onClick={() => setShowComplianceDetail(false)} />
+          <div className="relative mx-4 w-full max-w-[680px] max-h-[85vh] flex flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog">
+            {/* 固定标题栏 */}
+            <div className="shrink-0 flex items-center justify-between gap-3 px-6 pt-5 pb-3" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+              <div className="flex items-center gap-2.5">
+                <Shield size={18} className="text-[color:var(--accent)]" />
+                <div>
+                  <h3 className="text-base font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">步骤检查详情</h3>
+                  <span className="text-[10px] font-semibold text-[color:var(--muted-foreground)]">
+                    {complianceAudit.results.filter(r => r.verdict === '通过').length}通过 / {complianceAudit.results.filter(r => r.verdict === '警告').length}警告 / {complianceAudit.results.filter(r => r.verdict === '违规').length}违规
+                  </span>
+                </div>
+              </div>
+              <button type="button" onClick={() => setShowComplianceDetail(false)} className="neu-btn-xs"><X size={16} /></button>
+            </div>
+
+            {/* 可滚动内容区 */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              {/* 审查总结 */}
+              <div className="rounded-lg px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]" style={{background:"color-mix(in oklch,var(--accent-soft) 20%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.5)"}}>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">审查总结</span>
+                <div className="mt-1">{complianceAudit.summary}</div>
+              </div>
+
+              {/* 逐项审查结果 */}
+              {complianceAudit.results.map((item, i) => {
+                const iconColor = item.verdict === '通过' ? 'var(--success)' : item.verdict === '警告' ? 'var(--warning)' : 'var(--danger)';
+                const bgColor = item.verdict === '通过' ? 'color-mix(in oklch,var(--success) 6%,transparent)' : item.verdict === '警告' ? 'color-mix(in oklch,var(--warning) 8%,transparent)' : 'color-mix(in oklch,var(--danger) 6%,transparent)';
+                return (
+                  <div key={i} className="rounded-lg px-4 py-3 text-sm" style={{background:bgColor}}>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">{item.dimension}</span>
+                        <span className="text-sm font-semibold text-[color:var(--foreground)]">{item.checkpoint}</span>
+                      </div>
+                      <span className="shrink-0 rounded-[4px] px-2 py-0.5 text-[10px] font-bold" style={{color:iconColor,background:`color-mix(in oklch,${iconColor} 12%,transparent)`}}>
+                        {item.verdict}
+                      </span>
+                    </div>
+                    <div className="text-xs leading-5 text-[color:var(--foreground)] mt-1">{item.evidence}</div>
+                    {item.suggestion && (
+                      <div className="mt-2 flex items-start gap-1.5 text-xs leading-5">
+                        <span className="shrink-0 text-[color:var(--accent)] font-semibold">建议：</span>
+                        <span className="text-[color:var(--foreground)]">{item.suggestion}</span>
+                      </div>
+                    )}
+                    <div className="mt-1.5 text-[10px] text-[color:var(--muted-foreground)]/60 leading-relaxed">{item.regulationRef}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       <LoginErrorDialog
         isOpen={Boolean(errorMessage)}
@@ -1225,6 +1320,23 @@ export function ProjectDetailPanel({
           </div>
         </div>
       )}
+
+      {/* 采购文件编写弹窗 */}
+      {tenderWriteStageAction === 'TENDER_DOCUMENT' && (
+        <TenderWriteModal
+          isOpen
+          onClose={() => setTenderWriteStageAction(null)}
+          procurementMethod={item.procurementMethod}
+          projectTitle={item.title}
+          project={item}
+        />
+      )}
+
+      {/* 专家抽取弹窗 */}
+      <ExpertExtractModal
+        isOpen={expertExtractOpen}
+        onClose={() => setExpertExtractOpen(false)}
+      />
     </>
   );
 }

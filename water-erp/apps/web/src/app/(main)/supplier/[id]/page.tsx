@@ -3,13 +3,16 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getClassifications } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getClassifications, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification, SupplierClassification } from '@/lib/types';
+import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supplier';
 import { AlertBanner, type AlertSeverity, Breadcrumb } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
-import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Clock, Calendar, Award, FileText, User, MapPin, Phone, Mail, Hash } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Clock, Calendar, Award, FileText, User, MapPin, Phone, Mail, Hash, TrendingUp, TrendingDown, Minus, MessageSquare, FolderOpen, Plus, Loader2, Trash2 } from 'lucide-react';
+import { SupplierTimeline } from '@/components/supplier/timeline';
+import { PortraitTab } from '@/components/supplier/portrait-tab';
 
-type TabKey = 'info' | 'contacts' | 'qualifications' | 'evaluations' | 'changes';
+type TabKey = 'info' | 'portrait' | 'contacts' | 'qualifications' | 'evaluations' | 'changes' | 'communications' | 'documents';
 
 const statusColor: Record<string, { label: string; color: string; bg: string }> = {
   PENDING:   { label: '待审核',     color: '#f5a623', bg: '#f5a62318' },
@@ -82,8 +85,20 @@ export default function SupplierDetailPage() {
     setLoading(false);
   }, [id]);
 
+  const [communications, setCommunications] = useState<CommunicationRecord[]>([]);
+  const [commLoading, setCommLoading] = useState(false);
+  const [documents, setDocuments] = useState<SupplierDocumentRecord[]>([]);
+  const [docLoading, setDocLoading] = useState(false);
+  const [docUploading, setDocUploading] = useState(false);
+  const [newDocName, setNewDocName] = useState('');
+  const [newDocNote, setNewDocNote] = useState('');
+
   useEffect(() => { loadAll(); }, [loadAll]);
   useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); }, []);
+  useEffect(() => {
+    if (activeTab === 'communications' && communications.length === 0) { setCommLoading(true); getSupplierCommunications(id as string).then(setCommunications).catch(() => {}).finally(() => setCommLoading(false)); }
+    if (activeTab === 'documents' && documents.length === 0) { setDocLoading(true); getSupplierDocuments(id as string).then(setDocuments).catch(() => {}).finally(() => setDocLoading(false)); }
+  }, [activeTab, id]);
 
   const supplierAlerts = useSupplierAlerts(id as string);
   const alertItems = supplierAlerts.expiringQualifications.map((q) => {
@@ -181,10 +196,13 @@ export default function SupplierDetailPage() {
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'info', label: '基本信息' },
+    { key: 'portrait', label: '供应商画像' },
     { key: 'contacts', label: '联系人', count: supplier.contacts?.length },
     { key: 'qualifications', label: '资质材料', count: qualifications.length },
     { key: 'evaluations', label: '履约评价', count: evaluations.length },
     { key: 'changes', label: '变更记录', count: changes.length },
+    { key: 'communications', label: '沟通记录' },
+    { key: 'documents', label: '文件档案' },
   ];
 
   const getQualStatus = (q: SupplierQualification) => {
@@ -489,6 +507,21 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
+        {/* ── 供应商生命周期时间线（基本信息 tab 内）── */}
+        {activeTab === 'info' && (
+          <section className="neu-card-static mt-5 !rounded-2xl p-5">
+            <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)] mb-4">生命周期</h3>
+            <SupplierTimeline supplierId={id as string} />
+          </section>
+        )}
+
+        {/* ── 供应商画像 ── */}
+        {activeTab === 'portrait' && (
+          <section className="mt-5">
+            <PortraitTab supplierId={id as string} />
+          </section>
+        )}
+
         {/* ── 联系人 ── */}
         {activeTab === 'contacts' && (
           <div>
@@ -689,6 +722,102 @@ export default function SupplierDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ══ 沟通记录 ══ */}
+      {activeTab === 'communications' && (
+        <section className="mt-5">
+          {commLoading ? (
+            <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
+          ) : communications.length === 0 ? (
+            <div className="neu-card-static !rounded-2xl py-10 text-center">
+              <MessageSquare size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
+              <p className="text-sm text-[var(--muted-foreground)]">暂无沟通记录</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {communications.map(c => (
+                <div key={c.id} className={`neu-card-static !rounded-xl p-4 ${!c.isRead ? 'ring-1 ring-[var(--accent)]/20' : ''}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]">{c.type}</span>
+                        {!c.isRead && <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />}
+                      </div>
+                      <h4 className="text-sm font-semibold text-[var(--foreground)] mt-1.5">{c.title}</h4>
+                      <p className="text-xs text-[var(--muted-foreground)] mt-1 line-clamp-2">{c.content}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-[10px] text-[var(--muted-foreground)]/60">{new Date(c.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                      {c.channels.length > 0 && <div className="text-[10px] text-[var(--muted-foreground)]/50 mt-0.5">{c.channels.join(' · ')}</div>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ══ 文件档案 ══ */}
+      {activeTab === 'documents' && (
+        <section className="mt-5">
+          {docLoading ? (
+            <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
+          ) : (
+            <>
+              {/* Upload form */}
+              <div className="neu-card-static !rounded-2xl p-4 mb-4 flex flex-wrap gap-2 items-end">
+                <input value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="文件名称" className="neu-input !h-8 !text-xs !flex-1 min-w-[120px]" />
+                <input value={newDocNote} onChange={e => setNewDocNote(e.target.value)} placeholder="备注（可选）" className="neu-input !h-8 !text-xs !w-auto" />
+                <button
+                  onClick={async () => {
+                    if (!newDocName.trim()) return;
+                    setDocUploading(true);
+                    try {
+                      const doc = await uploadSupplierDocument(id as string, { type: 'other', name: newDocName.trim(), fileUrl: '#', note: newDocNote || undefined });
+                      setDocuments(prev => [doc, ...prev]); setNewDocName(''); setNewDocNote('');
+                      toast.success('文件已添加');
+                    } catch (e: any) { toast.error(e?.message || '添加失败'); }
+                    setDocUploading(false);
+                  }}
+                  disabled={docUploading || !newDocName.trim()} className="neu-btn-xs gap-1"
+                >
+                  {docUploading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}添加文件
+                </button>
+              </div>
+
+              {documents.length === 0 ? (
+                <div className="neu-card-static !rounded-2xl py-10 text-center">
+                  <FolderOpen size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
+                  <p className="text-sm text-[var(--muted-foreground)]">暂无文件档案</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="workbench-table w-full">
+                    <thead>
+                      <tr><th>文件名称</th><th>类型</th><th>上传人</th><th>上传时间</th><th className="w-20">操作</th></tr>
+                    </thead>
+                    <tbody>
+                      {documents.map(d => (
+                        <tr key={d.id}>
+                          <td className="text-sm font-semibold text-[var(--foreground)]">{d.name}</td>
+                          <td className="text-sm text-[var(--muted-foreground)]">{d.type}</td>
+                          <td className="text-sm text-[var(--muted-foreground)]">{d.uploader?.displayName || '—'}</td>
+                          <td className="text-sm tabular-nums text-[var(--muted-foreground)]">{new Date(d.createdAt).toLocaleDateString('zh-CN')}</td>
+                          <td>
+                            <button onClick={async () => { try { await deleteSupplierDocument(id as string, d.id); setDocuments(prev => prev.filter(x => x.id !== d.id)); toast.success('已删除'); } catch { toast.error('删除失败'); } }}
+                              className="neu-btn-xs is-danger"><Trash2 size={12} /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       {/* ═══ 审批操作栏（PENDING/RETURNED 时固定在底部）═══ */}
       {isPending && (

@@ -76,10 +76,10 @@ export function WorkbenchOverview({
 
   const badges: StatBadge[] = [
     { key: 'notif', label: '通知待办', value: notificationCount, icon: Bell, color: '#7c3aed', bg: '#f5f3ff' },
-    { key: 'todo', label: '待办', value: summary.todoCount, icon: ListTodo, color: '#6366f1', bg: '#eef2ff' },
+    { key: 'todo', label: '工作待办', value: summary.todoCount, icon: ListTodo, color: '#6366f1', bg: '#eef2ff' },
     { key: 'progress', label: '进行中', value: summary.inProgressCount, icon: PlayCircle, color: '#0ea5e9', bg: '#f0f9ff' },
     { key: 'today', label: '今日到期', value: summary.dueTodayCount, icon: CalendarDays, color: '#f59e0b', bg: '#fffbeb' },
-    { key: 'risk', label: '风险项', value: summary.riskCount, icon: AlertTriangle, color: '#ef4444', bg: '#fef2f2' },
+    { key: 'risk', label: '需注意', value: summary.riskCount, icon: AlertTriangle, color: '#ef4444', bg: '#fef2f2' },
   ];
 
   return (

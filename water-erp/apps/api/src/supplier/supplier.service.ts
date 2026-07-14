@@ -106,18 +106,26 @@ export class SupplierService {
     return { user, supplier };
   }
 
-  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt' }) {
+  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
     const sortMode = params.sort ?? 'completeness';
 
     const where: any = {};
-    if (params.status) {
-      where.status = params.status;
+    if (params.status) where.status = params.status;
+    if (params.classificationId) where.classificationId = params.classificationId;
+    if (params.enterpriseTypes?.length) where.enterpriseType = { in: params.enterpriseTypes };
+    if (params.dateFrom || params.dateTo) {
+      where.createdAt = {};
+      if (params.dateFrom) where.createdAt.gte = new Date(params.dateFrom);
+      if (params.dateTo) where.createdAt.lte = new Date(params.dateTo + 'T23:59:59.999Z');
     }
-    if (params.classificationId) {
-      where.classificationId = params.classificationId;
+    if (params.evalLevel) {
+      where.evaluations = { some: { level: params.evalLevel } };
+    }
+    if (params.qualificationStatus) {
+      where.qualifications = { some: { status: params.qualificationStatus } };
     }
     if (params.search) {
       where.OR = [
@@ -231,7 +239,11 @@ export class SupplierService {
     return supplier;
   }
 
-  async approve(id: string) {
+  private async audit(userId: string, action: string, resourceId: string, details?: any) {
+    await this.prisma.auditLog.create({ data: { userId, action, resourceType: 'supplier', resourceId, details: details ?? {} } }).catch(() => {});
+  }
+
+  async approve(id: string, userId?: string) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id }, include: { user: true } });
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
@@ -264,10 +276,12 @@ export class SupplierService {
       link: `/supplier/${id}`,
     });
 
+    if (userId) await this.audit(userId, 'SUPPLIER_APPROVED', id, { name: supplier.name });
+
     return { success: true };
   }
 
-  async reject(id: string, reason: string) {
+  async reject(id: string, reason: string, userId?: string) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id } });
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
@@ -292,10 +306,12 @@ export class SupplierService {
       content: `您的供应商注册申请审核不通过，原因：${reason}`,
     });
 
+    if (userId) await this.audit(userId, 'SUPPLIER_REJECTED', id, { name: supplier.name, reason });
+
     return result;
   }
 
-  async return(id: string, reason: string) {
+  async return(id: string, reason: string, userId?: string) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id } });
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
@@ -321,10 +337,12 @@ export class SupplierService {
       link: `/supplier/register`,
     });
 
+    if (userId) await this.audit(userId, 'SUPPLIER_RETURNED', id, { name: supplier.name, reason });
+
     return result;
   }
 
-  async updateStatus(id: string, status: 'DISABLED' | 'BLACKLIST', reason: string) {
+  async updateStatus(id: string, status: 'DISABLED' | 'BLACKLIST', reason: string, userId?: string) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id } });
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
@@ -333,10 +351,12 @@ export class SupplierService {
       throw new BadRequestException({ error: '只有已入库供应商可以调整状态', code: 'INVALID_STATUS' });
     }
 
-    return this.prisma.supplier.update({
+    const result = await this.prisma.supplier.update({
       where: { id },
       data: { status, returnReason: reason },
     });
+    if (userId) await this.audit(userId, `SUPPLIER_${status}`, id, { name: supplier.name, reason });
+    return result;
   }
 
   async listChanges(supplierId: string) {
@@ -660,14 +680,90 @@ export class SupplierService {
   }
 
   /** 人工确认淘汰：置 status=DISABLED。 */
-  async confirmEliminate(supplierId: string, reason: string) {
+  async confirmEliminate(supplierId: string, reason: string, userId?: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, name: true },
     });
     if (!supplier) throw new NotFoundException('供应商不存在');
     await this.prisma.supplier.update({ where: { id: supplierId }, data: { status: 'DISABLED' } });
+    if (userId) await this.audit(userId, 'SUPPLIER_ELIMINATED', supplierId, { name: supplier.name, reason });
     return { success: true };
+  }
+
+  /* ── 资质到期预警看板 ── */
+  async getQualificationAlerts() {
+    const items = await this.prisma.supplierQualification.findMany({
+      where: { status: { not: '有效' } },
+      include: { supplier: { select: { id: true, name: true } } },
+      orderBy: { validTo: 'asc' },
+    });
+    const now = Date.now();
+    return {
+      items: items.map((q) => ({
+        id: q.id,
+        supplierId: q.supplierId,
+        supplierName: q.supplier.name,
+        type: q.type,
+        name: q.name,
+        validTo: q.validTo,
+        status: q.status,
+        daysRemaining: q.validTo ? Math.ceil((new Date(q.validTo).getTime() - now) / 86400000) : null,
+      })),
+      expiredCount: items.filter((q) => q.status === '已过期').length,
+      expiringCount: items.filter((q) => q.status === '即将过期').length,
+      affectedSupplierCount: new Set(items.map((q) => q.supplierId)).size,
+    };
+  }
+
+  /* ── 供应商生命周期时间线 ── */
+  async getSupplierTimeline(supplierId: string) {
+    const [supplier, auditLogs, evaluations, bidSuppliers] = await Promise.all([
+      this.prisma.supplier.findUnique({
+        where: { id: supplierId },
+        select: { id: true, name: true, status: true, createdAt: true, updatedAt: true, classification: { select: { name: true } } },
+      }),
+      this.prisma.auditLog.findMany({
+        where: { resourceType: 'supplier', resourceId: supplierId },
+        orderBy: { createdAt: 'asc' },
+        select: { action: true, details: true, createdAt: true, userId: true, user: { select: { displayName: true } } },
+      }),
+      this.prisma.supplierEvaluation.findMany({
+        where: { supplierId },
+        orderBy: { createdAt: 'asc' },
+        select: { score: true, level: true, createdAt: true, evaluator: { select: { displayName: true } } },
+      }),
+      this.prisma.bidSupplier.findMany({
+        where: { supplierId },
+        select: { project: { select: { name: true, projectCode: true } }, createdAt: true },
+        orderBy: { createdAt: 'asc' },
+        take: 10,
+      }),
+    ]);
+    if (!supplier) throw new NotFoundException('供应商不存在');
+
+    const events: Array<{ type: string; label: string; detail: string; at: string }> = [];
+    events.push({ type: 'register', label: '注册提交', detail: `${supplier.name} 提交注册申请`, at: supplier.createdAt.toISOString() });
+
+    for (const log of auditLogs) {
+      const labelMap: Record<string, string> = {
+        SUPPLIER_APPROVED: '审核通过', SUPPLIER_REJECTED: '审核不通过', SUPPLIER_RETURNED: '退回补正',
+        SUPPLIER_DISABLED: '停用', SUPPLIER_BLACKLIST: '黑名单', SUPPLIER_ELIMINATED: '淘汰',
+      };
+      const detail = log.details && (log.details as any).reason ? `${labelMap[log.action] || log.action}：${(log.details as any).reason}` : (labelMap[log.action] || log.action);
+      events.push({ type: log.action, label: labelMap[log.action] || log.action, detail, at: log.createdAt.toISOString() });
+    }
+
+    for (const e of evaluations) {
+      events.push({ type: 'evaluation', label: '绩效评价', detail: `${Number(e.score)}分 · ${e.level}级 · 评价人：${e.evaluator?.displayName || '—'}`, at: e.createdAt.toISOString() });
+    }
+
+    for (const bs of bidSuppliers) {
+      events.push({ type: 'bid_invited', label: '参与项目', detail: `${bs.project.name}（${bs.project.projectCode}）`, at: bs.createdAt.toISOString() });
+    }
+
+    events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+    return { supplierId, supplierName: supplier.name, events };
   }
 
   /** 供应商绩效画像：历史均分、趋势、等级分布。 */
@@ -818,5 +914,109 @@ export class SupplierService {
     return this.prisma.supplierClassification.delete({
       where: { id },
     });
+  }
+
+  /* ━━━ 供应商关注/收藏 ━━━ */
+
+  async toggleFavorite(supplierId: string, userId: string) {
+    const existing = await this.prisma.supplierFavorite.findUnique({
+      where: { userId_supplierId: { userId, supplierId } },
+    });
+    if (existing) {
+      await this.prisma.supplierFavorite.delete({ where: { id: existing.id } });
+      return { favorited: false };
+    }
+    await this.prisma.supplierFavorite.create({ data: { userId, supplierId } });
+    return { favorited: true };
+  }
+
+  async getFavorites(userId: string) {
+    return this.prisma.supplierFavorite.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      include: { supplier: { select: { id: true, name: true, enterpriseType: true, classification: { select: { name: true } }, createdAt: true } } },
+    });
+  }
+
+  /* ━━━ 近期动态 ━━━ */
+
+  async getRecentActivities(limit = 15) {
+    const logs = await this.prisma.auditLog.findMany({
+      where: { resourceType: 'supplier' },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: { user: { select: { displayName: true } } },
+    });
+    return logs.map(l => ({
+      id: l.id, action: l.action, resourceId: l.resourceId,
+      details: l.details, actorName: l.user?.displayName || '系统',
+      at: l.createdAt.toISOString(),
+    }));
+  }
+
+  /* ━━━ 评价维度统计 ━━━ */
+
+  async getEvaluationDimensionStats() {
+    const evals = await this.prisma.supplierEvaluation.findMany({
+      select: { completenessScore: true, responsivenessScore: true, cooperationScore: true, complianceScore: true, overallScore: true },
+    });
+    const avg = (arr: number[]) => arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length * 10) / 10 : 0;
+    const scores = { completeness: evals.map(e => Number(e.completenessScore)), responsiveness: evals.map(e => Number(e.responsivenessScore)), cooperation: evals.map(e => Number(e.cooperationScore)), compliance: evals.map(e => Number(e.complianceScore)), overall: evals.map(e => Number(e.overallScore)) };
+    return {
+      completenessAvg: avg(scores.completeness), responsivenessAvg: avg(scores.responsiveness),
+      cooperationAvg: avg(scores.cooperation), complianceAvg: avg(scores.compliance), overallAvg: avg(scores.overall),
+      total: evals.length,
+    };
+  }
+
+  /* ━━━ 沟通记录 ━━━ */
+
+  async getSupplierCommunications(supplierId: string) {
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { userId: true } });
+    if (!supplier) throw new NotFoundException('供应商不存在');
+    const notifications = await this.prisma.notification.findMany({
+      where: { userId: supplier.userId },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    });
+    const notificationIds = notifications.map(n => n.id);
+    const logs = await this.prisma.notificationDeliveryLog.findMany({
+      where: { notificationId: { in: notificationIds } },
+      select: { notificationId: true, channel: true, status: true },
+    });
+    const logMap = new Map<string, { channel: string; status: string }[]>();
+    for (const l of logs) {
+      if (!logMap.has(l.notificationId!)) logMap.set(l.notificationId!, []);
+      logMap.get(l.notificationId!)!.push({ channel: l.channel, status: l.status });
+    }
+    return notifications.map(n => ({
+      id: n.id, type: n.type, title: n.title, content: n.content,
+      isRead: n.isRead, channels: (logMap.get(n.id) || []).map(l => l.channel),
+      createdAt: n.createdAt.toISOString(),
+    }));
+  }
+
+  /* ━━━ 文件档案 CRUD ━━━ */
+
+  async listDocuments(supplierId: string) {
+    return this.prisma.supplierDocument.findMany({
+      where: { supplierId },
+      orderBy: { createdAt: 'desc' },
+      include: { uploader: { select: { displayName: true } } },
+    });
+  }
+
+  async uploadDocument(supplierId: string, dto: { type: string; name: string; fileUrl: string; fileSize?: number; note?: string }, userId: string) {
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { id: true } });
+    if (!supplier) throw new NotFoundException('供应商不存在');
+    return this.prisma.supplierDocument.create({
+      data: { supplierId, type: dto.type, name: dto.name, fileUrl: dto.fileUrl, fileSize: dto.fileSize, uploadedBy: userId, note: dto.note },
+      include: { uploader: { select: { displayName: true } } },
+    });
+  }
+
+  async deleteDocument(id: string) {
+    return this.prisma.supplierDocument.delete({ where: { id } }).catch(() => null);
   }
 }

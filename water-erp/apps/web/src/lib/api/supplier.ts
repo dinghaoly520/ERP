@@ -1,5 +1,5 @@
 import { api } from '../api';
-import type { Supplier, SupplierListResponse, SupplierClassification, SupplierEvaluation, SupplierChangeRecord, SupplierQualification, Notification } from '../types';
+import type { Supplier, SupplierListResponse, SupplierClassification, SupplierEvaluation, SupplierChangeRecord, SupplierQualification } from '../types';
 
 /* ── 供应商智能选取（web 门户专属视图模型）── */
 export interface SupplierStats {
@@ -19,6 +19,8 @@ export interface SupplierRecommendation {
   legalPerson?: string;
   enterpriseType?: string;
   contacts?: { name: string; phone: string; isPrimary: boolean }[];
+  evaluation?: { level: string; avgScore: number; count: number };
+  activeProjects: number;
 }
 
 export interface SupplierSelectionResult {
@@ -31,31 +33,8 @@ export interface SupplierSelectionResult {
   generatedAt: string;
 }
 
-// 供应商注册
-export function registerSupplier(data: {
-  name: string;
-  creditCode: string;
-  enterpriseType: string;
-  legalPerson: string;
-  registeredAddress: string;
-  businessScope: string;
-  username: string;
-  displayName: string;
-  password: string;
-  email?: string;
-  contacts: { name: string; phone: string; email?: string; isPrimary: boolean }[];
-  qualifications: { type: string; name: string; fileUrl: string; validFrom?: string; validTo?: string }[];
-}) {
-  return api.post<{ user: any; supplier: Supplier }>('/supplier/register', data);
-}
-
-// 查询注册状态
-export function getRegisterStatus() {
-  return api.get<{ id: string; name: string; status: string; returnReason?: string; rejectReason?: string }>('/supplier/register/status');
-}
-
 // 供应商列表
-export function getSupplierList(params?: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt' }) {
+export function getSupplierList(params?: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string }) {
   const query = new URLSearchParams();
   if (params?.status) query.set('status', params.status);
   if (params?.classificationId) query.set('classificationId', params.classificationId);
@@ -63,6 +42,11 @@ export function getSupplierList(params?: { status?: string; classificationId?: s
   if (params?.page) query.set('page', String(params.page));
   if (params?.pageSize) query.set('pageSize', String(params.pageSize));
   if (params?.sort) query.set('sort', params.sort);
+  if (params?.enterpriseTypes) query.set('enterpriseTypes', params.enterpriseTypes);
+  if (params?.dateFrom) query.set('dateFrom', params.dateFrom);
+  if (params?.dateTo) query.set('dateTo', params.dateTo);
+  if (params?.evalLevel) query.set('evalLevel', params.evalLevel);
+  if (params?.qualificationStatus) query.set('qualificationStatus', params.qualificationStatus);
   return api.get<SupplierListResponse>(`/supplier/list?${query.toString()}`);
 }
 
@@ -74,6 +58,54 @@ export function getSupplierStats() {
 // AI 智能推荐供应商（按采购需求）
 export function recommendSuppliers(data: { requirement: string; classificationId?: string; maxCount?: number }) {
   return api.post<SupplierSelectionResult>('/ai/supplier-selection', data);
+}
+
+// AI 润色采购需求描述
+export function polishRequirement(data: { text: string }) {
+  return api.post<{ polished: string }>('/ai/polish-requirement', data);
+}
+
+// ── 选取历史 ──
+export interface SupplierSelectionHistoryRecord {
+  id: string;
+  requirement: string;
+  classificationId?: string;
+  classificationName?: string;
+  resultSummary: string;
+  recommendationCount: number;
+  candidatePool: number;
+  shortlistedIds: string[];
+  createdAt: string;
+}
+
+export function getSelectionHistory() {
+  return api.get<SupplierSelectionHistoryRecord[]>('/ai/selection-history');
+}
+
+export function getSelectionHistoryDetail(id: string) {
+  return api.get<SupplierSelectionHistoryRecord>(`/ai/selection-history/${id}`);
+}
+
+export function restoreShortlist(historyId: string) {
+  return api.get<SupplierRecommendation[]>(`/ai/selection-history/${historyId}/shortlist`);
+}
+
+export function updateSelectionShortlist(historyId: string, shortlistedIds: string[]) {
+  return api.patch<null>(`/ai/selection-history/${historyId}/shortlist`, { shortlistedIds });
+}
+
+export function deleteSelectionHistory(id: string) {
+  return api.delete<null>(`/ai/selection-history/${id}`);
+}
+
+// ── 邀请供应商到招标项目 ──
+export function inviteSuppliers(projectId: string, supplierIds: string[]) {
+  return api.post<{ added: number; skipped: number }>(`/bid/projects/${projectId}/suppliers`, { supplierIds });
+}
+
+// ── 分享候选名单 ──
+export function shareShortlist(data: { requirement: string; shortlist: { name: string; matchScore: number; reason: string }[]; note?: string }) {
+  return api.post<{ success: boolean }>('/ai/share-shortlist', data);
 }
 
 // 供应商详情
@@ -106,11 +138,6 @@ export function getSupplierChanges(id: string) {
   return api.get<SupplierChangeRecord[]>(`/supplier/${id}/changes`);
 }
 
-// 提交变更申请
-export function createChangeRequest(id: string, data: { fieldName: string; fieldLabel: string; newValue: string; reason?: string }) {
-  return api.post<SupplierChangeRecord>(`/supplier/${id}/changes`, data);
-}
-
 // 审核变更
 export function approveChange(changeId: string) {
   return api.post<{ success: boolean }>(`/supplier/changes/${changeId}/approve`, {});
@@ -124,16 +151,6 @@ export function rejectChange(changeId: string, rejectReason: string) {
 // 资质材料列表
 export function getQualifications(id: string) {
   return api.get<SupplierQualification[]>(`/supplier/${id}/qualifications`);
-}
-
-// 上传资质材料
-export function addQualification(id: string, data: { type: string; name: string; fileUrl: string; validFrom?: string; validTo?: string }) {
-  return api.post<SupplierQualification>(`/supplier/${id}/qualifications`, data);
-}
-
-// 删除资质材料
-export function deleteQualification(id: string, qid: string) {
-  return api.delete<SupplierQualification>(`/supplier/${id}/qualifications/${qid}`);
 }
 
 // 评价记录列表
@@ -179,25 +196,95 @@ export function deleteClassification(id: string) {
   return api.delete<SupplierClassification>(`/supplier/classifications/${id}`);
 }
 
-// 通知列表
-export function getNotifications(page?: number, pageSize?: number) {
-  const query = new URLSearchParams();
-  if (page) query.set('page', String(page));
-  if (pageSize) query.set('pageSize', String(pageSize));
-  return api.get<{ total: number; page: number; pageSize: number; items: Notification[] }>(`/notifications?${query.toString()}`);
+// ── 供应商画像 ──
+export interface SupplierPortrait {
+  supplierId: string; name: string;
+  participationCount: number; winCount: number; winRate: number;
+  avgEvalScore: number | null; evalCount: number;
+  performanceTrend: 'improving' | 'stable' | 'declining';
+  levelCounts: { A: number; B: number; C: number; D: number };
+  priceDeviation: number | null;
+}
+export function getSupplierPortrait(id: string) {
+  return api.get<SupplierPortrait>(`/supplier/${id}/portrait`);
 }
 
-// 未读通知数量
-export function getUnreadNotificationCount() {
-  return api.get<{ count: number }>('/notifications/unread-count');
+// ── 生命周期时间线 ──
+export interface TimelineEvent { type: string; label: string; detail: string; at: string; }
+export interface SupplierTimeline { supplierId: string; supplierName: string; events: TimelineEvent[]; }
+export function getSupplierTimeline(id: string) {
+  return api.get<SupplierTimeline>(`/supplier/${id}/timeline`);
 }
 
-// 标记已读
-export function markNotificationRead(id: string) {
-  return api.post<Notification>(`/notifications/${id}/read`, {});
+// ── 资质预警 ──
+export interface QualificationAlertItem {
+  id: string; supplierId: string; supplierName: string;
+  type: string; name: string; validTo: string | null; status: string; daysRemaining: number | null;
+}
+export interface QualificationAlerts {
+  items: QualificationAlertItem[];
+  expiredCount: number; expiringCount: number; affectedSupplierCount: number;
+}
+export function getQualificationAlerts() {
+  return api.get<QualificationAlerts>('/supplier/qualification-alerts');
 }
 
-// 全部标记已读
-export function markAllNotificationsRead() {
-  return api.post<{ count: number }>('/notifications/mark-all-read', {});
+// ── 淘汰候选 ──
+export interface EliminationCandidate { supplierId: string; name: string; reason: string; }
+export function getEliminationCandidates() {
+  return api.get<EliminationCandidate[]>('/supplier/eliminate-candidates');
 }
+export function confirmEliminate(id: string, reason: string) {
+  return api.post<{ success: boolean }>(`/supplier/${id}/eliminate`, { reason });
+}
+
+// ── 分配分类 ──
+export function assignClassification(supplierId: string, classificationId: string) {
+  return api.patch<Supplier>(`/supplier/${supplierId}/classification`, { classificationId });
+}
+
+// ── 收藏 ──
+export function toggleFavorite(supplierId: string) {
+  return api.post<{ favorited: boolean }>(`/supplier/${supplierId}/favorite`, {});
+}
+export interface SupplierFavoriteRecord { id: string; supplierId: string; createdAt: string; supplier: { id: string; name: string; enterpriseType: string; classification?: { name: string }; createdAt: string }; }
+export function getFavorites() {
+  return api.get<SupplierFavoriteRecord[]>('/supplier/favorites/list');
+}
+
+// ── 近期动态 ──
+export interface ActivityItem { id: string; action: string; resourceId: string; details: any; actorName: string; at: string; }
+export function getRecentActivities(limit?: number) {
+  return api.get<ActivityItem[]>(`/supplier/recent-activities?limit=${limit ?? 15}`);
+}
+
+// ── 评价维度统计 ──
+export interface DimensionStats { completenessAvg: number; responsivenessAvg: number; cooperationAvg: number; complianceAvg: number; overallAvg: number; total: number; }
+export function getEvaluationDimensionStats() {
+  return api.get<DimensionStats>('/supplier/evaluations/dimension-stats');
+}
+
+// ── 沟通记录 ──
+export interface CommunicationRecord { id: string; type: string; title: string; content: string; isRead: boolean; channels: string[]; createdAt: string; }
+export function getSupplierCommunications(id: string) {
+  return api.get<CommunicationRecord[]>(`/supplier/${id}/communications`);
+}
+
+// ── 文件档案 ──
+export interface SupplierDocumentRecord { id: string; type: string; name: string; fileUrl: string; fileSize?: number; note?: string; uploader: { displayName: string }; createdAt: string; }
+export function getSupplierDocuments(id: string) {
+  return api.get<SupplierDocumentRecord[]>(`/supplier/${id}/documents`);
+}
+export function uploadSupplierDocument(id: string, data: { type: string; name: string; fileUrl: string; fileSize?: number; note?: string }) {
+  return api.post<SupplierDocumentRecord>(`/supplier/${id}/documents`, data);
+}
+export function deleteSupplierDocument(id: string, docId: string) {
+  return api.delete<null>(`/supplier/${id}/documents/${docId}`);
+}
+
+// ── 全局搜索 ──
+export interface SearchResult { type: string; id: string; title: string; subtitle: string; link: string; }
+export function globalSearch(q: string) {
+  return api.get<{ results: SearchResult[]; total: number }>(`/search?q=${encodeURIComponent(q)}`);
+}
+

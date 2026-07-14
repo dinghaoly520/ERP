@@ -107,7 +107,7 @@ function CoverDateSelector({
           </svg>
         </button>
         {yearDropdownOpen && (
-          <div className="absolute top-full left-0 mt-2 z-50 rounded-[16px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[var(--background)] shadow-[0_16px_40px_rgba(0,0,0,0.1)] p-2 min-w-[100px]">
+          <div className="absolute top-full left-0 mt-2 z-50 rounded-[16px] tender-popup p-2 min-w-[100px]">
             {years.map((year) => (
               <button
                 key={year}
@@ -147,7 +147,7 @@ function CoverDateSelector({
           </svg>
         </button>
         {monthDropdownOpen && (
-          <div className="absolute top-full left-0 mt-2 z-50 rounded-[16px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[var(--background)] shadow-[0_16px_40px_rgba(0,0,0,0.1)] p-3 min-w-[180px]">
+          <div className="absolute top-full left-0 mt-2 z-50 rounded-[16px] tender-popup p-3 min-w-[180px]">
             {monthRows.map((row, rowIndex) => (
               <div key={rowIndex} className="flex gap-2 mb-2 last:mb-0">
                 {row.map((month) => (

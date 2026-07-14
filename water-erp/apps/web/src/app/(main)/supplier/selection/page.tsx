@@ -3,13 +3,17 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { recommendSuppliers, getClassifications } from '@/lib/api/supplier';
+import { recommendSuppliers, getClassifications, polishRequirement, inviteSuppliers, shareShortlist, updateSelectionShortlist } from '@/lib/api/supplier';
 import type { SupplierRecommendation, SupplierSelectionResult } from '@/lib/api/supplier';
+import type { SupplierSelectionHistoryRecord } from '@/lib/api/supplier';
 import type { SupplierClassification } from '@/lib/types';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidProjectDetail } from '@/lib/api/expert';
-import { Wand2, Copy, Download, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw } from 'lucide-react';
+import { Wand2, Copy, Download, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, Share2, ListPlus } from 'lucide-react';
 import { StatusBadge } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
+import { SelectionHistoryDialog } from '@/components/supplier/selection-history-dialog';
+import { ComparePanel } from '@/components/supplier/compare-panel';
+import { exportShortlistToExcel } from '@/lib/excel-export';
 
 const scoreVar = (s: number): string => (s >= 85 ? 'var(--success)' : s >= 70 ? 'var(--accent)' : s >= 55 ? 'var(--warning)' : 'var(--danger)');
 const scoreLabel = (s: number) => (s >= 85 ? '强匹配' : s >= 70 ? '较匹配' : s >= 55 ? '可考虑' : '弱匹配');
@@ -36,6 +40,11 @@ export default function SupplierSelectionPage() {
   const [classificationId, setClassificationId] = useState('');
   const [maxCount, setMaxCount] = useState(10);
   const [loading, setLoading] = useState(false);
+  const [polishing, setPolishing] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
+  const [savedHistoryId, setSavedHistoryId] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<SupplierSelectionResult | null>(null);
   const [shortlist, setShortlist] = useState<Map<string, { item: SupplierRecommendation; note: string }>>(new Map());
@@ -55,13 +64,85 @@ export default function SupplierSelectionPage() {
       }
       const res = await recommendSuppliers({ requirement: fullReq, classificationId: classificationId || undefined, maxCount });
       setResult(res);
+      setShortlist(new Map());
       if (res.recommendations.length === 0) setError('未找到匹配的候选供应商，请调整需求描述或筛选条件');
+      // Capture history ID for later shortlist save
+      const { getSelectionHistory } = await import('@/lib/api/supplier');
+      const history = await getSelectionHistory().catch(() => []);
+      if (history.length > 0) setSavedHistoryId(history[0].id);
     } catch (e: any) { toast.error(e?.message || '智能推荐失败'); }
     setLoading(false);
   };
 
+  const polish = async () => {
+    if (!requirement.trim()) { toast.error('请先填写采购需求'); return; }
+    setPolishing(true);
+    try {
+      const res = await polishRequirement({ text: requirement.trim() });
+      setRequirement(res.polished);
+      toast.success('需求已润色');
+    } catch (e: any) { toast.error(e?.message || '润色失败'); }
+    setPolishing(false);
+  };
+
+  const handleApplyHistory = (record: SupplierSelectionHistoryRecord) => {
+    setRequirement(record.requirement);
+    if (record.classificationId) setClassificationId(record.classificationId);
+    setShowHistory(false);
+    toast.success('已恢复选取记录');
+  };
+
+  const handleApplyHistoryShortlist = (record: SupplierSelectionHistoryRecord, items: SupplierRecommendation[]) => {
+    handleApplyHistory(record);
+    const newMap = new Map<string, { item: SupplierRecommendation; note: string }>();
+    items.forEach((item) => newMap.set(item.supplierId, { item, note: '' }));
+    setShortlist(newMap);
+    toast.success(`已恢复 ${items.length} 家候选供应商`);
+  };
+
+  const handleInvite = async () => {
+    if (!projectId) { toast.error('请先关联项目'); return; }
+    setInviting(true);
+    try {
+      const ids = [...shortlist.keys()];
+      const res = await inviteSuppliers(projectId, ids);
+      if (res.skipped > 0) toast.warning(`已添加 ${res.added} 家，跳过 ${res.skipped} 家（已在项目中）`);
+      else toast.success(`已发送 ${res.added} 家供应商邀请`);
+      setShortlist(new Map());
+    } catch (e: any) { toast.error(e?.message || '邀请失败'); }
+    setInviting(false);
+  };
+
+  const handleShare = async () => {
+    const shortlistData = [...shortlist.values()].map(({ item: r, note }) => ({ name: r.name, matchScore: r.matchScore, reason: r.reason }));
+    const note = prompt('分享备注（可选）：');
+    if (note === null) return;
+    try {
+      await shareShortlist({ requirement: requirement.trim(), shortlist: shortlistData, note: note || undefined });
+      toast.success('候选名单已分享');
+    } catch (e: any) { toast.error(e?.message || '分享失败'); }
+  };
+
+  const handleBatchAdd = (count?: number) => {
+    if (!result) return;
+    const merge = new Map(shortlist);
+    const toAdd = count ? result.recommendations.slice(0, count) : result.recommendations;
+    toAdd.forEach((r) => { if (!merge.has(r.supplierId)) merge.set(r.supplierId, { item: r, note: '' }); });
+    setShortlist(merge);
+    toast.success(`已加入 ${merge.size} 家候选`);
+  };
+
+  const saveShortlistToHistory = async () => {
+    if (!savedHistoryId) return;
+    await updateSelectionShortlist(savedHistoryId, [...shortlist.keys()]).catch(() => {});
+  };
+
   const toggleShortlist = (r: SupplierRecommendation) => {
     setShortlist(prev => { const n = new Map(prev); n.has(r.supplierId) ? n.delete(r.supplierId) : n.set(r.supplierId, { item: r, note: '' }); return n; });
+  };
+  const toggleShortlistAndSave = (r: SupplierRecommendation) => {
+    toggleShortlist(r);
+    setTimeout(() => saveShortlistToHistory(), 100);
   };
   const updateNote = (supplierId: string, note: string) => {
     setShortlist(prev => { const n = new Map(prev); const e = n.get(supplierId); if (e) n.set(supplierId, { ...e, note }); return n; });
@@ -129,7 +210,12 @@ export default function SupplierSelectionPage() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button onClick={() => setRequirement(PROMPT_TEMPLATE)} className="text-xs font-semibold text-[var(--accent)] hover:underline">填充结构化模板</button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setRequirement(PROMPT_TEMPLATE)} className="neu-btn-xs text-[11px] gap-1.5" disabled={polishing || loading}>填充模板</button>
+          <button onClick={polish} disabled={polishing || !requirement.trim()} className="neu-btn-xs text-[11px] gap-1.5">
+            <Sparkles size={11} />{polishing ? '润色中...' : 'AI 润色'}
+          </button>
+        </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">推荐数量 <select value={maxCount} onChange={e => setMaxCount(Number(e.target.value))} className="workbench-input text-xs py-1.5 !h-auto">{[5,8,10,15,20].map(n => <option key={n} value={n}>{n} 家</option>)}</select></div>
           <button onClick={run} disabled={loading || !requirement.trim()} className="neu-btn-soft"><Wand2 size={15} />{loading ? '智能匹配中...' : '智能推荐'}</button>
@@ -143,9 +229,10 @@ export default function SupplierSelectionPage() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2"><Award size={15} className="text-[var(--accent)]" /><h2 className="text-sm font-bold text-[var(--foreground)]">候选名单 <span className="text-xs font-normal text-[var(--muted-foreground)]">({shortlist.size})</span></h2></div>
         {shortlist.size > 0 && (
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-wrap">
             <button onClick={copyList} title="复制名单" className="neu-btn-xs"><Copy size={12} /></button>
-            <button onClick={downloadList} title="导出名单" className="neu-btn-xs"><Download size={12} /></button>
+            <button onClick={downloadList} title="导出 TXT" className="neu-btn-xs"><Download size={12} /></button>
+            <button onClick={() => exportShortlistToExcel([...shortlist.values()], selectedProject?.name)} title="导出 Excel" className="neu-btn-xs"><FileSpreadsheet size={12} /></button>
           </div>
         )}
       </div>
@@ -181,7 +268,20 @@ export default function SupplierSelectionPage() {
               </div>
             );
           })}
-          <button onClick={() => setShortlist(new Map())} className="neu-btn-xs is-danger w-full">清空名单</button>
+          <div className="space-y-2">
+            <div className="flex gap-1.5">
+              <button onClick={() => setShowCompare(true)} disabled={shortlist.size < 2} className="neu-btn-xs flex-1" title="横向对比至少需要 2 家供应商"><Columns3 size={12} />对比</button>
+              <button onClick={handleShare} className="neu-btn-xs flex-1" title="分享给采购主管"><Share2 size={12} />分享</button>
+            </div>
+            <div className="flex gap-1.5">
+              {projectId && (
+                <button onClick={handleInvite} disabled={inviting} className="neu-btn-xs flex-1">
+                  <Send size={12} />{inviting ? '发送中...' : '发送邀请'}
+                </button>
+              )}
+              <button onClick={() => setShortlist(new Map())} className="neu-btn-xs is-danger flex-1">清空名单</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -200,6 +300,9 @@ export default function SupplierSelectionPage() {
             </div>
           </div>
           <div className="page-hero__right">
+            <button onClick={() => setShowHistory(true)} className="neu-btn-xs gap-1.5">
+              <Clock3 size={13} />选取历史
+            </button>
             <RulesPopover accentColor="var(--success)">
               <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)] mb-3">供应商 AI 匹配规则</h3>
               <ol className="space-y-2 text-xs text-[var(--muted-foreground)] leading-relaxed">
@@ -234,6 +337,17 @@ export default function SupplierSelectionPage() {
               </div>
             </div>
 
+            {/* Batch toolbar */}
+            <div className="wb-toolbar !px-3 !py-2">
+              <button onClick={() => handleBatchAdd()} className="neu-btn-xs gap-1">
+                <ListPlus size={12} />全部加入候选
+              </button>
+              <span className="text-[10px] text-[var(--muted-foreground)]/70">或加入前</span>
+              {[3, 5, 8, 10].map(n => (
+                <button key={n} onClick={() => handleBatchAdd(n)} className="neu-tab text-[11px] !px-2.5 !py-1">{n} 名</button>
+              ))}
+            </div>
+
             {result.recommendations.map((r, idx) => {
               const inList = shortlist.has(r.supplierId);
               const contact = r.contacts?.find(c => c.isPrimary) || r.contacts?.[0];
@@ -246,6 +360,15 @@ export default function SupplierSelectionPage() {
                         <span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)] transition" onClick={() => router.push(`/supplier/${r.supplierId}`)}>{r.name}</span>
                         {r.classification && <StatusBadge tone="blue">{r.classification}</StatusBadge>}
                         {r.enterpriseType && <span className="neu-tab-count">{r.enterpriseType}</span>}
+                        {r.evaluation && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-extrabold text-white"
+                            style={{ backgroundColor: r.evaluation.level === 'A' ? 'var(--success)' : r.evaluation.level === 'B' ? 'var(--accent)' : r.evaluation.level === 'C' ? 'var(--warning)' : 'var(--danger)' }}
+                            title={`${r.evaluation.avgScore}分 · ${r.evaluation.count}次评价`}
+                          >
+                            {r.evaluation.level}
+                          </span>
+                        )}
                         {inList && <StatusBadge tone="green">已入选</StatusBadge>}
                       </div>
                       <div className="flex items-center gap-2 mb-2">
@@ -254,7 +377,12 @@ export default function SupplierSelectionPage() {
                         <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ color: scoreVar(r.matchScore), backgroundColor: `color-mix(in oklch, ${scoreVar(r.matchScore)} 14%, transparent)` }}>{scoreLabel(r.matchScore)}</span>
                       </div>
                       <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{r.reason}</p>
-                      {contact && <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">联系人：{contact.name}{contact.phone ? ` · ${contact.phone}` : ''}{r.legalPerson ? ` ｜ 法定代表人：${r.legalPerson}` : ''}</p>}
+                      {contact && <p className="mt-1.5 text-xs text-[var(--muted-foreground)] inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span>联系人：{contact.name}{contact.phone ? ` · ${contact.phone}` : ''}{r.legalPerson ? ` ｜ 法定代表人：${r.legalPerson}` : ''}</span>
+                        <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${r.activeProjects >= 5 ? 'bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[var(--danger)]' : r.activeProjects > 0 ? 'bg-[color-mix(in_oklch,var(--foreground)_6%,transparent)] text-[var(--muted-foreground)]' : 'bg-[color-mix(in_oklch,var(--success)_8%,transparent)] text-[var(--success)]'}`}>
+                          {r.activeProjects >= 5 ? '繁忙' : r.activeProjects > 0 ? '正常' : '空闲'} · {r.activeProjects} 项目
+                        </span>
+                      </p>}
                     </div>
                     <div className="flex flex-col gap-2 flex-shrink-0">
                       <button onClick={() => router.push(`/supplier/${r.supplierId}`)} className="neu-btn-xs">详情</button>
@@ -281,6 +409,19 @@ export default function SupplierSelectionPage() {
           )}
         </div>
       )}
+
+      <SelectionHistoryDialog
+        isOpen={showHistory}
+        onApply={handleApplyHistory}
+        onApplyShortlist={handleApplyHistoryShortlist}
+        onClose={() => setShowHistory(false)}
+      />
+
+      <ComparePanel
+        isOpen={showCompare}
+        candidates={[...shortlist.values()].map((v) => v.item)}
+        onClose={() => setShowCompare(false)}
+      />
     </div>
   );
 }

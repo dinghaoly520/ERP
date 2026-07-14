@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
 export type SortDir = 'asc' | 'desc';
@@ -13,19 +13,19 @@ export function useSort<T>(defaultKey: string, defaultDir: SortDir = 'desc') {
     else { setSortKey(key); setSortDir('asc'); }
   };
 
-  const sorted = (items: T[]) =>
-    useMemo(() => {
-      if (!items.length) return items;
-      return [...items].sort((a, b) => {
-        const va = (a as any)[sortKey] ?? '';
-        const vb = (b as any)[sortKey] ?? '';
-        if (typeof va === 'number' && typeof vb === 'number') return sortDir === 'asc' ? va - vb : vb - va;
-        if (va instanceof Date && vb instanceof Date) return sortDir === 'asc' ? va.getTime() - vb.getTime() : vb.getTime() - va.getTime();
-        const sa = String(va).toLowerCase();
-        const sb = String(vb).toLowerCase();
-        return sortDir === 'asc' ? sa.localeCompare(sb) : sb.localeCompare(sa);
-      });
-    }, [items, sortKey, sortDir]);
+  /** 纯函数：不调用 useMemo，由消费者决定是否 memoize */
+  const sorted = (items: T[]): T[] => {
+    if (!items.length) return items;
+    return [...items].sort((a, b) => {
+      const va = (a as any)[sortKey] ?? '';
+      const vb = (b as any)[sortKey] ?? '';
+      if (typeof va === 'number' && typeof vb === 'number') return sortDir === 'asc' ? va - vb : vb - va;
+      if (va instanceof Date && vb instanceof Date) return sortDir === 'asc' ? va.getTime() - vb.getTime() : vb.getTime() - va.getTime();
+      const sa = String(va).toLowerCase();
+      const sb = String(vb).toLowerCase();
+      return sortDir === 'asc' ? sa.localeCompare(sb) : sb.localeCompare(sa);
+    });
+  };
 
   return { sortKey, sortDir, toggle, sorted };
 }

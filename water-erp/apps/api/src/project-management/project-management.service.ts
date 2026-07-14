@@ -3190,7 +3190,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return { summary };
   }
 
-  async auditStageCompliance(projectId: string, stageKey?: string) {
+  async auditStageCompliance(projectId: string, stageKey?: string, force = false) {
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
       include: {
@@ -3211,6 +3211,24 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     if (!targetStage) {
       throw new NotFoundException('未找到项目阶段。');
+    }
+
+    // 检查合规审查缓存：指纹匹配时直接返回
+    const complianceCachePath = this.getComplianceCachePath(projectId, targetStage.stageKey);
+    const fingerprint = this.buildStageAnalysisFingerprint(targetStage.stageKey, targetStage.attachments);
+    if (!force) {
+      try {
+        const cached = JSON.parse(await readFile(complianceCachePath, 'utf8')) as {
+          fingerprint?: string;
+          results?: unknown;
+          summary?: string;
+        };
+        if (cached.fingerprint === fingerprint && cached.results && cached.summary) {
+          return { results: cached.results, summary: cached.summary };
+        }
+      } catch {
+        // 缓存不存在或无效，继续调用 AI
+      }
     }
 
     // 加载该阶段的合规审查规则
@@ -3241,7 +3259,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     }
 
-    return this.aiService.auditStageCompliance({
+    const result = await this.aiService.auditStageCompliance({
       stageKey: targetStage.stageKey,
       stageName: targetStage.stageName,
       checkpoints,
@@ -3262,6 +3280,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
       },
       files: stageFiles,
     });
+
+    // 写入合规审查缓存（含指纹）
+    await mkdir(this.getUploadDir(), { recursive: true });
+    await writeFile(
+      complianceCachePath,
+      JSON.stringify({ fingerprint, results: result.results, summary: result.summary }, null, 2),
+      'utf8',
+    );
+
+    return result;
   }
 
   async analyzeProject(projectId: string, stageKey?: string) {
@@ -5063,6 +5091,15 @@ ${JSON.stringify(algorithmResult, null, 2)}
       'uploads',
       'project-management',
       `analysis-${projectId}-${stageKey.toLowerCase()}.json`,
+    );
+  }
+
+  private getComplianceCachePath(projectId: string, stageKey: string) {
+    return resolve(
+      process.cwd(),
+      'uploads',
+      'project-management',
+      `compliance-${projectId}-${stageKey.toLowerCase()}.json`,
     );
   }
 

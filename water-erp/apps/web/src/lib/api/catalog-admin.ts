@@ -150,3 +150,7 @@ export function createAttributeTemplate(categoryId: number, data: { name: string
 export function deleteAttributeTemplate(id: number) {
   return request<{ success: boolean }>(`/api/catalog/admin/attribute-templates/${id}`, { method: 'DELETE' });
 }
+
+export function setItemAttributes(itemId: string, attributes: { templateId: number; value: string }[]) {
+  return request<CatalogItem>(`/api/catalog/admin/items/${itemId}/attributes`, { method: 'PATCH', body: JSON.stringify({ attributes }) });
+}

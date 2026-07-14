@@ -23,6 +23,7 @@ export interface ExpertListItem {
   expertProfile: ExpertProfile | null;
   bidExperts: { id: string; major: string; progress: number; signedIn: boolean; project: { id: string; name: string; stage: string } }[];
   _count: { expertEvaluations: number };
+  latestEval?: { level: string; overallScore: number } | null;
 }
 
 export interface ExtractionSelected {
@@ -95,6 +96,7 @@ export function getExpert(id: string) {
 export function createExpert(data: {
   username: string; displayName: string; password: string; specialty: string;
   title?: string; employer?: string; phone?: string; idNumber?: string; email?: string; notes?: string;
+  ethnicity?: string; education?: string; licenseNo?: string;
 }) {
   return api.post<unknown>('/expert-admin', data);
 }
@@ -178,4 +180,89 @@ export interface BidProjectDetail {
 }
 export function getBidProjectDetail(id: string) {
   return api.get<BidProjectDetail>(`/bid/projects/${id}`);
+}
+
+/* ── 专家画像 ── */
+export interface ExpertPortrait {
+  userId: string; displayName: string; participationCount: number; completedCount: number;
+  completionRate: number; averageScore: number | null; meanDeviation: number | null;
+  deviationSamples: number; evalAvg: number | null; evalCount: number;
+  recentLevels: string[]; isStandingExpert: boolean;
+}
+export function getExpertPortrait(id: string) {
+  return api.get<ExpertPortrait>(`/expert-admin/${id}/portrait`);
+}
+
+/* ── 评价历史 ── */
+export function getExpertEvaluations(id: string) {
+  return api.get<any[]>(`/expert-admin/${id}/evaluations`);
+}
+
+/* ── 统计仪表盘 ── */
+export interface ExpertStatistics {
+  totalExperts: number; available: number; occupied: number; disabled: number;
+  specialtyDistribution: { name: string; count: number }[];
+  titleDistribution: { name: string; count: number }[];
+  evaluationStats: { levelCounts: { A: number; B: number; C: number; D: number }; avgScore: number; total: number };
+  recentEvals: { level: string; score: number; expert: string; time: string }[];
+  recentAssigns7d: number; recentExtractions30d: number;
+  monthlyEvalTrend: { labels: string[]; counts: number[] };
+}
+export function getExpertStatistics() {
+  return api.get<ExpertStatistics>('/expert-admin/statistics');
+}
+
+/* ── 批量操作 ── */
+export function batchOperation(data: { action: 'enable' | 'disable'; ids: string[]; reason?: string }) {
+  return api.post<{ success: boolean; count: number }>('/expert-admin/batch', data);
+}
+
+/* ── 导出 ── */
+export function exportExperts(ids?: string[]) {
+  const q = ids?.length ? `?ids=${ids.join(',')}` : '';
+  return api.get<any[]>(`/expert-admin/export${q}`);
+}
+
+/* ── 违规记录 ── */
+export function getViolations(expertId?: string) {
+  const q = expertId ? `?expertId=${expertId}` : '';
+  return api.get<any[]>(`/expert-admin/violations${q}`);
+}
+export function addViolation(expertId: string, data: { type: string; detail: string; severity: 'warning' | 'danger' }) {
+  return api.post<{ success: boolean }>(`/expert-admin/${expertId}/violation`, data);
+}
+
+/* ── 通知偏好 ── */
+export function getNotifyPrefs(userId: string) {
+  return api.get<{ inApp: boolean; sms: boolean; phone: boolean }>(`/expert-admin/${userId}/notify-prefs`);
+}
+export function updateNotifyPrefs(userId: string, data: { inApp?: boolean; sms?: boolean; phone?: boolean }) {
+  return api.patch<{ success: boolean }>(`/expert-admin/${userId}/notify-prefs`, data);
+}
+
+/* ── 退库管理 ── */
+export function getRetireCandidates() {
+  return api.get<any[]>('/expert-admin/retire-candidates');
+}
+export function confirmRetire(id: string, reason: string) {
+  return api.post<{ success: boolean }>(`/expert-admin/${id}/retire`, { reason });
+}
+
+/* ── AI 采纳率 ── */
+export function getAiAdoptionRate(expertId?: string) {
+  return api.get<any>(`/expert-admin/ai-adoption${expertId ? `?expertId=${expertId}` : ''}`);
+}
+export function getProjectEvaluationReview(projectId?: string) {
+  return api.get<any>(`/expert-admin/project-review${projectId ? `?projectId=${projectId}` : ''}`);
+}
+export function getExpertRanking(period: 'month' | 'quarter' | 'all' = 'month') {
+  return api.get<any[]>(`/expert-admin/ranking?period=${period}`);
+}
+export function getLoadDistribution() {
+  return api.get<any>('/expert-admin/load-distribution');
+}
+
+/* ── 批量导入 ── */
+export function importCsv(rows: Array<Record<string, string>>) {
+  return api.post<any>('/expert-admin/import-csv', { rows });
 }
