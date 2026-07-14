@@ -12,6 +12,8 @@ export interface CatalogItemView {
   specification: string;
   category: string;
   group: string;
+  categoryId?: number;
+  categoryPath?: string;
   unit: string;
   referencePrice: number;
   priceMin: number;
@@ -31,6 +33,7 @@ export interface CatalogItemView {
   validUntil: string | null;
   updatedAt: string;
   createdAt: string;
+  attributes?: Array<{ templateId: number; value: string; fieldKey: string; name: string; fieldType: string; unit?: string }>;
 }
 
 /** Prisma 的 Decimal 在 JSON 序列化时会变成字符串，前端按 number 使用，故在此统一转换。 */
@@ -42,6 +45,8 @@ function serialize(item: any): CatalogItemView {
     specification: item.specification,
     category: item.category,
     group: item.group,
+    categoryId: item.categoryId ?? undefined,
+    categoryPath: item.categoryRel?.code ? `${item.categoryRel.code}:${item.categoryRel.name}` : undefined,
     unit: item.unit,
     referencePrice: Number(item.referencePrice),
     priceMin: Number(item.priceMin),
@@ -61,6 +66,14 @@ function serialize(item: any): CatalogItemView {
     validUntil: item.validUntil ? new Date(item.validUntil).toISOString() : null,
     updatedAt: new Date(item.updatedAt).toISOString(),
     createdAt: new Date(item.createdAt).toISOString(),
+    attributes: item.attributes?.map((a: any) => ({
+      templateId: a.templateId,
+      value: a.value,
+      fieldKey: a.template?.fieldKey,
+      name: a.template?.name,
+      fieldType: a.template?.fieldType,
+      unit: a.template?.unit,
+    })) ?? [],
   };
 }
 
@@ -75,8 +88,12 @@ export class CatalogService {
     source?: string;
     search?: string;
     includeInactive?: boolean;
+    categoryId?: number;
   }) {
     const filters: any[] = [];
+    if (params.categoryId) {
+      filters.push({ categoryId: Number(params.categoryId) });
+    }
     if (params.category && params.category !== '全部') {
       filters.push({ OR: [{ category: params.category }, { group: params.category }] });
     }
@@ -102,12 +119,18 @@ export class CatalogService {
       }
     }
     const where = filters.length ? { AND: filters } : undefined;
-    const items = await this.prisma.catalogItem.findMany({ where, orderBy: { code: 'asc' } });
+    const items = await this.prisma.catalogItem.findMany({
+      where, orderBy: { code: 'asc' },
+      include: { attributes: { include: { template: true } }, categoryRel: true },
+    });
     return items.map(serialize);
   }
 
   async get(id: string) {
-    const item = await this.prisma.catalogItem.findUnique({ where: { id } });
+    const item = await this.prisma.catalogItem.findUnique({
+      where: { id },
+      include: { attributes: { include: { template: true } }, categoryRel: true },
+    });
     if (!item) throw new BadRequestException({ error: '目录条目不存在', code: 'NOT_FOUND' });
     return serialize(item);
   }

@@ -20,6 +20,11 @@ export class CatalogAdminListQueryDto {
   category?: string;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  categoryId?: number;
+
+  @IsOptional()
   @IsString()
   region?: string;
 
