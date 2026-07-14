@@ -28,6 +28,7 @@ model User {
   email          String?
   phone          String?
   officeLocation String?  @map("office_location")
+  avatar        String?
   passwordHash String?
   role         String      @default("internal_user")
   isActive     Boolean     @default(true)

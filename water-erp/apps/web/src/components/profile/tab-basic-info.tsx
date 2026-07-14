@@ -1,7 +1,7 @@
 'use client';
 
-import { Loader2, Mail, Phone, MapPin, Building2, UserRound, Shield, AlertTriangle, Check } from 'lucide-react';
-import { useState } from 'react';
+import { Loader2, Mail, Phone, MapPin, Building2, UserRound, Shield, AlertTriangle, Check, Camera, Upload } from 'lucide-react';
+import { useState, useRef } from 'react';
 import { updateMyProfile } from '@/lib/api/auth';
 import type { AuthUser, DepartmentItem, UpdateProfileInput } from '@/lib/api/auth';
 import { ROLE_LABELS } from '@/lib/role-labels';
@@ -12,6 +12,15 @@ function formatDate(isoString: string | null | undefined): string {
     const date = new Date(isoString);
     return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
   } catch { return '未知'; }
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 interface TabBasicInfoProps {
@@ -26,16 +35,20 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
   const [phone, setPhone] = useState(user.phone ?? '');
   const [officeLocation, setOfficeLocation] = useState(user.officeLocation ?? '');
   const [departmentId, setDepartmentId] = useState(user.department?.id ?? '');
+  const [avatar, setAvatar] = useState(user.avatar ?? '');
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const hasChanges =
     displayName !== user.displayName ||
     email !== (user.email ?? '') ||
     phone !== (user.phone ?? '') ||
     officeLocation !== (user.officeLocation ?? '') ||
-    departmentId !== (user.department?.id ?? '');
+    departmentId !== (user.department?.id ?? '') ||
+    avatar !== (user.avatar ?? '');
 
   const handleSave = async () => {
     setError(null);
@@ -54,6 +67,7 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
       if (phone !== (user.phone ?? '')) payload.phone = phone.trim() || null;
       if (officeLocation !== (user.officeLocation ?? '')) payload.officeLocation = officeLocation.trim() || null;
       if (departmentId !== (user.department?.id ?? '')) payload.departmentId = departmentId || null;
+      if (avatar !== (user.avatar ?? '')) payload.avatar = avatar.trim() || null;
 
       const updated = await updateMyProfile(payload);
       onUserUpdated(updated);
@@ -122,7 +136,64 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
           编辑资料
         </h3>
 
-        <div className="mt-5 grid gap-5 sm:grid-cols-2">
+        {/* Avatar */}
+        <div className="mt-5 flex items-center gap-5">
+          <div className="flex-shrink-0">
+            {avatar ? (
+              <div className="h-[80px] w-[80px] overflow-hidden rounded-[18px] border-2 border-[rgba(96,139,239,0.2)] shadow-sm">
+                <img src={avatar} alt="头像" className="h-full w-full object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              </div>
+            ) : (
+              <div className="neu-icon-well flex h-[80px] w-[80px] items-center justify-center rounded-[18px]">
+                <Camera size={28} className="text-[color:var(--muted-foreground)] opacity-40" />
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-semibold text-[color:var(--foreground)]">头像照片</span>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setAvatarUploading(true);
+                  try {
+                    const b64 = await fileToBase64(file);
+                    setAvatar(b64);
+                  } catch {
+                    setError('图片处理失败，请重试');
+                  } finally {
+                    setAvatarUploading(false);
+                  }
+                }}
+              />
+              <button type="button" onClick={() => fileRef.current?.click()}
+                disabled={avatarUploading}
+                className="neu-btn-xs">
+                {avatarUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                {avatar ? '更换图片' : '上传图片'}
+              </button>
+              <input
+                type="url"
+                value={avatar}
+                onChange={(e) => setAvatar(e.target.value)}
+                placeholder="或输入图片 URL"
+                className="neu-input w-[220px] text-xs" />
+            </div>
+            <span className="text-[10px] text-[color:var(--muted-foreground)]">
+              JPG/PNG 格式，支持本地上传或粘贴图片链接
+            </span>
+          </div>
+        </div>
+
+        <hr className="wb-section-rule" />
+
+        <div className="grid gap-5 sm:grid-cols-2">
           {/* Display name */}
           <label className="block">
             <span className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-[color:var(--foreground)]">

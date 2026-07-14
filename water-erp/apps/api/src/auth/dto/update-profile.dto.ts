@@ -28,4 +28,9 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   officeLocation?: string | null;
+
+  @ApiPropertyOptional({ description: '头像 URL', nullable: true })
+  @IsOptional()
+  @IsString()
+  avatar?: string | null;
 }

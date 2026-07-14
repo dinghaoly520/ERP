@@ -1,7 +1,12 @@
 'use client';
 
-import { CalendarDays, LogOut, Loader2, Mail, Phone, MapPin, UserRound, Building2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  CalendarDays, LogOut, Loader2, Mail, Phone, MapPin, UserRound,
+  Building2, Monitor, Globe
+} from 'lucide-react';
 import type { AuthUser } from '@/lib/api/auth';
+import { fetchLoginHistory, type LoginHistoryItem } from '@/lib/api/auth';
 import { ROLE_LABELS } from '@/lib/role-labels';
 
 function formatDate(isoString: string | null | undefined): string {
@@ -9,9 +14,22 @@ function formatDate(isoString: string | null | undefined): string {
   try {
     const date = new Date(isoString);
     return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
-  } catch {
-    return '未知';
-  }
+  } catch { return '未知'; }
+}
+
+function formatLoginTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) + ' ' +
+    d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function parseBrowser(ua: string | null): string {
+  if (!ua) return '未知浏览器';
+  if (ua.includes('Chrome')) return 'Chrome';
+  if (ua.includes('Safari')) return 'Safari';
+  if (ua.includes('Firefox')) return 'Firefox';
+  if (ua.includes('Edge')) return 'Edge';
+  return ua.split(' ')[0]?.slice(0, 12) || '未知';
 }
 
 interface PersonalCenterHeroProps {
@@ -23,10 +41,20 @@ interface PersonalCenterHeroProps {
 }
 
 export function PersonalCenterHero({ user, onEdit, onChangePassword, onLogout, loggingOut }: PersonalCenterHeroProps) {
+  const [loginHistory, setLoginHistory] = useState<LoginHistoryItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchLoginHistory().then((data) => {
+      if (!cancelled) setLoginHistory(data);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   return (
-    <div className="wb-panel flex h-full w-[280px] flex-col overflow-hidden">
+    <div className="wb-panel flex h-full w-[280px] flex-col overflow-y-auto">
       {/* Identity banner */}
-      <div className="relative flex flex-col items-center gap-3 px-5 pb-4 pt-6">
+      <div className="relative flex flex-col items-center gap-3 px-5 pb-3 pt-6">
         <div
           className="absolute inset-x-0 top-0 h-[3px]"
           style={{
@@ -34,9 +62,24 @@ export function PersonalCenterHero({ user, onEdit, onChangePassword, onLogout, l
           }}
         />
 
-        <div className="neu-icon-well flex h-[72px] w-[72px] items-center justify-center rounded-[20px]">
-          <UserRound size={36} strokeWidth={1.4} className="text-[color:var(--accent)]" />
-        </div>
+        {/* Avatar — image or icon fallback */}
+        {user.avatar ? (
+          <div className="h-[72px] w-[72px] overflow-hidden rounded-[20px] border-2 border-[rgba(96,139,239,0.2)] shadow-sm">
+            <img
+              src={user.avatar}
+              alt={user.displayName}
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+        ) : (
+          <div className="neu-icon-well flex h-[72px] w-[72px] items-center justify-center rounded-[20px]">
+            <UserRound size={36} strokeWidth={1.4} className="text-[color:var(--accent)]" />
+          </div>
+        )}
+
         <div className="text-center">
           <div className="text-lg font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
             {user.displayName}
@@ -58,7 +101,7 @@ export function PersonalCenterHero({ user, onEdit, onChangePassword, onLogout, l
       <hr className="wb-section-rule mx-5" />
 
       {/* Info rows */}
-      <div className="flex-1 space-y-0.5 px-5 pb-2">
+      <div className="space-y-0.5 px-5 pb-2">
         <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[rgba(96,139,239,0.04)]">
           <UserRound size={14} strokeWidth={1.6} className="shrink-0 text-[color:var(--muted-foreground)]" />
           <span className="text-[color:var(--muted-foreground)]">用户名</span>
@@ -103,6 +146,33 @@ export function PersonalCenterHero({ user, onEdit, onChangePassword, onLogout, l
           <span className="ml-auto font-medium tabular-nums text-[color:var(--foreground)]">{formatDate(user.createdAt)}</span>
         </div>
       </div>
+
+      {/* Login devices */}
+      {loginHistory.length > 0 && (
+        <>
+          <hr className="wb-section-rule mx-5" />
+          <div className="px-5 pb-1">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[color:var(--muted-foreground)]">
+              <Monitor size={12} />
+              登录设备
+            </div>
+            <div className="mt-1.5 space-y-1">
+              {loginHistory.slice(0, 3).map((entry) => (
+                <div key={entry.id} className="flex items-center gap-2 rounded-md px-2 py-1 text-[10px]">
+                  <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#11a874]" />
+                  <span className="flex-1 truncate text-[color:var(--foreground)]">
+                    {parseBrowser(entry.userAgent)}
+                    {entry.ipAddress && <span className="ml-1 text-[color:var(--muted-foreground)]">· {entry.ipAddress}</span>}
+                  </span>
+                  <span className="flex-shrink-0 tabular-nums text-[color:var(--muted-foreground)]">
+                    {formatLoginTime(entry.createdAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       <hr className="wb-section-rule mx-5" />
 

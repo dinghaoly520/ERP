@@ -33,6 +33,7 @@ export type AuthUser = {
   email?: string | null;
   phone?: string | null;
   officeLocation?: string | null;
+  avatar?: string | null;
   isActive?: boolean;
   createdAt?: string | null;
   department?: { id: string; name: string; code: string | null } | null;
@@ -50,6 +51,7 @@ export type UpdateProfileInput = {
   departmentId?: string | null;
   phone?: string | null;
   officeLocation?: string | null;
+  avatar?: string | null;
 };
 
 export async function parseJsonResponse<T>(response: Response): Promise<T> {
@@ -141,6 +143,21 @@ export async function login(credentials: {
       body: JSON.stringify(credentials),
     },
   );
+}
+
+/** 登录历史记录 */
+export type LoginHistoryItem = {
+  id: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+};
+
+export async function fetchLoginHistory(): Promise<LoginHistoryItem[]> {
+  return requestJson<LoginHistoryItem[]>(`${API_BASE}/auth/me/login-history`, {
+    credentials: 'include',
+    cache: 'no-store',
+  });
 }
 
 export async function fetchCurrentUser(): Promise<AuthUser> {

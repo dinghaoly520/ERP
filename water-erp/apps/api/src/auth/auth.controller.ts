@@ -174,6 +174,17 @@ export class AuthController {
     return updated;
   }
 
+  @Get('me/login-history')
+  @ApiOperation({ summary: '获取当前用户的登录历史（最近20条）' })
+  async loginHistory(@CurrentUser('sub') userId: string) {
+    return this.prisma.auditLog.findMany({
+      where: { userId, action: 'LOGIN' },
+      select: { id: true, ipAddress: true, userAgent: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+  }
+
   @Get('departments')
   @ApiOperation({ summary: '获取部门列表（下拉选择用）' })
   async listDepartments() {
