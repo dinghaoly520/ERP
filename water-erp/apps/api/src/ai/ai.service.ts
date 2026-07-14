@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../local-ai/llm.service';
+import { NotificationService } from '../notification/notification.service';
 import { SupplierSelectionAiService } from './supplier-selection-ai.service';
 import type {
   ComplianceItem,
@@ -24,6 +25,7 @@ export class AiService {
     private prisma: PrismaService,
     private selectionAi: SupplierSelectionAiService,
     private llm: LlmService,
+    private notificationService: NotificationService,
   ) {}
 
   /** 便捷方法 —— 直接调用 LLM chatJson，兼容旧代码 */
@@ -129,7 +131,17 @@ export class AiService {
 - dailyGreeting: ""
 - riskSummary: 40字内风险总结
 - aiSuggestion: ""
-- projectBrief: 有项目数据时100-200字综述阶段/预算/风险概况，无项目则""
+projectBrief — 项目简报 · 有项目数据时150-250字，无项目时返回空字符串""
+
+当有项目数据时，必须写一段充实的项目简报，像一个项目经理在做周会汇报。严格覆盖以下4点：
+1. 项目概况：一句话概述当前有多少活跃项目（用真实数据），各自处于什么阶段
+2. 重点推进：挑1-2个最关键的当前阶段项目，说明所处的具体步骤（如"正处于评标阶段"），预期完成时间
+3. 风险与阻塞：如果项目存在 blocked/超期/无进展状态，指明具体项目名和问题
+4. 下一步行动：给出一条可执行的建议，如"建议优先推进XX项目的XX阶段，确保在下周前完成XX"
+
+格式要求：流畅的自然语言、段落式叙述，禁止使用Markdown符号和键值对格式。
+每段之间用中文句号自然衔接。示例写法：
+"当前共有3个活跃项目。都江堰灌区改造项目正处于评标阶段，3位专家已提交评分，预计本周内完成评审。智慧水务信息化系统建设项目已进入合同阶段，合同金额580万元待签署。需注意的是，2026年度防汛物资储备项目处于受阻状态（供应商投标文件解密异常），建议今天联系该供应商确认情况后推进。"
 - completionAdvice: ""`,
 
         `时段:${period} | 日期:${context.date}
@@ -653,6 +665,8 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         classification: true,
         contacts: { where: { isPrimary: true }, take: 2 },
         qualifications: { select: { name: true }, take: 3 },
+        evaluations: { select: { level: true, score: true } },
+        bidSuppliers: { where: { project: { stage: { notIn: ['ARCHIVED'] } } }, select: { id: true } },
       },
     });
 
@@ -669,6 +683,20 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     const POOL = 40;
     const pool = scored.slice(0, POOL);
     const supplierMap = new Map(pool.map(({ supplier: s }) => [s.id, s]));
+    // 评价 + 忙闲状态汇总
+    const evalMap = new Map<string, { level: string; avgScore: number; count: number }>();
+    const activeMap = new Map<string, number>();
+    for (const { supplier: s } of pool) {
+      const evals: { level: string; score: number }[] = (s as any).evaluations || [];
+      if (evals.length > 0) {
+        const avgScore = evals.reduce((sum, e) => sum + Number(e.score), 0) / evals.length;
+        const levels = { A: 5, B: 4, C: 3, D: 1 } as Record<string, number>;
+        const best = evals.reduce((a, b) => (levels[a.level] || 0) >= (levels[b.level] || 0) ? a : b);
+        evalMap.set(s.id, { level: best.level, avgScore: Math.round(avgScore * 10) / 10, count: evals.length });
+      }
+      activeMap.set(s.id, ((s as any).bidSuppliers || []).length);
+    }
+    const enrichment = { evalMap, activeMap };
     const candidates = pool.map(({ supplier: s }) => ({
       id: s.id,
       name: s.name,
@@ -690,7 +718,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       engine = 'deepseek';
       summary = llm.summary;
       recommendations = llm.recommendations
-        .map((r) => this.toRecommendation(r.id, r.score, r.reason, supplierMap))
+        .map((r) => this.toRecommendation(r.id, r.score, r.reason, supplierMap, enrichment))
         .filter((r): r is SupplierRecommendation => r !== null);
     } else {
       engine = 'rules';
@@ -698,7 +726,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       recommendations = pool
         .slice(0, maxCount)
         .map(({ supplier: s, overlap }) =>
-          this.toRecommendation(s.id, Math.round(55 + overlap * 40), this.fallbackReason(s, overlap), supplierMap)!,
+          this.toRecommendation(s.id, Math.round(55 + overlap * 40), this.fallbackReason(s, overlap), supplierMap, enrichment)!,
         )
         .filter(Boolean);
     }
@@ -752,6 +780,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     score: number,
     reason: string,
     supplierMap: Map<string, any>,
+    enrichment?: { evalMap: Map<string, any>; activeMap: Map<string, number> },
   ): SupplierRecommendation | null {
     const s = supplierMap.get(id);
     if (!s) return null;
@@ -764,6 +793,8 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       legalPerson: s.legalPerson,
       enterpriseType: s.enterpriseType,
       contacts: (s.contacts || []).map((c: any) => ({ name: c.name, phone: c.phone, isPrimary: c.isPrimary })),
+      evaluation: enrichment?.evalMap.get(id),
+      activeProjects: enrichment?.activeMap.get(id) ?? 0,
     };
   }
 
@@ -1296,7 +1327,17 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 - dailyGreeting: ""
 - riskSummary: 40字内风险总结
 - aiSuggestion: ""
-- projectBrief: 有项目数据时100-200字综述阶段/预算/风险概况，无项目则""
+projectBrief — 项目简报 · 有项目数据时150-250字，无项目时返回空字符串""
+
+当有项目数据时，必须写一段充实的项目简报，像一个项目经理在做周会汇报。严格覆盖以下4点：
+1. 项目概况：一句话概述当前有多少活跃项目（用真实数据），各自处于什么阶段
+2. 重点推进：挑1-2个最关键的当前阶段项目，说明所处的具体步骤（如"正处于评标阶段"），预期完成时间
+3. 风险与阻塞：如果项目存在 blocked/超期/无进展状态，指明具体项目名和问题
+4. 下一步行动：给出一条可执行的建议，如"建议优先推进XX项目的XX阶段，确保在下周前完成XX"
+
+格式要求：流畅的自然语言、段落式叙述，禁止使用Markdown符号和键值对格式。
+每段之间用中文句号自然衔接。示例写法：
+"当前共有3个活跃项目。都江堰灌区改造项目正处于评标阶段，3位专家已提交评分，预计本周内完成评审。智慧水务信息化系统建设项目已进入合同阶段，合同金额580万元待签署。需注意的是，2026年度防汛物资储备项目处于受阻状态（供应商投标文件解密异常），建议今天联系该供应商确认情况后推进。"
 - completionAdvice: ""`,
 
         `时段:${period} | 日期:${context.date}
@@ -1929,6 +1970,7 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
     requirement: string,
     classificationId: string | undefined,
     result: SupplierSelectionResult,
+    shortlistedIds?: string[],
   ) {
     // 获取分类名称
     let classificationName: string | null = null;
@@ -1948,6 +1990,7 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
         resultSummary: result.summary,
         recommendationCount: result.recommendations.length,
         candidatePool: result.candidatePool,
+        shortlistedIds: shortlistedIds ?? [],
       },
     });
   }
@@ -1966,9 +2009,92 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
         resultSummary: true,
         recommendationCount: true,
         candidatePool: true,
+        shortlistedIds: true,
         createdAt: true,
       },
     });
+  }
+
+  async getSelectionHistoryDetail(id: string) {
+    return this.prisma.supplierSelectionHistory.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        requirement: true,
+        classificationId: true,
+        classificationName: true,
+        resultSummary: true,
+        recommendationCount: true,
+        candidatePool: true,
+        shortlistedIds: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  async restoreShortlist(historyId: string) {
+    const record = await this.prisma.supplierSelectionHistory.findUnique({
+      where: { id: historyId },
+      select: { shortlistedIds: true },
+    });
+    if (!record || record.shortlistedIds.length === 0) return [];
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { id: { in: record.shortlistedIds }, status: 'APPROVED' },
+      include: {
+        classification: true,
+        contacts: { where: { isPrimary: true }, take: 2 },
+      },
+    });
+    return suppliers.map((s) => ({
+      supplierId: s.id,
+      name: s.name,
+      classification: s.classification?.name,
+      matchScore: 0,
+      reason: '',
+      legalPerson: s.legalPerson,
+      enterpriseType: s.enterpriseType,
+      contacts: (s.contacts || []).map((c) => ({ name: c.name, phone: c.phone, isPrimary: c.isPrimary })),
+      evaluation: undefined,
+      activeProjects: 0,
+    }));
+  }
+
+  async shareShortlist(
+    userId: string,
+    requirement: string,
+    shortlist: { name: string; matchScore: number; reason: string }[],
+    note?: string,
+  ) {
+    const names = shortlist.map((s) => s.name).join('、');
+    const title = '供应商候选名单分享';
+    const content = `采购需求：${requirement.slice(0, 80)}${requirement.length > 80 ? '…' : ''}\n候选名单：${names}${note ? `\n备注：${note}` : ''}`;
+    try {
+      await this.notificationService.sendToRole('procurement_staff', {
+        type: 'SHORTLIST_SHARED',
+        title,
+        content,
+        link: '/supplier/selection',
+      });
+      return { success: true };
+    } catch (err) {
+      this.logger.error('shareShortlist failed', err instanceof Error ? err.message : String(err));
+      // Try sending to the sharer themselves as fallback
+      await this.notificationService.create({
+        userId,
+        type: 'SHORTLIST_SHARED',
+        title,
+        content,
+        link: '/supplier/selection',
+      }).catch(() => {});
+      return { success: true };
+    }
+  }
+
+  async updateSelectionShortlist(historyId: string, shortlistedIds: string[]) {
+    return this.prisma.supplierSelectionHistory.update({
+      where: { id: historyId },
+      data: { shortlistedIds },
+    }).catch(() => null);
   }
 
   async deleteSelectionHistory(id: string) {
