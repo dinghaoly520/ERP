@@ -24,7 +24,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.817Z",
-    "updatedAt": "2026-06-13T12:53:26.817Z"
+    "updatedAt": "2026-06-13T12:53:26.817Z",
+    "categoryId": 25
   },
   {
     "id": "cmqccwaeb0001komt2ksxqdys",
@@ -51,7 +52,8 @@
     "status": "有效",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.820Z",
-    "updatedAt": "2026-06-13T12:53:26.820Z"
+    "updatedAt": "2026-06-13T12:53:26.820Z",
+    "categoryId": 18
   },
   {
     "id": "cmqccwaec0002komtwmhin7nl",
@@ -78,7 +80,8 @@
     "status": "即将过期",
     "validUntil": "2026-07-15T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.821Z",
-    "updatedAt": "2026-06-13T12:53:26.821Z"
+    "updatedAt": "2026-06-13T12:53:26.821Z",
+    "categoryId": 23
   },
   {
     "id": "cmqccwaed0003komtj5nrmu9k",
@@ -105,7 +108,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.822Z",
-    "updatedAt": "2026-06-13T12:53:26.822Z"
+    "updatedAt": "2026-06-13T12:53:26.822Z",
+    "categoryId": 37
   },
   {
     "id": "cmqccwaee0004komt8e79c8h4",
@@ -132,7 +136,8 @@
     "status": "即将过期",
     "validUntil": "2026-06-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.823Z",
-    "updatedAt": "2026-06-13T12:53:26.823Z"
+    "updatedAt": "2026-06-13T12:53:26.823Z",
+    "categoryId": 27
   },
   {
     "id": "cmqccwaef0005komt9zrpb7t3",
@@ -159,7 +164,8 @@
     "status": "价格波动",
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.824Z",
-    "updatedAt": "2026-06-13T12:53:26.824Z"
+    "updatedAt": "2026-06-13T12:53:26.824Z",
+    "categoryId": 2
   },
   {
     "id": "cmqccwaeg0006komtair50s2j",
@@ -186,7 +192,8 @@
     "status": "有效",
     "validUntil": "2026-09-20T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.824Z",
-    "updatedAt": "2026-06-13T12:53:26.824Z"
+    "updatedAt": "2026-06-13T12:53:26.824Z",
+    "categoryId": 15
   },
   {
     "id": "cmqccwaeh0007komtk2qn7xg6",
@@ -213,7 +220,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.825Z",
-    "updatedAt": "2026-06-13T12:53:26.825Z"
+    "updatedAt": "2026-06-13T12:53:26.825Z",
+    "categoryId": 13
   },
   {
     "id": "cmqccwaeh0008komtqffczmq6",
@@ -240,7 +248,8 @@
     "status": "待复核",
     "validUntil": "2026-06-20T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.826Z",
-    "updatedAt": "2026-06-13T12:53:26.826Z"
+    "updatedAt": "2026-06-13T12:53:26.826Z",
+    "categoryId": 35
   },
   {
     "id": "cmqccwaei0009komtv17k8oqf",
@@ -267,7 +276,8 @@
     "status": "有效",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.827Z",
-    "updatedAt": "2026-06-13T12:53:26.827Z"
+    "updatedAt": "2026-06-13T12:53:26.827Z",
+    "categoryId": 40
   },
   {
     "id": "cmqccwaej000akomtmw4s6bd1",
@@ -294,7 +304,8 @@
     "status": "价格波动",
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.828Z",
-    "updatedAt": "2026-06-13T12:53:26.828Z"
+    "updatedAt": "2026-06-13T12:53:26.828Z",
+    "categoryId": 39
   },
   {
     "id": "cmqccwaek000bkomtfiuytxlp",
@@ -321,7 +332,8 @@
     "status": "有效",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.828Z",
-    "updatedAt": "2026-06-13T12:53:26.828Z"
+    "updatedAt": "2026-06-13T12:53:26.828Z",
+    "categoryId": 39
   },
   {
     "id": "cmqccwael000ckomthvrpbh78",
@@ -348,7 +360,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.829Z",
-    "updatedAt": "2026-06-13T12:53:26.829Z"
+    "updatedAt": "2026-06-13T12:53:26.829Z",
+    "categoryId": 26
   },
   {
     "id": "cmqccwael000dkomt5ffl374h",
@@ -375,7 +388,8 @@
     "status": "有效",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.830Z",
-    "updatedAt": "2026-06-13T12:53:26.830Z"
+    "updatedAt": "2026-06-13T12:53:26.830Z",
+    "categoryId": 19
   },
   {
     "id": "cmqccwaem000ekomtacehv37h",
@@ -402,7 +416,8 @@
     "status": "价格波动",
     "validUntil": "2026-07-20T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.831Z",
-    "updatedAt": "2026-06-13T12:53:26.831Z"
+    "updatedAt": "2026-06-13T12:53:26.831Z",
+    "categoryId": 21
   },
   {
     "id": "cmqccwaen000fkomtaloqgvwt",
@@ -429,7 +444,8 @@
     "status": "有效",
     "validUntil": "2026-09-15T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.831Z",
-    "updatedAt": "2026-06-13T12:53:26.831Z"
+    "updatedAt": "2026-06-13T12:53:26.831Z",
+    "categoryId": 16
   },
   {
     "id": "cmqccwaeo000gkomt1cb2md7e",
@@ -456,7 +472,8 @@
     "status": "有效",
     "validUntil": "2026-08-15T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.832Z",
-    "updatedAt": "2026-06-13T12:53:26.832Z"
+    "updatedAt": "2026-06-13T12:53:26.832Z",
+    "categoryId": 20
   },
   {
     "id": "cmqccwaeo000hkomto6mubqpa",
@@ -483,7 +500,8 @@
     "status": "有效",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.833Z",
-    "updatedAt": "2026-06-13T12:53:26.833Z"
+    "updatedAt": "2026-06-13T12:53:26.833Z",
+    "categoryId": 17
   },
   {
     "id": "cmqccwaep000ikomt73k18ldt",
@@ -510,7 +528,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.834Z",
-    "updatedAt": "2026-06-13T12:53:26.834Z"
+    "updatedAt": "2026-06-13T12:53:26.834Z",
+    "categoryId": 24
   },
   {
     "id": "cmqccwaeq000jkomtbqvlhdro",
@@ -537,7 +556,8 @@
     "status": "有效",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.834Z",
-    "updatedAt": "2026-06-13T12:53:26.834Z"
+    "updatedAt": "2026-06-13T12:53:26.834Z",
+    "categoryId": 24
   },
   {
     "id": "cmqccwaeq000kkomt10q8wql3",
@@ -564,7 +584,8 @@
     "status": "有效",
     "validUntil": "2026-08-25T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.835Z",
-    "updatedAt": "2026-06-13T12:53:26.835Z"
+    "updatedAt": "2026-06-13T12:53:26.835Z",
+    "categoryId": 22
   },
   {
     "id": "cmqccwaer000lkomtmo1j7770",
@@ -591,7 +612,8 @@
     "status": "有效",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.836Z",
-    "updatedAt": "2026-06-13T12:53:26.836Z"
+    "updatedAt": "2026-06-13T12:53:26.836Z",
+    "categoryId": 40
   },
   {
     "id": "cmqccwaes000mkomtt6cpx11m",
@@ -618,7 +640,8 @@
     "status": "有效",
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.836Z",
-    "updatedAt": "2026-06-13T12:53:26.836Z"
+    "updatedAt": "2026-06-13T12:53:26.836Z",
+    "categoryId": 40
   },
   {
     "id": "cmqccwaet000nkomtjhej0eku",
@@ -645,7 +668,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.837Z",
-    "updatedAt": "2026-06-13T12:53:26.837Z"
+    "updatedAt": "2026-06-13T12:53:26.837Z",
+    "categoryId": 37
   },
   {
     "id": "cmqccwaet000okomtije52ie5",
@@ -672,7 +696,8 @@
     "status": "待复核",
     "validUntil": "2026-07-10T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.838Z",
-    "updatedAt": "2026-06-13T12:53:26.838Z"
+    "updatedAt": "2026-06-13T12:53:26.838Z",
+    "categoryId": 38
   },
   {
     "id": "cmqccwaeu000pkomtbens01ne",
@@ -699,7 +724,8 @@
     "status": "价格波动",
     "validUntil": "2026-08-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.839Z",
-    "updatedAt": "2026-06-13T12:53:26.839Z"
+    "updatedAt": "2026-06-13T12:53:26.839Z",
+    "categoryId": 36
   },
   {
     "id": "cmqccwaev000qkomt75pjf5oj",
@@ -726,7 +752,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.839Z",
-    "updatedAt": "2026-06-13T12:53:26.839Z"
+    "updatedAt": "2026-06-13T12:53:26.839Z",
+    "categoryId": 34
   },
   {
     "id": "cmqccwaew000rkomtatan7ozf",
@@ -753,7 +780,8 @@
     "status": "有效",
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.840Z",
-    "updatedAt": "2026-06-13T12:53:26.840Z"
+    "updatedAt": "2026-06-13T12:53:26.840Z",
+    "categoryId": 34
   },
   {
     "id": "cmqccwaew000skomt9rokbb7o",
@@ -780,7 +808,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.841Z",
-    "updatedAt": "2026-06-13T12:53:26.841Z"
+    "updatedAt": "2026-06-13T12:53:26.841Z",
+    "categoryId": 3
   },
   {
     "id": "cmqccwaex000tkomt8nujg6bb",
@@ -807,7 +836,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.841Z",
-    "updatedAt": "2026-06-13T12:53:26.841Z"
+    "updatedAt": "2026-06-13T12:53:26.841Z",
+    "categoryId": 3
   },
   {
     "id": "cmqccwaey000ukomttwf89l8c",
@@ -834,7 +864,8 @@
     "status": "价格波动",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.842Z",
-    "updatedAt": "2026-06-13T12:53:26.842Z"
+    "updatedAt": "2026-06-13T12:53:26.842Z",
+    "categoryId": 6
   },
   {
     "id": "cmqccwaez000vkomtgxxego2i",
@@ -861,7 +892,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.843Z",
-    "updatedAt": "2026-06-13T12:53:26.843Z"
+    "updatedAt": "2026-06-13T12:53:26.843Z",
+    "categoryId": 4
   },
   {
     "id": "cmqccwaez000wkomtuvo6a61w",
@@ -888,7 +920,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.844Z",
-    "updatedAt": "2026-06-13T12:53:26.844Z"
+    "updatedAt": "2026-06-13T12:53:26.844Z",
+    "categoryId": 5
   },
   {
     "id": "cmqccwaf0000xkomtik6dbua0",
@@ -915,7 +948,8 @@
     "status": "待复核",
     "validUntil": "2026-07-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.845Z",
-    "updatedAt": "2026-06-13T12:53:26.845Z"
+    "updatedAt": "2026-06-13T12:53:26.845Z",
+    "categoryId": 7
   },
   {
     "id": "cmqccwaf1000ykomtiorzxd57",
@@ -942,7 +976,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.845Z",
-    "updatedAt": "2026-06-13T12:53:26.845Z"
+    "updatedAt": "2026-06-13T12:53:26.845Z",
+    "categoryId": 10
   },
   {
     "id": "cmqccwaf2000zkomtzs2px99t",
@@ -969,7 +1004,8 @@
     "status": "有效",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.846Z",
-    "updatedAt": "2026-06-13T12:53:26.846Z"
+    "updatedAt": "2026-06-13T12:53:26.846Z",
+    "categoryId": 10
   },
   {
     "id": "cmqccwaf20010komts7yv250n",
@@ -996,7 +1032,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.847Z",
-    "updatedAt": "2026-06-13T12:53:26.847Z"
+    "updatedAt": "2026-06-13T12:53:26.847Z",
+    "categoryId": 9
   },
   {
     "id": "cmqccwaf30011komtcdk5fflq",
@@ -1023,7 +1060,8 @@
     "status": "价格波动",
     "validUntil": "2026-06-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.847Z",
-    "updatedAt": "2026-06-13T12:53:26.847Z"
+    "updatedAt": "2026-06-13T12:53:26.847Z",
+    "categoryId": 11
   },
   {
     "id": "cmqccwaf40012komtlrhzw1li",
@@ -1050,7 +1088,8 @@
     "status": "待复核",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.848Z",
-    "updatedAt": "2026-06-13T12:53:26.848Z"
+    "updatedAt": "2026-06-13T12:53:26.848Z",
+    "categoryId": 29
   },
   {
     "id": "cmqccwaf50013komt1n9wcehs",
@@ -1077,7 +1116,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.849Z",
-    "updatedAt": "2026-06-13T12:53:26.849Z"
+    "updatedAt": "2026-06-13T12:53:26.849Z",
+    "categoryId": 30
   },
   {
     "id": "cmqccwaf50014komtbaftl1kl",
@@ -1104,7 +1144,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.850Z",
-    "updatedAt": "2026-06-13T12:53:26.850Z"
+    "updatedAt": "2026-06-13T12:53:26.850Z",
+    "categoryId": 32
   },
   {
     "id": "cmqccwaf60015komtjnohbces",
@@ -1131,7 +1172,8 @@
     "status": "价格波动",
     "validUntil": "2026-08-15T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.851Z",
-    "updatedAt": "2026-06-13T12:53:26.851Z"
+    "updatedAt": "2026-06-13T12:53:26.851Z",
+    "categoryId": 31
   },
   {
     "id": "cmqccwaf70016komt5pft0nnm",
@@ -1158,7 +1200,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.851Z",
-    "updatedAt": "2026-06-13T12:53:26.851Z"
+    "updatedAt": "2026-06-13T12:53:26.851Z",
+    "categoryId": 25
   },
   {
     "id": "cmqccwaf80017komt3hsu8bb4",
@@ -1185,7 +1228,8 @@
     "status": "有效",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.852Z",
-    "updatedAt": "2026-06-13T12:53:26.852Z"
+    "updatedAt": "2026-06-13T12:53:26.852Z",
+    "categoryId": 25
   },
   {
     "id": "cmqccwaf90018komtfcxa9sa2",
@@ -1212,7 +1256,8 @@
     "status": "有效",
     "validUntil": "2026-09-15T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.853Z",
-    "updatedAt": "2026-06-13T12:53:26.853Z"
+    "updatedAt": "2026-06-13T12:53:26.853Z",
+    "categoryId": 26
   },
   {
     "id": "cmqccwaf90019komtt71if816",
@@ -1239,7 +1284,8 @@
     "status": "有效",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.854Z",
-    "updatedAt": "2026-06-13T12:53:26.854Z"
+    "updatedAt": "2026-06-13T12:53:26.854Z",
+    "categoryId": 18
   },
   {
     "id": "cmqccwafa001akomtyfqyl65b",
@@ -1266,7 +1312,8 @@
     "status": "有效",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.855Z",
-    "updatedAt": "2026-06-13T12:53:26.855Z"
+    "updatedAt": "2026-06-13T12:53:26.855Z",
+    "categoryId": 19
   },
   {
     "id": "cmqccwafb001bkomtj3ytnzk0",
@@ -1293,7 +1340,8 @@
     "status": "价格波动",
     "validUntil": "2026-07-20T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.855Z",
-    "updatedAt": "2026-06-13T12:53:26.855Z"
+    "updatedAt": "2026-06-13T12:53:26.855Z",
+    "categoryId": 21
   },
   {
     "id": "cmqccwafc001ckomt10cyadfw",
@@ -1320,7 +1368,8 @@
     "status": "有效",
     "validUntil": "2026-08-20T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.856Z",
-    "updatedAt": "2026-06-13T12:53:26.856Z"
+    "updatedAt": "2026-06-13T12:53:26.856Z",
+    "categoryId": 16
   },
   {
     "id": "cmqccwafd001dkomtdcn26p0l",
@@ -1347,7 +1396,8 @@
     "status": "有效",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.857Z",
-    "updatedAt": "2026-06-13T12:53:26.857Z"
+    "updatedAt": "2026-06-13T12:53:26.857Z",
+    "categoryId": 20
   },
   {
     "id": "cmqccwafe001ekomtbo6tbhcp",
@@ -1374,7 +1424,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.858Z",
-    "updatedAt": "2026-06-13T12:53:26.858Z"
+    "updatedAt": "2026-06-13T12:53:26.858Z",
+    "categoryId": 23
   },
   {
     "id": "cmqccwaff001fkomtyhqhhvvk",
@@ -1401,7 +1452,8 @@
     "status": "有效",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.859Z",
-    "updatedAt": "2026-06-13T12:53:26.859Z"
+    "updatedAt": "2026-06-13T12:53:26.859Z",
+    "categoryId": 24
   },
   {
     "id": "cmqccwaff001gkomt99oa8rgg",
@@ -1428,7 +1480,8 @@
     "status": "有效",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.860Z",
-    "updatedAt": "2026-06-13T12:53:26.860Z"
+    "updatedAt": "2026-06-13T12:53:26.860Z",
+    "categoryId": 22
   },
   {
     "id": "cmqccwafg001hkomt4c61xrr5",
@@ -1455,7 +1508,8 @@
     "status": "有效",
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.861Z",
-    "updatedAt": "2026-06-13T12:53:26.861Z"
+    "updatedAt": "2026-06-13T12:53:26.861Z",
+    "categoryId": 27
   },
   {
     "id": "cmqccwafh001ikomt7a8g3hrh",
@@ -1482,7 +1536,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.862Z",
-    "updatedAt": "2026-06-13T12:53:26.862Z"
+    "updatedAt": "2026-06-13T12:53:26.862Z",
+    "categoryId": 15
   },
   {
     "id": "cmqccwafi001jkomtkdtnefpb",
@@ -1509,7 +1564,8 @@
     "status": "有效",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.862Z",
-    "updatedAt": "2026-06-13T12:53:26.862Z"
+    "updatedAt": "2026-06-13T12:53:26.862Z",
+    "categoryId": 40
   },
   {
     "id": "cmqccwafj001kkomt96e86e3t",
@@ -1536,7 +1592,8 @@
     "status": "价格波动",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.863Z",
-    "updatedAt": "2026-06-13T12:53:26.863Z"
+    "updatedAt": "2026-06-13T12:53:26.863Z",
+    "categoryId": 40
   },
   {
     "id": "cmqccwafk001lkomtjqwqi20t",
@@ -1563,7 +1620,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.864Z",
-    "updatedAt": "2026-06-13T12:53:26.864Z"
+    "updatedAt": "2026-06-13T12:53:26.864Z",
+    "categoryId": 37
   },
   {
     "id": "cmqccwafk001mkomthwh5xycn",
@@ -1590,7 +1648,8 @@
     "status": "待复核",
     "validUntil": "2026-08-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.865Z",
-    "updatedAt": "2026-06-13T12:53:26.865Z"
+    "updatedAt": "2026-06-13T12:53:26.865Z",
+    "categoryId": 37
   },
   {
     "id": "cmqccwafl001nkomtpe1fxnp9",
@@ -1617,7 +1676,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.866Z",
-    "updatedAt": "2026-06-13T12:53:26.866Z"
+    "updatedAt": "2026-06-13T12:53:26.866Z",
+    "categoryId": 39
   },
   {
     "id": "cmqccwafm001okomtlyutvwn9",
@@ -1644,7 +1704,8 @@
     "status": "价格波动",
     "validUntil": "2026-07-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.866Z",
-    "updatedAt": "2026-06-13T12:53:26.866Z"
+    "updatedAt": "2026-06-13T12:53:26.866Z",
+    "categoryId": 39
   },
   {
     "id": "cmqccwafn001pkomtj28s2hz9",
@@ -1671,7 +1732,8 @@
     "status": "有效",
     "validUntil": "2026-08-15T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.867Z",
-    "updatedAt": "2026-06-13T12:53:26.867Z"
+    "updatedAt": "2026-06-13T12:53:26.867Z",
+    "categoryId": 35
   },
   {
     "id": "cmqccwafo001qkomt2v9q978w",
@@ -1698,7 +1760,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.868Z",
-    "updatedAt": "2026-06-13T12:53:26.868Z"
+    "updatedAt": "2026-06-13T12:53:26.868Z",
+    "categoryId": 36
   },
   {
     "id": "cmqccwafp001rkomtv6u2hp0s",
@@ -1725,7 +1788,8 @@
     "status": "待复核",
     "validUntil": "2026-08-20T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.869Z",
-    "updatedAt": "2026-06-13T12:53:26.869Z"
+    "updatedAt": "2026-06-13T12:53:26.869Z",
+    "categoryId": 34
   },
   {
     "id": "cmqccwafq001skomtzwc330p6",
@@ -1752,7 +1816,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.870Z",
-    "updatedAt": "2026-06-13T12:53:26.870Z"
+    "updatedAt": "2026-06-13T12:53:26.870Z",
+    "categoryId": 2
   },
   {
     "id": "cmqccwafr001tkomtfbdofyya",
@@ -1779,7 +1844,8 @@
     "status": "有效",
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.871Z",
-    "updatedAt": "2026-06-13T12:53:26.871Z"
+    "updatedAt": "2026-06-13T12:53:26.871Z",
+    "categoryId": 2
   },
   {
     "id": "cmqccwafs001ukomt2qul0bfi",
@@ -1806,7 +1872,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.872Z",
-    "updatedAt": "2026-06-13T12:53:26.872Z"
+    "updatedAt": "2026-06-13T12:53:26.872Z",
+    "categoryId": 3
   },
   {
     "id": "cmqccwafs001vkomt5ce1w1q7",
@@ -1833,7 +1900,8 @@
     "status": "价格波动",
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.873Z",
-    "updatedAt": "2026-06-13T12:53:26.873Z"
+    "updatedAt": "2026-06-13T12:53:26.873Z",
+    "categoryId": 6
   },
   {
     "id": "cmqccwaft001wkomtkdtp2jt5",
@@ -1860,7 +1928,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.874Z",
-    "updatedAt": "2026-06-13T12:53:26.874Z"
+    "updatedAt": "2026-06-13T12:53:26.874Z",
+    "categoryId": 4
   },
   {
     "id": "cmqccwafu001xkomtxghgqty5",
@@ -1887,7 +1956,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.875Z",
-    "updatedAt": "2026-06-13T12:53:26.875Z"
+    "updatedAt": "2026-06-13T12:53:26.875Z",
+    "categoryId": 5
   },
   {
     "id": "cmqccwafv001ykomtfx0jcge9",
@@ -1914,7 +1984,8 @@
     "status": "有效",
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.876Z",
-    "updatedAt": "2026-06-13T12:53:26.876Z"
+    "updatedAt": "2026-06-13T12:53:26.876Z",
+    "categoryId": 13
   },
   {
     "id": "cmqccwafw001zkomtoa0mo00w",
@@ -1941,7 +2012,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.877Z",
-    "updatedAt": "2026-06-13T12:53:26.877Z"
+    "updatedAt": "2026-06-13T12:53:26.877Z",
+    "categoryId": 13
   },
   {
     "id": "cmqccwafx0020komta7vkl037",
@@ -1968,7 +2040,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.877Z",
-    "updatedAt": "2026-06-13T12:53:26.877Z"
+    "updatedAt": "2026-06-13T12:53:26.877Z",
+    "categoryId": 10
   },
   {
     "id": "cmqccwafy0021komtu9nhz1bw",
@@ -1995,7 +2068,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.878Z",
-    "updatedAt": "2026-06-13T12:53:26.878Z"
+    "updatedAt": "2026-06-13T12:53:26.878Z",
+    "categoryId": 9
   },
   {
     "id": "cmqccwafy0022komtyz37t82s",
@@ -2022,7 +2096,8 @@
     "status": "价格波动",
     "validUntil": "2026-06-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.879Z",
-    "updatedAt": "2026-06-13T12:53:26.879Z"
+    "updatedAt": "2026-06-13T12:53:26.879Z",
+    "categoryId": 11
   },
   {
     "id": "cmqccwafz0023komtebq7jl2x",
@@ -2049,7 +2124,8 @@
     "status": "待复核",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.880Z",
-    "updatedAt": "2026-06-13T12:53:26.880Z"
+    "updatedAt": "2026-06-13T12:53:26.880Z",
+    "categoryId": 29
   },
   {
     "id": "cmqccwag00024komth4c740r8",
@@ -2076,7 +2152,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.880Z",
-    "updatedAt": "2026-06-13T12:53:26.880Z"
+    "updatedAt": "2026-06-13T12:53:26.880Z",
+    "categoryId": 30
   },
   {
     "id": "cmqccwag10025komtfxcym755",
@@ -2103,7 +2180,8 @@
     "status": "有效",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.881Z",
-    "updatedAt": "2026-06-13T12:53:26.881Z"
+    "updatedAt": "2026-06-13T12:53:26.881Z",
+    "categoryId": 32
   },
   {
     "id": "cmqccwag10026komtqq3x0qyb",
@@ -2130,7 +2208,8 @@
     "status": "有效",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.882Z",
-    "updatedAt": "2026-06-13T12:53:26.882Z"
+    "updatedAt": "2026-06-13T12:53:26.882Z",
+    "categoryId": 31
   },
   {
     "id": "cmqccwag20027komtz7uvmi23",
@@ -2157,7 +2236,8 @@
     "status": "价格波动",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.883Z",
-    "updatedAt": "2026-06-13T12:53:26.883Z"
+    "updatedAt": "2026-06-13T12:53:26.883Z",
+    "categoryId": 17
   },
   {
     "id": "cmq8277767komt530791827",
@@ -2184,7 +2264,8 @@
     "status": "有效",
     "validUntil": "2027-05-13T00:00:00.000Z",
     "createdAt": "2026-06-13T20:09:02.000Z",
-    "updatedAt": "2026-06-13T20:09:02.000Z"
+    "updatedAt": "2026-06-13T20:09:02.000Z",
+    "categoryId": 25
   },
   {
     "id": "cmq4963748komt834203735",
@@ -2211,7 +2292,8 @@
     "status": "待复核",
     "validUntil": "2027-02-07T00:00:00.000Z",
     "createdAt": "2026-06-13T17:21:41.000Z",
-    "updatedAt": "2026-06-13T17:21:41.000Z"
+    "updatedAt": "2026-06-13T17:21:41.000Z",
+    "categoryId": 25
   },
   {
     "id": "cmq9999560komt578861129",
@@ -2238,7 +2320,8 @@
     "status": "有效",
     "validUntil": "2026-09-09T00:00:00.000Z",
     "createdAt": "2026-06-13T17:35:21.000Z",
-    "updatedAt": "2026-06-13T17:35:21.000Z"
+    "updatedAt": "2026-06-13T17:35:21.000Z",
+    "categoryId": 25
   },
   {
     "id": "cmq3819491komt814721275",
@@ -2265,7 +2348,8 @@
     "status": "有效",
     "validUntil": "2027-03-18T00:00:00.000Z",
     "createdAt": "2026-06-13T13:44:55.000Z",
-    "updatedAt": "2026-06-13T13:44:55.000Z"
+    "updatedAt": "2026-06-13T13:44:55.000Z",
+    "categoryId": 25
   },
   {
     "id": "cmq3132733komt927598355",
@@ -2292,7 +2376,8 @@
     "status": "有效",
     "validUntil": "2026-10-11T00:00:00.000Z",
     "createdAt": "2026-06-13T23:28:46.000Z",
-    "updatedAt": "2026-06-13T23:28:46.000Z"
+    "updatedAt": "2026-06-13T23:28:46.000Z",
+    "categoryId": 25
   },
   {
     "id": "cmq6070993komt775056802",
@@ -2319,7 +2404,8 @@
     "status": "有效",
     "validUntil": "2026-12-03T00:00:00.000Z",
     "createdAt": "2026-06-13T20:58:40.000Z",
-    "updatedAt": "2026-06-13T20:58:40.000Z"
+    "updatedAt": "2026-06-13T20:58:40.000Z",
+    "categoryId": 25
   },
   {
     "id": "cmq9936921komt562925021",
@@ -2346,7 +2432,8 @@
     "status": "待复核",
     "validUntil": "2026-11-24T00:00:00.000Z",
     "createdAt": "2026-06-13T13:30:00.000Z",
-    "updatedAt": "2026-06-13T13:30:00.000Z"
+    "updatedAt": "2026-06-13T13:30:00.000Z",
+    "categoryId": 25
   },
   {
     "id": "cmq3613554komt639353589",
@@ -2373,7 +2460,8 @@
     "status": "有效",
     "validUntil": "2026-11-08T00:00:00.000Z",
     "createdAt": "2026-06-13T23:49:02.000Z",
-    "updatedAt": "2026-06-13T23:49:02.000Z"
+    "updatedAt": "2026-06-13T23:49:02.000Z",
+    "categoryId": 26
   },
   {
     "id": "cmq2163183komt346448473",
@@ -2400,7 +2488,8 @@
     "status": "有效",
     "validUntil": "2026-12-18T00:00:00.000Z",
     "createdAt": "2026-06-13T15:43:18.000Z",
-    "updatedAt": "2026-06-13T15:43:18.000Z"
+    "updatedAt": "2026-06-13T15:43:18.000Z",
+    "categoryId": 26
   },
   {
     "id": "cmq8914972komt279200032",
@@ -2427,7 +2516,8 @@
     "status": "有效",
     "validUntil": "2026-11-22T00:00:00.000Z",
     "createdAt": "2026-06-13T14:23:10.000Z",
-    "updatedAt": "2026-06-15T00:00:00.000Z"
+    "updatedAt": "2026-06-15T00:00:00.000Z",
+    "categoryId": 26
   },
   {
     "id": "cmq1641619komt342992336",
@@ -2454,7 +2544,8 @@
     "status": "有效",
     "validUntil": "2026-09-09T00:00:00.000Z",
     "createdAt": "2026-06-13T23:28:40.000Z",
-    "updatedAt": "2026-06-13T23:28:40.000Z"
+    "updatedAt": "2026-06-13T23:28:40.000Z",
+    "categoryId": 26
   },
   {
     "id": "cmq6521112komt190926869",
@@ -2481,7 +2572,8 @@
     "status": "有效",
     "validUntil": "2026-12-03T00:00:00.000Z",
     "createdAt": "2026-06-13T18:59:20.000Z",
-    "updatedAt": "2026-06-13T18:59:20.000Z"
+    "updatedAt": "2026-06-13T18:59:20.000Z",
+    "categoryId": 26
   },
   {
     "id": "cmq4255287komt963478897",
@@ -2508,7 +2600,8 @@
     "status": "有效",
     "validUntil": "2026-11-18T00:00:00.000Z",
     "createdAt": "2026-06-13T15:54:49.000Z",
-    "updatedAt": "2026-06-13T15:54:49.000Z"
+    "updatedAt": "2026-06-13T15:54:49.000Z",
+    "categoryId": 18
   },
   {
     "id": "cmq9807498komt544625944",
@@ -2535,7 +2628,8 @@
     "status": "有效",
     "validUntil": "2027-04-16T00:00:00.000Z",
     "createdAt": "2026-06-13T23:24:58.000Z",
-    "updatedAt": "2026-06-13T23:24:58.000Z"
+    "updatedAt": "2026-06-13T23:24:58.000Z",
+    "categoryId": 18
   },
   {
     "id": "cmq1956115komt638232079",
@@ -2562,7 +2656,8 @@
     "status": "有效",
     "validUntil": "2027-03-22T00:00:00.000Z",
     "createdAt": "2026-06-13T23:05:03.000Z",
-    "updatedAt": "2026-06-13T23:05:03.000Z"
+    "updatedAt": "2026-06-13T23:05:03.000Z",
+    "categoryId": 18
   },
   {
     "id": "cmq7043819komt586208606",
@@ -2589,7 +2684,8 @@
     "status": "有效",
     "validUntil": "2026-12-30T00:00:00.000Z",
     "createdAt": "2026-06-13T20:55:48.000Z",
-    "updatedAt": "2026-06-13T20:55:48.000Z"
+    "updatedAt": "2026-06-13T20:55:48.000Z",
+    "categoryId": 18
   },
   {
     "id": "cmq5283936komt141324976",
@@ -2616,7 +2712,8 @@
     "status": "有效",
     "validUntil": "2027-03-02T00:00:00.000Z",
     "createdAt": "2026-06-14T01:31:55.000Z",
-    "updatedAt": "2026-06-14T01:31:55.000Z"
+    "updatedAt": "2026-06-14T01:31:55.000Z",
+    "categoryId": 19
   },
   {
     "id": "cmq5502653komt874697454",
@@ -2643,7 +2740,8 @@
     "status": "有效",
     "validUntil": "2027-05-12T00:00:00.000Z",
     "createdAt": "2026-06-13T17:57:42.000Z",
-    "updatedAt": "2026-06-13T17:57:42.000Z"
+    "updatedAt": "2026-06-13T17:57:42.000Z",
+    "categoryId": 19
   },
   {
     "id": "cmq7795248komt437479308",
@@ -2670,7 +2768,8 @@
     "status": "价格波动",
     "validUntil": "2026-08-16T00:00:00.000Z",
     "createdAt": "2026-06-13T18:51:38.000Z",
-    "updatedAt": "2026-06-15T00:00:00.000Z"
+    "updatedAt": "2026-06-15T00:00:00.000Z",
+    "categoryId": 19
   },
   {
     "id": "cmq2918040komt790672345",
@@ -2697,7 +2796,8 @@
     "status": "即将过期",
     "validUntil": "2026-07-10T00:00:00.000Z",
     "createdAt": "2026-06-13T19:06:05.000Z",
-    "updatedAt": "2026-06-13T19:06:05.000Z"
+    "updatedAt": "2026-06-13T19:06:05.000Z",
+    "categoryId": 19
   },
   {
     "id": "cmq9095613komt842520785",
@@ -2724,7 +2824,8 @@
     "status": "有效",
     "validUntil": "2027-01-01T00:00:00.000Z",
     "createdAt": "2026-06-13T15:37:49.000Z",
-    "updatedAt": "2026-06-13T15:37:49.000Z"
+    "updatedAt": "2026-06-13T15:37:49.000Z",
+    "categoryId": 21
   },
   {
     "id": "cmq7254100komt805142703",
@@ -2751,7 +2852,8 @@
     "status": "有效",
     "validUntil": "2026-11-26T00:00:00.000Z",
     "createdAt": "2026-06-13T22:58:56.000Z",
-    "updatedAt": "2026-06-13T22:58:56.000Z"
+    "updatedAt": "2026-06-13T22:58:56.000Z",
+    "categoryId": 21
   },
   {
     "id": "cmq5264256komt494954778",
@@ -2778,7 +2880,8 @@
     "status": "有效",
     "validUntil": "2026-07-31T00:00:00.000Z",
     "createdAt": "2026-06-13T13:36:25.000Z",
-    "updatedAt": "2026-06-13T13:36:25.000Z"
+    "updatedAt": "2026-06-13T13:36:25.000Z",
+    "categoryId": 21
   },
   {
     "id": "cmq6774637komt853779612",
@@ -2805,7 +2908,8 @@
     "status": "有效",
     "validUntil": "2027-03-09T00:00:00.000Z",
     "createdAt": "2026-06-13T22:29:00.000Z",
-    "updatedAt": "2026-06-13T22:29:00.000Z"
+    "updatedAt": "2026-06-13T22:29:00.000Z",
+    "categoryId": 21
   },
   {
     "id": "cmq9070013komt459162283",
@@ -2832,7 +2936,8 @@
     "status": "有效",
     "validUntil": "2027-03-08T00:00:00.000Z",
     "createdAt": "2026-06-13T20:37:15.000Z",
-    "updatedAt": "2026-06-13T20:37:15.000Z"
+    "updatedAt": "2026-06-13T20:37:15.000Z",
+    "categoryId": 16
   },
   {
     "id": "cmq9986085komt570042356",
@@ -2859,7 +2964,8 @@
     "status": "有效",
     "validUntil": "2026-08-14T00:00:00.000Z",
     "createdAt": "2026-06-13T20:24:33.000Z",
-    "updatedAt": "2026-06-13T20:24:33.000Z"
+    "updatedAt": "2026-06-13T20:24:33.000Z",
+    "categoryId": 16
   },
   {
     "id": "cmq4831962komt143296804",
@@ -2886,7 +2992,8 @@
     "status": "有效",
     "validUntil": "2026-08-03T00:00:00.000Z",
     "createdAt": "2026-06-13T15:28:33.000Z",
-    "updatedAt": "2026-06-13T15:28:33.000Z"
+    "updatedAt": "2026-06-13T15:28:33.000Z",
+    "categoryId": 16
   },
   {
     "id": "cmq2753470komt754792554",
@@ -2913,7 +3020,8 @@
     "status": "有效",
     "validUntil": "2027-06-28T00:00:00.000Z",
     "createdAt": "2026-06-13T19:18:07.000Z",
-    "updatedAt": "2026-06-13T19:18:07.000Z"
+    "updatedAt": "2026-06-13T19:18:07.000Z",
+    "categoryId": 16
   },
   {
     "id": "cmq2572640komt605655145",
@@ -2940,7 +3048,8 @@
     "status": "有效",
     "validUntil": "2027-04-19T00:00:00.000Z",
     "createdAt": "2026-06-13T23:05:50.000Z",
-    "updatedAt": "2026-06-13T23:05:50.000Z"
+    "updatedAt": "2026-06-13T23:05:50.000Z",
+    "categoryId": 20
   },
   {
     "id": "cmq5128500komt833899481",
@@ -2967,7 +3076,8 @@
     "status": "有效",
     "validUntil": "2027-03-21T00:00:00.000Z",
     "createdAt": "2026-06-14T02:06:06.000Z",
-    "updatedAt": "2026-06-14T02:06:06.000Z"
+    "updatedAt": "2026-06-14T02:06:06.000Z",
+    "categoryId": 20
   },
   {
     "id": "cmq8961917komt360892741",
@@ -2994,7 +3104,8 @@
     "status": "有效",
     "validUntil": "2026-11-02T00:00:00.000Z",
     "createdAt": "2026-06-13T20:34:25.000Z",
-    "updatedAt": "2026-06-13T20:34:25.000Z"
+    "updatedAt": "2026-06-13T20:34:25.000Z",
+    "categoryId": 20
   },
   {
     "id": "cmq5849326komt833760032",
@@ -3021,7 +3132,8 @@
     "status": "有效",
     "validUntil": "2027-02-17T00:00:00.000Z",
     "createdAt": "2026-06-13T20:01:32.000Z",
-    "updatedAt": "2026-06-13T20:01:32.000Z"
+    "updatedAt": "2026-06-13T20:01:32.000Z",
+    "categoryId": 23
   },
   {
     "id": "cmq6689506komt492453857",
@@ -3048,7 +3160,8 @@
     "status": "有效",
     "validUntil": "2027-04-01T00:00:00.000Z",
     "createdAt": "2026-06-13T15:34:23.000Z",
-    "updatedAt": "2026-06-13T15:34:23.000Z"
+    "updatedAt": "2026-06-13T15:34:23.000Z",
+    "categoryId": 23
   },
   {
     "id": "cmq4599179komt534929851",
@@ -3075,7 +3188,8 @@
     "status": "有效",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-14T01:04:19.000Z",
-    "updatedAt": "2026-06-14T01:04:19.000Z"
+    "updatedAt": "2026-06-14T01:04:19.000Z",
+    "categoryId": 23
   },
   {
     "id": "cmq6171451komt250079308",
@@ -3102,7 +3216,8 @@
     "status": "有效",
     "validUntil": "2026-12-21T00:00:00.000Z",
     "createdAt": "2026-06-13T18:02:55.000Z",
-    "updatedAt": "2026-06-15T00:00:00.000Z"
+    "updatedAt": "2026-06-15T00:00:00.000Z",
+    "categoryId": 23
   },
   {
     "id": "cmq6724276komt549163940",
@@ -3129,7 +3244,8 @@
     "status": "有效",
     "validUntil": "2027-05-21T00:00:00.000Z",
     "createdAt": "2026-06-13T23:33:30.000Z",
-    "updatedAt": "2026-06-13T23:33:30.000Z"
+    "updatedAt": "2026-06-13T23:33:30.000Z",
+    "categoryId": 23
   },
   {
     "id": "cmq6510886komt566768702",
@@ -3156,7 +3272,8 @@
     "status": "有效",
     "validUntil": "2027-06-10T00:00:00.000Z",
     "createdAt": "2026-06-13T18:23:47.000Z",
-    "updatedAt": "2026-06-13T18:23:47.000Z"
+    "updatedAt": "2026-06-13T18:23:47.000Z",
+    "categoryId": 24
   },
   {
     "id": "cmq5115423komt753427052",
@@ -3183,7 +3300,8 @@
     "status": "有效",
     "validUntil": "2026-10-17T00:00:00.000Z",
     "createdAt": "2026-06-13T23:27:37.000Z",
-    "updatedAt": "2026-06-13T23:27:37.000Z"
+    "updatedAt": "2026-06-13T23:27:37.000Z",
+    "categoryId": 24
   },
   {
     "id": "cmq3913759komt970119194",
@@ -3210,7 +3328,8 @@
     "status": "价格波动",
     "validUntil": "2026-08-30T00:00:00.000Z",
     "createdAt": "2026-06-13T15:19:27.000Z",
-    "updatedAt": "2026-06-13T15:19:27.000Z"
+    "updatedAt": "2026-06-13T15:19:27.000Z",
+    "categoryId": 24
   },
   {
     "id": "cmq1056749komt631438024",
@@ -3237,7 +3356,8 @@
     "status": "有效",
     "validUntil": "2026-08-11T00:00:00.000Z",
     "createdAt": "2026-06-13T22:44:18.000Z",
-    "updatedAt": "2026-06-13T22:44:18.000Z"
+    "updatedAt": "2026-06-13T22:44:18.000Z",
+    "categoryId": 24
   },
   {
     "id": "cmq9363197komt898622867",
@@ -3264,7 +3384,8 @@
     "status": "有效",
     "validUntil": "2027-06-05T00:00:00.000Z",
     "createdAt": "2026-06-13T18:24:15.000Z",
-    "updatedAt": "2026-06-13T18:24:15.000Z"
+    "updatedAt": "2026-06-13T18:24:15.000Z",
+    "categoryId": 22
   },
   {
     "id": "cmq6838228komt121778906",
@@ -3291,7 +3412,8 @@
     "status": "有效",
     "validUntil": "2026-12-29T00:00:00.000Z",
     "createdAt": "2026-06-14T02:44:20.000Z",
-    "updatedAt": "2026-06-14T02:44:20.000Z"
+    "updatedAt": "2026-06-14T02:44:20.000Z",
+    "categoryId": 22
   },
   {
     "id": "cmq5758958komt478165707",
@@ -3318,7 +3440,8 @@
     "status": "有效",
     "validUntil": "2027-07-01T00:00:00.000Z",
     "createdAt": "2026-06-13T22:28:53.000Z",
-    "updatedAt": "2026-06-13T22:28:53.000Z"
+    "updatedAt": "2026-06-13T22:28:53.000Z",
+    "categoryId": 22
   },
   {
     "id": "cmq3738149komt758422801",
@@ -3345,7 +3468,8 @@
     "status": "有效",
     "validUntil": "2026-08-09T00:00:00.000Z",
     "createdAt": "2026-06-13T13:52:39.000Z",
-    "updatedAt": "2026-06-13T13:52:39.000Z"
+    "updatedAt": "2026-06-13T13:52:39.000Z",
+    "categoryId": 27
   },
   {
     "id": "cmq2400565komt372666470",
@@ -3372,7 +3496,8 @@
     "status": "有效",
     "validUntil": "2026-08-19T00:00:00.000Z",
     "createdAt": "2026-06-14T02:37:01.000Z",
-    "updatedAt": "2026-06-14T02:37:01.000Z"
+    "updatedAt": "2026-06-14T02:37:01.000Z",
+    "categoryId": 27
   },
   {
     "id": "cmq2560788komt149994840",
@@ -3399,7 +3524,8 @@
     "status": "有效",
     "validUntil": "2026-09-27T00:00:00.000Z",
     "createdAt": "2026-06-14T01:51:48.000Z",
-    "updatedAt": "2026-06-14T01:51:48.000Z"
+    "updatedAt": "2026-06-14T01:51:48.000Z",
+    "categoryId": 27
   },
   {
     "id": "cmq2431294komt503812971",
@@ -3426,7 +3552,8 @@
     "status": "有效",
     "validUntil": "2026-11-14T00:00:00.000Z",
     "createdAt": "2026-06-13T15:20:16.000Z",
-    "updatedAt": "2026-06-13T15:20:16.000Z"
+    "updatedAt": "2026-06-13T15:20:16.000Z",
+    "categoryId": 15
   },
   {
     "id": "cmq7284199komt982584204",
@@ -3453,7 +3580,8 @@
     "status": "有效",
     "validUntil": "2027-01-24T00:00:00.000Z",
     "createdAt": "2026-06-13T18:55:21.000Z",
-    "updatedAt": "2026-06-13T18:55:21.000Z"
+    "updatedAt": "2026-06-13T18:55:21.000Z",
+    "categoryId": 15
   },
   {
     "id": "cmq3759760komt271345300",
@@ -3480,7 +3608,8 @@
     "status": "有效",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T13:28:24.000Z",
-    "updatedAt": "2026-06-13T13:28:24.000Z"
+    "updatedAt": "2026-06-13T13:28:24.000Z",
+    "categoryId": 15
   },
   {
     "id": "cmq5631767komt120516177",
@@ -3507,7 +3636,8 @@
     "status": "有效",
     "validUntil": "2027-01-22T00:00:00.000Z",
     "createdAt": "2026-06-13T23:18:36.000Z",
-    "updatedAt": "2026-06-13T23:18:36.000Z"
+    "updatedAt": "2026-06-13T23:18:36.000Z",
+    "categoryId": 15
   },
   {
     "id": "cmq9802237komt361591919",
@@ -3534,7 +3664,8 @@
     "status": "有效",
     "validUntil": "2027-02-13T00:00:00.000Z",
     "createdAt": "2026-06-13T22:35:22.000Z",
-    "updatedAt": "2026-06-13T22:35:22.000Z"
+    "updatedAt": "2026-06-13T22:35:22.000Z",
+    "categoryId": 17
   },
   {
     "id": "cmq3958195komt685721581",
@@ -3561,7 +3692,8 @@
     "status": "有效",
     "validUntil": "2027-03-19T00:00:00.000Z",
     "createdAt": "2026-06-13T18:20:38.000Z",
-    "updatedAt": "2026-06-13T18:20:38.000Z"
+    "updatedAt": "2026-06-13T18:20:38.000Z",
+    "categoryId": 17
   },
   {
     "id": "cmq4334651komt211557981",
@@ -3588,7 +3720,8 @@
     "status": "有效",
     "validUntil": "2027-06-23T00:00:00.000Z",
     "createdAt": "2026-06-14T01:13:55.000Z",
-    "updatedAt": "2026-06-14T01:13:55.000Z"
+    "updatedAt": "2026-06-14T01:13:55.000Z",
+    "categoryId": 17
   },
   {
     "id": "cmq7715893komt948683365",
@@ -3615,7 +3748,8 @@
     "status": "有效",
     "validUntil": "2027-06-21T00:00:00.000Z",
     "createdAt": "2026-06-13T18:38:19.000Z",
-    "updatedAt": "2026-06-13T18:38:19.000Z"
+    "updatedAt": "2026-06-13T18:38:19.000Z",
+    "categoryId": 37
   },
   {
     "id": "cmq7832909komt280064386",
@@ -3642,7 +3776,8 @@
     "status": "待复核",
     "validUntil": "2027-01-19T00:00:00.000Z",
     "createdAt": "2026-06-13T15:12:02.000Z",
-    "updatedAt": "2026-06-13T15:12:02.000Z"
+    "updatedAt": "2026-06-13T15:12:02.000Z",
+    "categoryId": 37
   },
   {
     "id": "cmq4505152komt146245173",
@@ -3669,7 +3804,8 @@
     "status": "有效",
     "validUntil": "2026-08-12T00:00:00.000Z",
     "createdAt": "2026-06-13T21:50:58.000Z",
-    "updatedAt": "2026-06-13T21:50:58.000Z"
+    "updatedAt": "2026-06-13T21:50:58.000Z",
+    "categoryId": 37
   },
   {
     "id": "cmq6294853komt760459374",
@@ -3696,7 +3832,8 @@
     "status": "有效",
     "validUntil": "2026-12-05T00:00:00.000Z",
     "createdAt": "2026-06-14T02:36:16.000Z",
-    "updatedAt": "2026-06-14T02:36:16.000Z"
+    "updatedAt": "2026-06-14T02:36:16.000Z",
+    "categoryId": 37
   },
   {
     "id": "cmq6731225komt488686144",
@@ -3723,7 +3860,8 @@
     "status": "有效",
     "validUntil": "2026-09-18T00:00:00.000Z",
     "createdAt": "2026-06-13T15:45:05.000Z",
-    "updatedAt": "2026-06-13T15:45:05.000Z"
+    "updatedAt": "2026-06-13T15:45:05.000Z",
+    "categoryId": 37
   },
   {
     "id": "cmq9175671komt853262842",
@@ -3750,7 +3888,8 @@
     "status": "有效",
     "validUntil": "2026-08-03T00:00:00.000Z",
     "createdAt": "2026-06-13T13:25:15.000Z",
-    "updatedAt": "2026-06-13T13:25:15.000Z"
+    "updatedAt": "2026-06-13T13:25:15.000Z",
+    "categoryId": 38
   },
   {
     "id": "cmq9034808komt457701901",
@@ -3777,7 +3916,8 @@
     "status": "有效",
     "validUntil": "2027-01-11T00:00:00.000Z",
     "createdAt": "2026-06-13T16:40:23.000Z",
-    "updatedAt": "2026-06-13T16:40:23.000Z"
+    "updatedAt": "2026-06-13T16:40:23.000Z",
+    "categoryId": 38
   },
   {
     "id": "cmq9977533komt443620466",
@@ -3804,7 +3944,8 @@
     "status": "有效",
     "validUntil": "2027-03-16T00:00:00.000Z",
     "createdAt": "2026-06-14T01:06:48.000Z",
-    "updatedAt": "2026-06-14T01:06:48.000Z"
+    "updatedAt": "2026-06-14T01:06:48.000Z",
+    "categoryId": 40
   },
   {
     "id": "cmq3891554komt545659188",
@@ -3831,7 +3972,8 @@
     "status": "有效",
     "validUntil": "2027-06-12T00:00:00.000Z",
     "createdAt": "2026-06-13T14:49:38.000Z",
-    "updatedAt": "2026-06-13T14:49:38.000Z"
+    "updatedAt": "2026-06-13T14:49:38.000Z",
+    "categoryId": 40
   },
   {
     "id": "cmq4431218komt425004103",
@@ -3858,7 +4000,8 @@
     "status": "有效",
     "validUntil": "2027-03-02T00:00:00.000Z",
     "createdAt": "2026-06-13T15:22:48.000Z",
-    "updatedAt": "2026-06-13T15:22:48.000Z"
+    "updatedAt": "2026-06-13T15:22:48.000Z",
+    "categoryId": 40
   },
   {
     "id": "cmq2562478komt132752369",
@@ -3885,7 +4028,8 @@
     "status": "待复核",
     "validUntil": "2027-05-27T00:00:00.000Z",
     "createdAt": "2026-06-13T14:17:26.000Z",
-    "updatedAt": "2026-06-13T14:17:26.000Z"
+    "updatedAt": "2026-06-13T14:17:26.000Z",
+    "categoryId": 40
   },
   {
     "id": "cmq9359368komt686521898",
@@ -3912,7 +4056,8 @@
     "status": "有效",
     "validUntil": "2027-06-05T00:00:00.000Z",
     "createdAt": "2026-06-13T15:18:20.000Z",
-    "updatedAt": "2026-06-13T15:18:20.000Z"
+    "updatedAt": "2026-06-13T15:18:20.000Z",
+    "categoryId": 40
   },
   {
     "id": "cmq3589931komt636945826",
@@ -3939,7 +4084,8 @@
     "status": "有效",
     "validUntil": "2026-09-03T00:00:00.000Z",
     "createdAt": "2026-06-13T22:00:52.000Z",
-    "updatedAt": "2026-06-13T22:00:52.000Z"
+    "updatedAt": "2026-06-13T22:00:52.000Z",
+    "categoryId": 40
   },
   {
     "id": "cmq5398708komt705740967",
@@ -3966,7 +4112,8 @@
     "status": "有效",
     "validUntil": "2027-03-03T00:00:00.000Z",
     "createdAt": "2026-06-13T22:10:17.000Z",
-    "updatedAt": "2026-06-13T22:10:17.000Z"
+    "updatedAt": "2026-06-13T22:10:17.000Z",
+    "categoryId": 36
   },
   {
     "id": "cmq4558300komt433852299",
@@ -3993,7 +4140,8 @@
     "status": "有效",
     "validUntil": "2026-10-10T00:00:00.000Z",
     "createdAt": "2026-06-13T19:57:12.000Z",
-    "updatedAt": "2026-06-13T19:57:12.000Z"
+    "updatedAt": "2026-06-13T19:57:12.000Z",
+    "categoryId": 36
   },
   {
     "id": "cmq7208581komt760841619",
@@ -4020,7 +4168,8 @@
     "status": "价格波动",
     "validUntil": "2026-08-01T00:00:00.000Z",
     "createdAt": "2026-06-13T15:12:34.000Z",
-    "updatedAt": "2026-06-13T15:12:34.000Z"
+    "updatedAt": "2026-06-13T15:12:34.000Z",
+    "categoryId": 36
   },
   {
     "id": "cmq6342828komt432006693",
@@ -4047,7 +4196,8 @@
     "status": "待复核",
     "validUntil": "2026-10-15T00:00:00.000Z",
     "createdAt": "2026-06-13T13:54:40.000Z",
-    "updatedAt": "2026-06-13T13:54:40.000Z"
+    "updatedAt": "2026-06-13T13:54:40.000Z",
+    "categoryId": 34
   },
   {
     "id": "cmq1327180komt944374452",
@@ -4074,7 +4224,8 @@
     "status": "价格波动",
     "validUntil": "2026-09-10T00:00:00.000Z",
     "createdAt": "2026-06-13T13:17:06.000Z",
-    "updatedAt": "2026-06-13T13:17:06.000Z"
+    "updatedAt": "2026-06-13T13:17:06.000Z",
+    "categoryId": 34
   },
   {
     "id": "cmq6555786komt277426608",
@@ -4101,7 +4252,8 @@
     "status": "价格波动",
     "validUntil": "2026-12-23T00:00:00.000Z",
     "createdAt": "2026-06-14T02:41:07.000Z",
-    "updatedAt": "2026-06-14T02:41:07.000Z"
+    "updatedAt": "2026-06-14T02:41:07.000Z",
+    "categoryId": 34
   },
   {
     "id": "cmq9568816komt507893771",
@@ -4128,7 +4280,8 @@
     "status": "有效",
     "validUntil": "2026-10-28T00:00:00.000Z",
     "createdAt": "2026-06-14T00:15:19.000Z",
-    "updatedAt": "2026-06-14T00:15:19.000Z"
+    "updatedAt": "2026-06-14T00:15:19.000Z",
+    "categoryId": 39
   },
   {
     "id": "cmq9095819komt753066949",
@@ -4155,7 +4308,8 @@
     "status": "价格波动",
     "validUntil": "2026-09-27T00:00:00.000Z",
     "createdAt": "2026-06-13T13:01:42.000Z",
-    "updatedAt": "2026-06-13T13:01:42.000Z"
+    "updatedAt": "2026-06-13T13:01:42.000Z",
+    "categoryId": 39
   },
   {
     "id": "cmq5352480komt219185652",
@@ -4182,7 +4336,8 @@
     "status": "有效",
     "validUntil": "2026-12-23T00:00:00.000Z",
     "createdAt": "2026-06-13T17:00:25.000Z",
-    "updatedAt": "2026-06-13T17:00:25.000Z"
+    "updatedAt": "2026-06-13T17:00:25.000Z",
+    "categoryId": 39
   },
   {
     "id": "cmq5592760komt218605532",
@@ -4209,7 +4364,8 @@
     "status": "有效",
     "validUntil": "2027-04-30T00:00:00.000Z",
     "createdAt": "2026-06-13T21:43:50.000Z",
-    "updatedAt": "2026-06-13T21:43:50.000Z"
+    "updatedAt": "2026-06-13T21:43:50.000Z",
+    "categoryId": 35
   },
   {
     "id": "cmq8300800komt358300591",
@@ -4236,7 +4392,8 @@
     "status": "有效",
     "validUntil": "2026-12-02T00:00:00.000Z",
     "createdAt": "2026-06-13T16:25:41.000Z",
-    "updatedAt": "2026-06-13T16:25:41.000Z"
+    "updatedAt": "2026-06-13T16:25:41.000Z",
+    "categoryId": 35
   },
   {
     "id": "cmq1085389komt605565551",
@@ -4263,7 +4420,8 @@
     "status": "有效",
     "validUntil": "2027-02-06T00:00:00.000Z",
     "createdAt": "2026-06-13T21:49:00.000Z",
-    "updatedAt": "2026-06-13T21:49:00.000Z"
+    "updatedAt": "2026-06-13T21:49:00.000Z",
+    "categoryId": 2
   },
   {
     "id": "cmq3849231komt952245536",
@@ -4290,7 +4448,8 @@
     "status": "即将过期",
     "validUntil": "2026-07-29T00:00:00.000Z",
     "createdAt": "2026-06-14T02:27:01.000Z",
-    "updatedAt": "2026-06-14T02:27:01.000Z"
+    "updatedAt": "2026-06-14T02:27:01.000Z",
+    "categoryId": 2
   },
   {
     "id": "cmq6550272komt128479617",
@@ -4317,7 +4476,8 @@
     "status": "有效",
     "validUntil": "2027-04-18T00:00:00.000Z",
     "createdAt": "2026-06-13T22:19:20.000Z",
-    "updatedAt": "2026-06-13T22:19:20.000Z"
+    "updatedAt": "2026-06-13T22:19:20.000Z",
+    "categoryId": 2
   },
   {
     "id": "cmq8764393komt358040226",
@@ -4344,7 +4504,8 @@
     "status": "有效",
     "validUntil": "2026-08-28T00:00:00.000Z",
     "createdAt": "2026-06-13T14:04:27.000Z",
-    "updatedAt": "2026-06-13T14:04:27.000Z"
+    "updatedAt": "2026-06-13T14:04:27.000Z",
+    "categoryId": 2
   },
   {
     "id": "cmq7060392komt854519948",
@@ -4371,7 +4532,8 @@
     "status": "有效",
     "validUntil": "2026-11-22T00:00:00.000Z",
     "createdAt": "2026-06-13T21:58:38.000Z",
-    "updatedAt": "2026-06-15T00:00:00.000Z"
+    "updatedAt": "2026-06-15T00:00:00.000Z",
+    "categoryId": 3
   },
   {
     "id": "cmq3123346komt516348865",
@@ -4398,7 +4560,8 @@
     "status": "有效",
     "validUntil": "2027-01-08T00:00:00.000Z",
     "createdAt": "2026-06-13T12:56:32.000Z",
-    "updatedAt": "2026-06-13T12:56:32.000Z"
+    "updatedAt": "2026-06-13T12:56:32.000Z",
+    "categoryId": 3
   },
   {
     "id": "cmq1545089komt390869269",
@@ -4425,7 +4588,8 @@
     "status": "有效",
     "validUntil": "2026-09-29T00:00:00.000Z",
     "createdAt": "2026-06-13T21:42:14.000Z",
-    "updatedAt": "2026-06-13T21:42:14.000Z"
+    "updatedAt": "2026-06-13T21:42:14.000Z",
+    "categoryId": 3
   },
   {
     "id": "cmq2101541komt573765948",
@@ -4452,7 +4616,8 @@
     "status": "有效",
     "validUntil": "2026-12-26T00:00:00.000Z",
     "createdAt": "2026-06-13T21:07:02.000Z",
-    "updatedAt": "2026-06-13T21:07:02.000Z"
+    "updatedAt": "2026-06-13T21:07:02.000Z",
+    "categoryId": 3
   },
   {
     "id": "cmq9786758komt891066960",
@@ -4479,7 +4644,8 @@
     "status": "有效",
     "validUntil": "2027-05-12T00:00:00.000Z",
     "createdAt": "2026-06-14T00:01:01.000Z",
-    "updatedAt": "2026-06-14T00:01:01.000Z"
+    "updatedAt": "2026-06-14T00:01:01.000Z",
+    "categoryId": 6
   },
   {
     "id": "cmq3111936komt508985593",
@@ -4506,7 +4672,8 @@
     "status": "价格波动",
     "validUntil": "2027-06-12T00:00:00.000Z",
     "createdAt": "2026-06-13T16:14:59.000Z",
-    "updatedAt": "2026-06-13T16:14:59.000Z"
+    "updatedAt": "2026-06-13T16:14:59.000Z",
+    "categoryId": 6
   },
   {
     "id": "cmq2558147komt414847563",
@@ -4533,7 +4700,8 @@
     "status": "有效",
     "validUntil": "2027-06-26T00:00:00.000Z",
     "createdAt": "2026-06-13T21:59:22.000Z",
-    "updatedAt": "2026-06-13T21:59:22.000Z"
+    "updatedAt": "2026-06-13T21:59:22.000Z",
+    "categoryId": 6
   },
   {
     "id": "cmq3363369komt208996848",
@@ -4560,7 +4728,8 @@
     "status": "有效",
     "validUntil": "2027-01-23T00:00:00.000Z",
     "createdAt": "2026-06-14T02:19:19.000Z",
-    "updatedAt": "2026-06-14T02:19:19.000Z"
+    "updatedAt": "2026-06-14T02:19:19.000Z",
+    "categoryId": 4
   },
   {
     "id": "cmq7644843komt644944328",
@@ -4587,7 +4756,8 @@
     "status": "即将过期",
     "validUntil": "2026-07-05T00:00:00.000Z",
     "createdAt": "2026-06-13T15:01:27.000Z",
-    "updatedAt": "2026-06-13T15:01:27.000Z"
+    "updatedAt": "2026-06-13T15:01:27.000Z",
+    "categoryId": 4
   },
   {
     "id": "cmq8027281komt676788765",
@@ -4614,7 +4784,8 @@
     "status": "价格波动",
     "validUntil": "2027-04-02T00:00:00.000Z",
     "createdAt": "2026-06-14T00:43:52.000Z",
-    "updatedAt": "2026-06-14T00:43:52.000Z"
+    "updatedAt": "2026-06-14T00:43:52.000Z",
+    "categoryId": 4
   },
   {
     "id": "cmq5900923komt174160742",
@@ -4641,7 +4812,8 @@
     "status": "有效",
     "validUntil": "2026-12-23T00:00:00.000Z",
     "createdAt": "2026-06-13T21:18:48.000Z",
-    "updatedAt": "2026-06-13T21:18:48.000Z"
+    "updatedAt": "2026-06-13T21:18:48.000Z",
+    "categoryId": 5
   },
   {
     "id": "cmq7253495komt995931865",
@@ -4668,7 +4840,8 @@
     "status": "有效",
     "validUntil": "2026-09-12T00:00:00.000Z",
     "createdAt": "2026-06-14T01:49:05.000Z",
-    "updatedAt": "2026-06-14T01:49:05.000Z"
+    "updatedAt": "2026-06-14T01:49:05.000Z",
+    "categoryId": 5
   },
   {
     "id": "cmq4268120komt729431508",
@@ -4695,7 +4868,8 @@
     "status": "有效",
     "validUntil": "2026-12-15T00:00:00.000Z",
     "createdAt": "2026-06-13T21:58:39.000Z",
-    "updatedAt": "2026-06-13T21:58:39.000Z"
+    "updatedAt": "2026-06-13T21:58:39.000Z",
+    "categoryId": 5
   },
   {
     "id": "cmq2794501komt376068872",
@@ -4722,7 +4896,8 @@
     "status": "有效",
     "validUntil": "2027-06-25T00:00:00.000Z",
     "createdAt": "2026-06-14T01:27:19.000Z",
-    "updatedAt": "2026-06-14T01:27:19.000Z"
+    "updatedAt": "2026-06-14T01:27:19.000Z",
+    "categoryId": 7
   },
   {
     "id": "cmq6277757komt516497762",
@@ -4749,7 +4924,8 @@
     "status": "有效",
     "validUntil": "2026-12-25T00:00:00.000Z",
     "createdAt": "2026-06-14T02:05:57.000Z",
-    "updatedAt": "2026-06-14T02:05:57.000Z"
+    "updatedAt": "2026-06-14T02:05:57.000Z",
+    "categoryId": 7
   },
   {
     "id": "cmq2412342komt386755721",
@@ -4776,7 +4952,8 @@
     "status": "有效",
     "validUntil": "2027-05-01T00:00:00.000Z",
     "createdAt": "2026-06-13T16:29:00.000Z",
-    "updatedAt": "2026-06-13T16:29:00.000Z"
+    "updatedAt": "2026-06-13T16:29:00.000Z",
+    "categoryId": 13
   },
   {
     "id": "cmq2814390komt843259939",
@@ -4803,7 +4980,8 @@
     "status": "有效",
     "validUntil": "2027-01-02T00:00:00.000Z",
     "createdAt": "2026-06-13T18:45:30.000Z",
-    "updatedAt": "2026-06-13T18:45:30.000Z"
+    "updatedAt": "2026-06-13T18:45:30.000Z",
+    "categoryId": 13
   },
   {
     "id": "cmq1755797komt883863204",
@@ -4830,7 +5008,8 @@
     "status": "有效",
     "validUntil": "2027-05-22T00:00:00.000Z",
     "createdAt": "2026-06-13T20:45:56.000Z",
-    "updatedAt": "2026-06-13T20:45:56.000Z"
+    "updatedAt": "2026-06-13T20:45:56.000Z",
+    "categoryId": 13
   },
   {
     "id": "cmq7445474komt316129246",
@@ -4857,7 +5036,8 @@
     "status": "有效",
     "validUntil": "2027-06-19T00:00:00.000Z",
     "createdAt": "2026-06-13T16:10:26.000Z",
-    "updatedAt": "2026-06-13T16:10:26.000Z"
+    "updatedAt": "2026-06-13T16:10:26.000Z",
+    "categoryId": 13
   },
   {
     "id": "cmq2641666komt121389297",
@@ -4884,7 +5064,8 @@
     "status": "即将过期",
     "validUntil": "2026-07-29T00:00:00.000Z",
     "createdAt": "2026-06-13T13:32:12.000Z",
-    "updatedAt": "2026-06-13T13:32:12.000Z"
+    "updatedAt": "2026-06-13T13:32:12.000Z",
+    "categoryId": 10
   },
   {
     "id": "cmq2018101komt516483890",
@@ -4911,7 +5092,8 @@
     "status": "有效",
     "validUntil": "2027-03-13T00:00:00.000Z",
     "createdAt": "2026-06-13T20:58:08.000Z",
-    "updatedAt": "2026-06-13T20:58:08.000Z"
+    "updatedAt": "2026-06-13T20:58:08.000Z",
+    "categoryId": 10
   },
   {
     "id": "cmq7257322komt273579942",
@@ -4938,7 +5120,8 @@
     "status": "有效",
     "validUntil": "2026-09-27T00:00:00.000Z",
     "createdAt": "2026-06-13T20:44:26.000Z",
-    "updatedAt": "2026-06-13T20:44:26.000Z"
+    "updatedAt": "2026-06-13T20:44:26.000Z",
+    "categoryId": 10
   },
   {
     "id": "cmq3158378komt934760602",
@@ -4965,7 +5148,8 @@
     "status": "有效",
     "validUntil": "2027-04-03T00:00:00.000Z",
     "createdAt": "2026-06-13T23:13:37.000Z",
-    "updatedAt": "2026-06-13T23:13:37.000Z"
+    "updatedAt": "2026-06-13T23:13:37.000Z",
+    "categoryId": 9
   },
   {
     "id": "cmq5088708komt168193952",
@@ -4992,7 +5176,8 @@
     "status": "即将过期",
     "validUntil": "2026-07-06T00:00:00.000Z",
     "createdAt": "2026-06-13T17:05:47.000Z",
-    "updatedAt": "2026-06-13T17:05:47.000Z"
+    "updatedAt": "2026-06-13T17:05:47.000Z",
+    "categoryId": 9
   },
   {
     "id": "cmq9239534komt157749025",
@@ -5019,7 +5204,8 @@
     "status": "有效",
     "validUntil": "2027-04-02T00:00:00.000Z",
     "createdAt": "2026-06-13T23:40:31.000Z",
-    "updatedAt": "2026-06-13T23:40:31.000Z"
+    "updatedAt": "2026-06-13T23:40:31.000Z",
+    "categoryId": 9
   },
   {
     "id": "cmq6303528komt782924806",
@@ -5046,7 +5232,8 @@
     "status": "有效",
     "validUntil": "2027-02-23T00:00:00.000Z",
     "createdAt": "2026-06-14T01:28:14.000Z",
-    "updatedAt": "2026-06-14T01:28:14.000Z"
+    "updatedAt": "2026-06-14T01:28:14.000Z",
+    "categoryId": 11
   },
   {
     "id": "cmq4444700komt190001031",
@@ -5073,7 +5260,8 @@
     "status": "待复核",
     "validUntil": "2026-08-06T00:00:00.000Z",
     "createdAt": "2026-06-13T20:21:52.000Z",
-    "updatedAt": "2026-06-13T20:21:52.000Z"
+    "updatedAt": "2026-06-13T20:21:52.000Z",
+    "categoryId": 11
   },
   {
     "id": "cmq9399269komt452336789",
@@ -5100,7 +5288,8 @@
     "status": "有效",
     "validUntil": "2026-11-26T00:00:00.000Z",
     "createdAt": "2026-06-13T18:05:16.000Z",
-    "updatedAt": "2026-06-13T18:05:16.000Z"
+    "updatedAt": "2026-06-13T18:05:16.000Z",
+    "categoryId": 11
   },
   {
     "id": "cmq1550332komt540380319",
@@ -5127,7 +5316,8 @@
     "status": "有效",
     "validUntil": "2027-03-07T00:00:00.000Z",
     "createdAt": "2026-06-13T20:43:47.000Z",
-    "updatedAt": "2026-06-13T20:43:47.000Z"
+    "updatedAt": "2026-06-13T20:43:47.000Z",
+    "categoryId": 29
   },
   {
     "id": "cmq8386537komt375315115",
@@ -5154,7 +5344,8 @@
     "status": "有效",
     "validUntil": "2027-01-17T00:00:00.000Z",
     "createdAt": "2026-06-14T01:11:31.000Z",
-    "updatedAt": "2026-06-14T01:11:31.000Z"
+    "updatedAt": "2026-06-14T01:11:31.000Z",
+    "categoryId": 29
   },
   {
     "id": "cmq2003922komt968150044",
@@ -5181,7 +5372,8 @@
     "status": "有效",
     "validUntil": "2027-05-12T00:00:00.000Z",
     "createdAt": "2026-06-13T19:02:32.000Z",
-    "updatedAt": "2026-06-13T19:02:32.000Z"
+    "updatedAt": "2026-06-13T19:02:32.000Z",
+    "categoryId": 29
   },
   {
     "id": "cmq3856346komt641865535",
@@ -5208,7 +5400,8 @@
     "status": "有效",
     "validUntil": "2026-09-18T00:00:00.000Z",
     "createdAt": "2026-06-13T17:01:53.000Z",
-    "updatedAt": "2026-06-13T17:01:53.000Z"
+    "updatedAt": "2026-06-13T17:01:53.000Z",
+    "categoryId": 30
   },
   {
     "id": "cmq2978291komt644842005",
@@ -5235,7 +5428,8 @@
     "status": "有效",
     "validUntil": "2027-04-08T00:00:00.000Z",
     "createdAt": "2026-06-14T00:56:05.000Z",
-    "updatedAt": "2026-06-14T00:56:05.000Z"
+    "updatedAt": "2026-06-14T00:56:05.000Z",
+    "categoryId": 30
   },
   {
     "id": "cmq3496967komt850327557",
@@ -5262,7 +5456,8 @@
     "status": "有效",
     "validUntil": "2026-12-22T00:00:00.000Z",
     "createdAt": "2026-06-14T02:02:36.000Z",
-    "updatedAt": "2026-06-14T02:02:36.000Z"
+    "updatedAt": "2026-06-14T02:02:36.000Z",
+    "categoryId": 30
   },
   {
     "id": "cmq7645965komt560733034",
@@ -5289,7 +5484,8 @@
     "status": "有效",
     "validUntil": "2027-05-26T00:00:00.000Z",
     "createdAt": "2026-06-13T19:07:42.000Z",
-    "updatedAt": "2026-06-13T19:07:42.000Z"
+    "updatedAt": "2026-06-13T19:07:42.000Z",
+    "categoryId": 32
   },
   {
     "id": "cmq1414837komt188301923",
@@ -5316,7 +5512,8 @@
     "status": "待复核",
     "validUntil": "2026-08-02T00:00:00.000Z",
     "createdAt": "2026-06-14T01:46:49.000Z",
-    "updatedAt": "2026-06-14T01:46:49.000Z"
+    "updatedAt": "2026-06-14T01:46:49.000Z",
+    "categoryId": 32
   },
   {
     "id": "cmq9533378komt734324699",
@@ -5343,7 +5540,8 @@
     "status": "有效",
     "validUntil": "2027-06-30T00:00:00.000Z",
     "createdAt": "2026-06-13T22:25:01.000Z",
-    "updatedAt": "2026-06-13T22:25:01.000Z"
+    "updatedAt": "2026-06-13T22:25:01.000Z",
+    "categoryId": 32
   },
   {
     "id": "cmq9449355komt502906090",
@@ -5370,7 +5568,8 @@
     "status": "价格波动",
     "validUntil": "2026-10-21T00:00:00.000Z",
     "createdAt": "2026-06-13T17:51:56.000Z",
-    "updatedAt": "2026-06-14T00:00:00.000Z"
+    "updatedAt": "2026-06-14T00:00:00.000Z",
+    "categoryId": 31
   },
   {
     "id": "cmq5974564komt313942038",
@@ -5397,7 +5596,8 @@
     "status": "有效",
     "validUntil": "2027-03-31T00:00:00.000Z",
     "createdAt": "2026-06-14T01:02:56.000Z",
-    "updatedAt": "2026-06-14T01:02:56.000Z"
+    "updatedAt": "2026-06-14T01:02:56.000Z",
+    "categoryId": 31
   },
   {
     "id": "cmq3253274komt767632877",
@@ -5424,6 +5624,7 @@
     "status": "有效",
     "validUntil": "2027-06-19T00:00:00.000Z",
     "createdAt": "2026-06-13T14:09:50.000Z",
-    "updatedAt": "2026-06-13T14:09:50.000Z"
+    "updatedAt": "2026-06-13T14:09:50.000Z",
+    "categoryId": 31
   }
 ]

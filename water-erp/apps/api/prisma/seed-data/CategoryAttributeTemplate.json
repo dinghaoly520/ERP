@@ -1,0 +1,160 @@
+[
+  {
+    "id": 1,
+    "categoryId": 18,
+    "name": "标号",
+    "fieldKey": "grade",
+    "fieldType": "SELECT",
+    "required": true,
+    "options": [
+      "P.O 32.5",
+      "P.O 42.5",
+      "P.O 52.5"
+    ],
+    "unit": null,
+    "sortOrder": 0,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "categoryId": 18,
+    "name": "强度等级",
+    "fieldKey": "strength",
+    "fieldType": "TEXT",
+    "required": false,
+    "options": null,
+    "unit": null,
+    "sortOrder": 1,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 3,
+    "categoryId": 18,
+    "name": "包装方式",
+    "fieldKey": "packaging",
+    "fieldType": "SELECT",
+    "required": false,
+    "options": [
+      "散装",
+      "袋装"
+    ],
+    "unit": null,
+    "sortOrder": 2,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 7,
+    "categoryId": 22,
+    "name": "公称直径",
+    "fieldKey": "dn",
+    "fieldType": "SELECT",
+    "required": true,
+    "options": [
+      "DN50",
+      "DN100",
+      "DN150",
+      "DN200",
+      "DN300"
+    ],
+    "unit": null,
+    "sortOrder": 0,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 8,
+    "categoryId": 22,
+    "name": "壁厚",
+    "fieldKey": "wallThickness",
+    "fieldType": "TEXT",
+    "required": false,
+    "options": null,
+    "unit": "mm",
+    "sortOrder": 1,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 4,
+    "categoryId": 25,
+    "name": "材质",
+    "fieldKey": "material",
+    "fieldType": "SELECT",
+    "required": true,
+    "options": [
+      "Q235B",
+      "Q345B",
+      "HRB400",
+      "HRB500"
+    ],
+    "unit": null,
+    "sortOrder": 0,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 5,
+    "categoryId": 25,
+    "name": "直径",
+    "fieldKey": "diameter",
+    "fieldType": "SELECT",
+    "required": false,
+    "options": [
+      "6mm",
+      "8mm",
+      "10mm",
+      "12mm",
+      "16mm",
+      "20mm",
+      "25mm"
+    ],
+    "unit": "mm",
+    "sortOrder": 1,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 6,
+    "categoryId": 25,
+    "name": "长度",
+    "fieldKey": "length",
+    "fieldType": "NUMBER",
+    "required": false,
+    "options": null,
+    "unit": "m",
+    "sortOrder": 2,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 9,
+    "categoryId": 37,
+    "name": "功率",
+    "fieldKey": "power",
+    "fieldType": "NUMBER",
+    "required": true,
+    "options": null,
+    "unit": "kW",
+    "sortOrder": 0,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 10,
+    "categoryId": 37,
+    "name": "扬程",
+    "fieldKey": "head",
+    "fieldType": "NUMBER",
+    "required": true,
+    "options": null,
+    "unit": "m",
+    "sortOrder": 1,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 11,
+    "categoryId": 37,
+    "name": "流量",
+    "fieldKey": "flowRate",
+    "fieldType": "NUMBER",
+    "required": false,
+    "options": null,
+    "unit": "m³/h",
+    "sortOrder": 2,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  }
+]

@@ -1383,6 +1383,124 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     }
   }
 
+  /** 工作画像 — AI 生成个性化的用户工作风格分析与叙事 */
+  async analyzeWorkPortrait(context: {
+    userContext?: { role?: string; displayName?: string; username?: string };
+    auditActivities?: { action: string; resourceType?: string; createdAt: string }[];
+    taskSummary?: { total: number; completed: number; byType: Record<string, number> };
+  }): Promise<{
+    narrative: string;
+    metrics: {
+      totalApprovals: number;
+      avgResponseHours: number;
+      completionStreak: number;
+      peakDay: string; peakPeriod: string;
+    };
+    domainFocus: { label: string; pct: number }[];
+  }> {
+    const userName = context.userContext?.displayName || context.userContext?.username || '用户';
+    const activities = context.auditActivities || [];
+    const tasks = context.taskSummary || { total: 0, completed: 0, byType: {} };
+
+    const approvalActs = activities.filter(a =>
+      ['SUPPLIER_APPROVE','SUPPLIER_REJECT','SUPPLIER_RETURN','PRICE_APPROVE','PRICE_REJECT','CATALOG_APPROVE','PASSWORD_REQUEST_APPROVE'].includes(a.action)
+    );
+
+    // Compute simple stats for AI context (not for display — AI generates the narrative)
+    const sorted = [...approvalActs].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    let totalGap = 0; let gapCount = 0;
+    for (let i = 1; i < sorted.length; i++) {
+      const gap = (new Date(sorted[i].createdAt).getTime() - new Date(sorted[i-1].createdAt).getTime()) / 3600000;
+      if (gap > 0 && gap < 72) { totalGap += gap; gapCount++; }
+    }
+    const avgHours = gapCount > 0 ? Math.round((totalGap / gapCount) * 10) / 10 : 0;
+    const avgHoursStr = avgHours > 0 ? `${avgHours}小时` : '暂无数据';
+
+    const hourCounts = new Array(24).fill(0);
+    const dayCounts = new Array(7).fill(0);
+    for (const a of approvalActs) {
+      const d = new Date(a.createdAt);
+      hourCounts[d.getHours()]++;
+      dayCounts[d.getDay()]++;
+    }
+    const peakHour = hourCounts.indexOf(Math.max(...hourCounts));
+    const peakDayIdx = dayCounts.indexOf(Math.max(...dayCounts));
+    const periodLabels = { 0:'深夜',6:'清晨',10:'上午',12:'午后',14:'下午',18:'晚间' };
+    let period = '上午';
+    for (const [h, label] of Object.entries(periodLabels)) {
+      if (peakHour >= Number(h)) period = label;
+    }
+    const dayLabels = ['周日','周一','周二','周三','周四','周五','周六'];
+
+    // Completion streak
+    let streak = 0;
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const dayEnd = new Date(dayStart.getTime() + 86400000);
+      const dayActs = activities.filter(a => {
+        const t = new Date(a.createdAt).getTime();
+        return t >= dayStart.getTime() && t < dayEnd.getTime() && !['LOGIN','LOGOUT'].includes(a.action);
+      });
+      if (dayActs.length > 0) streak++; else break;
+    }
+
+    // Task type distribution
+    const typeLabels: Record<string,string> = { APPROVAL:'审批处理', FOLLOW_UP:'项目跟进', WRITING:'文档撰写', COMMUNICATION:'沟通协调', REVIEW:'审核审查', MEETING:'会议研讨', ARCHIVE:'资料归档', RESEARCH:'调研分析' };
+    const totalTyped = Object.values(tasks.byType).reduce((s:number,v:number)=>s+v,0);
+    const domainFocus = Object.entries(tasks.byType)
+      .sort(([,a],[,b]) => b - a)
+      .slice(0, 3)
+      .map(([type,count]) => ({ label: typeLabels[type] || type, pct: totalTyped > 0 ? Math.round((count/totalTyped)*100) : 0 }));
+
+    // Let AI generate the narrative
+    try {
+      const systemPrompt = `你是${userName}的私人工作分析师。根据提供的审计日志和任务数据，用温暖、有洞察力的语言写一段120-150字的"工作画像"叙事。
+
+要求：
+1. 像一个了解你的导师在娓娓道来你的工作风格，不是冰冷的数据汇报
+2. 自然融入关键数据点（审批次数、高峰时段、主要领域），但不堆砌数字，侧重"这意味着什么"
+3. 给出一条建设性的、有温度的观察或建议
+4. 纯中文、段落式、不使用Markdown
+5. 示例风格："你的工作节奏很有规律。过去这段时间里，你最活跃的时段是上午——早晨的专注力让你高效处理了47次审批，平均响应间隔不到两小时。你主要深耕在审批处理和项目跟进这两个领域，这反映出你是一个执行导向的人。有一点值得关注：你的工作类型中缺少文档和复盘类任务，适当留出一些回顾的时间，会让长期效率更高。"
+
+附带生成JSON:
+{
+  "narrative": "120-150字的工作风格叙事",
+  "insight": "20-30字的一句建设性观察"
+}`;
+
+      const userPrompt = `用户: ${userName}
+审批记录: ${approvalActs.length}条，平均响应间隔${avgHoursStr}，峰值时段${dayLabels[peakDayIdx]}${period}（${peakHour}:00左右），最近连续活跃${streak}天
+任务总览: 共${tasks.total}项，已完成${tasks.completed}项
+任务类型分布: ${JSON.stringify(tasks.byType)}`;
+
+      const result = await this.llm.chatJson<{ narrative: string; insight: string }>(systemPrompt, userPrompt, 0.7);
+
+      return {
+        narrative: result.narrative || `你是一位工作中注重效率的人。系统记录了${approvalActs.length}次审批操作，主要活跃在${dayLabels[peakDayIdx]}的${period}。你在${domainFocus.map(d=>d.label).join('、')}等领域积累了丰富的经验。`,
+        metrics: {
+          totalApprovals: approvalActs.length,
+          avgResponseHours: avgHours,
+          completionStreak: streak,
+          peakDay: dayLabels[peakDayIdx], peakPeriod: period,
+        },
+        domainFocus,
+      };
+    } catch {
+      return {
+        narrative: `你是一位注重效率的工作者。系统记录了${approvalActs.length}次审批操作，主要活跃在${dayLabels[peakDayIdx]}的${period}。继续推进任务，画像会越来越清晰。`,
+        metrics: {
+          totalApprovals: approvalActs.length,
+          avgResponseHours: avgHours,
+          completionStreak: streak,
+          peakDay: dayLabels[peakDayIdx], peakPeriod: period,
+        },
+        domainFocus,
+      };
+    }
+  }
+
   /** Normalize a time-slot string into HH:MM format, handling ISO 8601 and HH:MM inputs. */
   private normalizeTimeSlot(raw: string | undefined | null): string {
     if (!raw) return '';

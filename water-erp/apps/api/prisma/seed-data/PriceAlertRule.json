@@ -1,0 +1,47 @@
+[
+  {
+    "id": 1,
+    "name": "价格涨幅过大",
+    "categoryId": 2,
+    "alertType": "PRICE_SURGE",
+    "threshold": 20.0,
+    "enabled": true,
+    "notifyRoles": [
+      "admin",
+      "procurement_staff",
+      "leader",
+      "staff"
+    ],
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "name": "价格即将过期",
+    "categoryId": null,
+    "alertType": "EXPIRING",
+    "threshold": 30.0,
+    "enabled": true,
+    "notifyRoles": [
+      "admin",
+      "procurement_staff",
+      "leader",
+      "staff"
+    ],
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 3,
+    "name": "偏离品类均价",
+    "categoryId": null,
+    "alertType": "DEVIATION",
+    "threshold": 2.0,
+    "enabled": false,
+    "notifyRoles": [
+      "admin"
+    ],
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  }
+]

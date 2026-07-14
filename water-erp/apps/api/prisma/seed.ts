@@ -45,14 +45,17 @@ const ALL_TABLES = [
   'BidProject', 'BidScoreItem', 'BidScoreRecord',
   'BidSupervisionAnnotation', 'BidSupervisionLog', 'BidSupplier',
   'BudgetItem', 'BudgetList',
-  'CatalogItem', 'CatalogSupplier', 'ComplianceRule', 'Contact',
+  'CatalogCategory', 'CatalogInquiry', 'CatalogItemAttribute', 'CatalogItemRelation',
+  'CatalogItem', 'CatalogSupplier', 'CatalogVersion', 'CategoryAttributeTemplate',
+  'ComplianceRule', 'Contact', 'ContractPrice',
   'Department', 'DocumentChunk',
   'ExpertEvaluation', 'ExpertProfile', 'ExtractionTask',
   'FileAsset', 'ImportBatch',
   'KnowledgeBase', 'KnowledgeFile',
   'Notification', 'NotificationDeliveryLog',
   'PasswordChangeRequest', 'PasswordResetRequest',
-  'PriceHistory', 'ProcurementProject', 'ProcurementRound', 'Project',
+  'PriceAlert', 'PriceAlertRule', 'PriceHistory',
+  'ProcurementProject', 'ProcurementRound', 'Project',
   'ProjectManagementItem', 'ProjectManagementStage',
   'ReviewTask', 'RoundParticipant',
   'Supplier', 'SupplierBidSubmission', 'SupplierCatalogApplication',
@@ -76,8 +79,10 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['SupplierClassification', 'supplierClassification'],
   ['BidProject', 'bidProject'],
   ['Announcement', 'announcement'],
+  ['CatalogCategory', 'catalogCategory'],
   ['CatalogItem', 'catalogItem'],
   // Level 1 —— 依赖 Level 0
+  ['CategoryAttributeTemplate', 'categoryAttributeTemplate'],
   ['User', 'user'],
   ['ProcurementProject', 'procurementProject'],
   ['FileAsset', 'fileAsset'],
@@ -91,6 +96,7 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['BidArchiveItem', 'bidArchiveItem'],
   ['PriceHistory', 'priceHistory'],
   ['ImportBatch', 'importBatch'],
+  ['PriceAlertRule', 'priceAlertRule'],
   ['Project', 'project'],
   ['ProjectManagementItem', 'projectManagementItem'],
   ['ProcurementRound', 'procurementRound'],
@@ -123,6 +129,12 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['AuditLog', 'auditLog'],
   ['CatalogSupplier', 'catalogSupplier'],
   ['SupplierCatalogApplication', 'supplierCatalogApplication'],
+  ['CatalogItemAttribute', 'catalogItemAttribute'],
+  ['CatalogItemRelation', 'catalogItemRelation'],
+  ['CatalogVersion', 'catalogVersion'],
+  ['CatalogInquiry', 'catalogInquiry'],
+  ['ContractPrice', 'contractPrice'],
+  ['PriceAlert', 'priceAlert'],
   ['AssistantConversation', 'assistantConversation'],
   ['AssistantAlert', 'assistantAlert'],
   ['AssistantMessage', 'assistantMessage'],
@@ -226,8 +238,17 @@ async function main() {
 
   console.log('▶ 按外键依赖顺序写入快照');
   for (const [tableName, delegate] of SEED_ORDER) {
+    // SELF-REF: CatalogCategory 根节点先写，子节点后写（避开自引用 FK 约束）
+    if (tableName === 'CatalogCategory') {
+      const rows = load(tableName) as Record<string, unknown>[];
+      const roots = rows.filter((r: any) => r.parentId == null);
+      const children = rows.filter((r: any) => r.parentId != null);
+      if (roots.length > 0) { await (prisma[delegate] as any).createMany({ data: roots }); console.log(`    ${tableName} (roots): ${roots.length}`); }
+      if (children.length > 0) { await (prisma[delegate] as any).createMany({ data: children }); console.log(`    ${tableName} (children): ${children.length}`); }
+      continue;
+    }
     const rows = load(tableName) as Record<string, unknown>[];
-    if (rows.length === 0) continue; // 空快照跳过
+    if (rows.length === 0) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (prisma[delegate] as any).createMany({ data: rows });
     console.log(`    ${tableName}: ${rows.length}`);

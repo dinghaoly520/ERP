@@ -1,0 +1,2107 @@
+[
+  {
+    "id": 1,
+    "name": "2026年度采购目录（初始版）",
+    "version": "v2026.1",
+    "effectiveAt": "2026-01-01T00:00:00.000Z",
+    "status": "ACTIVE",
+    "description": "系统上线初始目录快照",
+    "snapshot": {
+      "items": [
+        {
+          "id": "cmqccwae90000komt0naddsxq",
+          "code": "CGML-GC-STEEL-001",
+          "name": "Q235B 热轧带钢",
+          "referencePrice": "4280",
+          "status": "有效",
+          "categoryId": 25
+        },
+        {
+          "id": "cmqccwaeb0001komt2ksxqdys",
+          "code": "CGML-GC-CEMENT-002",
+          "name": "P.O42.5 普通硅酸盐水泥",
+          "referencePrice": "380",
+          "status": "有效",
+          "categoryId": 18
+        },
+        {
+          "id": "cmqccwaec0002komtwmhin7nl",
+          "code": "CGML-GC-PIPE-003",
+          "name": "HDPE 双壁波纹管",
+          "referencePrice": "128",
+          "status": "即将过期",
+          "categoryId": 23
+        },
+        {
+          "id": "cmqccwaed0003komtj5nrmu9k",
+          "code": "CGML-SB-PUMP-004",
+          "name": "潜水排污泵",
+          "referencePrice": "8600",
+          "status": "有效",
+          "categoryId": 37
+        },
+        {
+          "id": "cmqccwaee0004komt8e79c8h4",
+          "code": "CGML-GC-WATERPROOF-005",
+          "name": "橡胶止水带",
+          "referencePrice": "35",
+          "status": "即将过期",
+          "categoryId": 27
+        },
+        {
+          "id": "cmqccwaef0005komt9zrpb7t3",
+          "code": "CGML-XX-METER-006",
+          "name": "电磁流量计",
+          "referencePrice": "12500",
+          "status": "价格波动",
+          "categoryId": 2
+        },
+        {
+          "id": "cmqccwaeg0006komtair50s2j",
+          "code": "CGML-GC-GEO-007",
+          "name": "短纤针刺土工布",
+          "referencePrice": "3.8",
+          "status": "有效",
+          "categoryId": 15
+        },
+        {
+          "id": "cmqccwaeh0007komtk2qn7xg6",
+          "code": "CGML-TY-LABOR-008",
+          "name": "安全防护用品套装",
+          "referencePrice": "260",
+          "status": "有效",
+          "categoryId": 13
+        },
+        {
+          "id": "cmqccwaeh0008komtqffczmq6",
+          "code": "CGML-SB-GEN-009",
+          "name": "柴油发电机组",
+          "referencePrice": "68000",
+          "status": "待复核",
+          "categoryId": 35
+        },
+        {
+          "id": "cmqccwaei0009komtv17k8oqf",
+          "code": "CGML-GC-VALVE-010",
+          "name": "软密封蝶阀",
+          "referencePrice": "2450",
+          "status": "有效",
+          "categoryId": 40
+        },
+        {
+          "id": "cmqccwaej000akomtmw4s6bd1",
+          "code": "CGML-SB-ELEC-011",
+          "name": "变频控制柜",
+          "referencePrice": "15800",
+          "status": "价格波动",
+          "categoryId": 39
+        },
+        {
+          "id": "cmqccwaek000bkomtfiuytxlp",
+          "code": "CGML-GC-CABLE-012",
+          "name": "电力电缆",
+          "referencePrice": "520",
+          "status": "有效",
+          "categoryId": 39
+        },
+        {
+          "id": "cmqccwael000ckomthvrpbh78",
+          "code": "CGML-GC-STEEL-013",
+          "name": "HRB400E 抗震螺纹钢",
+          "referencePrice": "3920",
+          "status": "有效",
+          "categoryId": 26
+        },
+        {
+          "id": "cmqccwael000dkomt5ffl374h",
+          "code": "CGML-GC-CONC-014",
+          "name": "商品混凝土",
+          "referencePrice": "465",
+          "status": "有效",
+          "categoryId": 19
+        },
+        {
+          "id": "cmqccwaem000ekomtacehv37h",
+          "code": "CGML-GC-AGG-015",
+          "name": "机制砂",
+          "referencePrice": "96",
+          "status": "价格波动",
+          "categoryId": 21
+        },
+        {
+          "id": "cmqccwaen000fkomtaloqgvwt",
+          "code": "CGML-GC-ADMIX-016",
+          "name": "聚羧酸高性能减水剂",
+          "referencePrice": "2850",
+          "status": "有效",
+          "categoryId": 16
+        },
+        {
+          "id": "cmqccwaeo000gkomt1cb2md7e",
+          "code": "CGML-GC-GROUT-017",
+          "name": "无收缩灌浆料",
+          "referencePrice": "1850",
+          "status": "有效",
+          "categoryId": 20
+        },
+        {
+          "id": "cmqccwaeo000hkomto6mubqpa",
+          "code": "CGML-GC-FORM-018",
+          "name": "覆膜竹胶板",
+          "referencePrice": "128",
+          "status": "有效",
+          "categoryId": 17
+        },
+        {
+          "id": "cmqccwaep000ikomt73k18ldt",
+          "code": "CGML-GC-PIPE-019",
+          "name": "球墨铸铁管",
+          "referencePrice": "860",
+          "status": "有效",
+          "categoryId": 24
+        },
+        {
+          "id": "cmqccwaeq000jkomtbqvlhdro",
+          "code": "CGML-GC-PIPE-020",
+          "name": "PE100 给水管",
+          "referencePrice": "238",
+          "status": "有效",
+          "categoryId": 24
+        },
+        {
+          "id": "cmqccwaeq000kkomt10q8wql3",
+          "code": "CGML-GC-FITTING-021",
+          "name": "法兰弯头",
+          "referencePrice": "680",
+          "status": "有效",
+          "categoryId": 22
+        },
+        {
+          "id": "cmqccwaer000lkomtmo1j7770",
+          "code": "CGML-SB-VALVE-022",
+          "name": "闸阀",
+          "referencePrice": "7600",
+          "status": "有效",
+          "categoryId": 40
+        },
+        {
+          "id": "cmqccwaes000mkomtt6cpx11m",
+          "code": "CGML-SB-VALVE-023",
+          "name": "排气阀",
+          "referencePrice": "1380",
+          "status": "有效",
+          "categoryId": 40
+        },
+        {
+          "id": "cmqccwaet000nkomtjhej0eku",
+          "code": "CGML-SB-PUMP-024",
+          "name": "立式离心泵",
+          "referencePrice": "28600",
+          "status": "有效",
+          "categoryId": 37
+        },
+        {
+          "id": "cmqccwaet000okomtije52ie5",
+          "code": "CGML-SB-PUMP-025",
+          "name": "一体化预制泵站",
+          "referencePrice": "238000",
+          "status": "待复核",
+          "categoryId": 38
+        },
+        {
+          "id": "cmqccwaeu000pkomtbens01ne",
+          "code": "CGML-SB-TREAT-026",
+          "name": "一体化净水设备",
+          "referencePrice": "356000",
+          "status": "价格波动",
+          "categoryId": 36
+        },
+        {
+          "id": "cmqccwaev000qkomt75pjf5oj",
+          "code": "CGML-SB-DOSING-027",
+          "name": "自动加药装置",
+          "referencePrice": "48200",
+          "status": "有效",
+          "categoryId": 34
+        },
+        {
+          "id": "cmqccwaew000rkomtatan7ozf",
+          "code": "CGML-SB-DISINF-028",
+          "name": "次氯酸钠发生器",
+          "referencePrice": "92000",
+          "status": "有效",
+          "categoryId": 34
+        },
+        {
+          "id": "cmqccwaew000skomt9rokbb7o",
+          "code": "CGML-XX-SENSOR-029",
+          "name": "压力变送器",
+          "referencePrice": "620",
+          "status": "有效",
+          "categoryId": 3
+        },
+        {
+          "id": "cmqccwaex000tkomt8nujg6bb",
+          "code": "CGML-XX-SENSOR-030",
+          "name": "投入式液位计",
+          "referencePrice": "980",
+          "status": "有效",
+          "categoryId": 3
+        },
+        {
+          "id": "cmqccwaey000ukomttwf89l8c",
+          "code": "CGML-XX-RTU-031",
+          "name": "水利遥测终端 RTU",
+          "referencePrice": "13800",
+          "status": "价格波动",
+          "categoryId": 6
+        },
+        {
+          "id": "cmqccwaez000vkomtgxxego2i",
+          "code": "CGML-XX-CAMERA-032",
+          "name": "AI 球型摄像机",
+          "referencePrice": "3650",
+          "status": "有效",
+          "categoryId": 4
+        },
+        {
+          "id": "cmqccwaez000wkomtuvo6a61w",
+          "code": "CGML-XX-NET-033",
+          "name": "工业级交换机",
+          "referencePrice": "1450",
+          "status": "有效",
+          "categoryId": 5
+        },
+        {
+          "id": "cmqccwaf0000xkomtik6dbua0",
+          "code": "CGML-XX-SOFT-034",
+          "name": "组态软件授权",
+          "referencePrice": "28000",
+          "status": "待复核",
+          "categoryId": 7
+        },
+        {
+          "id": "cmqccwaf1000ykomtiorzxd57",
+          "code": "CGML-TY-OFFICE-035",
+          "name": "办公台式电脑",
+          "referencePrice": "4850",
+          "status": "有效",
+          "categoryId": 10
+        },
+        {
+          "id": "cmqccwaf2000zkomtzs2px99t",
+          "code": "CGML-TY-PRINT-036",
+          "name": "A3 黑白多功能一体机",
+          "referencePrice": "6800",
+          "status": "有效",
+          "categoryId": 10
+        },
+        {
+          "id": "cmqccwaf20010komts7yv250n",
+          "code": "CGML-TY-FURN-037",
+          "name": "钢制文件柜",
+          "referencePrice": "820",
+          "status": "有效",
+          "categoryId": 9
+        },
+        {
+          "id": "cmqccwaf30011komtcdk5fflq",
+          "code": "CGML-TY-FUEL-038",
+          "name": "0# 车用柴油",
+          "referencePrice": "7.42",
+          "status": "价格波动",
+          "categoryId": 11
+        },
+        {
+          "id": "cmqccwaf40012komtlrhzw1li",
+          "code": "CGML-FW-SURVEY-039",
+          "name": "工程测量服务",
+          "referencePrice": "18500",
+          "status": "待复核",
+          "categoryId": 29
+        },
+        {
+          "id": "cmqccwaf50013komt1n9wcehs",
+          "code": "CGML-FW-TEST-040",
+          "name": "第三方检测服务",
+          "referencePrice": "9800",
+          "status": "有效",
+          "categoryId": 30
+        },
+        {
+          "id": "cmqccwaf50014komtbaftl1kl",
+          "code": "CGML-FW-MAINT-041",
+          "name": "泵站设备维保服务",
+          "referencePrice": "42000",
+          "status": "有效",
+          "categoryId": 32
+        },
+        {
+          "id": "cmqccwaf60015komtjnohbces",
+          "code": "CGML-FW-LOG-042",
+          "name": "大件设备运输服务",
+          "referencePrice": "6800",
+          "status": "价格波动",
+          "categoryId": 31
+        },
+        {
+          "id": "cmqccwaf70016komt5pft0nnm",
+          "code": "CGML-GC-STEEL-043",
+          "name": "Q355B 中厚钢板",
+          "referencePrice": "4520",
+          "status": "有效",
+          "categoryId": 25
+        },
+        {
+          "id": "cmqccwaf80017komt3hsu8bb4",
+          "code": "CGML-GC-STEEL-044",
+          "name": "热镀锌角钢",
+          "referencePrice": "4860",
+          "status": "有效",
+          "categoryId": 25
+        },
+        {
+          "id": "cmqccwaf90018komtfcxa9sa2",
+          "code": "CGML-GC-REBAR-045",
+          "name": "HRB400E 盘螺",
+          "referencePrice": "4050",
+          "status": "有效",
+          "categoryId": 26
+        },
+        {
+          "id": "cmqccwaf90019komtt71if816",
+          "code": "CGML-GC-CEMENT-046",
+          "name": "P.S.A32.5 矿渣硅酸盐水泥",
+          "referencePrice": "335",
+          "status": "有效",
+          "categoryId": 18
+        },
+        {
+          "id": "cmqccwafa001akomtyfqyl65b",
+          "code": "CGML-GC-CONC-047",
+          "name": "商品混凝土",
+          "referencePrice": "398",
+          "status": "有效",
+          "categoryId": 19
+        },
+        {
+          "id": "cmqccwafb001bkomtj3ytnzk0",
+          "code": "CGML-GC-AGG-048",
+          "name": "碎石",
+          "referencePrice": "112",
+          "status": "价格波动",
+          "categoryId": 21
+        },
+        {
+          "id": "cmqccwafc001ckomt10cyadfw",
+          "code": "CGML-GC-ADMIX-049",
+          "name": "速凝剂",
+          "referencePrice": "3180",
+          "status": "有效",
+          "categoryId": 16
+        },
+        {
+          "id": "cmqccwafd001dkomtdcn26p0l",
+          "code": "CGML-GC-GROUT-050",
+          "name": "环氧灌浆料",
+          "referencePrice": "32",
+          "status": "有效",
+          "categoryId": 20
+        },
+        {
+          "id": "cmqccwafe001ekomtbo6tbhcp",
+          "code": "CGML-GC-PIPE-051",
+          "name": "PVC-U 排水管",
+          "referencePrice": "26",
+          "status": "有效",
+          "categoryId": 23
+        },
+        {
+          "id": "cmqccwaff001fkomtyhqhhvvk",
+          "code": "CGML-GC-PIPE-052",
+          "name": "钢丝网骨架 PE 复合管",
+          "referencePrice": "315",
+          "status": "有效",
+          "categoryId": 24
+        },
+        {
+          "id": "cmqccwaff001gkomt99oa8rgg",
+          "code": "CGML-GC-FITTING-053",
+          "name": "PE 电熔直接",
+          "referencePrice": "460",
+          "status": "有效",
+          "categoryId": 22
+        },
+        {
+          "id": "cmqccwafg001hkomt4c61xrr5",
+          "code": "CGML-GC-WATERPROOF-054",
+          "name": "SBS 改性沥青防水卷材",
+          "referencePrice": "38",
+          "status": "有效",
+          "categoryId": 27
+        },
+        {
+          "id": "cmqccwafh001ikomt7a8g3hrh",
+          "code": "CGML-GC-GEO-055",
+          "name": "复合土工膜",
+          "referencePrice": "8.6",
+          "status": "有效",
+          "categoryId": 15
+        },
+        {
+          "id": "cmqccwafi001jkomtkdtnefpb",
+          "code": "CGML-SB-VALVE-056",
+          "name": "可调式减压阀",
+          "referencePrice": "12800",
+          "status": "有效",
+          "categoryId": 40
+        },
+        {
+          "id": "cmqccwafj001kkomt96e86e3t",
+          "code": "CGML-SB-VALVE-057",
+          "name": "电动蝶阀",
+          "referencePrice": "18500",
+          "status": "价格波动",
+          "categoryId": 40
+        },
+        {
+          "id": "cmqccwafk001lkomtjqwqi20t",
+          "code": "CGML-SB-PUMP-058",
+          "name": "卧式双吸离心泵",
+          "referencePrice": "86500",
+          "status": "有效",
+          "categoryId": 37
+        },
+        {
+          "id": "cmqccwafk001mkomthwh5xycn",
+          "code": "CGML-SB-PUMP-059",
+          "name": "潜水轴流泵",
+          "referencePrice": "112000",
+          "status": "待复核",
+          "categoryId": 37
+        },
+        {
+          "id": "cmqccwafl001nkomtpe1fxnp9",
+          "code": "CGML-SB-ELEC-060",
+          "name": "低压配电柜",
+          "referencePrice": "18500",
+          "status": "有效",
+          "categoryId": 39
+        },
+        {
+          "id": "cmqccwafm001okomtlyutvwn9",
+          "code": "CGML-SB-ELEC-061",
+          "name": "箱式变电站",
+          "referencePrice": "168000",
+          "status": "价格波动",
+          "categoryId": 39
+        },
+        {
+          "id": "cmqccwafn001pkomtj28s2hz9",
+          "code": "CGML-SB-GEN-062",
+          "name": "柴油发电机组",
+          "referencePrice": "38500",
+          "status": "有效",
+          "categoryId": 35
+        },
+        {
+          "id": "cmqccwafo001qkomt2v9q978w",
+          "code": "CGML-SB-TREAT-063",
+          "name": "机械格栅除污机",
+          "referencePrice": "56000",
+          "status": "有效",
+          "categoryId": 36
+        },
+        {
+          "id": "cmqccwafp001rkomtv6u2hp0s",
+          "code": "CGML-SB-DOSING-064",
+          "name": "二氧化氯发生器",
+          "referencePrice": "68000",
+          "status": "待复核",
+          "categoryId": 34
+        },
+        {
+          "id": "cmqccwafq001skomtzwc330p6",
+          "code": "CGML-XX-METER-065",
+          "name": "超声波水表",
+          "referencePrice": "1680",
+          "status": "有效",
+          "categoryId": 2
+        },
+        {
+          "id": "cmqccwafr001tkomtfbdofyya",
+          "code": "CGML-XX-METER-066",
+          "name": "浊度仪",
+          "referencePrice": "9800",
+          "status": "有效",
+          "categoryId": 2
+        },
+        {
+          "id": "cmqccwafs001ukomt2qul0bfi",
+          "code": "CGML-XX-SENSOR-067",
+          "name": "余氯传感器",
+          "referencePrice": "6200",
+          "status": "有效",
+          "categoryId": 3
+        },
+        {
+          "id": "cmqccwafs001vkomt5ce1w1q7",
+          "code": "CGML-XX-RTU-068",
+          "name": "PLC 控制站",
+          "referencePrice": "32500",
+          "status": "价格波动",
+          "categoryId": 6
+        },
+        {
+          "id": "cmqccwaft001wkomtkdtp2jt5",
+          "code": "CGML-XX-CAMERA-069",
+          "name": "枪型网络摄像机",
+          "referencePrice": "680",
+          "status": "有效",
+          "categoryId": 4
+        },
+        {
+          "id": "cmqccwafu001xkomtxghgqty5",
+          "code": "CGML-XX-NET-070",
+          "name": "4G 工业路由器",
+          "referencePrice": "1280",
+          "status": "有效",
+          "categoryId": 5
+        },
+        {
+          "id": "cmqccwafv001ykomtfx0jcge9",
+          "code": "CGML-TY-LABOR-071",
+          "name": "防汛抢险救生衣",
+          "referencePrice": "86",
+          "status": "有效",
+          "categoryId": 13
+        },
+        {
+          "id": "cmqccwafw001zkomtoa0mo00w",
+          "code": "CGML-TY-LABOR-072",
+          "name": "绝缘安全靴",
+          "referencePrice": "168",
+          "status": "有效",
+          "categoryId": 13
+        },
+        {
+          "id": "cmqccwafx0020komta7vkl037",
+          "code": "CGML-TY-OFFICE-073",
+          "name": "商用笔记本电脑",
+          "referencePrice": "6900",
+          "status": "有效",
+          "categoryId": 10
+        },
+        {
+          "id": "cmqccwafy0021komtu9nhz1bw",
+          "code": "CGML-TY-FURN-074",
+          "name": "办公工位桌",
+          "referencePrice": "1280",
+          "status": "有效",
+          "categoryId": 9
+        },
+        {
+          "id": "cmqccwafy0022komtyz37t82s",
+          "code": "CGML-TY-FUEL-075",
+          "name": "92# 汽油",
+          "referencePrice": "7.86",
+          "status": "价格波动",
+          "categoryId": 11
+        },
+        {
+          "id": "cmqccwafz0023komtebq7jl2x",
+          "code": "CGML-FW-SURVEY-076",
+          "name": "勘察钻探服务",
+          "referencePrice": "260",
+          "status": "待复核",
+          "categoryId": 29
+        },
+        {
+          "id": "cmqccwag00024komth4c740r8",
+          "code": "CGML-FW-TEST-077",
+          "name": "水质检测服务",
+          "referencePrice": "3200",
+          "status": "有效",
+          "categoryId": 30
+        },
+        {
+          "id": "cmqccwag10025komtfxcym755",
+          "code": "CGML-FW-MAINT-078",
+          "name": "仪表校准服务",
+          "referencePrice": "8800",
+          "status": "有效",
+          "categoryId": 32
+        },
+        {
+          "id": "cmqccwag10026komtqq3x0qyb",
+          "code": "CGML-FW-LOG-079",
+          "name": "普通货物运输服务",
+          "referencePrice": "3200",
+          "status": "有效",
+          "categoryId": 31
+        },
+        {
+          "id": "cmqccwag20027komtz7uvmi23",
+          "code": "CGML-GC-FORM-080",
+          "name": "盘扣式脚手架租赁",
+          "referencePrice": "165",
+          "status": "价格波动",
+          "categoryId": 17
+        },
+        {
+          "id": "cmq8277767komt530791827",
+          "code": "CGML-GC-钢材-100",
+          "name": "Q355B 低合金中厚板",
+          "referencePrice": "4280",
+          "status": "有效",
+          "categoryId": 25
+        },
+        {
+          "id": "cmq4963748komt834203735",
+          "code": "CGML-GC-钢材-101",
+          "name": "Q235B 热轧卷板",
+          "referencePrice": "4050",
+          "status": "待复核",
+          "categoryId": 25
+        },
+        {
+          "id": "cmq9999560komt578861129",
+          "code": "CGML-GC-钢材-102",
+          "name": "Q345D 桥梁结构钢",
+          "referencePrice": "4580",
+          "status": "有效",
+          "categoryId": 25
+        },
+        {
+          "id": "cmq3819491komt814721275",
+          "code": "CGML-GC-钢材-103",
+          "name": "45# 碳素结构圆钢",
+          "referencePrice": "3950",
+          "status": "有效",
+          "categoryId": 25
+        },
+        {
+          "id": "cmq3132733komt927598355",
+          "code": "CGML-GC-钢材-104",
+          "name": "Q235NH 耐候钢",
+          "referencePrice": "5120",
+          "status": "有效",
+          "categoryId": 25
+        },
+        {
+          "id": "cmq6070993komt775056802",
+          "code": "CGML-GC-钢材-105",
+          "name": "H型钢 HW300×300",
+          "referencePrice": "4680",
+          "status": "有效",
+          "categoryId": 25
+        },
+        {
+          "id": "cmq9936921komt562925021",
+          "code": "CGML-GC-钢材-106",
+          "name": "C型钢 C160×60×20×3",
+          "referencePrice": "4380",
+          "status": "待复核",
+          "categoryId": 25
+        },
+        {
+          "id": "cmq3613554komt639353589",
+          "code": "CGML-GC-钢筋-107",
+          "name": "HRB400E 抗震螺纹钢",
+          "referencePrice": "3850",
+          "status": "有效",
+          "categoryId": 26
+        },
+        {
+          "id": "cmq2163183komt346448473",
+          "code": "CGML-GC-钢筋-108",
+          "name": "HRB500E 高强抗震螺纹钢",
+          "referencePrice": "4180",
+          "status": "有效",
+          "categoryId": 26
+        },
+        {
+          "id": "cmq8914972komt279200032",
+          "code": "CGML-GC-钢筋-109",
+          "name": "HPB300 光圆钢筋",
+          "referencePrice": "3650",
+          "status": "有效",
+          "categoryId": 26
+        },
+        {
+          "id": "cmq1641619komt342992336",
+          "code": "CGML-GC-钢筋-110",
+          "name": "HRB400E 盘螺",
+          "referencePrice": "3920",
+          "status": "有效",
+          "categoryId": 26
+        },
+        {
+          "id": "cmq6521112komt190926869",
+          "code": "CGML-GC-钢筋-111",
+          "name": "CRB600H 高延性冷轧带肋钢筋",
+          "referencePrice": "4080",
+          "status": "有效",
+          "categoryId": 26
+        },
+        {
+          "id": "cmq4255287komt963478897",
+          "code": "CGML-GC-水泥-112",
+          "name": "PO 42.5R 早强普通硅酸盐水泥",
+          "referencePrice": "520",
+          "status": "有效",
+          "categoryId": 18
+        },
+        {
+          "id": "cmq9807498komt544625944",
+          "code": "CGML-GC-水泥-113",
+          "name": "PO 52.5R 高强普通硅酸盐水泥",
+          "referencePrice": "620",
+          "status": "有效",
+          "categoryId": 18
+        },
+        {
+          "id": "cmq1956115komt638232079",
+          "code": "CGML-GC-水泥-114",
+          "name": "PM 42.5 中热硅酸盐水泥",
+          "referencePrice": "560",
+          "status": "有效",
+          "categoryId": 18
+        },
+        {
+          "id": "cmq7043819komt586208606",
+          "code": "CGML-GC-水泥-115",
+          "name": "PI 62.5 快硬硅酸盐水泥",
+          "referencePrice": "880",
+          "status": "有效",
+          "categoryId": 18
+        },
+        {
+          "id": "cmq5283936komt141324976",
+          "code": "CGML-GC-混凝-116",
+          "name": "C30 泵送商品混凝土",
+          "referencePrice": "435",
+          "status": "有效",
+          "categoryId": 19
+        },
+        {
+          "id": "cmq5502653komt874697454",
+          "code": "CGML-GC-混凝-117",
+          "name": "C40 泵送商品混凝土",
+          "referencePrice": "485",
+          "status": "有效",
+          "categoryId": 19
+        },
+        {
+          "id": "cmq7795248komt437479308",
+          "code": "CGML-GC-混凝-118",
+          "name": "C50 泵送商品混凝土",
+          "referencePrice": "550",
+          "status": "价格波动",
+          "categoryId": 19
+        },
+        {
+          "id": "cmq2918040komt790672345",
+          "code": "CGML-GC-混凝-119",
+          "name": "C25 水下不分散混凝土",
+          "referencePrice": "580",
+          "status": "即将过期",
+          "categoryId": 19
+        },
+        {
+          "id": "cmq9095613komt842520785",
+          "code": "CGML-GC-砂石-120",
+          "name": "5-31.5mm 连续级配碎石",
+          "referencePrice": "98",
+          "status": "有效",
+          "categoryId": 21
+        },
+        {
+          "id": "cmq7254100komt805142703",
+          "code": "CGML-GC-砂石-121",
+          "name": "机制中砂",
+          "referencePrice": "92",
+          "status": "有效",
+          "categoryId": 21
+        },
+        {
+          "id": "cmq5264256komt494954778",
+          "code": "CGML-GC-砂石-122",
+          "name": "5-20mm 单粒级碎石",
+          "referencePrice": "115",
+          "status": "有效",
+          "categoryId": 21
+        },
+        {
+          "id": "cmq6774637komt853779612",
+          "code": "CGML-GC-砂石-123",
+          "name": "天然河沙",
+          "referencePrice": "88",
+          "status": "有效",
+          "categoryId": 21
+        },
+        {
+          "id": "cmq9070013komt459162283",
+          "code": "CGML-GC-外加-124",
+          "name": "聚羧酸高性能减水剂",
+          "referencePrice": "4200",
+          "status": "有效",
+          "categoryId": 16
+        },
+        {
+          "id": "cmq9986085komt570042356",
+          "code": "CGML-GC-外加-125",
+          "name": "萘系高效减水剂",
+          "referencePrice": "3850",
+          "status": "有效",
+          "categoryId": 16
+        },
+        {
+          "id": "cmq4831962komt143296804",
+          "code": "CGML-GC-外加-126",
+          "name": "混凝土引气剂",
+          "referencePrice": "28000",
+          "status": "有效",
+          "categoryId": 16
+        },
+        {
+          "id": "cmq2753470komt754792554",
+          "code": "CGML-GC-外加-127",
+          "name": "速凝剂",
+          "referencePrice": "5200",
+          "status": "有效",
+          "categoryId": 16
+        },
+        {
+          "id": "cmq2572640komt605655145",
+          "code": "CGML-GC-灌浆-128",
+          "name": "CG-200 超细水泥灌浆料",
+          "referencePrice": "5600",
+          "status": "有效",
+          "categoryId": 20
+        },
+        {
+          "id": "cmq5128500komt833899481",
+          "code": "CGML-GC-灌浆-129",
+          "name": "CG-300 环氧树脂灌浆料",
+          "referencePrice": "18500",
+          "status": "有效",
+          "categoryId": 20
+        },
+        {
+          "id": "cmq8961917komt360892741",
+          "code": "CGML-GC-灌浆-130",
+          "name": "丙烯酸盐化学灌浆液",
+          "referencePrice": "32000",
+          "status": "有效",
+          "categoryId": 20
+        },
+        {
+          "id": "cmq5849326komt833760032",
+          "code": "CGML-GC-管材-131",
+          "name": "PE100级 SDR11 给水用聚乙烯管",
+          "referencePrice": "95",
+          "status": "有效",
+          "categoryId": 23
+        },
+        {
+          "id": "cmq6689506komt492453857",
+          "code": "CGML-GC-管材-132",
+          "name": "DN300 球墨铸铁管",
+          "referencePrice": "520",
+          "status": "有效",
+          "categoryId": 23
+        },
+        {
+          "id": "cmq4599179komt534929851",
+          "code": "CGML-GC-管材-133",
+          "name": "DN100 镀锌钢管",
+          "referencePrice": "180",
+          "status": "有效",
+          "categoryId": 23
+        },
+        {
+          "id": "cmq6171451komt250079308",
+          "code": "CGML-GC-管材-134",
+          "name": "DN150 不锈钢304无缝管",
+          "referencePrice": "680",
+          "status": "有效",
+          "categoryId": 23
+        },
+        {
+          "id": "cmq6724276komt549163940",
+          "code": "CGML-GC-管材-135",
+          "name": "DN400 预应力钢筒混凝土管",
+          "referencePrice": "380",
+          "status": "有效",
+          "categoryId": 23
+        },
+        {
+          "id": "cmq6510886komt566768702",
+          "code": "CGML-GC-给排-136",
+          "name": "HDPE 双壁波纹排水管",
+          "referencePrice": "78",
+          "status": "有效",
+          "categoryId": 24
+        },
+        {
+          "id": "cmq5115423komt753427052",
+          "code": "CGML-GC-给排-137",
+          "name": "UPVC 实壁排水管",
+          "referencePrice": "32",
+          "status": "有效",
+          "categoryId": 24
+        },
+        {
+          "id": "cmq3913759komt970119194",
+          "code": "CGML-GC-给排-138",
+          "name": "PPR 冷热水管 S3.2",
+          "referencePrice": "18",
+          "status": "价格波动",
+          "categoryId": 24
+        },
+        {
+          "id": "cmq1056749komt631438024",
+          "code": "CGML-GC-给排-139",
+          "name": "不锈钢卡压式给水管",
+          "referencePrice": "280",
+          "status": "有效",
+          "categoryId": 24
+        },
+        {
+          "id": "cmq9363197komt898622867",
+          "code": "CGML-GC-管件-140",
+          "name": "DN100 钢制焊接弯头 90°",
+          "referencePrice": "28",
+          "status": "有效",
+          "categoryId": 22
+        },
+        {
+          "id": "cmq6838228komt121778906",
+          "code": "CGML-GC-管件-141",
+          "name": "DN200 法兰连接蝶阀用伸缩节",
+          "referencePrice": "185",
+          "status": "有效",
+          "categoryId": 22
+        },
+        {
+          "id": "cmq5758958komt478165707",
+          "code": "CGML-GC-管件-142",
+          "name": "DN80 沟槽式三通",
+          "referencePrice": "68",
+          "status": "有效",
+          "categoryId": 22
+        },
+        {
+          "id": "cmq3738149komt758422801",
+          "code": "CGML-GC-防水-143",
+          "name": "SBS 改性沥青防水卷材",
+          "referencePrice": "38",
+          "status": "有效",
+          "categoryId": 27
+        },
+        {
+          "id": "cmq2400565komt372666470",
+          "code": "CGML-GC-防水-144",
+          "name": "聚氨酯防水涂料",
+          "referencePrice": "52",
+          "status": "有效",
+          "categoryId": 27
+        },
+        {
+          "id": "cmq2560788komt149994840",
+          "code": "CGML-GC-防水-145",
+          "name": "水泥基渗透结晶型防水涂料",
+          "referencePrice": "42",
+          "status": "有效",
+          "categoryId": 27
+        },
+        {
+          "id": "cmq2431294komt503812971",
+          "code": "CGML-GC-土工-146",
+          "name": "聚丙烯短丝针刺土工布",
+          "referencePrice": "20",
+          "status": "有效",
+          "categoryId": 15
+        },
+        {
+          "id": "cmq7284199komt982584204",
+          "code": "CGML-GC-土工-147",
+          "name": "HDPE 防渗土工膜",
+          "referencePrice": "28",
+          "status": "有效",
+          "categoryId": 15
+        },
+        {
+          "id": "cmq3759760komt271345300",
+          "code": "CGML-GC-土工-148",
+          "name": "双向拉伸塑料土工格栅",
+          "referencePrice": "35",
+          "status": "有效",
+          "categoryId": 15
+        },
+        {
+          "id": "cmq5631767komt120516177",
+          "code": "CGML-GC-土工-149",
+          "name": "膨润土防水毯",
+          "referencePrice": "22",
+          "status": "有效",
+          "categoryId": 15
+        },
+        {
+          "id": "cmq9802237komt361591919",
+          "code": "CGML-GC-模板-150",
+          "name": "铝合金组合模板系统",
+          "referencePrice": "8500",
+          "status": "有效",
+          "categoryId": 17
+        },
+        {
+          "id": "cmq3958195komt685721581",
+          "code": "CGML-GC-模板-151",
+          "name": "Q235B 盘扣式支撑架",
+          "referencePrice": "7200",
+          "status": "有效",
+          "categoryId": 17
+        },
+        {
+          "id": "cmq4334651komt211557981",
+          "code": "CGML-GC-模板-152",
+          "name": "酚醛树脂覆膜胶合板",
+          "referencePrice": "58",
+          "status": "有效",
+          "categoryId": 17
+        },
+        {
+          "id": "cmq7715893komt948683365",
+          "code": "CGML-JD-水泵-153",
+          "name": "ISG100-160 单级单吸立式管道离心泵",
+          "referencePrice": "9200",
+          "status": "有效",
+          "categoryId": 37
+        },
+        {
+          "id": "cmq7832909komt280064386",
+          "code": "CGML-JD-水泵-154",
+          "name": "WQ2260-4045 潜水排污泵",
+          "referencePrice": "18500",
+          "status": "待复核",
+          "categoryId": 37
+        },
+        {
+          "id": "cmq4505152komt146245173",
+          "code": "CGML-JD-水泵-155",
+          "name": "CDLF32-30 立式多级不锈钢离心泵",
+          "referencePrice": "25800",
+          "status": "有效",
+          "categoryId": 37
+        },
+        {
+          "id": "cmq6294853komt760459374",
+          "code": "CGML-JD-水泵-156",
+          "name": "ZW80-40-16 卧式自吸排污泵",
+          "referencePrice": "6800",
+          "status": "有效",
+          "categoryId": 37
+        },
+        {
+          "id": "cmq6731225komt488686144",
+          "code": "CGML-JD-水泵-157",
+          "name": "S300-63 双吸离心泵",
+          "referencePrice": "98000",
+          "status": "有效",
+          "categoryId": 37
+        },
+        {
+          "id": "cmq9175671komt853262842",
+          "code": "CGML-JD-泵站-158",
+          "name": "一体化预制泵站 Φ2000×6000",
+          "referencePrice": "185000",
+          "status": "有效",
+          "categoryId": 38
+        },
+        {
+          "id": "cmq9034808komt457701901",
+          "code": "CGML-JD-泵站-159",
+          "name": "轴流泵用行星齿轮减速箱",
+          "referencePrice": "52000",
+          "status": "有效",
+          "categoryId": 38
+        },
+        {
+          "id": "cmq9977533komt443620466",
+          "code": "CGML-JD-阀门-160",
+          "name": "D341X-10 DN200 法兰蝶阀",
+          "referencePrice": "2800",
+          "status": "有效",
+          "categoryId": 40
+        },
+        {
+          "id": "cmq3891554komt545659188",
+          "code": "CGML-JD-阀门-161",
+          "name": "Z45X-16 DN150 暗杆弹性座封闸阀",
+          "referencePrice": "1950",
+          "status": "有效",
+          "categoryId": 40
+        },
+        {
+          "id": "cmq4431218komt425004103",
+          "code": "CGML-JD-阀门-162",
+          "name": "HH44X-10 DN300 微阻缓闭止回阀",
+          "referencePrice": "12500",
+          "status": "有效",
+          "categoryId": 40
+        },
+        {
+          "id": "cmq2562478komt132752369",
+          "code": "CGML-JD-阀门-163",
+          "name": "Y42X-16 DN100 活塞式减压阀",
+          "referencePrice": "4200",
+          "status": "待复核",
+          "categoryId": 40
+        },
+        {
+          "id": "cmq9359368komt686521898",
+          "code": "CGML-JD-阀门-164",
+          "name": "JD745X-16 DN250 多功能水泵控制阀",
+          "referencePrice": "15800",
+          "status": "有效",
+          "categoryId": 40
+        },
+        {
+          "id": "cmq3589931komt636945826",
+          "code": "CGML-JD-阀门-165",
+          "name": "RVHX-10 DN150 暗杆弹性座封闸阀",
+          "referencePrice": "2100",
+          "status": "有效",
+          "categoryId": 40
+        },
+        {
+          "id": "cmq5398708komt705740967",
+          "code": "CGML-JD-水处-166",
+          "name": "一体化净水器 XL-50",
+          "referencePrice": "48000",
+          "status": "有效",
+          "categoryId": 36
+        },
+        {
+          "id": "cmq4558300komt433852299",
+          "code": "CGML-JD-水处-167",
+          "name": "浸没式超滤膜组件 UFM-150",
+          "referencePrice": "65000",
+          "status": "有效",
+          "categoryId": 36
+        },
+        {
+          "id": "cmq7208581komt760841619",
+          "code": "CGML-JD-水处-168",
+          "name": "反渗透淡化装置 RO-25",
+          "referencePrice": "185000",
+          "status": "价格波动",
+          "categoryId": 36
+        },
+        {
+          "id": "cmq6342828komt432006693",
+          "code": "CGML-JD-加药-169",
+          "name": "次氯酸钠在线发生器 200g/h",
+          "referencePrice": "38000",
+          "status": "待复核",
+          "categoryId": 34
+        },
+        {
+          "id": "cmq1327180komt944374452",
+          "code": "CGML-JD-加药-170",
+          "name": "PAC 全自动加药装置 JY-500",
+          "referencePrice": "25000",
+          "status": "价格波动",
+          "categoryId": 34
+        },
+        {
+          "id": "cmq6555786komt277426608",
+          "code": "CGML-JD-加药-171",
+          "name": "二氧化氯发生器 CLO2-1000",
+          "referencePrice": "32000",
+          "status": "价格波动",
+          "categoryId": 34
+        },
+        {
+          "id": "cmq9568816komt507893771",
+          "code": "CGML-JD-电气-172",
+          "name": "KYN28A-12 金属铠装移开式开关柜",
+          "referencePrice": "28000",
+          "status": "有效",
+          "categoryId": 39
+        },
+        {
+          "id": "cmq9095819komt753066949",
+          "code": "CGML-JD-电气-173",
+          "name": "SCB13-1000/10 干式变压器",
+          "referencePrice": "68000",
+          "status": "价格波动",
+          "categoryId": 39
+        },
+        {
+          "id": "cmq5352480komt219185652",
+          "code": "CGML-JD-电气-174",
+          "name": "MNS 低压抽出式开关柜",
+          "referencePrice": "18500",
+          "status": "有效",
+          "categoryId": 39
+        },
+        {
+          "id": "cmq5592760komt218605532",
+          "code": "CGML-JD-发电-175",
+          "name": "DCM550 柴油发电机组",
+          "referencePrice": "125000",
+          "status": "有效",
+          "categoryId": 35
+        },
+        {
+          "id": "cmq8300800komt358300591",
+          "code": "CGML-JD-发电-176",
+          "name": "YC6MK410L-D20 船用发电机组",
+          "referencePrice": "195000",
+          "status": "有效",
+          "categoryId": 35
+        },
+        {
+          "id": "cmq1085389komt605565551",
+          "code": "CGML-XX-仪器-177",
+          "name": "IFC300 智能电磁流量计",
+          "referencePrice": "8500",
+          "status": "有效",
+          "categoryId": 2
+        },
+        {
+          "id": "cmq3849231komt952245536",
+          "code": "CGML-XX-仪器-178",
+          "name": "PT3000 投入式液位变送器",
+          "referencePrice": "2200",
+          "status": "即将过期",
+          "categoryId": 2
+        },
+        {
+          "id": "cmq6550272komt128479617",
+          "code": "CGML-XX-仪器-179",
+          "name": "AQMS-900 环境空气自动监测站",
+          "referencePrice": "185000",
+          "status": "有效",
+          "categoryId": 2
+        },
+        {
+          "id": "cmq8764393komt358040226",
+          "code": "CGML-XX-仪器-180",
+          "name": "DR6000 紫外可见分光光度计",
+          "referencePrice": "58000",
+          "status": "有效",
+          "categoryId": 2
+        },
+        {
+          "id": "cmq7060392komt854519948",
+          "code": "CGML-XX-传感-181",
+          "name": "MPM489 压力变送器",
+          "referencePrice": "1850",
+          "status": "有效",
+          "categoryId": 3
+        },
+        {
+          "id": "cmq3123346komt516348865",
+          "code": "CGML-XX-传感-182",
+          "name": "LDM-51 明渠超声波流量计",
+          "referencePrice": "4500",
+          "status": "有效",
+          "categoryId": 3
+        },
+        {
+          "id": "cmq1545089komt390869269",
+          "code": "CGML-XX-传感-183",
+          "name": "XKC-Y26 智能液位控制器",
+          "referencePrice": "580",
+          "status": "有效",
+          "categoryId": 3
+        },
+        {
+          "id": "cmq2101541komt573765948",
+          "code": "CGML-XX-传感-184",
+          "name": "WZP-230 Pt100 热电阻温度传感器",
+          "referencePrice": "320",
+          "status": "有效",
+          "categoryId": 3
+        },
+        {
+          "id": "cmq9786758komt891066960",
+          "code": "CGML-XX-自动-185",
+          "name": "S7-1500 PLC 控制系统",
+          "referencePrice": "38000",
+          "status": "有效",
+          "categoryId": 6
+        },
+        {
+          "id": "cmq3111936komt508985593",
+          "code": "CGML-XX-自动-186",
+          "name": "DCS 分布式控制系统 K系列",
+          "referencePrice": "280000",
+          "status": "价格波动",
+          "categoryId": 6
+        },
+        {
+          "id": "cmq2558147komt414847563",
+          "code": "CGML-XX-自动-187",
+          "name": "SCADA 系统 RTU终端",
+          "referencePrice": "8500",
+          "status": "有效",
+          "categoryId": 6
+        },
+        {
+          "id": "cmq3363369komt208996848",
+          "code": "CGML-XX-安防-188",
+          "name": "DS-2CD2T47G2-L 智能网络摄像机",
+          "referencePrice": "2800",
+          "status": "有效",
+          "categoryId": 4
+        },
+        {
+          "id": "cmq7644843komt644944328",
+          "code": "CGML-XX-安防-189",
+          "name": "NVR-908 网络硬盘录像机",
+          "referencePrice": "8500",
+          "status": "即将过期",
+          "categoryId": 4
+        },
+        {
+          "id": "cmq8027281komt676788765",
+          "code": "CGML-XX-安防-190",
+          "name": "出入口道闸管理系统",
+          "referencePrice": "12500",
+          "status": "价格波动",
+          "categoryId": 4
+        },
+        {
+          "id": "cmq5900923komt174160742",
+          "code": "CGML-XX-网络-191",
+          "name": "MP1900X-12 核心交换机",
+          "referencePrice": "18000",
+          "status": "有效",
+          "categoryId": 5
+        },
+        {
+          "id": "cmq7253495komt995931865",
+          "code": "CGML-XX-网络-192",
+          "name": "AP-7562 室外工业无线AP",
+          "referencePrice": "5200",
+          "status": "有效",
+          "categoryId": 5
+        },
+        {
+          "id": "cmq4268120komt729431508",
+          "code": "CGML-XX-网络-193",
+          "name": "千兆单模光纤收发器",
+          "referencePrice": "680",
+          "status": "有效",
+          "categoryId": 5
+        },
+        {
+          "id": "cmq2794501komt376068872",
+          "code": "CGML-XX-软件-194",
+          "name": "水资源综合管理平台 V5.0",
+          "referencePrice": "380000",
+          "status": "有效",
+          "categoryId": 7
+        },
+        {
+          "id": "cmq6277757komt516497762",
+          "code": "CGML-XX-软件-195",
+          "name": "供水管网水力模型系统",
+          "referencePrice": "250000",
+          "status": "有效",
+          "categoryId": 7
+        },
+        {
+          "id": "cmq2412342komt386755721",
+          "code": "CGML-LB-劳保-196",
+          "name": "全套水利施工安全防护套装",
+          "referencePrice": "320",
+          "status": "有效",
+          "categoryId": 13
+        },
+        {
+          "id": "cmq2814390komt843259939",
+          "code": "CGML-LB-劳保-197",
+          "name": "水域救援防护服",
+          "referencePrice": "2800",
+          "status": "有效",
+          "categoryId": 13
+        },
+        {
+          "id": "cmq1755797komt883863204",
+          "code": "CGML-LB-劳保-198",
+          "name": "H2S 多气体检测报警仪",
+          "referencePrice": "1800",
+          "status": "有效",
+          "categoryId": 13
+        },
+        {
+          "id": "cmq7445474komt316129246",
+          "code": "CGML-LB-劳保-199",
+          "name": "高处作业安全带套装",
+          "referencePrice": "850",
+          "status": "有效",
+          "categoryId": 13
+        },
+        {
+          "id": "cmq2641666komt121389297",
+          "code": "CGML-BG-办公-200",
+          "name": "A3彩色多功能一体机",
+          "referencePrice": "8500",
+          "status": "即将过期",
+          "categoryId": 10
+        },
+        {
+          "id": "cmq2018101komt516483890",
+          "code": "CGML-BG-办公-201",
+          "name": "便携式工程投影仪 6000流明",
+          "referencePrice": "12000",
+          "status": "有效",
+          "categoryId": 10
+        },
+        {
+          "id": "cmq7257322komt273579942",
+          "code": "CGML-BG-办公-202",
+          "name": "工业级标签条码双面打印机",
+          "referencePrice": "4200",
+          "status": "有效",
+          "categoryId": 10
+        },
+        {
+          "id": "cmq3158378komt934760602",
+          "code": "CGML-BG-办公-203",
+          "name": "工程监理现场办公桌椅套装",
+          "referencePrice": "3800",
+          "status": "有效",
+          "categoryId": 9
+        },
+        {
+          "id": "cmq5088708komt168193952",
+          "code": "CGML-BG-办公-204",
+          "name": "密集档案柜",
+          "referencePrice": "8500",
+          "status": "即将过期",
+          "categoryId": 9
+        },
+        {
+          "id": "cmq9239534komt157749025",
+          "code": "CGML-BG-办公-205",
+          "name": "项目现场集装箱活动办公室",
+          "referencePrice": "32000",
+          "status": "有效",
+          "categoryId": 9
+        },
+        {
+          "id": "cmq6303528komt782924806",
+          "code": "CGML-BG-油料-206",
+          "name": "0# 车用柴油",
+          "referencePrice": "8500",
+          "status": "有效",
+          "categoryId": 11
+        },
+        {
+          "id": "cmq4444700komt190001031",
+          "code": "CGML-BG-油料-207",
+          "name": "95# 车用汽油",
+          "referencePrice": "9800",
+          "status": "待复核",
+          "categoryId": 11
+        },
+        {
+          "id": "cmq9399269komt452336789",
+          "code": "CGML-BG-油料-208",
+          "name": "LNG 液化天然气",
+          "referencePrice": "5200",
+          "status": "有效",
+          "categoryId": 11
+        },
+        {
+          "id": "cmq1550332komt540380319",
+          "code": "CGML-FW-专业-209",
+          "name": "施工图审查咨询服务",
+          "referencePrice": "55000",
+          "status": "有效",
+          "categoryId": 29
+        },
+        {
+          "id": "cmq8386537komt375315115",
+          "code": "CGML-FW-专业-210",
+          "name": "水土保持方案编制",
+          "referencePrice": "85000",
+          "status": "有效",
+          "categoryId": 29
+        },
+        {
+          "id": "cmq2003922komt968150044",
+          "code": "CGML-FW-专业-211",
+          "name": "水利工程BIM建模咨询",
+          "referencePrice": "120000",
+          "status": "有效",
+          "categoryId": 29
+        },
+        {
+          "id": "cmq3856346komt641865535",
+          "code": "CGML-FW-检测-212",
+          "name": "大坝安全监测年度服务",
+          "referencePrice": "45000",
+          "status": "有效",
+          "categoryId": 30
+        },
+        {
+          "id": "cmq2978291komt644842005",
+          "code": "CGML-FW-检测-213",
+          "name": "混凝土强度无损检测",
+          "referencePrice": "32000",
+          "status": "有效",
+          "categoryId": 30
+        },
+        {
+          "id": "cmq3496967komt850327557",
+          "code": "CGML-FW-检测-214",
+          "name": "水质全项检测服务",
+          "referencePrice": "18000",
+          "status": "有效",
+          "categoryId": 30
+        },
+        {
+          "id": "cmq7645965komt560733034",
+          "code": "CGML-FW-运维-215",
+          "name": "泵站年度运维保养",
+          "referencePrice": "85000",
+          "status": "有效",
+          "categoryId": 32
+        },
+        {
+          "id": "cmq1414837komt188301923",
+          "code": "CGML-FW-运维-216",
+          "name": "水厂自控系统年度维护",
+          "referencePrice": "75000",
+          "status": "待复核",
+          "categoryId": 32
+        },
+        {
+          "id": "cmq9533378komt734324699",
+          "code": "CGML-FW-运维-217",
+          "name": "阀门井群巡检维护",
+          "referencePrice": "38000",
+          "status": "有效",
+          "categoryId": 32
+        },
+        {
+          "id": "cmq9449355komt502906090",
+          "code": "CGML-FW-物流-218",
+          "name": "管材整车运输服务",
+          "referencePrice": "4200",
+          "status": "价格波动",
+          "categoryId": 31
+        },
+        {
+          "id": "cmq5974564komt313942038",
+          "code": "CGML-FW-物流-219",
+          "name": "水泥散装罐车运输",
+          "referencePrice": "2800",
+          "status": "有效",
+          "categoryId": 31
+        },
+        {
+          "id": "cmq3253274komt767632877",
+          "code": "CGML-FW-物流-220",
+          "name": "重型设备吊装运输",
+          "referencePrice": "52000",
+          "status": "有效",
+          "categoryId": 31
+        }
+      ],
+      "categories": [
+        {
+          "id": 1,
+          "name": "信息化设备",
+          "code": "信息化设",
+          "parentId": null,
+          "sortOrder": 1,
+          "status": "ACTIVE",
+          "isLeaf": false,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 2,
+          "name": "仪器仪表",
+          "code": "信息-仪器",
+          "parentId": 1,
+          "sortOrder": 2,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 3,
+          "name": "传感器",
+          "code": "信息-传感",
+          "parentId": 1,
+          "sortOrder": 3,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 4,
+          "name": "安防监控",
+          "code": "信息-安防",
+          "parentId": 1,
+          "sortOrder": 4,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 5,
+          "name": "网络通信",
+          "code": "信息-网络",
+          "parentId": 1,
+          "sortOrder": 5,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 6,
+          "name": "自动化设备",
+          "code": "信息-自动",
+          "parentId": 1,
+          "sortOrder": 6,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 7,
+          "name": "软件系统",
+          "code": "信息-软件",
+          "parentId": 1,
+          "sortOrder": 7,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 8,
+          "name": "办公后勤",
+          "code": "办公后勤",
+          "parentId": null,
+          "sortOrder": 8,
+          "status": "ACTIVE",
+          "isLeaf": false,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 9,
+          "name": "办公家具",
+          "code": "办公-办公",
+          "parentId": 8,
+          "sortOrder": 9,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 10,
+          "name": "办公设备",
+          "code": "办公-办公",
+          "parentId": 8,
+          "sortOrder": 10,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 11,
+          "name": "油料能源",
+          "code": "办公-油料",
+          "parentId": 8,
+          "sortOrder": 11,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 12,
+          "name": "劳保及通用物资",
+          "code": "劳保及通",
+          "parentId": null,
+          "sortOrder": 12,
+          "status": "ACTIVE",
+          "isLeaf": false,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 13,
+          "name": "劳保用品",
+          "code": "劳保-劳保",
+          "parentId": 12,
+          "sortOrder": 13,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 14,
+          "name": "工程材料",
+          "code": "工程材料",
+          "parentId": null,
+          "sortOrder": 14,
+          "status": "ACTIVE",
+          "isLeaf": false,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 15,
+          "name": "土工材料",
+          "code": "工程-土工",
+          "parentId": 14,
+          "sortOrder": 15,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 16,
+          "name": "外加剂",
+          "code": "工程-外加",
+          "parentId": 14,
+          "sortOrder": 16,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 17,
+          "name": "模板脚手架",
+          "code": "工程-模板",
+          "parentId": 14,
+          "sortOrder": 17,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 18,
+          "name": "水泥",
+          "code": "工程-水泥",
+          "parentId": 14,
+          "sortOrder": 18,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 19,
+          "name": "混凝土",
+          "code": "工程-混凝",
+          "parentId": 14,
+          "sortOrder": 19,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 20,
+          "name": "灌浆材料",
+          "code": "工程-灌浆",
+          "parentId": 14,
+          "sortOrder": 20,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 21,
+          "name": "砂石骨料",
+          "code": "工程-砂石",
+          "parentId": 14,
+          "sortOrder": 21,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 22,
+          "name": "管件",
+          "code": "工程-管件",
+          "parentId": 14,
+          "sortOrder": 22,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 23,
+          "name": "管材",
+          "code": "工程-管材",
+          "parentId": 14,
+          "sortOrder": 23,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 24,
+          "name": "给排水管材",
+          "code": "工程-给排",
+          "parentId": 14,
+          "sortOrder": 24,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 25,
+          "name": "钢材",
+          "code": "工程-钢材",
+          "parentId": 14,
+          "sortOrder": 25,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 26,
+          "name": "钢筋",
+          "code": "工程-钢筋",
+          "parentId": 14,
+          "sortOrder": 26,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 27,
+          "name": "防水材料",
+          "code": "工程-防水",
+          "parentId": 14,
+          "sortOrder": 27,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 28,
+          "name": "服务采购",
+          "code": "服务采购",
+          "parentId": null,
+          "sortOrder": 28,
+          "status": "ACTIVE",
+          "isLeaf": false,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 29,
+          "name": "专业服务",
+          "code": "服务-专业",
+          "parentId": 28,
+          "sortOrder": 29,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 30,
+          "name": "检测监测服务",
+          "code": "服务-检测",
+          "parentId": 28,
+          "sortOrder": 30,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 31,
+          "name": "物流运输服务",
+          "code": "服务-物流",
+          "parentId": 28,
+          "sortOrder": 31,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 32,
+          "name": "运维服务",
+          "code": "服务-运维",
+          "parentId": 28,
+          "sortOrder": 32,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 33,
+          "name": "机电设备",
+          "code": "机电设备",
+          "parentId": null,
+          "sortOrder": 33,
+          "status": "ACTIVE",
+          "isLeaf": false,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 34,
+          "name": "加药消毒设备",
+          "code": "机电-加药",
+          "parentId": 33,
+          "sortOrder": 34,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 35,
+          "name": "发电机组",
+          "code": "机电-发电",
+          "parentId": 33,
+          "sortOrder": 35,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 36,
+          "name": "水处理设备",
+          "code": "机电-水处",
+          "parentId": 33,
+          "sortOrder": 36,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 37,
+          "name": "水泵",
+          "code": "机电-水泵",
+          "parentId": 33,
+          "sortOrder": 37,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 38,
+          "name": "泵站设备",
+          "code": "机电-泵站",
+          "parentId": 33,
+          "sortOrder": 38,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 39,
+          "name": "电气设备",
+          "code": "机电-电气",
+          "parentId": 33,
+          "sortOrder": 39,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": 40,
+          "name": "阀门",
+          "code": "机电-阀门",
+          "parentId": 33,
+          "sortOrder": 40,
+          "status": "ACTIVE",
+          "isLeaf": true,
+          "icon": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      "capturedAt": "2026-01-01T00:00:00.000Z"
+    },
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "createdBy": "Swhi-CGZX-00"
+  }
+]
