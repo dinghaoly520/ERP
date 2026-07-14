@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ContactsService } from './contacts.service';
 import { AuthGuard } from '../auth/auth.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CreateContactDto, UpdateContactDto } from './dto/contacts.dto';
 
 @Controller('contacts')
@@ -19,6 +20,7 @@ export class ContactsController {
   constructor(private readonly contactsService: ContactsService) {}
 
   @Post()
+  @Roles('procurement_staff', 'admin')
   create(@Body() dto: CreateContactDto) {
     return this.contactsService.create(dto);
   }
@@ -39,11 +41,13 @@ export class ContactsController {
   }
 
   @Put(':id')
+  @Roles('procurement_staff', 'admin')
   update(@Param('id') id: string, @Body() dto: UpdateContactDto) {
     return this.contactsService.update(id, dto);
   }
 
   @Delete(':id')
+  @Roles('procurement_staff', 'admin')
   delete(@Param('id') id: string) {
     return this.contactsService.delete(id);
   }

@@ -1282,6 +1282,14 @@ export class BidService {
       throw new BadRequestException({ error: '评分项不属于此项目', code: 'SCORE_ITEM_NOT_IN_PROJECT' });
     }
 
+    // 校验 supplierId 属于该项目（防跨项目写脏分：bid_host 可传别项目的 supplierId，FK 满足即落库）
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { id: dto.supplierId, projectId },
+    });
+    if (!bidSupplier) {
+      throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
+    }
+
     // 校验分数不超过评分项满分
     if (Number(dto.score) > Number(scoreItem.maxScore)) {
       throw new BadRequestException({
@@ -1381,6 +1389,13 @@ export class BidService {
 
     const reply = dto.reply;
     const status = dto.status || '已回复';
+    // 归属校验：原实现 where:{id:cid} 忽略 projectId，可用项目 A 路径回复项目 B 澄清（IDOR）
+    const existingClarification = await this.prisma.bidClarification.findFirst({
+      where: { id: cid, projectId },
+    });
+    if (!existingClarification) {
+      throw new BadRequestException({ error: '澄清不存在或不属于此项目', code: 'CLARIFICATION_NOT_IN_PROJECT' });
+    }
     const result = await this.prisma.bidClarification.update({
       where: { id: cid }, data: { reply, status },
     });
@@ -1976,6 +1991,13 @@ export class BidService {
   // ── Supervision Annotations ──
 
   async upsertSupervisionAnnotation(projectId: string, dto: UpsertSupervisionAnnotationDto) {
+    // 归属校验：防止 supplierId 指向其它项目的 BidSupplier，写出 projectId=A、supplierId→B 的脏标注
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { id: dto.supplierId, projectId },
+    });
+    if (!bidSupplier) {
+      throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
+    }
     return this.prisma.bidSupervisionAnnotation.upsert({
       where: { supplierId: dto.supplierId },
       create: {
@@ -1994,8 +2016,14 @@ export class BidService {
   }
 
   async deleteSupervisionAnnotation(projectId: string, supplierId: string) {
+    // 归属校验：原实现 where:{supplierId} 忽略 projectId（supplierId 为 @unique），
+    // 可跨项目删除任意项目下该供应商的标注
+    const existing = await this.prisma.bidSupervisionAnnotation.findFirst({
+      where: { supplierId, projectId },
+    });
+    if (!existing) return null;
     return this.prisma.bidSupervisionAnnotation.delete({
-      where: { supplierId },
+      where: { id: existing.id },
     }).catch(() => null);
   }
 

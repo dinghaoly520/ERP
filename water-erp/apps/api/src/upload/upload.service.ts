@@ -221,15 +221,22 @@ export class UploadService implements OnModuleInit {
   /**
    * 删除文件（MinIO 对象 + 元数据）
    */
-  async delete(key: string) {
+  async delete(key: string, user?: { sub: string; role: string }) {
     const asset = await this.prisma.fileAsset.findUnique({ where: { key } });
     if (!asset) {
       throw new BadRequestException({ error: '文件不存在', code: 'NOT_FOUND' });
     }
 
+    // 越权防护：仅上传者本人或 admin/bid_host 可删除
+    // （原实现完全无鉴权，任意登录用户拿到 key 即可删他人投标/招标/AI 报告文件）
+    const isAdmin = !!user && ['admin', 'bid_host'].includes(user.role);
+    if (!isAdmin && asset.uploaderId !== user?.sub) {
+      throw new ForbiddenException({ error: '无权删除该文件', code: 'FILE_FORBIDDEN' });
+    }
+
     // 先删对象，再删元数据；任一失败抛错以暴露问题
     await minioClient.removeObject(MINIO_BUCKET, key);
-    this.logger.log(`File removed from MinIO: ${key}`);
+    this.logger.log(`File removed from MinIO: ${key} (by ${user?.sub ?? 'system'})`);
 
     await this.prisma.fileAsset.delete({ where: { key } });
     return { deleted: true, key };

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { ProcurementsService } from './procurements.service';
 import { CreateProcurementRoundDto } from './dto/create-procurement-round.dto';
@@ -47,6 +48,7 @@ export class ProcurementsController {
   }
 
   @Post()
+  @Roles('procurement_staff', 'leader', 'admin', 'bid_host', 'staff')
   create(
     @Body() createDto: CreateProcurementRoundDto,
     @CurrentUser() user: AuthenticatedUser,

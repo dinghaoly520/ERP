@@ -820,6 +820,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1' });
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1', score: 10 });
 
       const result = await service.submitScore('p1', {

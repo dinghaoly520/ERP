@@ -58,7 +58,7 @@ export class UploadController {
 
   @Delete(':key')
   @ApiOperation({ summary: '删除文件' })
-  async delete(@Param('key') key: string) {
-    return this.uploadService.delete(key);
+  async delete(@Param('key') key: string, @Request() req: any) {
+    return this.uploadService.delete(key, req.user);
   }
 }
