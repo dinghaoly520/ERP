@@ -134,6 +134,7 @@ export type WorkArrangementDailyPlan = {
   riskAlerts: string[];
   completionAdvice: string;
   projectBrief: string;
+  dailyQuote?: string;
 };
 
 export type WorkArrangementReminderState =

@@ -53,7 +53,7 @@ export class AiService {
     date: string; headerGreeting: string; namePraise: string;
     dailyGreeting: string; riskSummary: string; aiSuggestion: string;
     overview: string; focusItems: any[]; timeBlocks: any[];
-    riskAlerts: any[]; completionAdvice: string; projectBrief: string;
+    riskAlerts: any[]; completionAdvice: string; projectBrief: string; dailyQuote: string;
   }> {
     const EN2ZH: Record<string,string> = {TODO:'待处理',IN_PROGRESS:'进行中',BLOCKED:'阻塞',COMPLETED:'已完成',CANCELLED:'已取消',CRITICAL:'紧急',HIGH:'高',MEDIUM:'中',LOW:'低'};
     const zh = (s:string)=>EN2ZH[s]||s;
@@ -111,6 +111,7 @@ export class AiService {
 ═════════════════════════════════════════
 其他字段：
 - headerGreeting: 80-120字关怀问候。像一个贴心的私人助理在汇报今日概况。语气温暖自然，先问候，再简述今日任务总量，挑出1-2项最紧迫的任务给出关怀提醒，最后以鼓励收尾。禁用姓名职位称呼。示例："下午好。今天有8项工作需要你关注，其中3项比较紧急——供应商审批已经等了快一天了，价格复核也有2项需要你的判断。不过别担心，我已经帮你排好了时间顺序。今天一定能顺利处理的。"
+- dailyQuote: 每日一句，12-20字。选中国古典诗词或文句（唐诗宋词、古文经典），根据季节和时段挑选，与当日语境协调、积极向上。示例："行到水穷处，坐看云起时"
 - namePraise: ""
 - dailyGreeting: ""
 - riskSummary: 40字内风险总结
@@ -148,6 +149,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         riskAlerts: result.riskAlerts || [],
         completionAdvice: '',
         projectBrief: result.projectBrief || '',
+        dailyQuote: result.dailyQuote || '',
       };
     } catch {
       return {
@@ -161,6 +163,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         focusItems: [], timeBlocks: [], riskAlerts: [],
         completionAdvice: '',
         projectBrief: '',
+        dailyQuote: '',
       };
     }
   }
@@ -1275,6 +1278,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 ═════════════════════════════════════════
 其他字段：
 - headerGreeting: 80-120字关怀问候。像一个贴心的私人助理在向用户汇报今日概况。语气温暖自然，先问候（根据时段变化），再简述今日任务总量（"今天有N项工作需要你关注"），挑出1-2项最紧迫或最重要的任务给出关怀提醒，最后以一句鼓励或轻松的话收尾。必须覆盖：问候语+数据简述+关怀提醒+鼓励收尾。禁用姓名职位称呼。
+- dailyQuote: 每日一句，12-20字。选中国古典诗词或文句（唐诗宋词、古文经典），根据季节和时段挑选，与当日语境协调、积极向上。示例："行到水穷处，坐看云起时"
 - namePraise: ""
 - dailyGreeting: ""
 - riskSummary: 40字内风险总结
@@ -1312,6 +1316,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         riskAlerts: result.riskAlerts || [],
         completionAdvice: result.completionAdvice || '完成所有待办后记得复盘',
         projectBrief: result.projectBrief || '',
+        dailyQuote: result.dailyQuote || '',
       };
     } catch {
       return {
@@ -1319,7 +1324,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         dailyGreeting: `今日共${totalItems}项任务`, riskSummary: '风险可控',
         aiSuggestion: '按优先级处理', overview: `${totalItems}项任务`,
         focusItems: [], timeBlocks: [], riskAlerts: [],
-        completionAdvice: '完成后复盘', projectBrief: '',
+        completionAdvice: '完成后复盘', projectBrief: '', dailyQuote: '',
       };
     }
   }
