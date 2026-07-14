@@ -5,7 +5,6 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import {
-  CalendarCheck2,
   FolderKanban,
   LayoutDashboard,
   FileEdit,
@@ -25,6 +24,7 @@ import {
 } from "lucide-react";
 import { AppUserActions } from "@/components/app-user-actions";
 import { UnifiedHeader } from "@/components/workbench/unified-header";
+import { GlobalSearch } from "@/components/global-search";
 import { fetchCurrentUser, type AuthRole, type AuthUser } from "@/lib/api/auth";
 import { ChatPanel } from "@/components/assistant/chat-panel";
 
@@ -111,6 +111,7 @@ const navGroups: NavGroup[] = [
     label: "集中目录管理",
     icon: ShoppingBag,
     items: [
+      { key: "mall-category-tree", label: "品类树管理", href: "/mall-management/category-tree", icon: ShoppingBag, meta: "分类体系", roles: ["admin"] },
       { key: "mall-central-catalog", label: "集中采购目录", href: "/mall-management/central-catalog", icon: ShoppingBag, meta: "集采目录" },
       { key: "mall-approval", label: "价格审批", href: "/mall-management/approval", icon: ShoppingBag, meta: "供货审核" },
       { key: "mall-price", label: "价格录入", href: "/mall-management/price-entry", icon: ShoppingBag, meta: "手动/导入" },
@@ -438,6 +439,7 @@ export function AppShell({
           </main>
         </section>
         <ChatPanel variant="mini" />
+        <GlobalSearch />
       </div>
     </div>
   );

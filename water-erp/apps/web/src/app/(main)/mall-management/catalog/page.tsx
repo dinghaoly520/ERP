@@ -9,6 +9,7 @@ import {
   type CatalogItem, type CatalogStats,
 } from '@/lib/api/catalog-admin';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
+import { CategoryTreeSelect } from '@/components/catalog/CategoryTreeSelect';
 import { ShoppingCart, Package, RefreshCw, ChevronUp, X, Search } from 'lucide-react';
 
 const statuses = ['全部', '有效', '价格波动', '即将过期', '待复核', '下架', '停用'];
@@ -19,18 +20,21 @@ export default function CatalogManagementPage() {
   const [stats, setStats] = useState<CatalogStats | null>(null);
   const [status, setStatus] = useState('全部');
   const [search, setSearch] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [list, s] = await Promise.all([listCatalogItems({ status }), getCatalogStats()]);
+      const params: Record<string, string | number | undefined> = { status };
+      if (selectedCategoryId) params.categoryId = selectedCategoryId;
+      const [list, s] = await Promise.all([listCatalogItems(params), getCatalogStats()]);
       setItems(list); setStats(s);
     } catch (err: any) { toast.error(err.message || '加载失败'); }
     finally { setLoading(false); }
   };
-  useEffect(() => { load(); }, [status]);
+  useEffect(() => { load(); }, [status, selectedCategoryId]);
 
   const filtered = useMemo(() => {
     const kw = search.trim();
@@ -91,7 +95,18 @@ export default function CatalogManagementPage() {
         <div className="neu-tab-bar">
           {statuses.map(s => (<button key={s} onClick={() => { setStatus(s); setPage(1); }} className={`neu-tab ${status === s ? 'is-active' : ''}`}>{s}</button>))}
         </div>
-        <div className="relative flex-1 min-w-[180px]"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索编码、名称、规格、分类、供应商" className="neu-input !pl-9 w-full text-sm" />{search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}</div>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <CategoryTreeSelect
+            value={selectedCategoryId}
+            onChange={(id) => { setSelectedCategoryId(id); setPage(1); }}
+            placeholder="按品类筛选"
+            className="min-w-[180px]"
+          />
+          <div className="relative flex-1 min-w-[120px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索编码、名称、规格、供应商" className="neu-input !pl-9 w-full text-sm" />
+            {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}
+          </div>
       </div>
 
       <div className="neu-table-card">
@@ -101,7 +116,7 @@ export default function CatalogManagementPage() {
               <tr>
                 <SortableTh label="编码" field="code" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
                 <SortableTh label="名称/规格" field="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-                <SortableTh label="分类" field="category" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
+                <th className="text-center">品类路径</th>
                 <SortableTh label="参考价" field="referencePrice" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
                 <th className="text-center">供应商</th>
                 <th className="text-center">状态</th>
@@ -128,7 +143,7 @@ export default function CatalogManagementPage() {
                 <tr key={item.id} className="row-clickable">
                   <td className="text-center font-mono text-xs text-[var(--accent)]">{item.code}</td>
                   <td><div className="font-bold text-[var(--foreground)]">{item.name}</div><div className="text-xs text-[var(--muted-foreground)]">{item.specification}</div></td>
-                  <td className="text-center">{item.category}</td>
+                  <td className="text-center text-xs text-[var(--muted-foreground)]">{item.categoryPath || `${item.group || ''} > ${item.category}`}</td>
                   <td className="text-center font-bold tabular-nums">¥{item.referencePrice.toLocaleString('zh-CN')}</td>
                   <td className="text-center">{item.supplier}</td>
                   <td className="text-center"><StatusBadge tone={statusTone(item.status)}>{item.status}</StatusBadge></td>

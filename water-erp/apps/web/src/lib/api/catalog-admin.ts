@@ -84,10 +84,6 @@ export function createCatalogItem(input: CatalogItemInput) {
   return request<CatalogItem>('/api/catalog/admin/items', { method: 'POST', body: JSON.stringify(input) });
 }
 
-export function updateCatalogItem(id: string, input: CatalogItemInput) {
-  return request<CatalogItem>(`/api/catalog/admin/items/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
-}
-
 export function changeCatalogStatus(id: string, status: string, reason?: string) {
   return request<CatalogItem>(`/api/catalog/admin/items/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, reason }) });
 }
@@ -106,4 +102,51 @@ export function importCatalogFile(file: File) {
 
 export function listCatalogAuditLogs() {
   return request<CatalogAuditLog[]>('/api/catalog/admin/audit-logs');
+}
+
+export function getCatalogItem(id: string) {
+  return request<CatalogItem>(`/api/catalog/${id}`);
+}
+
+// ── 品类树 ──
+
+export interface CategoryNode {
+  id: number; name: string; code: string | null; parentId: number | null;
+  sortOrder: number; status: string; isLeaf: boolean; icon: string | null;
+  children: CategoryNode[];
+  attributeTemplates?: AttributeTemplate[];
+}
+
+export interface AttributeTemplate {
+  id: number; categoryId: number; name: string; fieldKey: string;
+  fieldType: string; required: boolean; options: string[] | null;
+  unit: string | null; sortOrder: number;
+}
+
+export function getCategoryTree() {
+  return request<CategoryNode[]>('/api/catalog/categories/tree');
+}
+
+export function createCategory(data: { name: string; code?: string; parentId?: number | null; sortOrder?: number; isLeaf?: boolean; icon?: string }) {
+  return request<CategoryNode>('/api/catalog/admin/categories', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updateCategory(id: number, data: { name?: string; code?: string | null; sortOrder?: number; isLeaf?: boolean; icon?: string | null }) {
+  return request<CategoryNode>(`/api/catalog/admin/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export function deleteCategory(id: number) {
+  return request<{ success: boolean }>(`/api/catalog/admin/categories/${id}`, { method: 'DELETE' });
+}
+
+export function toggleCategoryStatus(id: number) {
+  return request<CategoryNode>(`/api/catalog/admin/categories/${id}/status`, { method: 'PATCH' });
+}
+
+export function createAttributeTemplate(categoryId: number, data: { name: string; fieldKey: string; fieldType: string; required?: boolean; options?: string[]; unit?: string; sortOrder?: number }) {
+  return request<AttributeTemplate>(`/api/catalog/admin/categories/${categoryId}/attribute-templates`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function deleteAttributeTemplate(id: number) {
+  return request<{ success: boolean }>(`/api/catalog/admin/attribute-templates/${id}`, { method: 'DELETE' });
 }
