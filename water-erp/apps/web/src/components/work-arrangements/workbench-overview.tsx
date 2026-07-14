@@ -113,7 +113,7 @@ export function WorkbenchOverview({
               </span>
               <span className="font-bold">，{userName}</span>
             </div>
-            <div className="page-hero__sub mt-1 text-[13px] italic tracking-wide text-[color:var(--muted-foreground)] opacity-70">
+            <div className="page-hero__sub mt-1 text-[12px] italic tracking-wide text-[color:var(--muted-foreground)] opacity-60">
               「{quote}」
             </div>
           </div>
