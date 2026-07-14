@@ -48,8 +48,8 @@ export interface ImportResult {
 export interface CatalogAuditLog {
   id: string;
   action: string;
-  target: string;
-  detail: unknown;
+  resourceType: string;
+  details: unknown;
   user?: { username: string; displayName: string };
   createdAt: string;
 }

@@ -11,7 +11,7 @@ const labels: Record<string, string> = {
   CATALOG_STATUS_CHANGED: '状态变更', CATALOG_IMPORTED: '批量导入', CATALOG_TEMPLATE_DOWNLOADED: '模板下载', CATALOG_EXPORTED: '目录导出',
 };
 
-function HumanizeDetail({ detail }: { detail: unknown }) {
+function HumanizeDetail({ detail }: { details: unknown }) {
   if (!detail || typeof detail !== 'object') return <span className="text-xs text-[var(--muted-foreground)]">—</span>;
   const record = detail as Record<string, any>;
   const entries = Object.entries(record);
@@ -44,7 +44,7 @@ export default function MallManagementLogsPage() {
   const filtered = useMemo(() => logs.filter(log => {
     const matchAction = action === '全部' || log.action === action;
     const kw = search.trim();
-    return matchAction && (!kw || log.target.includes(kw) || JSON.stringify(log.detail || {}).includes(kw));
+    return matchAction && (!kw || log.resourceType.includes(kw) || JSON.stringify(log.details || {}).includes(kw));
   }), [logs, action, search]);
 
   return (
@@ -89,8 +89,8 @@ export default function MallManagementLogsPage() {
                   <td className="text-xs text-[var(--muted-foreground)]">{log.createdAt.slice(0, 19).replace('T', ' ')}</td>
                   <td>{log.user?.displayName || log.user?.username || '-'}</td>
                   <td><StatusBadge tone="blue">{labels[log.action] || log.action}</StatusBadge></td>
-                  <td className="font-mono text-xs">{log.target}</td>
-                  <td><HumanizeDetail detail={log.detail} /></td>
+                  <td className="font-mono text-xs">{log.resourceType}</td>
+                  <td><HumanizeDetail detail={log.details} /></td>
                 </tr>
               ))}
             </tbody>
