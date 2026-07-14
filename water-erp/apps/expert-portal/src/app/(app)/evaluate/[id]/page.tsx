@@ -1024,12 +1024,13 @@ export default function ExpertEvaluatePage() {
                       <p className="text-sm text-[oklch(0.55_0.01_264)] leading-relaxed mb-3">
                         本项目评审引入人工智能（大语言模型与文档识别）辅助工具，可对投标文件进行合规性检查、风险提示与评分参考分析。本人郑重声明并知悉：
                       </p>
-                      <ol className="space-y-2 text-sm text-[oklch(0.55_0.01_264)] mb-4 list-decimal pl-5">
-                        <li>AI 辅助工具生成的合规判断、风险提示、评分建议等内容，性质均为<strong className="text-[oklch(0.18_0.012_265)]">辅助参考</strong>，不构成评审结论；</li>
-                        <li>上述 AI 意见仅供本人在评标过程中参考，<strong className="text-[oklch(0.18_0.012_265)]">不得干预或干扰本人的独立职业判断</strong>；</li>
-                        <li>任何 AI 输出均<strong className="text-[oklch(0.18_0.012_265)]">不得作为本人打分的直接依据或唯一理由</strong>，本人对每一项评分及其理由独立负责；</li>
-                        <li>最终评审意见与评分结果，由本人依据招标文件规定的标准和方法、结合专业判断独立作出，不由 AI 决定，亦不因 AI 意见而免除本人的评审责任。</li>
-                      </ol>
+                      <div className="space-y-2 text-sm text-[oklch(0.55_0.01_264)] mb-4">
+                        <p>一、AI 辅助工具生成的合规判断、风险提示、评分建议等内容，性质均为<strong className="text-[oklch(0.18_0.012_265)]">辅助参考</strong>，不构成评审结论；</p>
+                        <p>二、上述 AI 意见仅供本人在评标过程中参考，<strong className="text-[oklch(0.18_0.012_265)]">不得干预或干扰本人的独立职业判断</strong>；</p>
+                        <p>三、任何 AI 输出均<strong className="text-[oklch(0.18_0.012_265)]">不得作为本人打分的直接依据或唯一理由</strong>，本人对每一项评分及其理由独立负责；</p>
+                        <p>四、最终评审意见与评分结果，由本人依据招标文件规定的标准和方法、结合专业判断独立作出，不由 AI 决定，亦不因 AI 意见而免除本人的评审责任。</p>
+                      </div>
+                      <p className="text-sm text-[oklch(0.55_0.01_264)] mb-4 font-medium">本人确认已阅读并充分理解上述声明。</p>
                       <label className="flex items-center gap-3 cursor-pointer mb-3">
                         <input type="checkbox" checked={aiConsentChecked} onChange={e => setAiConsentChecked(e.target.checked)}
                           className="w-4 h-4 rounded border-blue-200 text-[#064ea2] focus:ring-[#064ea2]" />
