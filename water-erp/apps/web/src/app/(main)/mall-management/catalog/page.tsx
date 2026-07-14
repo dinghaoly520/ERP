@@ -459,7 +459,6 @@ function TrendsTab() {
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setInitLoading(false); });
-    })();
     return () => { cancelled = true; };
   }, []);
 
