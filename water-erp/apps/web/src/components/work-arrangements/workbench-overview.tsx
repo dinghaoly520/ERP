@@ -96,12 +96,12 @@ export function WorkbenchOverview({
                 {period}
               </span>
               <span className="font-bold">，{userName}</span>
+              {dailyQuote && (
+                <span className="font-normal text-[color:var(--muted-foreground)]">
+                  。{dailyQuote}
+                </span>
+              )}
             </div>
-            {dailyQuote && (
-              <div className="page-hero__sub mt-1 text-[12px] italic tracking-wide text-[color:var(--muted-foreground)] opacity-60">
-                「{dailyQuote}」
-              </div>
-            )}
           </div>
         </div>
         <div className="page-hero__right">

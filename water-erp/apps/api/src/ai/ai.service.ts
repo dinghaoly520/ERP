@@ -36,6 +36,19 @@ export class AiService {
     return this.llm.chat(systemPrompt, userPrompt, temperature);
   }
 
+  /** 润色采购需求描述 —— AI 优化表达，使需求更精准 */
+  async polishRequirement(text: string): Promise<{ polished: string }> {
+    const system = `你是一名政府采购招标文件撰写专家。请对用户的采购需求描述进行文字润色：
+1. 修正语法错误、错别字和不规范的表达
+2. 使专业术语使用更准确
+3. 补充缺失但行业惯例应有的内容维度（如验收标准、质保要求等）
+4. 保持原文的结构框架（【项目概况】【采购范围】【资质要求】【特殊要求】），不要改变格式
+5. 如果原文内容已经很好，直接返回原文，不要强行修改
+只输出润色后的文本，不要添加任何解释或标记。`;
+    const polished = await this.llm.chat(system, text, 0.3);
+    return { polished: polished.trim() || text };
+  }
+
   /** 工作台问候语（兼容旧引用） */
   async generateWorkbenchGreeting(_context: any): Promise<{ greeting: string; subtitle?: string }> {
     return { greeting: '早上好', subtitle: '今日工作安排已就绪' };
@@ -111,7 +124,7 @@ export class AiService {
 ═════════════════════════════════════════
 其他字段：
 - headerGreeting: 80-120字关怀问候。像一个贴心的私人助理在汇报今日概况。语气温暖自然，先问候，再简述今日任务总量，挑出1-2项最紧迫的任务给出关怀提醒，最后以鼓励收尾。禁用姓名职位称呼。示例："下午好。今天有8项工作需要你关注，其中3项比较紧急——供应商审批已经等了快一天了，价格复核也有2项需要你的判断。不过别担心，我已经帮你排好了时间顺序。今天一定能顺利处理的。"
-- dailyQuote: 每日一句，12-20字。选中国古典诗词或文句（唐诗宋词、古文经典），根据季节和时段挑选，与当日语境协调、积极向上。示例："行到水穷处，坐看云起时"
+- dailyQuote: 10-25字问候续句。接在"{period}，{userName}。"之后的一句温暖口语化问候，自然而然、像老友寒暄。根据时段和天气给出一句体贴话，例如午后说"泡杯茶休息一下"、早晨说"今天精神不错，先从最要紧的事开始吧"。要求口语、自然、不书面化、不引用古诗
 - namePraise: ""
 - dailyGreeting: ""
 - riskSummary: 40字内风险总结
@@ -1278,7 +1291,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 ═════════════════════════════════════════
 其他字段：
 - headerGreeting: 80-120字关怀问候。像一个贴心的私人助理在向用户汇报今日概况。语气温暖自然，先问候（根据时段变化），再简述今日任务总量（"今天有N项工作需要你关注"），挑出1-2项最紧迫或最重要的任务给出关怀提醒，最后以一句鼓励或轻松的话收尾。必须覆盖：问候语+数据简述+关怀提醒+鼓励收尾。禁用姓名职位称呼。
-- dailyQuote: 每日一句，12-20字。选中国古典诗词或文句（唐诗宋词、古文经典），根据季节和时段挑选，与当日语境协调、积极向上。示例："行到水穷处，坐看云起时"
+- dailyQuote: 10-25字问候续句。接在"{period}，{userName}。"之后的一句温暖口语化问候，自然而然、像老友寒暄。根据时段和天气给出一句体贴话，例如午后说"泡杯茶休息一下"、早晨说"今天精神不错，先从最要紧的事开始吧"。要求口语、自然、不书面化、不引用古诗
 - namePraise: ""
 - dailyGreeting: ""
 - riskSummary: 40字内风险总结
@@ -1907,5 +1920,58 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
         summary: 'AI 合规审查服务当前不可用，已记录所有审查要点供人工查阅。',
       };
     }
+  }
+
+  /* ━━━ 供应商选取历史 ━━━ */
+
+  async saveSelectionHistory(
+    userId: string,
+    requirement: string,
+    classificationId: string | undefined,
+    result: SupplierSelectionResult,
+  ) {
+    // 获取分类名称
+    let classificationName: string | null = null;
+    if (classificationId) {
+      const cls = await this.prisma.supplierClassification.findUnique({
+        where: { id: classificationId },
+        select: { name: true },
+      });
+      classificationName = cls?.name ?? null;
+    }
+    return this.prisma.supplierSelectionHistory.create({
+      data: {
+        userId,
+        requirement,
+        classificationId: classificationId ?? null,
+        classificationName,
+        resultSummary: result.summary,
+        recommendationCount: result.recommendations.length,
+        candidatePool: result.candidatePool,
+      },
+    });
+  }
+
+  async getSelectionHistory(userId: string | undefined) {
+    if (!userId) return [];
+    return this.prisma.supplierSelectionHistory.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: {
+        id: true,
+        requirement: true,
+        classificationId: true,
+        classificationName: true,
+        resultSummary: true,
+        recommendationCount: true,
+        candidatePool: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  async deleteSelectionHistory(id: string) {
+    return this.prisma.supplierSelectionHistory.delete({ where: { id } }).catch(() => null);
   }
 }
