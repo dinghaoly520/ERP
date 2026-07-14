@@ -791,6 +791,93 @@ export class CatalogService {
   async markAlertRead(id: number) { return this.prisma.priceAlert.update({ where: { id }, data: { isRead: true } }); }
   async markAlertResolved(id: number) { return this.prisma.priceAlert.update({ where: { id }, data: { isResolved: true } }); }
 
+  // ── 目录版本 ──
+
+  async listVersions() { return this.prisma.catalogVersion.findMany({ orderBy: { createdAt: 'desc' }, include: { user: { select: { username: true, displayName: true } } } }); }
+
+  async createVersion(userId: string, dto: { name: string; version: string; effectiveAt: string; description?: string }) {
+    const items = await this.prisma.catalogItem.findMany({ orderBy: { code: 'asc' }, include: { categoryRel: true } });
+    const categories = await this.prisma.catalogCategory.findMany();
+    const snapshot = { items: items.map((i: any) => ({ id: i.id, code: i.code, name: i.name, referencePrice: Number(i.referencePrice), status: i.status, categoryId: i.categoryId })), categories, capturedAt: new Date().toISOString() };
+    return this.prisma.catalogVersion.create({ data: { name: dto.name.trim(), version: dto.version.trim(), effectiveAt: new Date(dto.effectiveAt), description: dto.description?.trim() || null, snapshot, createdBy: userId } });
+  }
+
+  async getVersion(id: number) { const v = await this.prisma.catalogVersion.findUnique({ where: { id }, include: { user: { select: { username: true, displayName: true } } } }); if (!v) throw new BadRequestException({ error: '版本不存在', code: 'NOT_FOUND' }); return v; }
+
+  async changeVersionStatus(id: number, status: string) { return this.prisma.catalogVersion.update({ where: { id }, data: { status } }); }
+
+  async compareVersions(idA: number, idB: number) {
+    const [a, b] = await Promise.all([this.getVersion(idA), this.getVersion(idB)]);
+    const itemsA: any[] = (a.snapshot as any).items || [];
+    const itemsB: any[] = (b.snapshot as any).items || [];
+    const mapA = new Map(itemsA.map((i: any) => [i.code, i]));
+    const mapB = new Map(itemsB.map((i: any) => [i.code, i]));
+    const added = itemsB.filter((i: any) => !mapA.has(i.code));
+    const removed = itemsA.filter((i: any) => !mapB.has(i.code));
+    const priceChanges = itemsB.filter((i: any) => { const o = mapA.get(i.code); return o && o.referencePrice !== i.referencePrice; }).map((i: any) => ({ ...i, oldPrice: mapA.get(i.code).referencePrice }));
+    return { versionA: a.name, versionB: b.name, added, removed, priceChanges };
+  }
+
+  // ── 询价 ──
+
+  async listInquiries() { return this.prisma.catalogInquiry.findMany({ orderBy: { createdAt: 'desc' }, include: { user: { select: { username: true, displayName: true } } } }); }
+
+  async createInquiry(userId: string, dto: any) { return this.prisma.catalogInquiry.create({ data: { title: dto.title.trim(), items: dto.items, supplierIds: dto.supplierIds, deadlineAt: dto.deadlineAt ? new Date(dto.deadlineAt) : null, notes: dto.notes?.trim() || null, createdBy: userId } }); }
+
+  // ── 合同价格 ──
+
+  async listContractPrices(params: { catalogItemId?: string; supplierId?: string }) {
+    const where: any = {};
+    if (params.catalogItemId) where.catalogItemId = params.catalogItemId;
+    if (params.supplierId) where.supplierId = params.supplierId;
+    return this.prisma.contractPrice.findMany({ where, orderBy: { createdAt: 'desc' }, include: { catalogItem: { select: { id: true, code: true, name: true } }, supplier: { select: { id: true, name: true } } } });
+  }
+
+  async createContractPrice(dto: any) { return this.prisma.contractPrice.create({ data: { catalogItemId: dto.catalogItemId, supplierId: dto.supplierId, contractNo: dto.contractNo.trim(), agreedPrice: dto.agreedPrice, validFrom: new Date(dto.validFrom), validUntil: new Date(dto.validUntil) } }); }
+
+  async updateContractPrice(id: number, dto: any) { const data: any = {}; if (dto.agreedPrice !== undefined) data.agreedPrice = dto.agreedPrice; if (dto.validUntil) data.validUntil = new Date(dto.validUntil); if (dto.status) data.status = dto.status; return this.prisma.contractPrice.update({ where: { id }, data }); }
+
+  // ── 供应商维度 ──
+
+  async supplierCoverage() {
+    const items = await this.prisma.catalogItem.findMany({ where: { categoryId: { not: null } }, select: { categoryId: true, supplier: true, categoryRel: { select: { id: true, name: true } } } });
+    const map = new Map<string, { supplier: string; categoryIds: Set<number>; categoryNames: string[] }>();
+    for (const it of items) {
+      if (!it.supplier) continue;
+      let e = map.get(it.supplier);
+      if (!e) { e = { supplier: it.supplier, categoryIds: new Set(), categoryNames: [] }; map.set(it.supplier, e); }
+      if (it.categoryId) { e.categoryIds.add(it.categoryId); if (it.categoryRel) e.categoryNames.push(it.categoryRel.name); }
+    }
+    return Array.from(map.values()).map(e => ({ supplier: e.supplier, categoryCount: e.categoryIds.size, categories: [...new Set(e.categoryNames)] })).sort((a, b) => b.categoryCount - a.categoryCount);
+  }
+
+  async supplierPriceComparison(categoryId?: number) {
+    const where: any = {};
+    if (categoryId) where.categoryId = categoryId;
+    const items = await this.prisma.catalogItem.findMany({ where, select: { id: true, code: true, name: true, referencePrice: true, supplier: true, categoryId: true } });
+    const map = new Map<string, { supplier: string; items: any[]; avgPrice: number }>();
+    for (const it of items) {
+      if (!it.supplier) continue;
+      let e = map.get(it.supplier);
+      if (!e) { e = { supplier: it.supplier, items: [], avgPrice: 0 }; map.set(it.supplier, e); }
+      e.items.push({ code: it.code, name: it.name, price: Number(it.referencePrice) });
+    }
+    for (const e of map.values()) { e.avgPrice = e.items.length ? Math.round(e.items.reduce((s: number, i: any) => s + i.price, 0) / e.items.length * 100) / 100 : 0; }
+    return Array.from(map.values()).sort((a, b) => b.items.length - a.items.length);
+  }
+
+  // ── 目录项关联 ──
+
+  async listItemRelations(itemId: string) {
+    return this.prisma.catalogItemRelation.findMany({ where: { catalogItemId: itemId }, include: { relatedItem: { select: { id: true, code: true, name: true, referencePrice: true } } } });
+  }
+
+  async createItemRelation(userId: string, itemId: string, dto: { relatedItemId: string; relationType: string }) {
+    return this.prisma.catalogItemRelation.create({ data: { catalogItemId: itemId, relatedItemId: dto.relatedItemId, relationType: dto.relationType }, include: { relatedItem: { select: { id: true, code: true, name: true, referencePrice: true } } } });
+  }
+
+  async deleteItemRelation(id: number) { await this.prisma.catalogItemRelation.delete({ where: { id } }); return { success: true }; }
+
   private appTitle(app: any): string {
     if (app.type === 'NEW_ITEM') return `新增品类·${app.proposedName || '未命名'}`;
     return `${app.catalogItem?.name || '目录物资'}`;

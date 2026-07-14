@@ -67,6 +67,8 @@ model User {
   updatedRounds                  ProcurementRound[]        @relation("RoundUpdatedBy")
   assistantConversations         AssistantConversation[]
   assistantAlerts                AssistantAlert[]
+  catalogVersions                CatalogVersion[]
+  catalogInquiries               CatalogInquiry[]
 
   @@unique([username, role])
 }
@@ -609,6 +611,7 @@ model Supplier {
   catalogApplications SupplierCatalogApplication[]
   catalogSupplies     CatalogSupplier[]
   clarifications      BidClarification[]
+  contractPrices       ContractPrice[]
 
   // ── 采购中心关联 ──
   awardedRounds  ProcurementRound[]  @relation("AwardedSupplier")
@@ -1000,6 +1003,71 @@ model CatalogItemAttribute {
   @@index([catalogItemId])
 }
 
+// ── 目录版本快照 ──
+
+model CatalogVersion {
+  id          Int      @id @default(autoincrement())
+  name        String
+  version     String
+  effectiveAt DateTime
+  status      String   @default("DRAFT") // DRAFT | ACTIVE | ARCHIVED
+  description String?
+  snapshot    Json
+  createdAt   DateTime @default(now())
+  createdBy   String
+  user        User     @relation(fields: [createdBy], references: [id])
+  @@index([status])
+}
+
+// ── 批量询价单 ──
+
+model CatalogInquiry {
+  id          Int       @id @default(autoincrement())
+  title       String
+  status      String    @default("DRAFT") // DRAFT | SENT | CLOSED
+  items       Json                         // [{ catalogItemId, spec, qty }]
+  supplierIds String[]
+  deadlineAt  DateTime?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  createdBy   String
+  user        User      @relation(fields: [createdBy], references: [id])
+  @@index([status])
+}
+
+// ── 框架合同价格 ──
+
+model ContractPrice {
+  id            Int          @id @default(autoincrement())
+  catalogItemId String
+  catalogItem   CatalogItem  @relation(fields: [catalogItemId], references: [id])
+  supplierId    String
+  supplier      Supplier     @relation(fields: [supplierId], references: [id])
+  contractNo    String
+  agreedPrice   Float
+  validFrom     DateTime
+  validUntil    DateTime
+  status        String       @default("ACTIVE") // ACTIVE | EXPIRED | TERMINATED
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  @@index([catalogItemId])
+  @@index([supplierId])
+  @@index([validUntil])
+}
+
+// ── 目录项关联 ──
+
+model CatalogItemRelation {
+  id            Int          @id @default(autoincrement())
+  catalogItemId String
+  catalogItem   CatalogItem  @relation("ItemRelations", fields: [catalogItemId], references: [id], onDelete: Cascade)
+  relatedItemId String
+  relatedItem   CatalogItem  @relation("RelatedItems", fields: [relatedItemId], references: [id], onDelete: Cascade)
+  relationType  String       // SUBSTITUTE | COMPLEMENT | SIMILAR
+  createdAt     DateTime     @default(now())
+  @@unique([catalogItemId, relatedItemId, relationType])
+}
+
 // ── 价格预警规则 ──
 
 model PriceAlertRule {
@@ -1074,6 +1142,9 @@ model CatalogItem {
   catalogSuppliers    CatalogSupplier[]
   attributes          CatalogItemAttribute[]
   priceAlerts         PriceAlert[]
+  relations           CatalogItemRelation[]  @relation("ItemRelations")
+  relatedTo           CatalogItemRelation[]  @relation("RelatedItems")
+  contractPrices      ContractPrice[]
 
   @@index([category])
   @@index([group])
