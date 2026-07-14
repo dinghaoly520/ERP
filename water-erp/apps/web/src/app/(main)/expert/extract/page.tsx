@@ -20,7 +20,7 @@ const MODE_DESCS: Record<ExtractMode, string> = {
   merit_best: '综合履职评价/偏离度/经验等多维度择优',
 };
 
-export function ExpertExtractPage({ hideHeader }: { hideHeader?: boolean }) {
+export function ExpertExtractPage({ hideHeader, defaultProjectTitle }: { hideHeader?: boolean; defaultProjectTitle?: string }) {
   const router = useRouter(); const q = useSearchParams();
   const [projects, setProjects] = useState<BidProjectOption[]>([]);
   const [specs, setSpecs] = useState<string[]>([]);
@@ -57,6 +57,16 @@ export function ExpertExtractPage({ hideHeader }: { hideHeader?: boolean }) {
   const [historyPage, setHistoryPage] = useState(1);
 
   useEffect(() => { listBidProjects().then(setProjects).catch(() => {}); listSpecialties().then(setSpecs).catch(() => {}); }, []);
+
+  // 根据项目名称自动匹配招标项目
+  useEffect(() => {
+    if (!defaultProjectTitle || pid || projects.length === 0) return;
+    const match = projects.find(
+      p => p.name === defaultProjectTitle || p.name.includes(defaultProjectTitle) || defaultProjectTitle.includes(p.name),
+    );
+    if (match) setPid(match.id);
+  }, [defaultProjectTitle, pid, projects]);
+
   useEffect(() => { if (!pid) { setPd(null); return; } getBidProjectDetail(pid).then(setPd).catch(() => setPd(null)); }, [pid]);
   useEffect(() => { if (!pid || specs.length === 0) return; Promise.all(specs.map(s => listExperts({ specialty: s }).then(l => ({ s, c: Array.isArray(l) ? l.length : 0 })))).then(rs => { const m = new Map<string, number>(); rs.forEach(({ s, c }) => { if (c > 0) m.set(s, c); }); setPool(m); }).catch(() => {}); }, [pid, specs]);
 

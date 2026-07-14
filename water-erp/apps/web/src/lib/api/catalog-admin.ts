@@ -57,7 +57,7 @@ export interface CatalogAuditLog {
 export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const initHeaders = (init?.headers as Record<string, string>) || {};
   const headers: Record<string, string> = { 'X-Portal': 'web', ...initHeaders };
-  if (!(init?.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  if (init?.body && !(init.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   const res = await fetch(url, { credentials: 'include', headers, body: init?.body, method: init?.method, signal: init?.signal });
   if (!res.ok) {
     const data = await res.json().catch(() => null);

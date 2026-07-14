@@ -8,9 +8,10 @@ import { RulesPopover } from '@/components/rules-popover';
 type Props = {
   isOpen: boolean;
   onClose: () => void;
+  defaultProjectTitle?: string;
 };
 
-export function ExpertExtractModal({ isOpen, onClose }: Props) {
+export function ExpertExtractModal({ isOpen, onClose, defaultProjectTitle }: Props) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -113,7 +114,7 @@ export function ExpertExtractModal({ isOpen, onClose }: Props) {
                 加载抽取配置...
               </div>
             }>
-              <ExpertExtractPage hideHeader />
+              <ExpertExtractPage hideHeader defaultProjectTitle={defaultProjectTitle} />
             </Suspense>
           ) : (
             <div className="flex-1 flex items-center justify-center min-h-[300px]">
