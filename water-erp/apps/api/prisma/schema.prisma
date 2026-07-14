@@ -999,6 +999,43 @@ model CatalogItemAttribute {
   @@index([catalogItemId])
 }
 
+// ── 价格预警规则 ──
+
+model PriceAlertRule {
+  id          Int             @id @default(autoincrement())
+  name        String
+  categoryId  Int?
+  category    CatalogCategory? @relation(fields: [categoryId], references: [id])
+  alertType   String           // PRICE_SURGE | PRICE_DROP | EXPIRING | DEVIATION
+  threshold   Float
+  enabled     Boolean          @default(true)
+  notifyRoles String[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  alerts      PriceAlert[]
+
+  @@index([categoryId])
+}
+
+// ── 价格预警记录 ──
+
+model PriceAlert {
+  id            Int            @id @default(autoincrement())
+  ruleId        Int
+  rule          PriceAlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  catalogItemId String
+  catalogItem   CatalogItem    @relation(fields: [catalogItemId], references: [id])
+  alertType     String
+  message       String
+  triggerValue  Float
+  isRead        Boolean        @default(false)
+  isResolved    Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+
+  @@index([catalogItemId])
+  @@index([isRead, isResolved])
+}
+
 // ── 电子商城采购目录 ──
 
 model CatalogItem {
@@ -1035,6 +1072,7 @@ model CatalogItem {
   catalogApplications SupplierCatalogApplication[]
   catalogSuppliers    CatalogSupplier[]
   attributes          CatalogItemAttribute[]
+  priceAlerts         PriceAlert[]
 
   @@index([category])
   @@index([group])
@@ -1389,14 +1427,15 @@ enum WorkArrangementNoteType {
 // ── 用户设置 ──
 
 model UserSettings {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  theme           String   @default("system")
-  defaultHomePage String   @default("work-arrangements")
-  compactMode     Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  theme            String   @default("system")
+  defaultHomePage  String   @default("work-arrangements")
+  compactMode      Boolean  @default(false)
+  notificationPrefs Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ── 采购项目（台账容器）──

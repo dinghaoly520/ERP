@@ -2,12 +2,15 @@ import { normalizeApiBaseUrl, parseJsonResponse } from './auth';
 
 const API_BASE = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
 
+export type NotificationPrefs = Record<string, boolean>;
+
 export type UserSettings = {
   id: string;
   userId: string;
   theme: 'light' | 'dark' | 'system';
   defaultHomePage: 'dashboard' | 'procurements' | 'projects' | 'work-arrangements';
   compactMode: boolean;
+  notificationPrefs?: NotificationPrefs | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -16,6 +19,7 @@ export type UpdateUserSettingsInput = {
   theme?: 'light' | 'dark' | 'system';
   defaultHomePage?: 'dashboard' | 'procurements' | 'projects' | 'work-arrangements';
   compactMode?: boolean;
+  notificationPrefs?: Record<string, boolean>;
 };
 
 export async function fetchUserSettings(): Promise<UserSettings> {

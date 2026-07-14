@@ -27,6 +27,7 @@ export class UserSettingsService {
           defaultHomePage: dto.defaultHomePage,
         }),
         ...(dto.compactMode !== undefined && { compactMode: dto.compactMode }),
+        ...(dto.notificationPrefs !== undefined && { notificationPrefs: dto.notificationPrefs }),
       },
     });
 

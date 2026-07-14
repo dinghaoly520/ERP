@@ -1,4 +1,4 @@
-import { IsString, IsBoolean, IsOptional, IsIn } from 'class-validator';
+import { IsString, IsBoolean, IsOptional, IsIn, IsObject } from 'class-validator';
 
 export class UpdateUserSettingsDto {
   @IsOptional()
@@ -18,4 +18,8 @@ export class UpdateUserSettingsDto {
   @IsOptional()
   @IsBoolean()
   compactMode?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  notificationPrefs?: Record<string, boolean>;
 }
