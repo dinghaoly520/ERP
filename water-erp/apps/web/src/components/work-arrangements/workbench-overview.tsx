@@ -32,6 +32,22 @@ function periodLabel(h: number): string {
   return '晚上好';
 }
 
+// 每日一句 — 按周几分组，致敬古典文学
+const DAILY_QUOTES: Record<number, string[]> = {
+  0: ['偷得浮生半日闲', '山静似太古，日长如小年', '心闲物物幽'],
+  1: ['一日之计在于晨', '长风破浪会有时', '百尺竿头进一步'],
+  2: ['行到水穷处，坐看云起时', '采菊东篱下，悠然见南山', '一蓑烟雨任平生'],
+  3: ['水光潋滟晴方好', '上善若水，水利万物而不争', '春江水暖鸭先知'],
+  4: ['业精于勤荒于嬉', '学如逆水行舟', '路漫漫其修远兮'],
+  5: ['会当凌绝顶，一览众山小', '登高而招，臂非加长也', '不畏浮云遮望眼'],
+  6: ['偷得浮生半日闲', '心远地自偏', '水流心不竞，云在意俱迟'],
+};
+
+function pickQuote(h: number, dayOfWeek: number): string {
+  const pool = DAILY_QUOTES[dayOfWeek] || DAILY_QUOTES[1];
+  return pool[(h + dayOfWeek) % pool.length];
+}
+
 interface StatBadge {
   key: string;
   label: string;
@@ -53,6 +69,7 @@ export function WorkbenchOverview({
   const now = new Date();
   const Icon = TDC[gtod2(now.getHours())].icon;
   const period = periodLabel(now.getHours());
+  const quote = pickQuote(now.getHours(), now.getDay());
   const userName = currentUser?.username === 'Swhi-CGZX-00'
     ? '张宏董事长'
     : currentUser?.displayName || '用户';
@@ -95,6 +112,9 @@ export function WorkbenchOverview({
                 {period}
               </span>
               <span className="font-bold">，{userName}</span>
+            </div>
+            <div className="page-hero__sub mt-1 text-[13px] italic tracking-wide text-[color:var(--muted-foreground)] opacity-70">
+              「{quote}」
             </div>
           </div>
         </div>
