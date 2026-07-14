@@ -289,6 +289,26 @@ export class ExpertService {
     return updated;
   }
 
+  async confirmAiConsent(userId: string, projectId: string) {
+    // P1: 阶段门控 — 仅开标/评标阶段可确认 AI 辅助评标声明
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可确认 AI 声明阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { userId, projectId },
+    });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+
+    // 幂等：重复确认只刷新时间戳，不报错（与签到/回避一致）
+    const updated = await this.prisma.bidExpert.update({
+      where: { id: expert.id },
+      data: { aiConsentConfirmed: true, aiConsentAt: new Date() },
+    });
+    return updated;
+  }
+
   /* ── 标书解密获取 ── */
 
   async getDecryptedDocuments(userId: string, projectId: string, supplierId: string) {

@@ -158,6 +158,36 @@ describe('ExpertService', () => {
     });
   });
 
+  describe('confirmAiConsent', () => {
+    it('确认成功应写入 aiConsentConfirmed=true 与时间戳', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
+      prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, aiConsentConfirmed: true });
+
+      const result = await service.confirmAiConsent('user-1', 'proj-1');
+
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { aiConsentConfirmed: true, aiConsentAt: expect.any(Date) },
+        }),
+      );
+      expect(result.aiConsentConfirmed).toBe(true);
+    });
+
+    it('非活动阶段 → 403 PROJECT_NOT_ACTIVE', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
+      await expect(service.confirmAiConsent('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_ACTIVE' } });
+    });
+
+    it('非本项目专家 → 403 NOT_PROJECT_EXPERT', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      await expect(service.confirmAiConsent('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'NOT_PROJECT_EXPERT' } });
+    });
+  });
+
   describe('getAssistData', () => {
     it('应调用 AI 引擎进行分析', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
