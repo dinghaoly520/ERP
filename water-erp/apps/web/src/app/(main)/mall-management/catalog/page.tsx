@@ -385,55 +385,41 @@ function ApprovalTab() {
 
 function TrendsTab() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
-  const [items, setItems] = useState<CatalogItem[]>([]);
-  const [selectedItems, setSelectedItems] = useState<CatalogItem[]>([]);
   const [seriesData, setSeriesData] = useState<{ name: string; color: string; data: { date: string; price: number }[] }[]>([]);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => { if (!selectedCategoryId) { setItems([]); return; } listCatalogItems({ categoryId: selectedCategoryId }).then(setItems).catch(e => toast.error(e.message)); }, [selectedCategoryId]);
-
-  const addItem = (item: CatalogItem) => {
-    if (selectedItems.find(i => i.id === item.id)) return;
-    if (selectedItems.length >= 5) { toast.error('最多对比 5 项'); return; }
-    setSelectedItems(prev => [...prev, item]);
-  };
+  const { tree } = useCategoryTree();
 
   useEffect(() => {
-    if (selectedItems.length === 0) { setSeriesData([]); return; }
+    if (!selectedCategoryId) { setSeriesData([]); return; }
     setLoading(true);
-    Promise.all(selectedItems.map(async (item, i) => {
-      try { const res = await fetch(`/api/catalog/${item.id}/history`, { credentials: 'include', headers: { 'X-Portal': 'web' } }); const h = await res.json(); return { name: item.name, color: PALETTE[i % PALETTE.length], data: h.map((p: any) => ({ date: p.recordedAt.slice(0, 10), price: p.price })) }; }
-      catch { return { name: item.name, color: PALETTE[i % PALETTE.length], data: [] }; }
-    })).then(d => { setSeriesData(d); setLoading(false); }).catch(() => setLoading(false));
-  }, [selectedItems]);
+    (async () => {
+      try {
+        const allItems = await listCatalogItems({ categoryId: selectedCategoryId });
+        const top5 = allItems.slice(0, 5);
+        if (top5.length === 0) { setSeriesData([]); setLoading(false); return; }
+        const series = await Promise.all(top5.map(async (item, i) => {
+          try {
+            const res = await fetch(`/api/catalog/${item.id}/history`, { credentials: 'include', headers: { 'X-Portal': 'web' } });
+            const h = await res.json();
+            return { name: item.name, color: PALETTE[i % PALETTE.length], data: h.map((p: any) => ({ date: p.recordedAt.slice(0, 10), price: p.price })) };
+          } catch { return { name: item.name, color: PALETTE[i % PALETTE.length], data: [] }; }
+        }));
+        setSeriesData(series.filter(s => s.data.length > 0));
+      } catch (e: any) { toast.error(e.message); }
+      finally { setLoading(false); }
+    })();
+  }, [selectedCategoryId]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4" style={{ minHeight: 'calc(100vh - 340px)' }}>
-      <div className="flex flex-col gap-3">
-        <CategoryTreeSelect value={selectedCategoryId} onChange={id => setSelectedCategoryId(id)} placeholder="按品类筛选" />
-        {selectedItems.length > 0 && (
-          <div className="neu-card rounded-xl p-3">
-            <p className="text-xs font-semibold text-[var(--muted-foreground)] mb-2">已选对比</p>
-            {selectedItems.map(item => (
-              <div key={item.id} className="flex items-center gap-2 text-sm px-2 py-1 rounded-lg bg-[rgba(96,139,239,0.06)]">
-                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: PALETTE[selectedItems.indexOf(item) % PALETTE.length] }} />
-                <span className="flex-1 truncate">{item.name}</span>
-                <button onClick={() => setSelectedItems(prev => prev.filter(i => i.id !== item.id))} className="p-0.5 rounded hover:bg-red-100"><X size={12} className="text-red-400" /></button>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="neu-card rounded-xl p-3 flex-1 overflow-y-auto">
-          <p className="text-xs font-semibold text-[var(--muted-foreground)] mb-2">点击添加对比</p>
-          {items.slice(0, 50).map(item => (
-            <button key={item.id} onClick={() => addItem(item)} className="w-full text-left text-sm px-2 py-1.5 rounded-lg hover:bg-[rgba(96,139,239,0.06)] flex justify-between">
-              <span className="truncate">{item.name}</span><Plus size={14} className="text-[var(--muted-foreground)] flex-shrink-0" />
-            </button>
-          ))}
-        </div>
+    <div className="flex flex-col gap-4" style={{ minHeight: 'calc(100vh - 340px)' }}>
+      <div className="flex items-center gap-3">
+        <CategoryTreeSelect value={selectedCategoryId} onChange={id => setSelectedCategoryId(id)} placeholder="选择品类查看价格趋势" className="min-w-[200px]" />
+        {seriesData.length > 0 && <span className="text-xs text-[var(--muted-foreground)]">显示 {seriesData.length} 个目录项</span>}
       </div>
-      {loading ? <div className="flex items-center justify-center"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
-        : <PriceTrendChart series={seriesData} title={seriesData.length > 0 ? '价格趋势对比' : '请选择目录项查看趋势'} />}
+      {loading ? <div className="flex items-center justify-center flex-1"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
+        : seriesData.length > 0 ? <PriceTrendChart series={seriesData} title="" />
+        : selectedCategoryId ? <div className="flex items-center justify-center flex-1 text-sm text-[var(--muted-foreground)]">该品类暂无目录项或价格历史数据</div>
+        : <div className="flex items-center justify-center flex-1 text-sm text-[var(--muted-foreground)]">👆 从上方选择品类，自动展示该品类下目录项的价格趋势</div>}
     </div>
   );
 }
