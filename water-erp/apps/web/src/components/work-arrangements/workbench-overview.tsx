@@ -68,7 +68,7 @@ export function WorkbenchOverview({
     let cancelled = false;
     listNotifications('all', 1, 50).then((res) => {
       if (!cancelled) {
-        setNotificationCount(res.items.filter((n) => !n.isRead).length);
+        setNotificationCount(res.total);
       }
     }).catch(() => {});
     return () => { cancelled = true; };

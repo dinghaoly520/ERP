@@ -101,12 +101,12 @@ export function TaskNotificationCenter({
   const router = useRouter();
   const { recent } = useNotifications();
   const [directItems, setDirectItems] = useState<NotificationItem[] | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
 
-  // 直接拉 50 条确保覆盖所有类型（hook 的 recent 只取 8 条，类型不全）
   useEffect(() => {
     let cancelled = false;
     listNotifications('all', 1, 50).then((res) => {
-      if (!cancelled) setDirectItems(res.items);
+      if (!cancelled) { setDirectItems(res.items); setTotalCount(res.total); }
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
@@ -155,7 +155,7 @@ export function TaskNotificationCenter({
         <span className="text-[15px] font-bold text-[#18243a]">任务通知</span>
         {groups.length > 0 && (
           <span className="text-[11px] tabular-nums text-[color:var(--muted-foreground)]">
-            {groups.length} 类 · {groups.reduce((s, g) => s + g.count, 0)} 条
+            {groups.length} 类 · {totalCount} 条
           </span>
         )}
       </div>
