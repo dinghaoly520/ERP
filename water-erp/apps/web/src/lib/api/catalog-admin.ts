@@ -54,12 +54,11 @@ export interface CatalogAuditLog {
   createdAt: string;
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    credentials: 'include',
-    headers: init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
-    ...init,
-  });
+export async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const initHeaders = (init?.headers as Record<string, string>) || {};
+  const headers: Record<string, string> = { 'X-Portal': 'web', ...initHeaders };
+  if (!(init?.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  const res = await fetch(url, { credentials: 'include', headers, body: init?.body, method: init?.method, signal: init?.signal });
   if (!res.ok) {
     const data = await res.json().catch(() => null);
     throw new Error(data?.error || data?.message || '请求失败');
@@ -108,6 +107,11 @@ export function getCatalogItem(id: string) {
   return request<CatalogItem>(`/api/catalog/${id}`);
 }
 
+export interface PricePoint { recordedAt: string; price: number; note: string | null; }
+export function getPriceHistory(itemId: string) {
+  return request<PricePoint[]>(`/api/catalog/${itemId}/history`);
+}
+
 // ── 品类树 ──
 
 export interface CategoryNode {
@@ -154,3 +158,33 @@ export function deleteAttributeTemplate(id: number) {
 export function setItemAttributes(itemId: string, attributes: { templateId: number; value: string }[]) {
   return request<CatalogItem>(`/api/catalog/admin/items/${itemId}/attributes`, { method: 'PATCH', body: JSON.stringify({ attributes }) });
 }
+
+// ── 价格预警 ──
+
+export interface AlertRule { id: number; name: string; alertType: string; threshold: number; enabled: boolean; category?: { id: number; name: string } | null; }
+export interface AlertRecord { id: number; message: string; alertType: string; triggerValue: number; isRead: boolean; isResolved: boolean; createdAt: string; catalogItem?: { code: string; name: string } | null; rule?: { name: string } | null; }
+
+export function listAlertRules() { return request<AlertRule[]>('/api/catalog/admin/alert-rules'); }
+export function createAlertRule(data: any) { return request<AlertRule>('/api/catalog/admin/alert-rules', { method: 'POST', body: JSON.stringify(data) }); }
+export function updateAlertRule(id: number, data: any) { return request<AlertRule>(`/api/catalog/admin/alert-rules/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+export function deleteAlertRule(id: number) { return request<{ success: boolean }>(`/api/catalog/admin/alert-rules/${id}`, { method: 'DELETE' }); }
+export function toggleAlertRule(id: number) { return request<AlertRule>(`/api/catalog/admin/alert-rules/${id}/toggle`, { method: 'PATCH' }); }
+export function listAlerts(params?: Record<string, string>) { const sp = new URLSearchParams(params); return request<AlertRecord[]>(`/api/catalog/admin/alerts?${sp.toString()}`); }
+
+// ── 目录版本 ──
+
+export interface CatalogVersionData { id: number; name: string; version: string; effectiveAt: string; status: string; description?: string | null; createdAt: string; user?: { username: string; displayName: string } }
+export interface VersionDiff { versionA: string; versionB: string; added: any[]; removed: any[]; priceChanges: any[] }
+
+export function listVersions() { return request<CatalogVersionData[]>('/api/catalog/admin/versions'); }
+export function createVersion(data: { name: string; version: string; effectiveAt: string; description?: string }) { return request<CatalogVersionData>('/api/catalog/admin/versions', { method: 'POST', body: JSON.stringify(data) }); }
+export function changeVersionStatus(id: number, status: string) { return request<CatalogVersionData>(`/api/catalog/admin/versions/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+export function compareVersions(a: number, b: number) { return request<VersionDiff>(`/api/catalog/admin/versions/compare?a=${a}&b=${b}`); }
+
+// ── 供应商维度 ──
+
+export interface SupplierCoverage { supplier: string; categoryCount: number; categories: string[] }
+export interface SupplierPriceItem { supplier: string; items: { code: string; name: string; price: number }[]; avgPrice: number }
+
+export function getSupplierCoverage() { return request<SupplierCoverage[]>('/api/catalog/admin/supplier-coverage'); }
+export function getSupplierPriceComparison(categoryId?: number) { return request<SupplierPriceItem[]>(`/api/catalog/admin/supplier-price-comparison${categoryId ? `?categoryId=${categoryId}` : ''}`); }

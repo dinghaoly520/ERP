@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { CategoryNode } from '@/lib/category-tree-utils';
+import { getCategoryTree } from '@/lib/api/catalog-admin';
 
 let cachedTree: CategoryNode[] | null = null;
 let fetchPromise: Promise<CategoryNode[]> | null = null;
@@ -17,9 +18,7 @@ export function useCategoryTree() {
     try {
       fetchPromise = null;
       cachedTree = null;
-      const res = await fetch('/api/catalog/categories/tree', { credentials: 'include' });
-      if (!res.ok) throw new Error('加载品类树失败');
-      const data = await res.json();
+      const data = await getCategoryTree();
       cachedTree = data;
       setTree(data);
     } catch (err: any) {
@@ -30,15 +29,18 @@ export function useCategoryTree() {
   }, []);
 
   useEffect(() => {
-    if (cachedTree) { setTree(cachedTree); setLoading(false); return; }
-    if (fetchPromise) {
-      fetchPromise.then(data => { setTree(data); setLoading(false); });
+    if (cachedTree) {
+      setTree(cachedTree);
+      setLoading(false);
       return;
     }
-    fetchPromise = fetch('/api/catalog/categories/tree', { credentials: 'include' })
-      .then(res => { if (!res.ok) throw new Error('加载品类树失败'); return res.json(); })
+    if (fetchPromise) {
+      fetchPromise.then(data => { setTree(data); setLoading(false); }).catch(() => setLoading(false));
+      return;
+    }
+    fetchPromise = getCategoryTree()
       .then(data => { cachedTree = data; setTree(data); setLoading(false); return data; })
-      .catch(err => { setError(err.message); setLoading(false); });
+      .catch(err => { setError(err.message || '加载品类树失败'); setLoading(false); });
   }, []);
 
   return { tree, loading, error, refresh };

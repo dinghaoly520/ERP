@@ -916,27 +916,14 @@ export class SupplierService {
     });
   }
 
-  /* ━━━ 供应商关注/收藏 ━━━ */
+  /* ━━━ 供应商关注/收藏（模型已移除，保留接口兼容）━━━ */
 
-  async toggleFavorite(supplierId: string, userId: string) {
-    const existing = await this.prisma.supplierFavorite.findUnique({
-      where: { userId_supplierId: { userId, supplierId } },
-    });
-    if (existing) {
-      await this.prisma.supplierFavorite.delete({ where: { id: existing.id } });
-      return { favorited: false };
-    }
-    await this.prisma.supplierFavorite.create({ data: { userId, supplierId } });
-    return { favorited: true };
+  async toggleFavorite(_supplierId: string, _userId: string) {
+    return { favorited: false };
   }
 
-  async getFavorites(userId: string) {
-    return this.prisma.supplierFavorite.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      include: { supplier: { select: { id: true, name: true, enterpriseType: true, classification: { select: { name: true } }, createdAt: true } } },
-    });
+  async getFavorites(_userId: string) {
+    return [];
   }
 
   /* ━━━ 近期动态 ━━━ */
@@ -997,26 +984,17 @@ export class SupplierService {
     }));
   }
 
-  /* ━━━ 文件档案 CRUD ━━━ */
+  /* ━━━ 文件档案 CRUD（模型已移除，保留接口兼容）━━━ */
 
-  async listDocuments(supplierId: string) {
-    return this.prisma.supplierDocument.findMany({
-      where: { supplierId },
-      orderBy: { createdAt: 'desc' },
-      include: { uploader: { select: { displayName: true } } },
-    });
+  async listDocuments(_supplierId: string) {
+    return [];
   }
 
-  async uploadDocument(supplierId: string, dto: { type: string; name: string; fileUrl: string; fileSize?: number; note?: string }, userId: string) {
-    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { id: true } });
-    if (!supplier) throw new NotFoundException('供应商不存在');
-    return this.prisma.supplierDocument.create({
-      data: { supplierId, type: dto.type, name: dto.name, fileUrl: dto.fileUrl, fileSize: dto.fileSize, uploadedBy: userId, note: dto.note },
-      include: { uploader: { select: { displayName: true } } },
-    });
+  async uploadDocument(_supplierId: string, _dto: any, _userId: string) {
+    throw new BadRequestException('文件档案功能已移除');
   }
 
-  async deleteDocument(id: string) {
-    return this.prisma.supplierDocument.delete({ where: { id } }).catch(() => null);
+  async deleteDocument(_id: string) {
+    return null;
   }
 }

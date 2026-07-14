@@ -3,18 +3,10 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Archive, Plus, RefreshCw, GitCompare } from 'lucide-react';
-
-interface CatalogVersion { id: number; name: string; version: string; effectiveAt: string; status: string; description?: string | null; createdAt: string; user?: { username: string; displayName: string } }
-interface VersionDiff { versionA: string; versionB: string; added: any[]; removed: any[]; priceChanges: any[] }
-
-async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { credentials: 'include', headers: init?.body ? { 'Content-Type': 'application/json' } : {}, ...init });
-  if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || '请求失败'); }
-  return res.json();
-}
+import { listVersions, createVersion, changeVersionStatus, compareVersions, type CatalogVersionData, type VersionDiff } from '@/lib/api/catalog-admin';
 
 export default function VersionsPage() {
-  const [versions, setVersions] = useState<CatalogVersion[]>([]);
+  const [versions, setVersions] = useState<CatalogVersionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: '', version: '', effectiveAt: '', description: '' });
@@ -23,24 +15,24 @@ export default function VersionsPage() {
   const [diff, setDiff] = useState<VersionDiff | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => { setLoading(true); try { setVersions(await fetchJSON<CatalogVersion[]>('/api/catalog/admin/versions')); } catch (e: any) { toast.error(e.message); } finally { setLoading(false); } };
+  const load = async () => { setLoading(true); try { setVersions(await listVersions()); } catch (e: any) { toast.error(e.message); } finally { setLoading(false); } };
   useEffect(() => { load(); }, []);
 
-  const createVersion = async () => {
+  const doCreateVersion = async () => {
     if (!form.name || !form.version) { toast.error('请填写版本名称和版本号'); return; }
     setSaving(true);
-    try { await fetchJSON('/api/catalog/admin/versions', { method: 'POST', body: JSON.stringify(form) }); toast.success('版本快照已创建'); setShowCreate(false); setForm({ name: '', version: '', effectiveAt: '', description: '' }); load(); }
+    try { await createVersion(form); toast.success('版本快照已创建'); setShowCreate(false); setForm({ name: '', version: '', effectiveAt: '', description: '' }); load(); }
     catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   };
 
-  const changeStatus = async (id: number, status: string) => {
-    try { await fetchJSON(`/api/catalog/admin/versions/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); toast.success('状态已更新'); load(); }
+  const doChangeStatus = async (id: number, status: string) => {
+    try { await changeVersionStatus(id, status); toast.success('状态已更新'); load(); }
     catch (e: any) { toast.error(e.message); }
   };
 
-  const compare = async () => {
+  const doCompare = async () => {
     if (!diffA || !diffB) return;
-    try { setDiff(await fetchJSON<VersionDiff>(`/api/catalog/admin/versions/compare?a=${diffA}&b=${diffB}`)); } catch (e: any) { toast.error(e.message); }
+    try { setDiff(await compareVersions(diffA, diffB)); } catch (e: any) { toast.error(e.message); }
   };
 
   return (
@@ -64,7 +56,7 @@ export default function VersionsPage() {
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <button onClick={() => setShowCreate(false)} className="neu-btn-xs">取消</button>
-            <button onClick={createVersion} disabled={saving} className="neu-btn-xs is-success">{saving ? '创建中...' : '创建快照'}</button>
+            <button onClick={doCreateVersion} disabled={saving} className="neu-btn-xs is-success">{saving ? '创建中...' : '创建快照'}</button>
           </div>
         </div>
       )}
@@ -81,15 +73,15 @@ export default function VersionsPage() {
               <div className="flex gap-1 mt-auto pt-2">
                 <button onClick={() => setDiffA(diffA === v.id ? null : v.id)} className={`neu-btn-xs ${diffA === v.id ? 'is-active' : ''}`}>A</button>
                 <button onClick={() => setDiffB(diffB === v.id ? null : v.id)} className={`neu-btn-xs ${diffB === v.id ? 'is-active' : ''}`}>B</button>
-                {v.status !== 'ACTIVE' && <button onClick={() => changeStatus(v.id, 'ACTIVE')} className="neu-btn-xs is-success ml-auto">生效</button>}
-                {v.status !== 'ARCHIVED' && <button onClick={() => changeStatus(v.id, 'ARCHIVED')} className="neu-btn-xs ml-auto">归档</button>}
+                {v.status !== 'ACTIVE' && <button onClick={() => doChangeStatus(v.id, 'ACTIVE')} className="neu-btn-xs is-success ml-auto">生效</button>}
+                {v.status !== 'ARCHIVED' && <button onClick={() => doChangeStatus(v.id, 'ARCHIVED')} className="neu-btn-xs ml-auto">归档</button>}
               </div>
             </div>
           ))}
         </div>}
 
       {(diffA && diffB) && (
-        <div className="flex justify-center"><button onClick={compare} className="neu-btn is-info"><GitCompare size={16} /> 对比版本 A vs B</button></div>
+        <div className="flex justify-center"><button onClick={doCompare} className="neu-btn is-info"><GitCompare size={16} /> 对比版本 A vs B</button></div>
       )}
 
       {diff && (

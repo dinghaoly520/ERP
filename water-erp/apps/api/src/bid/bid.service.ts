@@ -145,8 +145,8 @@ export class BidService {
         : ([] as { projectId: string; _count: { projectId: number } }[]),
     ]);
 
-    const submittedMap = new Map(submissionCounts.map(s => [s.projectId, s._count.projectId]));
-    const signedInMap = new Map(expertSignInCounts.map(e => [e.projectId, e._count.projectId]));
+    const submittedMap = new Map(submissionCounts.map(s => [s.projectId, s._count.projectId] as [string, number]));
+    const signedInMap = new Map(expertSignInCounts.map(e => [e.projectId, e._count.projectId] as [string, number]));
 
     const projectRows = projects.map(p => {
       const supplierCount = p._count.suppliers;

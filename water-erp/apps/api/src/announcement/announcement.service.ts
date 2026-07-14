@@ -195,12 +195,11 @@ export class AnnouncementService {
     if (!this.bidService) return;
     try {
       const meta = AnnouncementService.validateMetadata(announcement.metadata);
-      let existingProject = null;
-      if (announcement.relatedProjectCode) {
-        existingProject = await this.prisma.bidProject.findUnique({
-          where: { projectCode: announcement.relatedProjectCode },
-        });
-      }
+      const existingProject = announcement.relatedProjectCode
+        ? await this.prisma.bidProject.findUnique({
+            where: { projectCode: announcement.relatedProjectCode },
+          })
+        : null;
 
       if (existingProject) {
         await this.bidService.syncFromAnnouncement(existingProject.id, { title: announcement.title }, meta);

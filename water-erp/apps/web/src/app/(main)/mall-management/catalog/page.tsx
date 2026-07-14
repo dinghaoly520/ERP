@@ -107,6 +107,7 @@ export default function CatalogManagementPage() {
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索编码、名称、规格、供应商" className="neu-input !pl-9 w-full text-sm" />
             {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}
           </div>
+          </div>
       </div>
 
       <div className="neu-table-card">

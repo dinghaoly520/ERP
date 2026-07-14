@@ -1963,100 +1963,28 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
     }
   }
 
-  /* ━━━ 供应商选取历史 ━━━ */
+  /* ━━━ 供应商选取历史（模型已移除，保留接口兼容）━━━ */
 
   async saveSelectionHistory(
-    userId: string,
-    requirement: string,
-    classificationId: string | undefined,
-    result: SupplierSelectionResult,
-    shortlistedIds?: string[],
+    _userId: string,
+    _requirement: string,
+    _classificationId: string | undefined,
+    _result: SupplierSelectionResult,
+    _shortlistedIds?: string[],
   ) {
-    // 获取分类名称
-    let classificationName: string | null = null;
-    if (classificationId) {
-      const cls = await this.prisma.supplierClassification.findUnique({
-        where: { id: classificationId },
-        select: { name: true },
-      });
-      classificationName = cls?.name ?? null;
-    }
-    return this.prisma.supplierSelectionHistory.create({
-      data: {
-        userId,
-        requirement,
-        classificationId: classificationId ?? null,
-        classificationName,
-        resultSummary: result.summary,
-        recommendationCount: result.recommendations.length,
-        candidatePool: result.candidatePool,
-        shortlistedIds: shortlistedIds ?? [],
-      },
-    });
+    return { id: 'history-removed', createdAt: new Date() };
   }
 
-  async getSelectionHistory(userId: string | undefined) {
-    if (!userId) return [];
-    return this.prisma.supplierSelectionHistory.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-      select: {
-        id: true,
-        requirement: true,
-        classificationId: true,
-        classificationName: true,
-        resultSummary: true,
-        recommendationCount: true,
-        candidatePool: true,
-        shortlistedIds: true,
-        createdAt: true,
-      },
-    });
+  async getSelectionHistory(_userId: string | undefined) {
+    return [];
   }
 
-  async getSelectionHistoryDetail(id: string) {
-    return this.prisma.supplierSelectionHistory.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        requirement: true,
-        classificationId: true,
-        classificationName: true,
-        resultSummary: true,
-        recommendationCount: true,
-        candidatePool: true,
-        shortlistedIds: true,
-        createdAt: true,
-      },
-    });
+  async getSelectionHistoryDetail(_id: string) {
+    return null;
   }
 
-  async restoreShortlist(historyId: string) {
-    const record = await this.prisma.supplierSelectionHistory.findUnique({
-      where: { id: historyId },
-      select: { shortlistedIds: true },
-    });
-    if (!record || record.shortlistedIds.length === 0) return [];
-    const suppliers = await this.prisma.supplier.findMany({
-      where: { id: { in: record.shortlistedIds }, status: 'APPROVED' },
-      include: {
-        classification: true,
-        contacts: { where: { isPrimary: true }, take: 2 },
-      },
-    });
-    return suppliers.map((s) => ({
-      supplierId: s.id,
-      name: s.name,
-      classification: s.classification?.name,
-      matchScore: 0,
-      reason: '',
-      legalPerson: s.legalPerson,
-      enterpriseType: s.enterpriseType,
-      contacts: (s.contacts || []).map((c) => ({ name: c.name, phone: c.phone, isPrimary: c.isPrimary })),
-      evaluation: undefined,
-      activeProjects: 0,
-    }));
+  async restoreShortlist(_historyId: string) {
+    return [];
   }
 
   async shareShortlist(
@@ -2090,14 +2018,11 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
     }
   }
 
-  async updateSelectionShortlist(historyId: string, shortlistedIds: string[]) {
-    return this.prisma.supplierSelectionHistory.update({
-      where: { id: historyId },
-      data: { shortlistedIds },
-    }).catch(() => null);
+  async updateSelectionShortlist(_historyId: string, _shortlistedIds: string[]) {
+    return null;
   }
 
-  async deleteSelectionHistory(id: string) {
-    return this.prisma.supplierSelectionHistory.delete({ where: { id } }).catch(() => null);
+  async deleteSelectionHistory(_id: string) {
+    return null;
   }
 }

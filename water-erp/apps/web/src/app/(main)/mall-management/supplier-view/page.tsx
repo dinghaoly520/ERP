@@ -3,15 +3,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Building2, RefreshCw } from 'lucide-react';
-
-interface SupplierCoverage { supplier: string; categoryCount: number; categories: string[] }
-interface SupplierPriceItem { supplier: string; items: { code: string; name: string; price: number }[]; avgPrice: number }
-
-async function fetchJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url, { credentials: 'include' });
-  if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || '请求失败'); }
-  return res.json();
-}
+import { getSupplierCoverage, getSupplierPriceComparison, type SupplierCoverage, type SupplierPriceItem } from '@/lib/api/catalog-admin';
 
 export default function SupplierViewPage() {
   const [tab, setTab] = useState<'coverage' | 'price'>('coverage');
@@ -22,10 +14,11 @@ export default function SupplierViewPage() {
 
   useEffect(() => {
     setLoading(true);
-    const url = tab === 'coverage' ? '/api/catalog/admin/supplier-coverage' : '/api/catalog/admin/supplier-price-comparison';
-    fetchJSON<SupplierCoverage[] | SupplierPriceItem[]>(url)
-      .then(data => { if (tab === 'coverage') setCoverage(data as SupplierCoverage[]); else setPriceData(data as SupplierPriceItem[]); })
-      .catch(e => toast.error(e.message)).finally(() => setLoading(false));
+    const promise = tab === 'coverage' ? getSupplierCoverage() : getSupplierPriceComparison();
+    promise.then(data => {
+      if (tab === 'coverage') setCoverage(data as unknown as SupplierCoverage[]);
+      else setPriceData(data as unknown as SupplierPriceItem[]);
+    }).catch(e => toast.error(e.message)).finally(() => setLoading(false));
   }, [tab]);
 
   return (

@@ -130,7 +130,6 @@ export default function ExpertRepositoryPage() {
             <Link href="/expert/statistics" className="neu-btn-soft"><TrendingUp size={15} />统计</Link>
             <Link href="/expert/retirement" className="neu-btn-soft"><UserX size={15} />退库</Link>
             <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
-            <Link href="/expert/entry" className="neu-btn-soft"><PlusCircle size={15} />录入专家</Link>
           </div>
         </div>
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
@@ -165,6 +164,7 @@ export default function ExpertRepositoryPage() {
         ) : (
           <button onClick={() => { setBatchMode(false); setSelectedIds(new Set()); }} className="neu-btn-xs is-danger">退出批量</button>
         )}
+        <Link href="/expert/entry" className="neu-btn-xs"><PlusCircle size={12} />录入专家</Link>
         <label className="neu-btn-xs cursor-pointer"><Upload size={12} />导入CSV<input type="file" accept=".csv" onChange={handleCsvFile} className="hidden" /></label>
         <button onClick={doExport} className="neu-btn-xs"><Download size={12} />导出CSV</button>
         {(search || specialty) && <button onClick={() => { setSearch(''); setSpecialty(''); setPage(1); }} className="neu-btn-xs">重置</button>}

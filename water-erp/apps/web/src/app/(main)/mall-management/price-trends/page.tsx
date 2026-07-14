@@ -5,9 +5,8 @@ import { toast } from 'sonner';
 import { TrendingUp, Plus, X, RefreshCw } from 'lucide-react';
 import { CategoryTreeSelect } from '@/components/catalog/CategoryTreeSelect';
 import { PriceTrendChart } from '@/components/catalog/PriceTrendChart';
-import { listCatalogItems, getCatalogItem, type CatalogItem } from '@/lib/api/catalog-admin';
+import { listCatalogItems, getPriceHistory, type CatalogItem } from '@/lib/api/catalog-admin';
 
-interface PricePoint { recordedAt: string; price: number; note: string | null; }
 const PALETTE = ['oklch(0.55 0.18 258)', 'oklch(0.55 0.18 30)', 'oklch(0.55 0.18 150)', 'oklch(0.55 0.18 330)', 'oklch(0.55 0.18 80)'];
 interface SeriesData { name: string; color: string; data: { date: string; price: number }[] }
 
@@ -28,8 +27,7 @@ export default function PriceTrendsPage() {
     setLoading(true);
     Promise.all(selectedItems.map(async (item, i) => {
       try {
-        const res = await fetch(`/api/catalog/${item.id}/history`, { credentials: 'include' });
-        const history: PricePoint[] = await res.json();
+        const history = await getPriceHistory(item.id);
         return { name: `${item.name}`, color: PALETTE[i % PALETTE.length], data: history.map(p => ({ date: p.recordedAt.slice(0, 10), price: p.price })) };
       } catch { return { name: item.name, color: PALETTE[i % PALETTE.length], data: [] }; }
     })).then(data => { setSeriesData(data); setLoading(false); }).catch(() => setLoading(false));

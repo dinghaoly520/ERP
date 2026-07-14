@@ -3,17 +3,9 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Bell, BellOff, Check, Plus, X, RefreshCw } from 'lucide-react';
-
-interface AlertRule { id: number; name: string; alertType: string; threshold: number; enabled: boolean; category?: { id: number; name: string } | null; }
-interface AlertRecord { id: number; message: string; alertType: string; triggerValue: number; isRead: boolean; isResolved: boolean; createdAt: string; catalogItem?: { code: string; name: string } | null; rule?: { name: string } | null; }
+import { listAlertRules, listAlerts, deleteAlertRule, toggleAlertRule, type AlertRule, type AlertRecord } from '@/lib/api/catalog-admin';
 
 const ALERT_TYPE_LABELS: Record<string, string> = { PRICE_SURGE: '涨幅预警', PRICE_DROP: '跌幅预警', EXPIRING: '即将过期', DEVIATION: '偏离均值' };
-
-async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { credentials: 'include', headers: init?.body ? { 'Content-Type': 'application/json' } : {}, ...init });
-  if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || '请求失败'); }
-  return res.json();
-}
 
 export default function PriceAlertsPage() {
   const [tab, setTab] = useState<'rules' | 'alerts'>('rules');
@@ -22,18 +14,18 @@ export default function PriceAlertsPage() {
   const [loading, setLoading] = useState(true);
 
   const loadRules = async () => {
-    try { setRules(await fetchJSON<AlertRule[]>('/api/catalog/admin/alert-rules')); } catch (e: any) { toast.error(e.message); }
+    try { setRules(await listAlertRules()); } catch (e: any) { toast.error(e.message); }
   };
   const loadAlerts = async () => {
-    try { setAlerts(await fetchJSON<AlertRecord[]>('/api/catalog/admin/alerts')); } catch (e: any) { toast.error(e.message); }
+    try { setAlerts(await listAlerts()); } catch (e: any) { toast.error(e.message); }
   };
 
   useEffect(() => { setLoading(true); (tab === 'rules' ? loadRules() : loadAlerts()).finally(() => setLoading(false)); }, [tab]);
 
-  const toggleRule = async (rule: AlertRule) => {
-    try { await fetchJSON(`/api/catalog/admin/alert-rules/${rule.id}/toggle`, { method: 'PATCH' }); loadRules(); } catch (e: any) { toast.error(e.message); }
+  const doToggleRule = async (rule: AlertRule) => {
+    try { await toggleAlertRule(rule.id); loadRules(); } catch (e: any) { toast.error(e.message); }
   };
-  const deleteRule = async (id: number) => { if (!confirm('确认删除此规则？')) return; try { await fetchJSON(`/api/catalog/admin/alert-rules/${id}`, { method: 'DELETE' }); loadRules(); } catch (e: any) { toast.error(e.message); } };
+  const doDeleteRule = async (id: number) => { if (!confirm('确认删除此规则？')) return; try { await deleteAlertRule(id); loadRules(); } catch (e: any) { toast.error(e.message); } };
 
   return (
     <div className="flex flex-col gap-5">
@@ -69,8 +61,8 @@ export default function PriceAlertsPage() {
                         <td className="text-center text-sm text-[var(--muted-foreground)]">{r.category?.name || '全部品类'}</td>
                         <td className="text-center">{r.enabled ? <span className="text-green-600 text-xs font-semibold">启用</span> : <span className="text-gray-400 text-xs">停用</span>}</td>
                         <td className="text-center">
-                          <button onClick={() => toggleRule(r)} className="neu-btn-xs">{r.enabled ? <BellOff size={12} /> : <Bell size={12} />}</button>
-                          <button onClick={() => deleteRule(r.id)} className="neu-btn-xs is-warning ml-1"><X size={12} /></button>
+                          <button onClick={() => doToggleRule(r)} className="neu-btn-xs">{r.enabled ? <BellOff size={12} /> : <Bell size={12} />}</button>
+                          <button onClick={() => doDeleteRule(r.id)} className="neu-btn-xs is-warning ml-1"><X size={12} /></button>
                         </td>
                       </tr>
                     ))}

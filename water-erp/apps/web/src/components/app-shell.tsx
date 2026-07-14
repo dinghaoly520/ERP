@@ -100,7 +100,6 @@ const navGroups: NavGroup[] = [
     label: "专家管理",
     icon: Users,
     items: [
-      { key: "expert-entry", label: "专家录入", href: "/expert/entry", icon: Users, meta: "新建专家" },
       { key: "expert-repo", label: "专家库", href: "/expert/repository", icon: Users, meta: "专家资源" },
       { key: "expert-extract", label: "专家抽取", href: "/expert/extract", icon: Users, meta: "随机/手动" },
       { key: "expert-eval", label: "专家评价", href: "/expert/evaluation", icon: Users, meta: "履职考核" },
