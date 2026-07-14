@@ -279,7 +279,7 @@ export class SupplierPortalService {
   }
 
   async getBidProject(id: string) {
-    return this.prisma.bidProject.findUnique({
+    const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: {
         id: true,
@@ -298,6 +298,15 @@ export class SupplierPortalService {
         _count: { select: { suppliers: true } },
       },
     });
+    if (project) {
+      // 脱敏：供应商提问(type=question)的 issuer 含竞对企业名，开标前属保密信息（防串标/围标）；
+      // 管理端发起的澄清/通知(type=clarification 等)保留 issuer。
+      project.clarifications = project.clarifications.map((c) => ({
+        ...c,
+        issuer: c.type === 'question' ? '供应商' : c.issuer,
+      }));
+    }
+    return project;
   }
 
   /**

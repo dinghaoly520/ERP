@@ -398,15 +398,9 @@ export class BidService {
   }
 
   async updateProject(id: string, dto: UpdateBidProjectDto) {
-    if (dto.stage) {
-      const project = await this.prisma.bidProject.findUnique({
-        where: { id },
-        select: { stage: true },
-      });
-      if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-      assertBidStageTransition(project.stage, dto.stage as BidStage);
-    }
-
+    // stage 流转不走此接口：曾允许 PATCH stage 绕过专用端点的前置校验/副作用/审计
+    // （OPENING→EVALUATING 不建 AI task 致分析死锁，且无监督/审计日志）。
+    // 阶段变更须走 openSubmission/startOpening/startEvaluation/archiveAll 等专用端点。
     return this.prisma.bidProject.update({
       where: { id },
       data: {
@@ -414,7 +408,6 @@ export class BidService {
         ...(dto.procurementMethod !== undefined && { procurementMethod: dto.procurementMethod }),
         ...(dto.openTime !== undefined && { openTime: new Date(dto.openTime) }),
         ...(dto.deadline !== undefined && { deadline: new Date(dto.deadline) }),
-        ...(dto.stage && { stage: dto.stage as any }),
         ...(dto.riskNote !== undefined && { riskNote: dto.riskNote }),
         ...(dto.budget !== undefined && { budget: dto.budget }),
         ...(dto.scope !== undefined && { scope: dto.scope }),
@@ -1259,7 +1252,7 @@ export class BidService {
     return this.listEvaluationResults(projectId);
   }
 
-  async submitScore(projectId: string, dto: CreateScoreDto) {
+  async submitScore(projectId: string, dto: CreateScoreDto, actorId?: string) {
     // P0: 阶段门控 — 仅在评标阶段可提交评分
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || project.stage !== 'EVALUATING') {
@@ -1317,6 +1310,19 @@ export class BidService {
         ...(dto.passed !== undefined ? { passed: dto.passed } : {}),
       },
     });
+
+    // 非否认审计：此为管理端代评/改分通道（bid_expert 走 expert 模块自评），记录实际操作者
+    if (actorId) {
+      this.prisma.auditLog.create({
+        data: {
+          userId: actorId,
+          action: 'BID_SCORE_SUBMIT',
+          resourceType: `BidProject:${projectId}`,
+          details: { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: dto.score },
+        },
+      }).catch((err) => this.logger.error('评分提交审计日志写入失败', err));
+    }
+
     // P1: 评分偏差实时检测
     const existingRows = await this.prisma.bidScoreRecord.findMany({
       where: { scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, expertId: { not: dto.expertId } },

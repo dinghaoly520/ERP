@@ -468,9 +468,40 @@ export class ExpertAdminService {
 
   /** 确认抽取：创建 BidExpert + 写入审计日志 */
   async confirmExtraction(projectId: string, dto: ConfirmExtractionDto, operatorId?: string) {
-    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      include: { suppliers: { include: { supplier: { select: { name: true } } } } },
+    });
     if (!project) throw new NotFoundException('项目不存在');
     if (!dto.experts?.length) throw new BadRequestException({ error: '请选择专家', code: 'NO_EXPERTS' });
+
+    // 资格复核：与 previewExtraction 同款合规过滤，防止 confirm 绕过 preview 的合规校验
+    // （曾可分配非专家角色/停用/已分配本项目/与投标供应商关联的专家）
+    const supplierNames = new Set(
+      project.suppliers.map(s => s.supplier?.name || s.supplierName).filter(Boolean) as string[],
+    );
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: dto.experts.map(e => e.userId) } },
+      include: { expertProfile: true, bidExperts: { where: { projectId }, select: { id: true } } },
+    });
+    for (const e of dto.experts) {
+      const u = users.find(x => x.id === e.userId);
+      if (!u) throw new BadRequestException({ error: `专家 ${e.expertName} 不存在`, code: 'EXPERT_NOT_FOUND' });
+      if (u.role !== 'bid_expert' || !u.isActive || u.expertProfile?.availability !== '可用') {
+        throw new BadRequestException({ error: `专家 ${e.expertName} 不符合抽取资格（须为在用评标专家）`, code: 'EXPERT_INELIGIBLE' });
+      }
+      if (u.bidExperts.length > 0) {
+        throw new BadRequestException({ error: `专家 ${e.expertName} 已分配本项目`, code: 'EXPERT_ALREADY_ASSIGNED' });
+      }
+      const emp = u.expertProfile?.employer?.trim();
+      if (emp) {
+        for (const sn of supplierNames) {
+          if (sn && (emp.includes(sn) || sn.includes(emp))) {
+            throw new BadRequestException({ error: `专家 ${e.expertName} 工作单位与投标供应商关联（回避）`, code: 'EXPERT_CONFLICT' });
+          }
+        }
+      }
+    }
 
     const [created] = await Promise.all([
       this.prisma.$transaction(

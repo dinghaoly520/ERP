@@ -5,7 +5,6 @@ export class UpdateBidProjectDto {
   @IsString() @IsOptional() procurementMethod?: string;
   @IsDateString() @IsOptional() openTime?: string;
   @IsDateString() @IsOptional() deadline?: string;
-  @IsString() @IsOptional() stage?: string;
   @IsString() @IsOptional() riskNote?: string;
   @IsNumber() @IsOptional() budget?: number;
   @IsString() @IsOptional() scope?: string;
