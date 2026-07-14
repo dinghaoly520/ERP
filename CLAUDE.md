@@ -209,6 +209,8 @@ pnpm --filter api test:e2e          # E2E tests (uses seed data + cookie auth)
 
 E2E suites (`apps/api/test/`): `auth`, `bid`, `catalog`, `supplier`, `upload` — each logs in via seeded accounts, makes authenticated requests, and verifies response contracts. Unit tests live co-located with source (`*.spec.ts` in `src/`).
 
+> **jest + ESM-only deps (pnpm):** `jest.config.js` 与 `test/jest-e2e.json` 用两条互补的 `transformIgnorePatterns`（pnpm 的 `.pnpm/<pkg>@<ver>/node_modules/<pkg>/` 含两段 `node_modules`，单正则会回溯误判）+ ts-jest `allowJs`，转译 ESM-only 依赖（`htmlparser2` / `@paralleldrive/cuid2` / `@noble/hashes`）。**新增 ESM-only 依赖导致测试报 `Cannot use import statement` → 加进两份 allowlist。** `test:e2e` 带 `--forceExit`（Nest 留有 Redis/BullMQ handle）。
+
 ## Seed Data
 
 `pnpm db:seed` is **idempotent and destructive** — it `TRUNCATE ... RESTART IDENTITY CASCADE` on all business tables, then reloads from JSON snapshots at `apps/api/prisma/seed-data/*.json`. Edit the JSON snapshots to change seed data; `seed.ts` just orchestrates the load.
@@ -268,8 +270,9 @@ The auth chain is `AuthGuard (global) → RolesGuard (global)`, registered via `
 
 The NestJS API (`apps/api`, :4001):
 
-- Global prefix `api`, CORS for all ports from `@water-erp/config`, `ValidationPipe({ whitelist: true, transform: true })`
-- Swagger docs at `/api/docs`
+- Global prefix `api`, env-driven CORS (`CORS_ORIGINS`，localhost 回退), `ValidationPipe({ whitelist: true, transform: true })`
+- `helmet` 安全响应头（HSTS / X-Frame-Options / X-Content-Type-Options / CSP）在 `main.ts`；Swagger `/api/docs` **仅非生产**挂载
+- `trust proxy` 由 `TRUST_PROXY` 驱动（默认 `loopback`）；登录/注册限流（`@Throttle`：login 10/min、register 5/min）
 - All error responses normalized to `{ statusCode, code, error, timestamp, path }` via `HttpExceptionFilter`
 
 **Key modules (~30 feature modules + infrastructure, all under `apps/api/src/`; only the architecturally significant ones are listed — the rest are discoverable in the directory):**
@@ -304,6 +307,13 @@ The NestJS API (`apps/api`, :4001):
 | `Prisma` | Infrastructure: global `PrismaService` singleton |
 | `Common` | Shared: `HttpExceptionFilter` (normalized errors), guards, decorators (`@CurrentUser`, `@Public`, `@Roles`) |
 
+### Security Hardening (API)
+
+- **Cookie**：`auth.controller.ts` 的 `COOKIE_OPTS` 含 `secure`（仅 `NODE_ENV=production`）、`path:'/'`；登出 `clearCookie` 镜像同 opts。
+- **JWT 密钥**：`common/jwt-secret.helper.ts` 的 `getJwtSecret()` 在生产缺失/<32 字符时抛错拒绝启动；`auth`/`audit`/`user-settings` 三处 `JwtModule` 共用它（这三处的 `JwtModule.register` **非死代码**——全局 `AuthGuard` 在被守卫模块作用域内解析 `JwtService`，删了启动崩溃）。
+- **存储型 XSS**：公告 `content` 写时消毒（`common/html-sanitize.util.ts`，`sanitize-html`），DTO `@Transform`。
+- **TS import 约定**：tsconfig 无 `esModuleInterop`（仅 `allowSyntheticDefaultImports`）。对 CJS 函数导出包（`module.exports = fn`，如 `sanitize-html`）用 `import x = require('pkg')`——默认 import 编译成 `.default`→运行时 `undefined`。
+
 ### AI Bid Analysis Worker (separate process)
 
 `AiBidAnalysis` jobs (BullMQ, backed by Redis `:6380`) are **not** processed by the main API. They run in a standalone Nest process bootstrapped from `apps/api/src/ai-bid-analysis-worker.module.ts` (`AiBidAnalysisWorkerModule`), which registers `TenderProcessor` + `BidderProcessor`. It is deliberately **not** imported by `AppModule`.
@@ -321,14 +331,18 @@ pnpm --filter api start:worker:ai-bid-analysis # run the pre-built worker
 
 ```
 DATABASE_URL=postgresql://water_erp:water_erp_dev@localhost:5432/water_erp
-JWT_SECRET=water-erp-jwt-secret
+JWT_SECRET=...                     # 生产 ≥32 字符，否则拒绝启动（common/jwt-secret.helper.ts）
 SMS_DEBUG_BYPASS=true              # Skip real SMS; auto-verify with code "123456"
+CORS_ORIGINS=https://erp.example.com,https://supplier.example.com  # 生产真实域名；未设→仅 localhost
+TRUST_PROXY=1                      # 生产反代后信任一跳；默认 'loopback'
 
 # ── AI / LLM ──
 DEEPSEEK_API_URL=https://api.deepseek.com
 DEEPSEEK_API_KEY=<key>             # Required for AI assistant + bid analysis
 DEEPSEEK_MODEL=deepseek-v4-flash
 ```
+
+> **生产启动守卫：** `NODE_ENV=production` 时，`JWT_SECRET` 缺失或 <32 字符 → 应用拒绝启动。反代后还须设 `CORS_ORIGINS`（否则前端跨域全挂）与 `TRUST_PROXY`（否则限流/审计 IP 失真）。
 
 ### WebSocket / Real-Time
 
