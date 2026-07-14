@@ -22,28 +22,34 @@ export interface PlannedItem {
 function extractName(item: NotificationItem): string {
   const c = item.content || '';
 
-  // 按中文引号切分，取引号内的内容
-  const segments = c.split(/[\u201C\u201D]/);
-  for (let i = 1; i < segments.length; i += 2) {
-    const s = segments[i].trim();
-    if (s.length >= 2 && s.length <= 24) return s;
+  // 1) 从任意引号中提取名称（“ = ", ” = "）
+  const quoted = c.match(/[“”"「」]([^“”"「」]{2,30})[“”"「」]/);
+  if (quoted) {
+    const name = quoted[1].trim();
+    if (name && !/^(供应商|项目|目录|品类|证书|通知)$/.test(name)) return name;
   }
 
-  // 无边引号：在动作关键字前截断
+  // 2) 无引号：在动作关键字处截断取名称
   const kw = c.match(
-    /^([\u4e00-\u9fa5a-zA-Z0-9\-]{2,26}?)(?:报价调整|申请加入|价格调整|投标截止|评标已结|已发布招标|将于|开标|已通过|审核不|已被退回|已回复|即将到期|提交了|资质不全|已生成)/,
+    /^(.+?)(?:报价调整|申请加入|价格调整|投标截止|评标已|已发布|将于|开标|已通过审核|审核不通过|已被退回|已回复|即将到期|提交了入库|提交了|资质不全|已生成|本周|ERP|您有)/
   );
   if (kw) {
-    const raw = kw[1].replace(/^供应商|^项目|^采购/, '').trim();
+    let raw = kw[1];
+    // 清洗前缀和残留符号
+    raw = raw.replace(/^供应商/g, '').replace(/^项目/g, '');
+    raw = raw.replace(/[“”"「」'，。：:]|供应商/g, '').trim();
     if (raw) return raw;
   }
 
-  // 标题兜底
+  // 3) 标题去前缀兜底
   const t = (item.title || '').replace(/^(新供应商|供应商|采购目录|新增品类|月度|周度|系统)/, '');
-  if (t.length >= 2 && t.length <= 16) return t;
+  if (t.length >= 3 && t.length <= 16) return t;
 
-  return c.slice(0, 12);
-}// ── 中文标签 + 跳转链接 ──
+  // 4) 最后兜底
+  return c.replace(/[“”"「」]/g, '').slice(0, 12);
+}
+
+// ── 中文标签 + 跳转链接 ──
 
 const TYPE_LABELS: Record<string, string> = {
   SUPPLIER_PENDING:       '供应商审批',
