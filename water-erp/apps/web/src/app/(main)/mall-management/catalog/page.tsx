@@ -117,7 +117,7 @@ function ItemsTab() {
         <CategoryTreeSelect value={selectedCategoryId} onChange={(id) => { setSelectedCategoryId(id); setPage(1); }} placeholder="按品类筛选" className="min-w-[160px]" />
         <div className="relative flex-1 min-w-[140px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索编码、名称、规格、供应商" onKeyDown={e => { if (e.key === "Enter" placeholder="搜索编码、名称、规格、供应商"placeholder="搜索编码、名称、规格、供应商" search.trim()) { fetch("/api/catalog/admin/search-log", { method: "POST", credentials: "include", headers: { "X-Portal": "web", "Content-Type": "application/json" }, body: JSON.stringify({ keyword: search.trim() }) }).catch(() => {}); } }} className="neu-input !pl-9 w-full text-sm" />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索编码、名称、规格、供应商" onKeyDown={e => { if (e.key === 'Enter' && search.trim()) { fetch('/api/catalog/admin/search-log', { method: 'POST', credentials: 'include', headers: { 'X-Portal': 'web', 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: search.trim() }) }).catch(() => {}); } }} className="neu-input !pl-9 w-full text-sm" />
           {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2"><X size={14} /></button>}
         </div>
         <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
@@ -148,7 +148,7 @@ function ItemsTab() {
                     <td onClick={e => e.stopPropagation()} className="text-center">
                       {item.status === '有效' ? <button onClick={() => setItemStatus(item, '下架')} className="neu-btn-xs is-warning">下架</button>
                         : <button onClick={() => setItemStatus(item, '有效')} className="neu-btn-xs is-success">启用</button>}
-                      <button onClick={async (e) => { e.stopPropagation(); try { await (await fetch('/api/catalog/' + item.id + '/subscribe', { method: 'POST', credentials: 'include', headers: { 'X-Portal': 'web' } })).json(); toast.success('已订阅'); } catch {} }} className="neu-btn-xs ml-1" title="订阅变更通知"><Bell size={11}/></button>
+                      <button onClick={async (e) => { e.stopPropagation(); try { const res = await fetch('/api/catalog/' + item.id + '/subscribe', { method: 'POST', credentials: 'include', headers: { 'X-Portal': 'web' } }); const d = await res.json(); toast.success(d.subscribed ? '已订阅变更通知' : '已取消订阅'); } catch { toast.error('操作失败'); } }} className="neu-btn-xs ml-1" title="订阅/取消订阅"><Bell size={11}/></button>
                     </td>
                   </tr>
                 ))}
@@ -171,11 +171,14 @@ function ItemsTab() {
               <div><span className="text-[var(--muted-foreground)] text-xs">编码</span><p className="font-mono text-xs">{detailItem.code}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">规格</span><p>{detailItem.specification || '—'}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">参考价</span><p className="font-bold tabular-nums">¥{detailItem.referencePrice.toLocaleString('zh-CN')}</p></div>
-              <div><span className="text-[var(--muted-foreground)] text-xs">国标号</span><p>{(detailItem as any).nationalStandard || '—'}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">国标号</span><p className="text-xs font-mono">{(detailItem as any).nationalStandard || '—'}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">生命周期</span><p><span className="text-xs px-1.5 py-0.5 rounded bg-[rgba(96,139,239,0.08)]">{(detailItem as any).lifecycleStage || detailItem.status}</span></p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">供应商</span><p>{detailItem.supplier || '—'}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">区域</span><p>{detailItem.region}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">有效期</span><p>{detailItem.validUntil?.slice(0, 10) || '—'}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">价格区间</span><p className="tabular-nums">¥{detailItem.priceMin.toLocaleString()} - ¥{detailItem.priceMax.toLocaleString()}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">最近成交价</span><p className="font-medium tabular-nums">¥{detailItem.lastDealPrice.toLocaleString()}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">价格变化</span><p className={detailItem.changeRate > 0 ? 'text-red-500' : detailItem.changeRate < 0 ? 'text-green-600' : ''}>{detailItem.changeRate}%</p></div>
             </div>
           </div>
         )}
