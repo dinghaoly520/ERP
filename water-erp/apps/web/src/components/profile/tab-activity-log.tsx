@@ -74,7 +74,7 @@ export function TabActivityLog() {
   }, [activities, total]);
 
   return (
-    <div className="flex h-full flex-col gap-5 overflow-y-auto">
+    <div className="flex flex-col gap-5 overflow-y-auto">
       {/* Statistics bar — matches workbench metric grid */}
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="kpi-card px-5 py-4">

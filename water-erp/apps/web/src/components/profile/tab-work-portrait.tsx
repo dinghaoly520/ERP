@@ -206,7 +206,7 @@ export function TabWorkPortrait() {
   const PeakIcon = hourToPeriod(0).icon; // will be overridden below
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto">
+    <div className="flex flex-col gap-4 overflow-y-auto">
       {/* ═══ 头部叙事卡片 — 一句话总结 ═══ */}
       <div
         className="neu-card relative overflow-hidden p-5"

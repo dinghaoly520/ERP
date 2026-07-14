@@ -129,7 +129,7 @@ export function TabWorkOverview() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto">
+    <div className="flex flex-col gap-4 overflow-y-auto">
       {/* ═══ KPI 卡片行 ═══ */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {/* 本月审批处理 */}

@@ -82,7 +82,7 @@ export function TabPreferences() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-5 overflow-y-auto">
+    <div className="flex flex-col gap-5 overflow-y-auto">
       {/* ── 外观与导航 ── */}
       <div className="wb-panel">
         <div className="px-6 pt-5 pb-1">

@@ -81,7 +81,7 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
   };
 
   return (
-    <div className="flex h-full flex-col gap-5 overflow-y-auto">
+    <div className="flex flex-col gap-5 overflow-y-auto">
       {/* Read-only account info */}
       <div className="wb-panel p-6">
         <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
