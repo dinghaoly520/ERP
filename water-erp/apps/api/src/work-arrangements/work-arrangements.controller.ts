@@ -73,6 +73,11 @@ export class WorkArrangementsController {
     );
   }
 
+  @Get('portrait')
+  portrait(@CurrentUser() user: AuthenticatedUser) {
+    return this.workArrangementsService.buildPortrait(user.sub);
+  }
+
   @Get('summary')
   summary(
     @CurrentUser() user: AuthenticatedUser,

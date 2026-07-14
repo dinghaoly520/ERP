@@ -258,3 +258,23 @@ export async function deleteWorkArrangementTemplate(id: string) {
 
   return parseJsonResponse<{ success: true }>(response);
 }
+
+export type WorkPortrait = {
+  narrative: string;
+  metrics: {
+    totalApprovals: number;
+    avgResponseHours: number;
+    completionStreak: number;
+    peakDay: string;
+    peakPeriod: string;
+  };
+  domainFocus: { label: string; pct: number }[];
+};
+
+export async function fetchWorkPortrait(): Promise<WorkPortrait> {
+  const response = await fetch('/api/work-arrangements/portrait', {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+  return parseJsonResponse<WorkPortrait>(response);
+}

@@ -426,6 +426,44 @@ export class WorkArrangementsService {
     }
   }
 
+  async buildPortrait(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { displayName: true, username: true, role: true },
+    });
+    if (!user) throw new Error('用户不存在');
+
+    const [activities, workItems] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where: { userId },
+        select: { action: true, resourceType: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+      }),
+      this.prisma.workArrangement.findMany({
+        where: { userId },
+        select: { type: true, status: true },
+      }),
+    ]);
+
+    const byType: Record<string, number> = {};
+    for (const item of workItems) {
+      if (item.status !== 'CANCELLED') {
+        byType[item.type] = (byType[item.type] || 0) + 1;
+      }
+    }
+
+    return this.aiService.analyzeWorkPortrait({
+      userContext: { displayName: user.displayName, username: user.username, role: user.role },
+      auditActivities: activities as any,
+      taskSummary: {
+        total: workItems.filter(i => i.status !== 'CANCELLED').length,
+        completed: workItems.filter(i => i.status === 'COMPLETED').length,
+        byType,
+      },
+    });
+  }
+
   async buildDailyPlan(userId: string, date?: string) {
     const anchor = date ? new Date(date) : new Date();
     const dayStart = startOfDay(anchor);
