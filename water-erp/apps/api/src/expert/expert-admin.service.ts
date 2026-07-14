@@ -495,7 +495,10 @@ export class ExpertAdminService {
             experts: dto.experts.map(e => ({ userId: e.userId, name: e.expertName, major: e.major })),
           },
         },
-      }).catch(() => {}),
+      }).catch((err) => {
+        // 审计日志失败不阻断主流程，但必须留痕（专家抽取是采购法高风险环节，审计是唯一追溯凭证）
+        new Logger(ExpertAdminService.name).error('专家抽取审计日志写入失败', err);
+      }),
     ]);
 
     return { success: true, count: created.length, expertIds: dto.experts.map(e => e.userId) };
@@ -929,7 +932,8 @@ export class ExpertAdminService {
     const chosen: any[] = [];
     for (let i = 0; i < n && pool.length > 0; i++) {
       const total = pool.reduce((s, x) => s + x.w, 0);
-      let r = (Math.random() * total) || 0;
+      // 密码学安全随机（Math.random 为 xorshift128+ 可预测，影响抽取公平性；与 fairShuffle 同源）
+      let r = total > 0 ? randomInt(0, Math.ceil(total * 1e6)) / 1e6 : 0;
       let idx = 0;
       for (; idx < pool.length; idx++) { r -= pool[idx].w; if (r <= 0) break; }
       if (idx >= pool.length) idx = pool.length - 1;

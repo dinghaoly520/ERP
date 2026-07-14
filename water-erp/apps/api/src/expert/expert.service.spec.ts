@@ -36,6 +36,7 @@ describe('ExpertService', () => {
       bidExpert: {
         findMany: jest.fn(),
         findFirst: jest.fn(),
+        findUnique: jest.fn(),
         update: jest.fn(),
       },
       bidProject: { findUnique: jest.fn() },

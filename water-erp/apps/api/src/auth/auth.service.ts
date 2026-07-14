@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { compareSync, hashSync } from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,6 +25,13 @@ export class AuthService {
   constructor(private prisma: PrismaService, private jwt: JwtService) {}
 
   async register(dto: RegisterDto) {
+    // 查重：register 默认创建 role=internal_user，命中 [username, role] 唯一约束会抛 P2002（原返回 500）→ 归一化为 409
+    const existing = await this.prisma.user.findFirst({
+      where: { username: dto.username, role: 'internal_user' },
+    });
+    if (existing) {
+      throw new ConflictException({ error: '账号已存在', code: 'USERNAME_EXISTS' });
+    }
     const user = await this.prisma.user.create({
       data: {
         username: dto.username,

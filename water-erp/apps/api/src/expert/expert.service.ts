@@ -84,14 +84,17 @@ export class ExpertService {
     const completedProjects = records.filter(e => e.progress >= 100).length;
     const signedInProjects = records.filter(e => e.signedIn).length;
     const pendingProjects = records.filter(e => !e.signedIn).length;
-    // 平均得分 = 所有打分项总分 / 被评供应商数（每位供应商满分100）
-    // 每个 BidExpert 下的 scoreRecords 中 supplierId 去重即为该专家在该项目中评过的供应商数
-    const totalScoreSum = records.reduce((s, e) => s + Number(e.totalScore), 0);
-    const distinctSupplierCount = new Set(
-      records.flatMap(e => e.scoreRecords.map(r => r.supplierId)),
-    ).size;
-    const averageScore = distinctSupplierCount > 0
-      ? Math.round((totalScoreSum / distinctSupplierCount) * 10) / 10
+    // 平均得分 = 该专家对每位供应商的总评分（单项分之和，满分约100）取平均
+    // 旧实现分子用 totalScore（跨项目+跨供应商总和）÷ 去重供应商数，维度不匹配会算出 >100 的无意义值
+    const supplierScoreMap = new Map<string, number>();
+    for (const e of records) {
+      for (const r of e.scoreRecords) {
+        supplierScoreMap.set(r.supplierId, (supplierScoreMap.get(r.supplierId) ?? 0) + Number(r.score));
+      }
+    }
+    const supplierTotals = [...supplierScoreMap.values()];
+    const averageScore = supplierTotals.length > 0
+      ? Math.round((supplierTotals.reduce((s, v) => s + v, 0) / supplierTotals.length) * 10) / 10
       : 0;
 
     // 获取专家名称用于查询监督日志；无项目分配时跳过查询避免全量泄露
@@ -324,6 +327,12 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    }
+
+    // 回避名单检查：与 downloadBidDocument / getAssistData 保持一致，避免向冲突专家泄露投标文件元数据
+    const conflictedIds: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    if (conflictedIds.includes(supplierId)) {
+      throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
     }
 
     const supplier = await this.prisma.bidSupplier.findFirst({
@@ -826,6 +835,16 @@ export class ExpertService {
       if (!currentProject) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
       if (currentProject.stage !== 'EVALUATING') {
         throw new BadRequestException({ error: '项目不在评标阶段', code: 'PROJECT_NOT_EVALUATING' });
+      }
+
+      // Re-check reportConfirmed inside transaction to close the TOCTOU window
+      // （事务外已检查，但 confirmReport 可在进入事务前把 reportConfirmed 置 true → 报告确认后仍可改分）
+      const lockedExpert = await tx.bidExpert.findUnique({
+        where: { id: expert.id },
+        select: { reportConfirmed: true },
+      });
+      if (lockedExpert?.reportConfirmed) {
+        throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
       }
 
       // Batch upsert — unique composite index guarantees idempotency
