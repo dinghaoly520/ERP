@@ -203,13 +203,15 @@ export function ProjectStageTimeline({
                       </div>
                     </div>
                     {actionLabel && onStageAction && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && (
-                      <button
-                        type="button"
+                      <span
+                        role="button"
+                        tabIndex={0}
                         onClick={(e) => { e.stopPropagation(); onStageAction(stageKey); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onStageAction(stageKey); } }}
                         className="pm-stage-action-btn shrink-0"
                       >
                         {actionLabel}
-                      </button>
+                      </span>
                     )}
                   </div>
 

@@ -20,7 +20,7 @@ const MODE_DESCS: Record<ExtractMode, string> = {
   merit_best: '综合履职评价/偏离度/经验等多维度择优',
 };
 
-export function ExpertExtractPage() {
+export function ExpertExtractPage({ hideHeader }: { hideHeader?: boolean }) {
   const router = useRouter(); const q = useSearchParams();
   const [projects, setProjects] = useState<BidProjectOption[]>([]);
   const [specs, setSpecs] = useState<string[]>([]);
@@ -241,34 +241,40 @@ export function ExpertExtractPage() {
         </div>
       )}
 
-      <div className="flex gap-4">
-        <label className="space-y-1 text-xs font-semibold text-[var(--muted-foreground)]">候补人数<select value={alt} onChange={e => setAlt(Number(e.target.value))} className="neu-input text-sm w-full">{[0,1,2,3,5].map(n => <option key={n} value={n}>{n} 名</option>)}</select></label>
-        {extractMode !== 'specialty_match' && (
-          <label className="space-y-1 text-xs font-semibold text-[var(--muted-foreground)]">正选人数<select value={tn} onChange={e => setTn(Number(e.target.value))} className="neu-input text-sm w-full">{[1,2,3,5,7,9].map(n => <option key={n} value={n}>{n} 名</option>)}</select></label>
-        )}
-      </div>
-
-      {/* 对比模式切换 */}
-      <label className="flex items-center justify-between rounded-xl bg-[color-mix(in_oklch,var(--surface)_80%,transparent)] px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
-        <span className="text-xs font-semibold text-[var(--foreground)]">对比模式</span>
+      {/* 人数配置 + 操作按钮 */}
+      <div className="flex items-end gap-3">
+        <div className="flex gap-3 flex-1">
+          <label className="space-y-1 text-xs font-semibold text-[var(--muted-foreground)] flex-1">候补人数<select value={alt} onChange={e => setAlt(Number(e.target.value))} className="neu-input text-sm w-full">{[0,1,2,3,5].map(n => <option key={n} value={n}>{n} 名</option>)}</select></label>
+          {extractMode !== 'specialty_match' && (
+            <label className="space-y-1 text-xs font-semibold text-[var(--muted-foreground)] flex-1">正选人数<select value={tn} onChange={e => setTn(Number(e.target.value))} className="neu-input text-sm w-full">{[1,2,3,5,7,9].map(n => <option key={n} value={n}>{n} 名</option>)}</select></label>
+          )}
+        </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-[var(--muted-foreground)]">{compareMode ? '开启 · 并排对比两种抽取方案' : '关闭 · 仅运行当前模式'}</span>
-          <button onClick={() => setCompareMode(v => !v)} className={`w-9 h-5 rounded-full transition-colors relative ${compareMode ? 'bg-[var(--accent)]' : 'bg-[var(--muted)]/40'}`}>
-            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${compareMode ? 'left-[16px]' : 'left-0.5'}`} />
+          <label className="flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)] cursor-pointer select-none whitespace-nowrap">
+            <span>对比</span>
+            <button
+              onClick={(e) => { e.preventDefault(); setCompareMode(v => !v); }}
+              className={`w-7 h-4 rounded-full transition-colors relative flex-shrink-0 ${compareMode ? 'bg-[var(--accent)]' : 'bg-[var(--muted)]/40'}`}
+            >
+              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${compareMode ? 'left-[13px]' : 'left-0.5'}`} />
+            </button>
+          </label>
+          <button onClick={run} disabled={loading || !pid} className="neu-btn-soft !w-auto justify-center px-6">
+            {loading ? <RefreshCw size={15} className="animate-spin" /> : <Sparkles size={15} />}
+            {loading ? '抽取中...' : '开始抽取'}
           </button>
         </div>
-      </label>
+      </div>
       {compareMode && (
-        <label className="space-y-1 text-xs font-semibold text-[var(--muted-foreground)] block">
-          对比方案 B
-          <select value={compareMode2} onChange={e => setCompareMode2(e.target.value as ExtractMode)} className="neu-input text-sm w-full mt-1">
+        <div className="flex items-center gap-2 rounded-lg bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-3 py-1.5">
+          <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">对比方案 B：</span>
+          <select value={compareMode2} onChange={e => setCompareMode2(e.target.value as ExtractMode)} className="workbench-input !h-[28px] !text-[11px] !w-auto !min-w-[80px]">
             {extractMode !== 'specialty_match' && <option value="specialty_match">专业匹配</option>}
             {extractMode !== 'random' && <option value="random">随机抽取</option>}
             {extractMode !== 'merit_best' && <option value="merit_best">综合择优</option>}
           </select>
-        </label>
+        </div>
       )}
-      <button onClick={run} disabled={loading || !pid} className="neu-btn-soft w-full justify-center">{loading ? <RefreshCw size={15} className="animate-spin" /> : <Sparkles size={15} />}{loading ? 'AI 分析抽取中...' : compareMode ? `对比抽取（${MODE_LABELS[extractMode]} vs ${MODE_LABELS[compareMode2]}）` : '开始智能抽取'}</button>
     </div>
   );
 
@@ -402,6 +408,7 @@ export function ExpertExtractPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      {!hideHeader && (
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -425,6 +432,7 @@ export function ExpertExtractPage() {
           </div>
         </div>
       </div>
+      )}
 
       {hasResults ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">

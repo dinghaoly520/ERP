@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Users, X } from 'lucide-react';
 import { ExpertExtractPage } from '@/app/(main)/expert/extract/page';
+import { RulesPopover } from '@/components/rules-popover';
 
 type Props = {
   isOpen: boolean;
@@ -80,9 +81,21 @@ export function ExpertExtractModal({ isOpen, onClose }: Props) {
               </div>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="neu-btn-soft !p-2">
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            <RulesPopover label="抽取规则" accentColor="var(--accent)">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)] mb-3">专家抽取规则</h3>
+              <ol className="space-y-2 text-xs text-[var(--muted-foreground)] leading-relaxed">
+                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">1.</span>合规过滤：仅「可用」状态专家，工作单位与供应商无关联，未被重复分配至同一项目，自动回避利益相关方</li>
+                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">2.</span>三种抽取模式：专业匹配（AI分析专业构成+加权随机）、随机抽取（合规池公平随机）、综合择优（多维履职数据排名择优）</li>
+                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">3.</span>多维评估：AI 综合专家履职评价等级(A/B/C/D)、出勤/质量/廉洁三维度评分、评分偏离度、历史经验与当前负荷</li>
+                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>手动调整：抽取后可替换/移除/添加专家，灵活组建最终专家组</li>
+                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">5.</span>通知送达：确认后支持 OA站内信 / 短信 / 电话 多渠道通知被选专家</li>
+              </ol>
+            </RulesPopover>
+            <button type="button" onClick={onClose} className="neu-btn-soft !p-2">
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* 正文 */}
@@ -100,7 +113,7 @@ export function ExpertExtractModal({ isOpen, onClose }: Props) {
                 加载抽取配置...
               </div>
             }>
-              <ExpertExtractPage />
+              <ExpertExtractPage hideHeader />
             </Suspense>
           ) : (
             <div className="flex-1 flex items-center justify-center min-h-[300px]">
