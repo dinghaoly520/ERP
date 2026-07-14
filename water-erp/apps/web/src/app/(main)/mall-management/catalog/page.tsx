@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import {
   ShoppingCart, Package, RefreshCw, ChevronUp, X, Search, GitBranch,
   PenLine, CheckCircle, TrendingUp, Bell, Archive, Building2, FileText,
-  Upload, Download, Plus, ChevronRight, Heart, Image, BookOpen, Clock,
-  Star, Layers, FileWarning, Zap, BarChart3, Eye, Trash2, AlertTriangle,
+  Upload, Download, Plus, ChevronRight, 
+  Star, FileWarning, Zap, BarChart3, AlertTriangle,
 } from 'lucide-react';
 import { StatusBadge } from '@/components/workbench';
 import {
@@ -117,7 +117,7 @@ function ItemsTab() {
         <CategoryTreeSelect value={selectedCategoryId} onChange={(id) => { setSelectedCategoryId(id); setPage(1); }} placeholder="按品类筛选" className="min-w-[160px]" />
         <div className="relative flex-1 min-w-[140px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索编码、名称、规格、供应商" className="neu-input !pl-9 w-full text-sm" />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索编码、名称、规格、供应商" onKeyDown={e => { if (e.key === "Enter" placeholder="搜索编码、名称、规格、供应商"placeholder="搜索编码、名称、规格、供应商" search.trim()) { fetch("/api/catalog/admin/search-log", { method: "POST", credentials: "include", headers: { "X-Portal": "web", "Content-Type": "application/json" }, body: JSON.stringify({ keyword: search.trim() }) }).catch(() => {}); } }} className="neu-input !pl-9 w-full text-sm" />
           {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2"><X size={14} /></button>}
         </div>
         <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
@@ -432,27 +432,30 @@ function TrendsTab() {
             return { name: item.name, color: PALETTE[i % PALETTE.length], data: h.map((p: any) => ({ date: (p.recordedAt || '').slice(0, 10), price: Number(p.price) || 0 })) };
           } catch { return null; }
         }));
-        if (!cancelled) setSeriesData(series.filter((s): s is NonNullable<typeof s> => s != null));
+        if (!cancelled) {
+          setSeriesData(series.filter((s): s is NonNullable<typeof s> => s != null));
+          const firstItem = items.find((i: any) => i.priceMin !== i.priceMax);
+          if (firstItem) {
+            fetch('/api/catalog/' + firstItem.id + '/prediction', { credentials: 'include', headers: { 'X-Portal': 'web' } })
+              .then(res => res.ok ? res.json() : null)
+              .then(pred => {
+                if (pred) {
+                  setOpportunity(pred.opportunity);
+                  if (pred.predictions?.length) {
+                    const lastDate = new Date();
+                    setPredictionData(pred.predictions.map((p: any, i: number) => {
+                      const d = new Date(lastDate); d.setMonth(d.getMonth() + i + 1);
+                      return { date: d.toISOString().slice(0, 10), price: p.price };
+                    }));
+                  }
+                }
+              })
+              .catch(() => {});
+          }
+        }
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setInitLoading(false); });
-      const firstItem = items.find((i: any) => i.priceMin !== i.priceMax);
-      if (firstItem) {
-        try {
-          const res = await fetch('/api/catalog/' + firstItem.id + '/prediction', { credentials: 'include', headers: { 'X-Portal': 'web' } });
-          if (res.ok) {
-            const pred = await res.json();
-            setOpportunity(pred.opportunity);
-            if (pred.predictions?.length) {
-              const lastDate = new Date();
-              setPredictionData(pred.predictions.map((p: any, i: number) => {
-                const d = new Date(lastDate); d.setMonth(d.getMonth() + i + 1);
-                return { date: d.toISOString().slice(0, 10), price: p.price };
-              }));
-            }
-          }
-        } catch {}
-      }
     })();
     return () => { cancelled = true; };
   }, []);
