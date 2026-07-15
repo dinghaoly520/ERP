@@ -64,9 +64,10 @@ export function truncateString(s: string, max: number): string {
  */
 export function sanitizeBody(body: unknown, maxBytes = 4096): unknown {
   if (body === null || body === undefined) return null;
-  const sanitized = sanitizeObject(body);
+  let sanitized: unknown;
   let serialized: string;
   try {
+    sanitized = sanitizeObject(body);
     serialized = JSON.stringify(sanitized);
   } catch {
     return null;

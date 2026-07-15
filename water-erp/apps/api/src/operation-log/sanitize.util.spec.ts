@@ -53,6 +53,15 @@ describe('sanitizeBody', () => {
     expect(sanitizeBody(null)).toBeNull();
     expect(sanitizeBody(undefined)).toBeNull();
   });
+
+  it('循环引用 → null', () => {
+    const o: any = { a: 1 }; o.self = o;
+    expect(sanitizeBody(o)).toBeNull();
+  });
+
+  it('BigInt 不可序列化 → null', () => {
+    expect(sanitizeBody({ x: 1n })).toBeNull();
+  });
 });
 
 describe('truncateString', () => {
