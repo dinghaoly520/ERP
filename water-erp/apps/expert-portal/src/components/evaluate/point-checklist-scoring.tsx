@@ -40,7 +40,7 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
               {p.evidenceHint && <div className="text-xs text-[oklch(0.55_0.01_264)] truncate">{p.evidenceHint}</div>}
             </div>
             <input type="number" min={0} max={max} step={0.5} value={v.awardedScore} disabled={readOnly}
-              onChange={e => onChange(p.id, { ...v, awardedScore: Math.min(Number(e.target.value) || 0, max) })}
+              onChange={e => onChange(p.id, { ...v, awardedScore: Math.max(0, Math.min(Number(e.target.value) || 0, max)) })}
               className={`w-16 text-center border border-blue-100 rounded-lg px-1.5 py-1 text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2] outline-none disabled:opacity-60`} />
             <span className="text-xs text-[oklch(0.55_0.01_264)]">/ {max}</span>
           </div>
