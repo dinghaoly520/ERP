@@ -241,7 +241,7 @@ export default function ExpertEvaluatePage() {
     try {
       const raw = localStorage.getItem(draftStorageKey);
       if (!raw) return;
-      const draft = JSON.parse(raw) as { scores: Record<string, { score: number; reason: string }>; savedAt: number };
+      const draft = JSON.parse(raw) as { scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt: number };
       const count = Object.keys(draft.scores || {}).length;
       if (count > 0) setDraftAvailable({ count, savedAt: draft.savedAt });
     } catch { /* corrupt draft — ignore */ }
@@ -266,7 +266,7 @@ export default function ExpertEvaluatePage() {
     try {
       const raw = localStorage.getItem(draftStorageKey);
       if (!raw) return;
-      const draft = JSON.parse(raw) as { scores: Record<string, { score: number; reason: string }> };
+      const draft = JSON.parse(raw) as { scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt: number };
       setScores(prev => ({ ...prev, ...draft.scores }));
       toast.success(`已恢复 ${Object.keys(draft.scores).length} 项评分草稿`);
     } catch { toast.error('草稿已损坏，无法恢复'); }
