@@ -1371,7 +1371,7 @@ export class BidService {
     }));
 
     const alert = checkScoreAnomaly(
-      { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: Number(dto.score) },
+      { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: finalScore },
       existingScores,
     );
     if (alert) {
