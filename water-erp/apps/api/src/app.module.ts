@@ -19,6 +19,7 @@ import { ProcurementsModule } from './procurements/procurements.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { BudgetModule } from './budget/budget.module';
 import { AuditModule } from './audit/audit.module';
+import { OperationLogModule } from './operation-log/operation-log.module';
 import { AssistantModule } from './assistant/assistant.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { AlertsModule } from './alerts/alerts.module';
@@ -70,6 +71,7 @@ import { AppController } from './app.controller';
     CatalogModule,
     BudgetModule,
     AuditModule,
+    OperationLogModule,
     AssistantModule,
     SchedulerModule,
     AlertsModule,
