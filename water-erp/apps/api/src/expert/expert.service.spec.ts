@@ -547,6 +547,7 @@ describe('ExpertService', () => {
     it('locks scoring by setting reportConfirmed and reportConfirmedAt', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, signedIn: true, avoidanceConfirmed: true, progress: 100 });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
       prisma.bidExpert.update.mockResolvedValue({});
       prisma.bidSupervisionLog.create.mockResolvedValue({});
 
@@ -557,6 +558,26 @@ describe('ExpertService', () => {
           data: expect.objectContaining({ progress: 100, reportConfirmed: true, reportConfirmedAt: expect.any(Date) }),
         }),
       );
+    });
+
+    it('confirmReport：有未核对供应商 → REVIEW_PENDING', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, id: 'exp1', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, progress: 100, reportConfirmed: false });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      // 活跃供应商 2 个，但只有 1 个 verified
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1' }, { id: 'sup2' }]);
+      prisma.bidScoreReview.findMany.mockResolvedValue([{ supplierId: 'sup1', status: 'verified' }]); // sup2 未核对
+      await expect(service.confirmReport('user-1', 'p1')).rejects.toMatchObject({ response: { code: 'REVIEW_PENDING' } });
+    });
+
+    it('confirmReport：全部核对 → 通过', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, id: 'exp1', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, progress: 100, reportConfirmed: false });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1' }, { id: 'sup2' }]);
+      prisma.bidScoreReview.findMany.mockResolvedValue([{ supplierId: 'sup1', status: 'verified' }, { supplierId: 'sup2', status: 'verified' }]);
+      prisma.bidExpert.update.mockResolvedValue({});
+      prisma.bidScoreDelta.updateMany.mockResolvedValue({ count: 0 });
+      await service.confirmReport('user-1', 'p1'); // 不抛错
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ reportConfirmed: true }) }));
     });
   });
 

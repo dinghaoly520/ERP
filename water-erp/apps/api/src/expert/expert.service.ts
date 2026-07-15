@@ -1267,6 +1267,21 @@ export class ExpertService {
     }
     if (expert.progress < 100) throw new ForbiddenException({ error: '评分未完成，无法确认报告', code: 'SCORING_INCOMPLETE' });
 
+    // phase ③：所有活跃供应商必须已核对
+    const activeSuppliers = await this.prisma.bidSupplier.findMany({
+      where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+      select: { id: true },
+    });
+    const verifiedReviews = await this.prisma.bidScoreReview.findMany({
+      where: { expertId: expert.id, projectId, status: 'verified' },
+      select: { supplierId: true },
+    });
+    const verifiedSet = new Set(verifiedReviews.map(r => r.supplierId));
+    const unverified = activeSuppliers.filter(s => !verifiedSet.has(s.id));
+    if (unverified.length > 0) {
+      throw new BadRequestException({ error: `有 ${unverified.length} 个供应商评分未核对`, code: 'REVIEW_PENDING' });
+    }
+
     // 记录监督日志
     await this.prisma.bidSupervisionLog.create({
       data: {
