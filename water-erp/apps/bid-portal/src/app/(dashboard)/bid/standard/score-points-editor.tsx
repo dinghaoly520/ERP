@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Sparkles, X } from 'lucide-react';
 import {
   createScorePoint,
   updateScorePoint,
   deleteScorePoint,
+  extractScorePoints,
+  batchCreateScorePoints,
   type ScorePoint,
   type ScoreItem,
+  type ScorePointSuggestion,
 } from '@/lib/api/bid';
 
 interface Props {
@@ -21,9 +24,34 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
   const isPassFail = item.category === 'QUALIFICATION' || item.category === 'RESPONSIVE';
   const [draft, setDraft] = useState({ name: '', fullScore: 0, evidenceHint: '', objective: true });
   const [busy, setBusy] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [suggestions, setSuggestions] = useState<(ScorePointSuggestion & { selected: boolean })[] | null>(null);
+  const [extractError, setExtractError] = useState<string | null>(null);
 
   const total = points.reduce((s, p) => s + Number(p.fullScore), 0);
   const max = Number(item.maxScore);
+
+  async function handleExtract() {
+    setExtracting(true);
+    setExtractError(null);
+    try {
+      const list = await extractScorePoints(projectId, item.id);
+      setSuggestions(list.map((s) => ({ ...s, selected: true })));
+      if (list.length === 0) setExtractError('AI 未从招标文件提取到得分点建议。');
+    } catch (e: any) {
+      setExtractError(e?.message ?? 'AI 提取失败，请检查招标文件是否已发布。');
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  async function handleImportSelected() {
+    const picked = (suggestions ?? []).filter((s) => s.selected);
+    if (picked.length === 0) { setSuggestions(null); return; }
+    await batchCreateScorePoints(projectId, item.id, picked);
+    setSuggestions(null);
+    onChanged();
+  }
 
   async function add() {
     if (!draft.name.trim()) return;
@@ -59,13 +87,26 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
 
   return (
     <div className="mt-2 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] p-3">
-      {/* 合计提示 */}
-      {!isPassFail && (
-        <div className="mb-2 text-xs text-[oklch(0.5_0.01_264)]">
-          得分点满分合计 <span className={total > max ? 'text-red-600 font-semibold' : 'font-semibold'}>{total}</span> / 大类满分 {max}
-          {total > max && <span className="ml-1 text-red-600">（已超出大类满分）</span>}
+      {/* 合计提示 + AI 提取按钮 */}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        {!isPassFail ? (
+          <div className="text-xs text-[oklch(0.5_0.01_264)]">
+            得分点满分合计 <span className={total > max ? 'text-red-600 font-semibold' : 'font-semibold'}>{total}</span> / 大类满分 {max}
+            {total > max && <span className="ml-1 text-red-600">（已超出大类满分）</span>}
+          </div>
+        ) : <span />}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExtract}
+            disabled={extracting}
+            className="flex items-center gap-1 rounded-lg border border-[oklch(0.85_0.02_260)] bg-white px-2.5 py-1 text-xs text-[oklch(0.35_0.03_258)] disabled:opacity-50"
+            title="从招标文件自动提取得分条款建议"
+          >
+            <Sparkles size={13} /> {extracting ? '提取中…' : 'AI 提取建议'}
+          </button>
+          {extractError && <span className="text-xs text-red-600">{extractError}</span>}
         </div>
-      )}
+      </div>
 
       {/* 已有得分点列表 */}
       <div className="space-y-1">
@@ -143,6 +184,44 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
           <Plus size={14} /> 添加
         </button>
       </div>
+
+      {/* AI 提取建议审核弹窗 */}
+      {suggestions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-4 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[oklch(0.18_0.012_265)]">AI 提取得分点建议（来自招标文件）</h3>
+              <button onClick={() => setSuggestions(null)} className="text-[oklch(0.6_0.01_264)] hover:text-red-600"><X size={16} /></button>
+            </div>
+            <div className="max-h-80 space-y-1.5 overflow-y-auto">
+              {suggestions.map((s, idx) => (
+                <div key={idx} className="flex items-center gap-2 rounded-lg border border-[oklch(0.92_0.004_265)] px-2 py-1.5 text-sm">
+                  <input type="checkbox" checked={s.selected} onChange={() => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, selected: !p.selected } : p))} />
+                  <input
+                    className="flex-1 rounded border border-[oklch(0.9_0.005_264)] px-1.5 py-0.5"
+                    value={s.name}
+                    onChange={(e) => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, name: e.target.value } : p))}
+                  />
+                  <input
+                    type="number" min={0} step={0.5} className="w-16 rounded border border-[oklch(0.9_0.005_264)] px-1 py-0.5 text-right"
+                    value={s.fullScore}
+                    onChange={(e) => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, fullScore: Number(e.target.value) } : p))}
+                  />
+                  <button
+                    onClick={() => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, objective: !p.objective } : p))}
+                    className={`rounded px-1.5 py-0.5 text-xs ${s.objective ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}
+                  >{s.objective ? '客观' : '主观'}</button>
+                  <span className="max-w-[120px] truncate text-xs text-[oklch(0.55_0.01_264)]" title={s.evidenceHint}>{s.evidenceHint}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button onClick={() => setSuggestions(null)} className="rounded-lg px-3 py-1 text-sm text-[oklch(0.5_0.01_264)]">取消</button>
+              <button onClick={handleImportSelected} className="rounded-lg bg-[oklch(0.55_0.18_258)] px-3 py-1 text-sm text-white">导入选中的 {suggestions.filter((s) => s.selected).length} 项</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

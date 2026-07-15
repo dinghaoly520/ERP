@@ -1658,7 +1658,7 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
     prisma = {
       bidProject: { findUnique: jest.fn() },
       bidScoreItem: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
-      bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
+      bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
@@ -1731,6 +1731,31 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
     prisma.bidScorePoint.findFirst.mockResolvedValue(null);
     await expect(service.deleteScorePoint('p1', 'i1', 'ptX')).rejects.toThrow();
     expect(prisma.bidScorePoint.delete).not.toHaveBeenCalled();
+  });
+
+  it('batchCreateScorePoints 批量创建并校验阶段锁', async () => {
+    // SUBMIT 阶段放行
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', project: { stage: 'SUBMIT' } });
+    prisma.bidScorePoint.createMany.mockResolvedValue({ count: 2 });
+    const r = await service.batchCreateScorePoints('p1', 'i1', {
+      points: [
+        { name: '点A', fullScore: 5 },
+        { name: '点B', fullScore: 3, objective: false },
+      ],
+    });
+    expect(r).toEqual({ count: 2 });
+    expect(prisma.bidScorePoint.createMany).toHaveBeenCalledWith({
+      data: [
+        { scoreItemId: 'i1', name: '点A', fullScore: 5, evidenceHint: null, objective: true },
+        { scoreItemId: 'i1', name: '点B', fullScore: 3, evidenceHint: null, objective: false },
+      ],
+    });
+  });
+
+  it('batchCreateScorePoints EVALUATING 阶段锁定抛错', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', project: { stage: 'EVALUATING' } });
+    await expect(service.batchCreateScorePoints('p1', 'i1', { points: [{ name: 'x', fullScore: 1 }] })).rejects.toThrow();
+    expect(prisma.bidScorePoint.createMany).not.toHaveBeenCalled();
   });
 
   it('listScoreItems include points', async () => {
