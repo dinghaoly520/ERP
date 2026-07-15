@@ -157,7 +157,10 @@ export class ExpertService {
         openingSession: true,
         openingRecords: true,
         experts: { select: { id: true, expertName: true, major: true, signedIn: true, avoidanceConfirmed: true, progress: true, reportConfirmed: true } },
-        scoreItems: { orderBy: [{ category: 'asc' }, { createdAt: 'asc' }] },
+        scoreItems: {
+          orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
+          include: { points: { orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },
+        },
         clarifications: { orderBy: { createdAt: 'desc' } },
         supervisionLogs: { orderBy: { time: 'desc' }, take: 20 },
       },
