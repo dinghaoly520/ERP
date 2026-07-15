@@ -307,12 +307,15 @@ The NestJS API (`apps/api`, :4001):
 | `Prisma` | Infrastructure: global `PrismaService` singleton |
 | `Common` | Shared: `HttpExceptionFilter` (normalized errors), guards, decorators (`@CurrentUser`, `@Public`, `@Roles`) |
 
+> **LLM 调用未收口：** `local-ai/LlmService` 是集中的 DeepSeek/vLLM 网关，但 `announcement-ai`、`ai/supplier-selection-ai`、`ai/ai.service`、`expert/expert-extraction-ai`、`assistant/deepseek.provider` 等模块**直接**用 `process.env.DEEPSEEK_API_URL` + `fetch` 调用，绕过 `LlmService`。改 `LlmService` 不会影响这些直连模块。
+
 ### Security Hardening (API)
 
 - **Cookie**：`auth.controller.ts` 的 `COOKIE_OPTS` 含 `secure`（仅 `NODE_ENV=production`）、`path:'/'`；登出 `clearCookie` 镜像同 opts。
 - **JWT 密钥**：`common/jwt-secret.helper.ts` 的 `getJwtSecret()` 在生产缺失/<32 字符时抛错拒绝启动；`auth`/`audit`/`user-settings` 三处 `JwtModule` 共用它（这三处的 `JwtModule.register` **非死代码**——全局 `AuthGuard` 在被守卫模块作用域内解析 `JwtService`，删了启动崩溃）。
 - **存储型 XSS**：公告 `content` 写时消毒（`common/html-sanitize.util.ts`，`sanitize-html`），DTO `@Transform`。
 - **TS import 约定**：tsconfig 无 `esModuleInterop`（仅 `allowSyntheticDefaultImports`）。对 CJS 函数导出包（`module.exports = fn`，如 `sanitize-html`）用 `import x = require('pkg')`——默认 import 编译成 `.default`→运行时 `undefined`。
+- **投标文件密钥信封加密**：`common/crypto/envelope-crypto.ts` 的 `wrapKey`/`unwrapKey` 用 `KMS_SECRET` 主密钥加密供应商投标文件的解密密钥（per-asset data key）；`supplier-portal.service.ts` 在投递/解密时封口/拆封。`KMS_SECRET` 缺失→运行时抛 `KMS_SECRET is not configured`。投标保密性核心，勿当死代码删。
 
 ### AI Bid Analysis Worker (separate process)
 
@@ -336,10 +339,16 @@ SMS_DEBUG_BYPASS=true              # Skip real SMS; auto-verify with code "12345
 CORS_ORIGINS=https://erp.example.com,https://supplier.example.com  # 生产真实域名；未设→仅 localhost
 TRUST_PROXY=1                      # 生产反代后信任一跳；默认 'loopback'
 
+# ── 基础设施 ──
+REDIS_URL=redis://localhost:6380   # BullMQ + ioredis；API 与 ai-bid worker 都读它（缺省回退 localhost:6380）
+OCR_SERVICE_URL=http://localhost:8100  # OCR 微服务（services/ocr），local-ai/OcrService 消费
+KMS_SECRET=...                     # 信封加密主密钥：见下方「投标文件密钥信封加密」；生产必填，空则抛错
+
 # ── AI / LLM ──
-DEEPSEEK_API_URL=https://api.deepseek.com
+DEEPSEEK_API_URL=https://api.deepseek.com   # 多数模块直接 process.env 读取，未走 LlmService（见模块表后注释）
 DEEPSEEK_API_KEY=<key>             # Required for AI assistant + bid analysis
 DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_BASE_URL=...              # 可选别名，仅 local-ai/LlmService 读取；其余模块认 DEEPSEEK_API_URL
 ```
 
 > **生产启动守卫：** `NODE_ENV=production` 时，`JWT_SECRET` 缺失或 <32 字符 → 应用拒绝启动。反代后还须设 `CORS_ORIGINS`（否则前端跨域全挂）与 `TRUST_PROXY`（否则限流/审计 IP 失真）。
