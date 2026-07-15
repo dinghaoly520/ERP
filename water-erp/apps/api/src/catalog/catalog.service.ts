@@ -939,7 +939,7 @@ export class CatalogService {
     let num = 0, den = 0;
     for (let i = 0; i < n; i++) { num += (xValues[i] - meanX) * (yValues[i] - meanY); den += (xValues[i] - meanX) ** 2; }
     const slope = den ? num / den : 0;
-    const predictions = [];
+    const predictions: { month: number; price: number }[] = [];
     for (let i = 0; i < 6; i++) { const p = n + i; predictions.push({ month: p, price: Math.round((meanY + slope * (p - meanX)) * 100) / 100 }); }
     const lastPrice = yValues[n - 1];
     const predPrice = predictions[predictions.length - 1]?.price || lastPrice;
