@@ -994,12 +994,16 @@ export class ExpertService {
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
     }
 
-    const [records, reviews] = await Promise.all([
+    const [records, reviews, pointDecisions] = await Promise.all([
       this.prisma.bidScoreRecord.findMany({
         where: { expertId: expert.id },
         include: { scoreItem: true },
       }),
       this.buildExpertReviews(projectId, expert.id, ['dispute', 'doubt']),
+      this.prisma.bidScorePointDecision.findMany({
+        where: { expertId: expert.id },
+        select: { pointId: true, supplierId: true, checked: true, awardedScore: true, note: true },
+      }),
     ]);
 
     const UPPER: Record<string, string> = {
@@ -1021,7 +1025,7 @@ export class ExpertService {
       const detailList = detailMap[cat] ?? (detailMap[cat] = []);
       detailList.push({ requirementId: r.requirementId, content: r.content, note: r.note, verdict: r.verdict });
     }
-    return { records, disputeCategoriesBySupplier, disputesBySupplier };
+    return { records, disputeCategoriesBySupplier, disputesBySupplier, pointDecisions };
   }
 
   /** 汇总本人条款核对（dispute/doubt）为扁平 review 列表，供 getMyScores 与 getReport 复用。
