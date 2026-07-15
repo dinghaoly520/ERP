@@ -151,11 +151,26 @@ export function listScores(projectId: string) {
   return api.get(`/bid/projects/${projectId}/scores`);
 }
 
+export interface ScorePoint {
+  id: string;
+  scoreItemId: string;
+  name: string;
+  fullScore: number | string;
+  seq: number;
+  evidenceHint: string | null;
+  objective: boolean;
+  createdAt: string;
+}
+
 export interface ScoreItem {
   id: string;
   category: string;
   name: string;
   maxScore: number | string;
+  scoringCriteria?: string | null;
+  evidenceHint?: string | null;
+  criteriaSource?: string | null;
+  points?: ScorePoint[];
 }
 
 export function listScoreItems(projectId: string) {
@@ -176,6 +191,28 @@ export function updateScoreItem(projectId: string, itemId: string, body: { categ
 
 export function deleteScoreItem(projectId: string, itemId: string) {
   return api.delete<void>(`/bid/projects/${projectId}/score-items/${itemId}`);
+}
+
+export function listScorePoints(projectId: string, itemId: string) {
+  return api.get<ScorePoint[]>(`/bid/projects/${projectId}/score-items/${itemId}/points`);
+}
+export function createScorePoint(
+  projectId: string,
+  itemId: string,
+  body: { name: string; fullScore: number; seq?: number; evidenceHint?: string; objective?: boolean },
+) {
+  return api.post<ScorePoint>(`/bid/projects/${projectId}/score-items/${itemId}/points`, body);
+}
+export function updateScorePoint(
+  projectId: string,
+  itemId: string,
+  pointId: string,
+  body: Partial<{ name: string; fullScore: number; seq: number; evidenceHint: string; objective: boolean }>,
+) {
+  return api.patch<ScorePoint>(`/bid/projects/${projectId}/score-items/${itemId}/points/${pointId}`, body);
+}
+export function deleteScorePoint(projectId: string, itemId: string, pointId: string) {
+  return api.delete<void>(`/bid/projects/${projectId}/score-items/${itemId}/points/${pointId}`);
 }
 
 export function listEvaluationResults(projectId: string) {

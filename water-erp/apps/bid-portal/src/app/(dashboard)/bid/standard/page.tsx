@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { Fragment, useEffect, useState, useMemo, useCallback } from 'react';
 import { api } from '@/lib/api';
 import {
   listScoreItems, createScoreItem, updateScoreItem, deleteScoreItem, applyScoreItemTemplate,
@@ -11,9 +11,10 @@ import { SectionCard } from '@water-erp/ui';
 import { TableSkeleton } from '@/components/skeleton';
 import Dialog from '@/components/dialog';
 import NoProjectGuide from '@/components/no-project-guide';
-import { Plus, Pencil, Trash2, Check, X, FileSpreadsheet, Lock } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, FileSpreadsheet, Lock, ChevronRight, ChevronDown } from 'lucide-react';
 import { CATEGORY_LABEL, CATEGORY_COLOR, STAGE_LABEL, isPassFailCategory } from '@water-erp/shared';
 import { toast } from 'sonner';
+import { ScorePointsEditor } from './score-points-editor';
 
 const CATEGORY_OPTIONS = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'];
 const inputCls = 'workbench-input';
@@ -28,6 +29,7 @@ export default function BidStandardPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({ category: 'TECHNICAL', name: '', maxScore: 0 });
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!projectId) return;
@@ -101,6 +103,17 @@ export default function BidStandardPage() {
     setDeleteConfirm(null);
   };
 
+  // 得分点增删改后刷新 items（包含 points 字段，Task 4 后端已 include）
+  const reloadItems = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const refreshed = await listScoreItems(projectId);
+      setItems(refreshed);
+    } catch {
+      /* 保留旧数据 */
+    }
+  }, [projectId]);
+
   const CategoryBadge = ({ category }: { category: string }) => {
     const color = CATEGORY_COLOR[category] || '#94a3b8';
     return (
@@ -166,6 +179,7 @@ export default function BidStandardPage() {
             <table className="workbench-table">
               <thead>
                 <tr className="bg-[#f3f7fc]">
+                  <th className="w-8 px-2 py-3"></th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a]">类别</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a]">评分项名称</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a]">满分</th>
@@ -175,8 +189,19 @@ export default function BidStandardPage() {
               <tbody>
                 {items.map(it => {
                   const isEdit = editingId === it.id;
+                  const open = !!expanded[it.id];
+                  const points = it.points ?? [];
                   return (
-                    <tr key={it.id} className="border-t border-[#edf2f7]">
+                    <Fragment key={it.id}>
+                    <tr
+                      className={`border-t border-[#edf2f7] ${isEdit ? '' : 'cursor-pointer hover:bg-[#f8fbff]'}`}
+                      onClick={() => { if (!isEdit) setExpanded(prev => ({ ...prev, [it.id]: !prev[it.id] })); }}
+                    >
+                      <td className="px-2 py-3 text-[#8a96aa]">
+                        {!isEdit && (
+                          open ? <ChevronDown size={14} strokeWidth={1.5} /> : <ChevronRight size={14} strokeWidth={1.5} />
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         {isEdit ? (
                           <select
@@ -218,7 +243,7 @@ export default function BidStandardPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           {isEdit ? (
                             <>
@@ -244,12 +269,26 @@ export default function BidStandardPage() {
                         </div>
                       </td>
                     </tr>
+                    {open && !isEdit && (
+                      <tr className="border-t border-[#edf2f7] bg-[oklch(0.985_0.003_265)]">
+                        <td colSpan={5} className="px-4 pb-4 pt-1">
+                          <ScorePointsEditor
+                            projectId={projectId}
+                            item={it}
+                            points={points}
+                            onChanged={reloadItems}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
 
                 {/* ── Add row ── */}
                 {showAdd && (
                   <tr className="border-t-2 border-[#064ea2] bg-[#f8fbff]">
+                    <td className="px-2 py-3"></td>
                     <td className="px-4 py-3">
                       <select
                         value={draft.category}

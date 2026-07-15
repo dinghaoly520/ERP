@@ -109,11 +109,26 @@ export interface BidExpert {
   reportConfirmedAt?: string | null;
 }
 
+export interface BidScorePoint {
+  id: string;
+  scoreItemId: string;
+  name: string;
+  fullScore: number | string;
+  seq: number;
+  evidenceHint: string | null;
+  objective: boolean;
+  createdAt: string;
+}
+
 export interface BidScoreItem {
   id: string;
   category: string;
   name: string;
   maxScore: number;
+  scoringCriteria?: string | null;
+  evidenceHint?: string | null;
+  criteriaSource?: string | null;
+  points?: BidScorePoint[];
 }
 
 export interface BidSupervisionLog {

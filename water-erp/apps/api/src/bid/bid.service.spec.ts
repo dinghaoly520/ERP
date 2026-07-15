@@ -983,6 +983,7 @@ describe('BidService — score items (评分标准)', () => {
     prisma = {
       bidProject: { findUnique: jest.fn() },
       bidScoreItem: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
+      bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
@@ -1644,5 +1645,101 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
 
     const flagged = txLogCreate.mock.calls.find((c: any[]) => String(c[0].data.action).includes('保证金'));
     expect(flagged).toBeUndefined();
+  });
+});
+
+/* ── 得分点管理（ScorePoint CRUD）── */
+
+describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      bidScoreItem: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
+      bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
+      bidSupervisionLog: { create: jest.fn() },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn() } },
+        BidService,
+      ],
+    }).compile();
+    service = module.get(BidService);
+    jest.clearAllMocks();
+    // item 归属项目 + SUBMIT 阶段（可编辑）
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', project: { stage: 'SUBMIT' } });
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'SUBMIT', name: '项目' });
+  });
+
+  it('listScorePoints 按 seq 排序返回', async () => {
+    prisma.bidScorePoint.findMany.mockResolvedValue([{ id: 'pt1' }, { id: 'pt2' }]);
+    const r = await service.listScorePoints('p1', 'i1');
+    expect(r).toEqual([{ id: 'pt1' }, { id: 'pt2' }]);
+    expect(prisma.bidScorePoint.findMany).toHaveBeenCalledWith({
+      where: { scoreItemId: 'i1', scoreItem: { projectId: 'p1' } },
+      orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }],
+    });
+  });
+
+  it('createScorePoint 写入字段，objective 默认 true', async () => {
+    prisma.bidScorePoint.create.mockResolvedValue({ id: 'pt1' });
+    await service.createScorePoint('p1', 'i1', { name: '施工组织', fullScore: 10 });
+    expect(prisma.bidScorePoint.create).toHaveBeenCalledWith({
+      data: { scoreItemId: 'i1', name: '施工组织', fullScore: 10, seq: 0, evidenceHint: null, objective: true },
+    });
+  });
+
+  it('createScorePoint 在 EVALUATING 阶段锁定抛 ConflictException', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', project: { stage: 'EVALUATING' } });
+    await expect(service.createScorePoint('p1', 'i1', { name: 'x', fullScore: 1 })).rejects.toThrow();
+    expect(prisma.bidScorePoint.create).not.toHaveBeenCalled();
+  });
+
+  it('createScorePoint 评分项不归属项目抛 BadRequestException', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue(null);
+    await expect(service.createScorePoint('p1', 'iX', { name: 'x', fullScore: 1 })).rejects.toThrow();
+  });
+
+  it('updateScorePoint 部分透传', async () => {
+    prisma.bidScorePoint.findFirst.mockResolvedValue({ id: 'pt1', scoreItemId: 'i1' });
+    prisma.bidScorePoint.update.mockResolvedValue({ id: 'pt1' });
+    await service.updateScorePoint('p1', 'i1', 'pt1', { fullScore: 8, objective: false });
+    expect(prisma.bidScorePoint.update).toHaveBeenCalledWith({
+      where: { id: 'pt1' },
+      data: { fullScore: 8, objective: false },
+    });
+  });
+
+  it('updateScorePoint 得分点不存在抛 BadRequestException', async () => {
+    prisma.bidScorePoint.findFirst.mockResolvedValue(null);
+    await expect(service.updateScorePoint('p1', 'i1', 'ptX', { fullScore: 8 })).rejects.toThrow();
+  });
+
+  it('deleteScorePoint 调用 prisma.delete', async () => {
+    prisma.bidScorePoint.findFirst.mockResolvedValue({ id: 'pt1', scoreItemId: 'i1' });
+    prisma.bidScorePoint.delete.mockResolvedValue({ id: 'pt1' });
+    await service.deleteScorePoint('p1', 'i1', 'pt1');
+    expect(prisma.bidScorePoint.delete).toHaveBeenCalledWith({ where: { id: 'pt1' } });
+  });
+
+  it('deleteScorePoint 得分点不属于该评分项抛 BadRequestException', async () => {
+    prisma.bidScorePoint.findFirst.mockResolvedValue(null);
+    await expect(service.deleteScorePoint('p1', 'i1', 'ptX')).rejects.toThrow();
+    expect(prisma.bidScorePoint.delete).not.toHaveBeenCalled();
+  });
+
+  it('listScoreItems include points', async () => {
+    prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'i1', points: [] }]);
+    await service.listScoreItems('p1');
+    expect(prisma.bidScoreItem.findMany).toHaveBeenCalledWith({
+      where: { projectId: 'p1' },
+      orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
+      include: { points: { orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },
+    });
   });
 });

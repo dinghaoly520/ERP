@@ -11,6 +11,8 @@ import { StartOpeningDto } from './dto/start-opening.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
 import { UpdateScoreItemDto } from './dto/update-score-item.dto';
+import { CreateScorePointDto } from './dto/create-score-point.dto';
+import { UpdateScorePointDto } from './dto/update-score-point.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { assertBidStageTransition, type BidStage } from './bid-state';
@@ -1884,6 +1886,7 @@ export class BidService {
     return this.prisma.bidScoreItem.findMany({
       where: { projectId },
       orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
+      include: { points: { orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },
     });
   }
 
@@ -1956,6 +1959,68 @@ export class BidService {
 
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result: `删除评分项「${existing.name}」`, riskFlag: '无' });
     return { deleted: true };
+  }
+
+  // ── 得分点（checklist 子项）CRUD ──
+
+  private async assertScoreItemInProject(projectId: string, itemId: string) {
+    const item = await this.prisma.bidScoreItem.findFirst({
+      where: { id: itemId, projectId },
+      include: { project: { select: { stage: true } } },
+    });
+    if (!item) {
+      throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
+    }
+    this.assertScoreItemsEditable(item.project.stage as BidStage);
+    return item;
+  }
+
+  listScorePoints(projectId: string, itemId: string) {
+    return this.prisma.bidScorePoint.findMany({
+      where: { scoreItemId: itemId, scoreItem: { projectId } },
+      orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async createScorePoint(projectId: string, itemId: string, dto: CreateScorePointDto) {
+    await this.assertScoreItemInProject(projectId, itemId);
+    return this.prisma.bidScorePoint.create({
+      data: {
+        scoreItemId: itemId,
+        name: dto.name,
+        fullScore: dto.fullScore,
+        seq: dto.seq ?? 0,
+        evidenceHint: dto.evidenceHint ?? null,
+        objective: dto.objective ?? true,
+      },
+    });
+  }
+
+  async updateScorePoint(projectId: string, itemId: string, pointId: string, dto: UpdateScorePointDto) {
+    await this.assertScoreItemInProject(projectId, itemId);
+    const existing = await this.prisma.bidScorePoint.findFirst({ where: { id: pointId, scoreItemId: itemId } });
+    if (!existing) {
+      throw new BadRequestException({ error: '得分点不存在', code: 'NOT_FOUND' });
+    }
+    return this.prisma.bidScorePoint.update({
+      where: { id: pointId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.fullScore !== undefined && { fullScore: dto.fullScore }),
+        ...(dto.seq !== undefined && { seq: dto.seq }),
+        ...(dto.evidenceHint !== undefined && { evidenceHint: dto.evidenceHint }),
+        ...(dto.objective !== undefined && { objective: dto.objective }),
+      },
+    });
+  }
+
+  async deleteScorePoint(projectId: string, itemId: string, pointId: string) {
+    await this.assertScoreItemInProject(projectId, itemId);
+    const existing = await this.prisma.bidScorePoint.findFirst({ where: { id: pointId, scoreItemId: itemId } });
+    if (!existing) {
+      throw new BadRequestException({ error: '得分点不存在', code: 'NOT_FOUND' });
+    }
+    return this.prisma.bidScorePoint.delete({ where: { id: pointId } });
   }
 
   /** 应用标准评分模板（幂等：按 name 去重，已存在的项不重复创建）。立即解除新建项目的评标死锁。 */
