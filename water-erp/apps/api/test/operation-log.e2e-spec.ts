@@ -18,6 +18,7 @@ describe('OperationLog (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let expertCookie: string[];
+  let expertUsername: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -30,6 +31,7 @@ describe('OperationLog (e2e)', () => {
     // 动态取一个 bid_expert 账号（口令统一 expert@2026，见 CLAUDE.md 种子表），避免硬编码姓名
     const expert = await prisma.user.findFirst({ where: { role: 'bid_expert', isActive: true } });
     expect(expert).not.toBeNull();
+    expertUsername = expert!.username;
     expertCookie = await loginAs(app, expert!.username, 'expert@2026', 'expert');
   });
 
@@ -58,7 +60,7 @@ describe('OperationLog (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/auth/login')
       .set('X-Portal', 'expert')
-      .send({ username: '刘苡池', password: 'expert@2026' })
+      .send({ username: expertUsername, password: 'expert@2026' })
       .expect(200);
     await new Promise((r) => setTimeout(r, 300));
 
