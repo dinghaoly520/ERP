@@ -9,16 +9,19 @@ import {
 import { Response, Request } from 'express';
 import { OperationLogService } from '../../operation-log/operation-log.service';
 import { buildLogEntry } from '../../operation-log/log-entry.util';
+import { DEFAULT_EXCLUDE_PATHS, parseExcludePaths, shouldExclude, type ExcludePattern } from '../../operation-log/operation-log.filter';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
   private readonly oplogEnabled: boolean;
   private readonly bodyMaxBytes: number;
+  private readonly exclude: ExcludePattern[];
 
   constructor(private readonly operationLog: OperationLogService) {
     this.oplogEnabled = process.env.OPERATION_LOG_ENABLED !== 'false';
     this.bodyMaxBytes = (Number(process.env.OPERATION_LOG_BODY_MAX_KB) || 4) * 1024;
+    this.exclude = [...DEFAULT_EXCLUDE_PATHS, ...parseExcludePaths(process.env.OPERATION_LOG_EXCLUDE)];
   }
 
   catch(exception: unknown, host: ArgumentsHost) {
@@ -27,7 +30,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     // ── 补记 guard 拒绝的请求：interceptor 未运行（标志未设），filter 兜底记录 ──
-    if (this.oplogEnabled && !(request as any).__oplogRecorded) {
+    if (this.oplogEnabled && !(request as any).__oplogRecorded && !shouldExclude(request.path, this.exclude)) {
       try {
         const oplogStatus =
           exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;

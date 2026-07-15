@@ -8,7 +8,11 @@ describe('HttpExceptionFilter — operation-log 补记', () => {
   let oplog: any;
 
   const makeHost = (reqOver: any = {}) => {
-    const req: any = { method: 'GET', url: '/api/x', headers: {}, socket: {}, ...reqOver };
+    const base: any = { method: 'GET', url: '/api/x', headers: {}, socket: {} };
+    const merged = { ...base, ...reqOver };
+    // Express 派生 request.path 自 url（剥 query string）；mock 需手动同步
+    if (merged.path === undefined) merged.path = merged.url.split('?')[0];
+    const req: any = merged;
     const res: any = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() };
     return { switchToHttp: () => ({ getResponse: () => res, getRequest: () => req }), _req: req, _res: res } as any;
   };
@@ -52,6 +56,15 @@ describe('HttpExceptionFilter — operation-log 补记', () => {
     const host = makeHost();
     filter.catch(new Error('kaboom'), host);
     expect(oplog.create.mock.calls[0][0].statusCode).toBe(500);
+    expect(host._res.status).toHaveBeenCalledWith(500);
+  });
+
+  it('排除路径上的异常 → 不补记（兑现 exclude 契约）', () => {
+    // /api/docs 在 DEFAULT_EXCLUDE_PATHS 中
+    const host = makeHost({ url: '/api/docs', path: '/api/docs' });
+    filter.catch(new HttpException('boom', HttpStatus.INTERNAL_SERVER_ERROR), host);
+    expect(oplog.create).not.toHaveBeenCalled();
+    // 响应仍照常发出
     expect(host._res.status).toHaveBeenCalledWith(500);
   });
 });
