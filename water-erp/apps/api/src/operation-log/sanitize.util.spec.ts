@@ -1,4 +1,4 @@
-import { sanitizeBody, truncateString } from './sanitize.util';
+import { sanitizeBody, sanitizeQueryString, truncateString } from './sanitize.util';
 
 describe('sanitizeBody', () => {
   it('凭证类字段 → ***（password/token/secret/key 等）', () => {
@@ -70,5 +70,30 @@ describe('truncateString', () => {
   });
   it('超长截断并加标记', () => {
     expect(truncateString('abcdefghij', 5)).toBe('abcde…[截断]');
+  });
+});
+
+describe('sanitizeQueryString', () => {
+  it('token 被脱敏，keyword 保留', () => {
+    expect(sanitizeQueryString('token=secret&keyword=foo')).toBe('token=***&keyword=foo');
+  });
+
+  it('多个凭证类 key 全部脱敏（password/apiKey/refresh_token）', () => {
+    expect(sanitizeQueryString('password=p&apiKey=k&refresh_token=r')).toBe('password=***&apiKey=***&refresh_token=***');
+  });
+
+  it('无凭证 key 时原样返回', () => {
+    expect(sanitizeQueryString('page=1&size=20')).toBe('page=1&size=20');
+  });
+
+  it('URL 编码的 key 也能识别（%74oken → token）', () => {
+    expect(sanitizeQueryString('%74oken=x')).toBe('%74oken=***');
+  });
+
+  it('截断仍然生效', () => {
+    const q = 'keyword=' + 'x'.repeat(3000);
+    const out = sanitizeQueryString(q, 100);
+    expect(out.length).toBeLessThanOrEqual(120); // 含截断标记
+    expect(out).toContain('…[截断]');
   });
 });

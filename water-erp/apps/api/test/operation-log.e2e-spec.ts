@@ -82,6 +82,7 @@ describe('OperationLog (e2e)', () => {
       .set('X-Portal', 'expert')
       .expect(200);
     expect(res.body.items).toBeInstanceOf(Array);
+    expect(res.body.items.length).toBeGreaterThan(0);
     expect(res.body.items.every((i: any) => i.userId !== null)).toBe(true);
   });
 
@@ -91,5 +92,22 @@ describe('OperationLog (e2e)', () => {
       .set('Cookie', expertCookie)
       .set('X-Portal', 'expert')
       .expect(403);
+
+    // NOTE: RolesGuard 在 NestJS 生命周期中先于 interceptor 执行，
+    // 因此 guard 拒绝(403)不会进入 interceptor 的 catchError 日志路径。
+    // 改用 handler 级别抛出的错误（错误密码登录 → 401）验证 catchError 落库：
+    await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .set('X-Portal', 'expert')
+      .send({ username: expertUsername, password: 'WRONG_PASSWORD' })
+      .expect(401);
+
+    await new Promise((r) => setTimeout(r, 300));
+    const errRow = await prisma.operationLog.findFirst({
+      where: { path: '/api/auth/login', method: 'POST', statusCode: 401 },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(errRow).not.toBeNull();
+    expect(errRow!.role).toBe('anonymous'); // login 时 req.user 尚不存在
   });
 });

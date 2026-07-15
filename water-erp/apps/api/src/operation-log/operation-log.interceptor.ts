@@ -5,7 +5,7 @@ import { OperationLogService } from './operation-log.service';
 import type { OperationLogEntry } from './operation-log.types';
 import { getClientIp } from '../common/client-ip.util';
 import { portalFromRequest } from '../auth/portal-cookie';
-import { sanitizeBody, truncateString } from './sanitize.util';
+import { sanitizeBody, sanitizeQueryString, truncateString } from './sanitize.util';
 import { DEFAULT_EXCLUDE_PATHS, parseExcludePaths, shouldExclude, type ExcludePattern } from './operation-log.filter';
 
 const UA_MAX = 512;
@@ -31,7 +31,7 @@ export function buildLogEntry(
     portal: portalFromRequest(req) ?? null,
     method: req.method,
     path,
-    query: query ? truncateString(query, QUERY_MAX) : null,
+    query: query ? sanitizeQueryString(query, QUERY_MAX) : null,
     body: sanitizeBody((req as any).body, bodyMaxBytes),
     statusCode,
     durationMs,

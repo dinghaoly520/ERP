@@ -58,6 +58,36 @@ export function truncateString(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max)}…[截断]` : s;
 }
 
+/** Decode a query key/value, tolerating malformed %-encoding */
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+/**
+ * Mask credential-keyed query params before logging: `?token=xyz` → `?token=***`.
+ * Only PARAM KEYS matching CREDENTIAL_KEYS are masked (by key, consistent with body
+ * sanitization). Non-credential params (keyword, page, filters...) are preserved for
+ * audit value. Then truncate to maxLen.
+ */
+export function sanitizeQueryString(query: string, maxLen = 2048): string {
+  const masked = query
+    .split('&')
+    .map((pair) => {
+      const eq = pair.indexOf('=');
+      if (eq < 0) return pair;
+      const key = pair.slice(0, eq);
+      const val = pair.slice(eq + 1);
+      const decodedKey = safeDecode(key).toLowerCase();
+      return CREDENTIAL_KEYS.some((w) => decodedKey.includes(w)) ? `${key}=***` : `${key}=${val}`;
+    })
+    .join('&');
+  return truncateString(masked, maxLen);
+}
+
 /**
  * 脱敏请求体并截断：先递归脱敏 → JSON.stringify → 超 maxBytes 则存 { _truncated, preview }。
  * 不可序列化（循环引用等）返回 null。

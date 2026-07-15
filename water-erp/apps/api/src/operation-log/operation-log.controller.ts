@@ -26,13 +26,18 @@ export class OperationLogController {
     return this.service.findMine(user.sub, this.normalize(q));
   }
 
-  /** query 参数均为字符串，按需转 number */
+  /** query 参数均为字符串，按需转 number；非数字/非有限值回退 undefined（服务层补默认值） */
   private normalize(q: OperationLogQuery): OperationLogQuery {
+    const toNum = (v: unknown): number | undefined => {
+      if (v === undefined || v === null || v === '') return undefined;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
     return {
       ...q,
-      limit: q.limit !== undefined ? Number(q.limit) : undefined,
-      offset: q.offset !== undefined ? Number(q.offset) : undefined,
-      statusCode: q.statusCode !== undefined ? Number(q.statusCode) : undefined,
+      limit: toNum(q.limit),
+      offset: toNum(q.offset),
+      statusCode: toNum(q.statusCode),
     };
   }
 }
