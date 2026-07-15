@@ -54,7 +54,7 @@ describe('ExpertService', () => {
       bidScoreItem: { findMany: jest.fn() },
       bidScorePoint: { findMany: jest.fn().mockResolvedValue([]) },
       bidScorePointDecision: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
-      bidScoreReview: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
+      bidScoreReview: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), update: jest.fn() },
       bidSupplierCount: jest.fn(),
       bidSupervisionLog: { create: jest.fn(), findMany: jest.fn() },
       bidClarification: { create: jest.fn() },
@@ -1108,6 +1108,35 @@ describe('ExpertService', () => {
       await expect(service.downloadBidDocument('user-1', 'proj-1', 'sup-1', 'file-foreign'))
         .rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
       expect(plaintextFetcher.fetchBidderPlaintext).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('verifyScoreReview', () => {
+    const signedExpert = { ...mockExpert, signedIn: true, avoidanceConfirmed: true, expertName: '刘' };
+
+    it('draft → verified，设 verifiedAt', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
+      prisma.bidScoreReview.upsert.mockResolvedValue({ id: 'rv1', status: 'verified' });
+      prisma.bidScoreReview.findUnique.mockResolvedValue({ id: 'rv1', expertId: 'exp1', projectId: 'p1', supplierId: 'sup1', status: 'draft' });
+      prisma.bidScoreReview.update.mockResolvedValue({ id: 'rv1', status: 'verified' });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([{ scoreItemId: 'si1', score: 80 }]); // 已有评分
+      const r = await service.verifyScoreReview('user-1', 'p1', 'sup1');
+      expect(prisma.bidScoreReview.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { expertId_projectId_supplierId: { expertId: 'exp1', projectId: 'p1', supplierId: 'sup1' } },
+        data: expect.objectContaining({ status: 'verified' }),
+      }));
+      expect(r.status).toBe('verified');
+    });
+
+    it('未提交评分的供应商不能核对 → SCORING_INCOMPLETE', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]); // 无评分
+      await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'SCORING_INCOMPLETE' } });
+    });
+
+    it('报告已锁定 → SCORE_LOCKED', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1', reportConfirmed: true });
+      await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'SCORE_LOCKED' } });
     });
   });
 });

@@ -171,6 +171,18 @@ export class ExpertController {
     return this.expertService.getMyScores(userId, projectId);
   }
 
+  /* ── 核对评分（draft → verified）── */
+
+  @Post('projects/:projectId/suppliers/:supplierId/score-review/verify')
+  @ApiOperation({ summary: '核对评分（draft→verified，桌面核对关口）' })
+  verifyScoreReview(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Param('supplierId') supplierId: string,
+  ) {
+    return this.expertService.verifyScoreReview(userId, projectId, supplierId);
+  }
+
   /* ── 澄清答疑 ── */
   @Get('projects/:projectId/clarifications')
   listClarifications(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {

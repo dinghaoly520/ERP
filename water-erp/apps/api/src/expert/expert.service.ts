@@ -1082,6 +1082,37 @@ export class ExpertService {
       .filter((r) => r.supplierId && (r.verdict === 'dispute' || r.verdict === 'doubt'));
   }
 
+  /* ── 核对评分（draft → verified）── */
+
+  async verifyScoreReview(userId: string, projectId: string, supplierId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (expert.reportConfirmed) throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
+
+    // 必须先有评分记录
+    const scores = await this.prisma.bidScoreRecord.findMany({ where: { expertId: expert.id, supplierId } });
+    if (scores.length === 0) throw new BadRequestException({ error: '该供应商尚未评分，无法核对', code: 'SCORING_INCOMPLETE' });
+
+    const updated = await this.prisma.bidScoreReview.update({
+      where: { expertId_projectId_supplierId: { expertId: expert.id, projectId, supplierId } },
+      data: { status: 'verified', verifiedAt: new Date() },
+    });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId,
+        time: new Date(),
+        role: '评审专家',
+        target: expert.expertName,
+        action: '核对评分完成（供应商）',
+        result: '已核对',
+        riskFlag: '无',
+      },
+    });
+
+    return updated;
+  }
+
   /* ── 澄清答疑 ── */
 
   async listClarifications(userId: string, projectId: string) {
