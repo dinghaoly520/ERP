@@ -1,4 +1,4 @@
-import { buildLogEntry } from './operation-log.interceptor';
+import { buildLogEntry } from './log-entry.util';
 
 const makeReq = (overrides: any = {}) =>
   ({
