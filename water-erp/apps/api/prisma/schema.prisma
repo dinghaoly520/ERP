@@ -380,9 +380,24 @@ model BidScoreItem {
   criteriaSource  String? // manual | ai_inferred
   project         BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scoreRecords    BidScoreRecord[]
+  points          BidScorePoint[]
   createdAt       DateTime         @default(now())
 
   @@index([projectId])
+}
+
+model BidScorePoint {
+  id           String       @id @default(cuid())
+  scoreItemId  String
+  name         String
+  fullScore    Decimal      @default("0") @db.Decimal(5, 1)
+  seq          Int          @default(0)
+  evidenceHint String?
+  objective    Boolean      @default(true)
+  scoreItem    BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+
+  @@index([scoreItemId])
 }
 
 model BidScoreRecord {
