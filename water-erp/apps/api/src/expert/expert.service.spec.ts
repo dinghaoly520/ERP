@@ -516,6 +516,33 @@ describe('ExpertService', () => {
         expect.objectContaining({ where: { userId: 'user-1', project: { stage: { in: ['OPENING', 'EVALUATING', 'ARCHIVED'] } } } }),
       );
     });
+
+    it('averageScore 与 getStatistics 同口径（按 supplierId 聚合）', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1', username: 'wangjg', displayName: '王建国', role: 'bid_expert', isActive: true,
+      });
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { scoreRecords: [{ score: 85, supplierId: 's1' }, { score: 90, supplierId: 's2' }, { score: 80, supplierId: 's3' }] },
+        { scoreRecords: [{ score: 85, supplierId: 's4' }, { score: 80, supplierId: 's5' }] },
+        { scoreRecords: [] },
+      ]);
+
+      const result = await service.getProfile('user-1');
+
+      // (85+90+80+85+80) / 5 家供应商 = 84
+      expect(result.averageScore).toBe(84);
+    });
+
+    it('无评分记录时 averageScore 为 0', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1', username: 'wangjg', displayName: '王建国', role: 'bid_expert', isActive: true,
+      });
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+
+      const result = await service.getProfile('user-1');
+
+      expect(result.averageScore).toBe(0);
+    });
   });
 
   describe('getReport — 进度口径 (G7)', () => {
