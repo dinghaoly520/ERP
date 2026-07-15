@@ -1721,9 +1721,16 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
   });
 
   it('deleteScorePoint 调用 prisma.delete', async () => {
+    prisma.bidScorePoint.findFirst.mockResolvedValue({ id: 'pt1', scoreItemId: 'i1' });
     prisma.bidScorePoint.delete.mockResolvedValue({ id: 'pt1' });
     await service.deleteScorePoint('p1', 'i1', 'pt1');
     expect(prisma.bidScorePoint.delete).toHaveBeenCalledWith({ where: { id: 'pt1' } });
+  });
+
+  it('deleteScorePoint 得分点不属于该评分项抛 BadRequestException', async () => {
+    prisma.bidScorePoint.findFirst.mockResolvedValue(null);
+    await expect(service.deleteScorePoint('p1', 'i1', 'ptX')).rejects.toThrow();
+    expect(prisma.bidScorePoint.delete).not.toHaveBeenCalled();
   });
 
   it('listScoreItems include points', async () => {

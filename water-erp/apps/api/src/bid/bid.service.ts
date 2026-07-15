@@ -2016,6 +2016,10 @@ export class BidService {
 
   async deleteScorePoint(projectId: string, itemId: string, pointId: string) {
     await this.assertScoreItemInProject(projectId, itemId);
+    const existing = await this.prisma.bidScorePoint.findFirst({ where: { id: pointId, scoreItemId: itemId } });
+    if (!existing) {
+      throw new BadRequestException({ error: '得分点不存在', code: 'NOT_FOUND' });
+    }
     return this.prisma.bidScorePoint.delete({ where: { id: pointId } });
   }
 
