@@ -52,6 +52,8 @@ describe('ExpertService', () => {
         upsert: jest.fn(),
       },
       bidScoreItem: { findMany: jest.fn() },
+      bidScorePoint: { findMany: jest.fn().mockResolvedValue([]) },
+      bidScorePointDecision: { upsert: jest.fn().mockResolvedValue({}) },
       bidSupplierCount: jest.fn(),
       bidSupervisionLog: { create: jest.fn(), findMany: jest.fn() },
       bidClarification: { create: jest.fn() },
@@ -415,6 +417,82 @@ describe('ExpertService', () => {
         supplierName: '甲',
         scores: [{ scoreItemId: 'si1', supplierId: 'sup1', score: 0 }],
       } as any)).rejects.toThrow(BadRequestException);
+    });
+
+    it('submitScores：有 points 大类走 decision 汇总，BidScoreRecord.score=Σ', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp1', userId: 'u1', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, conflictedSupplierIds: [], expertName: '刘',
+      });
+      // item 有 points
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 30, category: 'TECHNICAL' }]);
+      prisma.bidScorePoint.findMany.mockResolvedValue([
+        { id: 'pt1', scoreItemId: 'si1', objective: true, fullScore: 15 },
+        { id: 'pt2', scoreItemId: 'si1', objective: false, fullScore: 15 },
+      ]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' }]);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScorePointDecision.upsert.mockResolvedValue({});
+      prisma.bidScoreRecord.upsert.mockResolvedValue({});
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([{ score: 20 }]);
+
+      await service.submitScores('u1', 'p1', {
+        supplierName: '甲',
+        scores: [{
+          scoreItemId: 'si1', supplierId: 'sup1', reason: '',
+          pointDecisions: [
+            { pointId: 'pt1', checked: true, awardedScore: 15 },
+            { pointId: 'pt2', checked: true, awardedScore: 5 },
+          ],
+        }],
+      } as any);
+
+      // decisions 落库
+      expect(prisma.bidScorePointDecision.upsert).toHaveBeenCalledTimes(2);
+      // BidScoreRecord.score = 15 + 5 = 20
+      expect(prisma.bidScoreRecord.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        update: expect.objectContaining({ score: 20 }),
+      }));
+    });
+
+    it('submitScores：客观 point awardedScore 超 fullScore 抛错', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp1', userId: 'u1', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, conflictedSupplierIds: [], expertName: '刘',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 30, category: 'TECHNICAL' }]);
+      prisma.bidScorePoint.findMany.mockResolvedValue([{ id: 'pt1', scoreItemId: 'si1', objective: true, fullScore: 10 }]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' }]);
+
+      await expect(service.submitScores('u1', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: 'si1', supplierId: 'sup1', reason: '', pointDecisions: [{ pointId: 'pt1', checked: true, awardedScore: 99 }] }],
+      } as any)).rejects.toMatchObject({ response: { code: 'POINT_SCORE_EXCEEDS_MAX' } });
+    });
+
+    it('submitScores：无 points 大类走旧直输 score（向后兼容）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp1', userId: 'u1', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, conflictedSupplierIds: [], expertName: '刘',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 100, category: 'TECHNICAL' }]);
+      prisma.bidScorePoint.findMany.mockResolvedValue([]); // 无 points
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' }]);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScoreRecord.upsert.mockResolvedValue({});
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([{ score: 80 }]);
+
+      await service.submitScores('u1', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: 'si1', supplierId: 'sup1', score: 80, reason: '' }],
+      } as any);
+
+      expect(prisma.bidScorePointDecision.upsert).not.toHaveBeenCalled();
+      expect(prisma.bidScoreRecord.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        update: expect.objectContaining({ score: 80 }),
+      }));
     });
   });
 

@@ -17,6 +17,7 @@ import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto'
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { decryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
+import { recomputeExpertProgress, recomputeItemFromDecisions } from '../bid/score-recalculate.helper';
 
 @Injectable()
 export class ExpertService {
@@ -795,33 +796,70 @@ export class ExpertService {
       throw new BadRequestException({ error: '存在未解密成功或已撤回的供应商，无法评分', code: 'SUPPLIER_NOT_DECRYPTED' });
     }
 
+    // 批量查所有相关 item 的 points（判断 item 有无 points + decision 校验）
+    const allPoints = await this.prisma.bidScorePoint.findMany({
+      where: { scoreItemId: { in: scoreItemIds } },
+      select: { id: true, scoreItemId: true, objective: true, fullScore: true },
+    });
+    const pointsByItem = new Map<string, typeof allPoints>();
+    for (const p of allPoints) {
+      const arr = pointsByItem.get(p.scoreItemId) ?? [];
+      arr.push(p); pointsByItem.set(p.scoreItemId, arr);
+    }
+    const pointMeta = new Map(allPoints.map(p => [p.id, p]));
+
     for (const item of dto.scores) {
       const meta = itemMeta.get(item.scoreItemId);
       if (!meta) continue;
-      if (meta.category === 'QUALIFICATION' || meta.category === 'RESPONSIVE') {
-        // 通过性项：必须有 passed，忽略 score
-        if (typeof item.passed !== 'boolean') {
-          throw new BadRequestException({
-            error: `通过性审查项 ${item.scoreItemId} 必须提供 passed（通过/不通过）`,
-            code: 'PASS_FAIL_VERDICT_REQUIRED',
-          });
+      const hasPoints = (pointsByItem.get(item.scoreItemId)?.length ?? 0) > 0;
+      if (hasPoints) {
+        // checklist 模式：必须有 pointDecisions
+        const decisions = item.pointDecisions ?? [];
+        for (const d of decisions) {
+          const pm = pointMeta.get(d.pointId);
+          if (!pm) {
+            throw new BadRequestException({ error: `得分点 ${d.pointId} 不属于该评分项`, code: 'POINT_NOT_IN_ITEM' });
+          }
+          if (Number(d.awardedScore) > Number(pm.fullScore)) {
+            throw new BadRequestException({ error: `得分点 ${d.pointId} 分数 ${d.awardedScore} 超过满分 ${pm.fullScore}`, code: 'POINT_SCORE_EXCEEDS_MAX' });
+          }
         }
-        item.score = 0; // 落库固定 0，不进总分
+        // 由 decisions 算 score/passed
+        const decisionMap = new Map(decisions.map(d => [d.pointId, { checked: d.checked, awardedScore: Number(d.awardedScore) }]));
+        const { score, passed } = recomputeItemFromDecisions({
+          category: meta.category,
+          points: (pointsByItem.get(item.scoreItemId) ?? []).map(p => ({ id: p.id, objective: p.objective, fullScore: Number(p.fullScore) })),
+          decisions: decisionMap,
+        });
+        item.score = score;
+        item.passed = passed as boolean | undefined;
       } else {
-        // 数值项：必须有 score 且 ≤ maxScore
-        if (typeof item.score !== 'number') {
-          throw new BadRequestException({
-            error: `评分项 ${item.scoreItemId} 必须提供 score`,
-            code: 'SCORE_REQUIRED',
-          });
+        // 旧路径（无 points）：保留原直输校验
+        if (meta.category === 'QUALIFICATION' || meta.category === 'RESPONSIVE') {
+          // 通过性项：必须有 passed，忽略 score
+          if (typeof item.passed !== 'boolean') {
+            throw new BadRequestException({
+              error: `通过性审查项 ${item.scoreItemId} 必须提供 passed（通过/不通过）`,
+              code: 'PASS_FAIL_VERDICT_REQUIRED',
+            });
+          }
+          item.score = 0; // 落库固定 0，不进总分
+        } else {
+          // 数值项：必须有 score 且 ≤ maxScore
+          if (typeof item.score !== 'number') {
+            throw new BadRequestException({
+              error: `评分项 ${item.scoreItemId} 必须提供 score`,
+              code: 'SCORE_REQUIRED',
+            });
+          }
+          if (item.score > meta.maxScore) {
+            throw new BadRequestException({
+              error: `评分项 ${item.scoreItemId} 分数 ${item.score} 超过满分 ${meta.maxScore}`,
+              code: 'SCORE_EXCEEDS_MAX',
+            });
+          }
+          item.passed = null as unknown as undefined;
         }
-        if (item.score > meta.maxScore) {
-          throw new BadRequestException({
-            error: `评分项 ${item.scoreItemId} 分数 ${item.score} 超过满分 ${meta.maxScore}`,
-            code: 'SCORE_EXCEEDS_MAX',
-          });
-        }
-        item.passed = null as unknown as undefined;
       }
     }
 
@@ -864,6 +902,17 @@ export class ExpertService {
       }
 
       // Batch upsert — unique composite index guarantees idempotency
+      // checklist decisions upsert（有 points 的 item）
+      for (const item of dto.scores) {
+        if (!item.pointDecisions || item.pointDecisions.length === 0) continue;
+        for (const d of item.pointDecisions) {
+          await tx.bidScorePointDecision.upsert({
+            where: { expertId_pointId_supplierId: { expertId: expert.id, pointId: d.pointId, supplierId: item.supplierId } },
+            update: { checked: d.checked, awardedScore: d.awardedScore, note: d.note },
+            create: { expertId: expert.id, pointId: d.pointId, supplierId: item.supplierId, checked: d.checked, awardedScore: d.awardedScore, note: d.note },
+          });
+        }
+      }
       for (const item of dto.scores) {
         await tx.bidScoreRecord.upsert({
           where: {
@@ -902,21 +951,7 @@ export class ExpertService {
       }
 
       // Recalculate progress and totalScore within the same transaction
-      const allScoreItems = await tx.bidScoreItem.findMany({ where: { projectId } });
-      const activeSupplierCount = await tx.bidSupplier.count({
-        where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
-      });
-      const totalItems = allScoreItems.length * activeSupplierCount;
-      const scoredItems = await tx.bidScoreRecord.count({
-        where: { expertId: expert.id, scoreItem: { projectId } },
-      });
-      const progress = totalItems > 0 ? Math.round((scoredItems / totalItems) * 100) : 0;
-
-      const allRecords = await tx.bidScoreRecord.findMany({
-        where: { expertId: expert.id, scoreItem: { projectId } },
-      });
-      const totalScore = allRecords.reduce((sum, r) => sum + Number(r.score), 0);
-
+      const { progress, totalScore } = await recomputeExpertProgress(tx, expert.id, projectId);
       await tx.bidExpert.update({
         where: { id: expert.id },
         data: { progress, totalScore },
@@ -935,7 +970,7 @@ export class ExpertService {
         },
       });
 
-      return { records: allRecords, progress, totalScore };
+      return { progress, totalScore };
     });
 
     // Emit WebSocket events after successful commit
