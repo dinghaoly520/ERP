@@ -53,7 +53,7 @@ describe('ExpertService', () => {
       },
       bidScoreItem: { findMany: jest.fn() },
       bidScorePoint: { findMany: jest.fn().mockResolvedValue([]) },
-      bidScorePointDecision: { upsert: jest.fn().mockResolvedValue({}) },
+      bidScorePointDecision: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
       bidSupplierCount: jest.fn(),
       bidSupervisionLog: { create: jest.fn(), findMany: jest.fn() },
       bidClarification: { create: jest.fn() },
