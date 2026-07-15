@@ -182,12 +182,23 @@ export class ExpertService {
       ? phone.slice(0, 3) + '****' + phone.slice(-4)
       : null;
 
+    // 查询该专家在本项目所有供应商的评分核对状态
+    const scoreReviews = await this.prisma.bidScoreReview.findMany({
+      where: { expertId: expertRecord.id, projectId },
+      select: { supplierId: true, status: true, verifiedAt: true },
+    });
+
     const myExpertRecord = {
       ...expertRecord,
       phoneVerified: expertRecord.phoneVerified,
       phoneMasked,
       // Exclude nested user object from response
       user: undefined,
+      scoreReviews: scoreReviews.map(r => ({
+        supplierId: r.supplierId,
+        status: r.status,
+        verifiedAt: r.verifiedAt,
+      })),
     };
 
     if (!isActive) {
@@ -1195,6 +1206,19 @@ export class ExpertService {
       bySupplier.get(key)!.push(r);
     }
 
+    // 查询该专家在本项目所有供应商的评分核对状态（供 report-step 核对徽章 + canConfirm 判定）
+    const reviewRecords = await this.prisma.bidScoreReview.findMany({
+      where: { expertId: expert.id, projectId },
+      select: { supplierId: true, status: true, verifiedAt: true },
+    });
+    const reviewBySupplier = new Map(reviewRecords.map(r => [r.supplierId, r]));
+
+    // 与 confirmReport gate 一致：active = decryptStatus SUCCESS + submitStatus != 已撤回
+    const activeSuppliers = project.suppliers.filter(
+      s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回',
+    );
+    const allVerified = activeSuppliers.length > 0 && activeSuppliers.every(s => reviewBySupplier.get(s.id)?.status === 'verified');
+
     // 按供应商分组汇总评分
     const supplierScores = project.suppliers.map(supplier => {
       const records = bySupplier.get(supplier.id) || [];
@@ -1220,6 +1244,9 @@ export class ExpertService {
         totalScore,
         categoryScores,
         perSupplierComplete: project.scoreItems.length > 0 && records.length === project.scoreItems.length,
+        scoreReview: reviewBySupplier.has(supplier.id)
+          ? { status: reviewBySupplier.get(supplier.id)!.status, verifiedAt: reviewBySupplier.get(supplier.id)!.verifiedAt }
+          : null,
       };
     });
 
@@ -1245,7 +1272,7 @@ export class ExpertService {
       avoidanceConfirmed: expert.avoidanceConfirmed,
       supplierScores,
       scoreItems: project.scoreItems,
-      canConfirm: expert.progress >= 100,
+      canConfirm: expert.progress >= 100 && allVerified,
       overallComplete: expert.progress >= 100,
       myDisputedReviews,
     };
