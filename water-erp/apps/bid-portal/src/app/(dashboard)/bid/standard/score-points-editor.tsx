@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Plus, Trash2, GripVertical } from 'lucide-react';
 import {
-  listScorePoints,
   createScorePoint,
   updateScorePoint,
   deleteScorePoint,
