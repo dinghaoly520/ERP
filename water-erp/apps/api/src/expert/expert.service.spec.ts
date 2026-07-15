@@ -54,6 +54,7 @@ describe('ExpertService', () => {
       bidScoreItem: { findMany: jest.fn() },
       bidScorePoint: { findMany: jest.fn().mockResolvedValue([]) },
       bidScorePointDecision: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
+      bidScoreReview: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
       bidSupplierCount: jest.fn(),
       bidSupervisionLog: { create: jest.fn(), findMany: jest.fn() },
       bidClarification: { create: jest.fn() },
@@ -509,6 +510,35 @@ describe('ExpertService', () => {
       expect(prisma.bidScorePointDecision.upsert).not.toHaveBeenCalled();
       expect(prisma.bidScoreRecord.upsert).toHaveBeenCalledWith(expect.objectContaining({
         update: expect.objectContaining({ score: 80 }),
+      }));
+    });
+
+    it('submitScores：为每个供应商 upsert 一条 draft review', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1', expertName: '刘' });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 100, category: 'TECHNICAL' }]);
+      prisma.bidScorePoint.findMany.mockResolvedValue([]);
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' },
+        { id: 'sup2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: 'submitted' },
+      ]);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScoreRecord.upsert.mockResolvedValue({});
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([{ score: 80 }]);
+
+      await service.submitScores('user-1', 'proj-1', {
+        supplierName: '甲、乙',
+        scores: [
+          { scoreItemId: 'si1', supplierId: 'sup1', score: 80, reason: '' },
+          { scoreItemId: 'si1', supplierId: 'sup2', score: 70, reason: '' },
+        ],
+      } as any);
+
+      expect(prisma.bidScoreReview.upsert).toHaveBeenCalledTimes(2);
+      expect(prisma.bidScoreReview.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { expertId_projectId_supplierId: { expertId: 'exp1', projectId: 'proj-1', supplierId: 'sup1' } },
+        update: expect.objectContaining({ status: 'draft' }),   // 重新提交重置为 draft（专家改了分需重新核对）
+        create: expect.objectContaining({ expertId: 'exp1', projectId: 'proj-1', supplierId: 'sup1', status: 'draft' }),
       }));
     });
   });

@@ -963,6 +963,16 @@ export class ExpertService {
         data: { progress, totalScore },
       });
 
+      // phase ③：为每个涉及的供应商 upsert draft review（已 verified 的，专家改分后重置为 draft 需重新核对）
+      const reviewSupplierIds = Array.from(new Set(dto.scores.map(s => s.supplierId)));
+      for (const sid of reviewSupplierIds) {
+        await tx.bidScoreReview.upsert({
+          where: { expertId_projectId_supplierId: { expertId: expert.id, projectId, supplierId: sid } },
+          update: { status: 'draft', verifiedAt: null },
+          create: { expertId: expert.id, projectId, supplierId: sid, status: 'draft' },
+        });
+      }
+
       // Supervision log
       await tx.bidSupervisionLog.create({
         data: {
