@@ -296,6 +296,7 @@ model BidSupplier {
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
   bidScoreRecords       BidScoreRecord[]
+  pointDecisions        BidScorePointDecision[]
   bidderResults         AiBidderResult[]
   supervisionAnnotation BidSupervisionAnnotation?
   decryptError          String? // 解密失败原因
@@ -362,6 +363,7 @@ model BidExpert {
   project               BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scoreRecords          BidScoreRecord[]
   reviews               BidRequirementReview[]
+  pointDecisions        BidScorePointDecision[]
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
@@ -395,6 +397,7 @@ model BidScorePoint {
   evidenceHint String?
   objective    Boolean      @default(true)
   scoreItem    BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
+  decisions    BidScorePointDecision[]
   createdAt    DateTime     @default(now())
 
   @@index([scoreItemId])
@@ -416,6 +419,25 @@ model BidScoreRecord {
   @@unique([expertId, scoreItemId, supplierId])
   @@index([supplierId])
   @@index([scoreItemId, supplierId])
+}
+
+model BidScorePointDecision {
+  id           String   @id @default(cuid())
+  expertId     String
+  pointId      String
+  supplierId   String
+  checked      Boolean
+  awardedScore Decimal  @db.Decimal(5, 1)
+  note         String?
+  expert       BidExpert     @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  point        BidScorePoint @relation(fields: [pointId], references: [id], onDelete: Cascade)
+  supplier     BidSupplier   @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([expertId, pointId, supplierId])
+  @@index([supplierId])
+  @@index([expertId, supplierId])
 }
 
 /// P1-E：评分 delta 数据飞轮（专家分 vs AI 建议分差异，用于采纳率统计 + AI 校准 + 专家反向复核）
