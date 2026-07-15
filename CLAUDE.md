@@ -349,6 +349,12 @@ DEEPSEEK_API_URL=https://api.deepseek.com   # 多数模块直接 process.env 读
 DEEPSEEK_API_KEY=<key>             # Required for AI assistant + bid analysis
 DEEPSEEK_MODEL=deepseek-v4-flash
 DEEPSEEK_BASE_URL=...              # 可选别名，仅 local-ai/LlmService 读取；其余模块认 DEEPSEEK_API_URL
+
+# ── 操作日志（OperationLog 拦截器，apps/api/src/operation-log）──
+OPERATION_LOG_ENABLED=true          # 总开关；设 false 停用记录
+OPERATION_LOG_EXCLUDE=              # 不记录的路径（逗号分隔，支持 /regex/）；务必加入高频轮询端点，否则日志膨胀
+OPERATION_LOG_BODY_MAX_KB=4         # 请求体脱敏后截断阈值（KB）
+OPERATION_LOG_RETENTION_DAYS=180    # 保留天数；@Cron 0 4 * * * 清理
 ```
 
 > **生产启动守卫：** `NODE_ENV=production` 时，`JWT_SECRET` 缺失或 <32 字符 → 应用拒绝启动。反代后还须设 `CORS_ORIGINS`（否则前端跨域全挂）与 `TRUST_PROXY`（否则限流/审计 IP 失真）。
