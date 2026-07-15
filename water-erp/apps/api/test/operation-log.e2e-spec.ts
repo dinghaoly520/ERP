@@ -110,4 +110,18 @@ describe('OperationLog (e2e)', () => {
     expect(errRow).not.toBeNull();
     expect(errRow!.role).toBe('anonymous'); // login 时 req.user 尚不存在
   });
+
+  it('受保护路由无 token → 401 并被补记（role anonymous）', async () => {
+    await request(app.getHttpServer()).get('/api/operation-log').expect(401);
+    // 等待 fire-and-forget 落库
+    await new Promise((r) => setTimeout(r, 300));
+    const row = await prisma.operationLog.findFirst({
+      where: { path: '/api/operation-log', method: 'GET', statusCode: 401 },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(row).not.toBeNull();
+    expect(row!.role).toBe('anonymous');
+    expect(row!.userId).toBeNull();
+    expect(row!.durationMs).toBe(0);
+  });
 });
