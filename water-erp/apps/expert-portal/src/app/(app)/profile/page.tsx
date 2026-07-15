@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Pencil, ClipboardList, CheckCircle, FileText } from 'lucide-react';
+import { Pencil, ClipboardList, CheckCircle, FileText, TrendingUp } from 'lucide-react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { SectionCard, MetricCard } from '@water-erp/ui';
@@ -10,6 +10,7 @@ import { STAGE_LABEL } from '@water-erp/shared';
 
 interface ExpertProfile {
   id: string; username: string; displayName: string; email: string; role: string; isActive: boolean;
+  averageScore: number;
   assignments: {
     id: string; expertName: string; major: string; signedIn: boolean; avoidanceConfirmed: boolean; progress: number; totalScore: number; createdAt: string;
     project: { id: string; projectCode: string; name: string; stage: string; openTime: string };
@@ -134,7 +135,7 @@ export default function ExpertProfilePage() {
           </SectionCard>
 
           {/* 统计卡片 */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-4">
             <MetricCard
               label="参与项目"
               value={totalProjects}
@@ -152,6 +153,12 @@ export default function ExpertProfilePage() {
               value={totalScoreRecords}
               tone="orange"
               icon={<FileText size={16} strokeWidth={1.5} />}
+            />
+            <MetricCard
+              label="平均给分"
+              value={profile.averageScore ?? 0}
+              tone="purple"
+              icon={<TrendingUp size={16} strokeWidth={1.5} />}
             />
           </div>
         </div>
