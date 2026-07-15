@@ -7,16 +7,41 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
+import { OperationLogService } from '../../operation-log/operation-log.service';
+import { buildLogEntry } from '../../operation-log/log-entry.util';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
+  private readonly oplogEnabled: boolean;
+  private readonly bodyMaxBytes: number;
+
+  constructor(private readonly operationLog: OperationLogService) {
+    this.oplogEnabled = process.env.OPERATION_LOG_ENABLED !== 'false';
+    this.bodyMaxBytes = (Number(process.env.OPERATION_LOG_BODY_MAX_KB) || 4) * 1024;
+  }
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
+    // ── 补记 guard 拒绝的请求：interceptor 未运行（标志未设），filter 兜底记录 ──
+    if (this.oplogEnabled && !(request as any).__oplogRecorded) {
+      try {
+        const oplogStatus =
+          exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+        const entry = buildLogEntry(request, oplogStatus, 0, exception, this.bodyMaxBytes);
+        this.operationLog
+          .create(entry)
+          .catch((e) => this.logger.warn(`OperationLog(filter) 记录失败: ${e?.message ?? e}`));
+        (request as any).__oplogRecorded = true;
+      } catch (e) {
+        this.logger.warn(`OperationLog(filter) 构建失败: ${e?.message ?? e}`);
+      }
+    }
+
+    // ── 以下为原有标准化响应逻辑（不变）──
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = '服务器内部错误';
     let code = 'INTERNAL_ERROR';

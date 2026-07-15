@@ -4,7 +4,6 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { PORTS } from '@water-erp/config';
 
 // 全局未捕获异常/拒绝 —— 记录崩溃原因，避免静默退出
@@ -43,7 +42,6 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  app.useGlobalFilters(new HttpExceptionFilter());
 
   // 安全响应头：HSTS（需 HTTPS 生效）、X-Frame-Options（防点击劫持）、
   // X-Content-Type-Options（防 MIME 嗅探）、CSP（XSS 纵深）。

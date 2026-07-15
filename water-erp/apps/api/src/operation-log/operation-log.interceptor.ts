@@ -28,6 +28,7 @@ export class OperationLogInterceptor {
     const record = (statusCode: number, error: unknown | null) => {
       const entry = buildLogEntry(req, statusCode, Date.now() - start, error, this.bodyMaxBytes);
       this.service.create(entry).catch((e) => this.logger.warn(`OperationLog 记录失败: ${e?.message ?? e}`));
+      (req as any).__oplogRecorded = true;
     };
 
     return next.handle().pipe(
