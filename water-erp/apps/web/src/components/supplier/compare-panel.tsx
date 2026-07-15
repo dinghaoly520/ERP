@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { X, Columns3, Check } from "lucide-react";
+import { Columns3, Check } from "lucide-react";
 import type { SupplierRecommendation } from "@/lib/api/supplier";
+import { Modal } from "@/components/workbench";
 
 type Props = {
   isOpen: boolean;
@@ -24,8 +25,6 @@ const DIMENSIONS = [
 export function ComparePanel({ isOpen, candidates, onClose }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  if (!isOpen) return null;
-
   const toggleCheck = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -45,39 +44,16 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
     l === "A" ? "var(--success)" : l === "B" ? "var(--accent)" : l === "C" ? "var(--warning)" : "var(--danger)";
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4 py-6">
-      <div
-        className="absolute inset-0 bg-[rgba(242,246,255,0.42)] backdrop-blur-md"
-        onClick={onClose}
-      />
-      <div className="relative z-10 flex w-full max-w-[min(900px,92vw)] max-h-[85vh] flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
-        {/* Header */}
-        <div
-          className="px-6 py-4"
-          style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}
-        >
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[rgba(94,126,189,0.76)]">
-                横向对比
-              </div>
-              <div className="mt-1.5 text-lg font-semibold text-[color:var(--foreground)]">
-                候选供应商对比
-              </div>
-              <p className="mt-1.5 text-sm text-[color:var(--muted-foreground)]">
-                勾选 2–4 家供应商进行并列比较
-              </p>
-            </div>
-            <button type="button" onClick={onClose} className="neu-btn-xs" aria-label="关闭对比面板">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="min-h-0 flex-1 overflow-hidden flex flex-col">
-          {/* Check selector */}
-          <div className="px-6 py-3 flex flex-wrap gap-2" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.08)" }}>
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="候选供应商对比"
+      description="勾选 2–4 家供应商进行并列比较"
+      size="lg"
+      className="!max-w-[min(900px,92vw)]"
+    >
+      {/* Check selector */}
+      <div className="flex flex-wrap gap-2">
             {candidates.slice(0, 6).map((c) => (
               <button
                 key={c.supplierId}
@@ -208,18 +184,6 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Footer */}
-        <div
-          className="flex justify-end px-6 py-4"
-          style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}
-        >
-          <button type="button" onClick={onClose} className="neu-btn-soft">
-            关闭
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

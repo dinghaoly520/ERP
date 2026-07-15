@@ -265,9 +265,6 @@ export function confirmRetire(id: string, reason: string) {
 export function getAiAdoptionRate(expertId?: string) {
   return api.get<any>(`/expert-admin/ai-adoption${expertId ? `?expertId=${expertId}` : ''}`);
 }
-export function getProjectEvaluationReview(projectId?: string) {
-  return api.get<any>(`/expert-admin/project-review${projectId ? `?projectId=${projectId}` : ''}`);
-}
 export function getExpertRanking(period: 'month' | 'quarter' | 'all' = 'month') {
   return api.get<any[]>(`/expert-admin/ranking?period=${period}`);
 }

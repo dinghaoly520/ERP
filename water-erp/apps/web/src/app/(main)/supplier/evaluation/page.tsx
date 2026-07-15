@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { getSupplierList, getEvaluationStats, getSupplierEvaluations, createEvaluation, getEvaluationDimensionStats } from '@/lib/api/supplier';
 import type { DimensionStats } from '@/lib/api/supplier';
 import type { Supplier, SupplierEvaluation, SupplierListResponse } from '@/lib/types';
-import { StatusBadge, TableSkeleton } from '@/components/workbench';
+import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { CheckCircle2, Search, X, RefreshCw, ChevronUp } from 'lucide-react';
 
 const DIMENSIONS: { key: keyof Pick<SupplierEvaluation, 'completenessScore' | 'responsivenessScore' | 'cooperationScore' | 'complianceScore' | 'overallScore'>; label: string; hint: string; max: number }[] = [
@@ -27,7 +27,7 @@ export default function SupplierEvaluationPage() {
 
   const [evalModal, setEvalModal] = useState<Supplier | null>(null);
   const [history, setHistory] = useState<SupplierEvaluation[]>([]);
-  const [scores, setScores] = useState({ completenessScore: 16, responsivenessScore: 16, cooperationScore: 16, complianceScore: 16, overallScore: 16 });
+  const [scores, setScores] = useState({ completenessScore: 16, responsivenessScore: 24, cooperationScore: 16, complianceScore: 16, overallScore: 8 });
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -44,7 +44,7 @@ export default function SupplierEvaluationPage() {
 
   const openEvalModal = async (s: Supplier) => {
     setEvalModal(s);
-    setScores({ completenessScore: 16, responsivenessScore: 16, cooperationScore: 16, complianceScore: 16, overallScore: 16 });
+    setScores({ completenessScore: 16, responsivenessScore: 24, cooperationScore: 16, complianceScore: 16, overallScore: 8 });
     setComment('');
     try { setHistory(await getSupplierEvaluations(s.id)); } catch { setHistory([]); }
   };
@@ -194,74 +194,70 @@ export default function SupplierEvaluationPage() {
 
       {/* ══════ 评价弹窗 ══════ */}
       {evalModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setEvalModal(null)}>
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" />
-          <div className="relative w-full max-w-[min(640px,92vw)] max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-0 shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)]" role="dialog" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 px-6 py-4">
-              <div>
-                <h2 className="text-lg font-bold tracking-[-0.02em] text-[var(--foreground)]">供应商评价</h2>
-                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{evalModal.name}</p>
-              </div>
-              <button onClick={() => setEvalModal(null)} className="neu-btn-xs"><X size={16} /></button>
-            </div>
-
-            <div className="px-6 pb-6 space-y-5">
-              {DIMENSIONS.map(d => (
-                <div key={d.key}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div>
-                      <span className="text-sm font-bold text-[var(--foreground)]">{d.label}</span>
-                      <span className="ml-2 text-xs text-[var(--muted-foreground)]">{d.hint}</span>
-                    </div>
-                    <span className="text-sm font-extrabold text-[var(--accent)] tabular-nums min-w-[2rem] text-right">{scores[d.key]}</span>
-                  </div>
-                  <input type="range" min={0} max={d.max} step={1} value={scores[d.key]} onChange={e => setScores({ ...scores, [d.key]: Number(e.target.value) })} className="w-full accent-[var(--accent)]" />
-                  <div className="flex justify-between text-[10px] text-[var(--muted-foreground)] mt-0.5"><span>0</span><span>{d.max}</span></div>
-                </div>
-              ))}
-
-              <div className="flex items-center gap-3 rounded-xl bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">
-                <span className="text-xs font-bold text-[var(--muted-foreground)]">总分</span>
-                <strong className="text-xl font-black text-[var(--accent)] tabular-nums">{totalScore}</strong>
-                <StatusBadge tone={previewLevel === 'A' ? 'green' : previewLevel === 'B' ? 'blue' : previewLevel === 'C' ? 'orange' : 'red'}>
-                  {previewLevel === 'A' ? '优秀' : previewLevel === 'B' ? '良好' : previewLevel === 'C' ? '合格' : '不合格'}（{previewLevel}级）
-                </StatusBadge>
-                <span className="ml-auto text-xs text-[var(--muted-foreground)]">A≥90 · B≥80 · C≥60 · D&lt;60</span>
-              </div>
-
-              <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="评价说明（可选）" className="neu-input w-full h-20 resize-none text-sm" />
-
-              {history.length > 0 && (
-                <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.75rem" }}>
-                  <h4 className="text-sm font-bold text-[var(--foreground)] mb-2">历史评价（{history.length}）</h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {history.map(ev => {
-                      const lv = ev.level || 'D';
-                      const tone = lv === 'A' ? 'green' : lv === 'B' ? 'blue' : lv === 'C' ? 'orange' : 'red';
-                      return (
-                        <div key={ev.id} className="rounded-lg bg-[var(--surface)] p-2.5 text-xs shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
-                          <div className="flex items-center gap-2">
-                            <StatusBadge tone={tone as any}>{lv}</StatusBadge>
-                            <strong className="text-[var(--foreground)]">{Number(ev.score)}分</strong>
-                            <span className="text-[var(--muted-foreground)]">{ev.evaluator?.displayName || '—'}</span>
-                            <span className="ml-auto text-[var(--muted-foreground)]">{new Date(ev.createdAt).toLocaleDateString('zh-CN')}</span>
-                          </div>
-                          {ev.comment && <p className="mt-1 text-[var(--muted-foreground)]">{ev.comment}</p>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <hr className="wb-section-rule mx-6" />
-            <div className="flex justify-end gap-3 px-6 py-4">
+        <Modal
+          open
+          onClose={() => setEvalModal(null)}
+          title="供应商评价"
+          description={evalModal.name}
+          size="lg"
+          footer={
+            <>
               <button onClick={() => setEvalModal(null)} className="neu-btn-soft">取消</button>
               <button onClick={submit} disabled={saving} className="neu-btn-soft is-success">{saving ? '提交中...' : '提交评价'}</button>
+            </>
+          }
+        >
+          {DIMENSIONS.map(d => (
+            <div key={d.key}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div>
+                  <span className="text-sm font-bold text-[var(--foreground)]">{d.label}</span>
+                  <span className="ml-2 text-xs text-[var(--muted-foreground)]">{d.hint}</span>
+                </div>
+                <span className="text-sm font-extrabold text-[var(--accent)] tabular-nums min-w-[2rem] text-right">{scores[d.key]}</span>
+              </div>
+              <input type="range" min={0} max={d.max} step={1} value={scores[d.key]} onChange={e => setScores({ ...scores, [d.key]: Number(e.target.value) })} className="w-full accent-[var(--accent)]" />
+              <div className="flex justify-between text-[10px] text-[var(--muted-foreground)] mt-0.5"><span>0</span><span>{d.max}</span></div>
             </div>
+          ))}
+
+          <div className="flex items-center gap-3 rounded-xl bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">
+            <span className="text-xs font-bold text-[var(--muted-foreground)]">总分</span>
+            <strong className="text-xl font-black text-[var(--accent)] tabular-nums">{totalScore}</strong>
+            <StatusBadge tone={previewLevel === 'A' ? 'green' : previewLevel === 'B' ? 'blue' : previewLevel === 'C' ? 'orange' : 'red'}>
+              {previewLevel === 'A' ? '优秀' : previewLevel === 'B' ? '良好' : previewLevel === 'C' ? '合格' : '不合格'}（{previewLevel}级）
+            </StatusBadge>
+            <span className="ml-auto text-xs text-[var(--muted-foreground)]">A≥90 · B≥80 · C≥60 · D&lt;60</span>
           </div>
-        </div>
+
+          <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="评价说明（可选）" className="neu-input w-full h-20 resize-none text-sm" />
+
+          {history.length > 0 && (
+            <>
+              <hr className="wb-section-rule" />
+              <div>
+                <h4 className="text-sm font-bold text-[var(--foreground)] mb-2">历史评价（{history.length}）</h4>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {history.map(ev => {
+                    const lv = ev.level || 'D';
+                    const tone = lv === 'A' ? 'green' : lv === 'B' ? 'blue' : lv === 'C' ? 'orange' : 'red';
+                    return (
+                      <div key={ev.id} className="rounded-lg bg-[var(--surface)] p-2.5 text-xs shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+                        <div className="flex items-center gap-2">
+                          <StatusBadge tone={tone as any}>{lv}</StatusBadge>
+                          <strong className="text-[var(--foreground)]">{Number(ev.score)}分</strong>
+                          <span className="text-[var(--muted-foreground)]">{ev.evaluator?.displayName || '—'}</span>
+                          <span className="ml-auto text-[var(--muted-foreground)]">{new Date(ev.createdAt).toLocaleDateString('zh-CN')}</span>
+                        </div>
+                        {ev.comment && <p className="mt-1 text-[var(--muted-foreground)]">{ev.comment}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </Modal>
       )}
     </div>
   );

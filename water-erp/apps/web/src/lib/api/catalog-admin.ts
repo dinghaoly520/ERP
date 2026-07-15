@@ -4,6 +4,7 @@ export interface CatalogItem {
   name: string;
   specification: string;
   category: string;
+  categoryPath?: string;
   group: string;
   unit: string;
   referencePrice: number;
@@ -66,11 +67,11 @@ export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function listCatalogItems(params: Record<string, string | undefined> = {}) {
+export function listCatalogItems(params: Record<string, string | number | undefined> = {}) {
   const sp = new URLSearchParams();
   sp.set('includeInactive', 'true');
   Object.entries(params).forEach(([key, value]) => {
-    if (value && value !== '全部') sp.set(key, value);
+    if (value !== undefined && value !== null && value !== '全部') sp.set(key, String(value));
   });
   return request<CatalogItem[]>(`/api/catalog?${sp.toString()}`);
 }
@@ -188,3 +189,67 @@ export interface SupplierPriceItem { supplier: string; items: { code: string; na
 
 export function getSupplierCoverage() { return request<SupplierCoverage[]>('/api/catalog/admin/supplier-coverage'); }
 export function getSupplierPriceComparison(categoryId?: number) { return request<SupplierPriceItem[]>(`/api/catalog/admin/supplier-price-comparison${categoryId ? `?categoryId=${categoryId}` : ''}`); }
+
+// ── 仪表盘 / 搜索 / 订阅 ──
+
+export interface CatalogDashboardStats {
+  total: number; active: number; priceSurge: number; expiring: number;
+  healthScore: number; categoryGapCount: number; categoryCount: number;
+  [key: string]: number;
+}
+export function getDashboardStats() {
+  return request<CatalogDashboardStats>('/api/catalog/admin/dashboard-stats');
+}
+export function logSearch(keyword: string) {
+  return request<{ success: boolean }>('/api/catalog/admin/search-log', { method: 'POST', body: JSON.stringify({ keyword }) });
+}
+export function toggleSubscribe(itemId: string) {
+  return request<{ subscribed: boolean }>(`/api/catalog/${itemId}/subscribe`, { method: 'POST' });
+}
+export interface PricePrediction { opportunity: string | null; predictions: { price: number }[] }
+export async function getPricePrediction(itemId: string): Promise<PricePrediction | null> {
+  // 预测为可选能力：失败/无数据时静默返回 null（ TrendsTab 容错 ）
+  try {
+    const res = await fetch(`/api/catalog/${itemId}/prediction`, { credentials: 'include', headers: { 'X-Portal': 'web' } });
+    if (!res.ok) return null;
+    return await res.json() as PricePrediction;
+  } catch { return null; }
+}
+
+// ── 价格申请（审批）──
+
+export type ApplicationType = 'NEW_ITEM' | 'JOIN_EXISTING' | 'PRICE_ADJUST';
+export type ApplicationStatus = 'PENDING' | 'COUNTERED' | 'APPROVED' | 'REJECTED' | 'RETURNED' | 'WITHDRAWN';
+export interface CatalogApplication {
+  id: string; type: ApplicationType; status: ApplicationStatus;
+  quotedPrice: number | string | null; counterPrice: number | string | null;
+  deliveryPeriod?: string | null; region?: string | null; proposedName?: string | null;
+  supplier?: { name: string } | null; catalogItem?: { name: string } | null;
+}
+export function listApplications(status?: string) {
+  return request<CatalogApplication[]>(`/api/catalog/applications${status && status !== '全部' ? `?status=${status}` : ''}`);
+}
+export function reviewApplication(id: string, action: string, body?: Record<string, unknown>) {
+  return request<CatalogApplication>(`/api/catalog/applications/${id}/review`, { method: 'POST', body: JSON.stringify({ action, ...body }) });
+}
+
+// ── 比价雷达 / 搜索洞察 ──
+
+export interface RadarItem {
+  id: string; code: string; name: string;
+  referencePrice: number; supplier: string; isLowest: boolean; isOutlier: boolean;
+}
+export interface PriceRadarData {
+  minPrice: number | null; avgPrice: number | null; stdDeviation?: number | null;
+  outliers: RadarItem[]; items: RadarItem[];
+}
+export function getPriceRadar(categoryId?: number) {
+  return request<PriceRadarData>(`/api/catalog/admin/price-radar${categoryId ? `?categoryId=${categoryId}` : ''}`);
+}
+export interface SearchInsights {
+  gapKeywords: { keyword: string; count: number }[];
+  topSearches: { keyword: string; count: number }[];
+}
+export function getSearchInsights() {
+  return request<SearchInsights>('/api/catalog/admin/search-insights');
+}

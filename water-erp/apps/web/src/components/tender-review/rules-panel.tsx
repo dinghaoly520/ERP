@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Shield,
   Loader2,
@@ -11,13 +10,13 @@ import {
   Filter,
   Pencil,
   Plus,
-  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchRules, extractRules, getExtractionTask, findActiveExtraction, deleteRule, updateRule, createRuleLegacy } from '@/lib/api/rules';
 import { fetchKnowledgeBases } from '@/lib/api/knowledge';
 import type { ComplianceRule, KnowledgeBase, RuleType, Severity } from '@/lib/types/tender-review';
 import { RULE_TYPE_LABELS, SEVERITY_LABELS, SEVERITY_COLORS } from '@/lib/types/tender-review';
+import { Modal } from '@/components/workbench';
 
 export default function RulesPanel() {
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
@@ -433,300 +432,232 @@ export default function RulesPanel() {
         </div>
       )}
 
-      {/* Create Modal - rendered via Portal */}
-      {showCreate && createPortal(
-        <AnimatePresence>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-md p-4"
-            onClick={() => !creating && setShowCreate(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-[24px] w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6 space-y-5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-[color:var(--foreground)]">新增规则</h3>
-                  <button onClick={() => !creating && setShowCreate(false)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
+      {/* Create Modal */}
+      {showCreate && (
+        <Modal
+          open
+          onClose={() => !creating && setShowCreate(false)}
+          title="新增规则"
+          size="md"
+          footer={
+            <>
+              <button className="neu-btn-soft" disabled={creating} onClick={() => setShowCreate(false)}>取消</button>
+              <button className="neu-btn-primary" disabled={creating} onClick={handleCreate}>
+                {creating ? <Loader2 className="h-4 w-4 animate-spin inline" /> : '创建'}
+              </button>
+            </>
+          }
+        >
+          <div>
+            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">规则名称 *</label>
+            <input
+              id="create-name"
+              type="text"
+              placeholder="例：投标保证金比例"
+              className="workbench-input"
+              readOnly={creating}
+            />
+          </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">规则名称 *</label>
-                  <input
-                    id="create-name"
-                    type="text"
-                    placeholder="例：投标保证金比例"
-                    className="w-full rounded-[12px] border border-white/45 bg-white/80 px-4 py-2.5 text-sm
-                      text-[color:var(--foreground)] outline-none focus:border-[rgba(96,139,239,0.5)]"
-                    readOnly={creating}
-                  />
-                </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">严重程度</label>
+              <select
+                id="create-severity"
+                defaultValue="warning"
+                className="workbench-input"
+              >
+                <option value="critical">严重</option>
+                <option value="warning">警告</option>
+                <option value="info">提示</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">检查对象</label>
+              <input
+                id="create-checkTarget"
+                type="text"
+                placeholder="例：投标文件"
+                className="workbench-input"
+                readOnly={creating}
+              />
+            </div>
+          </div>
 
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">严重程度</label>
-                    <select
-                      id="create-severity"
-                      defaultValue="warning"
-                      className="w-full rounded-[12px] border border-white/45 bg-white/80 px-4 py-2.5 text-sm
-                        text-[color:var(--foreground)] outline-none focus:border-[rgba(96,139,239,0.5)]"
-                    >
-                      <option value="critical">严重</option>
-                      <option value="warning">警告</option>
-                      <option value="info">提示</option>
-                    </select>
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">检查对象</label>
-                    <input
-                      id="create-checkTarget"
-                      type="text"
-                      placeholder="例：投标文件"
-                      className="w-full rounded-[12px] border border-white/45 bg-white/80 px-4 py-2.5 text-sm
-                        text-[color:var(--foreground)] outline-none focus:border-[rgba(96,139,239,0.5)]"
-                      readOnly={creating}
-                    />
-                  </div>
-                </div>
-
-                <CreateLogicFields creating={creating} />
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={handleCreate}
-                    disabled={creating}
-                    className="rounded-[14px] px-5 py-2.5 text-sm font-medium bg-[rgba(96,139,239,0.9)] text-white hover:bg-[rgba(96,139,239,1)] transition-colors disabled:opacity-50"
-                  >
-                    {creating ? <Loader2 className="h-4 w-4 animate-spin inline" /> : '创建'}
-                  </button>
-                  <button
-                    onClick={() => setShowCreate(false)}
-                    disabled={creating}
-                    className="rounded-[14px] px-5 py-2.5 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] disabled:opacity-50"
-                  >
-                    取消
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        </AnimatePresence>,
-        document.body
+          <CreateLogicFields creating={creating} />
+        </Modal>
       )}
 
-      {/* Edit Modal - rendered via Portal to avoid transform issues */}
-      {editingRule && createPortal(
-        <AnimatePresence>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-md p-4"
-            onClick={() => !saving && setEditingRule(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-[24px] w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
+      {/* Edit Modal */}
+      {editingRule && (
+        <Modal
+          open
+          onClose={() => !saving && setEditingRule(null)}
+          title="编辑规则"
+          size="md"
+          footer={
+            <>
+              <button className="neu-btn-soft" disabled={saving} onClick={() => setEditingRule(null)}>取消</button>
+              <button className="neu-btn-primary" disabled={saving} onClick={handleSave}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin inline" /> : '保存'}
+              </button>
+            </>
+          }
+        >
+          {/* Name */}
+          <div>
+            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">规则名称</label>
+            <input
+              id="edit-name"
+              type="text"
+              defaultValue={editingRule.name}
+              className="workbench-input"
+              readOnly={saving}
+            />
+          </div>
+
+          {/* Severity + CheckTarget row */}
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">严重程度</label>
+              <select
+                id="edit-severity"
+                defaultValue={editingRule.severity}
+                className="workbench-input"
+              >
+                <option value="critical">严重</option>
+                <option value="warning">警告</option>
+                <option value="info">提示</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">检查对象</label>
+              <input
+                id="edit-checkTarget"
+                type="text"
+                defaultValue={editingRule.checkTarget}
+                className="workbench-input"
+                readOnly={saving}
+              />
+            </div>
+          </div>
+
+          {/* Rule Type */}
+          <div>
+            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">规则类型</label>
+            <select
+              id="edit-ruleType"
+              defaultValue={editingRule.ruleType}
+              className="workbench-input"
             >
-              <div className="p-6 space-y-5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-[color:var(--foreground)]">编辑规则</h3>
-                  <button onClick={() => !saving && setEditingRule(null)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
+              <option value="numeric_compare">数值比较</option>
+              <option value="existence_check">存在性检查</option>
+              <option value="semantic">语义判定</option>
+            </select>
+          </div>
 
-                {/* Name */}
-                <div>
-                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">规则名称</label>
-                  <input
-                    id="edit-name"
-                    type="text"
-                    defaultValue={editingRule.name}
-                    className="w-full rounded-[12px] border border-white/45 bg-white/80 px-4 py-2.5 text-sm
-                      text-[color:var(--foreground)] outline-none focus:border-[rgba(96,139,239,0.5)]"
-                    readOnly={saving}
-                  />
+          {/* Logic Expression - numeric_compare */}
+          {editingRule.ruleType === 'numeric_compare' && (
+            <div className="space-y-3 p-4 rounded-[14px] bg-[var(--muted)]/40">
+              <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（数值比较）</div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs text-[var(--muted-foreground)] mb-1">字段</label>
+                  <input id="edit-le-field" type="text" defaultValue={String((editingRule.logicExpression as any).field ?? '')}
+                    className="workbench-input"
+                    readOnly={saving} />
                 </div>
-
-                {/* Severity + CheckTarget row */}
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">严重程度</label>
-                    <select
-                      id="edit-severity"
-                      defaultValue={editingRule.severity}
-                      className="w-full rounded-[12px] border border-white/45 bg-white/80 px-4 py-2.5 text-sm
-                        text-[color:var(--foreground)] outline-none focus:border-[rgba(96,139,239,0.5)]"
-                    >
-                      <option value="critical">严重</option>
-                      <option value="warning">警告</option>
-                      <option value="info">提示</option>
-                    </select>
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">检查对象</label>
-                    <input
-                      id="edit-checkTarget"
-                      type="text"
-                      defaultValue={editingRule.checkTarget}
-                      className="w-full rounded-[12px] border border-white/45 bg-white/80 px-4 py-2.5 text-sm
-                        text-[color:var(--foreground)] outline-none focus:border-[rgba(96,139,239,0.5)]"
-                      readOnly={saving}
-                    />
-                  </div>
-                </div>
-
-                {/* Rule Type */}
-                <div>
-                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">规则类型</label>
-                  <select
-                    id="edit-ruleType"
-                    defaultValue={editingRule.ruleType}
-                    className="w-full rounded-[12px] border border-white/45 bg-white/80 px-4 py-2.5 text-sm
-                      text-[color:var(--foreground)] outline-none focus:border-[rgba(96,139,239,0.5)]"
-                  >
-                    <option value="numeric_compare">数值比较</option>
-                    <option value="existence_check">存在性检查</option>
-                    <option value="semantic">语义判定</option>
+                <div className="w-24">
+                  <label className="block text-xs text-[var(--muted-foreground)] mb-1">运算符</label>
+                  <select id="edit-le-operator" defaultValue={String((editingRule.logicExpression as any).operator ?? '>=')}
+                    className="workbench-input">
+                    <option value=">=">{'≥'}</option>
+                    <option value="<=">{'≤'}</option>
+                    <option value=">">{'>'}</option>
+                    <option value="<">{'<'}</option>
+                    <option value="==">{'='}</option>
+                    <option value="!=">{'≠'}</option>
                   </select>
                 </div>
-
-                {/* Logic Expression - numeric_compare */}
-                {editingRule.ruleType === 'numeric_compare' && (
-                  <div className="space-y-3 p-4 rounded-[14px] bg-white/50 border border-white/35">
-                    <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（数值比较）</div>
-                    <div className="flex gap-3">
-                      <div className="flex-1">
-                        <label className="block text-xs text-[var(--muted-foreground)] mb-1">字段</label>
-                        <input id="edit-le-field" type="text" defaultValue={String((editingRule.logicExpression as any).field ?? '')}
-                          className="w-full rounded-[10px] border border-white/45 bg-white/80 px-3 py-2 text-sm text-[color:var(--foreground)] outline-none"
-                          readOnly={saving} />
-                      </div>
-                      <div className="w-24">
-                        <label className="block text-xs text-[var(--muted-foreground)] mb-1">运算符</label>
-                        <select id="edit-le-operator" defaultValue={String((editingRule.logicExpression as any).operator ?? '>=')}
-                          className="w-full rounded-[10px] border border-white/45 bg-white/80 px-3 py-2 text-sm text-[color:var(--foreground)] outline-none">
-                          <option value=">=">{'≥'}</option>
-                          <option value="<=">{'≤'}</option>
-                          <option value=">">{'>'}</option>
-                          <option value="<">{'<'}</option>
-                          <option value="==">{'='}</option>
-                          <option value="!=">{'≠'}</option>
-                        </select>
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-xs text-[var(--muted-foreground)] mb-1">阈值</label>
-                        <input id="edit-le-threshold" type="number" defaultValue={Number((editingRule.logicExpression as any).threshold ?? 0)}
-                          className="w-full rounded-[10px] border border-white/45 bg-white/80 px-3 py-2 text-sm text-[color:var(--foreground)] outline-none"
-                          readOnly={saving} />
-                      </div>
-                      <div className="w-24">
-                        <label className="block text-xs text-[var(--muted-foreground)] mb-1">单位</label>
-                        <select id="edit-le-unit" defaultValue={String((editingRule.logicExpression as any).unit ?? 'cny')}
-                          className="w-full rounded-[10px] border border-white/45 bg-white/80 px-3 py-2 text-sm text-[color:var(--foreground)] outline-none">
-                          <option value="cny">元</option>
-                          <option value="ten_thousand_cny">万元</option>
-                          <option value="days">天</option>
-                          <option value="months">月</option>
-                          <option value="years">年</option>
-                          <option value="percent">%</option>
-                          <option value="ratio">比率</option>
-                          <option value="count">个/次/人</option>
-                          <option value="copies">份</option>
-                          <option value="points">分</option>
-                          <option value="hours">小时</option>
-                          <option value="none">无单位</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Logic Expression - existence_check */}
-                {editingRule.ruleType === 'existence_check' && (
-                  <div className="space-y-3 p-4 rounded-[14px] bg-gray-50 border border-gray-100">
-                    <div className="text-xs font-medium text-gray-500">逻辑表达式（存在性检查）</div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">检查类型</label>
-                      <select id="edit-le-checkType" defaultValue={String((editingRule.logicExpression as any).checkType ?? 'keyword')}
-                        className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none">
-                        <option value="keyword">关键词</option>
-                        <option value="section">章节</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">关键词（逗号分隔）</label>
-                      <input id="edit-le-keywords" type="text"
-                        defaultValue={Array.isArray((editingRule.logicExpression as any).keywords) ? ((editingRule.logicExpression as any).keywords as string[]).join(', ') : ''}
-                        className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none"
-                        readOnly={saving} />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">章节名</label>
-                      <input id="edit-le-sectionName" type="text"
-                        defaultValue={String((editingRule.logicExpression as any).sectionName ?? '')}
-                        className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none"
-                        readOnly={saving} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Logic Expression - semantic */}
-                {editingRule.ruleType === 'semantic' && (
-                  <div className="space-y-3 p-4 rounded-[14px] bg-gray-50 border border-gray-100">
-                    <div className="text-xs font-medium text-gray-500">逻辑表达式（语义判定）</div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">检查描述</label>
-                      <textarea id="edit-le-description" defaultValue={String((editingRule.logicExpression as any).description ?? '')}
-                        rows={3}
-                        className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none resize-none"
-                        readOnly={saving} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Source (read-only) */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">来源</label>
-                  <div className="text-sm text-gray-500 rounded-[12px] border border-gray-100 bg-gray-50 px-4 py-2.5">
-                    {editingRule.source}
-                  </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-[var(--muted-foreground)] mb-1">阈值</label>
+                  <input id="edit-le-threshold" type="number" defaultValue={Number((editingRule.logicExpression as any).threshold ?? 0)}
+                    className="workbench-input"
+                    readOnly={saving} />
                 </div>
-
-                {/* Actions */}
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="rounded-xl px-5 py-2.5 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  >
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin inline" /> : '保存'}
-                  </button>
-                  <button
-                    onClick={() => setEditingRule(null)}
-                    disabled={saving}
-                    className="rounded-xl px-5 py-2.5 text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50"
-                  >
-                    取消
-                  </button>
+                <div className="w-24">
+                  <label className="block text-xs text-[var(--muted-foreground)] mb-1">单位</label>
+                  <select id="edit-le-unit" defaultValue={String((editingRule.logicExpression as any).unit ?? 'cny')}
+                    className="workbench-input">
+                    <option value="cny">元</option>
+                    <option value="ten_thousand_cny">万元</option>
+                    <option value="days">天</option>
+                    <option value="months">月</option>
+                    <option value="years">年</option>
+                    <option value="percent">%</option>
+                    <option value="ratio">比率</option>
+                    <option value="count">个/次/人</option>
+                    <option value="copies">份</option>
+                    <option value="points">分</option>
+                    <option value="hours">小时</option>
+                    <option value="none">无单位</option>
+                  </select>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
-        </AnimatePresence>,
-        document.body
+            </div>
+          )}
+
+          {/* Logic Expression - existence_check */}
+          {editingRule.ruleType === 'existence_check' && (
+            <div className="space-y-3 p-4 rounded-[14px] bg-[var(--muted)]/40">
+              <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（存在性检查）</div>
+              <div>
+                <label className="block text-xs text-[var(--muted-foreground)] mb-1">检查类型</label>
+                <select id="edit-le-checkType" defaultValue={String((editingRule.logicExpression as any).checkType ?? 'keyword')}
+                  className="workbench-input">
+                  <option value="keyword">关键词</option>
+                  <option value="section">章节</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--muted-foreground)] mb-1">关键词（逗号分隔）</label>
+                <input id="edit-le-keywords" type="text"
+                  defaultValue={Array.isArray((editingRule.logicExpression as any).keywords) ? ((editingRule.logicExpression as any).keywords as string[]).join(', ') : ''}
+                  className="workbench-input"
+                  readOnly={saving} />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--muted-foreground)] mb-1">章节名</label>
+                <input id="edit-le-sectionName" type="text"
+                  defaultValue={String((editingRule.logicExpression as any).sectionName ?? '')}
+                  className="workbench-input"
+                  readOnly={saving} />
+              </div>
+            </div>
+          )}
+
+          {/* Logic Expression - semantic */}
+          {editingRule.ruleType === 'semantic' && (
+            <div className="space-y-3 p-4 rounded-[14px] bg-[var(--muted)]/40">
+              <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（语义判定）</div>
+              <div>
+                <label className="block text-xs text-[var(--muted-foreground)] mb-1">检查描述</label>
+                <textarea id="edit-le-description" defaultValue={String((editingRule.logicExpression as any).description ?? '')}
+                  rows={3}
+                  className="neu-input text-sm"
+                  readOnly={saving} />
+              </div>
+            </div>
+          )}
+
+          {/* Source (read-only) */}
+          <div>
+            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">来源</label>
+            <div className="text-sm text-[var(--muted-foreground)] rounded-[12px] bg-[var(--muted)]/40 px-4 py-2.5">
+              {editingRule.source}
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );
@@ -738,13 +669,12 @@ function CreateLogicFields({ creating }: { creating: boolean }) {
   return (
     <>
       <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">规则类型</label>
+        <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">规则类型</label>
         <select
           id="create-ruleType"
           value={type}
           onChange={(e) => setType(e.target.value as RuleType)}
-          className="w-full rounded-[12px] border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm
-            text-gray-900 outline-none focus:border-blue-400"
+          className="workbench-input"
         >
           <option value="numeric_compare">数值比较</option>
           <option value="existence_check">存在性检查</option>
@@ -753,19 +683,19 @@ function CreateLogicFields({ creating }: { creating: boolean }) {
       </div>
 
       {type === 'numeric_compare' && (
-        <div className="space-y-3 p-4 rounded-[14px] bg-gray-50 border border-gray-100">
-          <div className="text-xs font-medium text-gray-500">逻辑表达式（数值比较）</div>
+        <div className="space-y-3 p-4 rounded-[14px] bg-[var(--muted)]/40">
+          <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（数值比较）</div>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="block text-xs text-gray-400 mb-1">字段</label>
+              <label className="block text-xs text-[var(--muted-foreground)] mb-1">字段</label>
               <input id="create-le-field" type="text" placeholder="例：投标保证金"
-                className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none"
+                className="workbench-input"
                 readOnly={creating} />
             </div>
             <div className="w-24">
-              <label className="block text-xs text-gray-400 mb-1">运算符</label>
+              <label className="block text-xs text-[var(--muted-foreground)] mb-1">运算符</label>
               <select id="create-le-operator" defaultValue=">="
-                className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none">
+                className="workbench-input">
                 <option value=">=">{'≥'}</option>
                 <option value="<=">{'≤'}</option>
                 <option value=">">{'>'}</option>
@@ -775,15 +705,15 @@ function CreateLogicFields({ creating }: { creating: boolean }) {
               </select>
             </div>
             <div className="flex-1">
-              <label className="block text-xs text-gray-400 mb-1">阈值</label>
+              <label className="block text-xs text-[var(--muted-foreground)] mb-1">阈值</label>
               <input id="create-le-threshold" type="number" defaultValue={0}
-                className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none"
+                className="workbench-input"
                 readOnly={creating} />
             </div>
             <div className="w-24">
-              <label className="block text-xs text-gray-400 mb-1">单位</label>
+              <label className="block text-xs text-[var(--muted-foreground)] mb-1">单位</label>
               <select id="create-le-unit" defaultValue="cny"
-                className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none">
+                className="workbench-input">
                 <option value="cny">元</option>
                 <option value="ten_thousand_cny">万元</option>
                 <option value="days">天</option>
@@ -803,39 +733,39 @@ function CreateLogicFields({ creating }: { creating: boolean }) {
       )}
 
       {type === 'existence_check' && (
-        <div className="space-y-3 p-4 rounded-[14px] bg-gray-50 border border-gray-100">
-          <div className="text-xs font-medium text-gray-500">逻辑表达式（存在性检查）</div>
+        <div className="space-y-3 p-4 rounded-[14px] bg-[var(--muted)]/40">
+          <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（存在性检查）</div>
           <div>
-            <label className="block text-xs text-gray-400 mb-1">检查类型</label>
+            <label className="block text-xs text-[var(--muted-foreground)] mb-1">检查类型</label>
             <select id="create-le-checkType" defaultValue="keyword"
-              className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none">
+              className="workbench-input">
               <option value="keyword">关键词</option>
               <option value="section">章节</option>
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-400 mb-1">关键词（逗号分隔）</label>
+            <label className="block text-xs text-[var(--muted-foreground)] mb-1">关键词（逗号分隔）</label>
             <input id="create-le-keywords" type="text" placeholder="例：投标函, 报价单"
-              className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none"
+              className="workbench-input"
               readOnly={creating} />
           </div>
           <div>
-            <label className="block text-xs text-gray-400 mb-1">章节名</label>
+            <label className="block text-xs text-[var(--muted-foreground)] mb-1">章节名</label>
             <input id="create-le-sectionName" type="text" placeholder="例：评标办法"
-              className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none"
+              className="workbench-input"
               readOnly={creating} />
           </div>
         </div>
       )}
 
       {type === 'semantic' && (
-        <div className="space-y-3 p-4 rounded-[14px] bg-gray-50 border border-gray-100">
-          <div className="text-xs font-medium text-gray-500">逻辑表达式（语义判定）</div>
+        <div className="space-y-3 p-4 rounded-[14px] bg-[var(--muted)]/40">
+          <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（语义判定）</div>
           <div>
-            <label className="block text-xs text-gray-400 mb-1">检查描述</label>
+            <label className="block text-xs text-[var(--muted-foreground)] mb-1">检查描述</label>
             <textarea id="create-le-description" rows={3}
               placeholder="例：投标文件应包含完整的施工方案且技术参数不得低于招标文件要求"
-              className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none resize-none"
+              className="neu-input text-sm"
               readOnly={creating} />
           </div>
         </div>

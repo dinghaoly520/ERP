@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileDown, FileText, Search, X } from 'lucide-react';
+import { FileDown, FileText, Loader2, Search, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { TenderWriteWorkspace } from '@/components/tender-write/tender-write-workspace';
 import { mapProcurementMethodToTenderType } from '@/lib/tender-write/procurement-method-map';
 import {
@@ -20,6 +21,7 @@ import {
 } from '@/lib/tender-write/templates';
 import { exportTenderDocument } from '@/lib/api/tender-write';
 import { generateFieldContent } from '@/lib/api/tender-sample';
+import { parseQuotationTextToTable } from '@/components/tender-write/quotation-table-editor';
 import {
   buildPrefillFromProject,
   getAiGenerationFields,
@@ -27,6 +29,11 @@ import {
 } from '@/lib/tender-write/prefill-from-project';
 import { TenderReviewProvider } from '@/components/tender-review/tender-review-provider';
 import TenderReviewWorkspace from '@/components/tender-review/tender-review-workspace';
+import { uploadReviewDocument, executeReview } from '@/lib/api/review';
+import type { ReviewTask } from '@/lib/types/tender-review';
+import { fetchKnowledgeBases } from '@/lib/api/knowledge';
+import { uploadProjectStageAttachment } from '@/lib/api/project-management';
+import { buildTenderSectionProgress } from '@/lib/tender-write/progress';
 import type {
   ReadyTenderDocumentType,
   ReadyTenderDraft,
@@ -57,6 +64,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
   const [showWorkspace, setShowWorkspace] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
 
   const tenderType = mapProcurementMethodToTenderType(procurementMethod);
   const selectedType: TenderDocumentType | null = tenderType;
@@ -133,6 +142,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             context,
           });
           if (result.content) {
+            const isQuotationField = f.fieldKey === 'quotationLetter';
+            const tableData =
+              isQuotationField ? parseQuotationTextToTable(result.content) : null;
+
             setDrafts((prev) => {
               const tk = type as keyof TenderDraftsState;
               const emptyFn = {
@@ -142,9 +155,26 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
                 INVITED_BIDDING: createEmptyInvitedBiddingDraft,
               }[type];
+              const base = {
+                ...(emptyFn?.() ?? {}),
+                ...(prev[tk] ?? {}),
+              };
+              if (tableData) {
+                // 报价表/报价函 → 直接写入设计表格模式
+                return {
+                  ...prev,
+                  [tk]: {
+                    ...base,
+                    quotationLetterType: 'table',
+                    quotationLetterTable: tableData,
+                    // 同时保留文本值供预览回退
+                    [f.fieldKey]: result.content,
+                  },
+                };
+              }
               return {
                 ...prev,
-                [tk]: { ...(emptyFn?.() ?? {}), ...(prev[tk] ?? {}), [f.fieldKey]: result.content },
+                [tk]: { ...base, [f.fieldKey]: result.content },
               };
             });
           }
@@ -194,6 +224,13 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     return createEmptyCompetitiveNegotiationDraft();
   }, [selectedType, drafts]);
 
+  /** 所有章节是否已全部填完（进度计算与侧边栏导航保持一致）。 */
+  const isDraftComplete = useMemo(() => {
+    if (!selectedType || !currentSections.length) return false;
+    const progress = buildTenderSectionProgress(currentSections, currentDraft, activeSectionKey);
+    return progress.every((p) => p.state === 'completed' || p.state === 'active-complete');
+  }, [currentSections, currentDraft, activeSectionKey, selectedType]);
+
   const updateDraft = useCallback(
     (key: TenderFieldKey, value: string) => {
       if (!selectedType) return;
@@ -219,15 +256,49 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     [selectedType],
   );
 
-  const handleExport = useCallback(async () => {
-    if (!selectedType) return;
+  const updateDraftTable = useCallback(
+    (tableData: TableData | undefined) => {
+      if (!selectedType) return;
+      setDrafts((prev) => {
+        const typeKey = selectedType as keyof TenderDraftsState;
+        const emptyFn = {
+          COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
+          SINGLE_SOURCE: createEmptySingleSourceDraft,
+          INQUIRY_PURCHASE: createEmptyInquiryPurchaseDraft,
+          INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
+          INVITED_BIDDING: createEmptyInvitedBiddingDraft,
+        }[selectedType];
+        return {
+          ...prev,
+          [typeKey]: {
+            ...(emptyFn?.() ?? {}),
+            ...(prev[typeKey] ?? {}),
+            quotationLetterTable: tableData,
+          },
+        };
+      });
+    },
+    [selectedType],
+  );
+
+  // ---------- 导出 / 审查 ----------
+
+  const handleExport = useCallback(() => {
+    if (!selectedType || !isDraftComplete) {
+      toast.error('请先完成所有章节的填写，再导出采购文件。');
+      return;
+    }
+    setShowExportDialog(true);
+  }, [selectedType, isDraftComplete]);
+
+  /** 直接导出：下载文件 + 上传至项目采购文件阶段。 */
+  const handleDirectExport = useCallback(async () => {
+    if (!selectedType || !project) return;
     setExporting(true);
     setErrorMessage(null);
     try {
-      const result = await exportTenderDocument({
-        documentType: selectedType,
-        answers: currentDraft,
-      });
+      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft });
+      // 下载
       const url = URL.createObjectURL(result.blob);
       const a = document.createElement('a');
       a.href = url;
@@ -236,12 +307,88 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       URL.revokeObjectURL(url);
       setSuccessMessage('导出成功');
       setTimeout(() => setSuccessMessage(null), 2000);
+      // 上传至项目阶段
+      try {
+        const file = new File([result.blob], result.fileName, {
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+        await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
+        toast.success('采购文件已上传至项目采购文件阶段');
+      } catch {
+        // 上传失败不阻塞导出
+      }
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : '导出失败');
     } finally {
       setExporting(false);
+      setShowExportDialog(false);
+    }
+  }, [selectedType, currentDraft, project]);
+
+  /** 导出并导入审查：生成 DOCX → 上传审查服务 → 启动审查 → 打开审查窗口。 */
+  const handleExportAndReview = useCallback(async () => {
+    if (!selectedType) return;
+    setReviewLoading(true);
+    setErrorMessage(null);
+    try {
+      // 1. 生成 DOCX
+      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft });
+      const file = new File([result.blob], result.fileName, {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+
+      // 2. 上传至审查服务
+      const uploadResult = await uploadReviewDocument(file);
+
+      // 3. 取知识库
+      const kbs = await fetchKnowledgeBases();
+      const activeKb = kbs.find((kb) => kb.isActive);
+      if (!activeKb) {
+        toast.error('未找到可用的知识库，请先在审查模块中创建知识库。');
+        return;
+      }
+
+      // 4. 启动审查
+      await executeReview({
+        knowledgeBaseId: activeKb.id,
+        reviewMode: 'general',
+        documentContent: uploadResult.content,
+        documentName: uploadResult.documentName,
+        objectKey: uploadResult.objectKey,
+      });
+      toast.success('已导入审查并启动分析');
+
+      // 5. 打开审查窗口
+      setShowReview(true);
+      setShowExportDialog(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '导入审查失败';
+      setErrorMessage(msg);
+      toast.error(msg);
+    } finally {
+      setReviewLoading(false);
     }
   }, [selectedType, currentDraft]);
+
+  /** 审查完成 → 重新导出当前草稿，上传至项目采购文件阶段。 */
+  const handleReviewComplete = useCallback(async (_task: ReviewTask) => {
+    if (!selectedType || !project) return;
+    try {
+      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft });
+      const file = new File([result.blob], result.fileName, {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+      await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
+      toast.success('采购文件已提交至项目采购文件阶段');
+      setShowReview(false);
+      setSuccessMessage('已提交至项目阶段');
+      setTimeout(() => setSuccessMessage(null), 2000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '提交失败');
+    }
+  }, [selectedType, currentDraft, project]);
+
+  // ----------
 
   useEffect(() => {
     if (!isOpen) return;
@@ -362,10 +509,17 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             )}
             <button
               type="button"
-              onClick={() => setShowReview(true)}
+              onClick={() => {
+                if (!isDraftComplete) {
+                  toast.error('请先完成所有章节的填写，再进行审查。');
+                  return;
+                }
+                handleExportAndReview();
+              }}
+              disabled={reviewLoading}
               className="neu-btn-soft gap-2 h-9 text-xs"
             >
-              <Search size={14} />
+              {reviewLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
               采购文件审查
             </button>
             <button
@@ -402,6 +556,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               activeSectionKey={activeSectionKey}
               onSectionSelect={setActiveSectionKey}
               onChange={updateDraft}
+              onTableChange={updateDraftTable}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center">
@@ -433,6 +588,60 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
           )}
         </div>
       </div>
+
+      {/* 导出前确认对话框 */}
+      {showExportDialog && (
+        <div className="fixed inset-0 z-[650] flex items-center justify-center">
+          <div
+            className="absolute inset-0"
+            style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }}
+            onClick={() => setShowExportDialog(false)}
+          />
+          <div
+            className="relative z-10 mx-4 w-full max-w-[380px] rounded-[22px] p-6"
+            style={{
+              background: 'linear-gradient(170deg, oklch(1 0 0 / 0.95), oklch(0.985 0.005 258 / 0.65))',
+              boxShadow:
+                'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)',
+            }}
+          >
+            <h2 className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+              导出采购文件
+            </h2>
+            <p className="mt-2.5 text-sm leading-[1.6] text-[color:var(--muted-foreground)]">
+              文件已生成，是否直接进行合规审查？
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={handleDirectExport}
+                disabled={exporting}
+                className="neu-btn-soft flex-1 gap-2 h-10 text-sm"
+              >
+                {exporting ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <FileDown size={14} />
+                )}
+                否，直接导出
+              </button>
+              <button
+                type="button"
+                onClick={handleExportAndReview}
+                disabled={reviewLoading}
+                className="neu-btn-primary flex-1 gap-2 h-10 text-sm"
+              >
+                {reviewLoading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Search size={14} />
+                )}
+                是，导出并审查
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 采购文件审查弹窗 */}
       {showReview && (
@@ -490,7 +699,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                   'inset 2px 3px 8px oklch(0.5 0.04 258 / 0.1), inset -1px -1px 3px oklch(1 0 0 / 0.55)',
               }}
             >
-              <TenderReviewProvider>
+              <TenderReviewProvider onReviewComplete={handleReviewComplete}>
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden h-full">
                   <TenderReviewWorkspace />
                 </div>

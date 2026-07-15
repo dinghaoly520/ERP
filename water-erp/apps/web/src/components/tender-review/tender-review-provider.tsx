@@ -2,16 +2,17 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { toast } from 'sonner';
-import { TenderReviewContext, type TenderReviewTab, type TenderReviewLoadingState, type TenderReviewErrorState } from './tender-review-context';
+import { TenderReviewContext, type TenderReviewContextValue, type TenderReviewTab, type TenderReviewLoadingState, type TenderReviewErrorState } from './tender-review-context';
 import { fetchKnowledgeBases } from '@/lib/api/knowledge';
 import { fetchReviewTasks, fetchTodayStats, type TodayStats } from '@/lib/api/review';
 import type { KnowledgeBase, ReviewTask } from '@/lib/types/tender-review';
 
 interface Props {
   children: React.ReactNode;
+  onReviewComplete?: ((task: ReviewTask) => Promise<void>) | null;
 }
 
-export function TenderReviewProvider({ children }: Props) {
+export function TenderReviewProvider({ children, onReviewComplete }: Props) {
   // State
   const [selectedKbId, setSelectedKbId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TenderReviewTab>('review');
@@ -124,7 +125,7 @@ export function TenderReviewProvider({ children }: Props) {
     };
   }, [runningTasks.length, refreshTasks, refreshStats]);
 
-  const value = {
+  const value: TenderReviewContextValue = {
     selectedKbId,
     activeTab,
     knowledgeBases,
@@ -139,6 +140,7 @@ export function TenderReviewProvider({ children }: Props) {
     refreshTasks,
     loading,
     error,
+    onReviewComplete: onReviewComplete ?? null,
   };
 
   return (

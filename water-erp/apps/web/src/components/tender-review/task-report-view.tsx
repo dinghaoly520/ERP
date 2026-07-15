@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Download } from 'lucide-react';
+import { Download, CheckCircle } from 'lucide-react';
 import type { ReviewTask, Issue, ReviewReport } from '@/lib/types/tender-review';
 import { fetchReviewTask, getDownloadUrl } from '@/lib/api/review';
+import { useTenderReview } from './tender-review-context';
 import IssueNavigator from './issue-navigator';
 import IssueDetail from './issue-detail';
 
@@ -74,6 +75,7 @@ export default function TaskReportView({ task: initialTask, onClose }: TaskRepor
   const [task, setTask] = useState<ReviewTask>(initialTask);
   const report = task.results as ReviewReport | null;
   const [issues, setIssues] = useState<Issue[]>(() => report ? flattenReport(report) : []);
+  const { onReviewComplete } = useTenderReview();
 
   const initialIndex = useMemo(() => {
     const firstCritical = issues.findIndex(
@@ -89,6 +91,7 @@ export default function TaskReportView({ task: initialTask, onClose }: TaskRepor
   if (!report?.summary) return null;
 
   const acceptedCount = issues.filter((i) => i.status === 'accepted').length;
+  const allResolved = issues.length > 0 && issues.every((i) => i.status === 'accepted' || i.status === 'rejected');
   const hasModifications = acceptedCount > 0 && !!task.objectKey;
 
   async function handleResolved(
@@ -139,6 +142,16 @@ export default function TaskReportView({ task: initialTask, onClose }: TaskRepor
           <span className="text-[11px] text-[var(--muted-foreground)]">
             已采纳 {acceptedCount} 项
           </span>
+          {allResolved && onReviewComplete && (
+            <button
+              type="button"
+              onClick={() => onReviewComplete(task)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 bg-[rgba(92,181,150,0.15)] text-[rgba(62,145,115,1)] hover:bg-[rgba(92,181,150,0.28)] active:scale-95"
+            >
+              <CheckCircle className="h-3.5 w-3.5" />
+              审查结束，提交采购文件
+            </button>
+          )}
           <a
             href={hasModifications ? getDownloadUrl(task.id) : undefined}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${

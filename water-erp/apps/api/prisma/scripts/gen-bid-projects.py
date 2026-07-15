@@ -29,9 +29,9 @@ def extract_budget(content):
     return '3000000'  # default 300万
 
 def extract_procurement(content):
-    if '竞争性谈判' in content: return '竞争性谈判'
+    if '谈判采购' in content: return '谈判采购'
     if '邀请招标' in content: return '邀请招标'
-    if '询价' in content: return '询价采购'
+    if '询价' in content: return '询比采购'
     if '单一来源' in content: return '单一来源采购'
     return '公开招标'
 

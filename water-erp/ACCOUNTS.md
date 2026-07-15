@@ -11,7 +11,7 @@
 
 | 用户名 | 密码 | 角色(role) | 姓名 |
 |--------|------|------------|------|
-| `陈主任` | `czr@2026` | `mall` · 商城采购员 | 陈主任 |
+| `陈源远` | `陈源远@2026` | `mall` · 商城采购员 | 陈源远 |
 
 ## 供应商门户 — http://localhost:3004
 
@@ -29,7 +29,7 @@
 
 | 用户名 | 密码 | 角色(role) | 姓名 |
 |--------|------|------------|------|
-| `陈主任` | `czr@2026` | `procurement_staff` · 采购管理员 | 陈主任 |
+| `陈源远` | `陈源远@2026` | `procurement_staff` · 采购管理员 | 陈源远 |
 
 ## 专家门户 — http://localhost:3006
 
@@ -50,11 +50,9 @@
 
 | 用户名 | 密码 | 角色(role) | 姓名 |
 |--------|------|------------|------|
-| `陈主任` | `czr@2026` | `bid_host` · 开标主持人 | 陈主任 |
+| `陈源远` | `陈源远@2026` | `bid_host` · 开标主持人 | 陈源远 |
 
 ## 说明
-
-- **「陈主任」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），三个 role 不同的账号共用登录名「陈主任」/ `czr@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、采购管理端→procurement_staff、开标端（专家门户 admin tab）→bid_host。详见 `auth.service.ts` 的 `PORTAL_ROLE_PRIORITY`。
 - **无 `admin` 账号**：`admin` 角色仍存在于 schema/RBAC（如 `BidController` 的 `@Roles`），但没有种子用户，已改为按门户划分的账号。
 - **每门户独立登录**：cookie 按门户命名（`token_public`/`token_web`/`token_expert`/`token_supplier`/`token_mall`），切换门户需重新登录。
 - **会话共享例外**：开评标管理端 :3007 读取 `token_web` cookie，与 web :3005 共享同一会话（后端按角色命名 cookie，`admin`/`bid_host` 都落到 `web` 命名空间，无 `token_bid`）。

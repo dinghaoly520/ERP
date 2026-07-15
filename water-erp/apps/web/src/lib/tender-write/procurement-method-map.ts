@@ -8,11 +8,11 @@ export function mapProcurementMethodToTenderType(
   method: string | null | undefined,
 ): TenderDocumentType | null {
   const map: Record<string, TenderDocumentType> = {
-    竞争性谈判: 'COMPETITIVE_NEGOTIATION',
-    内部竞标竞价: 'INTERNAL_BIDDING',
+    谈判采购: 'COMPETITIVE_NEGOTIATION',
+    竞价采购: 'INTERNAL_BIDDING',
     邀请招标: 'INVITED_BIDDING',
-    询价采购: 'INQUIRY_PURCHASE',
-    单源直接采购: 'SINGLE_SOURCE',
+    询比采购: 'INQUIRY_PURCHASE',
+    直接采购: 'SINGLE_SOURCE',
   };
   return method ? (map[method] ?? null) : null;
 }

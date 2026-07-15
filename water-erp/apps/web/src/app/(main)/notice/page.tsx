@@ -8,7 +8,7 @@ import {
 } from '@/lib/api/announcement';
 import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Participant } from '@/lib/api/announcement';
 import { toast } from 'sonner';
-import { StatusBadge, TableSkeleton } from '@/components/workbench';
+import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import {
   FileText, Megaphone as MegaphoneIcon, PlusCircle, Search,
   ChevronUp, ChevronDown, ChevronsUpDown,
@@ -375,48 +375,44 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
   const pct = result && result.stats.total > 0 ? Math.round((result.stats.submitted / result.stats.total) * 100) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" />
-      <div className="relative w-full max-w-[min(672px,92vw)] max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-0 shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)]" role="dialog" onClick={e => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-4 px-6 py-4">
-          <div><h2 className="text-lg font-bold tracking-[-0.02em] text-[var(--foreground)]">投标情况</h2><p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{announcement.title}</p></div>
-          <button onClick={onClose} className="neu-btn-xs"><X size={16} /></button>
-        </div>
-        <hr className="wb-section-rule mx-6" />
-        <div className="px-6 py-5">
-          {loading ? <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">加载中...</p> :
-           !result || !result.project ? <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">该招标公示未关联招标项目，暂无投标数据。</p> : (
-            <div className="space-y-5">
-              <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-4">
-                <div className="flex items-center justify-between"><strong className="text-[var(--foreground)]">{result.project.name}</strong><span className="text-xs text-[var(--muted-foreground)]">截止 {new Date(result.project.deadline).toLocaleDateString('zh-CN')}</span></div>
-                <div className="mt-4">
-                  <div className="flex items-center justify-between mb-2"><span className="text-sm font-semibold text-[var(--foreground)]">提交进度</span><span className="text-sm tabular-nums text-[var(--muted-foreground)]">{result.stats.submitted}/{result.stats.total} 已提交</span></div>
-                  <div className="h-2 overflow-hidden rounded-full bg-[var(--muted)]"><div className="h-full rounded-full bg-[var(--success)] transition-all duration-500" style={{ width: `${pct}%` }} /></div>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="neu-table w-full min-w-[580px] text-sm">
-                  <thead><tr><th>供应商</th><th>分类</th><th>下载</th><th>标书状态</th><th>提交时间</th><th>报价</th></tr></thead>
-                  <tbody>
-                    {result.suppliers.length === 0 ? <tr><td colSpan={6} className="px-3 py-8 text-center text-[var(--muted-foreground)]">暂无投标供应商</td></tr> :
-                      result.suppliers.map((s, i) => (
-                        <tr key={i}>
-                          <td className="font-semibold text-[var(--foreground)]">{s.supplierName}</td>
-                          <td className="text-[var(--muted-foreground)]">{s.classification || '—'}</td>
-                          <td className="text-[var(--muted-foreground)]">{s.downloadStatus}</td>
-                          <td><BidStatusBadge withdrawn={s.withdrawn} submitted={s.submitted} /></td>
-                          <td className="text-[var(--muted-foreground)]">{s.submittedAt ? new Date(s.submittedAt).toLocaleString('zh-CN') : '—'}</td>
-                          <td className="text-[var(--muted-foreground)]">{s.bidPrice || '—'}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
+    <Modal
+      open
+      onClose={onClose}
+      size="lg"
+      title="投标情况"
+      description={announcement.title}
+    >
+      {loading ? <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">加载中...</p> :
+       !result || !result.project ? <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">该招标公示未关联招标项目，暂无投标数据。</p> : (
+        <div className="space-y-5">
+          <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="flex items-center justify-between"><strong className="text-[var(--foreground)]">{result.project.name}</strong><span className="text-xs text-[var(--muted-foreground)]">截止 {new Date(result.project.deadline).toLocaleDateString('zh-CN')}</span></div>
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2"><span className="text-sm font-semibold text-[var(--foreground)]">提交进度</span><span className="text-sm tabular-nums text-[var(--muted-foreground)]">{result.stats.submitted}/{result.stats.total} 已提交</span></div>
+              <div className="h-2 overflow-hidden rounded-full bg-[var(--muted)]"><div className="h-full rounded-full bg-[var(--success)] transition-all duration-500" style={{ width: `${pct}%` }} /></div>
             </div>
-          )}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="neu-table w-full min-w-[580px] text-sm">
+              <thead><tr><th>供应商</th><th>分类</th><th>下载</th><th>标书状态</th><th>提交时间</th><th>报价</th></tr></thead>
+              <tbody>
+                {result.suppliers.length === 0 ? <tr><td colSpan={6} className="px-3 py-8 text-center text-[var(--muted-foreground)]">暂无投标供应商</td></tr> :
+                  result.suppliers.map((s, i) => (
+                    <tr key={i}>
+                      <td className="font-semibold text-[var(--foreground)]">{s.supplierName}</td>
+                      <td className="text-[var(--muted-foreground)]">{s.classification || '—'}</td>
+                      <td className="text-[var(--muted-foreground)]">{s.downloadStatus}</td>
+                      <td><BidStatusBadge withdrawn={s.withdrawn} submitted={s.submitted} /></td>
+                      <td className="text-[var(--muted-foreground)]">{s.submittedAt ? new Date(s.submittedAt).toLocaleString('zh-CN') : '—'}</td>
+                      <td className="text-[var(--muted-foreground)]">{s.bidPrice || '—'}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </Modal>
   );
 }
 

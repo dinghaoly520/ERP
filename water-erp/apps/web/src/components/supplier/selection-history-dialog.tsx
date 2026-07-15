@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock3, History, Loader2, Trash2, X, Search, RotateCcw } from "lucide-react";
+import { Clock3, History, Loader2, Trash2, Search, RotateCcw } from "lucide-react";
 import { getSelectionHistory, deleteSelectionHistory, restoreShortlist } from "@/lib/api/supplier";
 import type { SupplierSelectionHistoryRecord, SupplierRecommendation } from "@/lib/api/supplier";
+import { Modal } from "@/components/workbench";
 
 type Props = {
   isOpen: boolean;
@@ -50,48 +51,17 @@ export function SelectionHistoryDialog({ isOpen, onApply, onApplyShortlist, onCl
     }
   };
 
-  if (!isOpen) return null;
-
   const truncate = (text: string, maxLen = 80) =>
     text.length > maxLen ? text.slice(0, maxLen) + "…" : text;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4 py-6">
-      <div
-        className="absolute inset-0 bg-[rgba(242,246,255,0.42)] backdrop-blur-md"
-        onClick={onClose}
-      />
-      <div className="relative z-10 flex w-full max-w-[min(720px,92vw)] max-h-[80vh] flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
-        {/* ── Header ── */}
-        <div
-          className="px-6 py-5"
-          style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}
-        >
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[rgba(94,126,189,0.76)]">
-                选取历史
-              </div>
-              <div className="mt-2 text-lg font-semibold text-[color:var(--foreground)]">
-                历史选取记录
-              </div>
-              <p className="mt-2 text-sm text-[color:var(--muted-foreground)]">
-                点击「应用」将恢复当时的采购需求与筛选条件，便于复用或对比。
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="neu-btn-xs"
-              aria-label="关闭历史记录弹窗"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* ── Body ── */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="历史选取记录"
+      description="点击「应用」将恢复当时的采购需求与筛选条件，便于复用或对比。"
+      size="lg"
+    >
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-[color:var(--muted-foreground)]">
               <Loader2 size={16} className="animate-spin" />
@@ -221,18 +191,6 @@ export function SelectionHistoryDialog({ isOpen, onApply, onApplyShortlist, onCl
               ))}
             </div>
           )}
-        </div>
-
-        {/* ── Footer ── */}
-        <div
-          className="flex justify-end px-6 py-4"
-          style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}
-        >
-          <button type="button" onClick={onClose} className="neu-btn-soft">
-            关闭
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

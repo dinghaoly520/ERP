@@ -23,12 +23,13 @@ import {
   type PendingPasswordChangeRequest,
   type PendingPasswordResetRequest,
 } from "@/lib/api/auth";
+import { Modal } from "@/components/workbench";
 
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-/** Lightweight confirmation / rejection dialog overlay */
+/** Lightweight confirmation / rejection dialog, powered by the app-wide <Modal> */
 function ConfirmDialog({
   open,
   title,
@@ -54,71 +55,44 @@ function ConfirmDialog({
 }) {
   const [reason, setReason] = useState("");
 
-  // Reset reason whenever dialog opens
   useEffect(() => {
     if (open) setReason("");
   }, [open]);
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center px-4 py-6">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-[rgba(15,25,45,0.28)] backdrop-blur-[6px]"
-        onClick={onCancel}
-        aria-hidden="true"
-      />
-      {/* Card */}
-      <div
-        className="panel-surface chromatic-glass glass-calm pointer-events-auto relative w-full max-w-[min(440px,90vw)] rounded-[24px] p-5"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-      >
-        <div className="mb-3 text-[0.96rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]" id="confirm-dialog-title">
-          {title}
-        </div>
-        <p className="text-sm leading-6 text-[color:var(--muted-foreground)]">
-          {description}
-        </p>
-
-        {showReasonInput ? (
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder={reasonPlaceholder}
-            rows={3}
-            className="mt-3 w-full resize-none rounded-[14px] border border-white/60 bg-white/70 px-3.5 py-2.5 text-sm text-[color:var(--foreground)] outline-none transition focus:border-[color:var(--accent)] focus:bg-white/90"
-          />
-        ) : null}
-
-        <div className="mt-4 flex gap-2.5">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={pending}
-            className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-[14px] border border-white/60 bg-white/62 px-4 py-2.5 text-sm font-medium text-[color:var(--foreground)] transition hover:bg-white/80 disabled:opacity-60"
-          >
+    <Modal
+      open={open}
+      onClose={onCancel}
+      title={title}
+      description={description}
+      size="sm"
+      footer={
+        <>
+          <button type="button" onClick={onCancel} disabled={pending} className="neu-btn-soft">
             取消
           </button>
           <button
             type="button"
             disabled={pending}
             onClick={() => onConfirm(reason.trim() || undefined)}
-            className={[
-              "inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-[14px] px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
-              confirmVariant === "danger"
-                ? "border border-[rgba(215,89,89,0.18)] bg-[rgba(215,89,89,0.92)] text-white hover:bg-[rgba(200,75,75,0.92)]"
-                : "border border-[color:var(--accent)] bg-[color:var(--accent)] text-white hover:opacity-90",
-            ].join(" ")}
+            className={`neu-btn-primary ${confirmVariant === "danger" ? "is-danger" : ""}`}
           >
             {pending ? <Loader2 size={14} className="animate-spin" /> : null}
             {confirmLabel}
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {showReasonInput && (
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder={reasonPlaceholder}
+          rows={3}
+          className="neu-input w-full resize-none text-sm"
+        />
+      )}
+    </Modal>
   );
 }
 

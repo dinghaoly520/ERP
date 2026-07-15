@@ -1,8 +1,8 @@
 'use client';
 
 import type { Dispatch, SetStateAction } from 'react';
-import { createPortal } from 'react-dom';
-import { X, Save, Trash2 } from 'lucide-react';
+import { Save, Trash2 } from 'lucide-react';
+import { Modal } from '@/components/workbench';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import {
   WORK_ARRANGEMENT_RECURRENCE_LABELS,
@@ -62,48 +62,26 @@ export function WorkTaskEditorDrawer({
   onDelete,
   onChange,
 }: WorkTaskEditorDrawerProps) {
-  if (!open || typeof document === 'undefined') {
-    return null;
-  }
+  if (!open) return null;
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop with blur effect */}
-      <div
-        className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
-      {/* Modal */}
-      <div
-        className="relative w-full max-w-[min(672px,92vw)] max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="editor-title"
-      >
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 pb-4">
-          <div>
-            <h2 id="editor-title" className="text-lg font-semibold text-balance text-[color:var(--foreground)]">
-              {creating ? '新建工作安排' : selectedItemTitle ?? '编辑工作'}
-            </h2>
-            <p className="mt-1 text-sm text-[color:var(--muted-foreground)]">
-              {creating ? '填写以下信息创建新的工作安排' : '修改工作安排的详细信息'}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="neu-btn-xs"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Form */}
-        <div className="mt-4 space-y-4">
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={creating ? '新建工作安排' : selectedItemTitle ?? '编辑工作'}
+      description={creating ? '填写以下信息创建新的工作安排' : '修改工作安排的详细信息'}
+      size="lg"
+      footer={
+        <>
+          {!creating ? (
+            <button type="button" onClick={onDelete} disabled={saving} className="neu-btn-soft is-danger h-[38px]"><Trash2 size={16} />删除</button>
+          ) : null}
+          <button type="button" onClick={onClose} disabled={saving} className="neu-btn-soft h-[38px]">取消</button>
+          <button type="button" onClick={onSave} disabled={saving || !editor.title.trim()} className="neu-btn-primary !h-[38px]"><Save size={16} />{saving ? '保存中...' : creating ? '创建工作' : '保存修改'}</button>
+        </>
+      }
+    >
+      <div>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
               <span className="font-medium">标题 *</span>
@@ -306,19 +284,7 @@ export function WorkTaskEditorDrawer({
               className="workbench-input"
             />
           </label>
-        </div>
-
-        {/* Footer */}
-        <hr className="wb-section-rule" />
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          {!creating ? (
-            <button type="button" onClick={onDelete} disabled={saving} className="neu-btn-soft is-danger h-[38px]"><Trash2 size={16} />删除</button>
-          ) : null}
-          <button type="button" onClick={onClose} disabled={saving} className="neu-btn-soft h-[38px]">取消</button>
-          <button type="button" onClick={onSave} disabled={saving || !editor.title.trim()} className="neu-btn-primary !h-[38px]"><Save size={16} />{saving ? '保存中...' : creating ? '创建工作' : '保存修改'}</button>
-        </div>
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

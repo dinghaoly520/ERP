@@ -23,8 +23,8 @@ const singleSourceType = TENDER_DOCUMENT_TYPES.find(
 if (!singleSourceType) throw new Error('SINGLE_SOURCE type not found');
 if (singleSourceType.availability !== 'ready')
   throw new Error('SINGLE_SOURCE should be ready');
-if (singleSourceType.label !== '单源直接采购')
-  throw new Error('SINGLE_SOURCE label should be 单源直接采购');
+if (singleSourceType.label !== '直接采购')
+  throw new Error('SINGLE_SOURCE label should be 直接采购');
 
 // Assert SINGLE_SOURCE has 6 sections
 if (SINGLE_SOURCE_SECTIONS.length !== 6)

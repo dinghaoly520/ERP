@@ -39,7 +39,7 @@ export default function SupplierViewPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {coverage.length === 0 ? <div className="col-span-3 text-center py-8 text-sm text-[var(--muted-foreground)]">暂无供应商数据</div>
               : coverage.map(s => (
-                <div key={s.supplier} className="neu-card rounded-2xl p-4 flex flex-col gap-2 cursor-pointer hover:bg-[rgba(96,139,239,0.04)]" onClick={() => setSelectedSupplier(selectedSupplier === s.supplier ? null : s.supplier)}>
+                <div key={s.supplier} className="neu-card rounded-2xl p-4 flex flex-col gap-2 cursor-pointer hover:bg-[var(--accent-tint)]" onClick={() => setSelectedSupplier(selectedSupplier === s.supplier ? null : s.supplier)}>
                   <div className="flex items-center justify-between"><span className="text-sm font-bold text-[var(--foreground)]">{s.supplier}</span><span className="text-xs font-mono tabular-nums text-[var(--accent)]">{s.categoryCount} 类</span></div>
                   {selectedSupplier === s.supplier && <p className="text-xs text-[var(--muted-foreground)] mt-1">{s.categories.join('、')}</p>}
                 </div>

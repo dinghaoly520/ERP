@@ -146,7 +146,7 @@ export default function TenderWritePage() {
   useEffect(() => {
     const cached = readTenderWriteState();
     setDrafts(cached.drafts);
-    // 默认进入竞争性谈判，有缓存则恢复
+    // 默认进入谈判采购，有缓存则恢复
     setSelectedType(cached.selectedType || "COMPETITIVE_NEGOTIATION");
   }, []);
 

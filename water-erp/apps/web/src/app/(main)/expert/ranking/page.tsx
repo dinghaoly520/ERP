@@ -4,25 +4,29 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getExpertRanking, getLoadDistribution } from '@/lib/api/expert';
 import { StatusBadge } from '@/components/workbench';
-import { Trophy, RefreshCw, UsersRound, ArrowLeft } from 'lucide-react';
+import { Trophy, RefreshCw, UsersRound, ArrowLeft, Crown, Medal } from 'lucide-react';
+import { toast } from 'sonner';
 
 const PERIOD_LABELS: Record<string, string> = { month: '近一月', quarter: '近一季', all: '累计' };
-const rankMedal = (r: number) => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : '';
 
 export default function ExpertRankingPage() {
   const router = useRouter();
-  const [period, setPeriod] = useState<'month' | 'quarter' | 'all'>('month');
+  const [period, setPeriod] = useState<'month' | 'quarter' | 'all'>('all');
   const [ranking, setRanking] = useState<any[]>([]);
   const [loadData, setLoadData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [errored, setErrored] = useState(false);
 
   const load = async () => {
-    setLoading(true);
+    setLoading(true); setErrored(false);
     try {
       const [r, l] = await Promise.all([getExpertRanking(period), getLoadDistribution()]);
       setRanking(r);
       setLoadData(l);
-    } catch {}
+    } catch (e: any) {
+      setErrored(true);
+      toast.error(e?.message || '加载排名数据失败');
+    }
     setLoading(false);
   };
   useEffect(() => { load(); }, [period]);
@@ -43,7 +47,7 @@ export default function ExpertRankingPage() {
             <button onClick={load} className="neu-btn-xs"><RefreshCw size={14} /></button>
           </div>
         </div>
-        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
+        <div className="page-hero__divider">
           <div className="flex items-center gap-2">
             {(Object.entries(PERIOD_LABELS) as [any, string][]).map(([key, label]) => (
               <button key={key} onClick={() => setPeriod(key)} className={`neu-tab ${period === key ? 'is-active' : ''}`}>{label}</button>
@@ -54,6 +58,11 @@ export default function ExpertRankingPage() {
 
       {loading ? (
         <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]"><RefreshCw size={14} className="animate-spin inline mr-2" />加载中...</div>
+      ) : errored ? (
+        <div className="neu-table-card py-16 text-center">
+          <p className="text-sm font-semibold text-[var(--danger)] mb-3">排名数据加载失败</p>
+          <button onClick={load} className="neu-btn-xs is-info">重试</button>
+        </div>
       ) : ranking.length === 0 ? (
         <div className="neu-table-card py-16 text-center">
           <Trophy size={36} className="mx-auto text-[var(--muted-foreground)]/40 mb-3" />
@@ -69,7 +78,9 @@ export default function ExpertRankingPage() {
                 className="neu-table-card p-5 text-center cursor-pointer hover:translate-y-[-2px] transition-all"
                 onClick={() => router.push(`/expert/${r.expertUserId}`)}
               >
-                <span className="text-3xl">{rankMedal(r.rank)}</span>
+                <div className="mx-auto mb-1 flex h-12 w-12 items-center justify-center rounded-2xl neu-icon-well text-[var(--accent)]">
+                  {r.rank === 1 ? <Crown size={22} strokeWidth={1.5} /> : <Medal size={22} strokeWidth={1.5} />}
+                </div>
                 <div className="mt-2 text-base font-black text-[var(--foreground)]">{r.displayName}</div>
                 <div className="text-xs text-[var(--muted-foreground)] mt-0.5">{r.specialty}</div>
                 <div className="flex items-center justify-center gap-3 mt-3">

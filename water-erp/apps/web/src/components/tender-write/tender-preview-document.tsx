@@ -375,7 +375,7 @@ function CompetitiveNegotiationPreview({
         <PreviewSection
           sectionKey="cover"
           chapterLabel="封面"
-          title="竞争性谈判采购文件"
+          title="谈判采购文件"
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
@@ -384,7 +384,7 @@ function CompetitiveNegotiationPreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
-              竞争性谈判采购文件
+              谈判采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
               采 购 人：四川水发勘测设计研究有限公司
@@ -713,7 +713,7 @@ function SingleSourcePreview({
         <PreviewSection
           sectionKey="cover"
           chapterLabel="封面"
-          title="单源直接采购文件"
+          title="直接采购文件"
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
@@ -722,7 +722,7 @@ function SingleSourcePreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
-              单源直接采购文件
+              直接采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
               采 购 人：四川水发勘测设计研究有限公司
@@ -733,11 +733,11 @@ function SingleSourcePreview({
           </div>
         </PreviewSection>
 
-        {/* 第一部分 单源直接采购邀请函 */}
+        {/* 第一部分 直接采购邀请函 */}
         <PreviewSection
           sectionKey="invitation"
           chapterLabel="第一部分"
-          title="单源直接采购邀请函"
+          title="直接采购邀请函"
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
@@ -746,7 +746,7 @@ function SingleSourcePreview({
               <PreviewValue value={draft.supplierName} placeholder="{{供应商名称}}" fieldKey="supplierName" onValueChange={onValueChange} />：
             </p>
             <p className="mt-3 indent-8 text-sm leading-7 text-[color:var(--foreground)]">
-              根据单位内部采购管理制度规定，该项目符合单源直接采购的适用条件。现正式向贵单位发出单源直接采购邀请，具体事宜如下：
+              根据单位内部采购管理制度规定，该项目符合直接采购的适用条件。现正式向贵单位发出直接采购邀请，具体事宜如下：
             </p>
           </div>
           <div className="mt-4 pt-3">
@@ -1087,7 +1087,7 @@ function InquiryPurchasePreview({
         <PreviewSection
           sectionKey="cover"
           chapterLabel="封面"
-          title="询价采购文件"
+          title="询比采购文件"
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
@@ -1096,7 +1096,7 @@ function InquiryPurchasePreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
-              询价采购文件
+              询比采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
               采 购 人：四川水发勘测设计研究有限公司
@@ -1307,7 +1307,7 @@ function InternalBiddingPreview({
         <PreviewSection
           sectionKey="cover"
           chapterLabel="封面"
-          title="内部竞标（竞价）采购文件"
+          title="竞价采购文件"
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
@@ -1316,7 +1316,7 @@ function InternalBiddingPreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
-              内部竞标（竞价）采购文件
+              竞价采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
               采 购 人：四川水发勘测设计研究有限公司

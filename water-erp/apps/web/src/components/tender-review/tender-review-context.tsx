@@ -38,6 +38,9 @@ export interface TenderReviewContextValue {
   // Loading & Error states
   loading: TenderReviewLoadingState;
   error: TenderReviewErrorState;
+
+  /** 项目管理流程回调：当审查中所有问题确认后，点击「审查结束」时触发。 */
+  onReviewComplete: ((task: ReviewTask) => Promise<void>) | null;
 }
 
 export const TenderReviewContext = createContext<TenderReviewContextValue | null>(null);

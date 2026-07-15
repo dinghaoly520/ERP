@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected } from '@/lib/api/expert';
-import { StatusBadge } from '@/components/workbench';
+import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { STAGE_LABEL } from '@water-erp/shared';
 import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, MessageSquare, Phone, Bell, Pencil, Plus, Clock, FileText, UserCircle } from 'lucide-react';
@@ -84,7 +84,7 @@ export function ExpertExtractPage({
     setNotifyMessage(autoExtractResult.notifyMessage);
   }, [autoExtractResult]);
 
-  useEffect(() => { listBidProjects().then(setProjects).catch(() => {}); listSpecialties().then(setSpecs).catch(() => {}); }, []);
+  useEffect(() => { listBidProjects().then(setProjects).catch(() => toast.error('加载项目列表失败')); listSpecialties().then(setSpecs).catch(() => {}); }, []);
 
   // 根据项目名称自动匹配招标项目，匹配成功后自动执行 AI 抽取
   useEffect(() => {
@@ -130,8 +130,9 @@ export function ExpertExtractPage({
             setNotifyMessage(`您已被选为「${defaultProjectTitle}」评审专家，请登录专家门户查看详情并完成评审任务。`);
           }
         }
-      } catch {
-        // 自动抽取失败，用户可手动操作
+      } catch (e: any) {
+        // 自动抽取失败，提示用户手动操作
+        toast.error('自动抽取失败，请手动配置抽取参数');
       }
     })();
   }, [defaultProjectTitle, projects]);
@@ -285,6 +286,8 @@ export function ExpertExtractPage({
             <span className="text-sm font-bold text-[var(--foreground)] truncate">{defaultProjectTitle}</span>
             {sel && <span className="text-[11px] text-[var(--muted-foreground)]">（{sel.projectCode}）</span>}
           </div>
+        ) : projects.length === 0 ? (
+          <div className="neu-input text-sm w-full flex items-center justify-center py-3 text-[var(--muted-foreground)]">暂无采购项目，请先在开评标管理端创建</div>
         ) : (
           <select value={pid} onChange={e => setPid(e.target.value)} className="neu-input text-sm w-full"><option value="">请选择需要组建评审组的项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}</select>
         )}
@@ -340,9 +343,12 @@ export function ExpertExtractPage({
             <span>对比</span>
             <button
               onClick={(e) => { e.preventDefault(); setCompareMode(v => !v); }}
-              className={`w-7 h-4 rounded-full transition-colors relative flex-shrink-0 ${compareMode ? 'bg-[var(--accent)]' : 'bg-[var(--muted)]/40'}`}
+              className="neu-toggle"
+              data-on={compareMode}
+              aria-pressed={compareMode}
+              aria-label="对比模式"
             >
-              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${compareMode ? 'left-[13px]' : 'left-0.5'}`} />
+              <span className="neu-toggle__knob" />
             </button>
           </label>
           <button onClick={run} disabled={loading || !pid} className="neu-btn-soft !w-auto justify-center px-6">
@@ -388,108 +394,111 @@ export function ExpertExtractPage({
   }, [replaceTarget, selectedExperts, alternativeExperts]);
 
   const replaceModal = showReplaceModal && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => { setShowReplaceModal(false); setReplaceTarget(null); }}>
-      <div className="neu-table-card w-full max-w-2xl max-h-[75vh] flex flex-col p-5" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-bold text-[var(--foreground)]">{replaceTarget ? '替换专家' : '添加专家'}</span>
-          <button onClick={() => { setShowReplaceModal(false); setReplaceTarget(null); }} className="neu-btn-xs is-danger"><X size={14} /></button>
-        </div>
-        {/* 原专家对比 */}
-        {replacedExpert && (
-          <div className="rounded-xl bg-[color-mix(in_oklch,var(--surface)_80%,transparent)] p-3 mb-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
-            <div className="text-[10px] font-semibold uppercase text-[var(--muted-foreground)] mb-2">当前专家</div>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="font-bold text-[var(--foreground)]">{replacedExpert.name}</span>
-              <span className="text-[var(--muted-foreground)]">{replacedExpert.specialty}</span>
-              {replacedExpert.title && <span className="text-[var(--muted-foreground)]">· {replacedExpert.title}</span>}
-              <span className="font-bold ml-auto" style={{ color: scoreVar(replacedExpert.matchScore) }}>匹配度 {replacedExpert.matchScore}</span>
-            </div>
-            <p className="text-[11px] text-[var(--muted-foreground)] mt-1">{replacedExpert.reason}</p>
+    <Modal
+      open
+      onClose={() => { setShowReplaceModal(false); setReplaceTarget(null); }}
+      size="lg"
+      title={replaceTarget ? '替换专家' : '添加专家'}
+    >
+      {/* 原专家对比 */}
+      {replacedExpert && (
+        <div className="rounded-xl bg-[color-mix(in_oklch,var(--surface)_80%,transparent)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
+          <div className="text-[10px] font-semibold uppercase text-[var(--muted-foreground)] mb-2">当前专家</div>
+          <div className="flex items-center gap-3 text-xs">
+            <span className="font-bold text-[var(--foreground)]">{replacedExpert.name}</span>
+            <span className="text-[var(--muted-foreground)]">{replacedExpert.specialty}</span>
+            {replacedExpert.title && <span className="text-[var(--muted-foreground)]">· {replacedExpert.title}</span>}
+            <span className="font-bold ml-auto" style={{ color: scoreVar(replacedExpert.matchScore) }}>匹配度 {replacedExpert.matchScore}</span>
           </div>
-        )}
-        <input value={replaceSearch} onChange={e => setReplaceSearch(e.target.value)} placeholder="搜索候选专家姓名/专业..." className="neu-input text-sm w-full mb-3" autoFocus />
-        <div className="flex-1 overflow-y-auto space-y-1 max-h-[400px]">
-          {filteredPool.length === 0 ? (
-            <p className="text-xs text-[var(--muted-foreground)] text-center py-8">暂无可用候选专家</p>
-          ) : (
-            filteredPool.map(c => {
-              const vsReplaced = replacedExpert ? c.matchScore - (replacedExpert.matchScore || 0) : 0;
-              return (
-                <div key={c.userId} className="flex items-center justify-between rounded-lg bg-[var(--surface)] px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-[var(--foreground)] truncate">{c.name}</span>
-                      {c.evaluationLevel && <StatusBadge tone={c.evaluationLevel === 'A' ? 'green' : c.evaluationLevel === 'B' ? 'blue' : c.evaluationLevel === 'D' ? 'red' : 'gray'}>{c.evaluationLevel}</StatusBadge>}
-                      {c.currentLoadStatus && <span className="text-[10px] text-[var(--muted-foreground)]">{c.currentLoadStatus}</span>}
-                    </div>
-                    <div className="text-xs text-[var(--muted-foreground)] truncate">{c.specialty}{c.title ? ` · ${c.title}` : ''}</div>
-                  </div>
-                  <div className="flex items-center gap-2 ml-3">
-                    <span className="text-xs font-bold tabular-nums" style={{ color: scoreVar(c.matchScore) }}>{c.matchScore}</span>
-                    {replacedExpert && (
-                      <span className={`text-[10px] font-bold tabular-nums ${vsReplaced >= 0 ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
-                        {vsReplaced >= 0 ? '+' : ''}{vsReplaced}
-                      </span>
-                    )}
-                    <button onClick={() => replaceTarget ? doReplace(c) : addExpert(c)} className="neu-btn-xs">选择</button>
-                  </div>
-                </div>
-              );
-            })
-          )}
+          <p className="text-[11px] text-[var(--muted-foreground)] mt-1">{replacedExpert.reason}</p>
         </div>
+      )}
+      <input value={replaceSearch} onChange={e => setReplaceSearch(e.target.value)} placeholder="搜索候选专家姓名/专业..." className="neu-input text-sm w-full" autoFocus />
+      <div className="space-y-1 max-h-[400px] overflow-y-auto">
+        {filteredPool.length === 0 ? (
+          <p className="text-xs text-[var(--muted-foreground)] text-center py-8">暂无可用候选专家</p>
+        ) : (
+          filteredPool.map(c => {
+            const vsReplaced = replacedExpert ? c.matchScore - (replacedExpert.matchScore || 0) : 0;
+            return (
+              <div key={c.userId} className="flex items-center justify-between rounded-lg bg-[var(--surface)] px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-[var(--foreground)] truncate">{c.name}</span>
+                    {c.evaluationLevel && <StatusBadge tone={c.evaluationLevel === 'A' ? 'green' : c.evaluationLevel === 'B' ? 'blue' : c.evaluationLevel === 'D' ? 'red' : 'gray'}>{c.evaluationLevel}</StatusBadge>}
+                    {c.currentLoadStatus && <span className="text-[10px] text-[var(--muted-foreground)]">{c.currentLoadStatus}</span>}
+                  </div>
+                  <div className="text-xs text-[var(--muted-foreground)] truncate">{c.specialty}{c.title ? ` · ${c.title}` : ''}</div>
+                </div>
+                <div className="flex items-center gap-2 ml-3">
+                  <span className="text-xs font-bold tabular-nums" style={{ color: scoreVar(c.matchScore) }}>{c.matchScore}</span>
+                  {replacedExpert && (
+                    <span className={`text-[10px] font-bold tabular-nums ${vsReplaced >= 0 ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
+                      {vsReplaced >= 0 ? '+' : ''}{vsReplaced}
+                    </span>
+                  )}
+                  <button onClick={() => replaceTarget ? doReplace(c) : addExpert(c)} className="neu-btn-xs">选择</button>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
-    </div>
+    </Modal>
   );
 
   // ── 通知弹窗 ──
   const notifyModal = showNotifyModal && !notifyResults && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => setShowNotifyModal(false)}>
-      <div className="neu-table-card w-full max-w-lg p-5" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-2 mb-4">
-          <div className="neu-icon-well flex h-8 w-8 items-center justify-center rounded-[10px]"><Bell size={14} className="text-[var(--accent)]" /></div>
-          <span className="text-sm font-bold text-[var(--foreground)]">通知专家组成员</span>
-          <span className="ml-auto text-xs text-[var(--muted-foreground)]">{confirmedExpertIds.length} 名专家</span>
-        </div>
-
-        {/* 通知渠道选择 */}
-        <div className="mb-4">
-          <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-2">通知渠道</span>
-          <div className="flex gap-2">
-            {[
-              { key: 'in_app', icon: Bell, label: 'OA站内信' },
-              { key: 'sms', icon: MessageSquare, label: '短信通知' },
-              { key: 'phone', icon: Phone, label: '电话通知' },
-            ].map(ch => (
-              <button
-                key={ch.key}
-                onClick={() => toggleChannel(ch.key)}
-                className={`neu-tab flex-col gap-1 py-2 flex-1 ${notifyChannels.includes(ch.key) ? 'is-active' : ''}`}
-              >
-                <ch.icon size={16} />
-                <span className="text-[11px]">{ch.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 消息模板 */}
-        <div className="mb-4">
-          <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-2">通知内容</span>
-          <textarea
-            value={notifyMessage}
-            onChange={e => setNotifyMessage(e.target.value)}
-            className="neu-input text-sm w-full min-h-[80px] resize-y"
-            rows={3}
-          />
-        </div>
-
-        <div className="flex gap-2">
+    <Modal
+      open
+      onClose={() => setShowNotifyModal(false)}
+      size="md"
+      title={
+        <span className="flex items-center gap-2">
+          <span className="neu-icon-well flex h-8 w-8 items-center justify-center rounded-[10px]"><Bell size={14} className="text-[var(--accent)]" /></span>
+          通知专家组成员
+        </span>
+      }
+      description={`${confirmedExpertIds.length} 名专家`}
+      footer={
+        <>
           <button onClick={() => { setShowNotifyModal(false); setDone(true); toast.success(`专家组已组建（${selectedExperts.length} 人）`); }} className="neu-btn-soft flex-1 justify-center">跳过通知</button>
           <button onClick={sendNotify} disabled={notifying || notifyChannels.length === 0} className="neu-btn-soft is-success flex-1 justify-center">{notifying ? '发送中...' : `发送通知（${notifyChannels.length} 渠道）`}</button>
+        </>
+      }
+    >
+      {/* 通知渠道选择 */}
+      <div>
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-2">通知渠道</span>
+        <div className="flex gap-2">
+          {[
+            { key: 'in_app', icon: Bell, label: 'OA站内信' },
+            { key: 'sms', icon: MessageSquare, label: '短信通知' },
+            { key: 'phone', icon: Phone, label: '电话通知' },
+          ].map(ch => (
+            <button
+              key={ch.key}
+              onClick={() => toggleChannel(ch.key)}
+              className={`neu-tab flex-col gap-1 py-2 flex-1 ${notifyChannels.includes(ch.key) ? 'is-active' : ''}`}
+            >
+              <ch.icon size={16} />
+              <span className="text-[11px]">{ch.label}</span>
+            </button>
+          ))}
         </div>
       </div>
-    </div>
+
+      {/* 消息模板 */}
+      <div>
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-2">通知内容</span>
+        <textarea
+          value={notifyMessage}
+          onChange={e => setNotifyMessage(e.target.value)}
+          className="neu-input text-sm w-full min-h-[80px] resize-y"
+          rows={3}
+        />
+      </div>
+    </Modal>
   );
 
   return (
@@ -502,7 +511,7 @@ export function ExpertExtractPage({
             <div><div className="page-hero__title">专家智能抽取</div><div className="page-hero__sub">专业匹配 / 随机抽取 / 综合择优，AI 分析项目需求并智能组建专家组</div></div>
           </div>
           <div className="page-hero__right">
-            <button onClick={() => openHistory()} className="neu-btn-soft gap-1.5 !bg-white">
+            <button onClick={() => openHistory()} className="neu-btn-soft gap-1.5">
               <Clock size={15} />抽取历史
             </button>
             <RulesPopover>
@@ -592,7 +601,7 @@ export function ExpertExtractPage({
                     <button onClick={() => { setReplaceTarget(null); setReplaceSearch(''); setShowReplaceModal(true); }} className="neu-btn-xs"><Plus size={12} />添加专家</button>
                   </div>
                   {selectedExperts.map((s, i) => (
-                    <div key={s.userId} className="flex items-start gap-3 mt-3" style={i > 0 ? { borderTop: "1px solid oklch(0.55 0.03 258 / 0.06)", paddingTop: "0.75rem" } : {}}>
+                    <div key={s.userId} className={`flex items-start gap-3 mt-3 ${i > 0 ? 'border-t border-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] pt-3' : ''}`}>
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{i + 1}</span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)]" onClick={() => router.push('/expert/' + s.userId)}>{s.name}</span><StatusBadge tone="blue">{s.specialty}</StatusBadge><StatusBadge tone="green">正选</StatusBadge></div>
@@ -670,133 +679,116 @@ export function ExpertExtractPage({
 
       {/* 抽取历史弹窗 */}
       {showHistory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowHistory(false)}>
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" />
-          <div
-            className="relative w-full max-w-[min(720px,94vw)] max-h-[85vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
-            role="dialog"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* 标题栏 */}
-            <div className="flex items-start justify-between gap-4 pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-[10px] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258/0.12),inset_-2px_-2px_5px_oklch(1_0_0/0.55)]">
-                  <Clock size={15} className="text-[var(--accent)]" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-[var(--foreground)]">抽取历史</h2>
-                  <p className="text-[11px] text-[var(--muted-foreground)]">
-                    {pid ? `「${sel?.name || pid}」的历次专家组组建记录` : '全部项目的专家组组建记录'}
-                  </p>
-                </div>
-              </div>
-              <button onClick={() => setShowHistory(false)} className="neu-btn-xs"><X size={16} /></button>
+        <Modal
+          open
+          onClose={() => setShowHistory(false)}
+          size="lg"
+          title={
+            <span className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-[10px] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258/0.12),inset_-2px_-2px_5px_oklch(1_0_0/0.55)]">
+                <Clock size={15} className="text-[var(--accent)]" />
+              </span>
+              抽取历史
+            </span>
+          }
+          description={pid ? `「${sel?.name || pid}」的历次专家组组建记录` : '全部项目的专家组组建记录'}
+        >
+          {/* 内容区 */}
+          {historyLoading ? (
+            <div className="flex items-center justify-center gap-2 py-14 text-sm font-bold text-[var(--accent)]">
+              <RefreshCw size={14} className="animate-spin" />加载中...
             </div>
-
-            <hr className="wb-section-rule" />
-
-            {/* 内容区 */}
-            <div className="pt-4">
-              {historyLoading ? (
-                <div className="flex items-center justify-center gap-2 py-14 text-sm font-bold text-[var(--accent)]">
-                  <RefreshCw size={14} className="animate-spin" />加载中...
-                </div>
-              ) : !historyData || historyData.items.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-3 py-14">
-                  <FileText size={36} className="text-[var(--muted-foreground)]/40" />
-                  <p className="text-sm text-[var(--muted-foreground)]">暂无抽取记录</p>
-                  <p className="text-[11px] text-[var(--muted-foreground)]/60">确认专家抽取后将自动记录于此</p>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    {historyData.items.map((item: any) => {
-                      const d = item.details || {};
-                      const time = new Date(item.createdAt).toLocaleString('zh-CN', {
-                        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-                      });
-                      return (
-                        <div
-                          key={item.id}
-                          className="rounded-[14px] bg-[color-mix(in_oklch,var(--surface)_70%,transparent)] px-4 py-3
-                            shadow-[inset_0_1px_0_oklch(1_0_0/0.65),1.5px_1.5px_3px_oklch(0.55_0.03_258/0.08),-1px_-1px_2.5px_oklch(1_0_0/0.8)]
-                            hover:shadow-[inset_0_1px_0_oklch(1_0_0/0.75),2.5px_2.5px_5px_oklch(0.55_0.03_258/0.12),-1.5px_-1.5px_4px_oklch(1_0_0/0.88)]
-                            transition-all duration-300 ease-out"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1 space-y-1.5">
-                              {/* 第一行：项目名 + 时间 */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-[13px] font-bold text-[var(--foreground)] truncate">
-                                  {d.projectName || '采购项目'}
-                                </span>
-                                <span className="text-[10px] tabular-nums text-[var(--muted-foreground)] shrink-0">
-                                  {time}
-                                </span>
-                              </div>
-                              {/* 第二行：操作人 + 专家数 */}
-                              <div className="flex items-center gap-3 text-[11px] text-[var(--muted-foreground)]">
-                                <span className="inline-flex items-center gap-1">
-                                  <UserCircle size={12} className="text-[var(--muted-foreground)]/60" />
-                                  {item.user?.displayName || '系统'}
-                                </span>
-                                <span>组建专家组 {d.expertCount ?? (Array.isArray(d.experts) ? d.experts.length : 0)} 人</span>
-                              </div>
-                              {/* 第三行：专家名单 */}
-                              {Array.isArray(d.experts) && d.experts.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                  {d.experts.map((ex: any, ei: number) => (
-                                    <span
-                                      key={ei}
-                                      className="inline-flex items-center rounded-[7px] px-2 py-0.5 text-[10px] font-medium
-                                        shadow-[inset_0_0.5px_0_oklch(1_0_0/0.5),0.5px_0.5px_1.5px_oklch(0.55_0.03_258/0.06)]
-                                        text-[var(--foreground)] bg-[color-mix(in_oklch,var(--surface)_50%,transparent)]"
-                                    >
-                                      {ex.name}
-                                      <span className="ml-1 text-[var(--muted-foreground)]/70">{ex.major}</span>
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
+          ) : !historyData || historyData.items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-14">
+              <FileText size={36} className="text-[var(--muted-foreground)]/40" />
+              <p className="text-sm text-[var(--muted-foreground)]">暂无抽取记录</p>
+              <p className="text-[11px] text-[var(--muted-foreground)]/60">确认专家抽取后将自动记录于此</p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {historyData.items.map((item: any) => {
+                  const d = item.details || {};
+                  const time = new Date(item.createdAt).toLocaleString('zh-CN', {
+                    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+                  });
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-[14px] bg-[color-mix(in_oklch,var(--surface)_70%,transparent)] px-4 py-3
+                        shadow-[inset_0_1px_0_oklch(1_0_0/0.65),1.5px_1.5px_3px_oklch(0.55_0.03_258/0.08),-1px_-1px_2.5px_oklch(1_0_0/0.8)]
+                        hover:shadow-[inset_0_1px_0_oklch(1_0_0/0.75),2.5px_2.5px_5px_oklch(0.55_0.03_258/0.12),-1.5px_-1.5px_4px_oklch(1_0_0/0.88)]
+                        transition-all duration-300 ease-out"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          {/* 第一行：项目名 + 时间 */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[13px] font-bold text-[var(--foreground)] truncate">
+                              {d.projectName || '采购项目'}
+                            </span>
+                            <span className="text-[10px] tabular-nums text-[var(--muted-foreground)] shrink-0">
+                              {time}
+                            </span>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* 分页 */}
-                  {historyData.total > historyData.pageSize && (
-                    <>
-                      <hr className="wb-section-rule mt-4" />
-                      <div className="flex items-center justify-between pt-3 text-xs">
-                        <span className="text-[var(--muted-foreground)] tabular-nums">
-                          共 {historyData.total} 条 · 第 {historyData.page}/{Math.ceil(historyData.total / historyData.pageSize)} 页
-                        </span>
-                        <div className="flex gap-1.5">
-                          <button
-                            onClick={() => openHistory(historyPage - 1)}
-                            disabled={historyPage <= 1}
-                            className="neu-btn-xs"
-                          >
-                            ←
-                          </button>
-                          <button
-                            onClick={() => openHistory(historyPage + 1)}
-                            disabled={historyPage >= Math.ceil(historyData.total / historyData.pageSize)}
-                            className="neu-btn-xs"
-                          >
-                            →
-                          </button>
+                          {/* 第二行：操作人 + 专家数 */}
+                          <div className="flex items-center gap-3 text-[11px] text-[var(--muted-foreground)]">
+                            <span className="inline-flex items-center gap-1">
+                              <UserCircle size={12} className="text-[var(--muted-foreground)]/60" />
+                              {item.user?.displayName || '系统'}
+                            </span>
+                            <span>组建专家组 {d.expertCount ?? (Array.isArray(d.experts) ? d.experts.length : 0)} 人</span>
+                          </div>
+                          {/* 第三行：专家名单 */}
+                          {Array.isArray(d.experts) && d.experts.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {d.experts.map((ex: any, ei: number) => (
+                                <span
+                                  key={ei}
+                                  className="inline-flex items-center rounded-[7px] px-2 py-0.5 text-[10px] font-medium
+                                    shadow-[inset_0_0.5px_0_oklch(1_0_0/0.5),0.5px_0.5px_1.5px_oklch(0.55_0.03_258/0.06)]
+                                    text-[var(--foreground)] bg-[color-mix(in_oklch,var(--surface)_50%,transparent)]"
+                                >
+                                  {ex.name}
+                                  <span className="ml-1 text-[var(--muted-foreground)]/70">{ex.major}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </>
-                  )}
-                </>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 分页 */}
+              {historyData.total > historyData.pageSize && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[var(--muted-foreground)] tabular-nums">
+                    共 {historyData.total} 条 · 第 {historyData.page}/{Math.ceil(historyData.total / historyData.pageSize)} 页
+                  </span>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => openHistory(historyPage - 1)}
+                      disabled={historyPage <= 1}
+                      className="neu-btn-xs"
+                    >
+                      ←
+                    </button>
+                    <button
+                      onClick={() => openHistory(historyPage + 1)}
+                      disabled={historyPage >= Math.ceil(historyData.total / historyData.pageSize)}
+                      className="neu-btn-xs"
+                    >
+                      →
+                    </button>
+                  </div>
+                </div>
               )}
-            </div>
-          </div>
-        </div>
+            </>
+          )}
+        </Modal>
       )}
     </div>
   );

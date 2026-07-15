@@ -6,10 +6,10 @@ import { toast } from 'sonner';
 import {
   getSupplierList, getSupplierStats, getClassifications,
   updateSupplierStatus, createClassification, updateClassification, deleteClassification,
-  toggleFavorite,
+  toggleFavorite, getFavorites,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierClassification, SupplierListResponse } from '@/lib/types';
-import { StatusBadge, TableSkeleton } from '@/components/workbench';
+import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
 import { Building2, Layers, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, ChevronsUpDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2 } from 'lucide-react';
 import { exportSuppliersToExcel } from '@/lib/excel-export';
@@ -93,6 +93,7 @@ export default function SupplierRepositoryPage() {
   const refreshMeta = useCallback(() => {
     getSupplierStats().then(setStats).catch(() => {});
     getClassifications().then(setClassifications).catch(() => {});
+    getFavorites().then(fs => setFavIds(new Set(fs.map(f => f.supplierId)))).catch(() => {});
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -362,48 +363,38 @@ export default function SupplierRepositoryPage() {
 
       {/* ══════ 批量操作弹窗 ══════ */}
       {batchModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setBatchModal(null)}>
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" />
-          <div className="relative w-full max-w-[min(420px,92vw)] rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)]" role="dialog" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 px-6 py-4">
-              <div><h2 className="text-lg font-bold text-[var(--foreground)]">{batchModal.type === 'DISABLED' ? '批量停用' : '批量拉黑'}</h2>
-              <p className="mt-1 text-xs text-[var(--muted-foreground)]">将对选中的 <strong>{selected.size}</strong> 个供应商统一处理</p></div>
-              <button onClick={() => setBatchModal(null)} className="neu-btn-xs"><X size={16} /></button>
-            </div>
-            <hr className="wb-section-rule mx-6" />
-            <div className="px-6 pb-2"><textarea value={batchReason} onChange={e => setBatchReason(e.target.value)} placeholder="请填写原因..." className="neu-input w-full h-24 resize-none text-sm" /></div>
-            <hr className="wb-section-rule mx-6" />
-            <div className="flex justify-end gap-3 px-6 py-4">
+        <Modal
+          open
+          onClose={() => setBatchModal(null)}
+          title={batchModal.type === 'DISABLED' ? '批量停用' : '批量拉黑'}
+          description={<>将对选中的 <strong>{selected.size}</strong> 个供应商统一处理</>}
+          footer={
+            <>
               <button onClick={() => setBatchModal(null)} className="neu-btn-soft">取消</button>
               <button onClick={handleBatch} disabled={batchLoading || !batchReason.trim()} className={`neu-btn-soft ${batchModal.type === 'DISABLED' ? 'is-warning' : 'is-danger'}`}>{batchLoading ? '处理中...' : '确认'}</button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        >
+          <textarea value={batchReason} onChange={e => setBatchReason(e.target.value)} placeholder="请填写原因..." className="neu-input w-full h-24 resize-none text-sm" />
+        </Modal>
       )}
 
       {/* ══════ 状态变更弹窗 ══════ */}
       {statusModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setStatusModal(null)}>
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" />
-          <div className="relative w-full max-w-[min(420px,92vw)] rounded-[20px] bg-[var(--background)] p-0 shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)]" role="dialog" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 px-6 py-4">
-              <div>
-                <h2 className="text-lg font-bold tracking-[-0.02em] text-[var(--foreground)]">{statusModal.type === 'disable' ? '停用供应商' : '加入黑名单'}</h2>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">供应商：<strong className="text-[var(--foreground)]">{statusModal.supplier.name}</strong></p>
-              </div>
-              <button onClick={() => setStatusModal(null)} className="neu-btn-xs"><X size={16} /></button>
-            </div>
-            <hr className="wb-section-rule mx-6" />
-            <div className="px-6 pb-2">
-              <textarea value={statusReason} onChange={e => setStatusReason(e.target.value)} placeholder="请填写原因..." className="neu-input w-full h-24 resize-none text-sm" />
-            </div>
-            <hr className="wb-section-rule mx-6" />
-            <div className="flex justify-end gap-3 px-6 py-4">
+        <Modal
+          open
+          onClose={() => setStatusModal(null)}
+          title={statusModal.type === 'disable' ? '停用供应商' : '加入黑名单'}
+          description={<>供应商：<strong className="text-[var(--foreground)]">{statusModal.supplier.name}</strong></>}
+          footer={
+            <>
               <button onClick={() => setStatusModal(null)} className="neu-btn-soft">取消</button>
               <button onClick={handleStatusAction} disabled={statusLoading || !statusReason.trim()} className="neu-btn-soft is-danger">{statusLoading ? '处理中...' : '确认'}</button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        >
+          <textarea value={statusReason} onChange={e => setStatusReason(e.target.value)} placeholder="请填写原因..." className="neu-input w-full h-24 resize-none text-sm" />
+        </Modal>
       )}
     </div>
   );

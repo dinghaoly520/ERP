@@ -54,7 +54,7 @@ const SUPPLIERS = [
 
 const PROJECT_CODE = 'YDJM-ZK10-12-2026';
 const PROJECT_ID = 'yndjm-proj-01';
-const TENDER_DOCX = '2026.1.27勘察分院-引大济岷工程千ZK10和千隧ZK12两个钻孔施工技术服务内部竞标（竞价）采购文件.docx';
+const TENDER_DOCX = '2026.1.27勘察分院-引大济岷工程千ZK10和千隧ZK12两个钻孔施工技术服务竞价采购文件.docx';
 
 async function uploadFile(filePath: string, key: string): Promise<{ id: string; sha256: string; size: number }> {
   const buf = fs.readFileSync(filePath);
@@ -150,7 +150,7 @@ async function main() {
       id: PROJECT_ID,
       projectCode: PROJECT_CODE,
       name: '引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务',
-      procurementMethod: '内部竞标（竞价）',
+      procurementMethod: '竞价采购',
       openTime: new Date('2026-02-20T10:00:00'),
       deadline: new Date('2026-02-25T17:00:00'),
       stage: 'OPENING',
@@ -169,7 +169,7 @@ async function main() {
   await prisma.announcement.create({
     data: {
       id: 'yndjm-ann-01',
-      title: '引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务内部竞标公告',
+      title: '引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务竞价采购公告',
       content: '千隧ZK10和千隧ZK12两个钻孔为一个标，最高限价153.99万元。最低评标价法。',
       type: 'BID_NOTICE',
       status: 'PUBLISHED',

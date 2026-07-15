@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { createExpert, listSpecialties } from '@/lib/api/expert';
 import { useFormAutosave, useUnsavedGuard } from '@/lib/hooks/use-form-autosave';
 import { UserPlus, Eye, EyeOff } from 'lucide-react';
+import { Modal } from '@/components/workbench';
 
 const TITLES = ['教授级高级工程师','高级工程师','高级经济师','高级会计师','工程师','注册造价工程师','注册监理工程师'];
 const EDUCATIONS = ['博士','硕士','本科','大专','其他'];
@@ -26,13 +27,16 @@ export default function ExpertEntryPage() {
   const { getDraft, clearDraft } = useFormAutosave('expert-entry', form as unknown as Record<string, unknown>);
   useUnsavedGuard(hasChanges);
   const [draftRestored, setDraftRestored] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<{ data: FormFields; savedAt: number } | null>(null);
   useEffect(() => {
     if (draftRestored) return;
     const draft = getDraft();
-    if (draft && draft.username) { if (confirm('检测到未提交的表单草稿（保存于 ' + new Date(draft._savedAt).toLocaleTimeString('zh-CN') + '），是否恢复？')) { setForm({ ...INITIAL, ...draft as unknown as FormFields }); } }
+    if (draft && draft.username) {
+      setPendingDraft({ data: { ...INITIAL, ...(draft as unknown as FormFields) }, savedAt: draft._savedAt });
+    }
     setDraftRestored(true);
   }, [getDraft, draftRestored]);
-  useEffect(() => { listSpecialties().then(setSpecialties).catch(() => {}); }, []);
+  useEffect(() => { listSpecialties().then(setSpecialties).catch(() => toast.warning('加载专业列表失败，可手动输入')); }, []);
 
   const set = (k: keyof FormFields, v: string) => { setForm(prev => ({ ...prev, [k]: v })); if (errors[k]) setErrors(prev => { const n = { ...prev }; delete n[k]; return n; }); if (serverError) setServerError(''); };
   const validate = (): boolean => {
@@ -124,7 +128,7 @@ export default function ExpertEntryPage() {
           <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">备注</span><textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="补充说明、特殊资质说明、回避事项等" rows={3} className={inputCls('notes') + ' resize-y'} /></label>
         </fieldset>
 
-        <div className="flex items-center justify-between gap-3 pt-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+        <div className="flex items-center justify-between gap-3 pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
           <p className="text-xs text-[var(--muted-foreground)]"><span className="text-[var(--danger)]">*</span> 为必填项</p>
           <div className="flex gap-3">
             <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft">取消</button>
@@ -132,6 +136,25 @@ export default function ExpertEntryPage() {
           </div>
         </div>
       </div>
+
+      {pendingDraft && (
+        <Modal
+          open
+          onClose={() => setPendingDraft(null)}
+          title="恢复未提交的草稿？"
+          size="sm"
+          footer={
+            <>
+              <button onClick={() => setPendingDraft(null)} className="neu-btn-soft">不恢复</button>
+              <button onClick={() => { setForm(pendingDraft.data); setPendingDraft(null); }} className="neu-btn-soft is-info">恢复草稿</button>
+            </>
+          }
+        >
+          <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
+            检测到 <strong className="text-[var(--foreground)]">{new Date(pendingDraft.savedAt).toLocaleString('zh-CN')}</strong> 保存的表单草稿，是否恢复填写？
+          </p>
+        </Modal>
+      )}
     </div>
   );
 }

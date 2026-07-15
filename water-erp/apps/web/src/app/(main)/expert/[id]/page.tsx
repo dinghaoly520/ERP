@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getAiAdoptionRate, type ExpertPortrait } from '@/lib/api/expert';
 import { AlertBanner, Breadcrumb, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
-import { ArrowLeft, TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw } from 'lucide-react';
+import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
 interface Assignment {
@@ -24,13 +25,7 @@ interface ExpertDetail {
   statistics: { totalProjects: number; completedProjects: number; signedInProjects: number; evalAvg: number; evalCount: number };
 }
 
-const stageMap: Record<string, { label: string; color: string; bg: string }> = {
-  DOWNLOAD: { label: '文件下载', color: '#0891b2', bg: '#0891b214' },
-  SUBMIT: { label: '加密投递', color: '#0756a5', bg: '#0756a514' },
-  OPENING: { label: '在线开标', color: '#d97706', bg: '#d9770614' },
-  EVALUATING: { label: '专家评标', color: '#7c3aed', bg: '#7c3aed14' },
-  ARCHIVED: { label: '已归档', color: '#059669', bg: '#05966914' },
-};
+const STAGE_FALLBACK_COLOR = 'var(--muted-foreground)';
 const levelLabel: Record<string, string> = { A: '优秀', B: '良好', C: '合格', D: '不合格' };
 const levelTone: Record<string, 'green' | 'blue' | 'orange' | 'red'> = { A: 'green', B: 'blue', C: 'orange', D: 'red' };
 
@@ -51,7 +46,10 @@ export default function ExpertDetailPage() {
   const expertId = params.id as string;
   const [expert, setExpert] = useState<ExpertDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [tab, setTab] = useState<Tab>('overview');
+  const [tabLoading, setTabLoading] = useState(false);
+  const loadedTabsRef = useRef<Set<Tab>>(new Set(['overview']));
 
   // Sub-data
   const [portrait, setPortrait] = useState<ExpertPortrait | null>(null);
@@ -68,8 +66,20 @@ export default function ExpertDetailPage() {
   const [vioSaving, setVioSaving] = useState(false);
 
   useEffect(() => {
-    api.get<ExpertDetail>(`/expert-admin/${expertId}`).then(setExpert).catch(() => {}).finally(() => setLoading(false));
+    setLoading(true); setLoadError(false);
+    api.get<ExpertDetail>(`/expert-admin/${expertId}`)
+      .then(d => { setExpert(d); })
+      .catch(() => { setLoadError(true); toast.error('加载专家详情失败'); })
+      .finally(() => setLoading(false));
   }, [expertId]);
+
+  const reload = () => {
+    setLoading(true); setLoadError(false);
+    api.get<ExpertDetail>(`/expert-admin/${expertId}`)
+      .then(d => setExpert(d))
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
+  };
 
   const expertAlerts = useExpertAlerts(expertId);
   const alertItems = [
@@ -77,15 +87,23 @@ export default function ExpertDetailPage() {
     ...(expertAlerts.overloaded ? [{ severity: 'orange' as const, title: '评审负荷过载', detail: `同时参与 ${expertAlerts.activeProjectCount} 个未归档项目，超过 3 个上限` }] : []),
   ];
 
-  // Load tab data
+  // Load tab data（首次进入某 Tab 显示加载态；已缓存则直接复用，避免闪烁）
   useEffect(() => {
-    if (tab === 'portrait') getExpertPortrait(expertId).then(setPortrait).catch(() => {});
-    if (tab === 'evaluations') getExpertEvaluations(expertId).then(setEvaluations).catch(() => {});
-    if (tab === 'timeline') { getExpertEvaluations(expertId).then(setEvaluations).catch(() => {}); getViolations(expertId).then(setViolations).catch(() => {}); }
-    if (tab === 'violations') getViolations(expertId).then(setViolations).catch(() => {});
-    if (tab === 'ai-adoption') getAiAdoptionRate(expertId).then(setAiAdoption).catch(() => {});
-    if (tab === 'notify') getNotifyPrefs(expertId).then(setNotifyPrefs).catch(() => {});
+    if (loadedTabsRef.current.has(tab)) { setTabLoading(false); return; }
+    setTabLoading(true);
+    const tasks: Promise<unknown>[] = [];
+    if (tab === 'portrait') tasks.push(getExpertPortrait(expertId).then(setPortrait));
+    if (tab === 'evaluations') tasks.push(getExpertEvaluations(expertId).then(setEvaluations));
+    if (tab === 'timeline') { tasks.push(getExpertEvaluations(expertId).then(setEvaluations)); tasks.push(getViolations(expertId).then(setViolations)); }
+    if (tab === 'violations') tasks.push(getViolations(expertId).then(setViolations));
+    if (tab === 'ai-adoption') tasks.push(getAiAdoptionRate(expertId).then(setAiAdoption));
+    if (tab === 'notify') tasks.push(getNotifyPrefs(expertId).then(setNotifyPrefs));
+    Promise.all(tasks.map(p => p.catch(() => {})))
+      .finally(() => { setTabLoading(false); loadedTabsRef.current = new Set(loadedTabsRef.current).add(tab); });
   }, [tab, expertId]);
+
+  // 切换专家时重置 Tab 缓存
+  useEffect(() => { loadedTabsRef.current = new Set(['overview']); }, [expertId]);
 
   const submitViolation = async () => {
     if (!vioType.trim() || !vioDetail.trim()) return;
@@ -112,15 +130,17 @@ export default function ExpertDetailPage() {
       <div className="space-y-2"><div className="skeleton h-7 w-48 rounded" /><div className="skeleton h-3 w-32 rounded" /></div>
     </div>
   );
-  if (!expert) return <div className="py-24 text-center text-[13px] text-[#94a3b8]">专家不存在</div>;
+  if (loadError) return (
+    <div className="py-24 text-center">
+      <p className="text-sm font-semibold text-[var(--danger)] mb-3">专家详情加载失败</p>
+      <button onClick={reload} className="neu-btn-xs is-info">重试</button>
+    </div>
+  );
+  if (!expert) return <div className="py-24 text-center text-[13px] text-[var(--muted-foreground)]">专家不存在</div>;
 
   return (
     <div>
       <Breadcrumb items={[{ label: '专家库', path: '/expert/repository' }, { label: expert?.displayName || '详情' }]} />
-      <button onClick={() => router.push('/expert')} className="inline-flex items-center gap-1.5 text-[13px] text-[#64748b] hover:text-[#0756a5] mb-3">
-        <ArrowLeft size={14} /> 返回专家列表
-      </button>
-
       {alertItems.length > 0 && <div className="mb-5"><AlertBanner items={alertItems} /></div>}
 
       {/* Header */}
@@ -140,6 +160,7 @@ export default function ExpertDetailPage() {
             </div>
           </div>
           <div className="page-hero__right">
+            <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft gap-1"><ArrowLeft size={14} />返回专家库</button>
             <StatusBadge tone={expert.isActive ? 'green' : 'gray'}>{expert.isActive ? '可用' : '已停用'}</StatusBadge>
             {portrait?.isStandingExpert && <StatusBadge tone="purple">常委专家</StatusBadge>}
           </div>
@@ -165,7 +186,15 @@ export default function ExpertDetailPage() {
       {/* Tab bar */}
       <div className="neu-tab-bar mb-5">
         {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={`neu-tab ${tab === t.key ? 'is-active' : ''}`}>
+          <button
+            key={t.key}
+            onClick={() => {
+              // 同步设 tabLoading，消除“先空后加载”的闪烁
+              if (!loadedTabsRef.current.has(t.key)) setTabLoading(true);
+              setTab(t.key);
+            }}
+            className={`neu-tab ${tab === t.key ? 'is-active' : ''}`}
+          >
             <t.icon size={14} /><span className="ml-1.5">{t.label}</span>
           </button>
         ))}
@@ -178,16 +207,16 @@ export default function ExpertDetailPage() {
             {expert.assignments.length === 0 ? (
               <div className="py-16 text-center text-sm text-[var(--muted-foreground)]">暂无评审项目记录</div>
             ) : expert.assignments.map((a, i) => {
-              const stage = stageMap[a.project.stage] || { label: a.project.stage, color: '#94a3b8', bg: '#94a3b814' };
+              const stageColor = STAGE_COLOR[a.project.stage] || STAGE_FALLBACK_COLOR;
               return (
-                <div key={a.id} className={`px-5 py-4 ${i < expert.assignments.length - 1 ? 'border-b border-white/15' : ''}`}>
+                <div key={a.id} className={`px-5 py-4 ${i < expert.assignments.length - 1 ? 'border-b border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]' : ''}`}>
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div className="min-w-0">
                       <h3 className="text-[14px] font-extrabold text-[var(--foreground)] truncate">{a.project.name}</h3>
                       <p className="text-[12px] text-[var(--muted-foreground)] mt-0.5">{a.project.projectCode} · {a.project.procurementMethod}</p>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold flex-shrink-0 rounded-full" style={{color: stage.color, background: stage.bg}}>
-                      <span className="w-1.5 h-1.5 rounded-full" style={{background: stage.color}} />{stage.label}
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold flex-shrink-0 rounded-full" style={{ color: stageColor, background: `color-mix(in oklch, ${stageColor} 10%, transparent)` }}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: stageColor }} />{STAGE_LABEL[a.project.stage] || a.project.stage}
                     </span>
                   </div>
                   <div className="grid grid-cols-4 gap-3 text-[12px] text-[var(--muted-foreground)] mb-3">
@@ -218,23 +247,21 @@ export default function ExpertDetailPage() {
 
         // 2. 评审项目分配
         for (const a of expert.assignments) {
-          const stageLabels: Record<string, string> = { DOWNLOAD: '文件下载', SUBMIT: '加密投递', OPENING: '在线开标', EVALUATING: '专家评标', ARCHIVED: '已归档' };
           timelineEvents.push({
             time: a.project.openTime || a.id,
             type: '项目分配',
             title: `参与评审「${a.project.name}」`,
-            detail: `专业:${a.major} · 状态:${stageLabels[a.project.stage] || a.project.stage} · 进度:${a.progress}% · 得分:${Number(a.totalScore)}`,
+            detail: `专业:${a.major} · 状态:${STAGE_LABEL[a.project.stage] || a.project.stage} · 进度:${a.progress}% · 得分:${Number(a.totalScore)}`,
             tone: a.progress >= 100 ? 'green' : 'orange',
           });
         }
 
         // 3. 评价记录
         for (const ev of evaluations) {
-          const levelLabels: Record<string, string> = { A: '优秀', B: '良好', C: '合格', D: '不合格' };
           timelineEvents.push({
             time: ev.createdAt,
             type: '履职评价',
-            title: `${levelLabels[ev.level] || ev.level}级 · 综合${ev.overallScore}分`,
+            title: `${levelLabel[ev.level] || ev.level}级 · 综合${ev.overallScore}分`,
             detail: `出勤${ev.attendanceScore}/质量${ev.qualityScore}/廉洁${ev.disciplineScore} · 评价人:${ev.evaluator?.displayName || '—'}${ev.comment ? ' · ' + ev.comment : ''}`,
             tone: ev.level === 'A' ? 'green' : ev.level === 'B' ? 'accent' : ev.level === 'D' ? 'red' : 'orange',
           });
@@ -317,7 +344,9 @@ export default function ExpertDetailPage() {
 
       {tab === 'evaluations' && (
         <div className="neu-table-card">
-          {evaluations.length === 0 ? (
+          {tabLoading ? (
+            <div className="py-14 text-center text-sm text-[var(--muted-foreground)]"><RefreshCw size={14} className="animate-spin inline mr-2" />加载中...</div>
+          ) : evaluations.length === 0 ? (
             <div className="py-14 text-center text-sm text-[var(--muted-foreground)]">暂无评价记录</div>
           ) : (
             <div className="overflow-x-auto">
@@ -355,6 +384,7 @@ export default function ExpertDetailPage() {
       )}
 
       {tab === 'ai-adoption' && (
+        tabLoading ? <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]"><RefreshCw size={14} className="animate-spin inline mr-2" />加载中...</div> :
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
@@ -387,7 +417,7 @@ export default function ExpertDetailPage() {
       {tab === 'violations' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">违规记录 · {violations.length} 条</span>
+            <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">违规记录 · {tabLoading ? '—' : `${violations.length} 条`}</span>
             <button onClick={() => setShowViolationForm(true)} className="neu-btn-xs is-warning"><Ban size={12} />记录违规</button>
           </div>
           {showViolationForm && (
@@ -403,7 +433,9 @@ export default function ExpertDetailPage() {
               </div>
             </div>
           )}
-          {violations.length === 0 ? (
+          {tabLoading ? (
+            <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]"><RefreshCw size={14} className="animate-spin inline mr-2" />加载中...</div>
+          ) : violations.length === 0 ? (
             <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">暂无违规记录</div>
           ) : (
             violations.map((v: any) => {
@@ -450,9 +482,12 @@ export default function ExpertDetailPage() {
                 </div>
                 <button
                   onClick={() => setNotifyPrefs(prev => ({ ...prev, [ch.key]: !prev[ch.key] }))}
-                  className={`w-10 h-6 rounded-full transition-colors relative ${notifyPrefs[ch.key] ? 'bg-[var(--accent)]' : 'bg-[var(--muted)]/40'}`}
+                  className="neu-toggle"
+                  data-on={notifyPrefs[ch.key]}
+                  aria-pressed={notifyPrefs[ch.key]}
+                  aria-label={`${ch.label}通知`}
                 >
-                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${notifyPrefs[ch.key] ? 'left-[18px]' : 'left-0.5'}`} />
+                  <span className="neu-toggle__knob" />
                 </button>
               </div>
             ))}

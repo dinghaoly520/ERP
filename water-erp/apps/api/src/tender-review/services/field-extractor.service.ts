@@ -22,7 +22,7 @@ const FIELD_EXTRACTION_PROMPT = `你是一个采购文件字段提取专家。�
   "announcementDate": "公告发布日期，格式 YYYY-MM-DD",
   "deadlineDate": "投标截止日期，格式 YYYY-MM-DD",
   "publicityDays": 公示期天数（整数），
-  "procurementMethod": "采购方式，如公开招标、邀请招标、竞争性谈判、询价、单一来源",
+  "procurementMethod": "采购方式，如公开招标、邀请招标、谈判采购、询价、单一来源",
   "hasRenewalJustification": 是否包含续约必要性说明（boolean），
   "hasPublicAnnouncement": 是否发布了公示（boolean），
   "hasTechnicalRequirements": 是否包含完整技术要求（boolean），

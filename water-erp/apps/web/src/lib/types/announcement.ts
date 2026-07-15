@@ -64,14 +64,14 @@ export type InvitedBiddingAnnouncementDraft = Record<
   string
 >;
 
-// ─── 采购文件公告 (内部竞标) ───
+// ─── 采购文件公告 (竞价采购) ───
 // Same field keys as invited bidding
 export type InternalBiddingAnnouncementFieldKey =
   InvitedBiddingAnnouncementFieldKey;
 export type InternalBiddingAnnouncementDraft =
   InvitedBiddingAnnouncementDraft;
 
-// ─── 采购文件公告 (单源直接采购) ───
+// ─── 采购文件公告 (直接采购) ───
 
 export type SingleSourceAnnouncementFieldKey =
   | "projectName"

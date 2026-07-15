@@ -8,7 +8,7 @@ import { listExperts, listSpecialties, setExpertAvailability, batchOperation, ex
 import type { ExpertListItem } from '@/lib/api/expert';
 import { StatusBadge, TableSkeleton } from '@/components/workbench';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
-import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronUp, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, Upload } from 'lucide-react';
+import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, Upload } from 'lucide-react';
 
 export default function ExpertRepositoryPage() {
   const router = useRouter();
@@ -132,7 +132,7 @@ export default function ExpertRepositoryPage() {
             <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
           </div>
         </div>
-        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
+        <div className="page-hero__divider">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 items-stretch">
           {[
             ['专家总数', total, '录入总量'],
@@ -155,7 +155,7 @@ export default function ExpertRepositoryPage() {
         <div className="relative min-w-[140px] xl:min-w-[200px] flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索专家姓名" className="neu-input !pl-9" />
-          {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}
+          {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}
         </div>
         <select value={specialty} onChange={e => { setSpecialty(e.target.value); setPage(1); }} className="workbench-input !w-auto min-w-[110px]"><option value="">全部专业</option>{specialties.map(s => <option key={s} value={s}>{s}</option>)}</select>
         <button onClick={() => setShowAdvanced(v => !v)} className={`neu-btn-xs ${showAdvanced ? 'is-active' : ''}`}>高级筛选</button>
@@ -291,8 +291,8 @@ export default function ExpertRepositoryPage() {
           <div className="neu-table-card-footer flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-[0.8rem] text-[var(--muted-foreground)] tabular-nums">共 <strong className="font-semibold text-[var(--foreground)]">{filteredExperts.length}</strong> 条 · 第 {page}/{totalPages} 页</span>
             <div className="flex gap-1.5">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-[-90deg]" /></button>
-              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-90" /></button>
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-30"><ChevronLeft size={14} /></button>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-30"><ChevronRight size={14} /></button>
             </div>
           </div>
         )}

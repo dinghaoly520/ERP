@@ -1,10 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
 import {
-  X,
   Clock3,
   Bell,
   FolderOpen,
@@ -19,6 +16,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
+import { Modal } from '@/components/workbench';
 import {
   WORK_ARRANGEMENT_STATUS_LABELS,
   type WorkArrangementItem,
@@ -172,141 +170,68 @@ export function TaskDetailModal({
   onSubmitNote,
 }: TaskDetailModalProps) {
   const [notesExpanded, setNotesExpanded] = useState(true);
-  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  if (!open) return null;
 
-  // Esc key handler
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [open, onClose]);
-
-  if (!mounted || typeof document === 'undefined') return null;
-
-  return createPortal(
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={onClose}
-            aria-hidden="true"
-          />
-
-          {/* Modal content — empty state or filled */}
-          {!item ? (
-            <motion.div
-              className="relative w-full max-w-[640px] rounded-[20px] bg-[var(--background)] p-8 shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ type: 'spring', duration: 0.3 }}
-              role="dialog"
-              aria-modal="true"
+  // Empty state — no item selected
+  if (!item) {
+    return (
+      <Modal open={open} onClose={onClose} title="任务详情" size="lg">
+        <div className="flex flex-col items-center justify-center py-10 text-sm text-[color:var(--muted-foreground)]">
+          <div className="neu-icon-well mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              <button
-                type="button"
-                onClick={onClose}
-                className="neu-btn-xs absolute right-4 top-4"
-              >
-                <X size={16} />
-              </button>
-              <div className="flex flex-col items-center justify-center py-10 text-sm text-[color:var(--muted-foreground)]">
-                <div className="neu-icon-well mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                    <rect x="9" y="3" width="6" height="4" rx="1" />
-                  </svg>
-                </div>
-                选择一条任务后查看详情。
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              className="relative flex max-h-[85vh] w-full max-w-[640px] flex-col overflow-hidden rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ type: 'spring', duration: 0.3 }}
-              role="dialog"
-              aria-modal="true"
-            >
-              {(() => {
-                const accent = statusAccentMap[item.status];
-                const statusStyle = statusStyles[item.status];
-                const availableActions = getAvailableActions(item.status);
-                const isFinished =
-                  item.status === 'COMPLETED' || item.status === 'CANCELLED';
+              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+              <rect x="9" y="3" width="6" height="4" rx="1" />
+            </svg>
+          </div>
+          选择一条任务后查看详情。
+        </div>
+      </Modal>
+    );
+  }
 
-                return (
-                  <>
-                    {/* ── 头部 (渐变背景) ── */}
-                    <div
-                      className={`relative shrink-0 border-b px-6 py-5 ${accent.border}`}
-                      style={{ background: accent.bg }}
-                    >
-                      <button
-                        type="button"
-                        onClick={onClose}
-                        className="neu-btn-xs absolute right-4 top-4"
-                        aria-label="关闭"
-                      >
-                        <X size={16} />
-                      </button>
+  const accent = statusAccentMap[item.status];
+  const statusStyle = statusStyles[item.status];
+  const availableActions = getAvailableActions(item.status);
+  const isFinished =
+    item.status === 'COMPLETED' || item.status === 'CANCELLED';
 
-                      {/* 状态指示 */}
-                      <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 rounded-full ${accent.dot}`} />
-                        <span
-                          className={`inline-flex items-center rounded-[10px] border px-2.5 py-0.5 text-xs font-semibold ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}
-                        >
-                          {WORK_ARRANGEMENT_STATUS_LABELS[item.status]}
-                        </span>
-                      </div>
-
-                      {/* 标题 */}
-                      <h2
-                        className={`mt-2 text-lg font-bold leading-snug text-balance ${
-                          isFinished
-                            ? 'text-[color:var(--muted-foreground)] line-through'
-                            : 'text-[color:var(--foreground)]'
-                        }`}
-                      >
-                        {item.title}
-                      </h2>
-
-                      {/* 描述 */}
-                      {item.description && (
-                        <p className="mt-1 truncate text-sm text-[color:var(--muted-foreground)]">
-                          {item.description}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* ── 可滚动内容区 ── */}
-                    <div className="flex-1 overflow-y-auto px-6 py-4">
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${accent.dot}`} />
+          <span
+            className={`inline-flex items-center rounded-[10px] border px-2.5 py-0.5 text-xs font-semibold ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}
+          >
+            {WORK_ARRANGEMENT_STATUS_LABELS[item.status]}
+          </span>
+          <span
+            className={`text-lg font-bold leading-snug text-balance ${
+              isFinished
+                ? 'text-[color:var(--muted-foreground)] line-through'
+                : 'text-[color:var(--foreground)]'
+            }`}
+          >
+            {item.title}
+          </span>
+        </span>
+      }
+      description={item.description ?? undefined}
+      size="lg"
+    >
+      <div>
                       {/* 信息卡网格 2×2 */}
                       <div className="grid grid-cols-2 gap-3">
                         <div className="neu-content-block px-3 py-3">
@@ -539,15 +464,7 @@ export function TaskDetailModal({
                           </div>
                         )}
                       </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </motion.div>
-          )}
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body,
+      </div>
+    </Modal>
   );
 }

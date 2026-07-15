@@ -310,11 +310,11 @@ async function main() {
 
   console.log('\n  各门户独立账号（每端口需单独登录，口令沿用 <用户名>@2026）：');
   console.log('    [信息门户   :3002]  公开访问，无需登录');
-  console.log('    [电子商城   :3003]  陈主任 / czr@2026');
+  console.log('    [电子商城   :3003]  陈源远 / 陈源远@2026');
   console.log('    [供应商端   :3004]  supplier1 / supplier1@2026');
-  console.log('    [采购管理端 :3005]  陈主任 / czr@2026');
+  console.log('    [采购管理端 :3005]  陈源远 / 陈源远@2026');
   console.log('    [专家评标   :3006]  专家库任意专家（用户名=专家姓名）/ 口令 expert@2026');
-  console.log('    [开评标管理端 :3007]  陈主任 / czr@2026');
+  console.log('    [开评标管理端 :3007]  陈源远 / 陈源远@2026');
 }
 
 main()

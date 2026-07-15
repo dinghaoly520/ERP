@@ -79,7 +79,7 @@ const TYPE_LINKS: Record<string, string> = {
   BID_OPENING:            '/bid',
   BID_EVALUATION_RESULT:  '/bid',
   CLARIFICATION_REPLIED:  '/bid/clarifications',
-  CATALOG_APPLICATION:    '/mall-management/catalog',
+  CATALOG_APPLICATION:    '/mall-management/approval',
   SYSTEM:                 '/notifications',
 };
 

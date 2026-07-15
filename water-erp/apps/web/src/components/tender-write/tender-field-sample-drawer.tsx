@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { X, Star, Trash2, Copy, Check } from 'lucide-react';
+import { Star, Trash2, Copy, Check } from 'lucide-react';
 import type { TenderFieldKey } from '@/lib/types/tender-write';
+import { Modal } from '@/components/workbench';
 import {
   fetchFieldSamples,
   toggleFieldSampleFavorite,
@@ -66,98 +67,76 @@ export function TenderFieldSampleDialog({
     onClose();
   };
 
-  if (!isOpen) return null;
-
   const favoriteSamples = samples.filter((s) => s.isFavorite);
   const otherSamples = samples.filter((s) => !s.isFavorite);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 backdrop-blur-md bg-white/10"
-        onClick={onClose}
-      />
-      <div className="relative z-10 flex max-h-[80vh] w-full max-w-[min(480px,90vw)] flex-col rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
-        <header className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">
-              样本库
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="样本库"
+      description={fieldLabel}
+      size="md"
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-8 text-sm text-[color:var(--muted-foreground)]">
+          加载中...
+        </div>
+      ) : samples.length === 0 ? (
+        <div className="wb-panel flex items-center justify-center px-4 py-8 text-center text-sm text-[color:var(--muted-foreground)]">
+          暂无样本记录
+          <p className="mt-2 text-xs">
+            点击字段右侧的收藏按钮保存内容到样本库
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {favoriteSamples.length > 0 && (
+            <div>
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(234,188,110,0.92)]">
+                已收藏
+              </div>
+              <div className="space-y-2">
+                {favoriteSamples.map((sample) => (
+                  <SampleCard
+                    key={sample.id}
+                    sample={sample}
+                    isCopied={copiedId === sample.id}
+                    onToggleFavorite={() => handleToggleFavorite(sample.id)}
+                    onDelete={() => handleDelete(sample.id)}
+                    onCopy={() => handleCopy(sample)}
+                    onSelect={() => handleSelect(sample.content)}
+                  />
+                ))}
+              </div>
             </div>
-            <h3 className="mt-1 text-sm font-semibold text-[color:var(--foreground)]">
-              {fieldLabel}
-            </h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)]"
-          >
-            <X size={18} />
-          </button>
-        </header>
+          )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-8 text-sm text-[color:var(--muted-foreground)]">
-              加载中...
-            </div>
-          ) : samples.length === 0 ? (
-            <div className="wb-panel flex items-center justify-center px-4 py-8 text-center text-sm text-[color:var(--muted-foreground)]">
-              暂无样本记录
-              <p className="mt-2 text-xs">
-                点击字段右侧的收藏按钮保存内容到样本库
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
+          {otherSamples.length > 0 && (
+            <div>
               {favoriteSamples.length > 0 && (
-                <div>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(234,188,110,0.92)]">
-                    已收藏
-                  </div>
-                  <div className="space-y-2">
-                    {favoriteSamples.map((sample) => (
-                      <SampleCard
-                        key={sample.id}
-                        sample={sample}
-                        isCopied={copiedId === sample.id}
-                        onToggleFavorite={() => handleToggleFavorite(sample.id)}
-                        onDelete={() => handleDelete(sample.id)}
-                        onCopy={() => handleCopy(sample)}
-                        onSelect={() => handleSelect(sample.content)}
-                      />
-                    ))}
-                  </div>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(94,126,189,0.76)]">
+                  历史记录
                 </div>
               )}
-
-              {otherSamples.length > 0 && (
-                <div>
-                  {favoriteSamples.length > 0 && (
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(94,126,189,0.76)]">
-                      历史记录
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    {otherSamples.map((sample) => (
-                      <SampleCard
-                        key={sample.id}
-                        sample={sample}
-                        isCopied={copiedId === sample.id}
-                        onToggleFavorite={() => handleToggleFavorite(sample.id)}
-                        onDelete={() => handleDelete(sample.id)}
-                        onCopy={() => handleCopy(sample)}
-                        onSelect={() => handleSelect(sample.content)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div className="space-y-2">
+                {otherSamples.map((sample) => (
+                  <SampleCard
+                    key={sample.id}
+                    sample={sample}
+                    isCopied={copiedId === sample.id}
+                    onToggleFavorite={() => handleToggleFavorite(sample.id)}
+                    onDelete={() => handleDelete(sample.id)}
+                    onCopy={() => handleCopy(sample)}
+                    onSelect={() => handleSelect(sample.content)}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
-      </div>
-    </div>
+      )}
+    </Modal>
   );
 }
 

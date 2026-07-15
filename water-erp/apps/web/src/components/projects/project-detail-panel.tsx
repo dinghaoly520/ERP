@@ -26,6 +26,7 @@ import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
 import { ExpertExtractModal } from './expert-extract-modal';
+import { Modal } from '@/components/workbench';
 
 // ─── Extracted Info Field Components ───────────────────────────────────────────
 
@@ -1213,60 +1214,51 @@ export function ProjectDetailPanel({
 
       {/* ══════ 步骤检查详情弹窗 ══════ */}
       {showComplianceDetail && complianceAudit && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center">
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-[3px]" onClick={() => setShowComplianceDetail(false)} />
-          <div className="relative mx-4 w-full max-w-[680px] max-h-[85vh] flex flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog">
-            {/* 固定标题栏 */}
-            <div className="shrink-0 flex items-center justify-between gap-3 px-6 pt-5 pb-3" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-              <div className="flex items-center gap-2.5">
-                <Shield size={18} className="text-[color:var(--accent)]" />
-                <div>
-                  <h3 className="text-base font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">步骤检查详情</h3>
-                  <span className="text-[10px] font-semibold text-[color:var(--muted-foreground)]">
-                    {complianceAudit.results.filter(r => r.verdict === '通过').length}通过 / {complianceAudit.results.filter(r => r.verdict === '警告').length}警告 / {complianceAudit.results.filter(r => r.verdict === '违规').length}违规
+        <Modal
+          open
+          onClose={() => setShowComplianceDetail(false)}
+          title={
+            <span className="flex items-center gap-2.5">
+              <Shield size={18} className="text-[color:var(--accent)]" />
+              步骤检查详情
+            </span>
+          }
+          description={`${complianceAudit.results.filter(r => r.verdict === '通过').length}通过 / ${complianceAudit.results.filter(r => r.verdict === '警告').length}警告 / ${complianceAudit.results.filter(r => r.verdict === '违规').length}违规`}
+          size="lg"
+        >
+          {/* 审查总结 */}
+          <div className="rounded-lg px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]" style={{background:"color-mix(in oklch,var(--accent-soft) 20%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.5)"}}>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">审查总结</span>
+            <div className="mt-1">{complianceAudit.summary}</div>
+          </div>
+
+          {/* 逐项审查结果 */}
+          {complianceAudit.results.map((item, i) => {
+            const iconColor = item.verdict === '通过' ? 'var(--success)' : item.verdict === '警告' ? 'var(--warning)' : 'var(--danger)';
+            const bgColor = item.verdict === '通过' ? 'color-mix(in oklch,var(--success) 6%,transparent)' : item.verdict === '警告' ? 'color-mix(in oklch,var(--warning) 8%,transparent)' : 'color-mix(in oklch,var(--danger) 6%,transparent)';
+            return (
+              <div key={i} className="rounded-lg px-4 py-3 text-sm" style={{background:bgColor}}>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">{item.dimension}</span>
+                    <span className="text-sm font-semibold text-[color:var(--foreground)]">{item.checkpoint}</span>
+                  </div>
+                  <span className="shrink-0 rounded-[4px] px-2 py-0.5 text-[10px] font-bold" style={{color:iconColor,background:`color-mix(in oklch,${iconColor} 12%,transparent)`}}>
+                    {item.verdict}
                   </span>
                 </div>
-              </div>
-              <button type="button" onClick={() => setShowComplianceDetail(false)} className="neu-btn-xs"><X size={16} /></button>
-            </div>
-
-            {/* 可滚动内容区 */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-              {/* 审查总结 */}
-              <div className="rounded-lg px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]" style={{background:"color-mix(in oklch,var(--accent-soft) 20%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.5)"}}>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">审查总结</span>
-                <div className="mt-1">{complianceAudit.summary}</div>
-              </div>
-
-              {/* 逐项审查结果 */}
-              {complianceAudit.results.map((item, i) => {
-                const iconColor = item.verdict === '通过' ? 'var(--success)' : item.verdict === '警告' ? 'var(--warning)' : 'var(--danger)';
-                const bgColor = item.verdict === '通过' ? 'color-mix(in oklch,var(--success) 6%,transparent)' : item.verdict === '警告' ? 'color-mix(in oklch,var(--warning) 8%,transparent)' : 'color-mix(in oklch,var(--danger) 6%,transparent)';
-                return (
-                  <div key={i} className="rounded-lg px-4 py-3 text-sm" style={{background:bgColor}}>
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">{item.dimension}</span>
-                        <span className="text-sm font-semibold text-[color:var(--foreground)]">{item.checkpoint}</span>
-                      </div>
-                      <span className="shrink-0 rounded-[4px] px-2 py-0.5 text-[10px] font-bold" style={{color:iconColor,background:`color-mix(in oklch,${iconColor} 12%,transparent)`}}>
-                        {item.verdict}
-                      </span>
-                    </div>
-                    <div className="text-xs leading-5 text-[color:var(--foreground)] mt-1">{item.evidence}</div>
-                    {item.suggestion && (
-                      <div className="mt-2 flex items-start gap-1.5 text-xs leading-5">
-                        <span className="shrink-0 text-[color:var(--accent)] font-semibold">建议：</span>
-                        <span className="text-[color:var(--foreground)]">{item.suggestion}</span>
-                      </div>
-                    )}
-                    <div className="mt-1.5 text-[10px] text-[color:var(--muted-foreground)]/60 leading-relaxed">{item.regulationRef}</div>
+                <div className="text-xs leading-5 text-[color:var(--foreground)] mt-1">{item.evidence}</div>
+                {item.suggestion && (
+                  <div className="mt-2 flex items-start gap-1.5 text-xs leading-5">
+                    <span className="shrink-0 text-[color:var(--accent)] font-semibold">建议：</span>
+                    <span className="text-[color:var(--foreground)]">{item.suggestion}</span>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+                )}
+                <div className="mt-1.5 text-[10px] text-[color:var(--muted-foreground)]/60 leading-relaxed">{item.regulationRef}</div>
+              </div>
+            );
+          })}
+        </Modal>
       )}
 
       <LoginErrorDialog
@@ -1277,48 +1269,31 @@ export function ProjectDetailPanel({
 
       {/* 归档确认对话框 */}
       {showArchiveConfirm && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center">
-          {/* 遮罩 */}
-          <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
-            onClick={() => setShowArchiveConfirm(false)}
-          />
-          {/* 对话框 */}
-          <div className="relative mx-4 w-full max-w-md rounded-[24px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
-            <h3 className="text-lg font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-              确认归档
-            </h3>
-            <p className="mt-3 text-sm leading-6 text-[color:var(--muted-foreground)]">
-              归档后项目将从项目管理列表中移除，并同步生成正式采购台账记录。归档完成后可在归档文件中查看。
-            </p>
+        <Modal
+          open
+          onClose={() => setShowArchiveConfirm(false)}
+          title="确认归档"
+          size="sm"
+          footer={
+            <>
+              <button className="neu-btn-soft" onClick={() => setShowArchiveConfirm(false)}>取消</button>
+              <button className="neu-btn-primary is-success" onClick={() => void confirmArchive()}>确认归档</button>
+            </>
+          }
+        >
+          <p className="text-sm leading-6 text-[color:var(--muted-foreground)]">
+            归档后项目将从项目管理列表中移除，并同步生成正式采购台账记录。归档完成后可在归档文件中查看。
+          </p>
 
-            {/* 缺失字段提醒 */}
-            {(!item.departmentNumber || !item.departmentNumber.trim()) && (
-              <div className="mt-4 rounded-2xl bg-[rgba(249,245,235,0.8)] px-4 py-3">
-                <p className="text-sm leading-5 text-[color:var(--muted-foreground)]">
-                  ⚠️ 部门编号尚未填写，建议在归档前补充。归档后仍可在台账中修改。
-                </p>
-              </div>
-            )}
-
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setShowArchiveConfirm(false)}
-                className="rounded-xl px-4 py-2 text-sm font-medium text-[color:var(--muted-foreground)] transition hover:bg-[rgba(246,249,253,0.8)]"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={() => void confirmArchive()}
-                className="rounded-xl bg-[rgba(76,154,84,0.12)] px-5 py-2 text-sm font-semibold text-[#4c9a54] transition hover:bg-[rgba(76,154,84,0.2)]"
-              >
-                确认归档
-              </button>
+          {/* 缺失字段提醒 */}
+          {(!item.departmentNumber || !item.departmentNumber.trim()) && (
+            <div className="rounded-[14px] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-4 py-3">
+              <p className="text-sm leading-5 text-[color:var(--muted-foreground)]">
+                ⚠️ 部门编号尚未填写，建议在归档前补充。归档后仍可在台账中修改。
+              </p>
             </div>
-          </div>
-        </div>
+          )}
+        </Modal>
       )}
 
       {/* 采购文件编写弹窗 */}

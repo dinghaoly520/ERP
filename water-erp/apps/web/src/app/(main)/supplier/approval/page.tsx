@@ -6,17 +6,14 @@ import { toast } from 'sonner';
 import { getSupplierList, approveSupplier, rejectSupplier, returnSupplier, getClassifications, assignClassification } from '@/lib/api/supplier';
 import type { SupplierClassification } from '@/lib/types';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
-import { StatusBadge, TableSkeleton } from '@/components/workbench';
-import { Building2, Check, RefreshCw, Search, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
+import { Building2, Check, RefreshCw, Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 
 const TABS: { key: 'PENDING' | 'RETURNED' | 'REJECTED'; label: string; tone: 'blue' | 'orange' | 'red' }[] = [
   { key: 'PENDING', label: '待审核', tone: 'blue' },
   { key: 'RETURNED', label: '退回补正', tone: 'orange' },
   { key: 'REJECTED', label: '审核不通过', tone: 'red' },
 ];
-
-type SortKey = 'name' | 'createdAt' | 'creditCode';
-type SortDir = 'asc' | 'desc';
 
 function SupplierApprovalPage() {
   const router = useRouter();
@@ -39,30 +36,12 @@ function SupplierApprovalPage() {
 
   useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); }, []);
 
-  const [sortKey, setSortKey] = useState<SortKey | null>('createdAt');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-
-  const toggleSort = (key: SortKey) => {
-    if (sortKey !== key) { setSortKey(key); setSortDir('desc'); }
-    else if (sortDir === 'desc') setSortDir('asc');
-    else { setSortKey(null); setSortDir('desc'); }
-  };
-
-  const sortedItems = !sortKey ? data.items : [...data.items].sort((a: any, b: any) => {
-    const dir = sortDir === 'asc' ? 1 : -1;
-    const av = sortKey === 'creditCode' ? (a.creditCode || '') : sortKey === 'name' ? (a.name || '') : (a.createdAt || '');
-    const bv = sortKey === 'creditCode' ? (b.creditCode || '') : sortKey === 'name' ? (b.name || '') : (b.createdAt || '');
-    if (av < bv) return -1 * dir;
-    if (av > bv) return 1 * dir;
-    return 0;
-  });
-
   const toggleSelect = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => {
-    if (selected.size === sortedItems.length) setSelected(new Set());
-    else setSelected(new Set(sortedItems.map(s => (s as Supplier).id)));
+    if (selected.size === data.items.length) setSelected(new Set());
+    else setSelected(new Set(data.items.map(s => s.id)));
   };
-  const allSelected = sortedItems.length > 0 && selected.size === sortedItems.length;
+  const allSelected = data.items.length > 0 && selected.size === data.items.length;
   const someSelected = !allSelected && selected.size > 0;
 
   const batchApprove = async () => {
@@ -74,7 +53,7 @@ function SupplierApprovalPage() {
     toast.success(`已批量通过 ${done} 个供应商`);
     setSelected(new Set());
     setBatchApproving(false);
-    loadData();
+    loadData(); loadCounts();
   };
 
   const [batchModal, setBatchModal] = useState<{ type: 'return' | 'reject'; ids: Set<string> } | null>(null);
@@ -95,8 +74,16 @@ function SupplierApprovalPage() {
     setBatchModal(null);
     setBatchReason('');
     setSelected(new Set());
-    loadData();
+    loadData(); loadCounts();
   };
+
+  const loadCounts = useCallback(() => {
+    Promise.all([
+      getSupplierList({ status: 'PENDING', page: 1, pageSize: 1 }),
+      getSupplierList({ status: 'RETURNED', page: 1, pageSize: 1 }),
+      getSupplierList({ status: 'REJECTED', page: 1, pageSize: 1 }),
+    ]).then(([p, r, j]) => setCounts({ PENDING: p.total, RETURNED: r.total, REJECTED: j.total })).catch(() => {});
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -105,13 +92,7 @@ function SupplierApprovalPage() {
     setLoading(false);
   }, [tab, page, pageSize]);
 
-  useEffect(() => {
-    Promise.all([
-      getSupplierList({ status: 'PENDING', page: 1, pageSize: 1 }),
-      getSupplierList({ status: 'RETURNED', page: 1, pageSize: 1 }),
-      getSupplierList({ status: 'REJECTED', page: 1, pageSize: 1 }),
-    ]).then(([p, r, j]) => setCounts({ PENDING: p.total, RETURNED: r.total, REJECTED: j.total })).catch(() => {});
-  }, [data]);
+  useEffect(() => { loadCounts(); }, [loadCounts]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { setSelected(new Set()); }, [tab, page]);
@@ -134,8 +115,8 @@ function SupplierApprovalPage() {
       if (type === 'approve') await approveSupplier(s.id);
       else if (type === 'reject') await rejectSupplier(s.id, reason);
       else if (type === 'return') await returnSupplier(s.id, reason);
-      loadData();
-    } catch (e: any) { toast.error(e?.message || '操作失败'); loadData(); }
+      loadData(); loadCounts();
+    } catch (e: any) { toast.error(e?.message || '操作失败'); loadData(); loadCounts(); }
   };
 
   const totalPages = Math.max(1, Math.ceil(data.total / pageSize));
@@ -243,18 +224,18 @@ function SupplierApprovalPage() {
                 <th style={{ width: 44 }}>
                   <input type="checkbox" className="neu-checkbox" checked={allSelected} ref={el => { if (el) el.indeterminate = someSelected; }} onChange={toggleAll} aria-label="全选" />
                 </th>
-                <SortTh label="企业名称" sortKey="name" current={sortKey} dir={sortDir} onToggle={toggleSort} />
-                <SortTh label="统一社会信用代码" sortKey="creditCode" current={sortKey} dir={sortDir} onToggle={toggleSort} align="center" />
+                <th>企业名称</th>
+                <th style={{ textAlign: 'center' }}>统一社会信用代码</th>
                 <th>企业类型</th>
                 <th style={{ textAlign: 'center' }}>状态</th>
-                <SortTh label="申请时间" sortKey="createdAt" current={sortKey} dir={sortDir} onToggle={toggleSort} align="center" />
+                <th style={{ textAlign: 'center' }}>申请时间</th>
                 <th style={{ textAlign: 'center' }}>操作</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <TableSkeleton cols={7} rows={5} />
-              ) : sortedItems.length === 0 ? (
+              ) : data.items.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-16">
                     <div className="flex flex-col items-center gap-3">
@@ -267,7 +248,7 @@ function SupplierApprovalPage() {
                     </div>
                   </td>
                 </tr>
-              ) : sortedItems.map((s: Supplier) => {
+              ) : data.items.map((s: Supplier) => {
                 const isSel = selected.has(s.id);
                 return (
                   <tr key={s.id} className="row-clickable" data-selected={isSel ? 'true' : 'false'} onClick={() => router.push(`/supplier/${s.id}`)}>
@@ -360,92 +341,56 @@ function SupplierApprovalPage() {
         )}
       </div>
 
-      {/* ══════ 处理弹窗 — cgzxui 模态规范 ══════ */}
+      {/* ══════ 处理弹窗 ══════ */}
       {actionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setActionModal(null)}>
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" />
-          <div className="relative w-full max-w-[min(420px,92vw)] max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-0 shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)]" role="dialog" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 px-6 py-4">
-              <div>
-                <h2 className="text-lg font-bold tracking-[-0.02em] text-[var(--foreground)]">
-                  {actionModal.type === 'approve' ? '确认审核通过' : actionModal.type === 'reject' ? '审核不通过' : '退回补正'}
-                </h2>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">供应商：<strong className="text-[var(--foreground)]">{actionModal.supplier.name}</strong></p>
-              </div>
-              <button onClick={() => setActionModal(null)} className="neu-btn-xs"><X size={16} /></button>
-            </div>
-            {actionModal.type !== 'approve' && (
-              <>
-                <hr className="wb-section-rule mx-6" />
-                <div className="px-6 pb-2">
-                  <textarea
-                    value={actionReason}
-                    onChange={e => setActionReason(e.target.value)}
-                    placeholder={actionModal.type === 'return' ? '请填写退回补正原因...' : '请填写不通过原因...'}
-                    className="neu-input w-full h-24 resize-none text-sm"
-                  />
-                </div>
-              </>
-            )}
-            <hr className="wb-section-rule mx-6" />
-            <div className="flex justify-end gap-3 px-6 py-4">
+        <Modal
+          open
+          onClose={() => setActionModal(null)}
+          title={actionModal.type === 'approve' ? '确认审核通过' : actionModal.type === 'reject' ? '审核不通过' : '退回补正'}
+          description={<>供应商：<strong className="text-[var(--foreground)]">{actionModal.supplier.name}</strong></>}
+          footer={
+            <>
               <button onClick={() => setActionModal(null)} className="neu-btn-soft">取消</button>
               <button
                 onClick={handleAction}
                 disabled={actionModal.type !== 'approve' && !actionReason.trim()}
                 className={`neu-btn-soft ${actionModal.type === 'approve' ? 'is-success' : actionModal.type === 'return' ? 'is-warning' : 'is-danger'}`}
               >确认</button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        >
+          {actionModal.type !== 'approve' && (
+            <textarea
+              value={actionReason}
+              onChange={e => setActionReason(e.target.value)}
+              placeholder={actionModal.type === 'return' ? '请填写退回补正原因...' : '请填写不通过原因...'}
+              className="neu-input w-full h-24 resize-none text-sm"
+            />
+          )}
+        </Modal>
       )}
 
       {/* ══════ 批量退回/拒绝弹窗 ══════ */}
       {batchModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setBatchModal(null)}>
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" />
-          <div className="relative w-full max-w-[min(420px,92vw)] rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)]" role="dialog" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 px-6 py-4">
-              <div>
-                <h2 className="text-lg font-bold text-[var(--foreground)]">
-                  {batchModal.type === 'return' ? '批量退回补正' : '批量审核不通过'}
-                </h2>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">将对选中的 <strong>{batchModal.ids.size}</strong> 个供应商统一处理</p>
-              </div>
-              <button onClick={() => setBatchModal(null)} className="neu-btn-xs"><X size={16} /></button>
-            </div>
-            <hr className="wb-section-rule mx-6" />
-            <div className="px-6 pb-2">
-              <textarea value={batchReason} onChange={e => setBatchReason(e.target.value)}
-                placeholder={batchModal.type === 'return' ? '请填写批量退回补正原因...' : '请填写批量不通过原因...'}
-                className="neu-input w-full h-24 resize-none text-sm" />
-            </div>
-            <hr className="wb-section-rule mx-6" />
-            <div className="flex justify-end gap-3 px-6 py-4">
+        <Modal
+          open
+          onClose={() => setBatchModal(null)}
+          title={batchModal.type === 'return' ? '批量退回补正' : '批量审核不通过'}
+          description={<>将对选中的 <strong>{batchModal.ids.size}</strong> 个供应商统一处理</>}
+          footer={
+            <>
               <button onClick={() => setBatchModal(null)} className="neu-btn-soft">取消</button>
               <button onClick={executeBatchReturnReject} disabled={!batchReason.trim()}
                 className={`neu-btn-soft ${batchModal.type === 'return' ? 'is-warning' : 'is-danger'}`}>确认</button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        >
+          <textarea value={batchReason} onChange={e => setBatchReason(e.target.value)}
+            placeholder={batchModal.type === 'return' ? '请填写批量退回补正原因...' : '请填写批量不通过原因...'}
+            className="neu-input w-full h-24 resize-none text-sm" />
+        </Modal>
       )}
     </div>
-  );
-}
-
-/* ════════════ 可排序表头 ════════════ */
-function SortTh({ label, sortKey, current, dir, onToggle, align = 'center' }: {
-  label: string; sortKey: SortKey; current: SortKey | null; dir: SortDir; onToggle: (k: SortKey) => void; align?: 'left' | 'right' | 'center';
-}) {
-  const active = current === sortKey;
-  const Indicator = active ? (dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
-  return (
-    <th data-sortable="true" data-sort={active ? dir : undefined} style={{ textAlign: align }}>
-      <button type="button" className="neu-th-sort" onClick={() => onToggle(sortKey)}>
-        <span>{label}</span>
-        <span className="neu-sort-indicator"><Indicator size={12} /></span>
-      </button>
-    </th>
   );
 }
 

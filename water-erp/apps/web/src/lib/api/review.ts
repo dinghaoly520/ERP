@@ -1,5 +1,5 @@
 // Use relative /api path to leverage Next.js rewrites for cookie handling
-const API_BASE = '/api';
+const API_BASE = '/api/tender-review';
 
 import type { ReviewTask } from '../types/tender-review';
 

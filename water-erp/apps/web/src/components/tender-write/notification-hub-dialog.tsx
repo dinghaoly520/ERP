@@ -1,24 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Mail, Table } from "lucide-react";
-import { motion, useReducedMotion } from "framer-motion";
+import { Mail, Table } from "lucide-react";
 import type { ReadyTenderDraft, ReadyTenderDocumentType } from "@/lib/types/tender-write";
+import { Modal } from "@/components/workbench";
 import { NotificationLetterDialog } from "./notification-letter-dialog";
 import { LedgerPreviewDialog } from "./ledger-preview-dialog";
-
-const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
-
-function fadeIn(reducedMotion: boolean) {
-  if (reducedMotion) {
-    return { initial: {}, animate: {}, transition: { duration: 0 } };
-  }
-  return {
-    initial: { opacity: 0, scale: 0.96 },
-    animate: { opacity: 1, scale: 1 },
-    transition: { duration: 0.3, ease: easeOutQuint },
-  };
-}
 
 type SubDialog = "letter" | "ledger" | null;
 
@@ -33,7 +20,6 @@ export function NotificationHubDialog({
   tenderDraft: ReadyTenderDraft;
   onClose: () => void;
 }) {
-  const reducedMotion = useReducedMotion() ?? false;
   const [subDialog, setSubDialog] = useState<SubDialog>(null);
 
   useEffect(() => {
@@ -51,85 +37,57 @@ export function NotificationHubDialog({
     onClose();
   };
 
-  if (!isOpen) return null;
-
   return (
     <>
       {/* Selection step */}
       {!subDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <motion.div
-            {...fadeIn(reducedMotion)}
-            className="absolute inset-0 bg-[rgba(0,0,0,0.24)] backdrop-blur-sm"
-            onClick={onClose}
-          />
-          <motion.div
-            {...fadeIn(reducedMotion)}
-            className="relative z-10 flex w-[520px] flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
-          >
-            {/* Header */}
-            <div className="flex shrink-0 items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(94,126,189,0.76)]">
-                  中标通知书
+        <Modal
+          open={isOpen}
+          onClose={onClose}
+          title="选择操作"
+          description="中标通知书"
+          size="md"
+        >
+          <div className="grid gap-4">
+            <button
+              type="button"
+              onClick={() => handleSelect("letter")}
+              className="group flex items-start gap-4 rounded-[16px] border border-transparent px-5 py-4 text-left bg-[oklch(1_0_0_/_0.55)] backdrop-blur-[16px] transition-[transform,box-shadow] duration-300 [box-shadow:var(--cs)] hover:[box-shadow:var(--csh)] hover:-translate-y-0.5"
+              style={{ "--cs": "inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.12), -2px -2px 6px oklch(1 0 0 / 0.85)", "--csh": "inset 0 1px 0 oklch(1 0 0 / 0.85), 4px 4px 10px oklch(0.45 0.08 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9)" } as React.CSSProperties}
+            >
+              <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[color:var(--success)] transition-transform duration-300 group-hover:scale-105">
+                <Mail size={18} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                  中标通知书编制
                 </div>
-                <h2 className="mt-1 text-[1.05rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
-                  选择操作
-                </h2>
+                <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
+                  上传定标审批表，自动识别中标信息，生成中标通知书并写入台账。
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="neu-btn-xs"
-              >
-                <X size={18} />
-              </button>
-            </div>
+            </button>
 
-            {/* Options */}
-            <div className="flex flex-1 items-center justify-center p-8">
-              <div className="grid gap-4 w-full max-w-lg">
-                <button
-                  type="button"
-                  onClick={() => handleSelect("letter")}
-                  className="group flex items-start gap-4 rounded-[16px] border border-transparent px-5 py-4 text-left bg-[oklch(1_0_0_/_0.55)] backdrop-blur-[16px] transition-[transform,box-shadow] duration-300 [box-shadow:var(--cs)] hover:[box-shadow:var(--csh)] hover:-translate-y-0.5"
-                  style={{ "--cs": "inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.12), -2px -2px 6px oklch(1 0 0 / 0.85)", "--csh": "inset 0 1px 0 oklch(1 0 0 / 0.85), 4px 4px 10px oklch(0.45 0.08 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9)" } as React.CSSProperties}
-                >
-                  <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[color:var(--success)] transition-transform duration-300 group-hover:scale-105">
-                    <Mail size={18} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                      中标通知书编制
-                    </div>
-                    <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
-                      上传定标审批表，自动识别中标信息，生成中标通知书并写入台账。
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSelect("ledger")}
-                  className="group flex items-start gap-4 rounded-[16px] border border-transparent px-5 py-4 text-left bg-[oklch(1_0_0_/_0.55)] backdrop-blur-[16px] transition-[transform,box-shadow] duration-300 [box-shadow:var(--cs)] hover:[box-shadow:var(--csh)] hover:-translate-y-0.5"
-                  style={{ "--cs": "inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.12), -2px -2px 6px oklch(1 0 0 / 0.85)", "--csh": "inset 0 1px 0 oklch(1 0 0 / 0.85), 4px 4px 10px oklch(0.45 0.08 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9)" } as React.CSSProperties}
-                >
-                  <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[color:var(--accent)] transition-transform duration-300 group-hover:scale-105">
-                    <Table size={18} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                      台账预览
-                    </div>
-                    <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
-                      查看、编辑中标通知书台账，支持新增、删除和导出。
-                    </div>
-                  </div>
-                </button>
+            <button
+              type="button"
+              onClick={() => handleSelect("ledger")}
+              className="group flex items-start gap-4 rounded-[16px] border border-transparent px-5 py-4 text-left bg-[oklch(1_0_0_/_0.55)] backdrop-blur-[16px] transition-[transform,box-shadow] duration-300 [box-shadow:var(--cs)] hover:[box-shadow:var(--csh)] hover:-translate-y-0.5"
+              style={{ "--cs": "inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.12), -2px -2px 6px oklch(1 0 0 / 0.85)", "--csh": "inset 0 1px 0 oklch(1 0 0 / 0.85), 4px 4px 10px oklch(0.45 0.08 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9)" } as React.CSSProperties}
+            >
+              <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[color:var(--accent)] transition-transform duration-300 group-hover:scale-105">
+                <Table size={18} />
               </div>
-            </div>
-          </motion.div>
-        </div>
+              <div className="min-w-0">
+                <div className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                  台账预览
+                </div>
+                <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
+                  查看、编辑中标通知书台账，支持新增、删除和导出。
+                </div>
+              </div>
+            </button>
+          </div>
+        </Modal>
       )}
 
       {/* Sub dialogs */}

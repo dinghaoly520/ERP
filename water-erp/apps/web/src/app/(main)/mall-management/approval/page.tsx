@@ -128,7 +128,7 @@ export default function PriceApprovalPage() {
           ))}
         </div>
         <select value={type} onChange={e => setType(e.target.value)} className="workbench-input !w-auto min-w-[110px]"><option value="全部">全部类型</option><option value="NEW_ITEM">新增品类</option><option value="JOIN_EXISTING">加入供货</option><option value="UPDATE_QUOTE">报价调整</option></select>
-        <div className="relative flex-1 min-w-[140px]"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索供应商/目录" className="neu-input !pl-9 w-full text-sm" />{search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}</div>
+        <div className="relative flex-1 min-w-[140px]"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索供应商/目录" className="neu-input !pl-9 w-full text-sm" />{search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[var(--accent-tint-strong)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}</div>
       </div>
 
       {/* ══════ 申请列表 ══════ */}

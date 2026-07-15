@@ -26,7 +26,7 @@ describe('DashboardService', () => {
       {
         id: 'round-awarded-2',
         procurementDate: new Date('2026-04-03T00:00:00.000Z'),
-        procurementMethod: '竞争性谈判',
+        procurementMethod: '谈判采购',
         budgetAmount: 1_800_000,
         controlAmount: 2_000_000,
         awardAmount: 1_700_000,
@@ -59,7 +59,7 @@ describe('DashboardService', () => {
       {
         id: 'round-failed-1',
         procurementDate: new Date('2026-04-05T00:00:00.000Z'),
-        procurementMethod: '竞争性谈判',
+        procurementMethod: '谈判采购',
         budgetAmount: 250_000,
         controlAmount: 300_000,
         awardAmount: null,

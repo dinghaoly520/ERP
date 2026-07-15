@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, FolderOpen, Recycle, Search, X } from 'lucide-react';
+import { AlertCircle, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -133,10 +133,10 @@ export function ProjectManagementPage() {
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
 
   /** Whether the current user is allowed to modify (recycle/restore/delete) a given project */
-  const canModifyProject = (project: { createdById?: string | null }) => {
+  const canModifyProject = (_project: { createdById?: string | null }) => {
     if (!currentUser) return false;
-    if (currentUser.role === 'admin') return true;
-    return project.createdById === currentUser.id;
+    if (currentUser.role === 'admin' || currentUser.role === 'procurement_staff') return true;
+    return false;
   };
 
   const handleMoveToRecycleBin = async (projectId: string) => {
@@ -217,7 +217,7 @@ export function ProjectManagementPage() {
                 <button
                   type="button"
                   onClick={() => setShowRecycleBin(true)}
-                  className="neu-btn-soft"
+                  className="neu-btn-soft is-danger"
                 >
                   <Recycle size={16} />
                   回收站
@@ -230,8 +230,9 @@ export function ProjectManagementPage() {
                 <button
                   type="button"
                   onClick={() => setShowCreateDialog(true)}
-                  className="neu-btn-primary"
+                  className="neu-btn-soft"
                 >
+                  <Plus size={16} />
                   新建项目
                 </button>
               </div>

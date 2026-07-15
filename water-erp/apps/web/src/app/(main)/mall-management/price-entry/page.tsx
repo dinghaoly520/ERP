@@ -172,7 +172,7 @@ export default function PriceEntryPage() {
             {txtField('unit', '单位', '如 个、箱、件')}
           </div>
           <div className="mt-4 max-w-xs">
-            <label className="text-xs font-semibold text-[var(--muted-foreground)] mb-1 block">品类 <span className="text-red-400">*</span></label>
+            <label className="text-xs font-semibold text-[var(--muted-foreground)] mb-1 block">品类 <span className="text-[var(--danger)]">*</span></label>
             <CategoryTreeSelect value={form.categoryId as number | null} onChange={handleCategoryChange} placeholder="选择品类" />
           </div>
         </fieldset>

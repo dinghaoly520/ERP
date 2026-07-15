@@ -8,11 +8,12 @@ import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 function getStageLabel(stageKey: string) {
   return (
     {
-      INITIATION: '项目立项',
+      INITIATION: '采购立项',
       TENDER_DOCUMENT: '采购文件',
-      PUBLIC_ANNOUNCEMENT: '采购公示',
+      SUPPLIER_INVITATION: '供应商邀请',
+      PUBLIC_ANNOUNCEMENT: '采购公告公示',
       EXPERT_SELECTION: '专家抽取',
-      BID_EVALUATION: '评标过程',
+      BID_EVALUATION: '开标评标',
       AWARD_DECISION: '定标',
       CONTRACT: '合同',
     }[stageKey] ?? stageKey

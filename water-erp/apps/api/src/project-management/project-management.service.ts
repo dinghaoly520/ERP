@@ -57,9 +57,9 @@ const KNOWN_CATEGORIES = [
 const KNOWN_METHODS = [
   '公开招标',
   '邀请招标',
-  '内部竞标/竞价',
-  '竞争性谈判',
-  '询价采购',
+  '竞价采购',
+  '谈判采购',
+  '询比采购',
   '单一来源采购',
   '直接委托续约采购',
   '框架协议采购',
@@ -180,7 +180,7 @@ export class ProjectManagementService {
         stagesToCreate = stagesToCreate.filter((s) => s.key !== 'PROCUREMENT_DEMAND');
       }
       // Only keep PUBLIC_ANNOUNCEMENT for methods that require it
-      const needsPublicAnnouncement = ['内部竞标竞价', '单源直接采购', '邀请招标'].includes(
+      const needsPublicAnnouncement = ['竞价采购', '直接采购', '邀请招标'].includes(
         dto.procurementMethod,
       );
       if (!needsPublicAnnouncement) {
@@ -388,13 +388,13 @@ export class ProjectManagementService {
       throw new NotFoundException('未找到对应的项目阶段。');
     }
 
-    // Check if a file with the same name already exists in this stage
+    // 同名文件覆盖：先删除旧版本再上传新版本（采购文件只需保留最新一份）
     const decodedNewFileName = this.normalizeUploadedFileName(file.originalname);
     const duplicate = stage.attachments.find(
       (a) => a.fileName === decodedNewFileName,
     );
     if (duplicate) {
-      throw new BadRequestException(`该步骤已存在同名文件：${decodedNewFileName}`);
+      await this.deleteAttachment(projectId, duplicate.id);
     }
 
     const { attachment, absolutePath } = await this.persistUploadedFile(
@@ -1592,7 +1592,7 @@ export class ProjectManagementService {
               if (
                 currentLine.includes('公开招标') ||
                 currentLine.includes('邀请招标') ||
-                currentLine.includes('竞争性谈判') ||
+                currentLine.includes('谈判采购') ||
                 currentLine === '其他' ||
                 currentLine.includes('采购组织形式') ||
                 currentLine.startsWith('2025/')
@@ -4512,7 +4512,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
           index > procurementMethodIndex &&
           (line.includes('公开招标') ||
             line.includes('邀请招标') ||
-            line.includes('竞争性谈判')),
+            line.includes('谈判采购')),
       );
 
       const searchEnd =

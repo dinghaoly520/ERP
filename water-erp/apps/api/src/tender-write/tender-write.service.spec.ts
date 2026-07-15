@@ -257,10 +257,10 @@ describe('single-source tender template helpers', () => {
     const splitXml = `<w:p><w:r><w:t>{{</w:t></w:r><w:r><w:t>项目名称</w:t></w:r><w:r><w:t>}}</w:t></w:r></w:p>`;
 
     const result = renderCompetitiveNegotiationXml(splitXml, {
-      项目名称: '竞争性谈判项目',
+      项目名称: '谈判采购项目',
     });
 
-    expect(result).toContain('竞争性谈判项目');
+    expect(result).toContain('谈判采购项目');
     expect(result).not.toContain('{{项目名称}}');
   });
 

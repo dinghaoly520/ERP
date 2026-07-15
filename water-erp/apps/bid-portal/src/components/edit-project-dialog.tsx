@@ -23,7 +23,7 @@ interface Props {
   onUpdated: () => void;
 }
 
-const METHODS = ['公开招标', '邀请招标', '竞争性谈判', '询价', '单一来源'];
+const METHODS = ['公开招标', '邀请招标', '谈判采购', '询价', '单一来源'];
 
 /** Allowed next stages per current stage (mirrors bid-state.ts). */
 const NEXT_STAGES: Record<string, string[]> = {

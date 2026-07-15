@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import type { ReviewTask, Issue, ReviewReport, LlmFreeIssue } from '@/lib/types/tender-review';
 import { SEVERITY_COLORS, SEVERITY_LABELS } from '@/lib/types/tender-review';
 import { getDownloadUrl, resolveIssue } from '@/lib/api/review';
+import { useTenderReview } from './tender-review-context';
 import OriginalTextCompare from './original-text-compare';
 import SuggestionEditor from './suggestion-editor';
 
@@ -131,6 +132,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
   const [task, setTask] = useState<ReviewTask>(initialTask);
   const report = task.results as ReviewReport | null;
   const [issues, setIssues] = useState<Issue[]>(() => report ? flattenReport(report) : []);
+  const { onReviewComplete } = useTenderReview();
 
   // Sync when task prop changes (switching between different reports)
   useEffect(() => {
@@ -218,6 +220,11 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
   const resolvedCount = issues.filter(i => i.status === 'accepted' || i.status === 'rejected').length;
   const acceptedCount = issues.filter(i => i.status === 'accepted').length;
   const hasModifications = acceptedCount > 0 && !!task.objectKey;
+  const allResolved =
+    totalIssues > 0 &&
+    issues
+      .filter((i) => !i.passed && !i.notApplicable && !i.dataMissing)
+      .every((i) => i.status === 'accepted' || i.status === 'rejected');
 
   const toggleGroup = useCallback((key: string) => {
     setCollapsedGroups(prev => {
@@ -290,6 +297,16 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
             <Download className="h-3 w-3" />
             导出
           </button>
+          {allResolved && onReviewComplete && (
+            <button
+              type="button"
+              onClick={() => onReviewComplete(task)}
+              className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-semibold transition-all duration-200 bg-[rgba(92,181,150,0.15)] text-[rgba(62,145,115,1)] hover:bg-[rgba(92,181,150,0.28)] active:scale-95"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              审查结束，提交采购文件
+            </button>
+          )}
         </div>
       </div>
 

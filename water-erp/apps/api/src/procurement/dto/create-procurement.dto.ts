@@ -8,7 +8,7 @@ export class CreateProcurementDto {
   procurementType: string; // 货物/工程/服务
 
   @IsString() @IsNotEmpty()
-  procurementMethod: string; // 公开招标/邀请招标/竞争性谈判/单一来源
+  procurementMethod: string; // 公开招标/邀请招标/谈判采购/单一来源
 
   @IsNumber() @IsOptional()
   budget?: number;

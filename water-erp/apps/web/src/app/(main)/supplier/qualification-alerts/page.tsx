@@ -75,6 +75,7 @@ export default function QualificationAlertsPage() {
                   const isExpired = q.status === '已过期';
                   const isExpiring = q.status === '即将过期';
                   const dayColor = isExpired ? 'var(--danger)' : isExpiring ? 'var(--warning)' : 'var(--success)';
+                  const urgency = q.daysRemaining === null ? 0 : Math.max(0, Math.min(100, 100 - (q.daysRemaining / 90) * 100));
                   return (
                     <tr key={q.id}>
                       <td><Link href={`/supplier/${q.supplierId}`} className="text-sm font-semibold text-[var(--foreground)] hover:text-[var(--accent)]">{q.supplierName}</Link></td>
@@ -83,8 +84,8 @@ export default function QualificationAlertsPage() {
                       <td className="text-sm tabular-nums">{q.validTo ? new Date(q.validTo).toLocaleDateString('zh-CN') : '—'}</td>
                       <td>
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 rounded-full bg-[var(--muted)]/30 max-w-[60px] overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, ((q.daysRemaining ?? 0) + 30) / 60 * 100)}%`, backgroundColor: dayColor }} />
+                          <div className="flex-1 h-1.5 rounded-full bg-[var(--muted)]/30 max-w-[60px] overflow-hidden" title={q.daysRemaining !== null ? `紧迫度 ${urgency.toFixed(0)}%（以 90 天预警窗计）` : ''}>
+                            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${urgency}%`, backgroundColor: dayColor }} />
                           </div>
                           <span className="text-[11px] tabular-nums font-semibold" style={{ color: dayColor }}>
                             {q.daysRemaining !== null ? `${q.daysRemaining} 天` : '—'}

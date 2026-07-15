@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { GitBranch } from 'lucide-react';
+import { GitBranch, Leaf, Folder, MousePointerClick } from 'lucide-react';
 import { useCategoryTree } from '@/lib/hooks/use-category-tree';
 import { findNode, type CategoryNode } from '@/lib/category-tree-utils';
 import { CategoryTree } from '@/components/catalog/CategoryTree';
@@ -12,6 +12,7 @@ import {
   createCategory, updateCategory, deleteCategory, toggleCategoryStatus,
   createAttributeTemplate, deleteAttributeTemplate,
 } from '@/lib/api/catalog-admin';
+import { confirmDialog, ConfirmHost } from '@/components/catalog/confirm-dialog';
 
 interface CategoryFormData { name: string; code: string; isLeaf: boolean; icon: string; }
 
@@ -34,7 +35,8 @@ export default function CategoryTreePage() {
   const handleConfigureAttrs = (node: CategoryNode) => { setAttrNode(node); setAttrEditorOpen(true); };
 
   const handleDelete = async (node: CategoryNode) => {
-    if (!window.confirm(`确认删除「${node.name}」？${node.children?.length ? '\n注意：该节点下有子节点，无法直接删除。' : ''}`)) return;
+    const ok = await confirmDialog({ message: `确认删除品类「${node.name}」？${node.children?.length ? '该节点下有子节点，无法直接删除。' : '删除后不可恢复。'}`, danger: true, confirmText: '删除' });
+    if (!ok) return;
     try { await deleteCategory(node.id); toast.success('已删除'); refresh(); } catch (e: any) { toast.error(e.message); }
   };
 
@@ -58,6 +60,7 @@ export default function CategoryTreePage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <ConfirmHost />
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -84,8 +87,8 @@ export default function CategoryTreePage() {
               <h3 className="text-lg font-bold text-[var(--foreground)]">{selectedNode.name}</h3>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><span className="text-[var(--muted-foreground)]">编码</span><p className="font-medium font-mono">{selectedNode.code || '—'}</p></div>
-                <div><span className="text-[var(--muted-foreground)]">状态</span><p className={`font-medium ${selectedNode.status === 'ACTIVE' ? 'text-green-600' : 'text-gray-400'}`}>{selectedNode.status === 'ACTIVE' ? '启用' : '停用'}</p></div>
-                <div><span className="text-[var(--muted-foreground)]">节点类型</span><p className="font-medium">{selectedNode.isLeaf ? '🍃 叶子节点' : '📁 分组节点'}</p></div>
+                <div><span className="text-[var(--muted-foreground)]">状态</span><p className={`font-medium ${selectedNode.status === 'ACTIVE' ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>{selectedNode.status === 'ACTIVE' ? '启用' : '停用'}</p></div>
+                <div><span className="text-[var(--muted-foreground)]">节点类型</span><p className="font-medium flex items-center gap-1">{selectedNode.isLeaf ? <><Leaf size={13} className="text-[var(--success)]" /> 叶子节点</> : <><Folder size={13} className="text-[var(--accent)]" /> 分组节点</>}</p></div>
                 <div><span className="text-[var(--muted-foreground)]">排序</span><p className="font-medium tabular-nums">{selectedNode.sortOrder}</p></div>
               </div>
               {selectedNode.isLeaf && (
@@ -97,11 +100,11 @@ export default function CategoryTreePage() {
                   {currentTemplatesFromTree.length > 0 ? (
                     <div className="flex flex-col gap-1">
                       {currentTemplatesFromTree.map((t: any) => (
-                        <div key={t.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(96,139,239,0.05)] text-sm">
+                        <div key={t.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--accent-tint)] text-sm">
                           <span className="font-medium">{t.name}</span>
                           <code className="text-[10px] font-mono text-[var(--accent)]">{t.fieldKey}</code>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(96,139,239,0.1)] text-[var(--accent)]">{t.fieldType}</span>
-                          {t.required && <span className="text-[10px] text-red-400">必填</span>}
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--accent-tint-strong)] text-[var(--accent)]">{t.fieldType}</span>
+                          {t.required && <span className="text-[10px] text-[var(--danger)]">必填</span>}
                         </div>
                       ))}
                     </div>
@@ -112,7 +115,7 @@ export default function CategoryTreePage() {
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-sm text-[var(--muted-foreground)]">👈 选择左侧品类节点查看详情</div>
+            <div className="flex items-center justify-center gap-2 h-full text-sm text-[var(--muted-foreground)]"><MousePointerClick size={16} className="opacity-50" /> 选择左侧品类节点查看详情</div>
           )}
         </div>
       </div>

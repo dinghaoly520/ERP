@@ -574,34 +574,6 @@
     "updatedAt": "2026-06-13T11:02:25.761Z"
   },
   {
-    "id": "cmqbysdbl0002koh10l78cjr3",
-    "username": "陈主任",
-    "displayName": "陈主任",
-    "email": "caigou@scsdjt.com",
-    "phone": null,
-    "officeLocation": null,
-    "passwordHash": "$2b$10$RLehWSWw5UBfN00oqSD1wuqtUL2W0PzZsoeLqt19wm2OsCNsNsNHi",
-    "role": "procurement_staff",
-    "isActive": true,
-    "departmentId": "cmqbysd9v0000koh13qyqfv3u",
-    "createdAt": "2026-06-13T06:18:29.362Z",
-    "updatedAt": "2026-06-22T07:20:49.693Z"
-  },
-  {
-    "id": "cmqbysdd50004koh1xdcjj2cz",
-    "username": "陈主任",
-    "displayName": "陈主任",
-    "email": null,
-    "phone": null,
-    "officeLocation": null,
-    "passwordHash": "$2b$10$RLehWSWw5UBfN00oqSD1wuqtUL2W0PzZsoeLqt19wm2OsCNsNsNHi",
-    "role": "bid_host",
-    "isActive": true,
-    "departmentId": "cmqbysd9v0000koh13qyqfv3u",
-    "createdAt": "2026-06-13T06:18:29.417Z",
-    "updatedAt": "2026-06-22T07:20:49.694Z"
-  },
-  {
     "id": "cmqc8r5xs008pkoekp13h0tua",
     "username": "s91510100MA69HFNKX8",
     "displayName": "李棚",
@@ -7630,20 +7602,6 @@
     "updatedAt": "2026-06-22T06:17:24.330Z"
   },
   {
-    "id": "cmqbysdnn002ckoh1zfdgsksx",
-    "username": "陈主任",
-    "displayName": "陈主任",
-    "email": "mall@scsdjt.com",
-    "phone": null,
-    "officeLocation": null,
-    "passwordHash": "$2b$10$RLehWSWw5UBfN00oqSD1wuqtUL2W0PzZsoeLqt19wm2OsCNsNsNHi",
-    "role": "mall",
-    "isActive": true,
-    "departmentId": null,
-    "createdAt": "2026-06-13T06:18:29.796Z",
-    "updatedAt": "2026-06-22T07:20:49.690Z"
-  },
-  {
     "id": "cmqq17h09mv2swj6riz8",
     "username": "retsup1",
     "displayName": "张明华",
@@ -9731,13 +9689,13 @@
   },
   {
     "id": "cmrai35fr0000koddvbs7wjep",
-    "username": "Swhi-CGZX-01",
+    "username": "陈源远",
     "displayName": "陈源远",
     "email": null,
     "phone": null,
     "officeLocation": null,
     "passwordHash": "$2b$10$UEDVMeV.jMQg4vUi75wqVeuhxu4wDlVjsXp8sHzjUxT8kIKElEWHK",
-    "role": "leader",
+    "role": "procurement_staff",
     "isActive": true,
     "departmentId": null,
     "createdAt": "2026-07-07T10:22:55.048Z",
@@ -9882,5 +9840,33 @@
     "departmentId": null,
     "createdAt": "2026-07-07T10:22:55.090Z",
     "updatedAt": "2026-07-08T10:12:14.967Z"
+  },
+  {
+    "id": "cmrai35fr0001koddvbs7wm0a",
+    "username": "陈源远",
+    "displayName": "陈源远",
+    "email": null,
+    "phone": null,
+    "officeLocation": null,
+    "passwordHash": "$2b$10$UEDVMeV.jMQg4vUi75wqVeuhxu4wDlVjsXp8sHzjUxT8kIKElEWHK",
+    "role": "mall",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-07-07T10:22:55.048Z",
+    "updatedAt": "2026-07-08T10:12:14.922Z"
+  },
+  {
+    "id": "cmrai35fr0002koddvbs7wm1b",
+    "username": "陈源远",
+    "displayName": "陈源远",
+    "email": null,
+    "phone": null,
+    "officeLocation": null,
+    "passwordHash": "$2b$10$UEDVMeV.jMQg4vUi75wqVeuhxu4wDlVjsXp8sHzjUxT8kIKElEWHK",
+    "role": "bid_host",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-07-07T10:22:55.048Z",
+    "updatedAt": "2026-07-08T10:12:14.922Z"
   }
 ]

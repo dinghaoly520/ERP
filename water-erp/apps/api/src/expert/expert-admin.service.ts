@@ -918,6 +918,330 @@ export class ExpertAdminService {
     return { success: true };
   }
 
+  /* ── 统计 / 排名 / 负荷 ── */
+
+  /** 专家库整体态势统计（web 统计页） */
+  async getStatistics() {
+    const cutoff7d = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+    const cutoff30d = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+
+    const [totalExperts, availGroups, specGroups, titleGroups, evals, recentAssigns7d, recentExtractions30d] = await Promise.all([
+      this.prisma.user.count({ where: { role: 'bid_expert' } }),
+      this.prisma.expertProfile.groupBy({ by: ['availability'], where: { user: { role: 'bid_expert' } }, _count: true }),
+      this.prisma.expertProfile.groupBy({
+        by: ['specialty'], where: { user: { role: 'bid_expert', isActive: true } },
+        _count: true, orderBy: { _count: { specialty: 'desc' } },
+      }),
+      this.prisma.expertProfile.groupBy({
+        by: ['title'], where: { user: { role: 'bid_expert', isActive: true } },
+        _count: true, orderBy: { _count: { title: 'desc' } },
+      }),
+      this.prisma.expertEvaluation.findMany({
+        select: { level: true, overallScore: true, createdAt: true, expertUser: { select: { displayName: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.bidExpert.count({ where: { createdAt: { gte: cutoff7d } } }),
+      this.prisma.auditLog.count({ where: { action: 'EXPERT_EXTRACTION_CONFIRMED', createdAt: { gte: cutoff30d } } }),
+    ]);
+
+    const amap: Record<string, number> = {};
+    for (const g of availGroups) amap[g.availability] = g._count;
+
+    const levelCounts = { A: 0, B: 0, C: 0, D: 0 };
+    for (const e of evals) levelCounts[e.level] = (levelCounts[e.level] ?? 0) + 1;
+    const evalTotal = evals.length;
+    const avgScore = evalTotal > 0 ? Math.round(evals.reduce((s, e) => s + e.overallScore, 0) / evalTotal * 10) / 10 : 0;
+
+    // 月度评价趋势（近 12 月）
+    const now = new Date();
+    const labels: string[] = [];
+    const counts: number[] = new Array(12).fill(0);
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      labels.push(`${d.getMonth() + 1}月`);
+    }
+    for (const e of evals) {
+      const idx = (now.getFullYear() - e.createdAt.getFullYear()) * 12 + (now.getMonth() - e.createdAt.getMonth());
+      const slot = 11 - idx;
+      if (slot >= 0 && slot < 12) counts[slot]++;
+    }
+
+    return {
+      totalExperts,
+      available: amap['可用'] ?? 0,
+      occupied: amap['占用'] ?? 0,
+      disabled: amap['停用'] ?? 0,
+      specialtyDistribution: specGroups.map(g => ({ name: g.specialty, count: g._count })),
+      titleDistribution: titleGroups.map(g => ({ name: g.title || '未填写', count: g._count })),
+      evaluationStats: { levelCounts, avgScore, total: evalTotal },
+      recentEvals: evals.slice(0, 8).map(e => ({
+        expert: e.expertUser?.displayName ?? '—',
+        level: e.level,
+        score: e.overallScore,
+        time: e.createdAt.toISOString(),
+      })),
+      recentAssigns7d,
+      recentExtractions30d,
+      monthlyEvalTrend: { labels, counts },
+    };
+  }
+
+  /** 专家排名（按履职评价均分） */
+  async getRanking(period: 'month' | 'quarter' | 'all' = 'month') {
+    const cutoff = period === 'month'
+      ? new Date(Date.now() - 30 * 24 * 3600 * 1000)
+      : period === 'quarter'
+        ? new Date(Date.now() - 90 * 24 * 3600 * 1000)
+        : new Date(0);
+
+    const evals = await this.prisma.expertEvaluation.findMany({
+      where: { createdAt: { gte: cutoff } },
+      select: {
+        expertUserId: true, overallScore: true, level: true,
+        expertUser: { select: { displayName: true, expertProfile: { select: { specialty: true } } } },
+      },
+    });
+
+    const byExpert = new Map<string, { displayName: string; specialty: string; scores: number[]; evalCount: number; aCount: number }>();
+    for (const e of evals) {
+      let rec = byExpert.get(e.expertUserId);
+      if (!rec) {
+        rec = { displayName: e.expertUser?.displayName ?? '—', specialty: e.expertUser?.expertProfile?.specialty ?? '', scores: [], evalCount: 0, aCount: 0 };
+        byExpert.set(e.expertUserId, rec);
+      }
+      rec.scores.push(e.overallScore);
+      rec.evalCount++;
+      if (e.level === 'A') rec.aCount++;
+    }
+
+    const rows = [...byExpert.values()].map(r => ({
+      displayName: r.displayName,
+      specialty: r.specialty,
+      avgScore: r.scores.length > 0 ? Math.round(r.scores.reduce((s, x) => s + x, 0) / r.scores.length) : 0,
+      evalCount: r.evalCount,
+      aCount: r.aCount,
+    }));
+    rows.sort((a, b) => b.avgScore - a.avgScore || b.aCount - a.aCount || b.evalCount - a.evalCount);
+
+    const expertUserIds = [...byExpert.keys()];
+    return rows.map((r, i) => ({ expertUserId: expertUserIds[i], ...r, rank: i + 1 }));
+  }
+
+  /** 专家负荷分布（按活跃评审项目数） */
+  async getLoadDistribution() {
+    const [totalActiveExperts, activeAssigns] = await Promise.all([
+      this.prisma.user.count({ where: { role: 'bid_expert', isActive: true } }),
+      this.prisma.bidExpert.findMany({
+        where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true } },
+        select: { userId: true, user: { select: { displayName: true } } },
+      }),
+    ]);
+
+    const byExpert = new Map<string, { displayName: string; count: number }>();
+    for (const a of activeAssigns) {
+      const rec = byExpert.get(a.userId) ?? { displayName: a.user.displayName, count: 0 };
+      rec.count++;
+      byExpert.set(a.userId, rec);
+    }
+
+    const loadDistribution: Record<string, number> = { 空闲: 0, 正常: 0, 繁忙: 0, 过载: 0 };
+    const busyExperts: Array<{ userId: string; displayName: string; level: string; activeProjects: number }> = [];
+    for (const [userId, r] of byExpert) {
+      if (r.count >= 4) loadDistribution['过载']++;
+      else if (r.count >= 3) loadDistribution['繁忙']++;
+      else loadDistribution['正常']++;
+      if (r.count >= 3) busyExperts.push({ userId, displayName: r.displayName, level: r.count >= 4 ? '过载' : '繁忙', activeProjects: r.count });
+    }
+    loadDistribution['空闲'] = Math.max(0, totalActiveExperts - byExpert.size);
+
+    return { totalActiveExperts, loadDistribution, busyExperts: busyExperts.sort((a, b) => b.activeProjects - a.activeProjects) };
+  }
+
+  /* ── 批量操作 / 导入 / 导出 ── */
+
+  /** 批量启用/停用专家 */
+  async batchOperation(dto: { action: 'enable' | 'disable'; ids: string[]; reason?: string }) {
+    if (!dto.ids?.length) throw new BadRequestException('未选择专家');
+    const available = dto.action === 'enable';
+    const result = await this.prisma.$transaction([
+      this.prisma.user.updateMany({
+        where: { id: { in: dto.ids }, role: 'bid_expert' },
+        data: { isActive: available },
+      }),
+      this.prisma.expertProfile.updateMany({
+        where: { userId: { in: dto.ids } },
+        data: { availability: available ? '可用' : '停用' },
+      }),
+    ]);
+    return { success: true, count: result[0].count };
+  }
+
+  /** 导出专家库（扁平结构，前端拼 CSV） */
+  async exportExperts(ids?: string[]) {
+    const users = await this.prisma.user.findMany({
+      where: { role: 'bid_expert', ...(ids?.length && { id: { in: ids } }) },
+      include: { expertProfile: true },
+      orderBy: { displayName: 'asc' },
+    });
+    return users.map(u => ({
+      姓名: u.displayName,
+      登录账号: u.username,
+      专业: u.expertProfile?.specialty ?? '',
+      职称: u.expertProfile?.title ?? '',
+      工作单位: u.expertProfile?.employer ?? '',
+      手机号: u.expertProfile?.phone ?? '',
+      身份证号: u.expertProfile?.idNumber ?? '',
+      邮箱: u.email ?? '',
+      状态: u.isActive ? '可用' : '已停用',
+      入库时间: u.createdAt.toISOString().slice(0, 10),
+    }));
+  }
+
+  /** CSV 批量导入（表头灵活匹配） */
+  async importCsv(rows: Array<Record<string, string>>) {
+    const pick = (row: Record<string, string>, keys: string[]): string => {
+      for (const k of Object.keys(row)) {
+        const norm = k.trim();
+        for (const target of keys) {
+          if (norm === target || norm.includes(target)) return (row[k] ?? '').trim();
+        }
+      }
+      return '';
+    };
+
+    const results: Array<{ 姓名: string; 状态: '成功' | '跳过' | '失败'; 原因?: string }> = [];
+    let imported = 0, skipped = 0, failed = 0;
+
+    for (const row of rows) {
+      const displayName = pick(row, ['姓名', '名称']);
+      const username = pick(row, ['登录账号', '账号', '用户名']) || displayName;
+      const specialty = pick(row, ['专业领域', '专业']);
+      if (!displayName || !username || !specialty) {
+        results.push({ 姓名: displayName || '(空)', 状态: '跳过', 原因: '缺少姓名/账号/专业' });
+        skipped++; continue;
+      }
+      const dup = await this.prisma.user.findFirst({ where: { username, role: 'bid_expert' } });
+      if (dup) { results.push({ 姓名: displayName, 状态: '跳过', 原因: '账号已存在' }); skipped++; continue; }
+      try {
+        await this.createExpert({
+          username, displayName,
+          password: pick(row, ['密码', '初始密码']) || 'expert@2026',
+          specialty,
+          title: pick(row, ['职称']) || undefined,
+          employer: pick(row, ['工作单位', '单位']) || undefined,
+          phone: pick(row, ['手机号', '手机', '电话']) || undefined,
+          idNumber: pick(row, ['身份证号', '身份证']) || undefined,
+          email: pick(row, ['邮箱', 'email', '电子邮箱']) || undefined,
+          notes: pick(row, ['备注']) || undefined,
+        });
+        results.push({ 姓名: displayName, 状态: '成功' });
+        imported++;
+      } catch (e: any) {
+        results.push({ 姓名: displayName, 状态: '失败', 原因: e?.message ?? '录入异常' });
+        failed++;
+      }
+    }
+    return { total: rows.length, imported, skipped, failed, results };
+  }
+
+  /* ── 违规记录（AuditLog）── */
+
+  async getViolations(expertId?: string) {
+    const where: any = { action: 'EXPERT_VIOLATION_RECORDED' };
+    if (expertId) where.resourceId = expertId;
+    return this.prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, details: true, createdAt: true, user: { select: { displayName: true } } },
+    });
+  }
+
+  async recordViolation(expertId: string, dto: { type: string; detail: string; severity: 'warning' | 'danger' }, operatorId: string) {
+    const expert = await this.prisma.user.findFirst({ where: { id: expertId, role: 'bid_expert' } });
+    if (!expert) throw new NotFoundException('专家不存在');
+    await this.prisma.auditLog.create({
+      data: {
+        userId: operatorId,
+        action: 'EXPERT_VIOLATION_RECORDED',
+        resourceType: 'User',
+        resourceId: expertId,
+        details: { type: dto.type, detail: dto.detail, severity: dto.severity, expertName: expert.displayName },
+      },
+    });
+    return { success: true };
+  }
+
+  /* ── 评价历史 / AI 采纳率 ── */
+
+  /** 单个专家的履职评价记录 */
+  async getExpertEvaluations(userId: string) {
+    return this.prisma.expertEvaluation.findMany({
+      where: { expertUserId: userId },
+      include: { evaluator: { select: { id: true, displayName: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** AI 采纳率（基于 BidScoreDelta：专家分 vs AI 建议分） */
+  async getAiAdoptionRate(expertId?: string) {
+    // BidScoreDelta.expertId 指向 BidExpert.id，需映射到 userId 供前端按专家过滤
+    const assignments = await this.prisma.bidExpert.findMany({
+      where: expertId ? { userId: expertId } : undefined,
+      select: { id: true, userId: true },
+    });
+    const expertIdToUser = new Map(assignments.map(a => [a.id, a.userId]));
+
+    const deltas = await this.prisma.bidScoreDelta.findMany({
+      where: assignments.length > 0 ? { expertId: { in: assignments.map(a => a.id) } } : undefined,
+      select: { expertId: true, delta: true, accepted: true },
+    });
+
+    const total = deltas.length;
+    const accepted = deltas.filter(d => d.accepted).length;
+
+    const byUser = new Map<string, number[]>();
+    for (const d of deltas) {
+      const uid = expertIdToUser.get(d.expertId);
+      if (!uid) continue;
+      const arr = byUser.get(uid) ?? [];
+      arr.push(Math.abs(Number(d.delta)));
+      byUser.set(uid, arr);
+    }
+    const byExpert = [...byUser.entries()].map(([id, vals]) => ({
+      expertId: id,
+      avgAbsDelta: vals.length > 0 ? Math.round(vals.reduce((s, x) => s + x, 0) / vals.length) : 0,
+    }));
+
+    return {
+      overall: {
+        total,
+        accepted,
+        adoptionRate: total > 0 ? Math.round((accepted / total) * 100) : 0,
+      },
+      byExpert,
+    };
+  }
+
+  /* ── 通知偏好（UserSettings.notificationPrefs）── */
+
+  async getNotifyPrefs(userId: string) {
+    const settings = await this.prisma.userSettings.findUnique({ where: { userId } });
+    const prefs = (settings?.notificationPrefs as Record<string, boolean> | null) ?? {};
+    return { inApp: prefs.inApp ?? true, sms: prefs.sms ?? false, phone: prefs.phone ?? false };
+  }
+
+  async updateNotifyPrefs(userId: string, dto: { inApp?: boolean; sms?: boolean; phone?: boolean }) {
+    const existing = await this.prisma.userSettings.findUnique({ where: { userId } });
+    const current = (existing?.notificationPrefs as Record<string, boolean> | null) ?? {};
+    const merged = { ...current, ...dto };
+    await this.prisma.userSettings.upsert({
+      where: { userId },
+      update: { notificationPrefs: merged },
+      create: { userId, notificationPrefs: merged },
+    });
+    return { success: true };
+  }
+
   /* ── 抽取辅助 ── */
 
   private toSelection(c: any, specialty: string, role: string, scoreMap: Map<string, { matchScore: number; reason: string }>) {

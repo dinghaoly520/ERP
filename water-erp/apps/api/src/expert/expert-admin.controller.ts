@@ -87,6 +87,54 @@ export class ExpertAdminController {
     return this.expertAdminService.reviewRetirementCandidates();
   }
 
+  @Get('statistics')
+  @ApiOperation({ summary: '专家库整体态势统计' })
+  getStatistics() {
+    return this.expertAdminService.getStatistics();
+  }
+
+  @Get('ranking')
+  @ApiOperation({ summary: '专家排名（按履职评价均分）' })
+  getRanking(@Query('period') period?: 'month' | 'quarter' | 'all') {
+    return this.expertAdminService.getRanking(period);
+  }
+
+  @Get('load-distribution')
+  @ApiOperation({ summary: '专家负荷分布（按活跃评审项目数）' })
+  getLoadDistribution() {
+    return this.expertAdminService.getLoadDistribution();
+  }
+
+  @Get('ai-adoption')
+  @ApiOperation({ summary: 'AI 采纳率（专家分 vs AI 建议分）' })
+  getAiAdoptionRate(@Query('expertId') expertId?: string) {
+    return this.expertAdminService.getAiAdoptionRate(expertId);
+  }
+
+  @Get('violations')
+  @ApiOperation({ summary: '违规记录列表' })
+  getViolations(@Query('expertId') expertId?: string) {
+    return this.expertAdminService.getViolations(expertId);
+  }
+
+  @Get('export')
+  @ApiOperation({ summary: '导出专家库（扁平结构）' })
+  exportExperts(@Query('ids') ids?: string) {
+    return this.expertAdminService.exportExperts(ids ? ids.split(',').filter(Boolean) : undefined);
+  }
+
+  @Post('batch')
+  @ApiOperation({ summary: '批量启用/停用专家' })
+  batchOperation(@Body() body: { action: 'enable' | 'disable'; ids: string[]; reason?: string }) {
+    return this.expertAdminService.batchOperation(body);
+  }
+
+  @Post('import-csv')
+  @ApiOperation({ summary: 'CSV 批量导入专家' })
+  importCsv(@Body() body: { rows: Array<Record<string, string>> }) {
+    return this.expertAdminService.importCsv(body.rows ?? []);
+  }
+
   // ── 动态 :id 路由 ──
 
   @Get(':id')
@@ -111,6 +159,30 @@ export class ExpertAdminController {
   @ApiOperation({ summary: '专家画像' })
   getPortrait(@Param('id') id: string) {
     return this.expertAdminService.getExpertPortrait(id);
+  }
+
+  @Get(':id/evaluations')
+  @ApiOperation({ summary: '专家履职评价历史' })
+  getExpertEvaluations(@Param('id') id: string) {
+    return this.expertAdminService.getExpertEvaluations(id);
+  }
+
+  @Post(':id/violation')
+  @ApiOperation({ summary: '记录专家违规' })
+  recordViolation(@Param('id') id: string, @Body() body: { type: string; detail: string; severity: 'warning' | 'danger' }, @Request() req: any) {
+    return this.expertAdminService.recordViolation(id, body, req.user?.sub);
+  }
+
+  @Get(':id/notify-prefs')
+  @ApiOperation({ summary: '专家通知偏好' })
+  getNotifyPrefs(@Param('id') id: string) {
+    return this.expertAdminService.getNotifyPrefs(id);
+  }
+
+  @Patch(':id/notify-prefs')
+  @ApiOperation({ summary: '更新专家通知偏好' })
+  updateNotifyPrefs(@Param('id') id: string, @Body() body: { inApp?: boolean; sms?: boolean; phone?: boolean }) {
+    return this.expertAdminService.updateNotifyPrefs(id, body);
   }
 
   @Post(':id/retire')

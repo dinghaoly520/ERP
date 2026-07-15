@@ -49,6 +49,7 @@ import {
 import { fetchCurrentUser } from "@/lib/api/auth";
 import { ArchiveDetailModal } from "@/components/procurements/archive-detail-modal";
 import { useAssistant } from "@/components/assistant/assistant-provider";
+import { Modal } from "@/components/workbench";
 
 // ─── Animation Utilities ───────────────────────────────────────────────────────
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -590,73 +591,44 @@ function AnalysisSelectionModal({
   const allSelected = selectedIds.size === items.length;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          onClick={(e) => e.stopPropagation()}
-          className="relative max-w-[680px] w-[92vw] max-h-[70vh] overflow-hidden rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-            <div className="flex items-center gap-3">
-              <Sparkles size={20} style={{ color: accentMap.blue }} />
-              <div>
-                <h2 className="text-base font-bold text-[color:var(--foreground)]">选择分析对象</h2>
-                <p className="text-[11px] text-[color:var(--muted-foreground)]">关键词「{keyword}」匹配到 {items.length} 条记录</p>
-              </div>
-            </div>
-            <button onClick={onClose} className="neu-btn-xs">
-              <X size={16} />
-            </button>
-          </div>
-
-          {/* Items */}
-          <div className="p-4 overflow-y-auto max-h-[calc(70vh-150px)]">
-            <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-2">
-              {items.map((item) => (
-                <SimplifiedRow
-                  key={item.id}
-                  item={item}
-                  isSelected={selectedIds.has(item.id)}
-                  onToggle={() => onToggle(item.id)}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between px-5 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={onSelectAll}
-                className="neu-btn-xs !text-[11px]"
-              >
-                {allSelected ? <CheckSquare size={14} className="text-[rgba(96,139,239,1)]" /> : <Square size={14} />}
-                {allSelected ? "取消全选" : "全选"}
-              </button>
-              <span className="text-[11px] text-[color:var(--muted-foreground)]">已选择 {selectedIds.size} / {items.length} 条</span>
-            </div>
-            <button
-              onClick={onConfirm}
-              disabled={selectedIds.size === 0}
-              className="neu-btn-primary disabled:opacity-50"
-            >
-              <BarChart3 size={15} />
-              开始分析
-            </button>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+    <Modal
+      open
+      onClose={onClose}
+      size="lg"
+      title="选择分析对象"
+      description={`关键词「${keyword}」匹配到 ${items.length} 条记录`}
+      footer={
+        <>
+          <button
+            onClick={onSelectAll}
+            className="neu-btn-xs !text-[11px]"
+          >
+            {allSelected ? <CheckSquare size={14} className="text-[rgba(96,139,239,1)]" /> : <Square size={14} />}
+            {allSelected ? "取消全选" : "全选"}
+          </button>
+          <span className="text-[11px] text-[color:var(--muted-foreground)]">已选择 {selectedIds.size} / {items.length} 条</span>
+          <button
+            onClick={onConfirm}
+            disabled={selectedIds.size === 0}
+            className="neu-btn-primary disabled:opacity-50"
+          >
+            <BarChart3 size={15} />
+            开始分析
+          </button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-2">
+        {items.map((item) => (
+          <SimplifiedRow
+            key={item.id}
+            item={item}
+            isSelected={selectedIds.has(item.id)}
+            onToggle={() => onToggle(item.id)}
+          />
+        ))}
+      </div>
+    </Modal>
   );
 }
 
@@ -707,231 +679,203 @@ function AnalysisResultModal({
   const formatAmount = (n: number) => n >= 10000 ? `${(n/10000).toFixed(1)}万` : `${n.toFixed(0)}元`;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto py-8"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          onClick={(e) => e.stopPropagation()}
-          className="relative max-w-[900px] w-[94vw] rounded-[22px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[rgba(96,139,239,0.1)]">
-                <BarChart3 size={22} style={{ color: accentMap.blue }} />
-              </div>
-              <div>
-                <h2 className="text-[1.1rem] font-bold text-[color:var(--foreground)]">综合分析报告</h2>
-                <p className="text-xs text-[color:var(--muted-foreground)]">关键词「{keyword}」 · {items.length} 条记录</p>
-              </div>
-            </div>
-            <button onClick={onClose} className="neu-btn-xs hover:rotate-90 transition-transform">
-              <X size={18} />
-            </button>
+    <Modal
+      open
+      onClose={onClose}
+      size="lg"
+      title="综合分析报告"
+      description={`关键词「${keyword}」 · ${items.length} 条记录`}
+      className="!max-w-[min(900px,94vw)]"
+      footer={
+        <>
+          <button onClick={onClose} className="neu-btn-soft">
+            关闭
+          </button>
+          <button className="neu-btn-primary is-success">
+            <CircleDollarSign size={14} />
+            导出报告
+          </button>
+        </>
+      }
+    >
+      {/* Key Metrics */}
+      <motion.div {...fadeIn(0, reducedMotion)} className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="rounded-[14px] bg-[rgba(96,139,239,0.06)] p-4 text-center">
+          <div className="text-[10px] uppercase tracking-wide text-[rgba(96,139,239,0.7)]">预算总额</div>
+          <div className="mt-2 text-[1.3rem] font-bold text-[rgba(96,139,239,1)]">{formatAmount(totalBudget)}</div>
+        </div>
+        <div className="rounded-[14px] bg-[rgba(92,181,150,0.06)] p-4 text-center">
+          <div className="text-[10px] uppercase tracking-wide text-[rgba(92,181,150,0.7)]">成交总额</div>
+          <div className="mt-2 text-[1.3rem] font-bold text-[rgba(92,181,150,1)]">{formatAmount(totalAward)}</div>
+        </div>
+        <div className="rounded-[14px] bg-[rgba(234,188,110,0.06)] p-4 text-center">
+          <div className="text-[10px] uppercase tracking-wide text-[rgba(234,188,110,0.7)]">节约资金</div>
+          <div className="mt-2 text-[1.3rem] font-bold text-[rgba(234,188,110,1)]">{formatAmount(savings)}</div>
+        </div>
+        <div className="rounded-[14px] bg-[rgba(119,129,219,0.06)] p-4 text-center">
+          <div className="text-[10px] uppercase tracking-wide text-[rgba(119,129,219,0.7)]">节资率</div>
+          <div className="mt-2 text-[1.3rem] font-bold text-[rgba(119,129,219,1)]">{savingsRate}%</div>
+        </div>
+      </motion.div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Status Distribution */}
+        <motion.div {...fadeIn(1, reducedMotion)} className="neu-card-static !rounded-[16px] p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <PieChart size={16} style={{ color: accentMap.blue }} />
+            <h3 className="text-[0.9rem] font-semibold text-[color:var(--foreground)]">状态分布</h3>
           </div>
-
-          {/* Content */}
-          <div className="p-6 space-y-6">
-            {/* Key Metrics */}
-            <motion.div {...fadeIn(0, reducedMotion)} className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <div className="rounded-[14px] bg-[rgba(96,139,239,0.06)] p-4 text-center">
-                <div className="text-[10px] uppercase tracking-wide text-[rgba(96,139,239,0.7)]">预算总额</div>
-                <div className="mt-2 text-[1.3rem] font-bold text-[rgba(96,139,239,1)]">{formatAmount(totalBudget)}</div>
-              </div>
-              <div className="rounded-[14px] bg-[rgba(92,181,150,0.06)] p-4 text-center">
-                <div className="text-[10px] uppercase tracking-wide text-[rgba(92,181,150,0.7)]">成交总额</div>
-                <div className="mt-2 text-[1.3rem] font-bold text-[rgba(92,181,150,1)]">{formatAmount(totalAward)}</div>
-              </div>
-              <div className="rounded-[14px] bg-[rgba(234,188,110,0.06)] p-4 text-center">
-                <div className="text-[10px] uppercase tracking-wide text-[rgba(234,188,110,0.7)]">节约资金</div>
-                <div className="mt-2 text-[1.3rem] font-bold text-[rgba(234,188,110,1)]">{formatAmount(savings)}</div>
-              </div>
-              <div className="rounded-[14px] bg-[rgba(119,129,219,0.06)] p-4 text-center">
-                <div className="text-[10px] uppercase tracking-wide text-[rgba(119,129,219,0.7)]">节资率</div>
-                <div className="mt-2 text-[1.3rem] font-bold text-[rgba(119,129,219,1)]">{savingsRate}%</div>
-              </div>
-            </motion.div>
-
-            {/* Charts Row */}
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              {/* Status Distribution */}
-              <motion.div {...fadeIn(1, reducedMotion)} className="neu-card-static !rounded-[16px] p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <PieChart size={16} style={{ color: accentMap.blue }} />
-                  <h3 className="text-[0.9rem] font-semibold text-[color:var(--foreground)]">状态分布</h3>
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="relative">
-                    <svg width="120" height="120" viewBox="0 0 120 120">
-                      {awardedCount > 0 && (
-                        <circle cx={pieCx} cy={pieCx} r={pieRadius} fill="transparent" stroke={accentMap.teal} strokeWidth="20" strokeDasharray={`${(awardedCount/items.length)*314} 314`} transform="rotate(-90 60 60)" />
-                      )}
-                      {pendingCount > 0 && (
-                        <circle cx={pieCx} cy={pieCx} r={pieRadius} fill="transparent" stroke={accentMap.gold} strokeWidth="20" strokeDasharray={`${(pendingCount/items.length)*314} 314`} strokeDashoffset={`${-(awardedCount/items.length)*314}`} transform="rotate(-90 60 60)" />
-                      )}
-                      {abnormalCount > 0 && (
-                        <circle cx={pieCx} cy={pieCx} r={pieRadius} fill="transparent" stroke={accentMap.coral} strokeWidth="20" strokeDasharray={`${(abnormalCount/items.length)*314} 314`} strokeDashoffset={`${-(awardedCount+pendingCount)/items.length*314}`} transform="rotate(-90 60 60)" />
-                      )}
-                    </svg>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full bg-[rgba(92,181,150,1)]" />
-                      <span className="text-[11px]">已成交 {awardedCount}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full bg-[rgba(234,188,110,1)]" />
-                      <span className="text-[11px]">待处理 {pendingCount}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full bg-[rgba(230,129,102,1)]" />
-                      <span className="text-[11px]">异常 {abnormalCount}</span>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Method Distribution */}
-              <motion.div {...fadeIn(2, reducedMotion)} className="neu-card-static !rounded-[16px] p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <Activity size={16} style={{ color: accentMap.teal }} />
-                  <h3 className="text-[0.9rem] font-semibold text-[color:var(--foreground)]">采购方式</h3>
-                </div>
-                <div className="space-y-2">
-                  {Object.entries(methodCounts).map(([method, count], i) => {
-                    const pct = Math.round((count / items.length) * 100);
-                    const colors = [accentMap.blue, accentMap.teal, accentMap.gold, accentMap.indigo];
-                    return (
-                      <div key={method} className="flex items-center gap-3">
-                        <span className="w-[100px] text-[11px] truncate">{method}</span>
-                        <div className="flex-1 h-5 rounded-[4px] bg-[rgba(200,215,235,0.2)] overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${pct}%` }}
-                            transition={{ duration: 0.5, delay: i * 0.08 }}
-                            className="h-full rounded-[4px]"
-                            style={{ background: colors[i % colors.length] }}
-                          />
-                        </div>
-                        <span className="text-[11px] font-bold" style={{ color: colors[i % colors.length] }}>{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </motion.div>
+          <div className="flex items-center gap-6">
+            <div className="relative">
+              <svg width="120" height="120" viewBox="0 0 120 120">
+                {awardedCount > 0 && (
+                  <circle cx={pieCx} cy={pieCx} r={pieRadius} fill="transparent" stroke={accentMap.teal} strokeWidth="20" strokeDasharray={`${(awardedCount/items.length)*314} 314`} transform="rotate(-90 60 60)" />
+                )}
+                {pendingCount > 0 && (
+                  <circle cx={pieCx} cy={pieCx} r={pieRadius} fill="transparent" stroke={accentMap.gold} strokeWidth="20" strokeDasharray={`${(pendingCount/items.length)*314} 314`} strokeDashoffset={`${-(awardedCount/items.length)*314}`} transform="rotate(-90 60 60)" />
+                )}
+                {abnormalCount > 0 && (
+                  <circle cx={pieCx} cy={pieCx} r={pieRadius} fill="transparent" stroke={accentMap.coral} strokeWidth="20" strokeDasharray={`${(abnormalCount/items.length)*314} 314`} strokeDashoffset={`${-(awardedCount+pendingCount)/items.length*314}`} transform="rotate(-90 60 60)" />
+                )}
+              </svg>
             </div>
-
-            {/* Department Distribution */}
-            <motion.div {...fadeIn(3, reducedMotion)} className="neu-card-static !rounded-[16px] p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Building2 size={16} style={{ color: accentMap.indigo }} />
-                <h3 className="text-[0.9rem] font-semibold text-[color:var(--foreground)]">部门分布</h3>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-[rgba(92,181,150,1)]" />
+                <span className="text-[11px]">已成交 {awardedCount}</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(deptCounts).sort((a, b) => b[1] - a[1]).map(([dept, count]) => (
-                  <span
-                    key={dept}
-                    className="rounded-[10px] px-3 py-1.5 text-[11px] font-medium bg-[rgba(119,129,219,0.08)] text-[rgba(119,129,219,0.9)]"
-                  >
-                    {dept} <span className="font-bold">{count}</span>
-                  </span>
-                ))}
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-[rgba(234,188,110,1)]" />
+                <span className="text-[11px]">待处理 {pendingCount}</span>
               </div>
-            </motion.div>
-
-            {/* AI Analysis Section */}
-            <motion.div {...fadeIn(4, reducedMotion)} className="rounded-[16px] border border-[rgba(96,139,239,0.25)] bg-[linear-gradient(135deg,rgba(96,139,239,0.05),rgba(92,181,150,0.03))] p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles size={18} style={{ color: accentMap.blue }} />
-                <h3 className="text-base font-bold text-[rgba(96,139,239,1)]">AI智能分析</h3>
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-[rgba(230,129,102,1)]" />
+                <span className="text-[11px]">异常 {abnormalCount}</span>
               </div>
-
-              {aiResult ? (
-                <div className="space-y-3">
-                  {/* Overview */}
-                  <div className="p-3 rounded-[12px] bg-[oklch(1_0_0_/_0.4)]">
-                    <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">{aiResult.overview}</p>
-                  </div>
-
-                  {/* Highlights */}
-                  {aiResult.highlights.length > 0 && (
-                    <div className="flex items-start gap-3 p-3 rounded-[12px] bg-[oklch(1_0_0_/_0.4)]">
-                      <Target size={16} className="shrink-0 mt-0.5" style={{ color: accentMap.teal }} />
-                      <div>
-                        <div className="text-[11px] font-bold uppercase tracking-wide text-[rgba(92,181,150,0.8)]">核心亮点</div>
-                        <ul className="mt-1.5 space-y-1">
-                          {aiResult.highlights.map((h, i) => (
-                            <li key={i} className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">• {h}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Concerns */}
-                  {aiResult.concerns.length > 0 && (
-                    <div className="flex items-start gap-3 p-3 rounded-[12px] bg-[rgba(230,129,102,0.08)]">
-                      <AlertCircle size={16} className="shrink-0 mt-0.5" style={{ color: accentMap.coral }} />
-                      <div>
-                        <div className="text-[11px] font-bold uppercase tracking-wide text-[rgba(230,129,102,0.8)]">待关注项</div>
-                        <ul className="mt-1.5 space-y-1">
-                          {aiResult.concerns.map((c, i) => (
-                            <li key={i} className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">• {c}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Suggestions */}
-                  {aiResult.suggestions.length > 0 && (
-                    <div className="flex items-start gap-3 p-3 rounded-[12px] bg-[rgba(234,188,110,0.08)]">
-                      <Lightbulb size={16} className="shrink-0 mt-0.5" style={{ color: accentMap.gold }} />
-                      <div>
-                        <div className="text-[11px] font-bold uppercase tracking-wide text-[rgba(234,188,110,0.8)]">建议方向</div>
-                        <ul className="mt-1.5 space-y-1">
-                          {aiResult.suggestions.map((s, i) => (
-                            <li key={i} className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">• {s}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 size={24} className="animate-spin text-[rgba(96,139,239,0.6)]" />
-                  <span className="ml-3 text-[0.85rem] text-[color:var(--muted-foreground)]">AI正在分析...</span>
-                </div>
-              )}
-            </motion.div>
-
-            {/* Export Actions */}
-            <div className="flex items-center justify-end gap-3 pt-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-              <button onClick={onClose} className="neu-btn-soft">
-                关闭
-              </button>
-              <button className="neu-btn-primary is-success">
-                <CircleDollarSign size={14} />
-                导出报告
-              </button>
             </div>
           </div>
         </motion.div>
+
+        {/* Method Distribution */}
+        <motion.div {...fadeIn(2, reducedMotion)} className="neu-card-static !rounded-[16px] p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity size={16} style={{ color: accentMap.teal }} />
+            <h3 className="text-[0.9rem] font-semibold text-[color:var(--foreground)]">采购方式</h3>
+          </div>
+          <div className="space-y-2">
+            {Object.entries(methodCounts).map(([method, count], i) => {
+              const pct = Math.round((count / items.length) * 100);
+              const colors = [accentMap.blue, accentMap.teal, accentMap.gold, accentMap.indigo];
+              return (
+                <div key={method} className="flex items-center gap-3">
+                  <span className="w-[100px] text-[11px] truncate">{method}</span>
+                  <div className="flex-1 h-5 rounded-[4px] bg-[rgba(200,215,235,0.2)] overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.5, delay: i * 0.08 }}
+                      className="h-full rounded-[4px]"
+                      style={{ background: colors[i % colors.length] }}
+                    />
+                  </div>
+                  <span className="text-[11px] font-bold" style={{ color: colors[i % colors.length] }}>{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Department Distribution */}
+      <motion.div {...fadeIn(3, reducedMotion)} className="neu-card-static !rounded-[16px] p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Building2 size={16} style={{ color: accentMap.indigo }} />
+          <h3 className="text-[0.9rem] font-semibold text-[color:var(--foreground)]">部门分布</h3>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(deptCounts).sort((a, b) => b[1] - a[1]).map(([dept, count]) => (
+            <span
+              key={dept}
+              className="rounded-[10px] px-3 py-1.5 text-[11px] font-medium bg-[rgba(119,129,219,0.08)] text-[rgba(119,129,219,0.9)]"
+            >
+              {dept} <span className="font-bold">{count}</span>
+            </span>
+          ))}
+        </div>
       </motion.div>
-    </AnimatePresence>
+
+      {/* AI Analysis Section */}
+      <motion.div {...fadeIn(4, reducedMotion)} className="rounded-[16px] border border-[rgba(96,139,239,0.25)] bg-[linear-gradient(135deg,rgba(96,139,239,0.05),rgba(92,181,150,0.03))] p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles size={18} style={{ color: accentMap.blue }} />
+          <h3 className="text-base font-bold text-[rgba(96,139,239,1)]">AI智能分析</h3>
+        </div>
+
+        {aiResult ? (
+          <div className="space-y-3">
+            {/* Overview */}
+            <div className="p-3 rounded-[12px] bg-[oklch(1_0_0_/_0.4)]">
+              <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">{aiResult.overview}</p>
+            </div>
+
+            {/* Highlights */}
+            {aiResult.highlights.length > 0 && (
+              <div className="flex items-start gap-3 p-3 rounded-[12px] bg-[oklch(1_0_0_/_0.4)]">
+                <Target size={16} className="shrink-0 mt-0.5" style={{ color: accentMap.teal }} />
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-wide text-[rgba(92,181,150,0.8)]">核心亮点</div>
+                  <ul className="mt-1.5 space-y-1">
+                    {aiResult.highlights.map((h, i) => (
+                      <li key={i} className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">• {h}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* Concerns */}
+            {aiResult.concerns.length > 0 && (
+              <div className="flex items-start gap-3 p-3 rounded-[12px] bg-[rgba(230,129,102,0.08)]">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" style={{ color: accentMap.coral }} />
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-wide text-[rgba(230,129,102,0.8)]">待关注项</div>
+                  <ul className="mt-1.5 space-y-1">
+                    {aiResult.concerns.map((c, i) => (
+                      <li key={i} className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">• {c}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* Suggestions */}
+            {aiResult.suggestions.length > 0 && (
+              <div className="flex items-start gap-3 p-3 rounded-[12px] bg-[rgba(234,188,110,0.08)]">
+                <Lightbulb size={16} className="shrink-0 mt-0.5" style={{ color: accentMap.gold }} />
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-wide text-[rgba(234,188,110,0.8)]">建议方向</div>
+                  <ul className="mt-1.5 space-y-1">
+                    {aiResult.suggestions.map((s, i) => (
+                      <li key={i} className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">• {s}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 size={24} className="animate-spin text-[rgba(96,139,239,0.6)]" />
+            <span className="ml-3 text-[0.85rem] text-[color:var(--muted-foreground)]">AI正在分析...</span>
+          </div>
+        )}
+      </motion.div>
+    </Modal>
   );
 }
 
-// ─── Recycle Confirmation Modal ────────────────────────────────────────────────
+// ─── Recycle confirmation Modal ────────────────────────────────────────────────
 function RecycleConfirmModal({
   item,
   loading,
@@ -946,88 +890,63 @@ function RecycleConfirmModal({
   onConfirm: () => void;
 }) {
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm"
-        onClick={loading ? undefined : onCancel}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 18 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 18 }}
-          transition={{ duration: 0.22, ease: easeOutQuint }}
-          onClick={(e) => e.stopPropagation()}
-          className="w-[min(92vw,460px)] overflow-hidden rounded-[22px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
-        >
-          <div className="relative px-6 py-5">
-            <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,rgba(230,129,102,0.88),rgba(234,188,110,0.65),rgba(96,139,239,0.2))]" />
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] border border-[rgba(230,129,102,0.25)] bg-[rgba(230,129,102,0.1)] text-[rgba(230,129,102,1)]">
-                <Trash2 size={22} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-base font-bold tracking-[-0.02em] text-[color:var(--foreground)]">
-                  移至回收站
-                </h2>
-                <p className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
-                  请确认是否处理以下采购台账记录。
-                </p>
-              </div>
-              <button
-                onClick={onCancel}
-                disabled={loading}
-                className="rounded-[10px] p-2 text-[color:var(--muted-foreground)] transition-all hover:bg-[rgba(96,139,239,0.08)] hover:text-[color:var(--foreground)] disabled:opacity-40"
-              >
-                <X size={16} />
-              </button>
-            </div>
+    <Modal
+      open
+      onClose={onCancel}
+      closeOnBackdrop={!loading}
+      closeOnEsc={!loading}
+      size="md"
+      title={
+        <span className="flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-[rgba(230,129,102,0.25)] bg-[rgba(230,129,102,0.1)] text-[rgba(230,129,102,1)]">
+            <Trash2 size={20} />
+          </span>
+          移至回收站
+        </span>
+      }
+      description="请确认是否处理以下采购台账记录。"
+      footer={
+        <>
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="neu-btn-soft disabled:opacity-40"
+          >
+            取消
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="neu-btn-primary is-danger disabled:opacity-60"
+          >
+            {loading && <Loader2 size={14} className="animate-spin" />}
+            确认移至回收站
+          </button>
+        </>
+      }
+    >
+      <div className="rounded-[16px] bg-[linear-gradient(145deg,rgba(247,250,255,0.86),rgba(255,255,255,0.72))] p-4" style={{ border: "1px solid oklch(0.6 0.04 258 / 0.2)" }}>
+        <div className="text-[0.92rem] font-semibold leading-6 text-[color:var(--foreground)]">
+          {item.projectName}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[color:var(--muted-foreground)]">
+          <span className="rounded-full bg-[rgba(96,139,239,0.08)] px-2 py-1">{item.departmentName || "未填部门"}</span>
+          <span className="rounded-full bg-[rgba(92,181,150,0.1)] px-2 py-1">{item.resultStatusLabel}</span>
+          <span className="rounded-full bg-[rgba(234,188,110,0.12)] px-2 py-1">{item.procurementMethod}</span>
+        </div>
+      </div>
 
-            <div className="mt-5 rounded-[16px] bg-[linear-gradient(145deg,rgba(247,250,255,0.86),rgba(255,255,255,0.72))] p-4" style={{ border: "1px solid oklch(0.6 0.04 258 / 0.2)" }}>
-              <div className="text-[0.92rem] font-semibold leading-6 text-[color:var(--foreground)]">
-                {item.projectName}
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[color:var(--muted-foreground)]">
-                <span className="rounded-full bg-[rgba(96,139,239,0.08)] px-2 py-1">{item.departmentName || "未填部门"}</span>
-                <span className="rounded-full bg-[rgba(92,181,150,0.1)] px-2 py-1">{item.resultStatusLabel}</span>
-                <span className="rounded-full bg-[rgba(234,188,110,0.12)] px-2 py-1">{item.procurementMethod}</span>
-              </div>
-            </div>
+      <div className="rounded-[14px] bg-[rgba(230,129,102,0.07)] px-4 py-3 text-xs leading-5 text-[rgba(145,82,62,1)]">
+        该记录将移入采购台账回收站，不会再出现在正常台账列表中。你可以在本页面切换到“回收站”后恢复或彻底删除。
+      </div>
 
-            <div className="mt-4 rounded-[14px] bg-[rgba(230,129,102,0.07)] px-4 py-3 text-xs leading-5 text-[rgba(145,82,62,1)]">
-              该记录将移入采购台账回收站，不会再出现在正常台账列表中。你可以在本页面切换到“回收站”后恢复或彻底删除。
-            </div>
-
-            {error && (
-              <div className="mt-3 flex items-start gap-2 rounded-[12px] border border-[rgba(230,129,102,0.22)] bg-[rgba(230,129,102,0.08)] px-3 py-2 text-xs leading-5 text-[rgba(190,88,68,1)]">
-                <AlertCircle size={14} className="mt-0.5 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-            <button
-              onClick={onCancel}
-              disabled={loading}
-              className="neu-btn-soft disabled:opacity-40"
-            >
-              取消
-            </button>
-            <button
-              onClick={onConfirm}
-              disabled={loading}
-              className="neu-btn-primary is-danger disabled:opacity-60"
-            >
-              {loading && <Loader2 size={14} className="animate-spin" />}
-              确认移至回收站
-            </button>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+      {error && (
+        <div className="flex items-start gap-2 rounded-[12px] border border-[rgba(230,129,102,0.22)] bg-[rgba(230,129,102,0.08)] px-3 py-2 text-xs leading-5 text-[rgba(190,88,68,1)]">
+          <AlertCircle size={14} className="mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+    </Modal>
   );
 }
 

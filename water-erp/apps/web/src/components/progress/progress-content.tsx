@@ -66,14 +66,15 @@ type StageMeta = {
 
 // ─── Stage colors in oklch() ────────────────────────────────────────────
 const STAGE_META: Record<ProjectWorkflowStageKey, StageMeta> = {
-  PROCUREMENT_DEMAND:  { label: "采购需求", color: "var(--stage-demand)",     softColor: "var(--stage-demand-soft)" },
-  INITIATION:          { label: "采购立项", color: "var(--stage-initiation)",  softColor: "var(--stage-initiation-soft)" },
-  TENDER_DOCUMENT:     { label: "采购文件", color: "var(--stage-tender)",      softColor: "var(--stage-tender-soft)" },
-  PUBLIC_ANNOUNCEMENT: { label: "采购公示", color: "var(--stage-announce)",    softColor: "var(--stage-announce-soft)" },
-  EXPERT_SELECTION:    { label: "专家抽取", color: "var(--stage-expert)",      softColor: "var(--stage-expert-soft)" },
-  BID_EVALUATION:      { label: "评标过程", color: "var(--stage-evaluation)",  softColor: "var(--stage-evaluation-soft)" },
-  AWARD_DECISION:      { label: "定标",     color: "var(--stage-award)",       softColor: "var(--stage-award-soft)" },
-  CONTRACT:            { label: "合同",     color: "var(--stage-contract)",    softColor: "var(--stage-contract-soft)" },
+  PROCUREMENT_DEMAND:   { label: "采购需求",   color: "var(--stage-demand)",     softColor: "var(--stage-demand-soft)" },
+  INITIATION:           { label: "采购立项",   color: "var(--stage-initiation)",  softColor: "var(--stage-initiation-soft)" },
+  TENDER_DOCUMENT:      { label: "采购文件",   color: "var(--stage-tender)",      softColor: "var(--stage-tender-soft)" },
+  SUPPLIER_INVITATION:  { label: "供应商邀请", color: "var(--stage-announce)",    softColor: "var(--stage-announce-soft)" },
+  PUBLIC_ANNOUNCEMENT:  { label: "采购公告公示", color: "var(--stage-announce)",  softColor: "var(--stage-announce-soft)" },
+  EXPERT_SELECTION:     { label: "专家抽取",   color: "var(--stage-expert)",      softColor: "var(--stage-expert-soft)" },
+  BID_EVALUATION:       { label: "开标评标",   color: "var(--stage-evaluation)",  softColor: "var(--stage-evaluation-soft)" },
+  AWARD_DECISION:       { label: "定标",       color: "var(--stage-award)",       softColor: "var(--stage-award-soft)" },
+  CONTRACT:             { label: "合同",       color: "var(--stage-contract)",    softColor: "var(--stage-contract-soft)" },
 };
 
 const DEFAULT_STAGE_META: StageMeta = {

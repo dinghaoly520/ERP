@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { listExperts, getExpertEvalStats, createExpertEvaluation } from '@/lib/api/expert';
 import type { ExpertListItem, ExpertEvalStats } from '@/lib/api/expert';
-import { StatusBadge, TableSkeleton } from '@/components/workbench';
-import { CheckCircle2, Search, X, RefreshCw, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
+import { SortableTh } from '@/lib/hooks/use-sort';
+import { CheckCircle2, Search, X, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const levelLabel: Record<string, string> = { A: '优秀', B: '良好', C: '合格', D: '不合格' };
 const DIMENSIONS: { key: 'attendanceScore' | 'qualityScore' | 'disciplineScore'; label: string; hint: string }[] = [
@@ -32,10 +33,11 @@ export default function ExpertEvaluationPage() {
   const [scores, setScores] = useState({ attendanceScore: 85, qualityScore: 85, disciplineScore: 90 });
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
+  const [errored, setErrored] = useState(false);
 
-  const load = useCallback(async () => { setLoading(true); try { setExperts(await listExperts({ search: search || undefined }) as ExpertListItem[]); } catch {} setLoading(false); }, [search]);
+  const load = useCallback(async () => { setLoading(true); setErrored(false); try { setExperts(await listExperts({ search: search || undefined }) as ExpertListItem[]); } catch (e: any) { setErrored(true); toast.error(e?.message || '加载专家列表失败'); } setLoading(false); }, [search]);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { getExpertEvalStats().then(setStats).catch(() => {}); }, [experts.length]);
+  useEffect(() => { getExpertEvalStats().then(setStats).catch(() => toast.error('加载评价统计失败')); }, [experts.length]);
 
   const totalPages = Math.max(1, Math.ceil(experts.length / PAGE_SIZE));
   const sortedExperts = useMemo(() => {
@@ -74,7 +76,7 @@ export default function ExpertEvaluationPage() {
           </div>
           <div className="page-hero__right"><button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button></div>
         </div>
-        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
+        <div className="page-hero__divider">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 items-stretch">
           {(['A','B','C','D'] as const).map(lv => (
             <div key={lv} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
@@ -92,7 +94,7 @@ export default function ExpertEvaluationPage() {
           <span className="text-[var(--muted-foreground)]">累计评价 <strong className="tabular-nums text-[var(--foreground)]">{stats.total}</strong> 次</span>
           <span className="text-[var(--muted-foreground)]">平均得分 <strong className="tabular-nums text-[var(--accent)]">{stats.avgScore}</strong></span>
         </div>
-        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索专家姓名" className="neu-input !pl-9" />{search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}</div>
+        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索专家姓名" className="neu-input !pl-9" />{search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}</div>
       </div>
 
       <div className="neu-table-card">
@@ -100,16 +102,23 @@ export default function ExpertEvaluationPage() {
           <table className="neu-table w-full min-w-[700px]">
             <thead>
               <tr>
-                <SortableTh label="专家" sortKey="name" current={sortKey} dir={sortDir} onToggle={toggleSort} />
-                <SortableTh label="专业" sortKey="specialty" current={sortKey} dir={sortDir} onToggle={toggleSort} align="center" />
+                <SortableTh label="专家" field="name" sortKey={sortKey ?? ''} sortDir={sortDir} onToggle={(f) => toggleSort(f as SortKey)} />
+                <SortableTh label="专业" field="specialty" sortKey={sortKey ?? ''} sortDir={sortDir} onToggle={(f) => toggleSort(f as SortKey)} />
                 <th className="text-center">工作单位</th>
-                <SortableTh label="获评次数" sortKey="evaluations" current={sortKey} dir={sortDir} onToggle={toggleSort} align="center" />
+                <SortableTh label="获评次数" field="evaluations" sortKey={sortKey ?? ''} sortDir={sortDir} onToggle={(f) => toggleSort(f as SortKey)} />
                 <th className="text-center">操作</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <TableSkeleton cols={5} rows={5} />
+              ) : errored ? (
+                <tr><td colSpan={5} className="px-4 py-16">
+                  <div className="flex flex-col items-center gap-3">
+                    <p className="text-sm font-semibold text-[var(--danger)]">专家列表加载失败</p>
+                    <button onClick={load} className="neu-btn-xs is-info">重试</button>
+                  </div>
+                </td></tr>
               ) : sortedExperts.length === 0 ? (
                 <tr><td colSpan={5} className="px-4 py-16"><div className="flex flex-col items-center gap-3"><div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><CheckCircle2 size={22} className="text-[var(--muted-foreground)]" /></div><p className="text-sm text-[var(--muted-foreground)]">暂无评审专家</p><button onClick={() => router.push('/expert/entry')} className="neu-btn-xs is-info">前往录入专家 →</button></div></td></tr>
               ) : pagedExperts.map(e => (
@@ -129,56 +138,41 @@ export default function ExpertEvaluationPage() {
           <div className="neu-table-card-footer flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-[0.8rem] text-[var(--muted-foreground)] tabular-nums">共 <strong className="font-semibold text-[var(--foreground)]">{experts.length}</strong> 位专家 · 第 {page}/{totalPages} 页</span>
             <div className="flex gap-1.5">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-[-90deg]" /></button>
-              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-90" /></button>
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-30"><ChevronLeft size={14} /></button>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-30"><ChevronRight size={14} /></button>
             </div>
           </div>
         )}
       </div>
 
       {target && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setTarget(null)}>
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" />
-          <div className="relative w-full max-w-[min(540px,92vw)] max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-0 shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)]" role="dialog" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 px-6 py-4"><div><h2 className="text-lg font-bold tracking-[-0.02em] text-[var(--foreground)]">专家履职评价</h2><p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{target.displayName} · {target.expertProfile?.specialty}</p></div><button onClick={() => setTarget(null)} className="neu-btn-xs"><X size={16} /></button></div>
-            <div className="px-6 pb-6 space-y-5">
-              {DIMENSIONS.map(d => (
-                <div key={d.key}>
-                  <div className="flex items-center justify-between mb-1.5"><div><span className="text-sm font-bold text-[var(--foreground)]">{d.label}</span><span className="ml-2 text-xs text-[var(--muted-foreground)]">{d.hint}</span></div><span className="text-sm font-extrabold text-[var(--accent)] tabular-nums min-w-[2rem] text-right">{scores[d.key]}</span></div>
-                  <input type="range" min={0} max={100} step={1} value={scores[d.key]} onChange={e => setScores({ ...scores, [d.key]: Number(e.target.value) })} className="w-full accent-[var(--accent)]" />
-                </div>
-              ))}
-              <div className="flex items-center gap-3 rounded-xl bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">
-                <span className="text-xs font-bold text-[var(--muted-foreground)]">综合得分</span><strong className="text-xl font-black text-[var(--accent)] tabular-nums">{overall}</strong>
-                <StatusBadge tone={previewLevel === 'A' ? 'green' : previewLevel === 'B' ? 'blue' : previewLevel === 'C' ? 'orange' : 'red'}>{levelLabel[previewLevel]}（{previewLevel}级）</StatusBadge>
-                <span className="ml-auto text-xs text-[var(--muted-foreground)]">A≥90 · B≥80 · C≥60 · D&lt;60</span>
-              </div>
-              <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="评价说明（可选）" className="neu-input w-full h-20 resize-none text-sm" />
-            </div>
-            <hr className="wb-section-rule mx-6" />
-            <div className="flex justify-end gap-3 px-6 py-4">
+        <Modal
+          open
+          onClose={() => setTarget(null)}
+          size="md"
+          title="专家履职评价"
+          description={`${target.displayName} · ${target.expertProfile?.specialty}`}
+          footer={
+            <>
               <button onClick={() => setTarget(null)} className="neu-btn-soft">取消</button>
               <button onClick={submit} disabled={saving} className="neu-btn-soft is-success">{saving ? '提交中...' : '提交评价'}</button>
+            </>
+          }
+        >
+          {DIMENSIONS.map(d => (
+            <div key={d.key}>
+              <div className="flex items-center justify-between mb-1.5"><div><span className="text-sm font-bold text-[var(--foreground)]">{d.label}</span><span className="ml-2 text-xs text-[var(--muted-foreground)]">{d.hint}</span></div><span className="text-sm font-extrabold text-[var(--accent)] tabular-nums min-w-[2rem] text-right">{scores[d.key]}</span></div>
+              <input type="range" min={0} max={100} step={1} value={scores[d.key]} onChange={e => setScores({ ...scores, [d.key]: Number(e.target.value) })} className="w-full accent-[var(--accent)]" />
             </div>
+          ))}
+          <div className="flex items-center gap-3 rounded-xl bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">
+            <span className="text-xs font-bold text-[var(--muted-foreground)]">综合得分</span><strong className="text-xl font-black text-[var(--accent)] tabular-nums">{overall}</strong>
+            <StatusBadge tone={previewLevel === 'A' ? 'green' : previewLevel === 'B' ? 'blue' : previewLevel === 'C' ? 'orange' : 'red'}>{levelLabel[previewLevel]}（{previewLevel}级）</StatusBadge>
+            <span className="ml-auto text-xs text-[var(--muted-foreground)]">A≥90 · B≥80 · C≥60 · D&lt;60</span>
           </div>
-        </div>
+          <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="评价说明（可选）" className="neu-input w-full h-20 resize-none text-sm" />
+        </Modal>
       )}
     </div>
-  );
-}
-
-/* ════════════ 可排序表头 ════════════ */
-function SortableTh({ label, sortKey, current, dir, onToggle, align = 'center' }: {
-  label: string; sortKey: SortKey; current: SortKey | null; dir: SortDir; onToggle: (k: SortKey) => void; align?: 'left' | 'center';
-}) {
-  const active = current === sortKey;
-  const Indicator = active ? (dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
-  return (
-    <th data-sortable="true" data-sort={active ? dir : undefined} style={{ textAlign: align }}>
-      <button type="button" className="neu-th-sort" onClick={() => onToggle(sortKey)}>
-        <span>{label}</span>
-        <span className="neu-sort-indicator"><Indicator size={12} /></span>
-      </button>
-    </th>
   );
 }

@@ -39,7 +39,7 @@ export function CategoryTreeSelect({ value, onChange, placeholder = '选择品�
         <button
           type="button"
           className={`w-full text-left px-3 py-1.5 text-sm rounded-lg flex items-center gap-1.5 transition-colors ${
-            value === node.id ? 'bg-[rgba(96,139,239,0.12)] text-[var(--accent)] font-semibold' : 'hover:bg-[rgba(96,139,239,0.06)]'
+            value === node.id ? 'bg-[var(--accent-tint-strong)] text-[var(--accent)] font-semibold' : 'hover:bg-[var(--accent-tint)]'
           }`}
           style={{ paddingLeft: `${depth * 16 + 12}px` }}
           onClick={() => { onChange?.(node.id, node); setOpen(false); }}

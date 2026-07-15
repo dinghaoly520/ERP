@@ -1,14 +1,14 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { X, FileDown, FileSearch, Plus, Trash2, ScrollText, FileCheck, Ban } from "lucide-react";
+import { FileDown, FileSearch, Plus, Trash2, ScrollText, FileCheck, Ban } from "lucide-react";
 
 const CATEGORY_ICONS: Record<string, typeof ScrollText> = {
   procurement_document: ScrollText,
   winning_bid: FileCheck,
   failed_bid: Ban,
 };
-import { motion, useReducedMotion } from "framer-motion";
+import { Modal } from "@/components/workbench";
 import type {
   AnnouncementCategory,
   AnnouncementDraft,
@@ -39,19 +39,6 @@ import { ContactPickerDialog } from "./contact-picker-dialog";
 import { createFieldSample, generateFieldContent } from "@/lib/api/tender-sample";
 import { findContactByName } from "@/lib/api/contacts";
 import { exportAnnouncementDocument, importWinningBidFromPdf } from "@/lib/api/announcement";
-
-const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
-
-function fadeIn(reducedMotion: boolean) {
-  if (reducedMotion) {
-    return { initial: {}, animate: {}, transition: { duration: 0 } };
-  }
-  return {
-    initial: { opacity: 0, scale: 0.96 },
-    animate: { opacity: 1, scale: 1 },
-    transition: { duration: 0.3, ease: easeOutQuint },
-  };
-}
 
 function downloadBlobFile(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
@@ -286,10 +273,9 @@ function AnnouncementFieldEditor({
   return (
     <div
       className={[
-        "py-3.5",
+        "border-b border-[oklch(0.6_0.04_258_/_0.12)] py-3.5",
         hasValue ? "" : "",
       ].join(" ")}
-      style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.12)" }}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-[color:var(--foreground)]">
@@ -363,9 +349,9 @@ function AnnouncementFieldEditor({
                     }
                   }}
                   className={[
-                    "rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200",
+                    "rounded-[12px] px-3 py-1.5 text-xs font-medium transition-all duration-200",
                     isActive
-                      ? "bg-[rgba(107,149,240,0.16)] text-[rgba(75,110,200,1)] shadow-[0_1px_4px_rgba(107,149,240,0.12)]"
+                      ? "bg-[rgba(107,149,240,0.16)] text-[rgba(75,110,200,1)]"
                       : "bg-[oklch(1_0_0_/_0.4)] text-[color:var(--muted-foreground)] hover:bg-[oklch(1_0_0_/_0.6)]",
                   ].join(" ")}
                 >
@@ -462,7 +448,6 @@ export function AnnouncementDialog({
   selectedMeta: TenderDocumentTypeMeta;
   onClose: () => void;
 }) {
-  const reducedMotion = useReducedMotion() ?? false;
   const [step, setStep] = useState<"select_category" | "edit">("select_category");
   const [category, setCategory] = useState<AnnouncementCategory | null>(null);
   const [draft, setDraft] = useState<AnnouncementDraft | null>(null);
@@ -767,52 +752,27 @@ export function AnnouncementDialog({
     }
   };
 
-  if (!isOpen) return null;
-
   const draftRecord = (draft ?? {}) as Record<string, string>;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <motion.div
-        {...fadeIn(reducedMotion)}
-        className="absolute inset-0 bg-[rgba(0,0,0,0.24)] backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Dialog */}
-      <motion.div
-        {...fadeIn(reducedMotion)}
-        className={[
-          "relative z-10 flex flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]",
-          step === "select_category"
-            ? "w-[520px] max-h-[80vh]"
-            : "w-[1200px] max-h-[90vh]",
-        ].join(" ")}
-      >
-        {/* Header */}
-        <div className="flex shrink-0 items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
-              {selectedMeta.label} · 公告
-            </div>
-            <div className="mt-1 flex items-center gap-2">
-              {step === "edit" && (
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  className="neu-btn-xs"
-                >
-                  ← 返回选择
-                </button>
-              )}
-              <h2 className="text-[1.05rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
-                {step === "select_category" ? "选择公告类型" : dialogTitle}
-              </h2>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {step === "edit" && draft && (
+    <>
+      <Modal
+        open={isOpen}
+        onClose={onClose}
+        title={step === "select_category" ? "选择公告类型" : dialogTitle}
+        description={`${selectedMeta.label} · 公告`}
+        size="lg"
+        className={step === "edit" ? "!max-w-[min(1200px,95vw)]" : undefined}
+        footer={
+          step === "edit" && draft ? (
+            <>
+              <button
+                type="button"
+                onClick={handleBack}
+                className="neu-btn-soft"
+              >
+                ← 返回选择
+              </button>
               <button
                 type="button"
                 onClick={() => void handleExport()}
@@ -824,182 +784,166 @@ export function AnnouncementDialog({
                 </span>
                 {exporting ? "导出中..." : "导出公告"}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="neu-btn-xs"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {step === "select_category" ? (
-            /* Category Selection */
-            <div className="flex flex-1 items-center justify-center p-8">
-              <div className="grid gap-4 w-full max-w-lg">
-                {availableCategories.map((cat) => {
-                  const catMeta = ANNOUNCEMENT_CATEGORIES.find(
-                    (c) => c.type === cat,
-                  );
-                  const IconComponent = CATEGORY_ICONS[cat] ?? FileSearch;
-                  return (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => handleSelectCategory(cat)}
-                      className="group flex items-start gap-4 rounded-[16px] border border-transparent px-5 py-4 text-left bg-[oklch(1_0_0_/_0.55)] backdrop-blur-[16px] transition-[transform,box-shadow] duration-300 [box-shadow:var(--cs)] hover:[box-shadow:var(--csh)] hover:-translate-y-0.5"
-                      style={{
-                        "--cs": "inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.12), -2px -2px 6px oklch(1 0 0 / 0.85)",
-                        "--csh": "inset 0 1px 0 oklch(1 0 0 / 0.85), 4px 4px 10px oklch(0.45 0.08 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9)",
-                      } as React.CSSProperties}
-                    >
-                      <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[color:var(--accent)] transition-transform duration-300 group-hover:scale-105">
-                        <IconComponent size={18} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                          {getAnnouncementLabel(tenderType, cat)}
-                        </div>
-                        <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
-                          {catMeta?.description}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            /* Editor + Preview */
-            <div className="flex min-h-0 flex-1 flex-row gap-4 p-4">
-              {/* Editor (left) */}
-              <section className="flex min-h-0 flex-1 flex-col rounded-[20px] wb-panel">
-                <div className="shrink-0 px-5 py-3" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
-                    编辑区
-                  </div>
-                  <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
-                    {fields.filter((f) => draftRecord[f.key]?.trim()).length}/{fields.length} 项已填写
-                  </div>
-                </div>
-                <div className="min-h-0 flex-1 overflow-y-auto p-5 tender-scroll">
-                  <div className="grid gap-3">
-                    {fields
-                      .filter((field) => {
-                        // Hide scheduleRequirements content when type is not "have"
-                        if (field.key === "scheduleRequirements") {
-                          const typeVal = draftRecord.scheduleRequirementsType;
-                          return typeVal === "have";
-                        }
-                        // Hide the composite typeKey field — it's rendered inline with its parent
-                        if (field.composite) {
-                          return true;
-                        }
-                        // Hide bidOpeningTimeType standalone — rendered as part of bidOpeningTime composite
-                        if (field.key === "bidOpeningTimeType") {
-                          return false;
-                        }
-                        // Hide remark text input when type is not "手动填入"
-                        if (field.key === "bidder1Remark") {
-                          return draftRecord.bidder1RemarkType === "手动填入";
-                        }
-                        return true;
-                      })
-                      .map((field, fieldIdx, filteredFields) => {
-                        // Inject BidderEditor after bidOpeningTime for winning_bid
-                        const isWinningBid = category === "winning_bid";
-                        const isAfterBidOpening = isWinningBid && field.key === "bidder1RemarkType";
-
-                        return (
-                          <Fragment key={field.key}>
-                            {isAfterBidOpening && (
-                              <BidderEditor
-                                draftRecord={draftRecord}
-                                onChange={(k, v) => handleFieldChange(k as AnnouncementFieldKey, v)}
-                                onImport={handleImportBidders}
-                                importing={importingBidders}
-                              />
-                            )}
-                            <AnnouncementFieldEditor
-                        key={field.key}
-                        field={field}
-                        value={draftRecord[field.key] ?? ""}
-                        draftRecord={draftRecord}
-                        onChange={field.key === "contactName" ? handleContactNameChange : handleFieldChange}
-                        onFieldFocus={handleFieldFocus}
-                        favoriteStates={favoriteStates}
-                        generatingStates={generatingStates}
-                        onFavoriteToggle={handleFavoriteToggle}
-                        onSampleOpen={handleSampleOpen}
-                        onAiGenerate={handleAiGenerate}
-                        onContactOpen={() => setContactPickerOpen(true)}
-                      />
-                          </Fragment>
-                        );
-                      })}
-                  </div>
-                </div>
-              </section>
-
-              {/* Preview (right) */}
-              <aside className="flex min-h-0 flex-[1.1] flex-col overflow-hidden rounded-[24px] wb-panel">
-                <div className="shrink-0 px-5 py-3" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
-                    预览区
-                  </div>
-                  <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
-                    {dialogTitle} · 实时预览（支持双击编辑）
-                  </div>
-                </div>
-                <div
-                  ref={previewScrollRef}
-                  className="min-h-0 flex-1 overflow-y-auto tender-scroll"
+            </>
+          ) : undefined
+        }
+      >
+        {step === "select_category" ? (
+          /* Category Selection */
+          <div className="grid gap-4">
+            {availableCategories.map((cat) => {
+              const catMeta = ANNOUNCEMENT_CATEGORIES.find(
+                (c) => c.type === cat,
+              );
+              const IconComponent = CATEGORY_ICONS[cat] ?? FileSearch;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => handleSelectCategory(cat)}
+                  className="group flex items-start gap-4 rounded-[16px] border border-transparent px-5 py-4 text-left bg-[oklch(1_0_0_/_0.55)] backdrop-blur-[16px] transition-[transform,box-shadow] duration-300 [box-shadow:var(--cs)] hover:[box-shadow:var(--csh)] hover:-translate-y-0.5"
+                  style={{
+                    "--cs": "inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.12), -2px -2px 6px oklch(1 0 0 / 0.85)",
+                    "--csh": "inset 0 1px 0 oklch(1 0 0 / 0.85), 4px 4px 10px oklch(0.45 0.08 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9)",
+                  } as React.CSSProperties}
                 >
-                  <div className="mx-3 my-2 px-2 py-2">
-                    {draft && (
-                      <AnnouncementPreviewDocument
-                        tenderType={tenderType}
-                        category={category!}
-                        draft={draft}
-                        onValueChange={handlePreviewValueChange}
-                      />
-                    )}
+                  <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[color:var(--accent)] transition-transform duration-300 group-hover:scale-105">
+                    <IconComponent size={18} />
                   </div>
+                  <div className="min-w-0">
+                    <div className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                      {getAnnouncementLabel(tenderType, cat)}
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
+                      {catMeta?.description}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          /* Editor + Preview */
+          <div className="flex flex-row gap-4">
+            {/* Editor (left) */}
+            <section className="flex min-h-0 flex-1 flex-col rounded-[20px] wb-panel">
+              <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
+                  编辑区
                 </div>
-              </aside>
-            </div>
-          )}
-        </div>
+                <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
+                  {fields.filter((f) => draftRecord[f.key]?.trim()).length}/{fields.length} 项已填写
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-5 tender-scroll">
+                <div className="grid gap-3">
+                  {fields
+                    .filter((field) => {
+                      // Hide scheduleRequirements content when type is not "have"
+                      if (field.key === "scheduleRequirements") {
+                        const typeVal = draftRecord.scheduleRequirementsType;
+                        return typeVal === "have";
+                      }
+                      // Hide the composite typeKey field — it's rendered inline with its parent
+                      if (field.composite) {
+                        return true;
+                      }
+                      // Hide bidOpeningTimeType standalone — rendered as part of bidOpeningTime composite
+                      if (field.key === "bidOpeningTimeType") {
+                        return false;
+                      }
+                      // Hide remark text input when type is not "手动填入"
+                      if (field.key === "bidder1Remark") {
+                        return draftRecord.bidder1RemarkType === "手动填入";
+                      }
+                      return true;
+                    })
+                    .map((field, fieldIdx, filteredFields) => {
+                      // Inject BidderEditor after bidOpeningTime for winning_bid
+                      const isWinningBid = category === "winning_bid";
+                      const isAfterBidOpening = isWinningBid && field.key === "bidder1RemarkType";
+
+                      return (
+                        <Fragment key={field.key}>
+                          {isAfterBidOpening && (
+                            <BidderEditor
+                              draftRecord={draftRecord}
+                              onChange={(k, v) => handleFieldChange(k as AnnouncementFieldKey, v)}
+                              onImport={handleImportBidders}
+                              importing={importingBidders}
+                            />
+                          )}
+                          <AnnouncementFieldEditor
+                      key={field.key}
+                      field={field}
+                      value={draftRecord[field.key] ?? ""}
+                      draftRecord={draftRecord}
+                      onChange={field.key === "contactName" ? handleContactNameChange : handleFieldChange}
+                      onFieldFocus={handleFieldFocus}
+                      favoriteStates={favoriteStates}
+                      generatingStates={generatingStates}
+                      onFavoriteToggle={handleFavoriteToggle}
+                      onSampleOpen={handleSampleOpen}
+                      onAiGenerate={handleAiGenerate}
+                      onContactOpen={() => setContactPickerOpen(true)}
+                    />
+                        </Fragment>
+                      );
+                    })}
+                </div>
+              </div>
+            </section>
+
+            {/* Preview (right) */}
+            <aside className="flex min-h-0 flex-[1.1] flex-col overflow-hidden rounded-[24px] wb-panel">
+              <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
+                  预览区
+                </div>
+                <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
+                  {dialogTitle} · 实时预览（支持双击编辑）
+                </div>
+              </div>
+              <div
+                ref={previewScrollRef}
+                className="min-h-0 flex-1 overflow-y-auto tender-scroll"
+              >
+                <div className="mx-3 my-2 px-2 py-2">
+                  {draft && (
+                    <AnnouncementPreviewDocument
+                      tenderType={tenderType}
+                      category={category!}
+                      draft={draft}
+                      onValueChange={handlePreviewValueChange}
+                    />
+                  )}
+                </div>
+              </div>
+            </aside>
+          </div>
+        )}
 
         {/* Error message */}
         {errorMessage && (
-          <div className="shrink-0 px-6 py-3 text-sm text-[color:var(--danger)]" style={{ borderTop: "1px solid color-mix(in oklch, var(--danger) 20%, transparent)" }}>
+          <div className="text-sm text-[color:var(--danger)]">
             {errorMessage}
           </div>
         )}
 
         {/* Success toast */}
         {successMessage && (
-          <div className="absolute bottom-6 left-1/2 z-50 -translate-x-1/2 animate-fade-in">
-            <div className="rounded-[10px] border border-[color-mix(in_oklch,var(--success)_28%,transparent)] bg-[var(--success)] px-5 py-3 text-sm font-medium text-white shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
-              {successMessage}
-            </div>
+          <div className="rounded-[10px] border border-[color-mix(in_oklch,var(--success)_28%,transparent)] bg-[var(--success)] px-5 py-3 text-sm font-medium text-white">
+            {successMessage}
           </div>
         )}
 
         {/* AI / Import error toast */}
         {aiError && (
-          <div className="absolute bottom-6 left-1/2 z-50 -translate-x-1/2 animate-fade-in">
-            <div className="rounded-[10px] border border-[color-mix(in_oklch,var(--danger)_28%,transparent)] bg-[var(--danger)] px-5 py-3 text-sm font-medium text-white shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
-              {aiError}
-            </div>
+          <div className="rounded-[10px] border border-[color-mix(in_oklch,var(--danger)_28%,transparent)] bg-[var(--danger)] px-5 py-3 text-sm font-medium text-white">
+            {aiError}
           </div>
         )}
-      </motion.div>
+      </Modal>
 
       {/* Sample drawer */}
       {sampleDrawerState && (
@@ -1029,6 +973,6 @@ export function AnnouncementDialog({
         hidden
         onChange={(e) => void handleFileSelected(e)}
       />
-    </div>
+    </>
   );
 }

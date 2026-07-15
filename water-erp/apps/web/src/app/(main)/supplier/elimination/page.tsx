@@ -4,26 +4,48 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { AlertTriangle, Trash2, Loader2, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, Trash2, ArrowLeft } from 'lucide-react';
 import { getEliminationCandidates, confirmEliminate } from '@/lib/api/supplier';
 import type { EliminationCandidate } from '@/lib/api/supplier';
+import { Modal } from '@/components/workbench';
 
 export default function EliminationPage() {
   const router = useRouter();
   const [candidates, setCandidates] = useState<EliminationCandidate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [confirmModal, setConfirmModal] = useState<EliminationCandidate | null>(null);
+  const [reason, setReason] = useState('');
 
   useEffect(() => { getEliminationCandidates().then(setCandidates).catch(() => {}).finally(() => setLoading(false)); }, []);
 
-  const handleConfirm = async (supplierId: string) => {
-    setConfirmingId(supplierId);
+  const openConfirm = (c: EliminationCandidate) => {
+    setConfirmModal(c);
+    setReason(c.reason);
+  };
+
+  const executeEliminate = async () => {
+    if (!confirmModal) return;
+    if (!reason.trim()) { toast.error('请填写淘汰原因'); return; }
+    const target = confirmModal;
+    const prevCandidates = candidates;
+    // 乐观移除
+    setCandidates(prev => prev.filter(c => c.supplierId !== target.supplierId));
+    setConfirmModal(null);
+    let cancelled = false;
+    toast(`已淘汰「${target.name}」`, {
+      description: '4 秒内可撤销',
+      duration: 4000,
+      action: { label: '撤销', onClick: () => { cancelled = true; setCandidates(prevCandidates); } },
+    });
+    await new Promise(r => setTimeout(r, 4200));
+    if (cancelled) return;
     try {
-      await confirmEliminate(supplierId, '连续3次绩效评分≤60，系统自动淘汰预警');
+      await confirmEliminate(target.supplierId, reason.trim());
       toast.success('已确认淘汰');
-      setCandidates(prev => prev.filter(c => c.supplierId !== supplierId));
-    } catch (e: any) { toast.error(e?.message || '操作失败'); }
-    setConfirmingId(null);
+    } catch (e: any) {
+      toast.error(e?.message || '操作失败');
+      setCandidates(prevCandidates);
+    }
   };
 
   return (
@@ -67,10 +89,8 @@ export default function EliminationPage() {
                   </td>
                   <td className="text-sm text-[var(--muted-foreground)]">{c.reason}</td>
                   <td>
-                    <button onClick={() => handleConfirm(c.supplierId)} disabled={confirmingId === c.supplierId}
-                      className="neu-btn-xs is-danger">
-                      {confirmingId === c.supplierId ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                      {confirmingId === c.supplierId ? '处理中...' : '确认淘汰'}
+                    <button onClick={() => openConfirm(c)} className="neu-btn-xs is-danger">
+                      <Trash2 size={12} />确认淘汰
                     </button>
                   </td>
                 </tr>
@@ -78,6 +98,25 @@ export default function EliminationPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* ══════ 淘汰确认弹窗 ══════ */}
+      {confirmModal && (
+        <Modal
+          open
+          onClose={() => setConfirmModal(null)}
+          title="确认淘汰供应商"
+          description={<>供应商：<strong className="text-[var(--foreground)]">{confirmModal.name}</strong></>}
+          footer={
+            <>
+              <button onClick={() => setConfirmModal(null)} className="neu-btn-soft">取消</button>
+              <button onClick={executeEliminate} disabled={!reason.trim()} className="neu-btn-soft is-danger">确认淘汰</button>
+            </>
+          }
+        >
+          <p className="text-xs text-[var(--muted-foreground)]">淘汰后供应商将移出资源池。操作在 4 秒撤销期内可撤回，过期后不可逆。</p>
+          <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="请填写淘汰原因（将记录在案）..." className="neu-input w-full h-24 resize-none text-sm" />
+        </Modal>
       )}
     </div>
   );

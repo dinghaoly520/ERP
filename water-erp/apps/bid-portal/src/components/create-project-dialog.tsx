@@ -9,7 +9,7 @@ interface Props {
   onCreated: () => void;
 }
 
-const METHODS = ['公开招标', '邀请招标', '竞争性谈判', '询价', '单一来源'];
+const METHODS = ['公开招标', '邀请招标', '谈判采购', '询价', '单一来源'];
 
 export default function CreateProjectDialog({ open, onClose, onCreated }: Props) {
   const [name, setName] = useState('');

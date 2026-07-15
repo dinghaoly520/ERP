@@ -51,10 +51,10 @@ export default function PriceTrendsPage() {
               <p className="text-xs font-semibold text-[var(--muted-foreground)] mb-2">已选对比项</p>
               <div className="flex flex-col gap-1">
                 {selectedItems.map(item => (
-                  <div key={item.id} className="flex items-center gap-2 text-sm px-2 py-1 rounded-lg bg-[rgba(96,139,239,0.06)]">
+                  <div key={item.id} className="flex items-center gap-2 text-sm px-2 py-1 rounded-lg bg-[var(--accent-tint)]">
                     <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: PALETTE[selectedItems.indexOf(item) % PALETTE.length] }} />
                     <span className="flex-1 truncate">{item.name}</span>
-                    <button onClick={() => setSelectedItems(prev => prev.filter(i => i.id !== item.id))} className="p-0.5 rounded hover:bg-red-100"><X size={12} className="text-red-400" /></button>
+                    <button onClick={() => setSelectedItems(prev => prev.filter(i => i.id !== item.id))} aria-label="移除对比" className="p-0.5 rounded hover:bg-[var(--danger-soft)]"><X size={12} className="text-[var(--danger)]" /></button>
                   </div>
                 ))}
               </div>
@@ -65,7 +65,7 @@ export default function PriceTrendsPage() {
             <div className="flex flex-col gap-1">
               {items.slice(0, 50).map(item => (
                 <button key={item.id} onClick={() => { if (selectedItems.find(i => i.id === item.id)) return; if (selectedItems.length >= 5) { toast.error('最多对比 5 个'); return; } setSelectedItems(prev => [...prev, item]); }}
-                  className="text-left text-sm px-2 py-1.5 rounded-lg hover:bg-[rgba(96,139,239,0.06)] flex items-center justify-between">
+                  className="text-left text-sm px-2 py-1.5 rounded-lg hover:bg-[var(--accent-tint)] flex items-center justify-between">
                   <span className="truncate">{item.name}</span><Plus size={14} className="text-[var(--muted-foreground)] flex-shrink-0 ml-2" />
                 </button>
               ))}

@@ -33,8 +33,8 @@ export function getAnnouncementLabel(
 
   if (category === "procurement_document") {
     if (tenderType === "INVITED_BIDDING") return "邀请招标公告";
-    if (tenderType === "INTERNAL_BIDDING") return "内部竞标（竞价）公告";
-    if (tenderType === "SINGLE_SOURCE") return "单源直接采购公告";
+    if (tenderType === "INTERNAL_BIDDING") return "竞价采购公告";
+    if (tenderType === "SINGLE_SOURCE") return "直接采购公告";
   }
   if (category === "failed_bid") return "流标公告";
   if (category === "winning_bid") return "中标公告";
@@ -42,7 +42,7 @@ export function getAnnouncementLabel(
   return `${tenderLabel}公告`;
 }
 
-// ─── 邀请招标公告 / 内部竞标公告 字段配置 ───
+// ─── 邀请招标公告 / 竞价采购公告 字段配置 ───
 
 export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
   {
@@ -143,7 +143,7 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
   },
 ];
 
-// ─── 单源直接采购公告 字段配置 ───
+// ─── 直接采购公告 字段配置 ───
 
 export const SINGLE_SOURCE_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
   {
@@ -158,7 +158,7 @@ export const SINGLE_SOURCE_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     placeholder: "请输入项目概况和采购内容",
     multiline: true,
     autoFill: "projectOverview",
-    aiPrompt: "根据项目名称和招标文件中的项目信息，生成单源直接采购公告中的项目概况和采购内容。要求简洁概括项目背景、目标、采购范围和采购内容。不要使用#、*等符号，不要出现空行。",
+    aiPrompt: "根据项目名称和招标文件中的项目信息，生成直接采购公告中的项目概况和采购内容。要求简洁概括项目背景、目标、采购范围和采购内容。不要使用#、*等符号，不要出现空行。",
   },
   {
     key: "maxPriceNumeric",

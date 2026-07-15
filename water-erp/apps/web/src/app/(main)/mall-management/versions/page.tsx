@@ -66,13 +66,13 @@ export default function VersionsPage() {
         : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {versions.map(v => (
             <div key={v.id} className="neu-card rounded-2xl p-4 flex flex-col gap-2">
-              <div className="flex items-center justify-between"><span className="text-sm font-bold text-[var(--foreground)]">{v.name}</span><span className={`text-[10px] px-2 py-0.5 rounded-full ${v.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : v.status === 'ARCHIVED' ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700'}`}>{v.status === 'ACTIVE' ? '生效' : v.status === 'ARCHIVED' ? '归档' : '草稿'}</span></div>
+              <div className="flex items-center justify-between"><span className="text-sm font-bold text-[var(--foreground)]">{v.name}</span><span className={`text-[10px] px-2 py-0.5 rounded-full ${v.status === 'ACTIVE' ? 'bg-[var(--success-soft)] text-[var(--success)]' : v.status === 'ARCHIVED' ? 'bg-[var(--muted)] text-[var(--muted-foreground)]' : 'bg-[var(--accent-tint-strong)] text-[var(--accent)]'}`}>{v.status === 'ACTIVE' ? '生效' : v.status === 'ARCHIVED' ? '归档' : '草稿'}</span></div>
               <code className="text-xs font-mono text-[var(--accent)]">{v.version}</code>
               <div className="text-xs text-[var(--muted-foreground)]">{v.effectiveAt?.slice(0, 10)} · {v.user?.displayName || v.user?.username}</div>
               {v.description && <p className="text-xs text-[var(--muted-foreground)]">{v.description}</p>}
               <div className="flex gap-1 mt-auto pt-2">
-                <button onClick={() => setDiffA(diffA === v.id ? null : v.id)} className={`neu-btn-xs ${diffA === v.id ? 'is-active' : ''}`}>A</button>
-                <button onClick={() => setDiffB(diffB === v.id ? null : v.id)} className={`neu-btn-xs ${diffB === v.id ? 'is-active' : ''}`}>B</button>
+                <button onClick={() => setDiffA(diffA === v.id ? null : v.id)} aria-label="设为对比基准 A" className={`neu-btn-xs ${diffA === v.id ? 'is-active' : ''}`}>A</button>
+                <button onClick={() => setDiffB(diffB === v.id ? null : v.id)} aria-label="设为对比基准 B" className={`neu-btn-xs ${diffB === v.id ? 'is-active' : ''}`}>B</button>
                 {v.status !== 'ACTIVE' && <button onClick={() => doChangeStatus(v.id, 'ACTIVE')} className="neu-btn-xs is-success ml-auto">生效</button>}
                 {v.status !== 'ARCHIVED' && <button onClick={() => doChangeStatus(v.id, 'ARCHIVED')} className="neu-btn-xs ml-auto">归档</button>}
               </div>
@@ -88,9 +88,9 @@ export default function VersionsPage() {
         <div className="neu-card rounded-2xl p-5">
           <h3 className="text-sm font-bold text-[var(--foreground)] mb-3">版本对比：{diff.versionA} → {diff.versionB}</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className="p-3 rounded-xl bg-green-50"><span className="font-semibold text-green-700">新增 {diff.added.length} 项</span><div className="mt-1 max-h-40 overflow-y-auto">{diff.added.map((i: any) => <div key={i.code} className="text-xs mt-0.5 font-mono">{i.code} {i.name}</div>)}</div></div>
-            <div className="p-3 rounded-xl bg-red-50"><span className="font-semibold text-red-700">下架 {diff.removed.length} 项</span><div className="mt-1 max-h-40 overflow-y-auto">{diff.removed.map((i: any) => <div key={i.code} className="text-xs mt-0.5 font-mono">{i.code} {i.name}</div>)}</div></div>
-            <div className="p-3 rounded-xl bg-orange-50"><span className="font-semibold text-orange-700">价格变化 {diff.priceChanges.length} 项</span><div className="mt-1 max-h-40 overflow-y-auto">{diff.priceChanges.map((i: any) => <div key={i.code} className="text-xs mt-0.5 font-mono">{i.code} ¥{i.oldPrice}→¥{i.referencePrice}</div>)}</div></div>
+            <div className="p-3 rounded-xl bg-[var(--success-soft)]"><span className="font-semibold text-[var(--success)]">新增 {diff.added.length} 项</span><div className="mt-1 max-h-40 overflow-y-auto">{diff.added.map((i: any) => <div key={i.code} className="text-xs mt-0.5 font-mono">{i.code} {i.name}</div>)}</div></div>
+            <div className="p-3 rounded-xl bg-[var(--danger-soft)]"><span className="font-semibold text-[var(--danger)]">下架 {diff.removed.length} 项</span><div className="mt-1 max-h-40 overflow-y-auto">{diff.removed.map((i: any) => <div key={i.code} className="text-xs mt-0.5 font-mono">{i.code} {i.name}</div>)}</div></div>
+            <div className="p-3 rounded-xl bg-[var(--warning-soft)]"><span className="font-semibold text-[var(--warning)]">价格变化 {diff.priceChanges.length} 项</span><div className="mt-1 max-h-40 overflow-y-auto">{diff.priceChanges.map((i: any) => <div key={i.code} className="text-xs mt-0.5 font-mono">{i.code} ¥{i.oldPrice}→¥{i.referencePrice}</div>)}</div></div>
           </div>
         </div>
       )}

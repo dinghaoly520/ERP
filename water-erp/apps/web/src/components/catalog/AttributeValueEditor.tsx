@@ -19,7 +19,7 @@ export function AttributeValueEditor({ fields, onChange }: Props) {
         {fields.map(f => (
           <div key={f.templateId}>
             <label className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">
-              {f.name} {f.required && <span className="text-red-400">*</span>}
+              {f.name} {f.required && <span className="text-[var(--danger)]">*</span>}
               {f.unit && <span className="text-[10px] ml-1">({f.unit})</span>}
             </label>
             {f.fieldType === 'SELECT' ? (

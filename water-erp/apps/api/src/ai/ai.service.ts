@@ -1549,7 +1549,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 【简报写作格式要求 - 非常重要】
 1. 使用流畅的自然语言叙述，不要使用 Markdown 格式（禁止使用 ** 加粗符号）
 2. 不要使用"项目名称：xxx"、"申请人：xxx"等键值对格式
-3. 采用连贯的段落式表达，例如："本项目采购华测i93pro RTK测量仪器，由兰小平申请，当前处于评标过程阶段..."
+3. 采用连贯的段落式表达，例如："本项目采购华测i93pro RTK测量仪器，由兰小平申请，当前处于开标评标阶段..."
 4. 信息之间用逗号或句号连接，形成完整的叙述句
 5. 保持专业、简洁的公文风格
 
@@ -1578,11 +1578,12 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 
 步骤标识对照表：
 - PROCUREMENT_DEMAND = 采购需求步骤
-- INITIATION = 项目立项步骤
+- INITIATION = 采购立项步骤
 - TENDER_DOCUMENT = 采购文件步骤
-- PUBLIC_ANNOUNCEMENT = 采购公示步骤
+- SUPPLIER_INVITATION = 供应商邀请步骤
+- PUBLIC_ANNOUNCEMENT = 采购公告公示步骤
 - EXPERT_SELECTION = 专家抽取步骤
-- BID_EVALUATION = 评标过程步骤
+- BID_EVALUATION = 开标评标步骤
 - AWARD_DECISION = 定标步骤
 - CONTRACT = 合同步骤
 
@@ -1590,7 +1591,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 - PROCUREMENT_DEMAND（采购需求）：采购需求申请表、需求申请表、采购申请表、需求计划表、采购需求
 - INITIATION（项目立项）：采购立项申请表、立项申请表、项目立项审批单、立项申请、立项审批
 - TENDER_DOCUMENT（采购文件）：招标文件、采购文件、投标邀请书、技术规格书、评标办法、招标、采购文件（不含"公告"、"公示"）
-- PUBLIC_ANNOUNCEMENT（采购公示）：招标公告、采购公告、采购公示、邀请招标公告、竞争性谈判公告、成交公示、中标公示、公告、公示
+- PUBLIC_ANNOUNCEMENT（采购公示）：招标公告、采购公告、采购公示、邀请招标公告、谈判采购公告、成交公示、中标公示、公告、公示
 - EXPERT_SELECTION（专家抽取）：专家抽取申请、专家名单、评标专家抽取结果、专家抽取、抽取结果
 - BID_EVALUATION（评标过程）：投标文件、开标记录、评标报告、评分表、投标、评标、开标
 - AWARD_DECISION（定标）：定标报告、中标通知书、定标审批表、定标、中标通知
@@ -1637,7 +1638,7 @@ stageMatch 字段需要输出两部分判断结果：
 - 当前步骤是采购需求，文件名含"立项申请表"，但内容与项目一致 → 输出"文件类型：不匹配，属于采购立项步骤 | 内容：匹配"
 - 当前步骤是采购立项，文件名含"立项申请表"，但内容涉及其他项目 → 输出"文件类型：匹配 | 内容：不匹配"
 - 当前步骤是采购文件，文件名含"招标公告" → 输出"文件类型：不匹配，属于采购公示步骤 | 内容：匹配"
-- 当前步骤是评标过程，文件名含"评标报告"，但内容与项目标题无关 → 输出"文件类型：匹配 | 内容：不匹配"
+- 当前步骤是开标评标，文件名含"评标报告"，但内容与项目标题无关 → 输出"文件类型：匹配 | 内容：不匹配"
 - 当前步骤是合同，文件名含"合同"，内容与项目一致 → 输出"文件类型：匹配 | 内容：匹配"
 - 文件内容无法解析 → 输出"文件类型：匹配 | 内容：无法判断"
 
@@ -1648,7 +1649,7 @@ stageMatch 字段需要输出两部分判断结果：
 - **内容匹配判断必须严格核对项目名称，不同项目的文件必须判定为"内容：不匹配"**
 
 【内容匹配判断示例 - 重点参考】
-假设当前项目标题是"人资-人事档案数字化服务（竞争性谈判）"：
+假设当前项目标题是"人资-人事档案数字化服务（谈判采购）"：
 
 错误判断示例：
 - 文件内容提到"土溪口水库工程拱坝应力分析"，但判定为"内容：匹配" (错误)
@@ -1708,8 +1709,8 @@ stageMatch 字段需要输出两部分判断结果：
       '',
       '# 领域知识',
       '四川水发集团是省属水利投资建设集团，采购业务覆盖工程建设、设备采购、信息化和服务。',
-      '采购方式包括：公开招标、邀请招标、竞争性谈判、竞争性磋商、询价、单一来源、直接委托、续约、内部竞标。',
-      '内部竞标和续约占比过高可能存在竞争不充分的风险；直接委托需要关注合规性。',
+      '采购方式包括：公开招标、邀请招标、谈判采购、竞争性磋商、询价、单一来源、直接委托、续约、竞价采购。',
+      '竞价采购和续约占比过高可能存在竞争不充分的风险；直接委托需要关注合规性。',
       '未成交的原因通常包括：资格审查未通过、报价超预算、投标单位不足、材料不齐全、中止采购等。',
       '风险项目按严重程度分为"高/中/低"，高严重度项目需要管理层立即关注。',
       '',
@@ -1806,16 +1807,34 @@ stageMatch 字段需要输出两部分判断结果：
     fieldKey: string; fieldLabel: string; currentValue: string;
     aiPrompt?: string; context?: any;
   }) {
-    const systemPrompt = `你是招标文件编写专家。为"${payload.fieldLabel}"字段生成内容。返回 JSON: {content}`;
-    try {
-      const result = await this.llm.chatJson<{ content: string }>(
-        systemPrompt,
-        `字段: ${payload.fieldKey}\n当前值: ${payload.currentValue}\n要求: ${payload.aiPrompt || '生成专业内容'}\n上下文: ${JSON.stringify(payload.context || {})}`,
-      );
-      return { content: result.content || payload.currentValue };
-    } catch {
-      return { content: payload.currentValue || '生成失败，请重试' };
+    const systemPrompt =
+      `你是招标/采购文件编写专家。默认以采购方（招标方）立场行文，向供应商提出要求、规范其投标与报价行为；` +
+      `若字段要求中明确指定以供应商口吻填写（如供应商填报的报价清单），则按该字段指定口吻生成。` +
+      `不得编造具体的报价金额（需要报价处以 ____ 留空供填写）。` +
+      `只输出正文：不写标题、抬头（如 致：××）或落款签字栏（如 投标人盖章、法定代表人签字、日期）。` +
+      `现为"${payload.fieldLabel}"字段生成内容。只返回 JSON: {"content": "正文"}。`;
+    const userPrompt =
+      `字段: ${payload.fieldKey}\n当前值: ${payload.currentValue}\n` +
+      `要求: ${payload.aiPrompt || '生成专业内容'}\n上下文: ${JSON.stringify(payload.context || {})}`;
+
+    // LLM 调用可能因限流/网络/解析偶发失败，重试 3 次以提升稳定性
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const result = await this.llm.chatJson<{ content: string }>(systemPrompt, userPrompt);
+        const content = (result.content || '').trim();
+        if (content) return { content };
+      } catch (err) {
+        lastError = err;
+      }
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 600 * (attempt + 1)));
+      }
     }
+    // 全部重试失败 —— 抛错由调用方处理，避免把"生成失败"文本写回字段或存为样本
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('AI 生成失败，请稍后重试');
   }
 
   /** 参考预算生成 */

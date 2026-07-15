@@ -37,11 +37,10 @@ const SELECT_FIELDS = ['procurementCategory', 'procurementMethod'] as const;
 const PROCUREMENT_METHOD_OPTIONS = [
   '公开招标',
   '邀请招标',
-  '内部竞标/竞价',
-  '竞争性谈判',
-  '询价采购',
+  '竞价采购',
+  '谈判采购',
+  '询比采购',
   '单一来源采购',
-  '直接委托续约采购',
   '框架协议采购',
   '直接签订合同',
 ];

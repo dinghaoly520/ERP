@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getExpertStatistics, type ExpertStatistics } from '@/lib/api/expert';
 import { StatusBadge } from '@/components/workbench';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { BarChart3, UsersRound, Clock, RefreshCw, ArrowLeft } from 'lucide-react';
 
 const levelLabel: Record<string, string> = { A: '优秀', B: '良好', C: '合格', D: '不合格' };
@@ -12,8 +13,14 @@ export default function ExpertStatisticsPage() {
   const router = useRouter();
   const [data, setData] = useState<ExpertStatistics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errored, setErrored] = useState(false);
 
-  const load = async () => { setLoading(true); try { setData(await getExpertStatistics()); } catch {} setLoading(false); };
+  const load = async () => {
+    setLoading(true); setErrored(false);
+    try { setData(await getExpertStatistics()); }
+    catch (e: any) { setErrored(true); toast.error(e?.message || '加载统计数据失败'); }
+    setLoading(false);
+  };
   useEffect(() => { load(); }, []);
 
   if (loading) return (
@@ -22,7 +29,12 @@ export default function ExpertStatisticsPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{[1,2,3,4].map(i => <div key={i} className="skeleton h-24 rounded-2xl" />)}</div>
     </div>
   );
-  if (!data) return <div className="py-24 text-center text-sm text-[var(--muted-foreground)]">加载失败</div>;
+  if (errored || !data) return (
+    <div className="py-24 text-center">
+      <p className="text-sm font-semibold text-[var(--danger)] mb-3">统计数据加载失败</p>
+      <button onClick={load} className="neu-btn-xs is-info">重试</button>
+    </div>
+  );
 
   const maxSpec = Math.max(...data.specialtyDistribution.map(s => s.count), 1);
   const availRate = data.totalExperts > 0 ? Math.round((data.available / data.totalExperts) * 100) : 0;
@@ -40,7 +52,7 @@ export default function ExpertStatisticsPage() {
             <button onClick={load} className="neu-btn-xs"><RefreshCw size={14} /></button>
           </div>
         </div>
-        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
+        <div className="page-hero__divider">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
               ['专家总数', data.totalExperts, '入库总量'],

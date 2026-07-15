@@ -100,25 +100,29 @@ export default function SupplierDashboardPage() {
             <p className="text-sm text-[var(--muted-foreground)] py-8 text-center">暂无评价数据</p>
           ) : (
             <div className="flex items-center gap-6">
-              {/* Simple stacked bar ring */}
-              <div className="flex-shrink-0" style={{ width: 100, height: 100 }}>
-                {(() => {
-                  const data = ['A','B','C','D'];
-                  const colors: Record<string,string> = { A:'var(--success)', B:'var(--accent)', C:'var(--warning)', D:'var(--danger)' };
-                  const total = evalStats.levelCounts.A + evalStats.levelCounts.B + evalStats.levelCounts.C + evalStats.levelCounts.D;
-                  const totalWithFallback = total || 1;
-                  return (
-                    <div className="flex rounded-md overflow-hidden h-full w-full">
-                      {data.map(l => {
-                        const count = evalStats.levelCounts[l as keyof typeof evalStats.levelCounts] || 0;
-                        const pct = (count / totalWithFallback) * 100;
-                        if (pct === 0) return null;
-                        return <div key={l} style={{ width: `${pct}%`, backgroundColor: colors[l] }} title={`${l}: ${count}`} />;
-                      })}
+              {(() => {
+                const colors: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: 'var(--danger)' };
+                const total = evalStats.levelCounts.A + evalStats.levelCounts.B + evalStats.levelCounts.C + evalStats.levelCounts.D || 1;
+                let acc = 0;
+                const stops = (['A', 'B', 'C', 'D'] as const).map(l => {
+                  const count = evalStats.levelCounts[l];
+                  const start = (acc / total) * 360;
+                  acc += count;
+                  const end = (acc / total) * 360;
+                  return count > 0 ? `${colors[l]} ${start.toFixed(1)}deg ${end.toFixed(1)}deg` : null;
+                }).filter(Boolean).join(', ');
+                return (
+                  <div className="relative flex-shrink-0" style={{ width: 100, height: 100 }}>
+                    <div className="w-full h-full rounded-full" style={{ background: `conic-gradient(${stops || 'var(--muted)'})` }} />
+                    <div className="absolute inset-[16px] rounded-full bg-[var(--background)] flex items-center justify-center shadow-[inset_0_1px_3px_oklch(0.55_0.03_258/0.1)]">
+                      <div className="text-center">
+                        <div className="text-base font-black tabular-nums text-[var(--foreground)] leading-none">{evalStats.avgScore.toFixed(0)}</div>
+                        <div className="text-[9px] text-[var(--muted-foreground)] mt-0.5">均分</div>
+                      </div>
                     </div>
-                  );
-                })()}
-              </div>
+                  </div>
+                );
+              })()}
               <div className="space-y-2">
                 {['A', 'B', 'C', 'D'].map(level => {
                   const count = evalStats.levelCounts[level as keyof typeof evalStats.levelCounts] || 0;

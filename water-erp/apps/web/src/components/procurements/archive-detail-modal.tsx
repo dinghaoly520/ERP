@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
-  X,
   FileText,
   Building2,
   Calendar,
@@ -16,6 +15,7 @@ import {
   Download,
 } from "lucide-react";
 import Folder from "@/components/Folder";
+import { Modal } from "@/components/workbench";
 
 // Animation utilities
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -28,21 +28,6 @@ function fadeIn(index: number, reducedMotion: boolean, baseDelay = 0.04) {
     transition: { duration: 0.5, delay: index * baseDelay, ease: easeOutQuint },
   };
 }
-
-const accentMap = {
-  blue: "rgba(96,139,239,1)",
-  blueLight: "rgba(96,139,239,0.12)",
-  teal: "rgba(92,181,150,1)",
-  tealLight: "rgba(92,181,150,0.12)",
-  gold: "rgba(234,188,110,1)",
-  goldLight: "rgba(234,188,110,0.14)",
-  coral: "rgba(230,129,102,1)",
-  coralLight: "rgba(230,129,102,0.12)",
-  indigo: "rgba(119,129,219,1)",
-  indigoLight: "rgba(119,129,219,0.12)",
-  purple: "rgba(147,112,219,1)",
-  purpleLight: "rgba(147,112,219,0.12)",
-};
 
 type ArchiveDetailData = {
   projectId: string;
@@ -89,116 +74,99 @@ function FilePreviewModal({ fileUrl, fileName, mimeType, onClose }: FilePreviewM
   }, [fileUrl]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-white/40 backdrop-blur-sm p-4"
-      onClick={onClose}
+    <Modal
+      open
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-3">
+          <FileText size={18} className="text-[color:var(--accent)]" />
+          <span className="text-[0.9rem] font-semibold truncate">{fileName}</span>
+        </span>
+      }
+      size="lg"
+      className="!max-w-[900px]"
     >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          onClick={(e) => e.stopPropagation()}
-          className="relative max-w-[900px] w-full max-h-[90vh] rounded-[20px] border border-white/55 bg-white/95 shadow-2xl overflow-hidden"
+      <div className="flex justify-end">
+        <a
+          href={fileUrl}
+          download={fileName}
+          className="neu-btn-xs"
+          title="下载文件"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-white/30 bg-gradient-to-r from-[rgba(96,139,239,0.06)] to-transparent">
-            <div className="flex items-center gap-3">
-              <FileText size={18} style={{ color: accentMap.blue }} />
-              <span className="text-[0.9rem] font-semibold truncate">{fileName}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <a
-                href={fileUrl}
-                download={fileName}
-                className="p-2 rounded-[8px] hover:bg-[rgba(96,139,239,0.1)] transition-colors"
-                title="下载文件"
-              >
-                <Download size={16} style={{ color: accentMap.blue }} />
-              </a>
-              <button
-                onClick={onClose}
-                className="p-2 rounded-[8px] hover:bg-white hover:rotate-90 transition-all"
-              >
-                <X size={18} />
-              </button>
-            </div>
+          <Download size={16} />
+        </a>
+      </div>
+
+      <div className="h-[calc(80vh-60px)] overflow-auto rounded-[12px] bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)]">
+        {loading && (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 size={32} className="animate-spin text-[color:var(--accent)]" />
           </div>
+        )}
 
-          {/* Content */}
-          <div className="h-[calc(90vh-60px)] overflow-auto bg-[rgba(240,240,240,0.5)]">
-            {loading && (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 size={32} className="animate-spin text-[rgba(96,139,239,0.6)]" />
-              </div>
-            )}
+        {isPdf && (
+          <iframe
+            src={fileUrl}
+            className="w-full h-full"
+            title={fileName}
+            onLoad={() => setLoading(false)}
+            onError={() => {
+              setLoading(false);
+              setError('无法加载PDF文件');
+            }}
+          />
+        )}
 
-            {isPdf && (
-              <iframe
-                src={fileUrl}
-                className="w-full h-full"
-                title={fileName}
-                onLoad={() => setLoading(false)}
-                onError={() => {
-                  setLoading(false);
-                  setError('无法加载PDF文件');
-                }}
-              />
-            )}
-
-            {isImage && (
-              <div className="flex items-center justify-center p-4">
-                <img
-                  src={fileUrl}
-                  alt={fileName}
-                  className="max-w-full max-h-[80vh] object-contain rounded-[8px]"
-                  onLoad={() => setLoading(false)}
-                  onError={() => {
-                    setLoading(false);
-                    setError('无法加载图片');
-                  }}
-                />
-              </div>
-            )}
-
-            {isText && (
-              <div className="p-6">
-                <iframe
-                  src={fileUrl}
-                  className="w-full h-[70vh] rounded-[8px] border border-white/50 bg-white"
-                  title={fileName}
-                  onLoad={() => setLoading(false)}
-                />
-              </div>
-            )}
-
-            {!isPdf && !isImage && !isText && (
-              <div className="flex flex-col items-center justify-center h-full py-20">
-                <FileText size={64} className="text-[rgba(140,140,140,0.4)]" />
-                <div className="mt-4 text-[0.9rem] text-[color:var(--muted-foreground)]">
-                  该文件类型暂不支持预览
-                </div>
-                <a
-                  href={fileUrl}
-                  download={fileName}
-                  className="mt-4 inline-flex items-center gap-2 rounded-[10px] bg-[rgba(96,139,239,0.9)] px-4 py-2 text-[0.85rem] font-semibold text-white"
-                >
-                  <Download size={14} />
-                  下载文件
-                </a>
-              </div>
-            )}
-
-            {error && (
-              <div className="flex flex-col items-center justify-center h-full py-20">
-                <div className="text-[0.9rem] text-[rgba(230,129,102,1)]">{error}</div>
-              </div>
-            )}
+        {isImage && (
+          <div className="flex items-center justify-center p-4">
+            <img
+              src={fileUrl}
+              alt={fileName}
+              className="max-w-full max-h-[70vh] object-contain rounded-[8px]"
+              onLoad={() => setLoading(false)}
+              onError={() => {
+                setLoading(false);
+                setError('无法加载图片');
+              }}
+            />
           </div>
-        </motion.div>
-      </motion.div>
+        )}
+
+        {isText && (
+          <div className="p-6">
+            <iframe
+              src={fileUrl}
+              className="w-full h-[60vh] rounded-[8px] border border-[color-mix(in_oklch,var(--muted-foreground)_15%,transparent)] bg-[var(--background)]"
+              title={fileName}
+              onLoad={() => setLoading(false)}
+            />
+          </div>
+        )}
+
+        {!isPdf && !isImage && !isText && (
+          <div className="flex flex-col items-center justify-center h-full py-20">
+            <FileText size={64} className="text-[color:var(--muted-foreground)]" />
+            <div className="mt-4 text-[0.9rem] text-[color:var(--muted-foreground)]">
+              该文件类型暂不支持预览
+            </div>
+            <a
+              href={fileUrl}
+              download={fileName}
+              className="neu-btn-soft mt-4"
+            >
+              <Download size={14} />
+              下载文件
+            </a>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex flex-col items-center justify-center h-full py-20">
+            <div className="text-[0.9rem] text-[var(--danger)]">{error}</div>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -268,9 +236,9 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
   };
 
   const getStatusIcon = (status: string) => {
-    if (status === '已完成') return <CheckCircle2 size={14} style={{ color: accentMap.teal }} />;
-    if (status === '进行中') return <Clock size={14} style={{ color: accentMap.gold }} />;
-    return <Clock size={14} style={{ color: 'rgba(140,140,140,1)' }} />;
+    if (status === '已完成') return <CheckCircle2 size={14} className="text-[var(--success)]" />;
+    if (status === '进行中') return <Clock size={14} className="text-[var(--warning)]" />;
+    return <Clock size={14} className="text-[var(--muted-foreground)]" />;
   };
 
   const selectedStage = data?.stages.find((s) => s.stageKey === selectedStageKey);
@@ -297,85 +265,67 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
     : '-';
 
   return (
-    <AnimatePresence>
-      <motion.div
-        key="archive-detail-modal"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-white/40 backdrop-blur-sm py-4"
-        onClick={onClose}
+    <>
+      <Modal
+        open
+        onClose={onClose}
+        title={
+          <span className="flex items-center gap-4">
+            <span className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)]">
+              <Folder color="#A3B8F2" size={0.35} items={['📄', '📋', '📑']} />
+            </span>
+            <span className="text-[1.15rem] font-bold text-[color:var(--foreground)]">
+              {loading ? '加载中...' : data?.projectTitle || '归档详情'}
+            </span>
+          </span>
+        }
+        description={
+          data ? (
+            <span className="flex items-center gap-4">
+              {data.extractedInfo['立项时间'] && (
+                <span className="flex items-center gap-1.5">
+                  <Calendar size={12} />
+                  立项：{data.extractedInfo['立项时间']}
+                </span>
+              )}
+              {data.archivedAt && (
+                <span className="flex items-center gap-1.5">
+                  <FolderOpen size={12} />
+                  归档：{data.archivedAt}
+                </span>
+              )}
+              {data.archiveHook && (
+                <span className="font-mono text-[color:var(--muted-foreground)]">
+                  {data.archiveHook}
+                </span>
+              )}
+            </span>
+          ) : undefined
+        }
+        size="lg"
+        className="!max-w-[1100px]"
       >
-        <motion.div
-          key="archive-detail-content"
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          onClick={(e) => e.stopPropagation()}
-          className="relative max-w-[1100px] w-[96vw] overflow-hidden rounded-[24px] border border-white/55 bg-white/92 shadow-2xl"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/35 bg-gradient-to-r from-[rgba(96,139,239,0.06)] to-[rgba(92,181,150,0.04)]">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[rgba(96,139,239,0.12)]">
-                <Folder color="#A3B8F2" size={0.35} items={['📄', '📋', '📑']} />
-              </div>
-              <div>
-                <h2 className="text-[1.15rem] font-bold text-[color:var(--foreground)]">
-                  {loading ? '加载中...' : data?.projectTitle || '归档详情'}
-                </h2>
-                {data && (
-                  <div className="flex items-center gap-4 mt-1 text-xs text-[color:var(--muted-foreground)]">
-                    {data.extractedInfo['立项时间'] && (
-                      <span className="flex items-center gap-1.5">
-                        <Calendar size={12} />
-                        立项：{data.extractedInfo['立项时间']}
-                      </span>
-                    )}
-                    {data.archivedAt && (
-                      <span className="flex items-center gap-1.5">
-                        <FolderOpen size={12} />
-                        归档：{data.archivedAt}
-                      </span>
-                    )}
-                    {data.archiveHook && (
-                      <span className="text-xs text-[rgba(140,140,140,0.7)] font-mono">
-                        {data.archiveHook}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+        {/* Content */}
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 size={32} className="animate-spin text-[color:var(--accent)]" />
+            <span className="ml-4 text-[0.9rem] text-[color:var(--muted-foreground)]">正在加载归档信息...</span>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <FileText size={48} className="text-[color:var(--danger)]" />
+            <div className="mt-4 text-[0.9rem] text-[color:var(--danger)]">{error}</div>
             <button
               onClick={onClose}
-              className="p-2.5 rounded-[12px] hover:bg-white hover:rotate-90 transition-all"
+              className="neu-btn-soft mt-6"
             >
-              <X size={18} />
+              关闭
             </button>
           </div>
-
-          {/* Content */}
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 size={32} className="animate-spin text-[rgba(96,139,239,0.6)]" />
-              <span className="ml-4 text-[0.9rem] text-[color:var(--muted-foreground)]">正在加载归档信息...</span>
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center py-20">
-              <FileText size={48} className="text-[rgba(230,129,102,0.4)]" />
-              <div className="mt-4 text-[0.9rem] text-[rgba(230,129,102,1)]">{error}</div>
-              <button
-                onClick={onClose}
-                className="mt-6 rounded-[10px] border border-white/55 bg-white/70 px-4 py-2 text-[0.85rem]"
-              >
-                关闭
-              </button>
-            </div>
-          ) : data ? (
-            <div className="flex h-[calc(90vh-73px)] min-h-0 flex-col">
+        ) : data ? (
+          <div>
               {/* Top - Stage Selector */}
-              <div className="border-b border-white/30 bg-[rgba(96,139,239,0.03)]">
+              <div className="border-b border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] bg-[rgba(96,139,239,0.03)]">
                 <div className="px-5 py-3 flex items-center gap-2 overflow-x-auto">
                   <span className="text-xs font-semibold uppercase tracking-wide text-[rgba(96,139,239,0.7)] shrink-0">
                     项目步骤
@@ -391,7 +341,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                         className={`flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-left transition-all shrink-0 ${
                           selectedStageKey === stage.stageKey
                             ? 'bg-[rgba(96,139,239,0.12)] border border-[rgba(96,139,239,0.25)]'
-                            : 'hover:bg-white/60 border border-transparent'
+                            : 'hover:bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] border border-transparent'
                         }`}
                       >
                         {getStatusIcon(stage.status)}
@@ -418,7 +368,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[rgba(92,181,150,0.15)]">
-                        <Trophy size={16} style={{ color: accentMap.teal }} />
+                        <Trophy size={16} className="text-[var(--success)]" />
                       </div>
                       <div className="flex-1">
                         <div className="text-xs text-[rgba(92,181,150,0.7)]">中标单位</div>
@@ -473,10 +423,10 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                   {/* Basic Info Card - All fields merged */}
                   <motion.div
                     {...fadeIn(2, reducedMotion)}
-                    className="rounded-[18px] border border-white/45 bg-white/75 p-5"
+                    className="rounded-[18px] border border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] bg-[color-mix(in_oklch,var(--background)_75%,transparent)] p-5"
                   >
                     <div className="flex items-center gap-2 mb-4">
-                      <Building2 size={16} style={{ color: accentMap.blue }} />
+                      <Building2 size={16} className="text-[var(--accent)]" />
                       <h3 className="text-base font-semibold">基本信息</h3>
                     </div>
                     <div className="space-y-4">
@@ -511,7 +461,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           <div className="text-[0.85rem] font-mono">{data.basicInfo['部门编号'] || '-'}</div>
                         </div>
                       </div>
-                      <div className="space-y-2 pt-3 border-t border-white/40">
+                      <div className="space-y-2 pt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">专家信息</div>
                         {experts.length > 0 ? (
                           <div className="flex flex-wrap gap-2">
@@ -524,7 +474,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                                 >
                                   {expert.name}
                                   {detail && (
-                                    <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2.5 py-1.5 rounded-[8px] bg-[rgba(60,60,80,0.95)] text-xs text-white whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-10 shadow-lg pointer-events-none">
+                                    <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2.5 py-1.5 rounded-[8px] bg-[rgba(60,60,80,0.95)] text-xs text-white whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-10 pointer-events-none">
                                       {detail}
                                     </span>
                                   )}
@@ -538,7 +488,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       </div>
 
                       {/* Row 5: 投标单位 */}
-                      <div className="space-y-2 pt-2 border-t border-white/40">
+                      <div className="space-y-2 pt-2 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">投标单位</div>
                         {biddingUnits.length > 0 ? (
                           <div className="flex flex-wrap gap-2">
@@ -554,13 +504,13 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       </div>
 
                       {/* Row 6: 申请立项事由 */}
-                      <div className="space-y-2 pt-2 border-t border-white/40">
+                      <div className="space-y-2 pt-2 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">申请立项事由</div>
                         <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)] whitespace-pre-line">{data.basicInfo['申请立项事由'] || '-'}</p>
                       </div>
 
                       {/* Row 7: 对供方主要要求 */}
-                      <div className="space-y-2 pt-2 border-t border-white/40">
+                      <div className="space-y-2 pt-2 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">对供方主要要求</div>
                         <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)] whitespace-pre-line">{data.basicInfo['对供方主要要求'] || '-'}</p>
                       </div>
@@ -573,10 +523,10 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                     className="rounded-[18px] border border-[rgba(147,112,219,0.25)] bg-[rgba(147,112,219,0.04)] p-5"
                   >
                     <div className="flex items-center gap-2 mb-4">
-                      <FileText size={16} style={{ color: accentMap.purple }} />
+                      <FileText size={16} className="text-[var(--accent)]" />
                       <h3 className="text-base font-semibold text-[rgba(147,112,219,1)]">项目简报</h3>
                     </div>
-                    <div className="rounded-[12px] bg-white/60 px-4 py-3 max-h-[200px] overflow-y-auto">
+                    <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] px-4 py-3 max-h-[200px] overflow-y-auto">
                       <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">
                         {data.summary || '暂无项目简报信息。'}
                       </p>
@@ -585,11 +535,11 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                 </div>
 
                 {/* Right Panel - File Preview */}
-                <div className="w-[240px] xl:w-[320px] shrink-0 overflow-y-auto border-l border-white/30 bg-[rgba(92,181,150,0.03)]">
+                <div className="w-[240px] xl:w-[320px] shrink-0 overflow-y-auto border-l border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] bg-[rgba(92,181,150,0.03)]">
                   {selectedStage && selectedStage.attachments.length > 0 ? (
                     <>
                       {/* Stage Header */}
-                      <div className="sticky top-0 z-10 px-4 py-3 border-b border-white/25 bg-[rgba(247,252,249,0.96)] backdrop-blur">
+                      <div className="sticky top-0 z-10 px-4 py-3 border-b border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] bg-[color-mix(in_oklch,var(--background)_96%,transparent)] backdrop-blur">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(selectedStage.status)}
                           <span className="text-[0.85rem] font-semibold">{selectedStage.stageName}</span>
@@ -605,10 +555,10 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           <motion.div
                             key={file.id}
                             {...fadeIn(i, reducedMotion, 0.03)}
-                            className="rounded-[12px] border border-white/40 bg-white/60 overflow-hidden"
+                            className="rounded-[12px] border border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] overflow-hidden"
                           >
                             {/* File Header */}
-                            <div className="px-3 py-2 bg-[rgba(92,181,150,0.06)] border-b border-white/30">
+                            <div className="px-3 py-2 bg-[rgba(92,181,150,0.06)] border-b border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                               <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-[4px] bg-[rgba(92,181,150,0.15)] text-[rgba(92,181,150,1)]">
                                   文件{i + 1}
@@ -619,7 +569,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                                   className="p-1 rounded-[6px] hover:bg-[rgba(92,181,150,0.15)] transition-colors"
                                   title="预览文件"
                                 >
-                                  <Eye size={14} style={{ color: accentMap.teal }} />
+                                  <Eye size={14} className="text-[var(--success)]" />
                                 </button>
                               </div>
                               <div className="text-xs text-[color:var(--muted-foreground)] mt-1">
@@ -654,23 +604,19 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                   )}
                 </div>
               </div>
-            </div>
-          ) : null}
-        </motion.div>
-      </motion.div>
+          </div>
+        ) : null}
+      </Modal>
 
       {/* File Preview Modal */}
-      <AnimatePresence>
-        {previewFile && (
-          <FilePreviewModal
-            key="file-preview"
-            fileUrl={previewFile.url}
-            fileName={previewFile.fileName}
-            mimeType={previewFile.mimeType}
-            onClose={handleClosePreview}
-          />
-        )}
-      </AnimatePresence>
-    </AnimatePresence>
+      {previewFile && (
+        <FilePreviewModal
+          fileUrl={previewFile.url}
+          fileName={previewFile.fileName}
+          mimeType={previewFile.mimeType}
+          onClose={handleClosePreview}
+        />
+      )}
+    </>
   );
 }

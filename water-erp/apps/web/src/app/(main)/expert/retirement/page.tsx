@@ -11,10 +11,16 @@ export default function RetirementPage() {
   const router = useRouter();
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errored, setErrored] = useState(false);
   const [reason, setReason] = useState('');
   const [confirming, setConfirming] = useState<string | null>(null);
 
-  const load = async () => { setLoading(true); try { setCandidates(await getRetireCandidates()); } catch {} setLoading(false); };
+  const load = async () => {
+    setLoading(true); setErrored(false);
+    try { setCandidates(await getRetireCandidates()); }
+    catch (e: any) { setErrored(true); toast.error(e?.message || '加载退库候选失败'); }
+    setLoading(false);
+  };
   useEffect(() => { load(); }, []);
 
   const doRetire = async (id: string, name: string) => {
@@ -42,7 +48,7 @@ export default function RetirementPage() {
             <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
           </div>
         </div>
-        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
+        <div className="page-hero__divider">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
               <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">预警候选</span>
@@ -55,6 +61,11 @@ export default function RetirementPage() {
 
       {loading ? (
         <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]"><RefreshCw size={14} className="animate-spin inline mr-2" />扫描中...</div>
+      ) : errored ? (
+        <div className="neu-table-card py-16 text-center">
+          <p className="text-sm font-semibold text-[var(--danger)] mb-3">退库候选加载失败</p>
+          <button onClick={load} className="neu-btn-xs is-info">重试</button>
+        </div>
       ) : candidates.length === 0 ? (
         <div className="neu-table-card py-16 text-center">
           <Check size={36} className="mx-auto text-[var(--success)] mb-3" />

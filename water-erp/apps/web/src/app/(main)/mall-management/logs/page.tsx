@@ -69,7 +69,7 @@ export default function MallManagementLogsPage() {
           <button onClick={() => setAction('全部')} className={`neu-tab ${action === '全部' ? 'is-active' : ''}`}>全部</button>
           {Object.keys(labels).map(key => (<button key={key} onClick={() => setAction(key)} className={`neu-tab ${action === key ? 'is-active' : ''}`}>{labels[key]}</button>))}
         </div>
-        <div className="relative flex-1 min-w-[160px]"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索操作对象或详情" className="neu-input !pl-9 w-full text-sm" />{search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}</div>
+        <div className="relative flex-1 min-w-[160px]"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} aria-label="搜索操作日志" placeholder="搜索操作对象或详情" className="neu-input !pl-9 w-full text-sm" />{search && <button onClick={() => setSearch('')} aria-label="清除搜索" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[var(--accent-tint-strong)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}</div>
       </div>
 
       <div className="neu-table-card">

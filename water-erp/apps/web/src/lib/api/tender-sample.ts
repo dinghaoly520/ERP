@@ -104,7 +104,7 @@ export async function generateFieldContent(payload: {
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    throw new Error('Failed to generate field content');
+    throw new Error('AI 生成失败，请稍后重试');
   }
   return response.json();
 }

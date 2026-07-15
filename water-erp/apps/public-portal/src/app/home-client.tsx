@@ -372,7 +372,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
             {currentAnnounce ? (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
               {/* Featured card — spans 2 cols */}
-              <a href={`/announcements/${currentAnnounce.featured.id}`}
+              <a href={`/announcements/${currentAnnounce.featured.id}?from=home`}
                 className="announce-featured lg:col-span-2 group"
                 style={{ '--card-color': currentAnnounce.color } as React.CSSProperties}>
                 <div className="announce-featured-border" />
@@ -415,7 +415,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                 </div>
                 <div className="announce-side-list">
                   {currentAnnounce.list.map((item, idx) => (
-                    <a key={item.id} href={`/announcements/${item.id}`}
+                    <a key={item.id} href={`/announcements/${item.id}?from=home`}
                       className="announce-side-item group"
                       style={{ '--item-delay': `${idx * 60}ms`, '--rank-color': currentAnnounce.color } as React.CSSProperties}>
                       <div className="announce-side-item-rank">{String(idx + 1).padStart(2, '0')}</div>

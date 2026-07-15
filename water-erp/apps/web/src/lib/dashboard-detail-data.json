@@ -8,14 +8,14 @@
       "awardAmount": 272.0,
       "awardAmountLabel": "272.0 万",
       "detail": {
-        "topMethod": "内部竞标",
+        "topMethod": "竞价采购",
         "topDepartment": "勘察分院",
         "hitRate": 50,
         "recentProcurements": [
           {
             "project": "引大济岷工程XDZK4、LXZK1、SPDZK8、SPDZK9和SPDZK13五个钻孔施工技术服务",
             "date": "2026.3.3（星期二）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "勘察分院",
             "budgetLabel": "273.0 万",
             "result": "2720000"
@@ -23,7 +23,7 @@
           {
             "project": "引大济岷工程大坪隧ZK2和大坪隧ZK3两个钻孔施工技术服务",
             "date": "2026.3.6（星期五）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "勘察分院",
             "budgetLabel": "94.8 万",
             "result": "超最高限价"
@@ -33,18 +33,18 @@
           {
             "project": "引大济岷工程XDZK4、LXZK1、SPDZK8、SPDZK9和SPDZK13五个钻孔施工技术服务",
             "date": "2026.3.3（星期二）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "勘察分院",
             "awardAmountLabel": "272.0 万"
           }
         ],
         "tags": [
           "勘察分院重点参与",
-          "内部竞标优势"
+          "竞价采购优势"
         ]
       },
       "ai": {
-        "summary": "四川省第十二地质大队 近阶段参与 2 个采购事项，中标 1 个，主活跃于 勘察分院，主要采购方式为 内部竞标。",
+        "summary": "四川省第十二地质大队 近阶段参与 2 个采购事项，中标 1 个，主活跃于 勘察分院，主要采购方式为 竞价采购。",
         "strengths": [
           "承担项目金额较高，具备承接重点项目能力",
           "在 勘察分院 业务条线参与度较高"
@@ -63,14 +63,14 @@
       "awardAmount": 226.7,
       "awardAmountLabel": "226.7 万",
       "detail": {
-        "topMethod": "竞争性谈判",
+        "topMethod": "谈判采购",
         "topDepartment": "工程设计院",
         "hitRate": 45,
         "recentProcurements": [
           {
             "project": "引大济岷工程拉塔河电站输水发电系统水力过渡过程计算分析专题",
             "date": "2026.2.28（星期六）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "机电",
             "budgetLabel": "27.8 万",
             "result": "资格审查未通过"
@@ -78,7 +78,7 @@
           {
             "project": "引大济岷工程拉塔河电站输水发电系统水力过渡过程计算分析专题",
             "date": "2026.3.13（星期五）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "机电",
             "budgetLabel": "27.8 万",
             "result": "235000"
@@ -86,7 +86,7 @@
           {
             "project": "引大济岷工程6#苗溪农场弃渣场排洪隧洞水力学模型试验专题",
             "date": "2026.3.13（星期五）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "环保",
             "budgetLabel": "49.0 万",
             "result": "443000"
@@ -94,7 +94,7 @@
           {
             "project": "引大济岷工程泸定取水口水工模型试验研究专题",
             "date": "2026.03.17（星期二）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "工程设计院",
             "budgetLabel": "106.9 万",
             "result": "1044000"
@@ -104,32 +104,32 @@
           {
             "project": "引大济岷工程拉塔河电站输水发电系统水力过渡过程计算分析专题",
             "date": "2026.3.13（星期五）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "机电",
             "awardAmountLabel": "23.5 万"
           },
           {
             "project": "引大济岷工程6#苗溪农场弃渣场排洪隧洞水力学模型试验专题",
             "date": "2026.3.13（星期五）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "环保",
             "awardAmountLabel": "44.3 万"
           },
           {
             "project": "引大济岷工程泸定取水口水工模型试验研究专题",
             "date": "2026.03.17（星期二）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "工程设计院",
             "awardAmountLabel": "104.4 万"
           }
         ],
         "tags": [
           "工程设计院重点参与",
-          "竞争性谈判优势"
+          "谈判采购优势"
         ]
       },
       "ai": {
-        "summary": "四川大学 近阶段参与 11 个采购事项，中标 5 个，主活跃于 工程设计院，主要采购方式为 竞争性谈判。",
+        "summary": "四川大学 近阶段参与 11 个采购事项，中标 5 个，主活跃于 工程设计院，主要采购方式为 谈判采购。",
         "strengths": [
           "成交转化稳定，适合持续纳入核心资源池",
           "承担项目金额较高，具备承接重点项目能力",
@@ -196,14 +196,14 @@
       "awardAmount": 188.0,
       "awardAmountLabel": "188.0 万",
       "detail": {
-        "topMethod": "内部竞标",
+        "topMethod": "竞价采购",
         "topDepartment": "工程勘察院",
         "hitRate": 100,
         "recentProcurements": [
           {
             "project": "引大济岷南干线平原段地下管线探测及地下空间调查专题",
             "date": "2026.04.02（星期四）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "工程勘察院",
             "budgetLabel": "287.0 万",
             "result": "1880000"
@@ -213,18 +213,18 @@
           {
             "project": "引大济岷南干线平原段地下管线探测及地下空间调查专题",
             "date": "2026.04.02（星期四）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "工程勘察院",
             "awardAmountLabel": "188.0 万"
           }
         ],
         "tags": [
           "工程勘察院重点参与",
-          "内部竞标优势"
+          "竞价采购优势"
         ]
       },
       "ai": {
-        "summary": "中国市政工程西南设计研究总院有限公司 近阶段参与 1 个采购事项，中标 1 个，主活跃于 工程勘察院，主要采购方式为 内部竞标。",
+        "summary": "中国市政工程西南设计研究总院有限公司 近阶段参与 1 个采购事项，中标 1 个，主活跃于 工程勘察院，主要采购方式为 竞价采购。",
         "strengths": [
           "承担项目金额较高，具备承接重点项目能力",
           "在 工程勘察院 业务条线参与度较高"
@@ -243,14 +243,14 @@
       "awardAmount": 175.2,
       "awardAmountLabel": "175.2 万",
       "detail": {
-        "topMethod": "竞争性谈判",
+        "topMethod": "谈判采购",
         "topDepartment": "勘察分院",
         "hitRate": 50,
         "recentProcurements": [
           {
             "project": "引大济岷工程隧洞砂砾岩岩溶灾害防控对策研究专题",
             "date": "2026.2.27（星期五）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "勘察分院",
             "budgetLabel": "49.6 万",
             "result": "资格审查未通过"
@@ -258,7 +258,7 @@
           {
             "project": "引大济岷工程初设压覆矿复核调查评价",
             "date": "2026.3.4（星期三）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "移民",
             "budgetLabel": "48.0 万",
             "result": "资格审查未通过"
@@ -266,7 +266,7 @@
           {
             "project": "引大济岷工程隧洞砂砾岩岩溶灾害防控对策研究专题",
             "date": "2026.3.5（星期四）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "勘察分院",
             "budgetLabel": "49.6 万",
             "result": "480000"
@@ -274,7 +274,7 @@
           {
             "project": "引大济岷工程莲隧ZK1、莲隧ZK31、莲隧ZK33、莲隧ZK34和莲隧ZK36五个钻孔施工技术服务",
             "date": "2026.3.6（星期五）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "勘察分院",
             "budgetLabel": "79.7 万",
             "result": "788580"
@@ -284,32 +284,32 @@
           {
             "project": "引大济岷工程莲隧ZK1、莲隧ZK31、莲隧ZK33、莲隧ZK34和莲隧ZK36五个钻孔施工技术服务",
             "date": "2026.3.6（星期五）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "勘察分院",
             "awardAmountLabel": "78.9 万"
           },
           {
             "project": "引大济岷工程初设压覆矿复核调查评价",
             "date": "2026.3.13（星期五）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "移民",
             "awardAmountLabel": "47.5 万"
           },
           {
             "project": "拉塔河消能电站地下厂房平硐地应力测试钻孔施工技术服务",
             "date": "2026.04.01（星期三）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "工程勘察院",
             "awardAmountLabel": "48.9 万"
           }
         ],
         "tags": [
           "勘察分院重点参与",
-          "竞争性谈判优势"
+          "谈判采购优势"
         ]
       },
       "ai": {
-        "summary": "四川省地质工程勘察院集团有限公司 近阶段参与 6 个采购事项，中标 3 个，主活跃于 勘察分院，主要采购方式为 竞争性谈判。",
+        "summary": "四川省地质工程勘察院集团有限公司 近阶段参与 6 个采购事项，中标 3 个，主活跃于 勘察分院，主要采购方式为 谈判采购。",
         "strengths": [
           "成交转化稳定，适合持续纳入核心资源池",
           "承担项目金额较高，具备承接重点项目能力",
@@ -423,14 +423,14 @@
       "awardAmount": 120.0,
       "awardAmountLabel": "120.0 万",
       "detail": {
-        "topMethod": "内部竞标",
+        "topMethod": "竞价采购",
         "topDepartment": "勘察分院",
         "hitRate": 100,
         "recentProcurements": [
           {
             "project": "引大济岷工程地应力测试及地应力场反演专题技术服务",
             "date": "2026.3.5（星期四）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "勘察分院",
             "budgetLabel": "185.0 万",
             "result": "1200000"
@@ -440,18 +440,18 @@
           {
             "project": "引大济岷工程地应力测试及地应力场反演专题技术服务",
             "date": "2026.3.5（星期四）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "勘察分院",
             "awardAmountLabel": "120.0 万"
           }
         ],
         "tags": [
           "勘察分院重点参与",
-          "内部竞标优势"
+          "竞价采购优势"
         ]
       },
       "ai": {
-        "summary": "长江水利委员会长江科学院 近阶段参与 1 个采购事项，中标 1 个，主活跃于 勘察分院，主要采购方式为 内部竞标。",
+        "summary": "长江水利委员会长江科学院 近阶段参与 1 个采购事项，中标 1 个，主活跃于 勘察分院，主要采购方式为 竞价采购。",
         "strengths": [
           "承担项目金额较高，具备承接重点项目能力",
           "在 勘察分院 业务条线参与度较高"
@@ -470,14 +470,14 @@
       "awardAmount": 98.0,
       "awardAmountLabel": "98.0 万",
       "detail": {
-        "topMethod": "内部竞标",
+        "topMethod": "竞价采购",
         "topDepartment": "工程勘分院",
         "hitRate": 100,
         "recentProcurements": [
           {
             "project": "引大济岷工程隧洞超前地质预报专项设计",
             "date": "2026.03.24（星期二）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "工程勘分院",
             "budgetLabel": "115.5 万",
             "result": "980000"
@@ -487,18 +487,18 @@
           {
             "project": "引大济岷工程隧洞超前地质预报专项设计",
             "date": "2026.03.24（星期二）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "工程勘分院",
             "awardAmountLabel": "98.0 万"
           }
         ],
         "tags": [
           "工程勘分院重点参与",
-          "内部竞标优势"
+          "竞价采购优势"
         ]
       },
       "ai": {
-        "summary": "山东大学 近阶段参与 1 个采购事项，中标 1 个，主活跃于 工程勘分院，主要采购方式为 内部竞标。",
+        "summary": "山东大学 近阶段参与 1 个采购事项，中标 1 个，主活跃于 工程勘分院，主要采购方式为 竞价采购。",
         "strengths": [
           "在 工程勘分院 业务条线参与度较高"
         ],
@@ -516,14 +516,14 @@
       "awardAmount": 96.0,
       "awardAmountLabel": "96.0 万",
       "detail": {
-        "topMethod": "竞争性谈判",
+        "topMethod": "谈判采购",
         "topDepartment": "勘察分院",
         "hitRate": 33,
         "recentProcurements": [
           {
             "project": "引大济岷工程隧洞砂砾岩岩溶灾害防控对策研究专题",
             "date": "2026.2.27（星期五）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "勘察分院",
             "budgetLabel": "49.6 万",
             "result": "资格审查未通过"
@@ -531,7 +531,7 @@
           {
             "project": "引大济岷工程隧洞砂砾岩岩溶灾害防控对策研究专题",
             "date": "2026.3.5（星期四）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "勘察分院",
             "budgetLabel": "49.6 万",
             "result": "480000"
@@ -539,7 +539,7 @@
           {
             "project": "引大济岷隧洞进出口高陡边坡精细化评价专题技术服务",
             "date": "2026.3.5（星期四）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "勘察分院",
             "budgetLabel": "49.5 万",
             "result": "资格审查未通过"
@@ -547,7 +547,7 @@
           {
             "project": "引大济岷隧洞进出口高陡边坡精细化评价专题技术服务",
             "date": "2026.03.20（星期五）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "勘察分院",
             "budgetLabel": "49.5 万",
             "result": "采购文件需修改"
@@ -557,25 +557,25 @@
           {
             "project": "引大济岷工程隧洞砂砾岩岩溶灾害防控对策研究专题",
             "date": "2026.3.5（星期四）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "勘察分院",
             "awardAmountLabel": "48.0 万"
           },
           {
             "project": "引大济岷隧洞进出口高陡边坡精细化评价专题技术服务",
             "date": "2026.03.26（星期四）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "勘察分院",
             "awardAmountLabel": "48.0 万"
           }
         ],
         "tags": [
           "勘察分院重点参与",
-          "竞争性谈判优势"
+          "谈判采购优势"
         ]
       },
       "ai": {
-        "summary": "成都理工大学 近阶段参与 6 个采购事项，中标 2 个，主活跃于 勘察分院，主要采购方式为 竞争性谈判。",
+        "summary": "成都理工大学 近阶段参与 6 个采购事项，中标 2 个，主活跃于 勘察分院，主要采购方式为 谈判采购。",
         "strengths": [
           "在 勘察分院 业务条线参与度较高"
         ],
@@ -594,14 +594,14 @@
       "awardAmount": 78.0,
       "awardAmountLabel": "78.0 万",
       "detail": {
-        "topMethod": "内部竞标",
+        "topMethod": "竞价采购",
         "topDepartment": "工程设计院",
         "hitRate": 67,
         "recentProcurements": [
           {
             "project": "引大济岷工程泸定取水口边坡\n稳定性分析及加固措施研究专题",
             "date": "2026.03.27（星期五）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "工程设计院",
             "budgetLabel": "41.3 万",
             "result": "290000"
@@ -609,7 +609,7 @@
           {
             "project": "引大济岷工程拉塔河消能电站地下洞室施工期通风计算专题技术服务",
             "date": "2026.03.27（星期五）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "施工设计院",
             "budgetLabel": "65.0 万",
             "result": "490000"
@@ -617,7 +617,7 @@
           {
             "project": "引大济岷工程南干线输水管道水锤分析及防控专题研究",
             "date": "2026.04.02（星期四）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "工程设计院",
             "budgetLabel": "95.0 万",
             "result": "未按要求响应采购文件"
@@ -627,25 +627,25 @@
           {
             "project": "引大济岷工程泸定取水口边坡\n稳定性分析及加固措施研究专题",
             "date": "2026.03.27（星期五）",
-            "method": "竞争性谈判",
+            "method": "谈判采购",
             "department": "工程设计院",
             "awardAmountLabel": "29.0 万"
           },
           {
             "project": "引大济岷工程拉塔河消能电站地下洞室施工期通风计算专题技术服务",
             "date": "2026.03.27（星期五）",
-            "method": "内部竞标",
+            "method": "竞价采购",
             "department": "施工设计院",
             "awardAmountLabel": "49.0 万"
           }
         ],
         "tags": [
           "工程设计院重点参与",
-          "内部竞标优势"
+          "竞价采购优势"
         ]
       },
       "ai": {
-        "summary": "华北水利水电大学 近阶段参与 3 个采购事项，中标 2 个，主活跃于 工程设计院，主要采购方式为 内部竞标。",
+        "summary": "华北水利水电大学 近阶段参与 3 个采购事项，中标 2 个，主活跃于 工程设计院，主要采购方式为 竞价采购。",
         "strengths": [
           "在 工程设计院 业务条线参与度较高"
         ],
@@ -712,7 +712,7 @@
       "severity": "高",
       "detail": {
         "date": "2026.2.27（星期五）",
-        "method": "竞争性谈判",
+        "method": "谈判采购",
         "budgetLabel": "49.6 万",
         "result": "资格审查未通过",
         "suppliers": [
@@ -754,7 +754,7 @@
       "severity": "高",
       "detail": {
         "date": "2026.2.28（星期六）",
-        "method": "竞争性谈判",
+        "method": "谈判采购",
         "budgetLabel": "27.8 万",
         "result": "资格审查未通过",
         "suppliers": [
@@ -796,7 +796,7 @@
       "severity": "高",
       "detail": {
         "date": "2026.3.4（星期三）",
-        "method": "竞争性谈判",
+        "method": "谈判采购",
         "budgetLabel": "48.0 万",
         "result": "资格审查未通过",
         "suppliers": [
@@ -838,7 +838,7 @@
       "severity": "高",
       "detail": {
         "date": "2026.3.5（星期四）",
-        "method": "竞争性谈判",
+        "method": "谈判采购",
         "budgetLabel": "49.5 万",
         "result": "资格审查未通过",
         "suppliers": [
@@ -880,7 +880,7 @@
       "severity": "高",
       "detail": {
         "date": "2026.3.6（星期五）",
-        "method": "内部竞标",
+        "method": "竞价采购",
         "budgetLabel": "94.8 万",
         "result": "超最高限价",
         "suppliers": [
@@ -922,7 +922,7 @@
       "severity": "高",
       "detail": {
         "date": "2026.3.13（星期五）",
-        "method": "竞争性谈判",
+        "method": "谈判采购",
         "budgetLabel": "21.0 万",
         "result": "资格审查未通过",
         "suppliers": [
@@ -964,7 +964,7 @@
       "severity": "中",
       "detail": {
         "date": "2026.03.20（星期五）",
-        "method": "竞争性谈判",
+        "method": "谈判采购",
         "budgetLabel": "49.5 万",
         "result": "采购文件需修改",
         "suppliers": [
@@ -1006,7 +1006,7 @@
       "severity": "中",
       "detail": {
         "date": "2026.03.30（星期一）",
-        "method": "内部竞标",
+        "method": "竞价采购",
         "budgetLabel": "189.0 万",
         "result": "未按要求胶封",
         "suppliers": [
@@ -1048,7 +1048,7 @@
       "severity": "低",
       "detail": {
         "date": "2026.04.02（星期四）",
-        "method": "内部竞标",
+        "method": "竞价采购",
         "budgetLabel": "95.0 万",
         "result": "未按要求响应采购文件",
         "suppliers": [

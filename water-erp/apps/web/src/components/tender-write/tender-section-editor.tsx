@@ -10,8 +10,10 @@ import { TenderFieldSampleDialog } from './tender-field-sample-drawer';
 import { ContactPickerDialog } from './contact-picker-dialog';
 import {
   QuotationTableEditor,
+  createDefaultQuotationTable,
   createEmptyTableData,
   parseTableFromHtml,
+  parseQuotationTextToTable,
   type TableData,
 } from './quotation-table-editor';
 import {
@@ -319,9 +321,21 @@ export function TenderSectionEditor({
         throw new Error('AI返回的内容为空');
       }
 
-      onChange(fieldKey, result.content);
+      // 报价表/报价函：将 AI 文本解析为表格并自动切换到设计表格模式
+      const isQuotationField = fieldKey === 'quotationLetter';
+      const tableData = isQuotationField
+        ? parseQuotationTextToTable(result.content)
+        : null;
 
-      // 自动保存生成的样本
+      if (tableData && onTableChange) {
+        // 先切换类型再写入表格，确保编辑器渲染正确
+        onChange('quotationLetterType' as TenderFieldKey, 'table');
+        onTableChange(tableData);
+      } else {
+        onChange(fieldKey, result.content);
+      }
+
+      // 自动保存生成的样本（AI 原始文本，便于回看）
       await createFieldSample({
         fieldKey,
         content: result.content,
@@ -860,7 +874,7 @@ export function TenderSectionEditor({
                 }
               }
               if (isTable && !tableData) {
-                tableData = createEmptyTableData(3, 4);
+                tableData = createDefaultQuotationTable();
               }
 
               return (
@@ -919,7 +933,7 @@ export function TenderSectionEditor({
                           if (opt.value === 'table' && onTableChange) {
                             const draftWithTable = draft as { quotationLetterTable?: TableDataType };
                             if (!draftWithTable.quotationLetterTable) {
-                              onTableChange(createEmptyTableData(3, 4));
+                              onTableChange(createDefaultQuotationTable());
                             }
                           }
                         }}

@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { existsSync, readFileSync } from 'fs';
-import path from 'path';
+import * as path from 'path';
 import * as JSZip from 'jszip';
-import pdfParse from 'pdf-parse';
+import pdfParse = require('pdf-parse');
 import * as XLSX from 'xlsx';
 import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto } from './tender-write.dto';
 import {
@@ -87,15 +87,15 @@ export class TenderWriteService {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     let typeLabel: string;
     if (documentType === 'SINGLE_SOURCE') {
-      typeLabel = '单源直接采购文件';
+      typeLabel = '直接采购文件';
     } else if (documentType === 'INQUIRY_PURCHASE') {
-      typeLabel = '询价采购文件';
+      typeLabel = '询比采购文件';
     } else if (documentType === 'INTERNAL_BIDDING') {
-      typeLabel = '内部竞标（竞价）采购文件';
+      typeLabel = '竞价采购文件';
     } else if (documentType === 'INVITED_BIDDING') {
       typeLabel = '邀请招标采购文件';
     } else {
-      typeLabel = '竞争性谈判采购文件';
+      typeLabel = '谈判采购文件';
     }
 
     if (trimmedName) {
@@ -267,7 +267,7 @@ export class TenderWriteService {
         replacementPlan = buildSingleSourceAnnouncementPlan(
           draft as Record<string, string>,
         );
-        typeLabel = '单源直接采购公告';
+        typeLabel = '直接采购公告';
       } else if (tenderType === 'INTERNAL_BIDDING') {
         templatePath = path.resolve(
           process.cwd(),
@@ -276,7 +276,7 @@ export class TenderWriteService {
         replacementPlan = buildInternalBiddingAnnouncementPlan(
           draft as Record<string, string>,
         );
-        typeLabel = '内部竞标（竞价）公告';
+        typeLabel = '竞价采购公告';
       } else {
         templatePath = path.resolve(
           process.cwd(),

@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef, Suspense } from 'react';
 import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import {
   ShoppingCart, Package, RefreshCw, ChevronUp, X, Search, GitBranch,
-  PenLine, CheckCircle, TrendingUp, Bell, Archive, Building2, FileText,
-  Upload, Download, Plus, ChevronRight, 
-  Star, FileWarning, Zap, BarChart3, AlertTriangle,
+  PenLine, CheckCircle, TrendingUp, TrendingDown, Bell, Archive, Building2, FileText,
+  Upload, Download, Plus, ChevronRight, Leaf, Folder,
+  Star, FileWarning, Zap, BarChart3, AlertTriangle, Radar, Sparkles, MousePointerClick,
+  type LucideIcon,
 } from 'lucide-react';
 import { StatusBadge } from '@/components/workbench';
 import {
@@ -15,14 +16,19 @@ import {
   downloadImportTemplate, importCatalogFile, setItemAttributes,
   getCategoryTree, createCategory, updateCategory, deleteCategory, toggleCategoryStatus,
   createAttributeTemplate, deleteAttributeTemplate,
-  listAlertRules, listAlerts, deleteAlertRule, toggleAlertRule,
+  listAlertRules, createAlertRule, updateAlertRule, listAlerts, deleteAlertRule, toggleAlertRule,
   listVersions, createVersion, changeVersionStatus, compareVersions,
   getSupplierCoverage, getSupplierPriceComparison,
+  logSearch, toggleSubscribe, getPriceHistory, getPricePrediction,
+  listApplications, reviewApplication,
+  getPriceRadar, getSearchInsights,
   listCatalogAuditLogs,
   type CatalogItem, type CatalogStats, type ImportResult, type CatalogAuditLog,
   type AlertRule, type AlertRecord, type CatalogVersionData, type VersionDiff,
   type SupplierCoverage, type SupplierPriceItem,
+  type CatalogApplication, type PriceRadarData, type SearchInsights,
 } from '@/lib/api/catalog-admin';
+import { ConfirmHost, confirmDialog, promptDialog } from '@/components/catalog/confirm-dialog';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
 import { useFormAutosave, useUnsavedGuard } from '@/lib/hooks/use-form-autosave';
 import { useCategoryTree } from '@/lib/hooks/use-category-tree';
@@ -41,7 +47,7 @@ const PALETTE = ['oklch(0.55 0.18 258)', 'oklch(0.55 0.18 30)', 'oklch(0.55 0.18
 const ALERT_TYPE_LABELS: Record<string, string> = { PRICE_SURGE: '涨幅预警', PRICE_DROP: '跌幅预警', EXPIRING: '即将过期', DEVIATION: '偏离均值' };
 const LOG_LABELS: Record<string, string> = { CATALOG_CREATED: '新增目录', CATALOG_UPDATED: '编辑目录', CATALOG_PRICE_CHANGED: '价格调整', CATALOG_STATUS_CHANGED: '状态变更', CATALOG_IMPORTED: '批量导入', CATALOG_TEMPLATE_DOWNLOADED: '模板下载', CATALOG_EXPORTED: '目录导出' };
 
-const TABS = [
+const TABS: { key: string; label: string; icon: LucideIcon; roles?: string[] }[] = [
   { key: 'items', label: '目录列表', icon: Package },
   { key: 'tree', label: '品类树', icon: GitBranch, roles: ['admin'] },
   { key: 'entry', label: '价格录入', icon: PenLine },
@@ -51,7 +57,23 @@ const TABS = [
   { key: 'versions', label: '目录版本', icon: Archive },
   { key: 'suppliers', label: '供应商维度', icon: Building2 },
   { key: 'logs', label: '操作日志', icon: FileText },
-] as const;
+];
+
+// ── 通用空状态 ──
+
+type TreeLike = { children?: TreeLike[] | null };
+function countLeaves(nodes: TreeLike[] = []): number {
+  return nodes.reduce((s, n) => s + (n.children && n.children.length ? countLeaves(n.children) : 1), 0);
+}
+
+function EmptyHint({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 gap-2 text-sm text-[var(--muted-foreground)]">
+      <Icon size={32} className="opacity-30" />
+      <p>{text}</p>
+    </div>
+  );
+}
 
 // ── 目录列表 Tab ──
 
@@ -65,10 +87,6 @@ function ItemsTab() {
   const [page, setPage] = useState(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [detailItem, setDetailItem] = useState<CatalogItem | null>(null);
-
-  const [dashboard, setDashboard] = useState<{total:number,active:number,priceSurge:number,expiring:number,healthScore:number,categoryGapCount:number,categoryCount:number} | null>(null);
-  const loadDashboard = async () => { try { const d = await (await fetch('/api/catalog/admin/dashboard-stats', { credentials: 'include', headers: { 'X-Portal': 'web' } })).json(); setDashboard(d); } catch {} };
-  useEffect(() => { loadDashboard(); }, []);
 
   const load = async () => {
     setLoading(true);
@@ -93,7 +111,8 @@ function ItemsTab() {
   const pagedItems = useMemo(() => sortedItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [sortedItems, page]);
 
   const setItemStatus = async (item: CatalogItem, s: string) => {
-    if (!window.confirm(`确认将 ${item.name} 状态改为「${s}」？`)) return;
+    const ok = await confirmDialog({ message: `确认将「${item.name}」状态改为「${s}」？`, danger: s === '下架' || s === '停用' });
+    if (!ok) return;
     try { await changeCatalogStatus(item.id, s, `管理端${s}`); toast.success('状态已更新'); load(); }
     catch (e: any) { toast.error(e.message); }
   };
@@ -117,10 +136,10 @@ function ItemsTab() {
         <CategoryTreeSelect value={selectedCategoryId} onChange={(id) => { setSelectedCategoryId(id); setPage(1); }} placeholder="按品类筛选" className="min-w-[160px]" />
         <div className="relative flex-1 min-w-[140px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索编码、名称、规格、供应商" onKeyDown={e => { if (e.key === 'Enter' && search.trim()) { fetch('/api/catalog/admin/search-log', { method: 'POST', credentials: 'include', headers: { 'X-Portal': 'web', 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: search.trim() }) }).catch(() => {}); } }} className="neu-input !pl-9 w-full text-sm" />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索编码、名称、规格、供应商" aria-label="搜索目录" onKeyDown={e => { if (e.key === 'Enter' && search.trim()) { logSearch(search.trim()).catch(() => {}); } }} className="neu-input !pl-9 w-full text-sm" />
           {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2"><X size={14} /></button>}
         </div>
-        <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
+        <button onClick={load} disabled={loading} aria-label="刷新目录列表" className="neu-btn-xs"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
       </div>
       <div className="neu-table-card">
         <div className="overflow-x-auto">
@@ -142,13 +161,13 @@ function ItemsTab() {
                     <td className="text-center font-mono text-xs text-[var(--accent)]">{item.code}</td>
                     <td><div className="font-bold text-[var(--foreground)]">{item.name}</div><div className="text-xs text-[var(--muted-foreground)]">{item.specification}</div></td>
                     <td className="text-center text-xs text-[var(--muted-foreground)]">{item.categoryPath || `${item.group || ''} > ${item.category}`}</td>
-                    <td className="text-center font-bold tabular-nums">¥{item.referencePrice.toLocaleString('zh-CN')}</td>
+                    <td className="text-center font-bold tabular-nums">¥{(item.referencePrice ?? 0).toLocaleString('zh-CN')}</td>
                     <td className="text-center">{item.supplier}</td>
                     <td className="text-center"><StatusBadge tone={tone(item.status)}>{item.status}</StatusBadge>{(item as any).lifecycleStage && (item as any).lifecycleStage !== item.status ? <span className="text-[10px] block text-[var(--muted-foreground)]">{(item as any).lifecycleStage}</span> : null}</td>
                     <td onClick={e => e.stopPropagation()} className="text-center">
                       {item.status === '有效' ? <button onClick={() => setItemStatus(item, '下架')} className="neu-btn-xs is-warning">下架</button>
                         : <button onClick={() => setItemStatus(item, '有效')} className="neu-btn-xs is-success">启用</button>}
-                      <button onClick={async (e) => { e.stopPropagation(); try { const res = await fetch('/api/catalog/' + item.id + '/subscribe', { method: 'POST', credentials: 'include', headers: { 'X-Portal': 'web' } }); const d = await res.json(); toast.success(d.subscribed ? '已订阅变更通知' : '已取消订阅'); } catch { toast.error('操作失败'); } }} className="neu-btn-xs ml-1" title="订阅/取消订阅"><Bell size={11}/></button>
+                      <button onClick={async (e) => { e.stopPropagation(); try { const d = await toggleSubscribe(item.id); toast.success(d.subscribed ? '已订阅变更通知' : '已取消订阅'); } catch { toast.error('操作失败'); } }} aria-label="订阅或取消订阅变更通知" className="neu-btn-xs ml-1" title="订阅/取消订阅"><Bell size={11}/></button>
                     </td>
                   </tr>
                 ))}
@@ -159,26 +178,26 @@ function ItemsTab() {
           <div className="neu-table-card-footer flex justify-between items-center px-4 py-2 text-xs text-[var(--muted-foreground)]">
             <span>共 <strong className="text-[var(--foreground)]">{sortedItems.length}</strong> 条 · 第 {page}/{totalPages} 页</span>
             <div className="flex gap-1">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-[-90deg]" /></button>
-              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-90" /></button>
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} aria-label="上一页" className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-[-90deg]" /></button>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} aria-label="下一页" className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-90" /></button>
             </div>
           </div>
         )}
         {detailItem && (
           <div className="neu-card rounded-2xl p-5 mt-3">
-            <div className="flex items-center justify-between mb-3"><h4 className="text-sm font-bold">{detailItem.name}</h4><button onClick={() => setDetailItem(null)} className="neu-btn-xs"><X size={14}/></button></div>
+            <div className="flex items-center justify-between mb-3"><h4 className="text-sm font-bold">{detailItem.name}</h4><button onClick={() => setDetailItem(null)} aria-label="关闭详情" className="neu-btn-xs"><X size={14}/></button></div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
               <div><span className="text-[var(--muted-foreground)] text-xs">编码</span><p className="font-mono text-xs">{detailItem.code}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">规格</span><p>{detailItem.specification || '—'}</p></div>
-              <div><span className="text-[var(--muted-foreground)] text-xs">参考价</span><p className="font-bold tabular-nums">¥{detailItem.referencePrice.toLocaleString('zh-CN')}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">参考价</span><p className="font-bold tabular-nums">¥{(detailItem.referencePrice ?? 0).toLocaleString('zh-CN')}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">国标号</span><p className="text-xs font-mono">{(detailItem as any).nationalStandard || '—'}</p></div>
-              <div><span className="text-[var(--muted-foreground)] text-xs">生命周期</span><p><span className="text-xs px-1.5 py-0.5 rounded bg-[rgba(96,139,239,0.08)]">{(detailItem as any).lifecycleStage || detailItem.status}</span></p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">生命周期</span><p><span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent-tint)]">{(detailItem as any).lifecycleStage || detailItem.status}</span></p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">供应商</span><p>{detailItem.supplier || '—'}</p></div>
-              <div><span className="text-[var(--muted-foreground)] text-xs">区域</span><p>{detailItem.region}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">区域</span><p>{detailItem.region || '—'}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">有效期</span><p>{detailItem.validUntil?.slice(0, 10) || '—'}</p></div>
-              <div><span className="text-[var(--muted-foreground)] text-xs">价格区间</span><p className="tabular-nums">¥{detailItem.priceMin.toLocaleString()} - ¥{detailItem.priceMax.toLocaleString()}</p></div>
-              <div><span className="text-[var(--muted-foreground)] text-xs">最近成交价</span><p className="font-medium tabular-nums">¥{detailItem.lastDealPrice.toLocaleString()}</p></div>
-              <div><span className="text-[var(--muted-foreground)] text-xs">价格变化</span><p className={detailItem.changeRate > 0 ? 'text-red-500' : detailItem.changeRate < 0 ? 'text-green-600' : ''}>{detailItem.changeRate}%</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">价格区间</span><p className="tabular-nums">¥{(detailItem.priceMin ?? 0).toLocaleString()} - ¥{(detailItem.priceMax ?? 0).toLocaleString()}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">最近成交价</span><p className="font-medium tabular-nums">¥{(detailItem.lastDealPrice ?? 0).toLocaleString()}</p></div>
+              <div><span className="text-[var(--muted-foreground)] text-xs">价格变化</span><p className={detailItem.changeRate > 0 ? 'text-[var(--danger)]' : detailItem.changeRate < 0 ? 'text-[var(--success)]' : ''}>{detailItem.changeRate}%</p></div>
             </div>
           </div>
         )}
@@ -204,7 +223,8 @@ function CategoryTreeTab() {
   const handleAddChild = (p: CategoryNode) => { setFormMode('create-child'); setFormParentId(p.id); setFormInitial(undefined); setFormOpen(true); };
   const handleEdit = (node: CategoryNode) => { setFormMode('edit'); setFormParentId(node.id); setFormInitial({ name: node.name, code: node.code || '', isLeaf: node.isLeaf, icon: node.icon || '' }); setFormOpen(true); };
   const handleDelete = async (node: CategoryNode) => {
-    if (!window.confirm(`确认删除「${node.name}」？`)) return;
+    const ok = await confirmDialog({ message: `确认删除品类「${node.name}」？删除后不可恢复。`, danger: true, confirmText: '删除' });
+    if (!ok) return;
     try { await deleteCategory(node.id); toast.success('已删除'); refresh(); } catch (e: any) { toast.error(e.message); }
   };
   const handleToggle = async (node: CategoryNode) => {
@@ -228,8 +248,8 @@ function CategoryTreeTab() {
             <h3 className="text-lg font-bold">{selectedNode.name}</h3>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div><span className="text-[var(--muted-foreground)]">编码</span><p className="font-medium font-mono">{selectedNode.code || '—'}</p></div>
-              <div><span className="text-[var(--muted-foreground)]">状态</span><p className={`font-medium ${selectedNode.status === 'ACTIVE' ? 'text-green-600' : 'text-gray-400'}`}>{selectedNode.status === 'ACTIVE' ? '启用' : '停用'}</p></div>
-              <div><span className="text-[var(--muted-foreground)]">类型</span><p className="font-medium">{selectedNode.isLeaf ? '🍃 叶子' : '📁 分组'}</p></div>
+              <div><span className="text-[var(--muted-foreground)]">状态</span><p className={`font-medium ${selectedNode.status === 'ACTIVE' ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>{selectedNode.status === 'ACTIVE' ? '启用' : '停用'}</p></div>
+              <div><span className="text-[var(--muted-foreground)]">类型</span><p className="font-medium flex items-center gap-1">{selectedNode.isLeaf ? <><Leaf size={13} className="text-[var(--success)]" /> 叶子</> : <><Folder size={13} className="text-[var(--accent)]" /> 分组</>}</p></div>
               <div><span className="text-[var(--muted-foreground)]">排序</span><p className="font-medium tabular-nums">{selectedNode.sortOrder}</p></div>
             </div>
             {selectedNode.isLeaf && (
@@ -237,15 +257,15 @@ function CategoryTreeTab() {
                 <div className="flex items-center justify-between mb-2"><span className="text-sm font-semibold">属性模板</span>
                   <button onClick={() => { setAttrNode(selectedNode); setAttrEditorOpen(true); }} className="neu-btn-xs is-info">编辑模板</button></div>
                 {ct.length > 0 ? <div className="flex flex-col gap-1">{ct.map((t: any) => (
-                  <div key={t.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(96,139,239,0.05)] text-sm">
+                  <div key={t.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--accent-tint)] text-sm">
                     <span className="font-medium">{t.name}</span><code className="text-[10px] font-mono text-[var(--accent)]">{t.fieldKey}</code>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(96,139,239,0.1)] text-[var(--accent)]">{t.fieldType}</span>
-                    {t.required && <span className="text-[10px] text-red-400">必填</span>}
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--accent-tint-strong)] text-[var(--accent)]">{t.fieldType}</span>
+                    {t.required && <span className="text-[10px] text-[var(--danger)]">必填</span>}
                   </div>))}</div> : <p className="text-sm text-[var(--muted-foreground)]">该品类暂无自定义属性</p>}
               </div>
             )}
           </div>
-        ) : <div className="flex items-center justify-center h-full text-sm text-[var(--muted-foreground)]">👈 选择左侧品类节点</div>}
+        ) : <div className="flex items-center justify-center gap-2 h-full text-sm text-[var(--muted-foreground)]"><MousePointerClick size={16} className="opacity-50" /> 选择左侧品类节点</div>}
       </div>
       <CategoryFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} initial={formInitial}
         title={formMode === 'edit' ? '编辑品类' : formMode === 'create-child' ? '新增子节点' : '新增根节点'} />
@@ -275,8 +295,23 @@ function EntryTab() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [draftRestored, setDraftRestored] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const { getDraft, clearDraft } = useFormAutosave('price-entry', form as unknown as Record<string, unknown>);
+  const hasChanges = Object.entries(form).some(([k, v]) => v !== (INITIAL_FORM as any)[k]);
+  useUnsavedGuard(hasChanges);
+
+  // 挂载时恢复未提交草稿（仅一次）
+  useEffect(() => {
+    if (draftRestored) return;
+    const draft = getDraft();
+    if (draft) {
+      const { _savedAt, ...rest } = draft;
+      setForm(prev => ({ ...prev, ...(rest as Partial<CatalogItemInput>) }));
+      toast.info('已恢复未保存的录入草稿');
+    }
+    setDraftRestored(true);
+  }, [draftRestored, getDraft]);
 
   const handleCategoryChange = (id: number | null, node?: CategoryNode) => {
     (form as any).categoryId = id;
@@ -286,6 +321,7 @@ function EntryTab() {
 
   const submit = async () => {
     if (!form.code.trim() || !form.name.trim()) { setServerError('请填写编码和名称'); return; }
+    if (!form.referencePrice || Number(form.referencePrice) <= 0) { setServerError('请填写有效的参考价'); return; }
     setSaving(true); setServerError('');
     try {
       const created = await createCatalogItem(form as any);
@@ -322,7 +358,7 @@ function EntryTab() {
           ))}
         </div>
         {dynamicFields.length > 0 && <div className="mt-4"><AttributeValueEditor fields={dynamicFields} onChange={setDynamicFields} /></div>}
-        {serverError && <p className="text-xs text-red-500 mt-2">{serverError}</p>}
+        {serverError && <p className="text-xs text-[var(--danger)] mt-2">{serverError}</p>}
         <button onClick={submit} disabled={saving} className="neu-btn is-info mt-4">{saving ? '保存中...' : '新增目录'}</button>
       </div>
 
@@ -334,9 +370,9 @@ function EntryTab() {
           <button onClick={doImport} disabled={importing || !file} className="neu-btn-xs is-success"><Upload size={14} /> {importing ? '导入中...' : '开始导入'}</button>
         </div>
         {importResult && (
-          <div className="mt-3 p-3 rounded-xl bg-[rgba(96,139,239,0.06)] text-sm">
+          <div className="mt-3 p-3 rounded-xl bg-[var(--accent-tint)] text-sm">
             <span>共 {importResult.totalRows} 行 · 新增 {importResult.created} · 更新 {importResult.updated} · 失败 {importResult.failed}</span>
-            {importResult.failedRows?.length > 0 && <div className="mt-2 max-h-40 overflow-y-auto text-xs">{importResult.failedRows.map((r: any, i: number) => <div key={i} className="text-red-500">行{r.rowNumber} {r.code}: {r.errors?.join(', ')}</div>)}</div>}
+            {importResult.failedRows?.length > 0 && <div className="mt-2 max-h-40 overflow-y-auto text-xs">{importResult.failedRows.map((r: any, i: number) => <div key={i} className="text-[var(--danger)]">行{r.rowNumber} {r.code}: {r.errors?.join(', ')}</div>)}</div>}
           </div>
         )}
       </div>
@@ -347,34 +383,29 @@ function EntryTab() {
 // ── 价格审批 Tab ──
 
 function ApprovalTab() {
-  const [apps, setApps] = useState<any[]>([]);
+  const statusLabels: Record<string, string> = { PENDING: '待审核', COUNTERED: '议价中', APPROVED: '已通过', REJECTED: '已拒绝', RETURNED: '已退回', WITHDRAWN: '已撤回' };
+  const [apps, setApps] = useState<CatalogApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('全部');
   const load = async () => {
     setLoading(true);
-    try {
-      const params = statusFilter !== '全部' ? `?status=${statusFilter}` : '';
-      const res = await fetch(`/api/catalog/applications${params}`, { credentials: 'include', headers: { 'X-Portal': 'web' } });
-      if (!res.ok) throw new Error('加载失败');
-      setApps(await res.json());
-    } catch (e: any) { toast.error(e.message); } finally { setLoading(false); }
+    try { setApps(await listApplications(statusFilter)); }
+    catch (e: any) { toast.error(e.message); } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, [statusFilter]);
 
-  const review = async (id: string, action: string, body?: any) => {
-    try {
-      await fetch(`/api/catalog/applications/${id}/review`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-Portal': 'web' }, body: JSON.stringify({ action, ...body }) });
-      toast.success('操作成功'); load();
-    } catch (e: any) { toast.error(e.message); }
+  const review = async (id: string, action: string, body?: Record<string, unknown>) => {
+    try { await reviewApplication(id, action, body); toast.success('操作成功'); load(); }
+    catch (e: any) { toast.error(e.message); }
   };
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
         {['全部', 'PENDING', 'COUNTERED', 'APPROVED', 'REJECTED', 'RETURNED', 'WITHDRAWN'].map(s => (
-          <button key={s} onClick={() => setStatusFilter(s)} className={`neu-tab ${statusFilter === s ? 'is-active' : ''}`}>{s === '全部' ? '全部' : s === 'PENDING' ? '待审核' : s === 'COUNTERED' ? '议价中' : s === 'APPROVED' ? '已通过' : s === 'REJECTED' ? '已拒绝' : s === 'RETURNED' ? '已退回' : '已撤回'}</button>
+          <button key={s} onClick={() => setStatusFilter(s)} className={`neu-tab ${statusFilter === s ? 'is-active' : ''}`}>{s === '全部' ? '全部' : statusLabels[s] || s}</button>
         ))}
-        <button onClick={load} disabled={loading} className="neu-btn-xs ml-auto"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
+        <button onClick={load} disabled={loading} aria-label="刷新审批列表" className="neu-btn-xs ml-auto"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
       </div>
       {loading ? <div className="flex items-center justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
         : apps.length === 0 ? <p className="text-center py-16 text-sm text-[var(--muted-foreground)]">暂无记录</p>
@@ -384,19 +415,19 @@ function ApprovalTab() {
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-sm font-bold">{a.supplier?.name || '—'}</span>
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-[rgba(96,139,239,0.1)] text-[var(--accent)]">{a.type === 'NEW_ITEM' ? '新增品类' : a.type === 'JOIN_EXISTING' ? '加入供货' : '报价调整'}</span>
-                  <StatusBadge tone={a.status === 'PENDING' ? 'orange' : a.status === 'APPROVED' ? 'green' : a.status === 'REJECTED' ? 'red' : 'blue'}>{a.status}</StatusBadge>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent-tint-strong)] text-[var(--accent)]">{a.type === 'NEW_ITEM' ? '新增品类' : a.type === 'JOIN_EXISTING' ? '加入供货' : '报价调整'}</span>
+                  <StatusBadge tone={a.status === 'PENDING' ? 'orange' : a.status === 'APPROVED' ? 'green' : a.status === 'REJECTED' ? 'red' : 'blue'}>{statusLabels[a.status] || a.status}</StatusBadge>
                 </div>
                 <p className="text-sm">申请物资: <strong>{a.proposedName || a.catalogItem?.name}</strong></p>
                 <p className="text-xs text-[var(--muted-foreground)]">报价: ¥{Number(a.quotedPrice || 0).toLocaleString()} {a.deliveryPeriod && `· 交期: ${a.deliveryPeriod}`} {a.region && `· ${a.region}`}</p>
-                {a.counterPrice && <p className="text-xs text-orange-500">议价反报价: ¥{Number(a.counterPrice).toLocaleString()}</p>}
+                {a.counterPrice && <p className="text-xs text-[var(--warning)]">议价反报价: ¥{Number(a.counterPrice).toLocaleString()}</p>}
               </div>
               {a.status === 'PENDING' && (
                 <div className="flex gap-2 flex-shrink-0">
                   <button onClick={() => review(a.id, 'approve')} className="neu-btn-xs is-success">通过</button>
-                  <button onClick={() => { const p = prompt('议价反报价金额:'); if (p) review(a.id, 'counter', { counterPrice: Number(p) }); }} className="neu-btn-xs is-warning">议价</button>
-                  <button onClick={() => { const r = prompt('退回原因:'); if (r) review(a.id, 'return', { reason: r }); }} className="neu-btn-xs">退回</button>
-                  <button onClick={() => { const r = prompt('拒绝理由:'); if (r) review(a.id, 'reject', { reason: r }); }} className="neu-btn-xs is-warning">拒绝</button>
+                  <button onClick={async () => { const p = await promptDialog({ title: '议价反报价', message: '请输入反报价金额（元）', numeric: true, required: true, confirmText: '提交议价' }); if (p != null) review(a.id, 'counter', { counterPrice: Number(p) }); }} className="neu-btn-xs is-warning">议价</button>
+                  <button onClick={async () => { const r = await promptDialog({ title: '退回申请', message: '请输入退回原因', required: true, confirmText: '退回' }); if (r != null) review(a.id, 'return', { reason: r }); }} className="neu-btn-xs">退回</button>
+                  <button onClick={async () => { const r = await promptDialog({ title: '拒绝申请', message: '请输入拒绝理由', required: true, danger: true, confirmText: '拒绝' }); if (r != null) review(a.id, 'reject', { reason: r }); }} className="neu-btn-xs is-warning">拒绝</button>
                 </div>
               )}
             </div>
@@ -413,93 +444,84 @@ function TrendsTab() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [seriesData, setSeriesData] = useState<{ name: string; color: string; data: { date: string; price: number }[] }[]>([]);
   const [loading, setLoading] = useState(false);
-  const [allItems, setAllItems] = useState<CatalogItem[]>([]);
-  const [initLoading, setInitLoading] = useState(true);
+  const [itemCount, setItemCount] = useState(0);
   const [opportunity, setOpportunity] = useState<string | null>(null);
-  const [predictionData, setPredictionData] = useState<{date: string; price: number}[]>([]);
+  const [predictionData, setPredictionData] = useState<{ date: string; price: number }[]>([]);
 
-  // Load ALL items + price histories on mount
-  useEffect(() => {
-    let cancelled = false;
-    listCatalogItems({})
-      .then(async items => {
-        if (cancelled) return;
-        setAllItems(items);
-        const candidates = items.filter(i => i.priceMin !== i.priceMax).slice(0, 5);
-        if (candidates.length === 0) { setInitLoading(false); return; }
-        const series = await Promise.all(candidates.map(async (item, i) => {
-          try {
-            const res = await fetch('/api/catalog/' + item.id + '/history', { credentials: 'include', headers: { 'X-Portal': 'web' } });
-            if (!res.ok) return null;
-            const h = await res.json();
-            if (!Array.isArray(h) || h.length < 2) return null;
-            return { name: item.name, color: PALETTE[i % PALETTE.length], data: h.map((p: any) => ({ date: (p.recordedAt || '').slice(0, 10), price: Number(p.price) || 0 })) };
-          } catch { return null; }
-        }));
-        if (!cancelled) {
-          setSeriesData(series.filter((s): s is NonNullable<typeof s> => s != null));
-          const firstItem = items.find((i: any) => i.priceMin !== i.priceMax);
-          if (firstItem) {
-            fetch('/api/catalog/' + firstItem.id + '/prediction', { credentials: 'include', headers: { 'X-Portal': 'web' } })
-              .then(res => res.ok ? res.json() : null)
-              .then(pred => {
-                if (pred) {
-                  setOpportunity(pred.opportunity);
-                  if (pred.predictions?.length) {
-                    const lastDate = new Date();
-                    setPredictionData(pred.predictions.map((p: any, i: number) => {
-                      const d = new Date(lastDate); d.setMonth(d.getMonth() + i + 1);
-                      return { date: d.toISOString().slice(0, 10), price: p.price };
-                    }));
-                  }
-                }
-              })
-              .catch(() => {});
-          }
+  // 按需加载：仅在选中品类后拉取该品类的目录项与价格历史，避免挂载即全量 + N+1
+  const loadCategory = async (id: number) => {
+    setLoading(true);
+    setSeriesData([]); setOpportunity(null); setPredictionData([]); setItemCount(0);
+    try {
+      const items = await listCatalogItems({ categoryId: id });
+      setItemCount(items.length);
+      const candidates = items.filter(i => i.priceMin !== i.priceMax).slice(0, 5);
+      if (candidates.length === 0) return;
+      const series = await Promise.all(candidates.map(async (item, i) => {
+        try {
+          const h = await getPriceHistory(item.id);
+          if (!Array.isArray(h) || h.length < 2) return null;
+          return { name: item.name, color: PALETTE[i % PALETTE.length], data: h.map(p => ({ date: (p.recordedAt || '').slice(0, 10), price: Number(p.price) || 0 })) };
+        } catch { return null; }
+      }));
+      setSeriesData(series.filter((s): s is NonNullable<typeof s> => s != null));
+      // 仅在确有候选时，拉取首项预测作为采购时机提示
+      const pred = await getPricePrediction(candidates[0].id);
+      if (pred) {
+        setOpportunity(pred.opportunity);
+        if (pred.predictions?.length) {
+          const lastDate = new Date();
+          setPredictionData(pred.predictions.map((p, i) => {
+            const d = new Date(lastDate); d.setMonth(d.getMonth() + i + 1);
+            return { date: d.toISOString().slice(0, 10), price: p.price };
+          }));
         }
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setInitLoading(false); });
-    return () => { cancelled = true; };
-  }, []);
+      }
+    } catch (e: any) { toast.error(e.message); }
+    finally { setLoading(false); }
+  };
 
   const handleCategoryChange = (id: number | null) => {
     setSelectedCategoryId(id);
-    if (!id) { setSeriesData([]); return; }
-    setLoading(true);
-    const filtered = allItems.filter(i => String(i.categoryId) === String(id) || (i as any).categoryId === id);
-    if (filtered.length === 0) { setLoading(false); return; }
-    const top5 = filtered.slice(0, 5);
-    Promise.all(top5.map(async (item, i) => {
-      try {
-        const res = await fetch('/api/catalog/' + item.id + '/history', { credentials: 'include', headers: { 'X-Portal': 'web' } });
-        if (!res.ok) return null;
-        const h = await res.json();
-        if (!Array.isArray(h) || h.length < 2) return null;
-        return { name: item.name, color: PALETTE[i % PALETTE.length], data: h.map((p: any) => ({ date: (p.recordedAt || '').slice(0, 10), price: Number(p.price) || 0 })) };
-      } catch { return null; }
-    })).then(results => {
-      setSeriesData(results.filter((s): s is NonNullable<typeof s> => s != null));
-      setLoading(false);
-    });
+    if (!id) { setSeriesData([]); setOpportunity(null); setPredictionData([]); setItemCount(0); return; }
+    loadCategory(id);
   };
 
   return (
     <div className="flex flex-col gap-4" style={{ minHeight: 'calc(100vh - 340px)' }}>
       <div className="flex items-center gap-3">
-        <CategoryTreeSelect value={selectedCategoryId} onChange={handleCategoryChange} placeholder="选择品类过滤" className="min-w-[200px]" />
+        <CategoryTreeSelect value={selectedCategoryId} onChange={handleCategoryChange} placeholder="选择品类查看价格趋势" className="min-w-[220px]" />
         <span className="text-xs text-[var(--muted-foreground)]">
-          {treeLoading ? '加载品类中...' : tree.length > 0 ? getLeafNodes(tree).length + ' 个叶子品类 · ' + allItems.length + ' 个目录项' : ''}
+          {treeLoading ? '加载品类中...' : tree.length > 0 ? `${countLeaves(tree)} 个叶子品类` : ''}
+          {itemCount > 0 && <span className="ml-2">· {itemCount} 个目录项</span>}
           {seriesData.length > 0 && <span className="text-[var(--accent)] font-semibold ml-2">已加载 {seriesData.length} 条价格曲线</span>}
         </span>
       </div>
-      {initLoading ? <div className="flex items-center justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
-        : (opportunity ? <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-50 text-sm text-green-700 mb-2"><Zap size={16}/>{opportunity}</div> : null)}
-        {seriesData.length > 0 ? <PriceTrendChart series={seriesData} title="" predictionData={predictionData.length > 0 ? predictionData : undefined} />
-        : <div className="flex flex-col items-center justify-center py-16 gap-2 text-sm text-[var(--muted-foreground)]">
-            <TrendingUp size={32} className="opacity-30" />
-            <p>{allItems.length === 0 ? '暂无目录项数据' : '所选品类下无足够价格历史'}</p>
-          </div>}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
+      ) : selectedCategoryId === null ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-2 text-sm text-[var(--muted-foreground)]">
+          <TrendingUp size={32} className="opacity-30" />
+          <p>选择品类，查看该品类下目录项的价格走势与采购时机预测</p>
+        </div>
+      ) : (
+        <>
+          {opportunity && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--success-soft)] text-sm text-[var(--success)]">
+              <Zap size={16} />{opportunity}
+            </div>
+          )}
+          {seriesData.length > 0 ? (
+            <PriceTrendChart series={seriesData} title="" predictionData={predictionData.length > 0 ? predictionData : undefined} />
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 gap-2 text-sm text-[var(--muted-foreground)]">
+              <TrendingUp size={32} className="opacity-30" />
+              <p>该品类下暂无足够的价格历史数据</p>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -513,20 +535,20 @@ function AlertsTab() {
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [ruleForm, setRuleForm] = useState<{name:string,alertType:string,threshold:number}|null>(null);
-  const [editingRule, setEditingRule] = useState<number|null>(null);
+  const [ruleForm, setRuleForm] = useState<{ name: string; alertType: string; threshold: number } | null>(null);
+  const [editingRule, setEditingRule] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const saveRule = async () => {
     if (!ruleForm) return;
+    if (!ruleForm.name.trim()) { toast.error('请填写规则名称'); return; }
+    setSaving(true);
     try {
-      if (editingRule) {
-        await (await fetch('/api/catalog/admin/alert-rules/' + editingRule, { method: 'PATCH', credentials: 'include', headers: { 'X-Portal': 'web', 'Content-Type': 'application/json' }, body: JSON.stringify(ruleForm) })).json();
-      } else {
-        await (await fetch('/api/catalog/admin/alert-rules', { method: 'POST', credentials: 'include', headers: { 'X-Portal': 'web', 'Content-Type': 'application/json' }, body: JSON.stringify(ruleForm) })).json();
-      }
+      if (editingRule) await updateAlertRule(editingRule, ruleForm);
+      else await createAlertRule(ruleForm);
       toast.success(editingRule ? '规则已更新' : '规则已创建');
       setRuleForm(null); setEditingRule(null); loadRules();
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   };
 
   const loadRules = async () => { try { setRules(await listAlertRules()); } catch (e: any) { toast.error(e.message); } };
@@ -542,26 +564,56 @@ function AlertsTab() {
       </div>
       {loading ? <div className="flex justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
         : subtab === 'rules' ? (
-          <div className="neu-card rounded-2xl overflow-hidden">
-            <table className="neu-table w-full">
-              <thead><tr><th>规则名称</th><th className="text-center">类型</th><th className="text-center">阈值</th><th className="text-center">品类</th><th className="text-center">状态</th><th className="text-center">操作</th></tr></thead>
-              <tbody>
-                {rules.length === 0 ? <tr><td colSpan={6} className="text-center py-8 text-sm text-[var(--muted-foreground)]">暂无规则</td></tr>
-                  : rules.map(r => (
-                    <tr key={r.id}><td className="font-medium">{r.name}</td>
-                      <td className="text-center"><span className="text-xs px-2 py-0.5 rounded bg-[rgba(96,139,239,0.1)] text-[var(--accent)]">{ALERT_TYPE_LABELS[r.alertType] || r.alertType}</span></td>
-                      <td className="text-center tabular-nums font-mono text-sm">{r.alertType === 'EXPIRING' ? `${r.threshold}天` : `${r.threshold}%`}</td>
-                      <td className="text-center text-xs text-[var(--muted-foreground)]">{r.category?.name || '全部品类'}</td>
-                      <td className="text-center">{r.enabled ? <span className="text-green-600 text-xs font-semibold">启用</span> : <span className="text-gray-400 text-xs">停用</span>}</td>
-                      <td className="text-center">
-                        <button onClick={async () => { await toggleAlertRule(r.id); loadRules(); }} className="neu-btn-xs">{r.enabled ? '停用' : '启用'}</button>
-                        <button onClick={() => { setRuleForm({name:r.name,alertType:r.alertType,threshold:r.threshold}); setEditingRule(r.id); }} className="neu-btn-xs ml-1"><PenLine size={12}/></button>
-                        <button onClick={async () => { if (confirm('删除？')) { await deleteAlertRule(r.id); loadRules(); } }} className="neu-btn-xs is-warning ml-1"><X size={12} /></button>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+          <div className="flex flex-col gap-3">
+            <div className="flex justify-end">
+              <button onClick={() => { setRuleForm({ name: '', alertType: 'PRICE_SURGE', threshold: 10 }); setEditingRule(null); }} className="neu-btn-xs is-info"><Plus size={14} /> 新增规则</button>
+            </div>
+            {ruleForm && (
+              <div className="neu-card rounded-2xl p-4">
+                <h4 className="text-sm font-semibold mb-3">{editingRule ? '编辑预警规则' : '新增预警规则'}</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">规则名称</label>
+                    <input value={ruleForm.name} onChange={e => setRuleForm({ ...ruleForm, name: e.target.value })} placeholder="如：钢材涨幅监控" className="neu-input w-full text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">预警类型</label>
+                    <select value={ruleForm.alertType} onChange={e => setRuleForm({ ...ruleForm, alertType: e.target.value })} className="neu-input w-full text-sm">
+                      {Object.entries(ALERT_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">阈值{ruleForm.alertType === 'EXPIRING' ? '（天）' : '（%）'}</label>
+                    <input type="number" value={ruleForm.threshold} onChange={e => setRuleForm({ ...ruleForm, threshold: Number(e.target.value) })} className="neu-input w-full text-sm" />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-3">
+                  <button onClick={() => { setRuleForm(null); setEditingRule(null); }} className="neu-btn-xs">取消</button>
+                  <button onClick={saveRule} disabled={saving} className="neu-btn-xs is-success">{saving ? '保存中...' : '保存'}</button>
+                </div>
+              </div>
+            )}
+            <div className="neu-card rounded-2xl overflow-hidden">
+              <table className="neu-table w-full">
+                <thead><tr><th>规则名称</th><th className="text-center">类型</th><th className="text-center">阈值</th><th className="text-center">品类</th><th className="text-center">状态</th><th className="text-center">操作</th></tr></thead>
+                <tbody>
+                  {rules.length === 0 ? <tr><td colSpan={6} className="text-center py-8 text-sm text-[var(--muted-foreground)]">暂无规则，点击「新增规则」创建</td></tr>
+                    : rules.map(r => (
+                      <tr key={r.id}><td className="font-medium">{r.name}</td>
+                        <td className="text-center"><span className="text-xs px-2 py-0.5 rounded bg-[var(--accent-tint)] text-[var(--accent)]">{ALERT_TYPE_LABELS[r.alertType] || r.alertType}</span></td>
+                        <td className="text-center tabular-nums font-mono text-sm">{r.alertType === 'EXPIRING' ? `${r.threshold}天` : `${r.threshold}%`}</td>
+                        <td className="text-center text-xs text-[var(--muted-foreground)]">{r.category?.name || '全部品类'}</td>
+                        <td className="text-center">{r.enabled ? <span className="text-[var(--success)] text-xs font-semibold">启用</span> : <span className="text-[var(--muted-foreground)] text-xs">停用</span>}</td>
+                        <td className="text-center">
+                          <button onClick={async () => { await toggleAlertRule(r.id); loadRules(); }} className="neu-btn-xs">{r.enabled ? '停用' : '启用'}</button>
+                          <button onClick={() => { setRuleForm({ name: r.name, alertType: r.alertType, threshold: r.threshold }); setEditingRule(r.id); }} aria-label="编辑规则" className="neu-btn-xs ml-1"><PenLine size={12} /></button>
+                          <button onClick={async () => { if (await confirmDialog({ message: `确认删除预警规则「${r.name}」？`, danger: true, confirmText: '删除' })) { await deleteAlertRule(r.id); loadRules(); } }} aria-label="删除规则" className="neu-btn-xs is-warning ml-1"><X size={12} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <div className="neu-card rounded-2xl overflow-hidden">
@@ -570,7 +622,7 @@ function AlertsTab() {
               <tbody>
                 {alerts.length === 0 ? <tr><td colSpan={5} className="text-center py-8 text-sm text-[var(--muted-foreground)]">暂无记录</td></tr>
                   : alerts.map(a => (
-                    <tr key={a.id} className={a.isRead ? '' : 'bg-[rgba(96,139,239,0.04)]'}>
+                    <tr key={a.id} className={a.isRead ? '' : 'bg-[var(--accent-tint)]'}>
                       <td className="text-xs text-[var(--muted-foreground)]">{new Date(a.createdAt).toLocaleString('zh-CN')}</td>
                       <td><span className="font-medium">{a.catalogItem?.name}</span><div className="text-[10px] font-mono text-[var(--accent)]">{a.catalogItem?.code}</div></td>
                       <td className="text-xs">{a.rule?.name}</td>
@@ -627,12 +679,12 @@ function VersionsTab() {
           {versions.map(v => (
             <div key={v.id} className="neu-card rounded-2xl p-4 flex flex-col gap-2">
               <div className="flex items-center justify-between"><span className="text-sm font-bold">{v.name}</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${v.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : v.status === 'ARCHIVED' ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700'}`}>{v.status === 'ACTIVE' ? '生效' : v.status === 'ARCHIVED' ? '归档' : '草稿'}</span></div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${v.status === 'ACTIVE' ? 'bg-[var(--success-soft)] text-[var(--success)]' : v.status === 'ARCHIVED' ? 'bg-[var(--muted)] text-[var(--muted-foreground)]' : 'bg-[var(--accent-tint)] text-[var(--accent)]'}`}>{v.status === 'ACTIVE' ? '生效' : v.status === 'ARCHIVED' ? '归档' : '草稿'}</span></div>
               <code className="text-xs font-mono text-[var(--accent)]">{v.version}</code>
               <div className="text-xs text-[var(--muted-foreground)]">{v.effectiveAt?.slice(0, 10)} · {v.user?.displayName}</div>
               <div className="flex gap-1 mt-auto pt-2">
-                <button onClick={() => setDiffA(diffA === v.id ? null : v.id)} className={`neu-btn-xs ${diffA === v.id ? 'is-active' : ''}`}>A</button>
-                <button onClick={() => setDiffB(diffB === v.id ? null : v.id)} className={`neu-btn-xs ${diffB === v.id ? 'is-active' : ''}`}>B</button>
+                <button onClick={() => setDiffA(diffA === v.id ? null : v.id)} aria-label="设为对比基准 A" className={`neu-btn-xs ${diffA === v.id ? 'is-active' : ''}`}>A</button>
+                <button onClick={() => setDiffB(diffB === v.id ? null : v.id)} aria-label="设为对比基准 B" className={`neu-btn-xs ${diffB === v.id ? 'is-active' : ''}`}>B</button>
                 {v.status !== 'ACTIVE' && <button onClick={async () => { await changeVersionStatus(v.id, 'ACTIVE'); load(); }} className="neu-btn-xs is-success ml-auto">生效</button>}
                 {v.status !== 'ARCHIVED' && <button onClick={async () => { await changeVersionStatus(v.id, 'ARCHIVED'); load(); }} className="neu-btn-xs ml-auto">归档</button>}
               </div>
@@ -644,9 +696,9 @@ function VersionsTab() {
         <div className="neu-card rounded-2xl p-5">
           <h3 className="text-sm font-bold mb-3">{diff.versionA} → {diff.versionB}</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className="p-3 rounded-xl bg-green-50"><span className="font-semibold text-green-700">新增 {diff.added.length} 项</span></div>
-            <div className="p-3 rounded-xl bg-red-50"><span className="font-semibold text-red-700">下架 {diff.removed.length} 项</span></div>
-            <div className="p-3 rounded-xl bg-orange-50"><span className="font-semibold text-orange-700">价格变化 {diff.priceChanges.length} 项</span></div>
+            <div className="p-3 rounded-xl bg-[var(--success-soft)]"><span className="font-semibold text-[var(--success)]">新增 {diff.added.length} 项</span></div>
+            <div className="p-3 rounded-xl bg-[var(--danger-soft)]"><span className="font-semibold text-[var(--danger)]">下架 {diff.removed.length} 项</span></div>
+            <div className="p-3 rounded-xl bg-[var(--warning-soft)]"><span className="font-semibold text-[var(--warning)]">价格变化 {diff.priceChanges.length} 项</span></div>
           </div>
         </div>
       )}
@@ -662,12 +714,21 @@ function SuppliersTab() {
   const [priceData, setPriceData] = useState<SupplierPriceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
-  const [radarData, setRadarData] = useState<{items:any[],outliers:any[],minPrice:number|null,avgPrice:number|null}>({items:[],outliers:[],minPrice:null,avgPrice:null});
-  const [insights, setInsights] = useState<{gapKeywords:{keyword:string,count:number}[],topSearches:{keyword:string,count:number}[]}>({gapKeywords:[],topSearches:[]});
+  const [radarData, setRadarData] = useState<PriceRadarData>({ minPrice: null, avgPrice: null, stdDeviation: null, outliers: [], items: [] });
   const [radarLoading, setRadarLoading] = useState(false);
+  const [insights, setInsights] = useState<SearchInsights>({ gapKeywords: [], topSearches: [] });
+  const [insightsLoading, setInsightsLoading] = useState(false);
 
-  const loadRadar = async () => { setRadarLoading(true); try { setRadarData(await (await fetch('/api/catalog/admin/price-radar', { credentials: 'include', headers: { 'X-Portal': 'web' } })).json()); } catch {} finally { setRadarLoading(false); } };
-  const loadInsights = async () => { try { setInsights(await (await fetch('/api/catalog/admin/search-insights', { credentials: 'include', headers: { 'X-Portal': 'web' } })).json()); } catch {} };
+  const loadRadar = async () => {
+    setRadarLoading(true);
+    try { setRadarData(await getPriceRadar()); } catch (e: any) { toast.error(e.message); }
+    finally { setRadarLoading(false); }
+  };
+  const loadInsights = async () => {
+    setInsightsLoading(true);
+    try { setInsights(await getSearchInsights()); } catch (e: any) { toast.error(e.message); }
+    finally { setInsightsLoading(false); }
+  };
 
   useEffect(() => {
     if (tab === 'radar') { loadRadar(); return; }
@@ -678,34 +739,120 @@ function SuppliersTab() {
       .catch(e => toast.error(e.message)).finally(() => setLoading(false));
   }, [tab]);
 
+  const subTabs = [
+    { key: 'coverage', label: '品类覆盖' },
+    { key: 'price', label: '价格对比' },
+    { key: 'radar', label: '比价雷达' },
+    { key: 'insights', label: '搜索洞察' },
+  ] as const;
+
+  const maxSearch = Math.max(1, ...insights.topSearches.map(s => s.count), ...insights.gapKeywords.map(s => s.count));
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <button onClick={() => setTab('coverage')} className={`neu-tab ${tab === 'coverage' ? 'is-active' : ''}`}>品类覆盖</button>
-        <button onClick={() => setTab('price')} className={`neu-tab ${tab === 'price' ? 'is-active' : ''}`}>价格对比</button>
-        <button onClick={() => setTab('radar')} className={`neu-tab ${tab === 'radar' ? 'is-active' : ''}`}>比价雷达</button>
-        <button onClick={() => setTab('insights')} className={`neu-tab ${tab === 'insights' ? 'is-active' : ''}`}>搜索洞察</button>
+      <div className="neu-tab-bar flex-wrap">
+        {subTabs.map(s => (
+          <button key={s.key} onClick={() => setTab(s.key)} className={`neu-tab ${tab === s.key ? 'is-active' : ''}`}>{s.label}</button>
+        ))}
       </div>
-      {loading ? <div className="flex justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
+
+      {(tab === 'coverage' || tab === 'price') && (loading ? <div className="flex justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
         : tab === 'coverage' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {coverage.map(s => (
-              <div key={s.supplier} className="neu-card rounded-2xl p-4 cursor-pointer hover:bg-[rgba(96,139,239,0.04)]" onClick={() => setSelectedSupplier(selectedSupplier === s.supplier ? null : s.supplier)}>
-                <div className="flex items-center justify-between"><span className="text-sm font-bold">{s.supplier}</span><span className="text-xs font-mono text-[var(--accent)]">{s.categoryCount} 类</span></div>
-                {selectedSupplier === s.supplier && <p className="text-xs text-[var(--muted-foreground)] mt-2">{s.categories.join('、')}</p>}
-              </div>
-            ))}
-          </div>
+          coverage.length === 0 ? <EmptyHint icon={Building2} text="暂无供应商覆盖数据" />
+            : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {coverage.map(s => (
+                <div key={s.supplier} className="neu-card rounded-2xl p-4 cursor-pointer transition-colors hover:bg-[var(--accent-tint)]" onClick={() => setSelectedSupplier(selectedSupplier === s.supplier ? null : s.supplier)}>
+                  <div className="flex items-center justify-between"><span className="text-sm font-bold">{s.supplier}</span><span className="text-xs font-mono text-[var(--accent)]">{s.categoryCount} 类</span></div>
+                  {selectedSupplier === s.supplier && <p className="text-xs text-[var(--muted-foreground)] mt-2">{s.categories.join('、')}</p>}
+                </div>
+              ))}
+            </div>
         ) : (
-          <div className="flex flex-col gap-4">
-            {priceData.map(s => (
-              <div key={s.supplier} className="neu-card rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-2"><span className="text-sm font-bold">{s.supplier}</span><span className="text-xs text-[var(--muted-foreground)]">均价 <strong>¥{s.avgPrice.toLocaleString()}</strong> · {s.items.length} 项</span></div>
-                <table className="neu-table w-full text-xs"><thead><tr><th>编码</th><th>名称</th><th className="text-right">参考价</th></tr></thead><tbody>{s.items.map((i: any) => <tr key={i.code}><td className="font-mono text-[var(--accent)]">{i.code}</td><td>{i.name}</td><td className="text-right tabular-nums font-medium">¥{i.price.toLocaleString()}</td></tr>)}</tbody></table>
+          priceData.length === 0 ? <EmptyHint icon={Building2} text="暂无价格对比数据" />
+            : <div className="flex flex-col gap-4">
+              {priceData.map(s => (
+                <div key={s.supplier} className="neu-card rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-2"><span className="text-sm font-bold">{s.supplier}</span><span className="text-xs text-[var(--muted-foreground)]">均价 <strong className="tabular-nums">¥{(s.avgPrice ?? 0).toLocaleString()}</strong> · {s.items.length} 项</span></div>
+                  <table className="neu-table w-full text-xs"><thead><tr><th>编码</th><th>名称</th><th className="text-right">参考价</th></tr></thead><tbody>{s.items.map(i => <tr key={i.code}><td className="font-mono text-[var(--accent)]">{i.code}</td><td>{i.name}</td><td className="text-right tabular-nums font-medium">¥{(i.price ?? 0).toLocaleString()}</td></tr>)}</tbody></table>
+                </div>
+              ))}
+            </div>
+        ))}
+
+      {tab === 'radar' && (radarLoading ? <div className="flex justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
+        : radarData.items.length === 0 ? <EmptyHint icon={Radar} text="暂无有效供货价格，无法生成比价雷达" />
+        : <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              ['样本量', `${radarData.items.length} 项`],
+              ['最低价', radarData.minPrice != null ? `¥${radarData.minPrice.toLocaleString()}` : '—'],
+              ['均价', radarData.avgPrice != null ? `¥${radarData.avgPrice.toLocaleString()}` : '—'],
+              ['标准差', radarData.stdDeviation != null ? `¥${radarData.stdDeviation.toLocaleString()}` : '—'],
+            ].map(([label, value]) => (
+              <div key={label} className="kpi-card p-3 rounded-xl flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">{label}</span>
+                <span className="text-[1.15rem] font-black tabular-nums text-[var(--foreground)]">{value}</span>
               </div>
             ))}
           </div>
-        )}
+          {radarData.outliers.length > 0 && (
+            <div className="neu-card rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-3"><AlertTriangle size={15} className="text-[var(--warning)]" /><h4 className="text-sm font-bold">价格异常偏高（超均值 +2σ）· {radarData.outliers.length} 项</h4></div>
+              <div className="flex flex-col gap-1.5">
+                {radarData.outliers.map(o => (
+                  <div key={o.id} className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[var(--warning-soft)] text-sm">
+                    <span><strong>{o.name}</strong> <span className="text-xs text-[var(--muted-foreground)]">{o.supplier}</span></span>
+                    <span className="tabular-nums font-semibold text-[var(--warning)]">¥{(o.referencePrice ?? 0).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="neu-card rounded-2xl overflow-hidden">
+            <table className="neu-table w-full text-xs">
+              <thead><tr><th>编码</th><th>名称</th><th>供应商</th><th className="text-right">参考价</th><th className="text-center">标记</th></tr></thead>
+              <tbody>
+                {radarData.items.map(it => (
+                  <tr key={it.id} className={it.isOutlier ? 'bg-[var(--warning-soft)]' : ''}>
+                    <td className="font-mono text-[var(--accent)]">{it.code}</td>
+                    <td>{it.name}</td>
+                    <td className="text-[var(--muted-foreground)]">{it.supplier || '—'}</td>
+                    <td className="text-right tabular-nums font-medium">¥{(it.referencePrice ?? 0).toLocaleString()}</td>
+                    <td className="text-center">
+                      {it.isLowest ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--success-soft)] text-[var(--success)] font-semibold">最低价</span>
+                        : it.isOutlier ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--warning-soft)] text-[var(--warning)] font-semibold">偏高</span>
+                        : <span className="text-[10px] text-[var(--muted-foreground)]">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>)}
+
+      {tab === 'insights' && (insightsLoading ? <div className="flex justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" /></div>
+        : (insights.topSearches.length === 0 && insights.gapKeywords.length === 0) ? <EmptyHint icon={Sparkles} text="近 30 天暂无搜索记录" />
+        : <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="neu-card rounded-2xl p-5">
+            <div className="flex items-center gap-2 mb-3"><TrendingUp size={15} className="text-[var(--accent)]" /><h4 className="text-sm font-bold">热门搜索（近 30 天）</h4></div>
+            {insights.topSearches.length === 0 ? <p className="text-xs text-[var(--muted-foreground)]">暂无记录</p>
+              : <div className="flex flex-col gap-2">{insights.topSearches.map(s => (
+                <div key={s.keyword} className="flex items-center gap-3 text-xs">
+                  <span className="w-28 truncate text-[var(--foreground)] font-medium">{s.keyword}</span>
+                  <div className="flex-1 h-2 rounded-full bg-[var(--accent-tint)] overflow-hidden"><div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.max(6, Math.round((s.count / maxSearch) * 100))}%` }} /></div>
+                  <span className="tabular-nums text-[var(--muted-foreground)] w-8 text-right">{s.count}</span>
+                </div>
+              ))}</div>}
+          </div>
+          <div className="neu-card rounded-2xl p-5">
+            <div className="flex items-center gap-2 mb-1"><TrendingDown size={15} className="text-[var(--warning)]" /><h4 className="text-sm font-bold">目录缺口（搜索无结果）</h4></div>
+            <p className="text-[11px] text-[var(--muted-foreground)] mb-3">这些关键词被反复搜索但目录中无匹配项，提示潜在采购空白</p>
+            {insights.gapKeywords.length === 0 ? <p className="text-xs text-[var(--muted-foreground)]">暂无缺口，目录覆盖良好</p>
+              : <div className="flex flex-wrap gap-1.5">{insights.gapKeywords.map(s => (
+                <span key={s.keyword} className="text-xs px-2 py-1 rounded-lg bg-[var(--warning-soft)] text-[var(--warning)] font-medium">{s.keyword} <span className="tabular-nums opacity-70">×{s.count}</span></span>
+              ))}</div>}
+          </div>
+        </div>)}
     </div>
   );
 }
@@ -733,8 +880,8 @@ function LogsTab() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2 flex-wrap">
         <div className="neu-tab-bar">{actions.map(a => <button key={a} onClick={() => setAction(a)} className={`neu-tab ${action === a ? 'is-active' : ''}`}>{a === '全部' ? '全部' : LOG_LABELS[a] || a}</button>)}</div>
-        <div className="relative flex-1 min-w-[160px]"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索..." className="neu-input !pl-9 w-full text-sm" />{search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2"><X size={14} /></button>}</div>
-        <button onClick={() => { listCatalogAuditLogs().then(setLogs); }} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
+        <div className="relative flex-1 min-w-[160px]"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" /><input value={search} onChange={e => setSearch(e.target.value)} aria-label="搜索操作日志" placeholder="搜索..." className="neu-input !pl-9 w-full text-sm" />{search && <button onClick={() => setSearch('')} aria-label="清除搜索" className="absolute right-2 top-1/2 -translate-y-1/2"><X size={14} /></button>}</div>
+        <button onClick={() => { listCatalogAuditLogs().then(setLogs); }} disabled={loading} aria-label="刷新操作日志" className="neu-btn-xs"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
       </div>
       <div className="neu-table-card">
         <table className="neu-table w-full">
@@ -746,7 +893,7 @@ function LogsTab() {
                 <tr key={l.id}>
                   <td className="text-xs whitespace-nowrap">{new Date(l.createdAt).toLocaleString('zh-CN')}</td>
                   <td className="text-sm">{l.user?.displayName || l.user?.username || '—'}</td>
-                  <td><span className="text-xs px-1.5 py-0.5 rounded bg-[rgba(96,139,239,0.08)]">{LOG_LABELS[l.action] || l.action}</span></td>
+                  <td><span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent-tint-strong)]">{LOG_LABELS[l.action] || l.action}</span></td>
                   <td className="text-sm">{l.resourceType || '—'}</td>
                   <td className="text-xs text-[var(--muted-foreground)] max-w-[300px] truncate">{typeof l.details === 'object' ? JSON.stringify(l.details) : String(l.details || '')}</td>
                 </tr>
@@ -760,13 +907,16 @@ function LogsTab() {
 
 // ── 主页面 ──
 
-export default function CatalogManagementPage() {
-  const [activeTab, setActiveTab] = useState<string>('items');
+function CatalogManagementPageInner() {
+  const searchParams = useSearchParams();
+  const validKeys = TABS.map(t => t.key);
+  const queryTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<string>(queryTab && (validKeys as string[]).includes(queryTab) ? queryTab : 'items');
   const [role, setRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/auth/me', { credentials: 'include', headers: { 'X-Portal': 'web' } })
+    fetch('/api/auth/me', { credentials: 'include', headers: { 'X-Portal': 'web' } })
       .then(r => r.ok ? r.json() : null)
       .then(u => { if (u?.role) setRole(u.role); setRoleLoading(false); })
       .catch(() => setRoleLoading(false));
@@ -776,6 +926,7 @@ export default function CatalogManagementPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <ConfirmHost />
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -794,7 +945,7 @@ export default function CatalogManagementPage() {
             {visibleTabs.map(t => {
               const Icon = t.icon;
               return (
-                <button key={t.key} onClick={() => setActiveTab(t.key)} className={`neu-tab flex items-center gap-1.5 ${activeTab === t.key ? 'is-active' : ''}`}>
+                <button key={t.key} onClick={() => setActiveTab(t.key)} aria-current={activeTab === t.key ? 'page' : undefined} className={`neu-tab flex items-center gap-1.5 ${activeTab === t.key ? 'is-active' : ''}`}>
                   <Icon size={14} /> {t.label}
                 </button>
               );
@@ -815,5 +966,14 @@ export default function CatalogManagementPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function CatalogManagementPage() {
+  // useSearchParams 须在 Suspense 边界内（Next.js App Router 构建要求）
+  return (
+    <Suspense fallback={null}>
+      <CatalogManagementPageInner />
+    </Suspense>
   );
 }

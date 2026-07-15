@@ -1,7 +1,7 @@
 [
   {
     "id": "cmqbysdkn0023koh10nbevzz2",
-    "userId": "cmqbysdbl0002koh10l78cjr3",
+    "userId": "cmrai35fr0000koddvbs7wjep",
     "type": "SYSTEM",
     "title": "系统升级完成",
     "content": "ERP管理平台已完成v2.0升级，新增专家工作台、供应商门户等功能模块。",
@@ -12,7 +12,7 @@
   },
   {
     "id": "cmqbysdkn0024koh13q168rub",
-    "userId": "cmqbysdbl0002koh10l78cjr3",
+    "userId": "cmrai35fr0000koddvbs7wjep",
     "type": "SYSTEM",
     "title": "新供应商注册待审核",
     "content": "供应商\"成都华西物资供应有限公司\"提交了入库申请，请及时审核。",
@@ -23,7 +23,7 @@
   },
   {
     "id": "cmqbysdkn0025koh1wtz9p1y9",
-    "userId": "cmqbysdbl0002koh10l78cjr3",
+    "userId": "cmrai35fr0000koddvbs7wjep",
     "type": "SYSTEM",
     "title": "评标进度提醒",
     "content": "项目\"2026年度水利工程物资集中采购\"已有3位专家提交评分，当前进度85%。",
@@ -34,7 +34,7 @@
   },
   {
     "id": "cmqbysdkn0026koh18iumkkje",
-    "userId": "cmqbysdbl0002koh10l78cjr3",
+    "userId": "cmrai35fr0000koddvbs7wjep",
     "type": "SYSTEM",
     "title": "供应商资质到期预警",
     "content": "有2家供应商的资质证书将在30天内到期，请通知相关供应商及时更新。",

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { fetchPublicAnnouncement, ANNOUNCEMENTS, type AnnouncementItem } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
@@ -10,6 +10,11 @@ export default function AnnouncementDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
+  const searchParams = useSearchParams();
+  // 从首页打开时返回首页，否则返回信息公告列表
+  const fromHome = searchParams.get('from') === 'home';
+  const backHref = fromHome ? '/' : '/announcements';
+  const backLabel = fromHome ? '返回首页' : '返回信息公告';
   const [item, setItem] = useState<AnnouncementItem | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -54,9 +59,9 @@ export default function AnnouncementDetailPage() {
 
       {/* ═══ 内容区 ═══ */}
       <div className="relative z-10 px-[clamp(40px,4vw,72px)] pt-3 pb-10">
-        <a href="/" className="flow-back mb-8">
+        <a href={backHref} className="flow-back mb-8">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow"><path d="M15 18l-6-6 6-6"/></svg>
-          返回首页
+          {backLabel}
         </a>
         <div className="glass rounded-2xl p-8">
           {/* 标签 */}

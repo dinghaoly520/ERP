@@ -84,14 +84,14 @@ const singleSourceProgress = buildTenderSectionProgress(
   SINGLE_SOURCE_SECTIONS[0].key,
 );
 
-assert(singleSourceMeta?.label === '单源直接采购', 'SINGLE_SOURCE 前端显示名应为单源直接采购');
+assert(singleSourceMeta?.label === '直接采购', 'SINGLE_SOURCE 前端显示名应为直接采购');
 assert(singleSourceMeta?.availability === 'ready', 'SINGLE_SOURCE 应标记为可用');
 assert(
   SINGLE_SOURCE_SECTIONS.map((section) => section.key).join(',') ===
     'cover,invitation,terms,procurement,contract,response',
-  '单源直接采购章节顺序不正确',
+  '直接采购章节顺序不正确',
 );
-assert(singleSourceProgress.length === SINGLE_SOURCE_SECTIONS.length, '单源直接采购进度数量应与章节数量一致');
-assert(singleSourceDraft.contractText === '', '单源直接采购空草稿应初始化合同文本字段');
+assert(singleSourceProgress.length === SINGLE_SOURCE_SECTIONS.length, '直接采购进度数量应与章节数量一致');
+assert(singleSourceDraft.contractText === '', '直接采购空草稿应初始化合同文本字段');
 
 console.log('tender-write-workspace-check:ok');

@@ -7,6 +7,7 @@ import type {
   InvitedBiddingDraft,
   TenderDocumentType,
   ReadyTenderDraft,
+  TenderSectionConfig,
 } from '@/lib/types/tender-write';
 import {
   createEmptyCompetitiveNegotiationDraft,
@@ -14,6 +15,11 @@ import {
   createEmptyInquiryPurchaseDraft,
   createEmptyInternalBiddingDraft,
   createEmptyInvitedBiddingDraft,
+  COMPETITIVE_NEGOTIATION_SECTIONS,
+  SINGLE_SOURCE_SECTIONS,
+  INQUIRY_PURCHASE_SECTIONS,
+  INTERNAL_BIDDING_SECTIONS,
+  INVITED_BIDDING_SECTIONS,
 } from './templates';
 
 /**
@@ -83,24 +89,44 @@ export function buildPrefillFromProject(
   }
 }
 
+/** 各采购文件类型对应的编辑器章节配置（aiPrompt 的唯一来源）。 */
+const SECTIONS_BY_TYPE: Record<TenderDocumentType, TenderSectionConfig[]> = {
+  COMPETITIVE_NEGOTIATION: COMPETITIVE_NEGOTIATION_SECTIONS,
+  SINGLE_SOURCE: SINGLE_SOURCE_SECTIONS,
+  INQUIRY_PURCHASE: INQUIRY_PURCHASE_SECTIONS,
+  INTERNAL_BIDDING: INTERNAL_BIDDING_SECTIONS,
+  INVITED_BIDDING: INVITED_BIDDING_SECTIONS,
+};
+
+/** 从该类型的编辑器配置中查找字段的 aiPrompt（templates.ts 为唯一来源）。 */
+function resolveAiPrompt(tenderType: TenderDocumentType, fieldKey: string): string | undefined {
+  const sections = SECTIONS_BY_TYPE[tenderType] ?? [];
+  for (const section of sections) {
+    const field = section.fields.find((f) => String(f.key) === fieldKey);
+    if (field?.aiPrompt) return field.aiPrompt;
+  }
+  return undefined;
+}
+
 /**
  * 返回该类型中适合 AI 生成且没有预填值的字段列表。
- * 每个条目包含 fieldKey、中文标签和 aiPrompt（若有）。
+ * 每个条目的 aiPrompt 从 templates.ts 章节配置中解析，确保批量自动生成与编辑器内单字段生成使用同一份提示词。
  */
 export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
   fieldKey: string;
   label: string;
   aiPrompt?: string;
 }> {
+  // 为每个字段补上 templates.ts 中配置的 aiPrompt
+  const withPrompts = (fields: Array<{ fieldKey: string; label: string }>) =>
+    fields.map((f) => ({ ...f, aiPrompt: resolveAiPrompt(tenderType, f.fieldKey) }));
+
   // 所有类型共有的封面字段
-  const cover = [
-    { fieldKey: 'coverDate', label: '封面时间', aiPrompt: '当前日期' },
-    { fieldKey: 'projectName', label: '项目名称' },
-  ];
+  const cover = [{ fieldKey: 'projectName', label: '项目名称' }];
 
   switch (tenderType) {
     case 'COMPETITIVE_NEGOTIATION':
-      return [
+      return withPrompts([
         ...cover,
         { fieldKey: 'projectOverview', label: '项目概况和采购内容' },
         { fieldKey: 'submissionRequirements', label: '提交成果要求' },
@@ -114,10 +140,10 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
         { fieldKey: 'businessRequirements', label: '商务要求' },
         { fieldKey: 'technicalRequirements', label: '技术要求' },
         { fieldKey: 'quotationLetter', label: '报价表' },
-      ];
+      ]);
 
     case 'SINGLE_SOURCE':
-      return [
+      return withPrompts([
         ...cover,
         { fieldKey: 'projectDuration', label: '项目完成期限' },
         { fieldKey: 'documentAcquireTime', label: '采购文件获取时间' },
@@ -130,10 +156,10 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
         { fieldKey: 'procurementRequirements', label: '采购要求' },
         { fieldKey: 'contractText', label: '合同文本' },
         { fieldKey: 'quotationLetter', label: '报价函' },
-      ];
+      ]);
 
     case 'INQUIRY_PURCHASE':
-      return [
+      return withPrompts([
         ...cover,
         { fieldKey: 'projectIntroduction', label: '项目介绍' },
         { fieldKey: 'procurementContent', label: '采购内容' },
@@ -143,11 +169,11 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
         { fieldKey: 'contactPhone', label: '联系电话' },
         { fieldKey: 'contactEmail', label: '联系邮箱' },
         { fieldKey: 'quotationLetter', label: '报价函' },
-      ];
+      ]);
 
     case 'INTERNAL_BIDDING':
     case 'INVITED_BIDDING':
-      return [
+      return withPrompts([
         ...cover,
         { fieldKey: 'projectOverview', label: '项目概况和采购内容' },
         { fieldKey: 'consortiumForm', label: '联合体形式' },
@@ -168,7 +194,7 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
         { fieldKey: 'businessRequirements', label: '商务要求' },
         { fieldKey: 'technicalRequirements', label: '技术要求' },
         { fieldKey: 'quotationLetter', label: '报价表' },
-      ];
+      ]);
 
     default:
       return [];

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  X,
   FileDown,
   Upload,
   FileText,
@@ -12,8 +11,8 @@ import {
   FileTextIcon,
   Sparkles,
 } from "lucide-react";
-import { motion, useReducedMotion } from "framer-motion";
 import type { ReadyTenderDraft, ReadyTenderDocumentType } from "@/lib/types/tender-write";
+import { Modal } from "@/components/workbench";
 import { numberToChineseAmount } from "@/lib/tender-write/announcement-templates";
 import {
   extractNotificationData,
@@ -25,19 +24,6 @@ import { fetchProjectAttributions, type ProjectAttribution } from "@/lib/api/pro
 import { aiIdentifyField } from "@/lib/api/project-management";
 import type { FieldCandidate } from "@/lib/types/project-management";
 import { ContactPickerDialog } from "./contact-picker-dialog";
-
-const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
-
-function fadeIn(reducedMotion: boolean) {
-  if (reducedMotion) {
-    return { initial: {}, animate: {}, transition: { duration: 0 } };
-  }
-  return {
-    initial: { opacity: 0, scale: 0.96 },
-    animate: { opacity: 1, scale: 1 },
-    transition: { duration: 0.3, ease: easeOutQuint },
-  };
-}
 
 function downloadBlobFile(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
@@ -97,12 +83,10 @@ const CATEGORY_OPTIONS = [
 const PROCUREMENT_METHOD_OPTIONS = [
   "公开招标",
   "邀请招标",
-  "内部竞标/竞价",
-  "竞争性谈判",
-  "询价采购",
+  "竞价采购",
+  "谈判采购",
+  "询比采购",
   "单一来源采购",
-  "直接委托",
-  "续约采购",
   "框架协议采购",
   "直接签订合同",
 ];
@@ -135,7 +119,6 @@ export function NotificationLetterDialog({
   tenderDraft: ReadyTenderDraft;
   onClose: () => void;
 }) {
-  const reducedMotion = useReducedMotion() ?? false;
   const [step, setStep] = useState<Step>("upload");
   const [previewMode, setPreviewMode] = useState<PreviewMode>("letter");
   const [extracting, setExtracting] = useState(false);
@@ -323,360 +306,317 @@ export function NotificationLetterDialog({
   const commonInputClass =
     "mt-2 w-full rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]";
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <motion.div
-        {...fadeIn(reducedMotion)}
-        className="absolute inset-0 bg-[rgba(0,0,0,0.24)] backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Dialog */}
-      <motion.div
-        {...fadeIn(reducedMotion)}
-        className={[
-          "relative z-10 flex flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]",
-          step === "upload"
-            ? "w-[480px]"
-            : "w-[1200px] max-h-[90vh]",
-        ].join(" ")}
+    <>
+      <Modal
+        open={isOpen}
+        onClose={onClose}
+        title={step === "upload" ? "上传定标审批表" : "确认信息并导出"}
+        description="中标通知书台账"
+        size="lg"
+        className={step === "edit" ? "!max-w-[min(1200px,95vw)]" : undefined}
+        footer={
+          step === "edit" ? (
+            <>
+              <div className="flex items-center rounded-[14px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.4)] p-0.5 mr-auto">
+                <button
+                  type="button"
+                  onClick={() => setPreviewMode("letter")}
+                  className={[
+                    "flex items-center gap-1.5 rounded-[12px] px-3 py-1.5 text-xs font-medium transition-all",
+                    previewMode === "letter"
+                      ? "bg-[rgba(107,149,240,0.12)] text-[rgba(75,110,200,1)]"
+                      : "text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]",
+                  ].join(" ")}
+                >
+                  <FileTextIcon size={12} />
+                  通知书
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewMode("table")}
+                  className={[
+                    "flex items-center gap-1.5 rounded-[12px] px-3 py-1.5 text-xs font-medium transition-all",
+                    previewMode === "table"
+                      ? "bg-[rgba(107,149,240,0.12)] text-[rgba(75,110,200,1)]"
+                      : "text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]",
+                  ].join(" ")}
+                >
+                  <Table size={12} />
+                  台账
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("upload");
+                  setErrorMessage(null);
+                }}
+                className="neu-btn-soft"
+              >
+                ← 返回上传
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleExport()}
+                disabled={exporting}
+                className="tender-btn tender-btn--export disabled:cursor-not-allowed"
+              >
+                <span className="tb-icon tb-anim-bob">
+                  <FileDown size={13} />
+                </span>
+                {exporting ? "导出中..." : "生成通知书"}
+              </button>
+            </>
+          ) : undefined
+        }
       >
-        {/* Header */}
-        <div className="flex shrink-0 items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
-              中标通知书台账
-            </div>
-            <div className="mt-1 flex items-center gap-2">
-              {step === "edit" && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep("upload");
-                    setErrorMessage(null);
-                  }}
-                  className="neu-btn-xs"
-                >
-                  ← 返回上传
-                </button>
-              )}
-              <h2 className="text-[1.05rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
-                {step === "upload" ? "上传定标审批表" : "确认信息并导出"}
-              </h2>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {step === "edit" && (
-              <>
-                {/* Preview mode toggle */}
-                <div className="flex items-center rounded-full border border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.4)] p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewMode("letter")}
-                    className={[
-                      "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all",
-                      previewMode === "letter"
-                        ? "bg-[rgba(107,149,240,0.12)] text-[rgba(75,110,200,1)] shadow-sm"
-                        : "text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]",
-                    ].join(" ")}
-                  >
-                    <FileTextIcon size={12} />
-                    通知书
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewMode("table")}
-                    className={[
-                      "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all",
-                      previewMode === "table"
-                        ? "bg-[rgba(107,149,240,0.12)] text-[rgba(75,110,200,1)] shadow-sm"
-                        : "text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]",
-                    ].join(" ")}
-                  >
-                    <Table size={12} />
-                    台账
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void handleExport()}
-                  disabled={exporting}
-                  className="tender-btn tender-btn--export disabled:cursor-not-allowed"
-                >
-                  <span className="tb-icon tb-anim-bob">
-                    <FileDown size={13} />
-                  </span>
-                  {exporting ? "导出中..." : "生成通知书"}
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="neu-btn-xs"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {step === "upload" ? (
-            <div className="flex flex-1 items-center justify-center p-8">
-              <div className="w-full max-w-md">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={extracting}
-                  className="group w-full rounded-[16px] bg-[oklch(0.985_0.005_258)] px-8 py-10 text-center transition-all duration-300 hover:bg-[oklch(0.975_0.008_258)]"
-                  style={{
-                    boxShadow: "inset 2px 2px 6px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 6px oklch(1 0 0 / 0.7)",
-                    border: "2px dashed oklch(0.55 0.05 258 / 0.18)",
-                  }}
-                >
-                  {extracting ? (
-                    <div className="flex items-center justify-center gap-3">
-                      <Loader2 size={20} className="animate-spin text-[color:var(--accent)]" />
-                      <div className="text-sm font-medium text-[color:var(--foreground)]">正在识别定标审批表...</div>
+        {step === "upload" ? (
+          <div className="flex items-center justify-center py-4">
+            <div className="w-full max-w-md">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={extracting}
+                className="group w-full rounded-[16px] border-2 border-dashed border-[oklch(0.55_0.05_258_/_0.18)] bg-[oklch(0.985_0.005_258)] px-8 py-10 text-center transition-all duration-300 [box-shadow:var(--cs)] hover:bg-[oklch(0.975_0.008_258)]"
+                style={{
+                  "--cs": "inset 2px 2px 6px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 6px oklch(1 0 0 / 0.7)",
+                } as React.CSSProperties}
+              >
+                {extracting ? (
+                  <div className="flex items-center justify-center gap-3">
+                    <Loader2 size={20} className="animate-spin text-[color:var(--accent)]" />
+                    <div className="text-sm font-medium text-[color:var(--foreground)]">正在识别定标审批表...</div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="neu-icon-well flex h-12 w-12 items-center justify-center rounded-[12px] text-[color:var(--accent)]">
+                      <Upload size={20} />
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="neu-icon-well flex h-12 w-12 items-center justify-center rounded-[12px] text-[color:var(--accent)]">
-                        <Upload size={20} />
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-[color:var(--foreground)]">点击上传定标审批表</div>
-                        <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">PDF 格式，系统自动识别中标信息</div>
-                      </div>
+                    <div>
+                      <div className="text-sm font-semibold text-[color:var(--foreground)]">点击上传定标审批表</div>
+                      <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">PDF 格式，系统自动识别中标信息</div>
                     </div>
-                  )}
-                </button>
-                {fileName && !extracting && (
-                  <div className="mt-3 flex items-center gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-4 py-2">
-                    <FileText size={14} className="text-[color:var(--success)]" />
-                    <span className="text-sm text-[color:var(--foreground)]">{fileName}</span>
                   </div>
                 )}
-              </div>
-            </div>
-          ) : (
-            /* Edit + Preview step */
-            <div className="flex min-h-0 flex-1 flex-row gap-4 p-4">
-              {/* Editor (left) */}
-              <section className="flex min-h-0 flex-1 flex-col rounded-[20px] wb-panel">
-                <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">编辑区</div>
-                  <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
-                    {filledCount}/{fields.length} 项已填写
-                    {fileName && <span className="ml-2 text-[rgba(78,150,124,1)]">· 已从审批表导入</span>}
-                  </div>
+              </button>
+              {fileName && !extracting && (
+                <div className="mt-3 flex items-center gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-4 py-2">
+                  <FileText size={14} className="text-[color:var(--success)]" />
+                  <span className="text-sm text-[color:var(--foreground)]">{fileName}</span>
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto p-5 tender-scroll">
-                  <div className="grid gap-3">
-                    {fields.map((field) => {
-                      const hasValue = draft[field.key]?.trim().length > 0;
-                      const isAutoGenerated = field.readOnly;
-                      const isContactField = field.isContact;
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Edit + Preview step */
+          <div className="flex flex-row gap-4">
+            {/* Editor (left) */}
+            <section className="flex min-h-0 flex-1 flex-col rounded-[20px] wb-panel">
+              <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">编辑区</div>
+                <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
+                  {filledCount}/{fields.length} 项已填写
+                  {fileName && <span className="ml-2 text-[rgba(78,150,124,1)]">· 已从审批表导入</span>}
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-5 tender-scroll">
+                <div className="grid gap-3">
+                  {fields.map((field) => {
+                    const hasValue = draft[field.key]?.trim().length > 0;
+                    const isAutoGenerated = field.readOnly;
+                    const isContactField = field.isContact;
 
-                      return (
-                        <label
-                          key={field.key}
-                          className={[
-                            "block rounded-[18px] border px-4 py-3.5 transition-all duration-300",
-                            hasValue
-                              ? "border-[color-mix(in_oklch,var(--success)_14%,transparent)] bg-[color-mix(in_oklch,var(--success)_6%,transparent)]"
-                              : "border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] hover:border-[oklch(0.5_0.08_258_/_0.25)] hover:bg-[oklch(1_0_0_/_0.5)]",
-                          ].join(" ")}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-medium text-[color:var(--foreground)]">{field.label}</span>
-                            <div className="flex items-center gap-1.5">
-                              {isContactField && (
+                    return (
+                      <label
+                        key={field.key}
+                        className={[
+                          "block rounded-[18px] border px-4 py-3.5 transition-all duration-300",
+                          hasValue
+                            ? "border-[color-mix(in_oklch,var(--success)_14%,transparent)] bg-[color-mix(in_oklch,var(--success)_6%,transparent)]"
+                            : "border-[oklch(0.55_0.05_258_/_0.15)] bg-[oklch(1_0_0_/_0.3)] hover:border-[oklch(0.5_0.08_258_/_0.25)] hover:bg-[oklch(1_0_0_/_0.5)]",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-[color:var(--foreground)]">{field.label}</span>
+                          <div className="flex items-center gap-1.5">
+                            {isContactField && (
+                              <button
+                                type="button"
+                                onClick={() => setContactPickerOpen(true)}
+                                className="flex h-6 w-6 items-center justify-center rounded-[10px] border border-[rgba(107,149,240,0.2)] bg-[rgba(107,149,240,0.06)] text-[rgba(75,110,200,1)] transition-all hover:bg-[rgba(107,149,240,0.12)]"
+                                title="从联系人选择"
+                              >
+                                <UserCircle size={13} />
+                              </button>
+                            )}
+                            {!isContactField && !isAutoGenerated && field.type !== "select" && field.type !== "combo" && field.type !== "date" && storedExtractedText && (
+                              aiLoading === field.key ? (
+                                <span className="inline-flex items-center justify-center w-7 h-7 rounded-[12px] bg-gradient-to-br from-[rgba(147,112,219,0.15)] to-[rgba(96,145,246,0.15)]">
+                                  <Loader2 size={14} className="animate-spin text-[rgba(118,100,180,0.9)]" />
+                                </span>
+                              ) : (
                                 <button
                                   type="button"
-                                  onClick={() => setContactPickerOpen(true)}
-                                  className="flex h-6 w-6 items-center justify-center rounded-full border border-[rgba(107,149,240,0.2)] bg-[rgba(107,149,240,0.06)] text-[rgba(75,110,200,1)] transition-all hover:bg-[rgba(107,149,240,0.12)] hover:shadow-sm"
-                                  title="从联系人选择"
+                                  title="AI 识别"
+                                  onClick={() => void handleAiIdentify(field.key, field.label)}
+                                  className="group inline-flex items-center justify-center w-7 h-7 rounded-[12px] border border-[rgba(147,112,219,0.2)] bg-[rgba(147,112,219,0.06)] transition-all duration-300 hover:border-[rgba(147,112,219,0.4)] hover:bg-[rgba(147,112,219,0.14)] active:scale-95"
                                 >
-                                  <UserCircle size={13} />
+                                  <Sparkles size={14} className="text-[rgba(118,100,180,0.85)] transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
                                 </button>
-                              )}
-                              {!isContactField && !isAutoGenerated && field.type !== "select" && field.type !== "combo" && field.type !== "date" && storedExtractedText && (
-                                aiLoading === field.key ? (
-                                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-[rgba(147,112,219,0.15)] to-[rgba(96,145,246,0.15)]">
-                                    <Loader2 size={14} className="animate-spin text-[rgba(118,100,180,0.9)]" />
-                                  </span>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    title="AI 识别"
-                                    onClick={() => void handleAiIdentify(field.key, field.label)}
-                                    className="group inline-flex items-center justify-center w-7 h-7 rounded-full border border-[rgba(147,112,219,0.2)] bg-[rgba(147,112,219,0.06)] transition-all duration-300 hover:border-[rgba(147,112,219,0.4)] hover:bg-[rgba(147,112,219,0.14)] hover:shadow-[0_0_10px_rgba(147,112,219,0.18)] active:scale-95"
-                                  >
-                                    <Sparkles size={14} className="text-[rgba(118,100,180,0.85)] transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
-                                  </button>
-                                )
-                              )}
-                              <span
-                                className={[
-                                  "rounded-full px-2 py-0.5 text-[10px] font-semibold transition-all duration-200",
-                                  hasValue
-                                    ? "bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]"
-                                    : "bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] text-[var(--danger)]",
-                                ].join(" ")}
-                              >
-                                {hasValue ? (isAutoGenerated ? "已生成" : "已填写") : "待补充"}
-                              </span>
+                              )
+                            )}
+                            <span
+                              className={[
+                                "rounded-full px-2 py-0.5 text-[10px] font-semibold transition-all duration-200",
+                                hasValue
+                                  ? "bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]"
+                                  : "bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] text-[var(--danger)]",
+                              ].join(" ")}
+                            >
+                              {hasValue ? (isAutoGenerated ? "已生成" : "已填写") : "待补充"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Select dropdown */}
+                        {field.type === "select" ? (
+                          <div className="relative mt-2">
+                            <select
+                              value={draft[field.key]}
+                              onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                              className="w-full appearance-none rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 pr-10 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]"
+                            >
+                              <option value="" disabled>请选择</option>
+                              {field.options!.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
+                              <svg className="h-4 w-4 text-[color:var(--muted-foreground)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
                             </div>
                           </div>
-
-                          {/* Select dropdown */}
-                          {field.type === "select" ? (
-                            <div className="relative mt-2">
-                              <select
-                                value={draft[field.key]}
-                                onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                                className="w-full appearance-none rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 pr-10 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]"
-                              >
-                                <option value="" disabled>请选择</option>
-                                {field.options!.map((opt) => (
-                                  <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                              </select>
-                              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
-                                <svg className="h-4 w-4 text-[color:var(--muted-foreground)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </div>
-                            </div>
-                          ) : field.type === "combo" ? (
-                            /* Combo dropdown + input */
-                            <div className="relative mt-2">
-                              <input
-                                type="text"
-                                value={projectDropdownOpen ? projectSearch : (draft[field.key] || "")}
-                                onChange={(e) => {
-                                  setProjectSearch(e.target.value);
-                                  setProjectDropdownOpen(true);
-                                  handleFieldChange("project", e.target.value);
-                                }}
-                                onFocus={() => {
-                                  setProjectSearch(draft.project || "");
-                                  setProjectDropdownOpen(true);
-                                }}
-                                onBlur={() => {
-                                  // Delay to allow click on dropdown item
-                                  setTimeout(() => setProjectDropdownOpen(false), 200);
-                                }}
-                                placeholder="选择或输入项目名称"
-                                className={commonInputClass}
-                              />
-                              {projectDropdownOpen && filteredProjects.length > 0 && (
-                                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-[14px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[var(--background)] shadow-[0_16px_40px_rgba(0,0,0,0.1)]">
-                                  {filteredProjects.map((p) => (
-                                    <button
-                                      key={p.name}
-                                      type="button"
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => handleProjectSelect(p.name)}
-                                      className="w-full px-4 py-2 text-left text-sm text-[color:var(--foreground)] transition-colors hover:bg-[rgba(107,149,240,0.06)]"
-                                    >
-                                      {p.name}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            /* Regular input */
-                            <div>
-                              <input
-                                type={field.type ?? "text"}
-                                value={draft[field.key]}
-                                onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                                placeholder={field.placeholder}
-                                readOnly={isAutoGenerated}
-                                className={[
-                                  commonInputClass,
-                                  isAutoGenerated ? "cursor-default bg-[oklch(1_0_0_/_0.3)] opacity-80" : "",
-                                ].join(" ")}
-                              />
-                              {field.key === "signatureDate" && draft.signatureDate.trim() && (
-                                <div className="mt-1 text-xs text-[color:var(--muted-foreground)] pl-1">
-                                  落款格式：{toChineseDate(draft.signatureDate)}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {aiCandidates[field.key]?.length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-[rgba(184,199,227,0.36)]">
-                              <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)] mb-1.5">AI 推荐</div>
-                              <div className="space-y-1.5">
-                                {aiCandidates[field.key].map((candidate, idx) => (
+                        ) : field.type === "combo" ? (
+                          /* Combo dropdown + input */
+                          <div className="relative mt-2">
+                            <input
+                              type="text"
+                              value={projectDropdownOpen ? projectSearch : (draft[field.key] || "")}
+                              onChange={(e) => {
+                                setProjectSearch(e.target.value);
+                                setProjectDropdownOpen(true);
+                                handleFieldChange("project", e.target.value);
+                              }}
+                              onFocus={() => {
+                                setProjectSearch(draft.project || "");
+                                setProjectDropdownOpen(true);
+                              }}
+                              onBlur={() => {
+                                // Delay to allow click on dropdown item
+                                setTimeout(() => setProjectDropdownOpen(false), 200);
+                              }}
+                              placeholder="选择或输入项目名称"
+                              className={commonInputClass}
+                            />
+                            {projectDropdownOpen && filteredProjects.length > 0 && (
+                              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-[14px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[var(--background)] shadow-[0_16px_40px_oklch(0.24_0.038_258/0.1)]">
+                                {filteredProjects.map((p) => (
                                   <button
-                                    key={idx}
+                                    key={p.name}
                                     type="button"
-                                    onClick={() => handleFieldChange(field.key, candidate.value)}
-                                    className="w-full p-2 text-left rounded-lg border transition-all duration-200 border-[oklch(0.6_0.04_258_/_0.2)] bg-[oklch(1_0_0_/_0.3)] hover:bg-[oklch(1_0_0_/_0.5)]"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => handleProjectSelect(p.name)}
+                                    className="w-full px-4 py-2 text-left text-sm text-[color:var(--foreground)] transition-colors hover:bg-[rgba(107,149,240,0.06)]"
                                   >
-                                    <span className="text-sm font-medium text-[color:var(--foreground)]">{candidate.value}</span>
-                                    <span className="ml-2 text-xs text-[rgba(88,107,142,0.82)]">({(candidate.confidence * 100).toFixed(0)}%)</span>
+                                    {p.name}
                                   </button>
                                 ))}
                               </div>
+                            )}
+                          </div>
+                        ) : (
+                          /* Regular input */
+                          <div>
+                            <input
+                              type={field.type ?? "text"}
+                              value={draft[field.key]}
+                              onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                              placeholder={field.placeholder}
+                              readOnly={isAutoGenerated}
+                              className={[
+                                commonInputClass,
+                                isAutoGenerated ? "cursor-default bg-[oklch(1_0_0_/_0.3)] opacity-80" : "",
+                              ].join(" ")}
+                            />
+                            {field.key === "signatureDate" && draft.signatureDate.trim() && (
+                              <div className="mt-1 text-xs text-[color:var(--muted-foreground)] pl-1">
+                                落款格式：{toChineseDate(draft.signatureDate)}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {aiCandidates[field.key]?.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-[rgba(184,199,227,0.36)]">
+                            <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)] mb-1.5">AI 推荐</div>
+                            <div className="space-y-1.5">
+                              {aiCandidates[field.key].map((candidate, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => handleFieldChange(field.key, candidate.value)}
+                                  className="w-full p-2 text-left rounded-[14px] border transition-all duration-200 border-[oklch(0.6_0.04_258_/_0.2)] bg-[oklch(1_0_0_/_0.3)] hover:bg-[oklch(1_0_0_/_0.5)]"
+                                >
+                                  <span className="text-sm font-medium text-[color:var(--foreground)]">{candidate.value}</span>
+                                  <span className="ml-2 text-xs text-[rgba(88,107,142,0.82)]">({(candidate.confidence * 100).toFixed(0)}%)</span>
+                                </button>
+                              ))}
                             </div>
-                          )}
-                        </label>
-                      );
-                    })}
-                  </div>
+                          </div>
+                        )}
+                      </label>
+                    );
+                  })}
                 </div>
-              </section>
+              </div>
+            </section>
 
-              {/* Preview (right) */}
-              <aside className="flex min-h-0 flex-[1.1] flex-col overflow-hidden rounded-[24px] wb-panel">
-                <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
-                    预览区
-                  </div>
-                  <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
-                    {previewMode === "letter" ? "中标通知书 · 实时预览" : "台账记录 · 实时预览"}
-                  </div>
+            {/* Preview (right) */}
+            <aside className="flex min-h-0 flex-[1.1] flex-col overflow-hidden rounded-[24px] wb-panel">
+              <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
+                  预览区
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto tender-scroll">
-                  <div className="mx-3 my-2 px-2 py-2">
-                    {previewMode === "letter" ? (
-                      <NotificationPreview draft={draft} />
-                    ) : (
-                      <LedgerPreview draft={draft} />
-                    )}
-                  </div>
+                <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
+                  {previewMode === "letter" ? "中标通知书 · 实时预览" : "台账记录 · 实时预览"}
                 </div>
-              </aside>
-            </div>
-          )}
-        </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto tender-scroll">
+                <div className="mx-3 my-2 px-2 py-2">
+                  {previewMode === "letter" ? (
+                    <NotificationPreview draft={draft} />
+                  ) : (
+                    <LedgerPreview draft={draft} />
+                  )}
+                </div>
+              </div>
+            </aside>
+          </div>
+        )}
 
-        {/* Error message */}
         {errorMessage && (
-          <div className="shrink-0 px-6 py-3 text-sm text-[color:var(--danger)]" style={{ borderTop: "1px solid color-mix(in oklch, var(--danger) 20%, transparent)" }}>
+          <div className="text-sm text-[color:var(--danger)]">
             {errorMessage}
           </div>
         )}
 
-        {/* Success toast */}
         {successMessage && (
-          <div className="absolute bottom-6 left-1/2 z-50 -translate-x-1/2 animate-fade-in">
-            <div className="rounded-[10px] border border-[color-mix(in_oklch,var(--success)_28%,transparent)] bg-[var(--success)] px-5 py-3 text-sm font-medium text-white shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
-              {successMessage}
-            </div>
+          <div className="rounded-[10px] border border-[color-mix(in_oklch,var(--success)_28%,transparent)] bg-[var(--success)] px-5 py-3 text-sm font-medium text-white">
+            {successMessage}
           </div>
         )}
-      </motion.div>
+      </Modal>
 
       {/* Contact picker */}
       {contactPickerOpen && (
@@ -695,7 +635,7 @@ export function NotificationLetterDialog({
         hidden
         onChange={(e) => void handleFileSelected(e)}
       />
-    </div>
+    </>
   );
 }
 

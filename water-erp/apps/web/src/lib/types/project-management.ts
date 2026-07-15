@@ -1,12 +1,9 @@
 export const PROCUREMENT_METHODS = [
-  '竞争性谈判',
-  '内部竞标竞价',
-  '单源直接采购',
+  '谈判采购',
+  '竞价采购',
+  '直接采购',
   '邀请招标',
-  '续约谈判',
-  '询价采购',
-  '直接委托',
-  '小额采购',
+  '询比采购',
 ] as const;
 
 export type ProcurementMethod = (typeof PROCUREMENT_METHODS)[number];
@@ -17,70 +14,53 @@ export type StageConfig = {
 };
 
 export const PROCUREMENT_METHOD_STAGES: Record<ProcurementMethod, StageConfig[]> = {
-  '竞争性谈判': [
+  '谈判采购': [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'INITIATION', label: '采购立项' },
     { key: 'TENDER_DOCUMENT', label: '采购文件' },
-    { key: 'EXPERT_SELECTION', label: '专家抽取' },
-    { key: 'BID_EVALUATION', label: '评标过程' },
+    { key: 'SUPPLIER_INVITATION', label: '供应商邀请' },
+    { key: 'EXPERT_SELECTION', label: '专家选取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
     { key: 'AWARD_DECISION', label: '定标' },
     { key: 'CONTRACT', label: '合同' },
   ],
-  '内部竞标竞价': [
+  '竞价采购': [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'INITIATION', label: '采购立项' },
     { key: 'TENDER_DOCUMENT', label: '采购文件' },
-    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公示' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
     { key: 'EXPERT_SELECTION', label: '专家抽取' },
-    { key: 'BID_EVALUATION', label: '评标过程' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
     { key: 'AWARD_DECISION', label: '定标' },
     { key: 'CONTRACT', label: '合同' },
   ],
-  '单源直接采购': [
+  '直接采购': [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'INITIATION', label: '采购立项' },
-    { key: 'TENDER_DOCUMENT', label: '采购文件' },
-    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公示' },
-    { key: 'EXPERT_SELECTION', label: '专家抽取' },
-    { key: 'BID_EVALUATION', label: '评标过程' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示(供应商邀请)' },
+    { key: 'EXPERT_SELECTION', label: '专家选取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
     { key: 'AWARD_DECISION', label: '定标' },
     { key: 'CONTRACT', label: '合同' },
   ],
   '邀请招标': [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'INITIATION', label: '采购立项' },
-    { key: 'TENDER_DOCUMENT', label: '采购文件' },
-    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公示' },
+    { key: 'TENDER_DOCUMENT', label: '招标文件' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
     { key: 'EXPERT_SELECTION', label: '专家抽取' },
-    { key: 'BID_EVALUATION', label: '评标过程' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
     { key: 'AWARD_DECISION', label: '定标' },
     { key: 'CONTRACT', label: '合同' },
   ],
-  '续约谈判': [
+  '询比采购': [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'INITIATION', label: '采购立项' },
     { key: 'TENDER_DOCUMENT', label: '采购文件' },
-    { key: 'EXPERT_SELECTION', label: '专家抽取' },
-    { key: 'BID_EVALUATION', label: '评标过程' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
+    { key: 'EXPERT_SELECTION', label: '专家选取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
     { key: 'AWARD_DECISION', label: '定标' },
-    { key: 'CONTRACT', label: '合同' },
-  ],
-  '询价采购': [
-    { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
-    { key: 'INITIATION', label: '采购立项' },
-    { key: 'TENDER_DOCUMENT', label: '采购文件' },
-    { key: 'EXPERT_SELECTION', label: '专家抽取' },
-    { key: 'BID_EVALUATION', label: '评标过程' },
-    { key: 'AWARD_DECISION', label: '定标' },
-    { key: 'CONTRACT', label: '合同' },
-  ],
-  '直接委托': [
-    { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
-    { key: 'INITIATION', label: '采购立项' },
-    { key: 'CONTRACT', label: '合同' },
-  ],
-  '小额采购': [
-    { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'CONTRACT', label: '合同' },
   ],
 };
@@ -89,9 +69,10 @@ export const PROJECT_WORKFLOW_STAGES_ALL: StageConfig[] = [
   { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
   { key: 'INITIATION', label: '采购立项' },
   { key: 'TENDER_DOCUMENT', label: '采购文件' },
-  { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公示' },
+  { key: 'SUPPLIER_INVITATION', label: '供应商邀请' },
+  { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
   { key: 'EXPERT_SELECTION', label: '专家抽取' },
-  { key: 'BID_EVALUATION', label: '评标过程' },
+  { key: 'BID_EVALUATION', label: '开标评标' },
   { key: 'AWARD_DECISION', label: '定标' },
   { key: 'CONTRACT', label: '合同' },
 ];
@@ -100,10 +81,12 @@ export type ProjectWorkflowStageKey = (typeof PROJECT_WORKFLOW_STAGES_ALL)[numbe
 
 // Legacy stages for backward compatibility
 export const PROJECT_WORKFLOW_STAGES = [
-  { key: 'INITIATION', label: '项目立项' },
+  { key: 'INITIATION', label: '采购立项' },
   { key: 'TENDER_DOCUMENT', label: '采购文件' },
+  { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
+  { key: 'SUPPLIER_INVITATION', label: '供应商邀请' },
   { key: 'EXPERT_SELECTION', label: '专家抽取' },
-  { key: 'BID_EVALUATION', label: '评标过程' },
+  { key: 'BID_EVALUATION', label: '开标评标' },
   { key: 'AWARD_DECISION', label: '定标' },
   { key: 'CONTRACT', label: '合同' },
 ] as const;
@@ -212,14 +195,14 @@ export type FieldCandidate = {
 };
 
 // Helper functions
-export function needsInitiationStage(method: ProcurementMethod): boolean {
-  return method !== '小额采购';
+export function needsInitiationStage(_method: ProcurementMethod): boolean {
+  return true; // 所有采购方式均需要立项
 }
 
 export function needsPublicAnnouncementStage(method: ProcurementMethod): boolean {
-  return ['内部竞标竞价', '单源直接采购', '邀请招标'].includes(method);
+  return ['竞价采购', '直接采购', '邀请招标', '询比采购'].includes(method);
 }
 
 export function getStagesForMethod(method: ProcurementMethod): StageConfig[] {
-  return PROCUREMENT_METHOD_STAGES[method] || PROCUREMENT_METHOD_STAGES['竞争性谈判'];
+  return PROCUREMENT_METHOD_STAGES[method] || PROCUREMENT_METHOD_STAGES['谈判采购'];
 }
