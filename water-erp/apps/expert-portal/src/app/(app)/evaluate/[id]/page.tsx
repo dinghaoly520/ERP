@@ -14,6 +14,7 @@ import { RequirementComparePanel } from '@/components/evaluate/assist/requiremen
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
 import { DocumentsStep } from '@/components/evaluate/documents-step';
 import { ReportStep } from '@/components/evaluate/report-step';
+import { PointChecklistScoring } from '@/components/evaluate/point-checklist-scoring';
 import { formatBytes } from '@/lib/utils';
 
 type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'report';
@@ -111,7 +112,8 @@ export default function ExpertEvaluatePage() {
   const [assistData, setAssistData] = useState<AssistData | null>(null);
   const [assistLoading, setAssistLoading] = useState(false);
   // P0-1: scores keyed by `${supplierId}:${scoreItemId}` (composite) — never flat by scoreItemId.
-  const [scores, setScores] = useState<Record<string, { score: number; reason: string; passed?: boolean }>>({});
+  // Task 7: `points` 子记录按 pointId 存 checklist 决策（checked + awardedScore）；onChange 时 Σ→score rollup。
+  const [scores, setScores] = useState<Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>>({});
   const [report, setReport] = useState<EvaluationReport | null>(null);
 
   const [confidentialityAgreed, setConfidentialityAgreed] = useState(false);
@@ -188,14 +190,35 @@ export default function ExpertEvaluatePage() {
         if (serverConflicts.length > 0) setConflictedSupplierIds(new Set(serverConflicts));
         // Fix 1: fetch disputeCategoriesBySupplier (per-supplier) via my-scores endpoint.
         // Task 4: 同时取 disputesBySupplier（异议详情，用于打分 step「📎插入异议」联动）。
+        // Task 7: 同时取 pointDecisions，按 pointId→scoreItemId 映射 hydrate 到 scores[k].points。
         api.get<{
           records: unknown[];
           disputeCategoriesBySupplier: Record<string, string[]>;
           disputesBySupplier: Record<string, Record<string, Array<{ requirementId: string; content: string; note: string; verdict: 'dispute' | 'doubt' }>>>;
+          pointDecisions?: Array<{ pointId: string; supplierId: string; checked: boolean; awardedScore: number | string; note?: string }>;
         }>(`/expert/projects/${projectId}/my-scores`)
           .then((d) => {
             setDisputeCategoriesBySupplier(d.disputeCategoriesBySupplier ?? {});
             setDisputesBySupplier(d.disputesBySupplier ?? {});
+            // Task 7: hydrate point decisions —— build pointId→scoreItemId map once from project.scoreItems.
+            const pointToItem = new Map<string, string>();
+            for (const si of p.scoreItems ?? []) {
+              for (const pt of si.points ?? []) pointToItem.set(pt.id, si.id);
+            }
+            setScores(prev => {
+              const next = { ...prev };
+              for (const pd of (d.pointDecisions ?? [])) {
+                const scoreItemId = pointToItem.get(pd.pointId);
+                if (!scoreItemId) continue;
+                const k = scoreKey(pd.supplierId, scoreItemId);
+                const cur = next[k] ?? { score: 0, reason: '' };
+                next[k] = {
+                  ...cur,
+                  points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore) } },
+                };
+              }
+              return next;
+            });
           })
           .catch(() => { /* my-scores optional — ignore */ });
       })
@@ -477,8 +500,16 @@ export default function ExpertEvaluatePage() {
     }
     const scoresPayload = project.scoreItems.map(si => {
       const entry = scores[scoreKey(activeSupplier, si.id)];
+      const hasPoints = (si.points ?? []).length > 0;
       if (isPassFailCategory(si.category)) {
         return { scoreItemId: si.id, supplierId: activeSupplier, passed: entry?.passed, reason: entry?.reason ?? '' };
+      }
+      if (hasPoints) {
+        // Task 7: checklist 模式 —— 附 pointDecisions，后端据其核定 score。
+        return {
+          scoreItemId: si.id, supplierId: activeSupplier, score: entry?.score ?? 0, reason: entry?.reason ?? '',
+          pointDecisions: Object.entries(entry?.points ?? {}).map(([pointId, d]) => ({ pointId, checked: d.checked, awardedScore: d.awardedScore })),
+        };
       }
       return { scoreItemId: si.id, supplierId: activeSupplier, score: entry?.score ?? 0, reason: entry?.reason ?? '' };
     });
@@ -1264,10 +1295,49 @@ export default function ExpertEvaluatePage() {
                                   </div>
                                 );
                               }
-                              // 数值项：保持原渲染
+                              // 数值项：有 points 用 checklist；无 points 用旧滑块（向后兼容）
                               const currentScore = val?.score ?? 0;
                               const max = Number(item.maxScore);
                               const pct = max > 0 ? (currentScore / max) * 100 : 0;
+                              const itemPoints = (item.points ?? []).map(p => ({ id: p.id, name: p.name, fullScore: p.fullScore, objective: p.objective, evidenceHint: p.evidenceHint, seq: p.seq }));
+                              if (itemPoints.length > 0) {
+                                return (
+                                  <div key={item.id} data-score-item={item.id} className={`glass-card glass-card-lighter rounded-lg p-4 ${reasonMissing ? 'border-red-300 ring-1 ring-red-200' : 'border-blue-100'}`}>
+                                    <div className="flex items-center justify-between mb-3">
+                                      <h4 className="font-semibold text-[oklch(0.18_0.012_265)]">{item.name}</h4>
+                                      <span className="text-sm text-[oklch(0.55_0.01_264)]">满分 {max}</span>
+                                    </div>
+                                    <PointChecklistScoring
+                                      points={itemPoints}
+                                      value={val?.points ?? {}}
+                                      onChange={(pid, pv) => setScores(prev => {
+                                        const cur = prev[k] ?? { score: 0, reason: '' };
+                                        const points = { ...(cur.points ?? {}), [pid]: pv };
+                                        // rollup: Σ awardedScore → item.score（类别小计 + submit payload 都读 score）
+                                        const score = itemPoints.reduce((s, p) => s + (points[p.id]?.awardedScore ?? 0), 0);
+                                        return { ...prev, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed: cur.passed } };
+                                      })} />
+                                    <textarea placeholder="评分理由（可选）" value={val?.reason || ''}
+                                      onFocus={() => onReasonFocus(k)}
+                                      onBlur={onReasonBlur}
+                                      onChange={e => {
+                                        const v = e.target.value;
+                                        setScores(prev => {
+                                          const cur = prev[k] ?? { score: 0, reason: '' };
+                                          return { ...prev, [k]: { ...cur, score: cur.score ?? 0, reason: v, points: cur.points, passed: cur.passed } };
+                                        });
+                                        if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
+                                      }}
+                                      onKeyDown={e => handleScoringKeyDown(e, isLastItem)}
+                                      className={`w-full rounded-lg px-3 py-2 text-sm resize-none h-16 mt-3 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
+                                      aria-label={`${item.name} 评分理由`} tabIndex={0} />
+                                    {/* Task 5: 数值项理由框聚焦（或点📎按钮）→ 展开复选框面板 */}
+                                    {renderReviewPanel(k, category, item.id)}
+                                    {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold flex items-center gap-1"><AlertTriangle size={12} strokeWidth={1.5} />该项得分低于满分，请填写评分理由</p>}
+                                  </div>
+                                );
+                              }
+                              // 无 points → 旧滑块（保留现有渲染不变）
                               return (
                                 <div key={item.id} data-score-item={item.id} className={`glass-card glass-card-lighter rounded-lg p-4 ${reasonMissing ? 'border-red-300 ring-1 ring-red-200' : 'border-blue-100'}`}>
                                   <div className="flex items-center justify-between mb-3">
