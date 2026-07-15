@@ -25,8 +25,10 @@ import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { UpdateExtractedInfoDto } from './dto/update-extracted-info.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { ProjectManagementService } from './project-management.service';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @UseGuards(AuthGuard)
+@Roles('procurement_staff', 'leader', 'admin', 'staff')
 @Controller('project-management')
 export class ProjectManagementController {
   constructor(

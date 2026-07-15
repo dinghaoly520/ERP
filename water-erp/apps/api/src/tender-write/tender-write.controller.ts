@@ -15,7 +15,9 @@ import type { Response } from 'express';
 import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto } from './tender-write.dto';
 import { ImportAutofillDto } from './import-autofill.dto';
 import { TenderWriteService } from './tender-write.service';
+import { Roles } from '../common/decorators/roles.decorator';
 
+@Roles('procurement_staff', 'leader', 'admin', 'staff')
 @Controller('tender-write')
 export class TenderWriteController {
   constructor(private readonly tenderWriteService: TenderWriteService) {}
