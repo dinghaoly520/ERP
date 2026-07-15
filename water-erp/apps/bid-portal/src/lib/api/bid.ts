@@ -215,6 +215,24 @@ export function deleteScorePoint(projectId: string, itemId: string, pointId: str
   return api.delete<void>(`/bid/projects/${projectId}/score-items/${itemId}/points/${pointId}`);
 }
 
+export interface ScorePointSuggestion {
+  name: string;
+  fullScore: number;
+  evidenceHint: string;
+  objective: boolean;
+}
+
+export function extractScorePoints(projectId: string, itemId: string) {
+  return api.post<ScorePointSuggestion[]>(`/bid/projects/${projectId}/score-items/${itemId}/points/extract`, {});
+}
+export function batchCreateScorePoints(
+  projectId: string,
+  itemId: string,
+  points: Array<{ name: string; fullScore: number; evidenceHint?: string; objective?: boolean }>,
+) {
+  return api.post<{ count: number }>(`/bid/projects/${projectId}/score-items/${itemId}/points/batch`, { points });
+}
+
 export function listEvaluationResults(projectId: string) {
   return api.get(`/bid/projects/${projectId}/evaluation-results`);
 }
