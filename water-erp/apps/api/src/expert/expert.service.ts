@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
 import { ExpertConflictService } from './expert-conflict.service';
 import { BidGateway } from '../bid/bid.gateway';
@@ -45,7 +46,7 @@ export class ExpertService {
       orderBy: { createdAt: 'desc' },
     });
     const { passwordHash, ...safeUser } = user;
-    return { ...safeUser, assignments: expertRecords };
+    return { ...safeUser, assignments: expertRecords, averageScore: this.computeAverageScore(expertRecords) };
   }
 
   async updateProfile(userId: string, dto: UpdateExpertProfileDto) {
@@ -84,18 +85,7 @@ export class ExpertService {
     const completedProjects = records.filter(e => e.progress >= 100).length;
     const signedInProjects = records.filter(e => e.signedIn).length;
     const pendingProjects = records.filter(e => !e.signedIn).length;
-    // 平均得分 = 该专家对每位供应商的总评分（单项分之和，满分约100）取平均
-    // 旧实现分子用 totalScore（跨项目+跨供应商总和）÷ 去重供应商数，维度不匹配会算出 >100 的无意义值
-    const supplierScoreMap = new Map<string, number>();
-    for (const e of records) {
-      for (const r of e.scoreRecords) {
-        supplierScoreMap.set(r.supplierId, (supplierScoreMap.get(r.supplierId) ?? 0) + Number(r.score));
-      }
-    }
-    const supplierTotals = [...supplierScoreMap.values()];
-    const averageScore = supplierTotals.length > 0
-      ? Math.round((supplierTotals.reduce((s, v) => s + v, 0) / supplierTotals.length) * 10) / 10
-      : 0;
+    const averageScore = this.computeAverageScore(records);
 
     // 获取专家名称用于查询监督日志；无项目分配时跳过查询避免全量泄露
     const expertName = records.length > 0 ? records[0].expertName : '';
@@ -108,6 +98,22 @@ export class ExpertService {
       : [];
 
     return { totalProjects, completedProjects, signedInProjects, pendingProjects, averageScore, recentActivity };
+  }
+
+  /** 平均得分 = 该专家对每位供应商的总评分（按 supplierId 聚合）取平均；无评分返回 0 */
+  private computeAverageScore(
+    records: ReadonlyArray<{ scoreRecords: ReadonlyArray<{ supplierId: string; score: Prisma.Decimal | number }> }>,
+  ): number {
+    const supplierScoreMap = new Map<string, number>();
+    for (const e of records) {
+      for (const r of e.scoreRecords) {
+        supplierScoreMap.set(r.supplierId, (supplierScoreMap.get(r.supplierId) ?? 0) + Number(r.score));
+      }
+    }
+    const totals = [...supplierScoreMap.values()];
+    return totals.length > 0
+      ? Math.round((totals.reduce((s, v) => s + v, 0) / totals.length) * 10) / 10
+      : 0;
   }
 
   /* ── 项目列表 ── */

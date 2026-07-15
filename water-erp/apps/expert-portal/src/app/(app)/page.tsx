@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, CheckCircle, TrendingUp, Clipboard, ScrollText, UserCircle } from 'lucide-react';
+import { Clock, CheckCircle, Clipboard, ScrollText, UserCircle, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { ExpertStatistics, ExpertProject, User } from '@/lib/types';
@@ -38,10 +38,10 @@ export default function ExpertDashboardPage() {
       />
 
       {/* 统计卡片 */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         {loading ? (
           <>
-            {[{ label: '分配项目', Icon: Clipboard, tone: 'purple' as const }, { label: '进行中', Icon: Clock, tone: 'orange' as const }, { label: '已完成', Icon: CheckCircle, tone: 'green' as const }, { label: '平均得分', Icon: TrendingUp, tone: 'purple' as const }].map(card => (
+            {[{ label: '待核验', Icon: ShieldCheck }, { label: '评审中', Icon: Clipboard }, { label: '已完成', Icon: CheckCircle }].map(card => (
               <div key={card.label} className="glass-card glass-card-blue rounded-2xl p-5 animate-pulse">
                 <div className="flex items-center gap-3">
                   <card.Icon size={16} strokeWidth={1.5} className="text-[#cbd5e1]" />
@@ -51,15 +51,13 @@ export default function ExpertDashboardPage() {
                   </div>
                 </div>
               </div>
-            ))
-          }
+            ))}
           </>
         ) : (
           <>
-            <MetricCard label="分配项目" value={stats?.totalProjects ?? 0} tone="purple" icon={<Clipboard size={16} strokeWidth={1.5} />} />
-            <MetricCard label="进行中" value={stats?.signedInProjects ?? 0} tone="orange" icon={<Clock size={16} strokeWidth={1.5} />} />
+            <MetricCard label="待核验" value={stats?.pendingProjects ?? 0} tone="orange" icon={<ShieldCheck size={16} strokeWidth={1.5} />} hint="未完成身份核验" />
+            <MetricCard label="评审中" value={activeProjects.length} tone="purple" icon={<Clipboard size={16} strokeWidth={1.5} />} hint="开评标进行中" />
             <MetricCard label="已完成" value={stats?.completedProjects ?? 0} tone="green" icon={<CheckCircle size={16} strokeWidth={1.5} />} />
-            <MetricCard label="平均得分" value={stats?.averageScore ?? 0} tone="purple" icon={<TrendingUp size={16} strokeWidth={1.5} />} />
           </>
         )}
       </div>
@@ -68,7 +66,7 @@ export default function ExpertDashboardPage() {
         {/* 项目列表 */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">我的评审项目</h2>
+            <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">进行中的评审</h2>
             <button onClick={() => router.push('/projects')} className="text-sm text-[#064ea2] hover:underline font-semibold">查看全部 →</button>
           </div>
 
