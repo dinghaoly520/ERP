@@ -13,6 +13,7 @@ import { CreateScoreItemDto } from './dto/create-score-item.dto';
 import { UpdateScoreItemDto } from './dto/update-score-item.dto';
 import { CreateScorePointDto } from './dto/create-score-point.dto';
 import { UpdateScorePointDto } from './dto/update-score-point.dto';
+import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { assertBidStageTransition, type BidStage } from './bid-state';
@@ -2021,6 +2022,20 @@ export class BidService {
       throw new BadRequestException({ error: '得分点不存在', code: 'NOT_FOUND' });
     }
     return this.prisma.bidScorePoint.delete({ where: { id: pointId } });
+  }
+
+  /** 批量导入得分点（管理员审核 AI 建议后）。复用 assertScoreItemInProject 做归属 + 阶段锁校验。 */
+  async batchCreateScorePoints(projectId: string, itemId: string, dto: BatchCreateScorePointsDto) {
+    await this.assertScoreItemInProject(projectId, itemId);
+    return this.prisma.bidScorePoint.createMany({
+      data: dto.points.map((p) => ({
+        scoreItemId: itemId,
+        name: p.name,
+        fullScore: p.fullScore,
+        evidenceHint: p.evidenceHint ?? null,
+        objective: p.objective ?? true,
+      })),
+    });
   }
 
   /** 应用标准评分模板（幂等：按 name 去重，已存在的项不重复创建）。立即解除新建项目的评标死锁。 */

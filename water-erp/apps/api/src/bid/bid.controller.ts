@@ -16,6 +16,7 @@ import { CreateScoreItemDto } from './dto/create-score-item.dto';
 import { UpdateScoreItemDto } from './dto/update-score-item.dto';
 import { CreateScorePointDto } from './dto/create-score-point.dto';
 import { UpdateScorePointDto } from './dto/update-score-point.dto';
+import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 
@@ -236,6 +237,16 @@ export class BidController {
   @ApiOperation({ summary: 'AI 从招标文件提取得分点建议（同步，不落库）' })
   extractScorePoints(@Param('id') id: string, @Param('itemId') itemId: string) {
     return this.scorePointExtractor.extractScorePoints(id, itemId);
+  }
+
+  @Post('projects/:id/score-items/:itemId/points/batch')
+  @ApiOperation({ summary: '批量导入得分点（管理员审核 AI 建议后）' })
+  batchCreateScorePoints(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: BatchCreateScorePointsDto,
+  ) {
+    return this.bidService.batchCreateScorePoints(id, itemId, dto);
   }
 
   @Get('projects/:id/clarifications')
