@@ -1363,6 +1363,34 @@ model AuditLog {
   @@index([action, createdAt])
 }
 
+// ── 全系统操作日志（拦截器自动落库，与手动埋点的 AuditLog 并行）──
+
+model OperationLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  username   String?
+  role       String?
+  portal     String?
+  method     String
+  path       String
+  query      String?
+  body       Json?
+  statusCode Int
+  durationMs Int
+  ipAddress  String?
+  userAgent  String?
+  referer    String?
+  error      String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([role, createdAt])
+  @@index([portal, createdAt])
+  @@index([path, createdAt])
+  @@index([statusCode, createdAt])
+}
+
 // ── 水叮当智能助手 ──
 
 model AssistantConversation {
