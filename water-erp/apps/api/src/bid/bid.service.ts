@@ -1302,7 +1302,14 @@ export class BidService {
     });
     let finalScore = Number(dto.score);
     let finalPassed = dto.passed;
-    if (points.length > 0 && dto.pointDecisions && dto.pointDecisions.length > 0) {
+    if (points.length > 0) {
+      // 含得分点的评分项必须提交 pointDecisions（与 ExpertService.submitScores 同口径）
+      if (!dto.pointDecisions || dto.pointDecisions.length === 0) {
+        throw new BadRequestException({
+          error: `评分项 ${scoreItem.name} 含得分点，必须提交得分点裁定`,
+          code: 'DECISIONS_REQUIRED',
+        });
+      }
       for (const d of dto.pointDecisions) {
         const pm = points.find(p => p.id === d.pointId);
         if (!pm) throw new BadRequestException({ error: `得分点 ${d.pointId} 不属于该评分项`, code: 'POINT_NOT_IN_ITEM' });

@@ -419,6 +419,23 @@ describe('ExpertService', () => {
       } as any)).rejects.toThrow(BadRequestException);
     });
 
+    it('submitScores：有 points 但 pointDecisions 为空 → DECISIONS_REQUIRED', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp1', userId: 'u1', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, conflictedSupplierIds: [], expertName: '刘',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 30, category: 'TECHNICAL', name: '技术评分' }]);
+      prisma.bidScorePoint.findMany.mockResolvedValue([
+        { id: 'pt1', scoreItemId: 'si1', objective: true, fullScore: 15 },
+      ]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' }]);
+
+      await expect(service.submitScores('u1', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: 'si1', supplierId: 'sup1', reason: '' }], // no pointDecisions
+      } as any)).rejects.toMatchObject({ response: { code: 'DECISIONS_REQUIRED' } });
+    });
+
     it('submitScores：有 points 大类走 decision 汇总，BidScoreRecord.score=Σ', async () => {
       prisma.bidExpert.findFirst.mockResolvedValue({
         id: 'exp1', userId: 'u1', projectId: 'p1', reportConfirmed: false,

@@ -813,8 +813,14 @@ export class ExpertService {
       if (!meta) continue;
       const hasPoints = (pointsByItem.get(item.scoreItemId)?.length ?? 0) > 0;
       if (hasPoints) {
-        // checklist 模式：必须有 pointDecisions
+        // checklist 模式：必须有 pointDecisions（含得分点的评分项不允许空 decisions，否则 recompute 会静默得 score=0/passed=false）
         const decisions = item.pointDecisions ?? [];
+        if (decisions.length === 0) {
+          throw new BadRequestException({
+            error: `评分项 ${item.scoreItemId} 含得分点，必须提交得分点裁定`,
+            code: 'DECISIONS_REQUIRED',
+          });
+        }
         for (const d of decisions) {
           const pm = pointMeta.get(d.pointId);
           if (!pm) {
