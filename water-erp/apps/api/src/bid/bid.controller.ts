@@ -13,6 +13,8 @@ import { StartOpeningDto } from './dto/start-opening.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
 import { UpdateScoreItemDto } from './dto/update-score-item.dto';
+import { CreateScorePointDto } from './dto/create-score-point.dto';
+import { UpdateScorePointDto } from './dto/update-score-point.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 
@@ -186,6 +188,44 @@ export class BidController {
   @ApiOperation({ summary: '删除评分项' })
   deleteScoreItem(@Param('id') id: string, @Param('itemId') itemId: string) {
     return this.bidService.deleteScoreItem(id, itemId);
+  }
+
+  // ── 得分点（checklist 子项）CRUD ──
+  @Get('projects/:id/score-items/:itemId/points')
+  @ApiOperation({ summary: '列出某评分项的得分点' })
+  listScorePoints(@Param('id') id: string, @Param('itemId') itemId: string) {
+    return this.bidService.listScorePoints(id, itemId);
+  }
+
+  @Post('projects/:id/score-items/:itemId/points')
+  @ApiOperation({ summary: '新增得分点' })
+  createScorePoint(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: CreateScorePointDto,
+  ) {
+    return this.bidService.createScorePoint(id, itemId, dto);
+  }
+
+  @Patch('projects/:id/score-items/:itemId/points/:pointId')
+  @ApiOperation({ summary: '更新得分点' })
+  updateScorePoint(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Param('pointId') pointId: string,
+    @Body() dto: UpdateScorePointDto,
+  ) {
+    return this.bidService.updateScorePoint(id, itemId, pointId, dto);
+  }
+
+  @Delete('projects/:id/score-items/:itemId/points/:pointId')
+  @ApiOperation({ summary: '删除得分点' })
+  deleteScorePoint(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Param('pointId') pointId: string,
+  ) {
+    return this.bidService.deleteScorePoint(id, itemId, pointId);
   }
 
   @Get('projects/:id/clarifications')
