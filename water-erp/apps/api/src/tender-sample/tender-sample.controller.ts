@@ -14,8 +14,10 @@ import {
   UpdateTenderFieldSampleDto,
   QueryTenderFieldSampleDto,
 } from './dto/tender-field-sample.dto';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @Controller('tender-sample')
+@Roles('procurement_staff', 'admin')
 export class TenderSampleController {
   constructor(private readonly tenderSampleService: TenderSampleService) {}
 

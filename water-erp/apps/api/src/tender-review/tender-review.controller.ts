@@ -47,6 +47,7 @@ import { AdminGuard } from '../auth/admin.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { canViewAllUserActivity } from '../auth/auth-scope';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @ApiTags('Tender Review')
 @Controller('tender-review')
@@ -276,6 +277,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   // ── Review Execution ──
 
   @Post('review/upload')
+  @Roles('procurement_staff', 'leader', 'admin', 'staff')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload tender document for review' })
   @UseInterceptors(
@@ -329,6 +331,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Post('review/execute')
+  @Roles('procurement_staff', 'leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Execute compliance review' })
   async executeReview(
     @Body() dto: ExecuteReviewDto,

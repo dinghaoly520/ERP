@@ -16,10 +16,12 @@ import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { KnowledgeService } from './knowledge.service';
 import { CreateKnowledgeBaseDto } from './dto/knowledge.dto';
 import { AuthGuard } from '../auth/auth.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @ApiTags('Knowledge')
 @Controller('knowledge')
 @UseGuards(AuthGuard)
+@Roles('procurement_staff', 'admin')
 export class KnowledgeController {
   constructor(private knowledge: KnowledgeService) {}
 

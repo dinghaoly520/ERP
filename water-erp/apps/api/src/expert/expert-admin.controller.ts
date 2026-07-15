@@ -8,6 +8,7 @@ import { ExtractPreviewDto } from './dto/extract-preview.dto';
 import { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
 import { ExtractionNotifyDto } from './dto/extraction-notify.dto';
 import { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
+import { SetAvailabilityDto, ConfirmRetireDto } from './dto/expert-status.dto';
 
 @ApiTags('专家管理')
 @ApiCookieAuth('token')
@@ -96,8 +97,8 @@ export class ExpertAdminController {
 
   @Patch(':id/availability')
   @ApiOperation({ summary: '启用/停用专家' })
-  setAvailability(@Param('id') id: string, @Body() body: { available: boolean }) {
-    return this.expertAdminService.setAvailability(id, body.available);
+  setAvailability(@Param('id') id: string, @Body() dto: SetAvailabilityDto) {
+    return this.expertAdminService.setAvailability(id, dto.available);
   }
 
   @Patch(':id/profile')
@@ -114,8 +115,8 @@ export class ExpertAdminController {
 
   @Post(':id/retire')
   @ApiOperation({ summary: '人工确认专家退库' })
-  confirmRetire(@Param('id') id: string, @Body() body: { reason: string }) {
-    return this.expertAdminService.confirmRetire(id, body.reason);
+  confirmRetire(@Param('id') id: string, @Body() dto: ConfirmRetireDto) {
+    return this.expertAdminService.confirmRetire(id, dto.reason);
   }
 
   @Post('import-from-seed')

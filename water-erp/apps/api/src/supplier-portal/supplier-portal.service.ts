@@ -27,6 +27,28 @@ type BidSubmissionData = {
   signature?: string;
 };
 
+/**
+ * 仅保留供应商可提交的合法字段，杜绝 Mass Assignment。
+ * 原先 controller 用内联类型透传 body（无 class-validator DTO，ValidationPipe whitelist 不生效），
+ * `...data` 直接铺进 Prisma data，可被注入 supplierId（冒名投递）/ status:'submitted'（绕过加密+验签+阶段门控）/
+ * submittedAt / signedAt 等。此处显式枚举白名单，剥离一切越权字段。
+ */
+function pickBidSubmissionFields(data: BidSubmissionData) {
+  return {
+    bidPrice: data.bidPrice,
+    deliveryPeriod: data.deliveryPeriod,
+    technicalFile: data.technicalFile,
+    businessFile: data.businessFile,
+    coverLetter: data.coverLetter,
+    technicalFileAssetId: data.technicalFileAssetId,
+    businessFileAssetId: data.businessFileAssetId,
+    coverLetterAssetId: data.coverLetterAssetId,
+    bidBondAssetId: data.bidBondAssetId,
+    fileHash: data.fileHash,
+    signature: data.signature,
+  };
+}
+
 @Injectable()
 export class SupplierPortalService {
   constructor(
@@ -257,7 +279,7 @@ export class SupplierPortalService {
   }
 
   async getBidProject(id: string) {
-    return this.prisma.bidProject.findUnique({
+    const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: {
         id: true,
@@ -276,6 +298,15 @@ export class SupplierPortalService {
         _count: { select: { suppliers: true } },
       },
     });
+    if (project) {
+      // 脱敏：供应商提问(type=question)的 issuer 含竞对企业名，开标前属保密信息（防串标/围标）；
+      // 管理端发起的澄清/通知(type=clarification 等)保留 issuer。
+      project.clarifications = project.clarifications.map((c) => ({
+        ...c,
+        issuer: c.type === 'question' ? '供应商' : c.issuer,
+      }));
+    }
+    return project;
   }
 
   /**
@@ -480,7 +511,7 @@ export class SupplierPortalService {
       submission = await this.prisma.supplierBidSubmission.update({
         where: { id: existing.id },
         data: {
-          ...data,
+          ...pickBidSubmissionFields(data),
           status: 'submitted',
           submittedAt: now,
           technicalSealedKey: data.technicalFileAssetId ? sealedKeys[data.technicalFileAssetId] ?? null : null,
@@ -494,7 +525,7 @@ export class SupplierPortalService {
         data: {
           supplierId,
           projectId,
-          ...data,
+          ...pickBidSubmissionFields(data),
           status: 'submitted',
           submittedAt: now,
           technicalSealedKey: data.technicalFileAssetId ? sealedKeys[data.technicalFileAssetId] ?? null : null,
@@ -548,12 +579,12 @@ export class SupplierPortalService {
     if (existing) {
       return this.prisma.supplierBidSubmission.update({
         where: { id: existing.id },
-        data,
+        data: pickBidSubmissionFields(data),
       });
     }
 
     return this.prisma.supplierBidSubmission.create({
-      data: { supplierId, projectId, ...data, status: 'draft' },
+      data: { supplierId, projectId, ...pickBidSubmissionFields(data), status: 'draft' },
     });
   }
 

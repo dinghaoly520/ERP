@@ -125,40 +125,37 @@ describe('BidService — stage transitions', () => {
     service = module.get<BidService>(BidService);
   });
 
-  describe('assertBidStageTransition (via updateProject)', () => {
-    it('allows DOWNLOAD → SUBMIT', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD' });
-      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'SUBMIT' });
-
-      await expect(service.updateProject('p1', { stage: 'SUBMIT' as any })).resolves.toBeDefined();
+  describe('assertBidStageTransition', () => {
+    it('allows DOWNLOAD → SUBMIT', () => {
+      expect(() => assertBidStageTransition('DOWNLOAD', 'SUBMIT')).not.toThrow();
     });
 
-    it('allows SUBMIT → OPENING', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' });
-      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
-
-      await expect(service.updateProject('p1', { stage: 'OPENING' as any })).resolves.toBeDefined();
+    it('allows SUBMIT → OPENING', () => {
+      expect(() => assertBidStageTransition('SUBMIT', 'OPENING')).not.toThrow();
     });
 
-    it('rejects DOWNLOAD → ARCHIVED (skip stages) with ConflictException', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD' });
-
-      await expect(service.updateProject('p1', { stage: 'ARCHIVED' as any }))
-        .rejects.toThrow(ConflictException);
+    it('rejects DOWNLOAD → ARCHIVED (skip stages) with ConflictException', () => {
+      expect(() => assertBidStageTransition('DOWNLOAD', 'ARCHIVED')).toThrow(ConflictException);
     });
 
-    it('rejects ARCHIVED → DOWNLOAD (backward) with ConflictException', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
-
-      await expect(service.updateProject('p1', { stage: 'DOWNLOAD' as any }))
-        .rejects.toThrow(ConflictException);
+    it('rejects ARCHIVED → DOWNLOAD (backward) with ConflictException', () => {
+      expect(() => assertBidStageTransition('ARCHIVED', 'DOWNLOAD')).toThrow(ConflictException);
     });
 
-    it('allows same-stage (idempotent)', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' });
-      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'SUBMIT' });
+    it('allows same-stage (idempotent)', () => {
+      expect(() => assertBidStageTransition('SUBMIT', 'SUBMIT')).not.toThrow();
+    });
+  });
 
-      await expect(service.updateProject('p1', { stage: 'SUBMIT' as any })).resolves.toBeDefined();
+  describe('updateProject — stage 不再可经 PATCH 流转（防状态机旁路）', () => {
+    it('不向 prisma.update 转发 stage 字段', async () => {
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'DOWNLOAD' });
+      await service.updateProject('p1', { name: '新名' } as any);
+      expect(prisma.bidProject.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'p1' } }),
+      );
+      const data = prisma.bidProject.update.mock.calls[0][0].data;
+      expect(data).not.toHaveProperty('stage');
     });
   });
 
@@ -820,6 +817,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1' });
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1', score: 10 });
 
       const result = await service.submitScore('p1', {

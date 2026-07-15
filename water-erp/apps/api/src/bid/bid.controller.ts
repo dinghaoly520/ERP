@@ -158,7 +158,7 @@ export class BidController {
 
   @Post('projects/:id/scores')
   @ApiOperation({ summary: '提交评分' })
-  submitScore(@Param('id') id: string, @Body() dto: CreateScoreDto) { return this.bidService.submitScore(id, dto); }
+  submitScore(@Param('id') id: string, @Body() dto: CreateScoreDto, @CurrentUser('sub') actorId: string) { return this.bidService.submitScore(id, dto, actorId); }
 
   @Get('projects/:id/scores')
   @ApiOperation({ summary: '评分列表' })

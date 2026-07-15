@@ -467,9 +467,40 @@ export class ExpertAdminService {
 
   /** 确认抽取：创建 BidExpert + 写入审计日志 */
   async confirmExtraction(projectId: string, dto: ConfirmExtractionDto, operatorId?: string) {
-    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      include: { suppliers: { include: { supplier: { select: { name: true } } } } },
+    });
     if (!project) throw new NotFoundException('项目不存在');
     if (!dto.experts?.length) throw new BadRequestException({ error: '请选择专家', code: 'NO_EXPERTS' });
+
+    // 资格复核：与 previewExtraction 同款合规过滤，防止 confirm 绕过 preview 的合规校验
+    // （曾可分配非专家角色/停用/已分配本项目/与投标供应商关联的专家）
+    const supplierNames = new Set(
+      project.suppliers.map(s => s.supplier?.name || s.supplierName).filter(Boolean) as string[],
+    );
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: dto.experts.map(e => e.userId) } },
+      include: { expertProfile: true, bidExperts: { where: { projectId }, select: { id: true } } },
+    });
+    for (const e of dto.experts) {
+      const u = users.find(x => x.id === e.userId);
+      if (!u) throw new BadRequestException({ error: `专家 ${e.expertName} 不存在`, code: 'EXPERT_NOT_FOUND' });
+      if (u.role !== 'bid_expert' || !u.isActive || u.expertProfile?.availability !== '可用') {
+        throw new BadRequestException({ error: `专家 ${e.expertName} 不符合抽取资格（须为在用评标专家）`, code: 'EXPERT_INELIGIBLE' });
+      }
+      if (u.bidExperts.length > 0) {
+        throw new BadRequestException({ error: `专家 ${e.expertName} 已分配本项目`, code: 'EXPERT_ALREADY_ASSIGNED' });
+      }
+      const emp = u.expertProfile?.employer?.trim();
+      if (emp) {
+        for (const sn of supplierNames) {
+          if (sn && (emp.includes(sn) || sn.includes(emp))) {
+            throw new BadRequestException({ error: `专家 ${e.expertName} 工作单位与投标供应商关联（回避）`, code: 'EXPERT_CONFLICT' });
+          }
+        }
+      }
+    }
 
     const [created] = await Promise.all([
       this.prisma.$transaction(
@@ -494,7 +525,10 @@ export class ExpertAdminService {
             experts: dto.experts.map(e => ({ userId: e.userId, name: e.expertName, major: e.major })),
           },
         },
-      }).catch(() => {}),
+      }).catch((err) => {
+        // 审计日志失败不阻断主流程，但必须留痕（专家抽取是采购法高风险环节，审计是唯一追溯凭证）
+        new Logger(ExpertAdminService.name).error('专家抽取审计日志写入失败', err);
+      }),
     ]);
 
     return { success: true, count: created.length, expertIds: dto.experts.map(e => e.userId) };
@@ -928,7 +962,8 @@ export class ExpertAdminService {
     const chosen: any[] = [];
     for (let i = 0; i < n && pool.length > 0; i++) {
       const total = pool.reduce((s, x) => s + x.w, 0);
-      let r = (Math.random() * total) || 0;
+      // 密码学安全随机（Math.random 为 xorshift128+ 可预测，影响抽取公平性；与 fairShuffle 同源）
+      let r = total > 0 ? randomInt(0, Math.ceil(total * 1e6)) / 1e6 : 0;
       let idx = 0;
       for (; idx < pool.length; idx++) { r -= pool[idx].w; if (r <= 0) break; }
       if (idx >= pool.length) idx = pool.length - 1;

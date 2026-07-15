@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, sep } from 'node:path';
 import * as XLSX from 'xlsx';
 import { ResultStatus, SourceType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -191,7 +191,15 @@ export class ImportsService {
   }
 
   async importWorkbookFromPath(workbookPath: string) {
-    const absolutePath = resolve(process.cwd(), workbookPath);
+    // 路径穿越防护：仅允许读取 sanctioned 导入目录内的文件。
+    // 原 resolve(cwd, filePath) 可被 procurement_staff 指向任意服务器文件
+    // （/etc/shadow、apps/api/.env 含 JWT_SECRET/KMS_SECRET/DEEPSEEK_API_KEY 等）。
+    // 基目录由 IMPORT_DIR 配置（默认 <cwd>/imports）；绝对路径与 ../ 一律被拒。
+    const baseDir = resolve(process.cwd(), process.env.IMPORT_DIR ?? 'imports');
+    const absolutePath = resolve(baseDir, workbookPath);
+    if (absolutePath !== baseDir && !absolutePath.startsWith(baseDir + sep)) {
+      throw new BadRequestException({ error: '文件路径越界，仅允许读取导入目录内文件', code: 'PATH_TRAVERSAL' });
+    }
     return this.importWorkbook(absolutePath);
   }
 

@@ -398,15 +398,9 @@ export class BidService {
   }
 
   async updateProject(id: string, dto: UpdateBidProjectDto) {
-    if (dto.stage) {
-      const project = await this.prisma.bidProject.findUnique({
-        where: { id },
-        select: { stage: true },
-      });
-      if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-      assertBidStageTransition(project.stage, dto.stage as BidStage);
-    }
-
+    // stage 流转不走此接口：曾允许 PATCH stage 绕过专用端点的前置校验/副作用/审计
+    // （OPENING→EVALUATING 不建 AI task 致分析死锁，且无监督/审计日志）。
+    // 阶段变更须走 openSubmission/startOpening/startEvaluation/archiveAll 等专用端点。
     return this.prisma.bidProject.update({
       where: { id },
       data: {
@@ -414,7 +408,6 @@ export class BidService {
         ...(dto.procurementMethod !== undefined && { procurementMethod: dto.procurementMethod }),
         ...(dto.openTime !== undefined && { openTime: new Date(dto.openTime) }),
         ...(dto.deadline !== undefined && { deadline: new Date(dto.deadline) }),
-        ...(dto.stage && { stage: dto.stage as any }),
         ...(dto.riskNote !== undefined && { riskNote: dto.riskNote }),
         ...(dto.budget !== undefined && { budget: dto.budget }),
         ...(dto.scope !== undefined && { scope: dto.scope }),
@@ -1259,7 +1252,7 @@ export class BidService {
     return this.listEvaluationResults(projectId);
   }
 
-  async submitScore(projectId: string, dto: CreateScoreDto) {
+  async submitScore(projectId: string, dto: CreateScoreDto, actorId?: string) {
     // P0: 阶段门控 — 仅在评标阶段可提交评分
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || project.stage !== 'EVALUATING') {
@@ -1280,6 +1273,14 @@ export class BidService {
     });
     if (!scoreItem) {
       throw new BadRequestException({ error: '评分项不属于此项目', code: 'SCORE_ITEM_NOT_IN_PROJECT' });
+    }
+
+    // 校验 supplierId 属于该项目（防跨项目写脏分：bid_host 可传别项目的 supplierId，FK 满足即落库）
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { id: dto.supplierId, projectId },
+    });
+    if (!bidSupplier) {
+      throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
     }
 
     // 校验分数不超过评分项满分
@@ -1309,6 +1310,19 @@ export class BidService {
         ...(dto.passed !== undefined ? { passed: dto.passed } : {}),
       },
     });
+
+    // 非否认审计：此为管理端代评/改分通道（bid_expert 走 expert 模块自评），记录实际操作者
+    if (actorId) {
+      this.prisma.auditLog.create({
+        data: {
+          userId: actorId,
+          action: 'BID_SCORE_SUBMIT',
+          resourceType: `BidProject:${projectId}`,
+          details: { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: dto.score },
+        },
+      }).catch((err) => this.logger.error('评分提交审计日志写入失败', err));
+    }
+
     // P1: 评分偏差实时检测
     const existingRows = await this.prisma.bidScoreRecord.findMany({
       where: { scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, expertId: { not: dto.expertId } },
@@ -1381,6 +1395,13 @@ export class BidService {
 
     const reply = dto.reply;
     const status = dto.status || '已回复';
+    // 归属校验：原实现 where:{id:cid} 忽略 projectId，可用项目 A 路径回复项目 B 澄清（IDOR）
+    const existingClarification = await this.prisma.bidClarification.findFirst({
+      where: { id: cid, projectId },
+    });
+    if (!existingClarification) {
+      throw new BadRequestException({ error: '澄清不存在或不属于此项目', code: 'CLARIFICATION_NOT_IN_PROJECT' });
+    }
     const result = await this.prisma.bidClarification.update({
       where: { id: cid }, data: { reply, status },
     });
@@ -1976,6 +1997,13 @@ export class BidService {
   // ── Supervision Annotations ──
 
   async upsertSupervisionAnnotation(projectId: string, dto: UpsertSupervisionAnnotationDto) {
+    // 归属校验：防止 supplierId 指向其它项目的 BidSupplier，写出 projectId=A、supplierId→B 的脏标注
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { id: dto.supplierId, projectId },
+    });
+    if (!bidSupplier) {
+      throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
+    }
     return this.prisma.bidSupervisionAnnotation.upsert({
       where: { supplierId: dto.supplierId },
       create: {
@@ -1994,8 +2022,14 @@ export class BidService {
   }
 
   async deleteSupervisionAnnotation(projectId: string, supplierId: string) {
+    // 归属校验：原实现 where:{supplierId} 忽略 projectId（supplierId 为 @unique），
+    // 可跨项目删除任意项目下该供应商的标注
+    const existing = await this.prisma.bidSupervisionAnnotation.findFirst({
+      where: { supplierId, projectId },
+    });
+    if (!existing) return null;
     return this.prisma.bidSupervisionAnnotation.delete({
-      where: { supplierId },
+      where: { id: existing.id },
     }).catch(() => null);
   }
 

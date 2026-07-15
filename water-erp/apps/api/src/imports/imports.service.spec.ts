@@ -1,4 +1,5 @@
 import { ImportsService } from './imports.service';
+import { BadRequestException } from '@nestjs/common';
 
 jest.mock('node:fs', () => ({
   existsSync: jest.fn(() => true),
@@ -145,5 +146,27 @@ describe('ImportsService', () => {
         errorCount: 0,
       },
     });
+  });
+
+  it('importWorkbookFromPath 拒绝 ../ 路径穿越且不读文件', async () => {
+    const { service } = makeService();
+    await expect(service.importWorkbookFromPath('../../etc/passwd'))
+      .rejects.toThrow(BadRequestException);
+    const XLSX = (await import('xlsx')) as any;
+    expect(XLSX.readFile).not.toHaveBeenCalled();
+  });
+
+  it('importWorkbookFromPath 拒绝绝对路径（读取任意服务器文件）', async () => {
+    const { service } = makeService();
+    await expect(service.importWorkbookFromPath('/etc/shadow'))
+      .rejects.toThrow(BadRequestException);
+  });
+
+  it('importWorkbookFromPath 允许导入目录内的相对路径', async () => {
+    const { service, tx } = makeService();
+    await service.importWorkbookFromPath('采购汇总表.xlsx');
+    expect(tx.importBatch.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'batch-1' } }),
+    );
   });
 });

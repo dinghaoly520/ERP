@@ -4,7 +4,6 @@
 import { Module } from '@nestjs/common';
 
 // 复制自 procurement 的 services（已 per-item 适配）
-import { TaskService } from './services/task.service';
 import { ReportGeneratorService } from './services/report-generator.service';
 import { ComparativeScoringService } from './services/comparative-scoring.service';
 import { FraudDetectorService } from './services/fraud-detector.service';
@@ -26,7 +25,6 @@ import { RequirementMatcherService } from './services/requirement-matcher.servic
 
 const SERVICES = [
   // 复制适配的 services
-  TaskService,
   ReportGeneratorService,
   ComparativeScoringService,
   FraudDetectorService,

@@ -2,6 +2,7 @@ import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { VerificationScene } from './dto/send-code.dto';
+import { randomInt } from 'node:crypto';
 
 interface VerificationRecord {
   code: string;
@@ -45,7 +46,7 @@ export class VerificationService {
   private generateCode(): string {
     const digits: number[] = [];
     for (let i = 0; i < CODE_LENGTH; i++) {
-      digits.push(Math.floor(Math.random() * 10));
+      digits.push(randomInt(0, 10)); // 密码学安全随机（Math.random 为 xorshift128+，可预测）
     }
     return digits.join('');
   }
@@ -137,8 +138,10 @@ export class VerificationService {
       COOLDOWN_TTL,
     );
 
-    // Stub: log to console
-    console.log(`[SMS-STUB] 验证码: ${code} → ${phone} (场景: ${scene})`);
+    // 仅在 dev stub 模式下打印验证码（生产用真 SMS 时不应把验证码写进日志）
+    if (process.env.SMS_DEBUG_BYPASS === 'true') {
+      console.log(`[SMS-STUB] 验证码: ${code} → ${phone} (场景: ${scene})`);
+    }
 
     return { maskedPhone: this.maskPhone(phone) };
   }
