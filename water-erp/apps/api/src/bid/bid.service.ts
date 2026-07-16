@@ -1101,7 +1101,7 @@ export class BidService {
     }
 
     const activeSuppliers = project.suppliers.filter(
-      s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED',
+      s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED' && s.bidValidity !== 'invalid',
     );
 
     // 保证金软标记：bondRequired 时查各供应商 bondStatus，异常者写监督日志（不排除，由评标委员会定）
@@ -1227,6 +1227,19 @@ export class BidService {
           })),
         });
       }
+      // ── 权威重算 bidValidity：覆盖实时触发器可能的多-item race 终态 ──
+      // 仅重算 active 供应商（passFailVerdicts 只含 activeSuppliers）。
+      // 已被实时触发器判定为 invalid 的非 active 供应商不在 passFailVerdicts 中，
+      // 跳过更新以保留其既有 invalid 状态（避免误恢复为 valid）。
+      for (const s of project.suppliers) {
+        if (passFailVerdicts.has(s.id)) {
+          await tx.bidSupplier.update({
+            where: { id: s.id },
+            data: { bidValidity: passFailVerdicts.get(s.id) ? 'invalid' : 'valid' },
+          });
+        }
+      }
+
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '系统', target: project.name,
@@ -2331,5 +2344,62 @@ export class BidService {
     });
 
     return { added: toInvite.length, skipped };
+  }
+
+  // ── 废标复核撤销（决策 D：reportConfirmed 前可逆，之后锁定）──
+
+  async revokeInvalidBid(projectId: string, supplierId: string, scoreItemId: string, actorId: string) {
+    // 锁定检查：任一专家 reportConfirmed=true 即不可撤销
+    const anyConfirmed = await this.prisma.bidExpert.findFirst({
+      where: { projectId, reportConfirmed: true },
+    });
+    if (anyConfirmed) {
+      throw new BadRequestException({ error: '已有专家确认评审报告，废标不可撤销', code: 'LOCKED' });
+    }
+
+    const rec = await this.prisma.bidInvalidBid.findUnique({
+      where: { projectId_supplierId_scoreItemId: { projectId, supplierId, scoreItemId } },
+    });
+    if (!rec || rec.status === 'revoked') {
+      throw new BadRequestException({ error: '无有效废标记录', code: 'NOT_FOUND' });
+    }
+
+    await this.prisma.bidInvalidBid.update({
+      where: { id: rec.id },
+      data: { status: 'revoked', revokedAt: new Date(), revokedBy: actorId },
+    });
+    // 仅当该供应商已无任何有效废标记录时才恢复为 valid（多 item 场景：另一 item 仍 invalid）
+    const stillInvalid = await this.prisma.bidInvalidBid.findFirst({
+      where: { projectId, supplierId, status: 'invalid' },
+    });
+    if (!stillInvalid) {
+      await this.prisma.bidSupplier.update({
+        where: { id: supplierId },
+        data: { bidValidity: 'valid' },
+      });
+    }
+
+    // WS 广播：供应商废标状态恢复（专家端取消置灰）
+    this.gateway?.notifyBidValidity?.(projectId, {
+      supplierId,
+      failCount: rec.failCount,
+      totalCount: rec.totalCount,
+      status: 'revoked',
+    });
+
+    // 监督日志：复核撤销废标
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId,
+        time: new Date(),
+        role: '管理员',
+        target: supplierId,
+        action: '复核撤销废标',
+        result: '恢复有效',
+        riskFlag: '中',
+      },
+    });
+
+    return { revoked: true };
   }
 }

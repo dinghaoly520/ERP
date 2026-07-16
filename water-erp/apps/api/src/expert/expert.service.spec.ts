@@ -7,6 +7,7 @@ import { ExpertConflictService } from './expert-conflict.service';
 import { encryptBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { ClarificationAiService } from '../bid/clarification-ai.service';
+import { BidGateway } from '../bid/bid.gateway';
 import { minioClient } from '../upload/minio.client';
 import { PlaintextFetcherService } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 
@@ -14,6 +15,7 @@ describe('ExpertService', () => {
   let service: ExpertService;
   let prisma: any;
   let ai: any;
+  let gateway: any;
 
   const mockExpert = {
     id: 'exp-1',
@@ -40,7 +42,8 @@ describe('ExpertService', () => {
         update: jest.fn(),
       },
       bidProject: { findUnique: jest.fn() },
-      bidSupplier: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidSupplier: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      bidInvalidBid: { upsert: jest.fn().mockResolvedValue({}), findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       supplierBidSubmission: { findUnique: jest.fn() },
       fileAsset: { findMany: jest.fn(), findUnique: jest.fn() },
       bidScoreRecord: {
@@ -64,6 +67,11 @@ describe('ExpertService', () => {
     };
 
     ai = { analyzeBid: jest.fn() };
+    gateway = {
+      notifyExpertPresence: jest.fn(),
+      broadcastAggregatePresence: jest.fn(),
+      notifyBidValidity: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -73,6 +81,7 @@ describe('ExpertService', () => {
         { provide: ExpertConflictService, useValue: { detectForProject: jest.fn().mockResolvedValue([]) } },
         { provide: PlaintextFetcherService, useValue: { fetchBidderPlaintext: jest.fn() } },
         { provide: ClarificationAiService, useValue: { draftQuestion: jest.fn().mockResolvedValue({ drafts: [], basis: [] }), summarizeReply: jest.fn().mockResolvedValue(null) } },
+        { provide: BidGateway, useValue: gateway },
       ],
     }).compile();
 
@@ -539,6 +548,39 @@ describe('ExpertService', () => {
         where: { expertId_projectId_supplierId: { expertId: 'exp1', projectId: 'proj-1', supplierId: 'sup1' } },
         update: expect.objectContaining({ status: 'draft' }),   // 重新提交重置为 draft（专家改了分需重新核对）
         create: expect.objectContaining({ expertId: 'exp1', projectId: 'proj-1', supplierId: 'sup1', status: 'draft' }),
+      }));
+    });
+
+    it('submitScores：通过性项过半不通过 → 写 BidInvalidBid + bidValidity=invalid + WS', async () => {
+      // 已有 2 专家判 sup1 的 si1(QUALIFICATION) 不通过，本专家(第3)也判不通过 → 3/3 过半
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp3', userId: 'user3', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, conflictedSupplierIds: [], expertName: '王',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 0, category: 'QUALIFICATION' }]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' }]);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScoreRecord.upsert.mockResolvedValue({});
+      // evaluateInvalidBid 的 findMany 走 scoreItemId 分支 → 3/3 不通过；recomputeExpertProgress 的 findMany 走 else 分支
+      prisma.bidScoreRecord.findMany.mockImplementation((a: any) =>
+        a.where?.scoreItemId === 'si1' ? Promise.resolve([{ passed: false }, { passed: false }, { passed: false }]) : Promise.resolve([{ score: 0 }]));
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+      prisma.bidInvalidBid.upsert.mockResolvedValue({});
+      gateway.notifyBidValidity.mockClear();
+
+      await service.submitScores('user3', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: 'si1', supplierId: 'sup1', passed: false, reason: '不符' }],
+      } as any);
+
+      expect(prisma.bidInvalidBid.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({ projectId: 'p1', supplierId: 'sup1', scoreItemId: 'si1', status: 'invalid' }),
+      }));
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'sup1' }, data: { bidValidity: 'invalid' },
+      }));
+      expect(gateway.notifyBidValidity).toHaveBeenCalledWith('p1', expect.objectContaining({
+        supplierId: 'sup1', status: 'invalid',
       }));
     });
   });

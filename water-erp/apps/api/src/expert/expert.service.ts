@@ -18,6 +18,7 @@ import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { decryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { recomputeExpertProgress, recomputeItemFromDecisions } from '../bid/score-recalculate.helper';
+import { evaluateInvalidBid } from '../bid/evaluate-invalid-bid.helper';
 
 @Injectable()
 export class ExpertService {
@@ -999,6 +1000,37 @@ export class ExpertService {
 
       return { progress, totalScore };
     });
+
+    // phase ④：实时废标判定（事务已提交，数据可读；放事务外避免长事务）
+    try {
+      const passFailTouched = dto.scores.filter(s => {
+        const m = itemMeta.get(s.scoreItemId);
+        return m && (m.category === 'QUALIFICATION' || m.category === 'RESPONSIVE');
+      });
+      for (const s of Array.from(new Set(passFailTouched.map(x => x.supplierId)))) {
+        const items = passFailTouched.filter(x => x.supplierId === s).map(x => x.scoreItemId);
+        for (const itemId of Array.from(new Set(items))) {
+          const verdict = await evaluateInvalidBid(this.prisma, projectId, s, itemId);
+          if (verdict.disqualified) {
+            await this.prisma.bidInvalidBid.upsert({
+              where: { projectId_supplierId_scoreItemId: { projectId, supplierId: s, scoreItemId: itemId } },
+              update: { failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', revokedAt: null, revokedBy: null },
+              create: { projectId, supplierId: s, scoreItemId: itemId, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid' },
+            });
+            await this.prisma.bidSupplier.update({ where: { id: s }, data: { bidValidity: 'invalid' } });
+            this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid' });
+          } else {
+            // 不过半：若之前 invalid 现恢复（票数变化，决策 B 接受跳变）
+            const existing = await this.prisma.bidInvalidBid.findUnique({ where: { projectId_supplierId_scoreItemId: { projectId, supplierId: s, scoreItemId: itemId } } });
+            if (existing?.status === 'invalid') {
+              await this.prisma.bidInvalidBid.update({ where: { id: existing.id }, data: { status: 'revoked', revokedAt: new Date() } });
+              await this.prisma.bidSupplier.update({ where: { id: s }, data: { bidValidity: 'valid' } });
+              this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'revoked' });
+            }
+          }
+        }
+      }
+    } catch { /* 实时废标不阻塞评分主流程 */ }
 
     // Emit WebSocket events after successful commit
     this.gateway?.notifyExpertPresence?.(projectId, {

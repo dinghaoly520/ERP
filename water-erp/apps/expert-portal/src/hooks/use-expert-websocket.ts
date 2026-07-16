@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import type { ConnectionState, ExpertPresenceAggregatePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload } from '@water-erp/shared';
+import type { ConnectionState, ExpertPresenceAggregatePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload } from '@water-erp/shared';
 import { BID_EVENT } from '@water-erp/shared';
 import { portalURL } from '@water-erp/config';
 
@@ -17,6 +17,7 @@ interface Handlers {
   onStageChange?: (d: StageChangePayload) => void;
   onClarificationCreated?: (d: ClarificationCreatedPayload) => void;
   onClarificationReplied?: (d: ClarificationRepliedPayload) => void;
+  onBidValidityChange?: (d: BidValidityChangePayload) => void;
 }
 
 export function useExpertWebSocket(projectId: string | undefined, handlers: Handlers) {
@@ -44,6 +45,7 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
     on(BID_EVENT.STAGE_CHANGE, h.current.onStageChange);
     on(BID_EVENT.CLARIFICATION_CREATED, h.current.onClarificationCreated);
     on(BID_EVENT.CLARIFICATION_REPLIED, h.current.onClarificationReplied);
+    on(BID_EVENT.BID_VALIDITY_CHANGE, h.current.onBidValidityChange);
   }
 
   const clearHeartbeatTimers = useCallback(() => {

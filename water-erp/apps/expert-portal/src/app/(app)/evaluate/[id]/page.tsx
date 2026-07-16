@@ -108,6 +108,20 @@ export default function ExpertEvaluatePage() {
       pushLiveEvent(`澄清已回复: ${d.replyPreview.slice(0, 30)}`, 'clarify');
       if (showClarifications) loadClarifications();
     },
+    onBidValidityChange: (d) => {
+      // invalid→置灰锁定打分；revoked→恢复可打分（决策 B：接受跳变，每票重判）
+      setInvalidSupplierIds(prev => {
+        const next = new Set(prev);
+        if (d.status === 'invalid') next.add(d.supplierId);
+        else next.delete(d.supplierId);
+        return next;
+      });
+      const supplierName = project?.suppliers.find(s => s.id === d.supplierId)?.supplierName ?? d.supplierId;
+      pushLiveEvent(
+        `${supplierName} ${d.status === 'invalid' ? '被废标' : '废标已撤销'}（${d.failCount}/${d.totalCount}）`,
+        'stage',
+      );
+    },
   });
 
   const [documents, setDocuments] = useState<Record<string, DecryptedDocuments | null>>({});
@@ -122,6 +136,8 @@ export default function ExpertEvaluatePage() {
   const [disciplineAgreed, setDisciplineAgreed] = useState(false);
   // P2: per-supplier conflict declaration
   const [conflictedSupplierIds, setConflictedSupplierIds] = useState<Set<string>>(new Set());
+  // Phase ④ Task 7: backend `bid:validity:change` invalid/revoked → real-time grey-out
+  const [invalidSupplierIds, setInvalidSupplierIds] = useState<Set<string>>(new Set());
   const [avoiding, setAvoiding] = useState(false);
   // ④ AI 辅助评标声明：勾选门控（确认态以服务端 expert.aiConsentConfirmed 为准）
   const [aiConsentChecked, setAiConsentChecked] = useState(false);
@@ -199,6 +215,8 @@ export default function ExpertEvaluatePage() {
           return;
         }
         setProject(p);
+        // M-2: hydrate invalid supplier IDs from server data so grey-out survives page refresh.
+        setInvalidSupplierIds(new Set((p.suppliers || []).filter(s => (s as any).bidValidity === 'invalid').map(s => s.id)));
         // P0-1: hydrate with composite keys so each supplier's scores are isolated.
         const existing: Record<string, { score: number; reason: string }> = {};
         p.myScores.forEach((rec: { supplierId: string; scoreItemId: string; score: number; reason?: string }) => {
@@ -485,9 +503,11 @@ export default function ExpertEvaluatePage() {
     const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
     // P2: also block if expert declared conflict with this supplier
     && !conflictedSupplierIds.has(activeSupplier)
-    && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier);
+    && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier)
+    // Phase ④ Task 7: block if supplier is currently 废标 (invalid)
+    && !invalidSupplierIds.has(activeSupplier);
     if (!canScoreActiveSupplier) {
-      toast.warning('该投标单位未解密成功或已撤回，不能评分');
+      toast.warning('该投标单位未解密成功、已撤回或已废标，不能评分');
       return;
     }
     const missing: string[] = [];
@@ -565,7 +585,9 @@ export default function ExpertEvaluatePage() {
   const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
     // P2: also block if expert declared conflict with this supplier
     && !conflictedSupplierIds.has(activeSupplier)
-    && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier);
+    && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier)
+    // Phase ④ Task 7: block if supplier is currently 废标 (invalid)
+    && !invalidSupplierIds.has(activeSupplier);
   const scoreLocked = !!expert?.reportConfirmed;
 
   // ── Task 5: 聚焦复选框面板 helpers ──
@@ -806,6 +828,7 @@ export default function ExpertEvaluatePage() {
             activeSupplier={activeSupplier}
             onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); setConfirmedDispute({}); setReviewPanelOpenKey(null); }}
             conflictedSupplierIds={conflictedSupplierIds}
+            invalidSupplierIds={invalidSupplierIds}
             decryptLabel={DECRYPT_LABEL}
             scoringProgress={
               step === 'scoring'
