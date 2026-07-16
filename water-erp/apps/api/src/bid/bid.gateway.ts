@@ -22,6 +22,7 @@ import {
   type ClarificationRepliedPayload,
   type SupervisionLogPayload,
   type AnomalyDetectedPayload,
+  type BidValidityChangePayload,
 } from '@water-erp/shared';
 
 /** Roles that may see individual presence / supervision / anomalies (command center). */
@@ -158,6 +159,13 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       timestamp: Date.now(),
     };
     this.server.to(`project:${projectId}`).emit(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, payload);
+  }
+
+  // ── Bid validity: broadcast to everyone in the project room (experts grey-out the supplier) ──
+
+  notifyBidValidity(projectId: string, data: Omit<BidValidityChangePayload, 'timestamp'>) {
+    const payload: BidValidityChangePayload = { ...data, timestamp: Date.now() };
+    this.server.to(`project:${projectId}`).emit(BID_EVENT.BID_VALIDITY_CHANGE, payload);
   }
 
   // ── Host-only events: supervision log, anomaly ──

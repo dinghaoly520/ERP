@@ -22,20 +22,20 @@ model Department {
 }
 
 model User {
-  id           String      @id @default(cuid())
-  username     String
+  id             String      @id @default(cuid())
+  username       String
   displayName    String
   email          String?
   phone          String?
-  officeLocation String?  @map("office_location")
-  avatar        String?
-  passwordHash String?
-  role         String      @default("internal_user")
-  isActive     Boolean     @default(true)
-  departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  officeLocation String?     @map("office_location")
+  avatar         String?
+  passwordHash   String?
+  role           String      @default("internal_user")
+  isActive       Boolean     @default(true)
+  departmentId   String?
+  department     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   supplier            Supplier?
   notifications       Notification[]
@@ -162,38 +162,38 @@ model AiBidAnalysisTask {
 
 // 投标单位分析结果（每个 BidSupplier 一条，per-item 评分对齐 BidScoreItem）
 model AiBidderResult {
-  id                  String         @id @default(cuid())
-  taskId              String
-  bidSupplierId       String // 关联 BidSupplier（BidSupplier.supplierId 可空）
-  status              AiBidderStatus @default(PENDING)
+  id                   String         @id @default(cuid())
+  taskId               String
+  bidSupplierId        String // 关联 BidSupplier（BidSupplier.supplierId 可空）
+  status               AiBidderStatus @default(PENDING)
   // 文本
-  technicalText       String? // 技术标 OCR 文本
-  businessText        String? // 商务标 OCR 文本
+  technicalText        String? // 技术标 OCR 文本
+  businessText         String? // 商务标 OCR 文本
   // 提取结果
-  extractedInfo       Json? // 标书 LLM 提取（审计快照）
-  systemInfo          Json? // 系统结构化数据快照（审计快照）
-  keyInfo             Json? // 融合后展示对象（权威源 + 一致性标注）
+  extractedInfo        Json? // 标书 LLM 提取（审计快照）
+  systemInfo           Json? // 系统结构化数据快照（审计快照）
+  keyInfo              Json? // 融合后展示对象（权威源 + 一致性标注）
   // per-item 评分（对齐 BidScoreItem，核心）
-  scoreItems          Json? // [{scoreItemId, category, name, score, maxScore, reason, evidence, confidence}]
+  scoreItems           Json? // [{scoreItemId, category, name, score, maxScore, reason, evidence, confidence}]
   requirementResponses Json? // 条款-响应定位（matcher 产物）
-  categoryTotals      Json? // { QUALIFICATION:{score,max}, RESPONSIVE:{...}, ... }
-  starredResponse     Json? // ★ 方案1收尾：★号实质性条款响应核查 { allMet: boolean, unmet?: string[] }
-  totalScore          Decimal?       @db.Decimal(5, 2)
+  categoryTotals       Json? // { QUALIFICATION:{score,max}, RESPONSIVE:{...}, ... }
+  starredResponse      Json? // ★ 方案1收尾：★号实质性条款响应核查 { allMet: boolean, unmet?: string[] }
+  totalScore           Decimal?       @db.Decimal(5, 2)
   // 判定
-  qualificationStatus String?        @default("pending") // 通过/不通过/待审查
-  riskLevel           String?        @default("low")
-  riskAnalysis        Json?
-  strengths           Json?
-  weaknesses          Json?
-  overallComment      String?
-  deviationAnalysis   Json?
-  competitiveAnalysis Json? // 第二轮横向对比结果
-  processedAt         DateTime?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  qualificationStatus  String?        @default("pending") // 通过/不通过/待审查
+  riskLevel            String?        @default("low")
+  riskAnalysis         Json?
+  strengths            Json?
+  weaknesses           Json?
+  overallComment       String?
+  deviationAnalysis    Json?
+  competitiveAnalysis  Json? // 第二轮横向对比结果
+  processedAt          DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
-  task        AiBidAnalysisTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  bidSupplier BidSupplier          @relation(fields: [bidSupplierId], references: [id], onDelete: Cascade)
+  task        AiBidAnalysisTask      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  bidSupplier BidSupplier            @relation(fields: [bidSupplierId], references: [id], onDelete: Cascade)
   concordance AiConcordanceResult?
   reviews     BidRequirementReview[]
 
@@ -278,6 +278,9 @@ model BidProject {
   supplierSubmissions    SupplierBidSubmission[]
   procurementProject     ProcurementProject?
   reviews                BidRequirementReview[]
+  scoreReviews           BidScoreReview[]
+  invalidBids            BidInvalidBid[]
+  memos                  ExpertMemo[]
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
 
@@ -295,15 +298,19 @@ model BidSupplier {
   receiptNo             String?
   decryptStatus         DecryptStatus             @default(PENDING)
   confirmStatus         ConfirmStatus             @default(PENDING)
+  bidValidity           String                    @default("valid") // "valid" | "invalid"（冗余快查字段，由 BidInvalidBid 驱动）
   project               BidProject                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   supplier              Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
   bidScoreRecords       BidScoreRecord[]
   pointDecisions        BidScorePointDecision[]
+  scoreReviews          BidScoreReview[]
   bidderResults         AiBidderResult[]
   supervisionAnnotation BidSupervisionAnnotation?
+  invalidBids           BidInvalidBid[]
   decryptError          String? // 解密失败原因
+  memos                 ExpertMemo[]
 
   @@unique([projectId, supplierName])
   @@index([supplierId])
@@ -348,28 +355,30 @@ model BidOpeningRecord {
 }
 
 model BidExpert {
-  id                    String           @id @default(cuid())
+  id                    String                  @id @default(cuid())
   projectId             String
   userId                String
   expertName            String
   major                 String
-  signedIn              Boolean          @default(false)
-  phoneVerified         Boolean          @default(false)
-  avoidanceConfirmed    Boolean          @default(false)
-  aiConsentConfirmed    Boolean          @default(false)
+  signedIn              Boolean                 @default(false)
+  phoneVerified         Boolean                 @default(false)
+  avoidanceConfirmed    Boolean                 @default(false)
+  aiConsentConfirmed    Boolean                 @default(false)
   aiConsentAt           DateTime?
-  conflictedSupplierIds Json             @default("[]")
-  progress              Int              @default(0)
-  totalScore            Decimal          @default("0") @db.Decimal(8, 1)
-  reportConfirmed       Boolean          @default(false)
+  conflictedSupplierIds Json                    @default("[]")
+  progress              Int                     @default(0)
+  totalScore            Decimal                 @default("0") @db.Decimal(8, 1)
+  reportConfirmed       Boolean                 @default(false)
   reportConfirmedAt     DateTime?
-  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project               BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project               BidProject              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scoreRecords          BidScoreRecord[]
   reviews               BidRequirementReview[]
   pointDecisions        BidScorePointDecision[]
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
+  scoreReviews          BidScoreReview[]        @relation("BidScoreReviews")
+  memos                 ExpertMemo[]
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
 
   @@unique([projectId, userId])
   @@index([userId])
@@ -387,22 +396,24 @@ model BidScoreItem {
   project         BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scoreRecords    BidScoreRecord[]
   points          BidScorePoint[]
+  invalidBids     BidInvalidBid[]
+  memos           ExpertMemo[]
   createdAt       DateTime         @default(now())
 
   @@index([projectId])
 }
 
 model BidScorePoint {
-  id           String       @id @default(cuid())
+  id           String                  @id @default(cuid())
   scoreItemId  String
   name         String
-  fullScore    Decimal      @default("0") @db.Decimal(5, 1)
-  seq          Int          @default(0)
+  fullScore    Decimal                 @default("0") @db.Decimal(5, 1)
+  seq          Int                     @default(0)
   evidenceHint String?
-  objective    Boolean      @default(true)
-  scoreItem    BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
+  objective    Boolean                 @default(true)
+  scoreItem    BidScoreItem            @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
   decisions    BidScorePointDecision[]
-  createdAt    DateTime     @default(now())
+  createdAt    DateTime                @default(now())
 
   @@index([scoreItemId])
 }
@@ -413,7 +424,7 @@ model BidScoreRecord {
   scoreItemId String
   supplierId  String
   score       Decimal      @db.Decimal(5, 1)
-  passed      Boolean?                        // 通过性项裁定（资格审查/响应性审查 改通过/不通过制）
+  passed      Boolean? // 通过性项裁定（资格审查/响应性审查 改通过/不通过制）
   reason      String?
   expert      BidExpert    @relation(fields: [expertId], references: [id], onDelete: Cascade)
   scoreItem   BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
@@ -426,12 +437,12 @@ model BidScoreRecord {
 }
 
 model BidScorePointDecision {
-  id           String   @id @default(cuid())
+  id           String        @id @default(cuid())
   expertId     String
   pointId      String
   supplierId   String
   checked      Boolean
-  awardedScore Decimal  @db.Decimal(5, 1)
+  awardedScore Decimal       @db.Decimal(5, 1)
   note         String?
   expert       BidExpert     @relation(fields: [expertId], references: [id], onDelete: Cascade)
   point        BidScorePoint @relation(fields: [pointId], references: [id], onDelete: Cascade)
@@ -444,6 +455,47 @@ model BidScorePointDecision {
   @@index([expertId, supplierId])
 }
 
+/// P3：核对关口 — per-expert+project+supplier 核对记录（draft|verified），verified 后方可进入评审报告确认
+model BidScoreReview {
+  id         String      @id @default(cuid())
+  expertId   String
+  projectId  String
+  supplierId String
+  status     String      @default("draft") // "draft" | "verified"
+  verifiedAt DateTime?
+  expert     BidExpert   @relation("BidScoreReviews", fields: [expertId], references: [id], onDelete: Cascade)
+  project    BidProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier   BidSupplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([expertId, projectId, supplierId])
+  @@index([expertId, supplierId])
+  @@index([projectId, supplierId])
+}
+
+/// P5：专家手写/键盘备忘（项目/供应商/评分项级），contentText（OCR 或键盘）+ inkFileId→FileAsset（MinIO 笔迹图）
+model ExpertMemo {
+  id           String       @id @default(cuid())
+  expertId     String
+  projectId    String
+  supplierId   String?
+  scoreItemId  String?
+  contentText  String?
+  inkFileId    String?
+  sourceDevice String? // tablet | desktop
+  expert       BidExpert    @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  project      BidProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier     BidSupplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  scoreItem    BidScoreItem? @relation(fields: [scoreItemId], references: [id], onDelete: SetNull)
+  inkFile      FileAsset?   @relation(fields: [inkFileId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([expertId, projectId])
+  @@index([projectId, supplierId])
+}
+
 /// P1-E：评分 delta 数据飞轮（专家分 vs AI 建议分差异，用于采纳率统计 + AI 校准 + 专家反向复核）
 model BidScoreDelta {
   id                    String   @id @default(cuid())
@@ -454,9 +506,9 @@ model BidScoreDelta {
   aiScore               Decimal  @db.Decimal(5, 1)
   expertScore           Decimal  @db.Decimal(5, 1)
   delta                 Decimal  @db.Decimal(5, 1) // expert − ai
-  accepted              Boolean                    // |delta| ≤ maxScore×10% 视为采纳
+  accepted              Boolean // |delta| ≤ maxScore×10% 视为采纳
   aiConfidence          Decimal? @db.Decimal(3, 2)
-  expertReportConfirmed Boolean  @default(false)  // 仅统计已确认报告的
+  expertReportConfirmed Boolean  @default(false) // 仅统计已确认报告的
   createdAt             DateTime @default(now())
 
   @@unique([expertId, scoreItemId, supplierId])
@@ -540,12 +592,33 @@ model BidEvaluationResult {
   averageScore Decimal    @db.Decimal(6, 2)
   rank         Int
   recommended  Boolean    @default(false)
-  disqualified Boolean    @default(false)   // 废标（资格审查/响应性审查 改通过/不通过制）
+  disqualified Boolean    @default(false) // 废标（资格审查/响应性审查 改通过/不通过制）
   generatedAt  DateTime   @default(now())
   project      BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, supplierId])
   @@index([projectId, rank])
+}
+
+/// P4：无效标裁定记录（per project+supplier+scoreItemId，fail/total 计数，status invalid|revoked）
+/// 驱动 BidSupplier.bidValidity 冗余快查字段（valid|invalid）
+model BidInvalidBid {
+  id          String       @id @default(cuid())
+  projectId   String
+  supplierId  String
+  scoreItemId String
+  failCount   Int
+  totalCount  Int
+  status      String       @default("invalid") // "invalid" | "revoked"
+  decidedAt   DateTime     @default(now())
+  revokedAt   DateTime?
+  revokedBy   String?
+  project     BidProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier    BidSupplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  scoreItem   BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, supplierId, scoreItemId])
+  @@index([projectId, supplierId])
 }
 
 // ── 专家管理 ──
@@ -649,10 +722,10 @@ model Supplier {
   catalogApplications SupplierCatalogApplication[]
   catalogSupplies     CatalogSupplier[]
   clarifications      BidClarification[]
-  contractPrices       ContractPrice[]
+  contractPrices      ContractPrice[]
 
   // ── 采购中心关联 ──
-  awardedRounds  ProcurementRound[]  @relation("AwardedSupplier")
+  awardedRounds  ProcurementRound[] @relation("AwardedSupplier")
   participations RoundParticipant[]
 
   @@index([status])
@@ -941,6 +1014,7 @@ model FileAsset {
 
   announcementAttachments AnnouncementAttachment[]
   bidDocuments            BidDocument[]
+  expertMemos             ExpertMemo[]
 
   @@index([category])
   @@index([uploaderId])
@@ -959,25 +1033,25 @@ enum ProcurementStatus {
 }
 
 model ProcurementProject {
-  id                String            @id @default(cuid())
+  id                String             @id @default(cuid())
   title             String
-  projectCode       String            @unique
+  projectCode       String             @unique
   description       String?
-  budget            Decimal?          @db.Decimal(12, 2)
+  budget            Decimal?           @db.Decimal(12, 2)
   procurementType   String // 货物/工程/服务
   procurementMethod String // 公开招标/邀请招标/竞争性谈判/单一来源
-  status            ProcurementStatus @default(DRAFT)
+  status            ProcurementStatus  @default(DRAFT)
   rejectReason      String?
   departmentId      String?
   creatorId         String?
-  bidProjectId      String?           @unique // 关联的招标项目
-  bidProject        BidProject?       @relation(fields: [bidProjectId], references: [id])
-  department        Department?       @relation(fields: [departmentId], references: [id])
-  creator           User?             @relation(fields: [creatorId], references: [id])
+  bidProjectId      String?            @unique // 关联的招标项目
+  bidProject        BidProject?        @relation(fields: [bidProjectId], references: [id])
+  department        Department?        @relation(fields: [departmentId], references: [id])
+  creator           User?              @relation(fields: [creatorId], references: [id])
   budgetList        BudgetList?
   rounds            ProcurementRound[] // 采购中心台账轮次
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([status])
 }
@@ -985,18 +1059,18 @@ model ProcurementProject {
 // ── 品类树节点 ──
 
 model CatalogCategory {
-  id        Int       @id @default(autoincrement())
+  id        Int               @id @default(autoincrement())
   name      String
-  code      String?   @unique
+  code      String?           @unique
   parentId  Int?
   parent    CatalogCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children  CatalogCategory[] @relation("CategoryHierarchy")
-  sortOrder Int       @default(0)
-  status    String    @default("ACTIVE") // ACTIVE | INACTIVE
-  isLeaf    Boolean   @default(false)
+  sortOrder Int               @default(0)
+  status    String            @default("ACTIVE") // ACTIVE | INACTIVE
+  isLeaf    Boolean           @default(false)
   icon      String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
 
   attributeTemplates CategoryAttributeTemplate[]
   catalogItems       CatalogItem[]
@@ -1014,7 +1088,7 @@ model CategoryAttributeTemplate {
   category   CatalogCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   name       String
   fieldKey   String
-  fieldType  String          // TEXT | NUMBER | SELECT | DATE | BOOLEAN
+  fieldType  String // TEXT | NUMBER | SELECT | DATE | BOOLEAN
   required   Boolean         @default(false)
   options    Json?
   unit       String?
@@ -1030,9 +1104,9 @@ model CategoryAttributeTemplate {
 // ── 目录项属性值 (EAV) ──
 
 model CatalogItemAttribute {
-  id            Int                        @id @default(autoincrement())
+  id            Int                       @id @default(autoincrement())
   catalogItemId String
-  catalogItem   CatalogItem                @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  catalogItem   CatalogItem               @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
   templateId    Int
   template      CategoryAttributeTemplate @relation(fields: [templateId], references: [id])
   value         String
@@ -1054,6 +1128,7 @@ model CatalogVersion {
   createdAt   DateTime @default(now())
   createdBy   String
   user        User     @relation(fields: [createdBy], references: [id])
+
   @@index([status])
 }
 
@@ -1063,31 +1138,33 @@ model CatalogInquiry {
   id          Int       @id @default(autoincrement())
   title       String
   status      String    @default("DRAFT") // DRAFT | SENT | CLOSED
-  items       Json                         // [{ catalogItemId, spec, qty }]
+  items       Json // [{ catalogItemId, spec, qty }]
   supplierIds String[]
   deadlineAt  DateTime?
   notes       String?
   createdAt   DateTime  @default(now())
   createdBy   String
   user        User      @relation(fields: [createdBy], references: [id])
+
   @@index([status])
 }
 
 // ── 框架合同价格 ──
 
 model ContractPrice {
-  id            Int          @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   catalogItemId String
-  catalogItem   CatalogItem  @relation(fields: [catalogItemId], references: [id])
+  catalogItem   CatalogItem @relation(fields: [catalogItemId], references: [id])
   supplierId    String
-  supplier      Supplier     @relation(fields: [supplierId], references: [id])
+  supplier      Supplier    @relation(fields: [supplierId], references: [id])
   contractNo    String
   agreedPrice   Float
   validFrom     DateTime
   validUntil    DateTime
-  status        String       @default("ACTIVE") // ACTIVE | EXPIRED | TERMINATED
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  status        String      @default("ACTIVE") // ACTIVE | EXPIRED | TERMINATED
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
   @@index([catalogItemId])
   @@index([supplierId])
   @@index([validUntil])
@@ -1096,24 +1173,25 @@ model ContractPrice {
 // ── 目录项关联 ──
 
 model CatalogItemRelation {
-  id            Int          @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   catalogItemId String
-  catalogItem   CatalogItem  @relation("ItemRelations", fields: [catalogItemId], references: [id], onDelete: Cascade)
+  catalogItem   CatalogItem @relation("ItemRelations", fields: [catalogItemId], references: [id], onDelete: Cascade)
   relatedItemId String
-  relatedItem   CatalogItem  @relation("RelatedItems", fields: [relatedItemId], references: [id], onDelete: Cascade)
-  relationType  String       // SUBSTITUTE | COMPLEMENT | SIMILAR
-  createdAt     DateTime     @default(now())
+  relatedItem   CatalogItem @relation("RelatedItems", fields: [relatedItemId], references: [id], onDelete: Cascade)
+  relationType  String // SUBSTITUTE | COMPLEMENT | SIMILAR
+  createdAt     DateTime    @default(now())
+
   @@unique([catalogItemId, relatedItemId, relationType])
 }
 
 // ── 价格预警规则 ──
 
 model PriceAlertRule {
-  id          Int             @id @default(autoincrement())
+  id          Int              @id @default(autoincrement())
   name        String
   categoryId  Int?
   category    CatalogCategory? @relation(fields: [categoryId], references: [id])
-  alertType   String           // PRICE_SURGE | PRICE_DROP | EXPIRING | DEVIATION
+  alertType   String // PRICE_SURGE | PRICE_DROP | EXPIRING | DEVIATION
   threshold   Float
   enabled     Boolean          @default(true)
   notifyRoles String[]
@@ -1171,7 +1249,7 @@ model CatalogItem {
   remark              String?
   status              String                       @default("有效")
   lifecycleStage      String                       @default("有效") // 草稿|待审核|有效|价格异常|即将过期|已下架|已归档
-  nationalStandard    String?                                         // GB/T 1499.2-2018
+  nationalStandard    String? // GB/T 1499.2-2018
   validUntil          DateTime?
   createdAt           DateTime                     @default(now())
   updatedAt           DateTime                     @updatedAt
@@ -1182,8 +1260,8 @@ model CatalogItem {
   catalogSuppliers    CatalogSupplier[]
   attributes          CatalogItemAttribute[]
   priceAlerts         PriceAlert[]
-  relations           CatalogItemRelation[]  @relation("ItemRelations")
-  relatedTo           CatalogItemRelation[]  @relation("RelatedItems")
+  relations           CatalogItemRelation[]        @relation("ItemRelations")
+  relatedTo           CatalogItemRelation[]        @relation("RelatedItems")
   contractPrices      ContractPrice[]
   attachments         CatalogItemAttachment[]
   subscriptions       CatalogSubscription[]
@@ -1202,9 +1280,10 @@ model CatalogItemAttachment {
   catalogItem   CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
   fileName      String
   fileUrl       String
-  fileType      String      // IMAGE | PDF | CERTIFICATE | OTHER
+  fileType      String // IMAGE | PDF | CERTIFICATE | OTHER
   fileSize      Int
   uploadedAt    DateTime    @default(now())
+
   @@index([catalogItemId])
 }
 
@@ -1215,6 +1294,7 @@ model CatalogSearchLog {
   keyword   String
   userId    String?
   createdAt DateTime @default(now())
+
   @@index([keyword])
   @@index([createdAt])
 }
@@ -1228,6 +1308,7 @@ model CatalogSubscription {
   catalogItemId String
   catalogItem   CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
   createdAt     DateTime    @default(now())
+
   @@unique([userId, catalogItemId])
 }
 
@@ -1439,7 +1520,7 @@ model AssistantConversation {
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
-  user      User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("assistant_conversations")
 }
@@ -1490,19 +1571,18 @@ model BidRequirementReview {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  project       BidProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  bidderResult  AiBidderResult @relation(fields: [bidderResultId], references: [id], onDelete: Cascade)
-  expert        BidExpert      @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  project      BidProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bidderResult AiBidderResult @relation(fields: [bidderResultId], references: [id], onDelete: Cascade)
+  expert       BidExpert      @relation(fields: [expertId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, bidderResultId, expertId, requirementId])
   @@map("bid_requirement_reviews")
 }
 
-
 model AssistantAlert {
   id        String   @id @default(cuid())
   userId    String
-  type      String   // deadline | anomaly | guidance
+  type      String // deadline | anomaly | guidance
   title     String
   content   String   @db.Text
   severity  String   @default("info") // info | warning | urgent
@@ -1606,15 +1686,15 @@ enum WorkArrangementNoteType {
 // ── 用户设置 ──
 
 model UserSettings {
-  id               String   @id @default(cuid())
-  userId           String   @unique
-  theme            String   @default("system")
-  defaultHomePage  String   @default("work-arrangements")
-  compactMode      Boolean  @default(false)
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  theme             String   @default("system")
+  defaultHomePage   String   @default("work-arrangements")
+  compactMode       Boolean  @default(false)
   notificationPrefs Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ── 采购项目（台账容器）──
@@ -1638,40 +1718,40 @@ model Project {
 // ── 采购轮次（台账明细）──
 
 model ProcurementRound {
-  id                String             @id @default(cuid())
-  projectId         String
-  roundNo           Int
-  procurementDate   DateTime?
-  procurementMethod String
-  departmentId      String?
-  budgetAmount      Decimal?           @db.Decimal(14, 2)
-  controlAmount     Decimal?           @db.Decimal(14, 2)
-  awardedSupplierId String?
-  awardAmount       Decimal?           @db.Decimal(14, 2)
-  resultStatus      ResultStatus       @default(PENDING)
-  resultText        String?
-  sourceType        SourceType         @default(MANUAL)
-  supplierText      String?
-  importBatchId     String?
-  isRecycled        Boolean            @default(false)
-  createdById       String?
-  updatedById       String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  awardedSupplierName String?
-  expertInfo        String?
-  biddingUnits      String?
+  id                   String              @id @default(cuid())
+  projectId            String
+  roundNo              Int
+  procurementDate      DateTime?
+  procurementMethod    String
+  departmentId         String?
+  budgetAmount         Decimal?            @db.Decimal(14, 2)
+  controlAmount        Decimal?            @db.Decimal(14, 2)
+  awardedSupplierId    String?
+  awardAmount          Decimal?            @db.Decimal(14, 2)
+  resultStatus         ResultStatus        @default(PENDING)
+  resultText           String?
+  sourceType           SourceType          @default(MANUAL)
+  supplierText         String?
+  importBatchId        String?
+  isRecycled           Boolean             @default(false)
+  createdById          String?
+  updatedById          String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  awardedSupplierName  String?
+  expertInfo           String?
+  biddingUnits         String?
   // ERP 采购项目关联（可选，桥接两个采购模型）
   procurementProjectId String?
-  attachments         Attachment[]
-  awardedSupplier   Supplier?          @relation("AwardedSupplier", fields: [awardedSupplierId], references: [id])
-  createdBy         User?              @relation("RoundCreatedBy", fields: [createdById], references: [id])
-  department        Department?        @relation("RoundDepartment", fields: [departmentId], references: [id])
-  importBatch       ImportBatch?       @relation(fields: [importBatchId], references: [id])
-  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  procurementProject ProcurementProject? @relation(fields: [procurementProjectId], references: [id], onDelete: SetNull)
-  updatedBy         User?              @relation("RoundUpdatedBy", fields: [updatedById], references: [id])
-  participants      RoundParticipant[]
+  attachments          Attachment[]
+  awardedSupplier      Supplier?           @relation("AwardedSupplier", fields: [awardedSupplierId], references: [id])
+  createdBy            User?               @relation("RoundCreatedBy", fields: [createdById], references: [id])
+  department           Department?         @relation("RoundDepartment", fields: [departmentId], references: [id])
+  importBatch          ImportBatch?        @relation(fields: [importBatchId], references: [id])
+  project              Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  procurementProject   ProcurementProject? @relation(fields: [procurementProjectId], references: [id], onDelete: SetNull)
+  updatedBy            User?               @relation("RoundUpdatedBy", fields: [updatedById], references: [id])
+  participants         RoundParticipant[]
 
   @@unique([projectId, roundNo])
   @@index([procurementDate])
@@ -2077,8 +2157,8 @@ model ExtractionTask {
 model WorkArrangementDailyPlanCache {
   id        String   @id @default(cuid())
   userId    String
-  date      String   // YYYY-MM-DD
-  plan      Json     // 完整的 dailyPlan 响应对象
+  date      String // YYYY-MM-DD
+  plan      Json // 完整的 dailyPlan 响应对象
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

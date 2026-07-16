@@ -22,6 +22,7 @@ export const BID_EVENT = {
   SUPERVISION_LOG: 'supervision:log',
   ANOMALY_DETECTED: 'anomaly:detected',
   PRESENCE_HEARTBEAT: 'presence:heartbeat',
+  BID_VALIDITY_CHANGE: 'bid:validity:change',
 } as const;
 
 // ── 载荷类型 ──
@@ -106,6 +107,14 @@ export interface AnomalyDetectedPayload {
   supplierName?: string;
   detail: string;
   severity: 'warning' | 'danger';
+  timestamp: number;
+}
+
+export interface BidValidityChangePayload {
+  supplierId: string;
+  failCount: number;
+  totalCount: number;
+  status: 'invalid' | 'revoked';
   timestamp: number;
 }
 

@@ -104,6 +104,15 @@ export class BidController {
   @ApiOperation({ summary: '重新触发 AI 辅助分析（B8/15.5）——清除旧结果并重新入队' })
   rerunAiAnalysis(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.rerunAiAnalysis(id, userId); }
 
+  @Post('projects/:id/suppliers/:supplierId/invalid-bid/revoke')
+  @ApiOperation({ summary: '废标复核撤销（reportConfirmed 前可逆）' })
+  revokeInvalidBid(
+    @Param('id') id: string,
+    @Param('supplierId') supplierId: string,
+    @Body() body: { scoreItemId: string },
+    @CurrentUser('sub') userId: string,
+  ) { return this.bidService.revokeInvalidBid(id, supplierId, body.scoreItemId, userId); }
+
   @Post('projects/:id/nudge-suppliers')
   @ApiOperation({ summary: '催促供应商投标（站内信+Email 多通道）' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })

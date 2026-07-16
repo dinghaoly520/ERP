@@ -8,22 +8,25 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
-import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale, StickyNote } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
 import { DocumentsStep } from '@/components/evaluate/documents-step';
 import { ReportStep } from '@/components/evaluate/report-step';
+import { VerifyScoreStep } from '@/components/evaluate/verify-score-step';
 import { PointChecklistScoring } from '@/components/evaluate/point-checklist-scoring';
+import { MemoPanel } from '@/components/memo/memo-panel';
 import { formatBytes } from '@/lib/utils';
 
-type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'report';
+type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'verify-score' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
   { key: 'verify', label: '身份核验', Icon: ShieldCheck },
   { key: 'documents', label: '标书获取', Icon: FileText },
   { key: 'assist', label: '辅助评标', Icon: Sparkles },
   { key: 'compare', label: '条款响应核对', Icon: Scale },
   { key: 'scoring', label: '专家打分', Icon: Edit3 },
+  { key: 'verify-score', label: '核对', Icon: CheckCircle },
   { key: 'report', label: '评审报告', Icon: BarChart3 },
 ];
 
@@ -62,6 +65,8 @@ export default function ExpertEvaluatePage() {
   // P3: real-time status board
   const [liveEvents, setLiveEvents] = useState<{ time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[]>([]);
   const [aggregatePresence, setAggregatePresence] = useState<any>(null);
+  // P5 Task 7: 桌面端备忘抽屉（scoring / verify-score 步骤可开启；键盘输入为主，可查看平板墨迹）
+  const [memoOpen, setMemoOpen] = useState(false);
 
   const pushLiveEvent = (label: string, icon: typeof liveEvents[0]['icon']) => {
     setLiveEvents(prev => [{ time: Date.now(), label, icon }, ...prev].slice(0, 20));
@@ -106,6 +111,20 @@ export default function ExpertEvaluatePage() {
       pushLiveEvent(`澄清已回复: ${d.replyPreview.slice(0, 30)}`, 'clarify');
       if (showClarifications) loadClarifications();
     },
+    onBidValidityChange: (d) => {
+      // invalid→置灰锁定打分；revoked→恢复可打分（决策 B：接受跳变，每票重判）
+      setInvalidSupplierIds(prev => {
+        const next = new Set(prev);
+        if (d.status === 'invalid') next.add(d.supplierId);
+        else next.delete(d.supplierId);
+        return next;
+      });
+      const supplierName = project?.suppliers.find(s => s.id === d.supplierId)?.supplierName ?? d.supplierId;
+      pushLiveEvent(
+        `${supplierName} ${d.status === 'invalid' ? '被废标' : '废标已撤销'}（${d.failCount}/${d.totalCount}）`,
+        'stage',
+      );
+    },
   });
 
   const [documents, setDocuments] = useState<Record<string, DecryptedDocuments | null>>({});
@@ -120,11 +139,29 @@ export default function ExpertEvaluatePage() {
   const [disciplineAgreed, setDisciplineAgreed] = useState(false);
   // P2: per-supplier conflict declaration
   const [conflictedSupplierIds, setConflictedSupplierIds] = useState<Set<string>>(new Set());
+  // Phase ④ Task 7: backend `bid:validity:change` invalid/revoked → real-time grey-out
+  const [invalidSupplierIds, setInvalidSupplierIds] = useState<Set<string>>(new Set());
   const [avoiding, setAvoiding] = useState(false);
   // ④ AI 辅助评标声明：勾选门控（确认态以服务端 expert.aiConsentConfirmed 为准）
   const [aiConsentChecked, setAiConsentChecked] = useState(false);
 
   // P2: step gating — each step is unlocked only when its preconditions are met
+  // Task 6: verify-score completion — all active (decrypted, non-withdrawn) suppliers verified
+  const allScoreReviewsVerified = (): boolean => {
+    if (!project) return false;
+    const reviews = (expert as any)?.scoreReviews as
+      | { supplierId: string; status: string }[]
+      | undefined;
+    if (!reviews) return false;
+    const activeSuppliers = project.suppliers.filter(
+      (s) => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回',
+    );
+    if (activeSuppliers.length === 0) return false;
+    return activeSuppliers.every(
+      (s) =>
+        reviews.find((r) => r.supplierId === s.id)?.status === 'verified',
+    );
+  };
   const stepAccessible = (sKey: Step): boolean => {
     switch (sKey) {
       case 'verify': return true;
@@ -132,6 +169,7 @@ export default function ExpertEvaluatePage() {
       case 'assist': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
       case 'compare': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
       case 'scoring': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
+      case 'verify-score': return (expert?.progress ?? 0) >= 100;
       case 'report': return !!expert?.reportConfirmed || (expert?.progress ?? 0) >= 100;
     }
   };
@@ -142,6 +180,7 @@ export default function ExpertEvaluatePage() {
       case 'assist': return false;
       case 'compare': return false;
       case 'scoring': return !!expert?.reportConfirmed;
+      case 'verify-score': return allScoreReviewsVerified();
       case 'report': return !!expert?.reportConfirmed;
     }
   };
@@ -179,6 +218,8 @@ export default function ExpertEvaluatePage() {
           return;
         }
         setProject(p);
+        // M-2: hydrate invalid supplier IDs from server data so grey-out survives page refresh.
+        setInvalidSupplierIds(new Set((p.suppliers || []).filter(s => (s as any).bidValidity === 'invalid').map(s => s.id)));
         // P0-1: hydrate with composite keys so each supplier's scores are isolated.
         const existing: Record<string, { score: number; reason: string }> = {};
         p.myScores.forEach((rec: { supplierId: string; scoreItemId: string; score: number; reason?: string }) => {
@@ -465,9 +506,11 @@ export default function ExpertEvaluatePage() {
     const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
     // P2: also block if expert declared conflict with this supplier
     && !conflictedSupplierIds.has(activeSupplier)
-    && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier);
+    && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier)
+    // Phase ④ Task 7: block if supplier is currently 废标 (invalid)
+    && !invalidSupplierIds.has(activeSupplier);
     if (!canScoreActiveSupplier) {
-      toast.warning('该投标单位未解密成功或已撤回，不能评分');
+      toast.warning('该投标单位未解密成功、已撤回或已废标，不能评分');
       return;
     }
     const missing: string[] = [];
@@ -545,7 +588,9 @@ export default function ExpertEvaluatePage() {
   const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
     // P2: also block if expert declared conflict with this supplier
     && !conflictedSupplierIds.has(activeSupplier)
-    && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier);
+    && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier)
+    // Phase ④ Task 7: block if supplier is currently 废标 (invalid)
+    && !invalidSupplierIds.has(activeSupplier);
   const scoreLocked = !!expert?.reportConfirmed;
 
   // ── Task 5: 聚焦复选框面板 helpers ──
@@ -780,12 +825,13 @@ export default function ExpertEvaluatePage() {
       {/* 主内容区：供应商侧边栏 + 内容 */}
       <div className="flex-1 flex overflow-hidden min-h-0 rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/60">
         {/* 供应商侧边栏 — 辅助评标 / 条款响应核对 / 专家打分步骤显示 */}
-        {(step === 'assist' || step === 'compare' || step === 'scoring') && (
+        {(step === 'assist' || step === 'compare' || step === 'scoring' || step === 'verify-score') && (
           <SupplierSidebar
             suppliers={project.suppliers}
             activeSupplier={activeSupplier}
             onSelect={(id) => { setActiveSupplier(id); setMissingReasons(new Set()); setConfirmedDispute({}); setReviewPanelOpenKey(null); }}
             conflictedSupplierIds={conflictedSupplierIds}
+            invalidSupplierIds={invalidSupplierIds}
             decryptLabel={DECRYPT_LABEL}
             scoringProgress={
               step === 'scoring'
@@ -1179,9 +1225,20 @@ export default function ExpertEvaluatePage() {
           {/* ====== 专家打分 ====== */}
           {step === 'scoring' && (
             <div className="p-6">
-              <div className="mb-6">
-                <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">专家独立打分</h2>
-                <p className="text-sm text-[oklch(0.55_0.01_264)] mt-0.5">请根据您的专业判断进行客观评分</p>
+              <div className="mb-6 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">专家独立打分</h2>
+                  <p className="text-sm text-[oklch(0.55_0.01_264)] mt-0.5">请根据您的专业判断进行客观评分</p>
+                </div>
+                {/* P5 Task 7: 桌面端备忘入口（键盘输入 + 查看平板墨迹） */}
+                <button
+                  type="button"
+                  onClick={() => setMemoOpen(true)}
+                  className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white px-3 py-2 text-xs font-bold text-[oklch(0.4_0.012_265)] transition hover:bg-[oklch(0.97_0.005_264)]"
+                  aria-label="打开备忘面板"
+                >
+                  <StickyNote size={14} strokeWidth={1.7} /> 备忘
+                </button>
               </div>
 
               {/* P0-3: draft recovery banner */}
@@ -1433,6 +1490,24 @@ export default function ExpertEvaluatePage() {
 
 
 
+          {/* ====== 核对评分（verify-score）— 只读审阅 + 确认核对 ====== */}
+          {step === 'verify-score' && project && activeSupplier && (
+            <VerifyScoreStep
+              projectId={projectId}
+              supplierId={activeSupplier}
+              supplierName={project.suppliers.find((s) => s.id === activeSupplier)?.supplierName || ''}
+              scoreItems={project.scoreItems}
+              scores={scores}
+              reviewStatus={
+                (expert as any)?.scoreReviews?.find(
+                  (r: { supplierId: string; status: string }) => r.supplierId === activeSupplier,
+                )?.status as 'draft' | 'verified' | undefined
+              }
+              onVerified={loadProject}
+              onOpenMemo={() => setMemoOpen(true)}
+            />
+          )}
+
           {/* ====== 评审报告 ====== */}
           {step === 'report' && (
             <ReportStep report={report} busy={busy} onConfirmReport={handleConfirmReport} />
@@ -1440,6 +1515,50 @@ export default function ExpertEvaluatePage() {
             </div>
           </div>
         </div>
+
+        {/* ====== P5 Task 7: 桌面端备忘抽屉（scoring / verify-score 可开启；键盘输入 + 查看平板墨迹）====== */}
+        {memoOpen && (step === 'scoring' || step === 'verify-score') && (
+          <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-label="专家备忘面板">
+            {/* 点击遮罩关闭 */}
+            <button
+              type="button"
+              aria-label="关闭备忘面板"
+              className="absolute inset-0 bg-black/20"
+              onClick={() => setMemoOpen(false)}
+            />
+            <aside className="relative z-10 flex h-full w-[400px] max-w-[90vw] flex-col bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-[oklch(0.91_0.006_264)] px-4 py-3">
+                <h2 className="flex items-center gap-1.5 text-sm font-bold text-[oklch(0.18_0.012_265)]">
+                  <StickyNote size={14} strokeWidth={1.7} /> 专家备忘
+                  {activeSupplier && (
+                    <span className="ml-1 rounded-full bg-[oklch(0.95_0.005_264)] px-2 py-0.5 text-[10px] font-semibold text-[oklch(0.55_0.01_264)]">
+                      {project?.suppliers.find(s => s.id === activeSupplier)?.supplierName || '当前供应商'}
+                    </span>
+                  )}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setMemoOpen(false)}
+                  aria-label="关闭"
+                  className="rounded p-1 text-[oklch(0.55_0.01_264)] transition hover:bg-[oklch(0.96_0.004_264)]"
+                >
+                  <X size={16} strokeWidth={1.7} />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                {activeSupplier ? (
+                  <MemoPanel
+                    projectId={projectId}
+                    supplierId={activeSupplier}
+                    sourceDevice="desktop"
+                  />
+                ) : (
+                  <p className="py-6 text-center text-xs text-[oklch(0.62_0.008_264)]">请先在左侧选择供应商</p>
+                )}
+              </div>
+            </aside>
+          </div>
+        )}
       </div>
   );
 }

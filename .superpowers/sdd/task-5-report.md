@@ -1,43 +1,44 @@
-# Task 5: 代评 submitScore 同步（复用纯函数）— TDD
+# Task 5 Report: HandwritingCanvas 手写画布组件
 
 ## Changes
 
-### `apps/api/src/bid/bid.service.ts`
-- **L29** (import block): added `import { recomputeExpertProgress, recomputeItemFromDecisions } from './score-recalculate.helper';`
-- **L1298-1329** (`submitScore`): inserted checklist-decision handling block after the maxScore check — queries `bidScorePoint`, validates `pointDecisions` against points (POINT_NOT_IN_ITEM / POINT_SCORE_EXCEEDS_MAX), calls `recomputeItemFromDecisions` to derive `finalScore`/`finalPassed`, and upserts each `bidScorePointDecision`. Backward-compat: block is skipped when no points or no `pointDecisions`.
-- **L1340-1348** (`bidScoreRecord.upsert`): replaced `dto.score`/`dto.passed` with `finalScore`/`finalPassed`.
-- **L1388-1393**: replaced inline progress/totalScore recompute (7 prisma calls + math) with `recomputeExpertProgress(this.prisma, dto.expertId, projectId)` + single `bidExpert.update`. Non-transactional behavior preserved (uses `this.prisma` directly per brief).
+### `apps/expert-portal/src/components/memo/handwriting-canvas.tsx`（新建）
+- `HandwritingCanvas`（`forwardRef` + `useImperativeHandle`）暴露 `{ clear, toBlob, isEmpty }`。
+- **pointer events**：`onPointerDown/Move/Up/Leave` + `setPointerCapture`，保证拖出 canvas 仍可绘制。
+- **坐标缩放**：`pos()` 按 `getBoundingClientRect()` 将客户端坐标映射到 canvas 内部分辨率（CSS 尺寸 → `width`×`height`），避免 HiDPI 模糊。
+- **`touch-action: none`**（内联 `style.touchAction`）—— 阻止平板滚动/缩放干扰手写。
+- **`toBlob()`** 导出 PNG Blob，供 Task 4 的 `createMemo`（FormData ink）上传。
+- 设计系统：`rounded-xl` + `oklch(0.88 0.005 264)` 边框 + 白底。
 
-### `apps/api/src/bid/bid.service.spec.ts`
-- **L89-91** (`beforeEach` mock): added `bidScorePoint` + `bidScorePointDecision` mocks.
-- **L838-862** (new test): "代评：有 points 走 decision 汇总，与专家端口径一致" — verifies `bidScorePointDecision.upsert` is called once and `bidScoreRecord.upsert` receives `update.score = 15` (Σ of pointDecisions, not the `score: 0` from dto).
+### 对 brief 代码的两处必要修正
+1. **`touch-action="none"` JSX 属性 → `style={{ touchAction: 'none' }}`**
+   - 原因：React 19 虽会把带连字符的未知属性透传到 DOM，但浏览器**不会**把名为 `touch-action` 的 HTML 属性解释为 CSS `touch-action` 属性。HTML 属性对 `<canvas>` 无此语义，样式不会生效 → 平板仍会滚动/缩放。
+   - 全局约束明确要求 "via inline style or className"，故移入 `style`。
 
-## TDD Evidence
-- **RED**: new test failed with `Expected number of calls: 1, Received: 0` on `bidScorePointDecision.upsert`; all 115 pre-existing tests still passed.
-- **GREEN**: after impl, 116/116 pass in `bid.service.spec`; 6/6 pass in `score-recalculate.helper.spec` (regression).
+2. **`toBlob()` 的 `?? resolve(null)` 空值合并缺陷**
+   - 原代码：`canvasRef.current?.toBlob(b => resolve(b), 'image/png') ?? resolve(null)`
+   - 缺陷：`HTMLCanvasElement.toBlob()` 返回 `void`（运行时为 `undefined`），`??` 左侧**恒为** `undefined` → `resolve(null)` **立即**触发，Promise 提前 settle 为 `null`；`toBlob` 异步回调里的 `resolve(b)` 被忽略。**结果：toBlob 永远返回 null。**
+   - 修正：显式判空 `if (!canvas) { resolve(null); return; }`，再调 `canvas.toBlob(b => resolve(b), 'image/png')`，确保仅一次 resolve 且路径正确。
 
-## tsc
-`npx tsc --noEmit` clean (no output).
+## tsc Clean
+`pnpm --filter expert-portal exec tsc --noEmit` → **EXIT=0**（无错误）
 
-## Self-Review
+## Self-Review Checklist
 
-**KEY: Does the proxy path produce the SAME score as the expert path for identical pointDecisions?**
-YES. Both paths now share the same pure helpers:
-- `recomputeItemFromDecisions({ category, points, decisions })` — identical signature, identical inputs (`points.map(p => ({ id, objective, fullScore }))`, `decisionMap = new Map(dto.pointDecisions.map(...))`). Produces the same `{ score, passed }` for identical inputs.
-- `recomputeExpertProgress(tx, expertId, projectId)` — identical signature; proxy passes `this.prisma`, expert passes the `tx` from `$transaction`, but the function only reads via the same prisma client methods.
-- Same validation error codes (POINT_NOT_IN_ITEM, POINT_SCORE_EXCEEDS_MAX).
-- Same `bidScorePointDecision` upsert contract (unique `expertId_pointId_supplierId`).
+| 要求 | 状态 | 说明 |
+|---|---|---|
+| `touch-action: none`（防平板滚动/缩放） | YES | `style={{ touchAction: 'none' }}` —— 内联样式，浏览器一定识别 |
+| `forwardRef` + `useImperativeHandle` 暴露 `{clear, toBlob, isEmpty}` | YES | 接口签名与 brief 完全一致；`displayName` 已设 |
+| pointer down/move/up + `setPointerCapture` | YES | `down` 内 `setPointerCapture(e.pointerId)`；`up/leave` 均复位 `drawing` |
+| CSS 尺寸 ↔ canvas 分辨率 缩放 | YES | `pos()` 用 `getBoundingClientRect()` 比例换算 |
+| `toBlob` 输出 PNG Blob | YES | `'image/png'`；canvas 未挂载时返回 `null`（修正了 brief 的 `??` 缺陷） |
+| `clear()` 重置 `isEmpty` | YES | `clearRect` + `hasInk.current = false` |
+| 设计系统（oklch 边框 / rounded） | YES | `border-[oklch(0.88_0.005_264)]` + `rounded-xl` |
+| `isEmpty()` 反映真实笔画状态 | YES | `down` 内置 `hasInk.current = true`；`clear` 复位 |
 
-**Pre-existing submitScore tests still green?**
-YES — all 3 pre-existing tests pass unchanged:
-- "validates expert belongs to project" — fails before reaching new block.
-- "validates scoreItem belongs to project" — fails before reaching new block.
-- "upserts score record on valid input" — `bidScorePoint.findMany` defaults to `[]` → `points.length === 0` → new block skipped → `finalScore = Number(dto.score) = 10` → identical upsert assertion.
+## Concerns
 
-## Concerns / Notes
-- The proxy path remains non-transactional (per brief) — TOCTOU window vs. ExpertService's `$transaction` is a known, accepted difference. R1 (score divergence) is mitigated because both paths converge on the same pure helpers.
-- Audit log still records `dto.score` (the raw input), not `finalScore`. This preserves the existing audit contract (what the operator sent) and is arguably more useful for forensics; flagging in case reviewers expect `finalScore`.
-
-## Fix (I1)
-
-`pnpm --filter api test -- bid.service.spec` → 116 passed, 0 failed (output pristine).
+- **无 canvas/DOM 自动化测试**（按 brief 要求）。验证 = tsc clean + 逐项 self-review。
+- `canvasRef.current!` 在 `pos()` 中用非空断言：仅在 `down/move`（pointer 事件已在 canvas 上触发）内调用，挂载态有保障；仍属可接受的窄域断言。
+- 默认 `strokeColor='#1e3a5f'`、`lineWidth=2.5` 为硬编码；调用方可通过 props 覆盖 `strokeColor`，但 `lineWidth` 目前不可调（未列入 brief 接口，保持简洁）。
+- 高 DPI 屏幕**未**做 `devicePixelRatio` 缩放（canvas 内部 `width×height` 固定）；当前 600×320 在常见平板上够用，如需更清晰可后续按 DPR 放大 backing store。

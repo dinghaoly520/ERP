@@ -1621,6 +1621,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
       $transaction: jest.fn(async (cb: any) => cb({
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
         bidSupervisionLog: { create: jest.fn() },
+        bidSupplier: { update: jest.fn() },
       })),
     };
     const module: TestingModule = await Test.createTestingModule({
@@ -1645,6 +1646,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
     prisma.$transaction.mockImplementation(async (cb: any) => cb({
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
       bidSupervisionLog: { create: txLogCreate },
+      bidSupplier: { update: jest.fn() },
     }));
 
     await service.generateEvaluationResults('p1', 'actor1');
@@ -1665,6 +1667,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
     prisma.$transaction.mockImplementation(async (cb: any) => cb({
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
       bidSupervisionLog: { create: txLogCreate },
+      bidSupplier: { update: jest.fn() },
     }));
 
     await service.generateEvaluationResults('p1', 'actor1');
@@ -1792,5 +1795,54 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
       orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
       include: { points: { orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },
     });
+  });
+});
+
+/* ── 废标复核撤销（revokeInvalidBid）── */
+
+describe('BidService — revokeInvalidBid (废标复核撤销)', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidExpert: { findFirst: jest.fn() },
+      bidInvalidBid: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+      bidSupplier: { update: jest.fn() },
+      bidSupervisionLog: { create: jest.fn() },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: BidGateway, useValue: { notifyBidValidity: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('invalid → revoked + bidValidity=valid + WS', async () => {
+    prisma.bidInvalidBid.findUnique.mockResolvedValue({ id: 'ib1', projectId: 'p1', supplierId: 'sup1', status: 'invalid', failCount: 2, totalCount: 5 });
+    prisma.bidInvalidBid.findFirst.mockResolvedValue(null); // 撤销后无剩余 invalid 记录
+    prisma.bidInvalidBid.update.mockResolvedValue({ id: 'ib1', status: 'revoked' });
+    prisma.bidExpert.findFirst.mockResolvedValue(null); // 未锁定
+    await service.revokeInvalidBid('p1', 'sup1', 'si1', 'admin1');
+    expect(prisma.bidInvalidBid.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { status: 'revoked', revokedAt: expect.any(Date), revokedBy: 'admin1' },
+    }));
+    expect(prisma.bidSupplier.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { bidValidity: 'valid' },
+    }));
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
+  });
+
+  it('reportConfirmed 后 → 不可撤销（LOCKED）', async () => {
+    // 任一专家 reportConfirmed=true → 拒绝
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp1', reportConfirmed: true });
+    await expect(service.revokeInvalidBid('p1', 'sup1', 'si1', 'admin1'))
+      .rejects.toMatchObject({ response: { code: 'LOCKED' } });
+    expect(prisma.bidInvalidBid.update).not.toHaveBeenCalled();
   });
 });

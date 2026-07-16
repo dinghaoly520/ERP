@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ExpertController } from './expert.controller';
 import { ExpertService } from './expert.service';
+import { ExpertMemoService } from './expert-memo.service';
 
 describe('ExpertController', () => {
   let controller: ExpertController;
@@ -14,7 +15,19 @@ describe('ExpertController', () => {
     };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ExpertController],
-      providers: [{ provide: ExpertService, useValue: expertService }],
+      providers: [
+        { provide: ExpertService, useValue: expertService },
+        {
+          provide: ExpertMemoService,
+          useValue: {
+            getMemos: jest.fn(),
+            createMemo: jest.fn(),
+            updateMemo: jest.fn(),
+            deleteMemo: jest.fn(),
+            getInkUrl: jest.fn(),
+          },
+        },
+      ],
     }).compile();
     controller = module.get<ExpertController>(ExpertController);
   });

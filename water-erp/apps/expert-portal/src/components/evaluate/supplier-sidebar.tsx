@@ -15,6 +15,8 @@ interface SupplierSidebarProps {
   activeSupplier: string;
   onSelect: (supplierId: string) => void;
   conflictedSupplierIds: Set<string>;
+  /** Phase ④ Task 7: suppliers currently 废标 (invalid) — greyed out, scoring disabled but still selectable for viewing */
+  invalidSupplierIds?: Set<string>;
   decryptLabel: Record<string, string>;
   /** Optional scoring progress per supplier: `${supplierId}` → { scored, total } */
   scoringProgress?: Record<string, { scored: number; total: number }>;
@@ -25,6 +27,7 @@ export function SupplierSidebar({
   activeSupplier,
   onSelect,
   conflictedSupplierIds,
+  invalidSupplierIds,
   decryptLabel,
   scoringProgress,
 }: SupplierSidebarProps) {
@@ -47,6 +50,8 @@ export function SupplierSidebar({
         {suppliers.map((s) => {
           const isActive = s.id === activeSupplier;
           const isConflicted = conflictedSupplierIds.has(s.id);
+          // Phase ④ Task 7: 废标供应商 —— 置灰 + 徽章，但仍可选（可查看历史评分）
+          const isInvalid = invalidSupplierIds?.has(s.id) ?? false;
           const statusColor =
             s.decryptStatus === 'SUCCESS'
               ? 'bg-[#11a874]'
@@ -64,7 +69,7 @@ export function SupplierSidebar({
                 isActive
                   ? 'bg-blue-50/80 border border-[#bfdbfe]'
                   : 'border border-transparent hover:bg-[oklch(0.992_0.003_264)] hover:border-[oklch(0.94_0.004_264)]'
-              } rounded-lg`}
+              } ${isInvalid ? 'opacity-50' : ''} rounded-lg`}
             >
               {/* 左侧激活指示条 */}
               {isActive && (
@@ -108,6 +113,10 @@ export function SupplierSidebar({
                     <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1 rounded">
                       <Lock size={8} strokeWidth={2} className="inline mr-0.5 -mt-px" />
                       已回避
+                    </span>
+                  ) : isInvalid ? (
+                    <span className="text-[10px] font-bold text-[oklch(0.45_0.01_264)] bg-[oklch(0.92_0.004_264)] px-1 rounded">
+                      废标
                     </span>
                   ) : progress ? (
                     <span className="text-[10px] text-[oklch(0.48_0.01_264)] tabular-nums">
