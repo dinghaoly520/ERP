@@ -279,6 +279,7 @@ model BidProject {
   procurementProject     ProcurementProject?
   reviews                BidRequirementReview[]
   scoreReviews           BidScoreReview[]
+  invalidBids            BidInvalidBid[]
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
 
@@ -296,6 +297,7 @@ model BidSupplier {
   receiptNo             String?
   decryptStatus         DecryptStatus             @default(PENDING)
   confirmStatus         ConfirmStatus             @default(PENDING)
+  bidValidity           String                    @default("valid") // "valid" | "invalid"（冗余快查字段，由 BidInvalidBid 驱动）
   project               BidProject                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   supplier              Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   createdAt             DateTime                  @default(now())
@@ -305,6 +307,7 @@ model BidSupplier {
   scoreReviews          BidScoreReview[]
   bidderResults         AiBidderResult[]
   supervisionAnnotation BidSupervisionAnnotation?
+  invalidBids           BidInvalidBid[]
   decryptError          String? // 解密失败原因
 
   @@unique([projectId, supplierName])
@@ -390,6 +393,7 @@ model BidScoreItem {
   project         BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scoreRecords    BidScoreRecord[]
   points          BidScorePoint[]
+  invalidBids     BidInvalidBid[]
   createdAt       DateTime         @default(now())
 
   @@index([projectId])
@@ -568,6 +572,27 @@ model BidEvaluationResult {
 
   @@unique([projectId, supplierId])
   @@index([projectId, rank])
+}
+
+/// P4：无效标裁定记录（per project+supplier+scoreItemId，fail/total 计数，status invalid|revoked）
+/// 驱动 BidSupplier.bidValidity 冗余快查字段（valid|invalid）
+model BidInvalidBid {
+  id          String    @id @default(cuid())
+  projectId   String
+  supplierId  String
+  scoreItemId String
+  failCount   Int
+  totalCount  Int
+  status      String    @default("invalid") // "invalid" | "revoked"
+  decidedAt   DateTime  @default(now())
+  revokedAt   DateTime?
+  revokedBy   String?
+  project     BidProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier    BidSupplier   @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  scoreItem   BidScoreItem  @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, supplierId, scoreItemId])
+  @@index([projectId, supplierId])
 }
 
 // ── 专家管理 ──
