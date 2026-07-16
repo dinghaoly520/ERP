@@ -1504,6 +1504,7 @@ export default function ExpertEvaluatePage() {
                 )?.status as 'draft' | 'verified' | undefined
               }
               onVerified={loadProject}
+              onOpenMemo={() => setMemoOpen(true)}
             />
           )}
 

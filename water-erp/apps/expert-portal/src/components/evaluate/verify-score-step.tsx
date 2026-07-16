@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, ShieldCheck } from 'lucide-react';
+import { Check, ShieldCheck, StickyNote } from 'lucide-react';
 import { verifyScoreReview } from '@/lib/api';
 import { toast } from 'sonner';
 import {
@@ -23,6 +23,8 @@ interface Props {
   reviewStatus?: 'draft' | 'verified';
   /** 核对成功后 reload */
   onVerified: () => void;
+  /** P5 Task 7: 打开桌面端备忘抽屉 */
+  onOpenMemo?: () => void;
 }
 
 const key = (sid: string, iid: string) => `${sid}:${iid}`;
@@ -35,6 +37,7 @@ export function VerifyScoreStep({
   scores,
   reviewStatus,
   onVerified,
+  onOpenMemo,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const verified = reviewStatus === 'verified';
@@ -63,15 +66,28 @@ export function VerifyScoreStep({
   return (
     <div className="p-6 max-w-4xl mx-auto">
       {/* 标题 */}
-      <div className="mb-6 flex items-center gap-2">
-        <ShieldCheck size={20} strokeWidth={1.5} className="text-[#064ea2]" />
-        <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">
-          核对评分 — {supplierName}
-        </h2>
-        {verified && (
-          <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">
-            已核对
-          </span>
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={20} strokeWidth={1.5} className="text-[#064ea2]" />
+          <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">
+            核对评分 — {supplierName}
+          </h2>
+          {verified && (
+            <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">
+              已核对
+            </span>
+          )}
+        </div>
+        {/* P5 Task 7: 核对步骤备忘入口（与 scoring 步骤对称） */}
+        {onOpenMemo && (
+          <button
+            type="button"
+            onClick={onOpenMemo}
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white px-3 py-2 text-xs font-bold text-[oklch(0.4_0.012_265)] transition hover:bg-[oklch(0.97_0.005_264)]"
+            aria-label="打开备忘面板"
+          >
+            <StickyNote size={14} strokeWidth={1.7} /> 备忘
+          </button>
         )}
       </div>
       <p className="text-sm text-[oklch(0.55_0.01_264)] mb-6">
