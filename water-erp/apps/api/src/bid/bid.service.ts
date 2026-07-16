@@ -2332,4 +2332,55 @@ export class BidService {
 
     return { added: toInvite.length, skipped };
   }
+
+  // ── 废标复核撤销（决策 D：reportConfirmed 前可逆，之后锁定）──
+
+  async revokeInvalidBid(projectId: string, supplierId: string, scoreItemId: string, actorId: string) {
+    // 锁定检查：任一专家 reportConfirmed=true 即不可撤销
+    const anyConfirmed = await this.prisma.bidExpert.findFirst({
+      where: { projectId, reportConfirmed: true },
+    });
+    if (anyConfirmed) {
+      throw new BadRequestException({ error: '已有专家确认评审报告，废标不可撤销', code: 'LOCKED' });
+    }
+
+    const rec = await this.prisma.bidInvalidBid.findUnique({
+      where: { projectId_supplierId_scoreItemId: { projectId, supplierId, scoreItemId } },
+    });
+    if (!rec || rec.status === 'revoked') {
+      throw new BadRequestException({ error: '无有效废标记录', code: 'NOT_FOUND' });
+    }
+
+    await this.prisma.bidInvalidBid.update({
+      where: { id: rec.id },
+      data: { status: 'revoked', revokedAt: new Date(), revokedBy: actorId },
+    });
+    await this.prisma.bidSupplier.update({
+      where: { id: supplierId },
+      data: { bidValidity: 'valid' },
+    });
+
+    // WS 广播：供应商废标状态恢复（专家端取消置灰）
+    this.gateway?.notifyBidValidity?.(projectId, {
+      supplierId,
+      failCount: rec.failCount,
+      totalCount: rec.totalCount,
+      status: 'revoked',
+    });
+
+    // 监督日志：复核撤销废标
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId,
+        time: new Date(),
+        role: '管理员',
+        target: supplierId,
+        action: '复核撤销废标',
+        result: '恢复有效',
+        riskFlag: '中',
+      },
+    });
+
+    return { revoked: true };
+  }
 }
