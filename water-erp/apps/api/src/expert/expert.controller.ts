@@ -1,21 +1,40 @@
-import { Controller, Get, Post, Patch, Body, Param, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Query,
+  Body,
+  Param,
+  Res,
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ExpertService } from './expert.service';
+import { ExpertMemoService } from './expert-memo.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
 import { ConfirmReportDto } from './dto/confirm-report.dto';
 import { ConfirmAvoidanceDto } from './dto/confirm-avoidance.dto';
+import { CreateMemoDto } from './dto/create-memo.dto';
+import { UpdateMemoDto } from './dto/update-memo.dto';
 
 @ApiTags('专家评审')
 @Controller('expert')
 @Roles('bid_expert')
 export class ExpertController {
-  constructor(private expertService: ExpertService) {}
+  constructor(
+    private expertService: ExpertService,
+    private memoService: ExpertMemoService,
+  ) {}
 
   /* ── 个人资料 ── */
   @Get('profile')
@@ -220,5 +239,64 @@ export class ExpertController {
     @Body() dto?: ConfirmReportDto,
   ) {
     return this.expertService.confirmReport(userId, projectId, dto?.comment);
+  }
+
+  /* ── 评审备忘（手写备忘 CRUD + 墨迹原图上传 / 预签名下载）── */
+
+  @ApiOperation({ summary: '备忘列表（仅当前专家，可按供应商过滤）' })
+  @Get('projects/:projectId/memos')
+  listMemos(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Query('supplierId') supplierId?: string,
+  ) {
+    return this.memoService.getMemos(userId, projectId, supplierId);
+  }
+
+  @ApiOperation({ summary: '创建备忘（支持 multipart 墨迹 PNG 上传，OCR 自动降级）' })
+  @Post('projects/:projectId/memos')
+  @UseInterceptors(FileInterceptor('ink', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  async createMemo(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Body() dto: CreateMemoDto,
+    @UploadedFile() ink?: Express.Multer.File,
+  ) {
+    return this.memoService.createMemo(userId, projectId, {
+      ...dto,
+      inkBuffer: ink?.buffer,
+      sourceDevice: dto.sourceDevice,
+    });
+  }
+
+  @ApiOperation({ summary: '修改备忘文字内容' })
+  @Patch('projects/:projectId/memos/:memoId')
+  updateMemo(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Param('memoId') memoId: string,
+    @Body() dto: UpdateMemoDto,
+  ) {
+    return this.memoService.updateMemo(userId, projectId, memoId, dto);
+  }
+
+  @ApiOperation({ summary: '删除备忘' })
+  @Delete('projects/:projectId/memos/:memoId')
+  deleteMemo(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Param('memoId') memoId: string,
+  ) {
+    return this.memoService.deleteMemo(userId, projectId, memoId);
+  }
+
+  @ApiOperation({ summary: '获取墨迹原图预签名 URL' })
+  @Get('projects/:projectId/memos/:memoId/ink')
+  getInkUrl(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Param('memoId') memoId: string,
+  ) {
+    return this.memoService.getInkUrl(userId, projectId, memoId);
   }
 }

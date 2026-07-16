@@ -295,6 +295,21 @@ export interface EvaluationReport {
   myDisputedReviews?: Array<{ supplierId: string; supplierName: string; requirementId: string; category: string; tenderContent: string; note: string }>;
 }
 
+/* ── 专家手写备忘（Phase ⑤）── */
+
+export interface ExpertMemo {
+  id: string;
+  expertId: string;
+  projectId: string;
+  supplierId?: string | null;
+  scoreItemId?: string | null;
+  contentText?: string | null;
+  inkFileId?: string | null;
+  sourceDevice?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /* ── 供应商端 ── */
 
 export interface Supplier {

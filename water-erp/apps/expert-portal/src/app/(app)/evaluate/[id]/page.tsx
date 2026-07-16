@@ -8,7 +8,7 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
-import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale, StickyNote } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
@@ -16,6 +16,7 @@ import { DocumentsStep } from '@/components/evaluate/documents-step';
 import { ReportStep } from '@/components/evaluate/report-step';
 import { VerifyScoreStep } from '@/components/evaluate/verify-score-step';
 import { PointChecklistScoring } from '@/components/evaluate/point-checklist-scoring';
+import { MemoPanel } from '@/components/memo/memo-panel';
 import { formatBytes } from '@/lib/utils';
 
 type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'verify-score' | 'report';
@@ -64,6 +65,8 @@ export default function ExpertEvaluatePage() {
   // P3: real-time status board
   const [liveEvents, setLiveEvents] = useState<{ time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[]>([]);
   const [aggregatePresence, setAggregatePresence] = useState<any>(null);
+  // P5 Task 7: 桌面端备忘抽屉（scoring / verify-score 步骤可开启；键盘输入为主，可查看平板墨迹）
+  const [memoOpen, setMemoOpen] = useState(false);
 
   const pushLiveEvent = (label: string, icon: typeof liveEvents[0]['icon']) => {
     setLiveEvents(prev => [{ time: Date.now(), label, icon }, ...prev].slice(0, 20));
@@ -1222,9 +1225,20 @@ export default function ExpertEvaluatePage() {
           {/* ====== 专家打分 ====== */}
           {step === 'scoring' && (
             <div className="p-6">
-              <div className="mb-6">
-                <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">专家独立打分</h2>
-                <p className="text-sm text-[oklch(0.55_0.01_264)] mt-0.5">请根据您的专业判断进行客观评分</p>
+              <div className="mb-6 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">专家独立打分</h2>
+                  <p className="text-sm text-[oklch(0.55_0.01_264)] mt-0.5">请根据您的专业判断进行客观评分</p>
+                </div>
+                {/* P5 Task 7: 桌面端备忘入口（键盘输入 + 查看平板墨迹） */}
+                <button
+                  type="button"
+                  onClick={() => setMemoOpen(true)}
+                  className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white px-3 py-2 text-xs font-bold text-[oklch(0.4_0.012_265)] transition hover:bg-[oklch(0.97_0.005_264)]"
+                  aria-label="打开备忘面板"
+                >
+                  <StickyNote size={14} strokeWidth={1.7} /> 备忘
+                </button>
               </div>
 
               {/* P0-3: draft recovery banner */}
@@ -1490,6 +1504,7 @@ export default function ExpertEvaluatePage() {
                 )?.status as 'draft' | 'verified' | undefined
               }
               onVerified={loadProject}
+              onOpenMemo={() => setMemoOpen(true)}
             />
           )}
 
@@ -1500,6 +1515,50 @@ export default function ExpertEvaluatePage() {
             </div>
           </div>
         </div>
+
+        {/* ====== P5 Task 7: 桌面端备忘抽屉（scoring / verify-score 可开启；键盘输入 + 查看平板墨迹）====== */}
+        {memoOpen && (step === 'scoring' || step === 'verify-score') && (
+          <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-label="专家备忘面板">
+            {/* 点击遮罩关闭 */}
+            <button
+              type="button"
+              aria-label="关闭备忘面板"
+              className="absolute inset-0 bg-black/20"
+              onClick={() => setMemoOpen(false)}
+            />
+            <aside className="relative z-10 flex h-full w-[400px] max-w-[90vw] flex-col bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-[oklch(0.91_0.006_264)] px-4 py-3">
+                <h2 className="flex items-center gap-1.5 text-sm font-bold text-[oklch(0.18_0.012_265)]">
+                  <StickyNote size={14} strokeWidth={1.7} /> 专家备忘
+                  {activeSupplier && (
+                    <span className="ml-1 rounded-full bg-[oklch(0.95_0.005_264)] px-2 py-0.5 text-[10px] font-semibold text-[oklch(0.55_0.01_264)]">
+                      {project?.suppliers.find(s => s.id === activeSupplier)?.supplierName || '当前供应商'}
+                    </span>
+                  )}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setMemoOpen(false)}
+                  aria-label="关闭"
+                  className="rounded p-1 text-[oklch(0.55_0.01_264)] transition hover:bg-[oklch(0.96_0.004_264)]"
+                >
+                  <X size={16} strokeWidth={1.7} />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                {activeSupplier ? (
+                  <MemoPanel
+                    projectId={projectId}
+                    supplierId={activeSupplier}
+                    sourceDevice="desktop"
+                  />
+                ) : (
+                  <p className="py-6 text-center text-xs text-[oklch(0.62_0.008_264)]">请先在左侧选择供应商</p>
+                )}
+              </div>
+            </aside>
+          </div>
+        )}
       </div>
   );
 }
