@@ -202,7 +202,7 @@ export function MemoPanel({
             </button>
           </div>
         </div>
-        <AtramentCanvas ref={canvasRef} width={560} height={400} className="flex-1 rounded-none border-0" />
+        <AtramentCanvas ref={canvasRef} width={800} height={560} className="flex-1 rounded-none border-0" />
         <div className="flex items-center gap-2 px-4 py-2 border-t">
           <button type="button" onClick={() => { canvasRef.current?.clear(); }}
             className="rounded-lg border px-3 py-1.5 text-xs">清空</button>
@@ -255,7 +255,7 @@ export function MemoPanel({
             {toolbar}
             <div className="relative" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
               onContextMenu={e => e.preventDefault()}>
-              <AtramentCanvas ref={canvasRef} height={compact ? 280 : 400} />
+              <AtramentCanvas ref={canvasRef} height={compact ? 320 : 420} />
               <button type="button" onClick={() => setFullscreen(true)}
                 className="absolute right-2 top-2 rounded-md bg-white/70 p-1 text-[oklch(0.45_0.01_264)] hover:bg-white hover:text-[#064ea2] transition"
                 title="全屏手写">

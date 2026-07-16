@@ -55,13 +55,8 @@ function drawPath(ctx: CanvasRenderingContext2D, pts: Point[], baseW: number) {
 }
 
 export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
-  ({ width = 400, height = 280, strokeColor = '#1e3a5f', baseWeight = 6, className = '', onDirtyChange },
+  ({ width = 600, height = 420, strokeColor = '#1e3a5f', baseWeight = 6, className = '', onDirtyChange },
    ref) => {
-    // Retina：内部分辨率 = 逻辑尺寸 × DPR，ctx.scale(dpr) 让坐标保持逻辑像素
-    const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 2) : 2;
-    const iw = Math.round(width * dpr);
-    const ih = Math.round(height * dpr);
-
     const visRef = useRef<HTMLCanvasElement>(null);
     const bgRef = useRef<HTMLCanvasElement | null>(null);
     const bgCtxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -75,16 +70,21 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
     const mode = useRef<'draw' | 'erase'>('draw');
 
     const toLocal = (e: PointerEvent): Point => {
-      const c = visRef.current!; const r = c.getBoundingClientRect();
+      const c = visRef.current!;
+      const r = c.getBoundingClientRect();
+      const x = (e.clientX - r.left) * (width / r.width);
+      const y = (e.clientY - r.top) * (height / r.height);
       const pv = e.pressure;
-      return { x: (e.clientX - r.left)*(width/r.width), y: (e.clientY - r.top)*(height/r.height),
-               pressure: (pv > 0 && pv <= 1) ? pv : 0.5 };
+      return { x, y, pressure: (pv > 0 && pv <= 1) ? pv : 0.5 };
     };
+
+    // 手掌抑制：只接受 Apple Pencil（pointerType='pen'），手指/鼠标不画
+    const isPen = (e: PointerEvent) => e.pointerType === 'pen';
 
     const redraw = () => {
       const vc = visCtxRef.current; const bg = bgRef.current;
       if (!vc || !bg) return;
-      vc.save(); vc.setTransform(dpr, 0, 0, dpr, 0, 0);
+      vc.save(); vc.setTransform(1, 0, 0, 1, 0, 0);
       vc.clearRect(0, 0, width, height);
       vc.drawImage(bg, 0, 0);
       vc.restore();
@@ -112,16 +112,18 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
 
     const onDown = (e: PointerEvent) => {
       e.preventDefault();
+      // 手掌抑制：只接受 Apple Pencil
+      if (!isPen(e)) return;
       const v = visRef.current; if (!v) return;
       if (!visCtxRef.current) {
         const vc = v.getContext('2d', { willReadFrequently: true });
         if (!vc) return;
-        vc.lineCap = 'round'; vc.lineJoin = 'round'; vc.scale(dpr, dpr); visCtxRef.current = vc;
+        vc.lineCap = 'round'; vc.lineJoin = 'round'; visCtxRef.current = vc;
       }
       if (!bgRef.current) {
-        const b = document.createElement('canvas'); b.width = iw; b.height = ih;
+        const b = document.createElement('canvas'); b.width = width; b.height = height;
         const bc = b.getContext('2d', { willReadFrequently: true })!;
-        bc.lineCap = 'round'; bc.lineJoin = 'round'; bc.scale(dpr, dpr); bgRef.current = b; bgCtxRef.current = bc;
+        bc.lineCap = 'round'; bc.lineJoin = 'round'; bgRef.current = b; bgCtxRef.current = bc;
       }
       snap();
       pathPts.current = [toLocal(e)];
@@ -129,13 +131,16 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
     };
 
     const onMove = (e: PointerEvent) => {
-      if (!drawing.current) return; e.preventDefault();
+      if (!drawing.current) return;
+      if (!isPen(e)) return; // 手掌/手指不给加轨迹
+      e.preventDefault();
       pathPts.current.push(toLocal(e));
       redraw();
     };
 
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
       if (!drawing.current) return;
+      if (e.pointerType !== 'pen') return; // 手掌抬起别把笔的 stroke 关了
       drawing.current = false;
       commitToBg();
       pathPts.current = [];
@@ -149,7 +154,7 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       // 先解绑旧事件
       if (cleanupRef.current) { cleanupRef.current(); cleanupRef.current = null; }
       if (el) {
-        el.width = iw; el.height = ih;
+        el.width = width; el.height = height;
         el.addEventListener('pointerdown', onDown);
         el.addEventListener('pointermove', onMove);
         el.addEventListener('pointerup', onUp);
