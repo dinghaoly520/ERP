@@ -215,6 +215,8 @@ export default function ExpertEvaluatePage() {
           return;
         }
         setProject(p);
+        // M-2: hydrate invalid supplier IDs from server data so grey-out survives page refresh.
+        setInvalidSupplierIds(new Set((p.suppliers || []).filter(s => (s as any).bidValidity === 'invalid').map(s => s.id)));
         // P0-1: hydrate with composite keys so each supplier's scores are isolated.
         const existing: Record<string, { score: number; reason: string }> = {};
         p.myScores.forEach((rec: { supplierId: string; scoreItemId: string; score: number; reason?: string }) => {

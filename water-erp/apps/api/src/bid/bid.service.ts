@@ -1228,13 +1228,16 @@ export class BidService {
         });
       }
       // ── 权威重算 bidValidity：覆盖实时触发器可能的多-item race 终态 ──
-      // 遍历 ALL suppliers（含非 active），以 passFailVerdicts 为准：
-      //   disqualified → 'invalid'；不在 passFailVerdicts 中或 false → 'valid'
+      // 仅重算 active 供应商（passFailVerdicts 只含 activeSuppliers）。
+      // 已被实时触发器判定为 invalid 的非 active 供应商不在 passFailVerdicts 中，
+      // 跳过更新以保留其既有 invalid 状态（避免误恢复为 valid）。
       for (const s of project.suppliers) {
-        await tx.bidSupplier.update({
-          where: { id: s.id },
-          data: { bidValidity: passFailVerdicts.get(s.id) ? 'invalid' : 'valid' },
-        });
+        if (passFailVerdicts.has(s.id)) {
+          await tx.bidSupplier.update({
+            where: { id: s.id },
+            data: { bidValidity: passFailVerdicts.get(s.id) ? 'invalid' : 'valid' },
+          });
+        }
       }
 
       await tx.bidSupervisionLog.create({
@@ -2365,10 +2368,16 @@ export class BidService {
       where: { id: rec.id },
       data: { status: 'revoked', revokedAt: new Date(), revokedBy: actorId },
     });
-    await this.prisma.bidSupplier.update({
-      where: { id: supplierId },
-      data: { bidValidity: 'valid' },
+    // 仅当该供应商已无任何有效废标记录时才恢复为 valid（多 item 场景：另一 item 仍 invalid）
+    const stillInvalid = await this.prisma.bidInvalidBid.findFirst({
+      where: { projectId, supplierId, status: 'invalid' },
     });
+    if (!stillInvalid) {
+      await this.prisma.bidSupplier.update({
+        where: { id: supplierId },
+        data: { bidValidity: 'valid' },
+      });
+    }
 
     // WS 广播：供应商废标状态恢复（专家端取消置灰）
     this.gateway?.notifyBidValidity?.(projectId, {
