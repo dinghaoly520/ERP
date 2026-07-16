@@ -1621,6 +1621,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
       $transaction: jest.fn(async (cb: any) => cb({
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
         bidSupervisionLog: { create: jest.fn() },
+        bidSupplier: { update: jest.fn() },
       })),
     };
     const module: TestingModule = await Test.createTestingModule({
@@ -1645,6 +1646,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
     prisma.$transaction.mockImplementation(async (cb: any) => cb({
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
       bidSupervisionLog: { create: txLogCreate },
+      bidSupplier: { update: jest.fn() },
     }));
 
     await service.generateEvaluationResults('p1', 'actor1');
@@ -1665,6 +1667,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
     prisma.$transaction.mockImplementation(async (cb: any) => cb({
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
       bidSupervisionLog: { create: txLogCreate },
+      bidSupplier: { update: jest.fn() },
     }));
 
     await service.generateEvaluationResults('p1', 'actor1');

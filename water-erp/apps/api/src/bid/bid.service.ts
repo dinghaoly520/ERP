@@ -1101,7 +1101,7 @@ export class BidService {
     }
 
     const activeSuppliers = project.suppliers.filter(
-      s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED',
+      s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED' && s.bidValidity !== 'invalid',
     );
 
     // 保证金软标记：bondRequired 时查各供应商 bondStatus，异常者写监督日志（不排除，由评标委员会定）
@@ -1227,6 +1227,16 @@ export class BidService {
           })),
         });
       }
+      // ── 权威重算 bidValidity：覆盖实时触发器可能的多-item race 终态 ──
+      // 遍历 ALL suppliers（含非 active），以 passFailVerdicts 为准：
+      //   disqualified → 'invalid'；不在 passFailVerdicts 中或 false → 'valid'
+      for (const s of project.suppliers) {
+        await tx.bidSupplier.update({
+          where: { id: s.id },
+          data: { bidValidity: passFailVerdicts.get(s.id) ? 'invalid' : 'valid' },
+        });
+      }
+
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '系统', target: project.name,
