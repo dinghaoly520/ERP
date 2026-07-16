@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   AlertTriangle, ArrowLeft, RefreshCw,
@@ -23,6 +23,8 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState(false);
   const [authRetrying, setAuthRetrying] = useState(false);
+  const retryRef = useRef(0);
+  const MAX_RETRIES = 3;
 
   const checkAuth = () => {
     setAuthRetrying(true);
@@ -36,11 +38,15 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
         setUser(u);
         setAuthError(false);
         setAuthRetrying(false);
+        retryRef.current = 0;
       })
       .catch(() => {
         setAuthError(true);
         setAuthRetrying(false);
-        setTimeout(() => { if (!user) checkAuth(); }, 3000);
+        if (retryRef.current < MAX_RETRIES) {
+          retryRef.current++;
+          setTimeout(checkAuth, 3000 * retryRef.current);
+        }
       });
   };
 
@@ -98,7 +104,7 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
           <span className="flex-1 font-semibold text-amber-700">身份验证失败，请检查网络后重试</span>
           <button
             type="button"
-            onClick={checkAuth}
+            onClick={() => { retryRef.current = 0; checkAuth(); }}
             disabled={authRetrying}
             className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-600 disabled:opacity-50"
           >

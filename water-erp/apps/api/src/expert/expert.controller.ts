@@ -255,7 +255,7 @@ export class ExpertController {
 
   @ApiOperation({ summary: '创建备忘（支持 multipart 墨迹 PNG 上传，OCR 自动降级）' })
   @Post('projects/:projectId/memos')
-  @UseInterceptors(FileInterceptor('ink'))
+  @UseInterceptors(FileInterceptor('ink', { limits: { fileSize: 10 * 1024 * 1024 } }))
   async createMemo(
     @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
