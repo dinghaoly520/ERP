@@ -162,6 +162,10 @@ export function getExpertEvalStats() {
   return api.get<ExpertEvalStats>('/expert-admin/evaluations/stats');
 }
 
+export function getExpertDimensionStats() {
+  return api.get<{ attendanceAvg: number; qualityAvg: number; disciplineAvg: number; total: number }>('/expert-admin/evaluations/dimensions');
+}
+
 /* ── 采购项目（抽取页选择用）── */
 
 export interface BidProjectOption {

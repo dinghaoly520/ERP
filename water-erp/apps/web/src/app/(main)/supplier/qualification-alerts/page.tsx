@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Building2, Clock3, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, Building2, Clock3 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getQualificationAlerts } from '@/lib/api/supplier';
 import type { QualificationAlerts, QualificationAlertItem } from '@/lib/api/supplier';
@@ -28,7 +28,10 @@ export default function QualificationAlertsPage() {
             <div><div className="page-hero__title">资质到期预警</div><div className="page-hero__sub">监控供应商资质有效期，提前发现到期风险</div></div>
           </div>
           <div className="page-hero__right">
-            <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft"><ArrowLeft size={15} />返回供应商库</button>
+            <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              返回供应商库
+            </button>
           </div>
         </div>
       </div>

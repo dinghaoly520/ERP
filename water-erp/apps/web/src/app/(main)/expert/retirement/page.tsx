@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getRetireCandidates, confirmRetire } from '@/lib/api/expert';
 import { StatusBadge } from '@/components/workbench';
-import { AlertTriangle, RefreshCw, Check, UserX, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, Check, RefreshCw, UserX } from 'lucide-react';
 
 export default function RetirementPage() {
   const router = useRouter();
@@ -44,8 +44,9 @@ export default function RetirementPage() {
             <div><div className="page-hero__title">退库管理</div><div className="page-hero__sub">扫描连续 D 级评价或 12 个月无分配的专家，人工复核确认退库</div></div>
           </div>
           <div className="page-hero__right">
-            <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft gap-1"><ArrowLeft size={14} />返回专家库</button>
-            <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
+            <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              返回专家库</button>
           </div>
         </div>
         <div className="page-hero__divider">

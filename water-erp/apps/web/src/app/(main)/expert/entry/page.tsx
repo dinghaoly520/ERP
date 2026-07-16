@@ -68,7 +68,9 @@ export default function ExpertEntryPage() {
             <div><div className="page-hero__title">专家录入</div><div className="page-hero__sub">录入评审专家基础资料、专业方向和可用状态，录入后专家即可参与项目评审抽取</div></div>
           </div>
           <div className="page-hero__right">
-            <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft">返回专家库</button>
+            <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              返回专家库</button>
           </div>
         </div>
       </div>

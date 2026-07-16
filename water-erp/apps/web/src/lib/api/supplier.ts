@@ -238,9 +238,17 @@ export function confirmEliminate(id: string, reason: string) {
   return api.post<{ success: boolean }>(`/supplier/${id}/eliminate`, { reason });
 }
 
-// ── 分配分类 ──
-export function assignClassification(supplierId: string, classificationId: string) {
-  return api.patch<Supplier>(`/supplier/${supplierId}/classification`, { classificationId });
+// ── 多分类标签管理 ──
+export interface SupplierClassificationLink {
+  supplierId: string; classificationId: string;
+  classification: SupplierClassification;
+  assignedAt: string;
+}
+export function getSupplierClassifications(supplierId: string) {
+  return api.get<SupplierClassificationLink[]>(`/supplier/${supplierId}/classifications`);
+}
+export function setSupplierClassifications(supplierId: string, classificationIds: string[]) {
+  return api.put<SupplierClassificationLink[]>(`/supplier/${supplierId}/classifications`, { classificationIds });
 }
 
 // ── 收藏 ──
@@ -256,6 +264,30 @@ export function getFavorites() {
 export interface ActivityItem { id: string; action: string; resourceId: string; details: any; actorName: string; at: string; }
 export function getRecentActivities(limit?: number) {
   return api.get<ActivityItem[]>(`/supplier/recent-activities?limit=${limit ?? 15}`);
+}
+
+// ── AI 供应商综合画像分析 ──
+export interface PortraitInsight { label: string; value: string; interpretation: string; tone: string; icon: string; }
+export interface SupplierPortraitAnalysis {
+  supplierId: string; supplierName: string; analyzedAt: string;
+  overview: string; strengths: string[]; risks: string[]; suggestions: string[];
+  metrics: PortraitInsight[]; historySummary: string; suitableFor: string[];
+}
+export function getSupplierPortraitAnalysis(supplierId: string) {
+  return api.post<SupplierPortraitAnalysis>('/ai/supplier-portrait-analysis', { supplierId });
+}
+
+// ── AI 评价维度分析 ──
+export interface DimensionAnalysis {
+  dimension: string; suggestedScore: number; maxScore: number;
+  rationale: string; evidencePoints: string[];
+}
+export interface EvaluationAnalysisResult {
+  supplierId: string; supplierName: string; analyzedAt: string;
+  dimensions: DimensionAnalysis[]; overallSuggestion: number; summary: string;
+}
+export function getSupplierEvaluationAnalysis(supplierId: string) {
+  return api.post<EvaluationAnalysisResult>('/ai/supplier-evaluation-analysis', { supplierId });
 }
 
 // ── 评价维度统计 ──

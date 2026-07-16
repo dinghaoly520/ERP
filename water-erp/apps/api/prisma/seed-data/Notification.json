@@ -735,5 +735,115 @@
     "resolvedAt": null,
     "link": "/notifications",
     "createdAt": "2026-07-13T05:00:00.000Z"
+  },
+  {
+    "id": "z41xs81mhlj8rlvunbeos2rh",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "type": "SUPPLIER_PENDING",
+    "title": "供应商审批",
+    "content": "四川水发检测公司、成都水利监理有限公司、绵阳建材有限公司已提交注册申请，请及时完成资质审核。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/supplier?tab=pending",
+    "createdAt": "2026-07-16T03:04:08.771Z"
+  },
+  {
+    "id": "a5oursm430g2hbr587jh2kgz",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "type": "BID_OPENING",
+    "title": "开标通知",
+    "content": "岷江流域防洪治理项目定于7月22日10:00在集团2号评标室开标，请提前准备签到、解密设备及监督记录表。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bid/open",
+    "createdAt": "2026-07-16T03:04:08.777Z"
+  },
+  {
+    "id": "h2qe5uetg96n9z1flw0ckxsp",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "type": "BID_PUBLISHED",
+    "title": "公告发布",
+    "content": "2026年度水利工程物资集中采购招标公告已在信息门户首页公示，公示期7个工作日，截止8月3日。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/notice",
+    "createdAt": "2026-07-16T03:04:08.780Z"
+  },
+  {
+    "id": "qurlnb7o13zxgrk5v5vw2ex6",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "type": "SYSTEM",
+    "title": "预算预警",
+    "content": "OA系统升级改造项目当前报价超出预算12%（预算150万，最低报价168万），请核实是否需要调整预算。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/dashboard",
+    "createdAt": "2026-07-16T03:04:08.782Z"
+  },
+  {
+    "id": "do8f2bh68yibpt9p9qlj35vk",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "type": "CATALOG_APPLICATION",
+    "title": "目录更新",
+    "content": "电子商城本季度新增商品类目12个、价格调整15条，请在商城管理中复核新增条目定价。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/mall-management",
+    "createdAt": "2026-07-16T03:04:08.785Z"
+  },
+  {
+    "id": "h0wudmlq79eua541yabshky8",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "type": "CLARIFICATION_REPLIED",
+    "title": "澄清请求",
+    "content": "成都信息公司对智慧水务项目技术规格书第2.3、3.1、5.4条款提出澄清，请在48小时内回复。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/bid/clarifications",
+    "createdAt": "2026-07-16T03:04:08.787Z"
+  },
+  {
+    "id": "c0neyw6cs13kf0ni46z85boh",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "type": "SYSTEM",
+    "title": "合同提醒",
+    "content": "大坝安全监测设备采购项目已完成定标，请在5个工作日内起草合同文本并上传至合同管理模块。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/procurements",
+    "createdAt": "2026-07-16T03:04:08.790Z"
+  },
+  {
+    "id": "q8td25jbmvnhiyhfgan9i0aj",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "type": "SYSTEM",
+    "title": "专家抽取",
+    "content": "农村供水管网改造项目已抽取5位评标专家（水利工程3位、经济2位），备选2位，请在专家管理中心确认名单。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/expert",
+    "createdAt": "2026-07-16T03:04:08.792Z"
+  },
+  {
+    "id": "oq01ba4augab02gfv41pjosy",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "type": "SYSTEM",
+    "title": "阶段变更",
+    "content": "智慧水务大数据平台项目阶段已由专家抽取推进至评标过程，需在7月25日前完成所有专家打分。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/projects",
+    "createdAt": "2026-07-16T03:04:08.795Z"
+  },
+  {
+    "id": "w0jxr6x9rnw5v5dyok2ncr10",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "type": "SYSTEM",
+    "title": "工作安排",
+    "content": "系统已按模板生成本周工作安排（共5项），包含2个紧急审批项，请在工作台页面查看并确认。",
+    "isRead": false,
+    "resolvedAt": null,
+    "link": "/work-arrangements",
+    "createdAt": "2026-07-16T03:04:08.797Z"
   }
 ]

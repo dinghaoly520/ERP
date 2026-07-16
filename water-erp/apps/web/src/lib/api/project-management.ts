@@ -278,6 +278,10 @@ export type ExtractedInfo = {
   awardedSupplier: string | null;
   contractAmount: number | null;
   contractNumber: string | null;
+  projectOverview: string | null;
+  bidOpeningTime: string | null;
+  invitedSuppliers: string | null;
+  paymentPerformance: string | null;
 };
 
 export type UploadStageAttachmentResult = ProjectManagementAttachment & {

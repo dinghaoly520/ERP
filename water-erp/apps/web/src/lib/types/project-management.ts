@@ -163,8 +163,12 @@ export type ProjectManagementItem = {
   demandContractNumber?: string | null;
   contractNumber?: string | null;
   departmentNumber?: string | null;
-  // 提取的关键信息
+  // 提取的关键信息（分步骤展示）
   initiationDate?: string | null;
+  projectOverview?: string | null;
+  bidOpeningTime?: string | null;
+  invitedSuppliers?: string | null;
+  paymentPerformance?: string | null;
   expertInfo?: string | null;
   biddingUnits?: string | null;
   awardedSupplier?: string | null;

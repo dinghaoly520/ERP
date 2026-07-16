@@ -152,16 +152,19 @@ export interface NotificationMeta {
 }
 
 export const NOTIFICATION_META: Record<string, NotificationMeta> = {
-  SUPPLIER_APPROVED:       { icon: 'CheckCircle2', tone: 'green',  actionable: false },
-  SUPPLIER_REJECTED:       { icon: 'XCircle',       tone: 'red',    actionable: false },
-  SUPPLIER_RETURNED:       { icon: 'RotateCcw',     tone: 'orange', actionable: false },
-  SUPPLIER_PENDING:        { icon: 'UserCheck',     tone: 'blue',   actionable: true  },
-  QUALIFICATION_EXPIRING:  { icon: 'AlertTriangle', tone: 'orange', actionable: true  },
-  BID_PUBLISHED:           { icon: 'FileText',      tone: 'blue',   actionable: false },
-  BID_REMINDER:            { icon: 'Clock',         tone: 'orange', actionable: true  },
-  PRICE_REVIEW:            { icon: 'Tag',           tone: 'purple', actionable: true  },
-  CATALOG_APPLICATION:     { icon: 'Package',       tone: 'gray',   actionable: false },
-  SYSTEM:                  { icon: 'Info',          tone: 'gray',   actionable: false },
+  SUPPLIER_APPROVED:       { icon: 'CheckCircle2',     tone: 'green',  actionable: false },
+  SUPPLIER_REJECTED:       { icon: 'XCircle',           tone: 'red',    actionable: false },
+  SUPPLIER_RETURNED:       { icon: 'RotateCcw',         tone: 'orange', actionable: false },
+  SUPPLIER_PENDING:        { icon: 'UserCheck',         tone: 'blue',   actionable: true  },
+  QUALIFICATION_EXPIRING:  { icon: 'AlertTriangle',     tone: 'orange', actionable: true  },
+  BID_PUBLISHED:           { icon: 'Megaphone',         tone: 'blue',   actionable: false },
+  BID_REMINDER:            { icon: 'Clock',             tone: 'orange', actionable: true  },
+  BID_OPENING:             { icon: 'Gavel',             tone: 'blue',   actionable: false },
+  BID_EVALUATION_RESULT:   { icon: 'Award',             tone: 'green',  actionable: false },
+  CLARIFICATION_REPLIED:   { icon: 'MessageCircle',     tone: 'purple', actionable: false },
+  PRICE_REVIEW:            { icon: 'Tag',               tone: 'purple', actionable: true  },
+  CATALOG_APPLICATION:     { icon: 'ShoppingBag',       tone: 'gray',   actionable: false },
+  SYSTEM:                  { icon: 'Bell',              tone: 'gray',   actionable: false },
 };
 
 export const NOTIFICATION_META_DEFAULT: NotificationMeta = { icon: 'Bell', tone: 'gray', actionable: false };

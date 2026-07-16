@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundEx
 import { mkdir, readFile, unlink, writeFile, copyFile, access, stat } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { createReadStream } from 'node:fs';
+import JSZip = require('jszip');
 import { Response } from 'express';
 import { ResultStatus, SourceType } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
@@ -470,6 +471,34 @@ export class ProjectManagementService {
         }
       } catch (err) {
         this.logger.warn(`Failed to extract expert info from document: ${err}`);
+      }
+    }
+
+    // For TENDER_DOCUMENT stage, extract project overview and bid opening time
+    if (stageKey === 'TENDER_DOCUMENT') {
+      try {
+        const text = await this.extractFileText(absolutePath, file.mimetype, file.originalname);
+        this.logger.log(`[TENDER_DOCUMENT] Extracted ${text.length} chars from ${file.originalname}`);
+
+        const rawOverview = this.extractProjectOverviewFromText(text);
+        if (rawOverview) {
+          const projectOverview = await this.aiMinimalPolish(rawOverview);
+          await this.prisma.projectManagementItem.update({
+            where: { id: projectId },
+            data: { projectOverview },
+          });
+        }
+
+        const rawBidTime = this.extractBidOpeningTimeFromText(text);
+        if (rawBidTime) {
+          const bidOpeningTime = await this.aiMinimalPolish(rawBidTime);
+          await this.prisma.projectManagementItem.update({
+            where: { id: projectId },
+            data: { bidOpeningTime },
+          });
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to extract info from tender document: ${err}`);
       }
     }
 
@@ -2748,6 +2777,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
       demandContractNumber?: string;
       contractNumber?: string;
       departmentNumber?: string;
+      projectOverview?: string;
+      bidOpeningTime?: string;
+      invitedSuppliers?: string;
+      paymentPerformance?: string;
     },
   ) {
     const project = await this.prisma.projectManagementItem.findUnique({
@@ -2801,6 +2834,22 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     if (dto.departmentNumber !== undefined) {
       updateData.departmentNumber = dto.departmentNumber || null;
+    }
+
+    if (dto.projectOverview !== undefined) {
+      updateData.projectOverview = dto.projectOverview || null;
+    }
+
+    if (dto.bidOpeningTime !== undefined) {
+      updateData.bidOpeningTime = dto.bidOpeningTime || null;
+    }
+
+    if (dto.invitedSuppliers !== undefined) {
+      updateData.invitedSuppliers = dto.invitedSuppliers || null;
+    }
+
+    if (dto.paymentPerformance !== undefined) {
+      updateData.paymentPerformance = dto.paymentPerformance || null;
     }
 
     return this.prisma.projectManagementItem.update({
@@ -4151,7 +4200,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
           clearData.initiationDate = null;
         } else if (stage.stageKey === 'TENDER_DOCUMENT') {
           clearData.evaluationMethod = null;
-        } else if (stage.stageKey === 'AWARD_DECISION') {
+          clearData.projectOverview = null;
+          clearData.bidOpeningTime = null;
+        } else if (stage.stageKey === 'EXPERT_SELECTION') {
+          clearData.expertInfo = null;
           clearData.biddingUnits = null;
           clearData.awardedSupplier = null;
         } else if (stage.stageKey === 'CONTRACT') {
@@ -5046,6 +5098,85 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return experts.map(e => `${e.name}|${e.department}|${e.specialty}|${e.title}`).join('\n');
   }
 
+  /** 从采购文件正文中提取项目概况描述。 */
+  private extractProjectOverviewFromText(text: string): string | null {
+    const sectionKeywords = [
+      '项目概况', '采购内容', '项目概述', '项目背景', '采购需求概述', '项目简介',
+    ];
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    let startIdx = -1;
+    for (const kw of sectionKeywords) {
+      const idx = lines.findIndex(l => l.includes(kw));
+      if (idx >= 0) { startIdx = idx; break; }
+    }
+    if (startIdx < 0) return null;
+
+    // Collect lines until next major section (Chinese/English section numbers)
+    const endMarkers = /^(一[、.]|二[、.]|三[、.]|四[、.]|五[、.]|[2-9][、.]|[2-9]\s|第[二三四五六七八九]|[A-D]\s|[IVX]+[、.])/;
+    const parts: string[] = [];
+
+    // Clean up first line: remove section number prefix (e.g. "二、项目概况：", "一、采购内容", "1.项目概况")
+    let firstLine = lines[startIdx];
+    firstLine = firstLine.replace(/^[一二三四五六七八九十\d]+[、.）:：\s]+/, ''); // strip "二、" etc
+    for (const kw of sectionKeywords) firstLine = firstLine.replace(kw, '');       // strip keyword
+    firstLine = firstLine.replace(/^[和与及以及：:、.\s]+/, '');                  // strip leading connectors & colons
+    if (firstLine.trim()) parts.push(firstLine.trim());
+
+    for (let i = startIdx + 1; i < Math.min(lines.length, startIdx + 40); i++) {
+      const line = lines[i];
+      if (endMarkers.test(line)) break;
+      if (line.trim()) parts.push(line.trim());
+    }
+
+    const result = parts.join('\n');
+    return result.length >= 20 ? result : null;
+  }
+
+  /** 从采购文件正文中提取开标/投标截止时间。 */
+  private extractBidOpeningTimeFromText(text: string): string | null {
+    // 匹配模式：开标时间 / 投标截止时间 / 响应文件提交截止时间
+    const patterns = [
+      /开标时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+      /投标截止时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+      /响应文件[^。]{0,6}截止时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+      /提交[^。]{0,10}截止[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+      /投标截止[：:]\s*(\d{4}\s*[年月]\s*\d{1,2}\s*[月]\s*\d{1,2}\s*日[\s\d:时分]*)/,
+    ];
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match?.[1]) {
+        return match[1].replace(/\s+/g, '');
+      }
+    }
+    // Fallback: standalone date pattern near 开标/截止
+    const contextMatch = text.match(/(开标时间|投标截止时间|响应文件提交截止时间)[：:][^。\n]{0,50}/);
+    if (contextMatch) {
+      const dateMatch = contextMatch[0].match(/(\d{4}\s*[年月]\s*\d{1,2}\s*[月]\s*\d{1,2}\s*日)/);
+      if (dateMatch?.[1]) return dateMatch[1].replace(/\s+/g, '');
+    }
+    return null;
+  }
+
+  /** 最小限度优化：仅修正标点符号和语言不一致，不改变内容、不改编句子结构。 */
+  private async aiMinimalPolish(text: string): Promise<string> {
+    if (!text || text.length < 10) return text;
+    try {
+      const systemPrompt =
+        '你是一位资深公文校对员。对以下文本进行最小限度的修正：' +
+        '仅更正标点符号错误（中英文标点混用、缺失顿号/句号等）、' +
+        '纠正语序不通顺或语法小错误，以及将不合适的用词调整为更正式、更准确的表达。' +
+        '不得添加、删除或改写任何实质性内容，不得改变段落结构，不得增加任何解释或说明。' +
+        '直接输出修正后的文本。';
+      const result = await this.aiService.chat(systemPrompt, text, 0.2);
+      if (result && result.trim().length >= text.length * 0.6) {
+        return result.trim();
+      }
+      return text;
+    } catch {
+      return text; // AI 不可用时直接返回原文
+    }
+  }
+
   private isLabelLine(line: string) {
     return [
       '需求申请人',
@@ -5211,5 +5342,494 @@ ${JSON.stringify(algorithmResult, null, 2)}
       .sort((a, b) => b.usageCount - a.usageCount);
 
     return result;
+  }
+
+  /** 获取 DOCX 附件中所有段落的文本结构（供编辑器分段落展示，含 HTML 保留格式）。 */
+  async getAttachmentParagraphs(attachmentId: string): Promise<{
+    fileName: string;
+    paragraphs: Array<{ index: number; text: string; html: string; style: string; rawRange: { from: number; to: number } }>;
+  }> {
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      select: { id: true, fileName: true, objectKey: true },
+    });
+    if (!attachment) throw new NotFoundException('未找到对应附件');
+
+    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    const buffer = await readFile(filePath);
+    const zip = await JSZip.loadAsync(buffer);
+    const docXml = await zip.file('word/document.xml')?.async('string');
+    if (!docXml) throw new NotFoundException('无法解析 DOCX 文档');
+
+    // ── 提取 styles.xml 用于字号映射 ──
+    let styleSizeMap: Record<string, string> = {};
+    try {
+      const stylesXml = await zip.file('word/styles.xml')?.async('string');
+      if (stylesXml) {
+        const styleRegex = /<w:style[^>]*w:styleId="([^"]+)"[^>]*>[\s\S]*?<w:sz[^>]*w:val="(\d+)"[\s\S]*?<\/w:style>/g;
+        let sm;
+        while ((sm = styleRegex.exec(stylesXml)) !== null) {
+          styleSizeMap[sm[1]] = sm[2];
+        }
+      }
+    } catch {}
+
+    // ── 第一步：提取每段的纯文本 + HTML ──
+    const rawParagraphs: Array<{ text: string; html: string; style: string }> = [];
+    const pRegex = /<w:p[\s>][\s\S]*?<\/w:p>/g;
+    let match;
+
+    while ((match = pRegex.exec(docXml)) !== null) {
+      const pXml = match[0];
+
+      // heading?
+      let style = 'body';
+      let fontSizePt = '';
+      const styleMatch = pXml.match(/<w:pStyle w:val="([^"]+)"/);
+      if (styleMatch) {
+        const st = styleMatch[1];
+        if (/Heading|heading|题目|标题/.test(st)) style = 'heading';
+        if (styleSizeMap[st]) fontSizePt = (parseInt(styleSizeMap[st], 10) / 2).toFixed(0);
+      }
+
+      // Extract text WITH formatting via runs — handle <w:br/> as line break
+      const runs: string[] = [];
+      const rRegex = /<w:r[\s>][\s\S]*?<\/w:r>|<w:br[^>]*\/?>/g;
+      let rMatch;
+      while ((rMatch = rRegex.exec(pXml)) !== null) {
+        const rXml = rMatch[0];
+
+        // line break → <br/>
+        if (rXml.startsWith('<w:br')) {
+          runs.push('<br/>');
+          continue;
+        }
+        // run properties
+        let bold = false, cssExtra = '';
+        const rPrMatch = rXml.match(/<w:rPr[\s>][\s\S]*?<\/w:rPr>/);
+        if (rPrMatch) {
+          const rPr = rPrMatch[0];
+          if (/<w:b\b/.test(rPr)) bold = true;
+          const szMatch = rPr.match(/<w:sz[^>]*w:val="(\d+)"/);
+          if (szMatch) fontSizePt = (parseInt(szMatch[1], 10) / 2).toFixed(0);
+          if (rPr.match(/<w:i\b/)) cssExtra += 'font-style:italic;';
+          if (rPr.match(/<w:u\b/)) cssExtra += 'text-decoration:underline;';
+          const colorMatch = rPr.match(/<w:color[^>]*w:val="([^"]+)"/);
+          if (colorMatch) cssExtra += `color:#${colorMatch[1]};`;
+        }
+        // text content
+        const tMatches = rXml.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g);
+        if (tMatches) {
+          for (const t of tMatches) {
+            const txt = this.decodeXmlText(t.replace(/<[^>]+>/g, ''));
+            if (!txt) continue;
+            let tag = bold ? 'strong' : 'span';
+            let inline = '';
+            if (fontSizePt) inline += `font-size:${fontSizePt}px;`;
+            inline += cssExtra;
+            runs.push(`<${tag}${inline ? ` style="${inline}"` : ''}>${txt}</${tag}>`);
+          }
+        }
+      }
+      const html = runs.length > 0 ? runs.join('') : '';
+
+      // plain text (for save/AI) — 换行保留：<w:br/> → \n
+      const withLineBreaks = pXml.replace(/<w:br[^>]*\/?>/g, '\n');
+      const textContent = this.decodeXmlText(withLineBreaks.replace(/<[^>]+>/g, '')).trim();
+      if (textContent.length > 0) {
+        rawParagraphs.push({ text: textContent, html, style });
+      }
+    }
+
+    // ── 第二步：AI 语义拆分（与之前相同） ──
+    let resultParagraphs: Array<{ index: number; text: string; html: string; style: string; rawRange: { from: number; to: number } }>;
+
+    try {
+      const fullText = rawParagraphs.map((p, i) => `[${i}]${p.style === 'heading' ? '[H]' : ''}${p.text}`).join('\n');
+      const aiResult = await this.aiService.chat(
+        `你是文档结构化分析助手。以下是 Word 文档提取出的所有段落（编号[0][1]...，[H]表示标题）。请分析内容逻辑，将这些段落合并/拆分为若干语义区块。每条包含其所含段落的编号范围（连续区间）。
+
+返回 JSON 数组，格式严格为：\n${JSON.stringify([{ from: 0, to: 3 }, { from: 4, to: 6 }])}\n\n要求：
+1. 区块标题从原始段落中的 heading（带[H]）提取；若该区块没有 heading，留空前一个区块用
+2. from/to 编号区间必须连续、覆盖全部非空段落
+3. 同属一个语义区块的段落合并，不要机械拆分
+4. 只用 JSON 数组作答，不要任何解释`,
+        fullText,
+        0.2,
+      );
+
+      const cleanedResult = aiResult.replace(/```(?:json)?\s*|\s*```/g, '').trim();
+      const blocks: Array<{ from: number; to: number }> = JSON.parse(cleanedResult);
+
+      resultParagraphs = [];
+      for (const block of blocks) {
+        const blockParas = rawParagraphs.slice(block.from, block.to + 1);
+        const mergedText = blockParas.map(p => p.text).join('\n\n').trim();
+        const mergedHtml = blockParas.map(p => `<div>${p.html}</div>`).join('');
+        const firstHeading = blockParas.find(p => p.style === 'heading');
+        resultParagraphs.push({
+          index: resultParagraphs.length,
+          text: mergedText,
+          html: mergedHtml,
+          style: firstHeading ? 'heading' : 'body',
+          rawRange: { from: block.from, to: block.to },
+        });
+      }
+
+      if (!resultParagraphs.length || !blocks.length) throw new Error('Empty block');
+    } catch {
+      resultParagraphs = [];
+      let groupStart = -1;
+      for (let i = 0; i < rawParagraphs.length; i++) {
+        const raw = rawParagraphs[i];
+        if (groupStart < 0) groupStart = i;
+        if (raw.style === 'heading' || i === rawParagraphs.length - 1) {
+          const end = raw.style === 'heading' && i > groupStart ? i - 1 : i;
+          const blockParas = rawParagraphs.slice(groupStart, end + 1);
+          resultParagraphs.push({
+            index: resultParagraphs.length,
+            text: blockParas.map(p => p.text).join('\n\n'),
+            html: blockParas.map(p => `<div>${p.html}</div>`).join(''),
+            style: blockParas.some(p => p.style === 'heading') ? 'heading' : 'body',
+            rawRange: { from: groupStart, to: end },
+          });
+          groupStart = raw.style === 'heading' ? i : -1;
+        }
+      }
+    }
+
+    return { fileName: attachment.fileName, paragraphs: resultParagraphs };
+  }
+
+  /** 对选中的文本段进行 AI 辅助修改（仅润色，不改变实质性内容）。 */
+  async aiPolishAttachmentSelection(
+    _projectId: string,
+    dto: { text: string; instruction: string },
+  ): Promise<{ polished: string }> {
+    const systemPrompt =
+      '你是招标/采购文件编写助手。请根据用户的修改要求，对以下文本段进行修改。' +
+      '仅修改用户要求的部分，不要改动其他内容，不要添加解释。直接输出修改后的文本。';
+    const userPrompt = `原文：\n${dto.text}\n\n修改要求：${dto.instruction}`;
+    const polished = await this.aiService.chat(systemPrompt, userPrompt, 0.3);
+    return { polished: polished.trim() || dto.text };
+  }
+
+  /** 用修改后的段落文本覆盖 DOCX 文件中的文字，保留原始格式。 */
+  async saveAttachmentParagraphs(
+    projectId: string,
+    dto: {
+      attachmentId: string;
+      paragraphs: Array<{ index: number; text: string; rawRange?: { from: number; to: number } }>;
+    },
+    uploadedById?: string,
+  ) {
+    const oldAttachment = await this.prisma.attachment.findUnique({
+      where: { id: dto.attachmentId },
+      select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },
+    });
+    if (!oldAttachment) throw new NotFoundException('未找到对应附件');
+
+    const filePath = resolve(process.cwd(), 'uploads', oldAttachment.objectKey);
+    const buffer = await readFile(filePath);
+    const zip = await JSZip.loadAsync(buffer);
+    const docXml = await zip.file('word/document.xml')?.async('string');
+    if (!docXml) throw new NotFoundException('无法解析 DOCX 文档');
+
+    // ── 第一步：提取所有非空 <w:p>（含在 docXml 中的字节起止位置） ──
+    const rawParas: Array<{ xml: string; text: string; start: number; end: number }> = [];
+    const pRegex = /<w:p[\s>][\s\S]*?<\/w:p>/g;
+    let pm;
+    while ((pm = pRegex.exec(docXml)) !== null) {
+      const xml = pm[0];
+      const text = this.extractPlainText(xml);
+      if (text.length > 0) {
+        rawParas.push({ xml, text, start: pm.index, end: pm.index + xml.length });
+      }
+    }
+
+    // ── 第二步：为每个编辑段构建编辑指令（仅修改前端发送的段落） ──
+    const edits: Array<{ start: number; end: number; newXml: string }> = [];
+    let skippedCount = 0;
+
+    for (const ep of dto.paragraphs) {
+      const range = ep.rawRange;
+      if (!range || range.from > range.to || range.from >= rawParas.length) {
+        skippedCount++;
+        this.logger.warn(
+          `段落[${ep.index}] rawRange 无效或越界，已跳过 — ` +
+          `rawRange=${JSON.stringify(range)}, rawParas.length=${rawParas.length}`,
+        );
+        continue;
+      }
+      const to = Math.min(range.to, rawParas.length - 1);
+      const fromText = rawParas[range.from].text.slice(0, 60);
+
+      this.logger.log(
+        `即将替换段落[${ep.index}] rawRange=[${range.from}..${to}] rawParas[${range.from}].text 前60字="${fromText}" → newText 前60字="${ep.text.slice(0, 60)}"`,
+      );
+
+      if (range.from === to) {
+        // 单段落：保留 <w:r>/<w:rPr>，按比例分配文字
+        edits.push({
+          start: rawParas[range.from].start,
+          end: rawParas[range.from].end,
+          newXml: this.applyTextToParagraphXml(rawParas[range.from].xml, ep.text),
+        });
+      } else {
+        // 多段落合并：全文写入第一段，其余清空
+        edits.push({
+          start: rawParas[range.from].start,
+          end: rawParas[range.from].end,
+          newXml: this.applyTextToParagraphXml(rawParas[range.from].xml, ep.text),
+        });
+        for (let i = range.from + 1; i <= to; i++) {
+          edits.push({
+            start: rawParas[i].start,
+            end: rawParas[i].end,
+            newXml: this.applyTextToParagraphXml(rawParas[i].xml, ''),
+          });
+        }
+      }
+    }
+
+    // 如果前端发了段落但全部被跳过，说明提取不一致，直接报错方便定位
+    if (dto.paragraphs.length > 0 && edits.length === 0) {
+      this.logger.error(
+        `全部 ${dto.paragraphs.length} 个段落 rawRange 都越界或无效！` +
+        ` rawParas.length=${rawParas.length}, rawRanges=${JSON.stringify(dto.paragraphs.map(p => ({ idx: p.index, range: p.rawRange })))}`,
+      );
+      throw new BadRequestException(
+        `无法定位修改位置：文件解析产生了 ${rawParas.length} 个段落，` +
+        `但修改引用了越界的段落索引。请关闭编辑器后重新打开。`,
+      );
+    }
+
+    this.logger.log(`保存 saveAttachmentParagraphs：${edits.length} 个编辑指令，${skippedCount} 个跳过`);
+
+    // ── 第三步：从后往前应用编辑（保证位置索引不被前序修改偏移） ──
+    edits.sort((a, b) => b.start - a.start);
+    let modifiedXml = docXml;
+    for (const edit of edits) {
+      modifiedXml = modifiedXml.slice(0, edit.start) + edit.newXml + modifiedXml.slice(edit.end);
+    }
+
+    zip.file('word/document.xml', modifiedXml);
+    const newBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+    // 先持久化新文件，成功后再删除旧文件
+    const persistResult = await this.persistUploadedFile(
+      {
+        fieldname: 'file', originalname: oldAttachment.fileName, encoding: '7bit',
+        mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        buffer: Buffer.from(newBuffer), size: newBuffer.length,
+        stream: null as any, destination: '', filename: '', path: '',
+      } as Express.Multer.File,
+      `${projectId}-tender-document`, uploadedById,
+    );
+
+    // 创建新 Attachment 数据库记录（persistUploadedFile 只写文件到磁盘，不写 DB）
+    const newAttachment = await this.prisma.attachment.create({
+      data: {
+        projectManagementStageId: oldAttachment.projectManagementStageId,
+        attachmentType: 'SUPPORTING_MATERIAL',
+        fileName: persistResult.attachment.fileName,
+        objectKey: persistResult.attachment.objectKey,
+        mimeType: persistResult.attachment.mimeType,
+        fileSize: persistResult.attachment.fileSize,
+        uploadedById: persistResult.attachment.uploadedById,
+      },
+    });
+
+    // 删除旧附件记录和文件
+    await this.prisma.attachment.delete({ where: { id: oldAttachment.id } });
+    try { await unlink(filePath); } catch {}
+
+    this.logger.log(
+      `附件替换成功：${oldAttachment.id} → ${newAttachment.id}, stage=${oldAttachment.projectManagementStageId}`,
+    );
+
+    return { success: true, attachmentId: newAttachment.id };
+  }
+
+  /** 对 XML 文本内容进行转义（在 <w:t> 节点中放置）。 */
+  private escapeXmlText(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /** 解码 XML 实体（&amp; &lt; &gt; &quot; &apos;），修复原先被 .replace(/&\w+;/g,'') 删光的 bug。 */
+  private decodeXmlText(s: string): string {
+    return s
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&\w+;/g, '');
+  }
+
+  /** 从 <w:p> XML 中提取纯文本。保持与 getAttachmentParagraphs 一致的 <w:br/> → \n 转换，确保两次解析产生相同的非空段落集合。 */
+  private extractPlainText(xml: string): string {
+    const withLineBreaks = xml.replace(/<w:br[^>]*\/?>/g, '\n');
+    return this.decodeXmlText(withLineBreaks.replace(/<[^>]+>/g, '')).trim();
+  }
+
+  /** 将新文本写入 <w:p> XML，保留所有 <w:r>/<w:rPr> 结构与格式。
+   *  文字按比例分配到各 <w:t> 节点，\n 转换为 <w:br/> 保留换行。 */
+  private applyTextToParagraphXml(paragraphXml: string, newText: string): string {
+    // 多行文本：第一行按比例分配到现有 <w:t>，后续行追加 <w:r><w:br/></w:r> + <w:r><w:t>...</w:t></w:r>
+    const lines = newText.split('\n');
+    let result = this.distributeTextIntoTNodes(paragraphXml, lines[0]);
+
+    for (let i = 1; i < lines.length; i++) {
+      const insertPos = result.lastIndexOf('</w:p>');
+      if (insertPos === -1) break;
+      const escaped = this.escapeXmlText(lines[i]);
+      result = result.slice(0, insertPos) +
+        `<w:r><w:br/></w:r><w:r><w:t xml:space="preserve">${escaped}</w:t></w:r>` +
+        result.slice(insertPos);
+    }
+    return result;
+  }
+
+  /** 在 <w:p> XML 的现有 <w:t> 节点中按比例分配单行文字，保留 <w:r> 格式。 */
+  private distributeTextIntoTNodes(paragraphXml: string, text: string): string {
+    const tNodes: Array<{ start: number; end: number; text: string }> = [];
+    const tRegex = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g;
+    let tm: RegExpExecArray | null;
+    while ((tm = tRegex.exec(paragraphXml)) !== null) {
+      tNodes.push({ start: tm.index, end: tm.index + tm[0].length, text: tm[1] });
+    }
+
+    if (tNodes.length === 0) return paragraphXml;
+
+    const totalOldLen = tNodes.reduce((s, n) => s + n.text.length, 0);
+    const localEdits: Array<{ start: number; end: number; replacement: string }> = [];
+    let remaining = text;
+
+    for (let i = 0; i < tNodes.length; i++) {
+      const node = tNodes[i];
+      let slice: string;
+      if (totalOldLen === 0) {
+        slice = i === 0 ? remaining : '';
+      } else {
+        const proportion = node.text.length / totalOldLen;
+        const charCount = i === tNodes.length - 1
+          ? remaining.length
+          : Math.max(0, Math.round(text.length * proportion));
+        slice = remaining.slice(0, Math.min(charCount, remaining.length));
+        remaining = remaining.slice(slice.length);
+      }
+      localEdits.push({
+        start: node.start,
+        end: node.end,
+        replacement: `<w:t xml:space="preserve">${this.escapeXmlText(slice)}</w:t>`,
+      });
+    }
+
+    let result = paragraphXml;
+    for (const edit of localEdits.reverse()) {
+      result = result.slice(0, edit.start) + edit.replacement + result.slice(edit.end);
+    }
+    return result;
+  }
+
+  /** 两个文本的相似度（0-1），用于段落匹配。 */
+  private textSimilarity(a: string, b: string): number {
+    if (a === b) return 1;
+    if (!a || !b) return 0;
+    const minLen = Math.min(a.length, b.length);
+    let prefixMatch = 0;
+    for (let i = 0; i < minLen && a[i] === b[i]; i++) prefixMatch++;
+    const prefixRatio = prefixMatch / minLen;
+    const as = new Set(a), bs = new Set(b);
+    let overlap = 0;
+    for (const ch of as) if (bs.has(ch)) overlap++;
+    const charRatio = overlap / Math.max(as.size, bs.size, 1);
+    return prefixRatio * 0.6 + charRatio * 0.4;
+  }
+
+  /** 直接返回附件原始文件（供 iframe 查看模式使用）。 */
+  async getAttachmentFile(attachmentId: string): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      select: { id: true, fileName: true, objectKey: true, mimeType: true },
+    });
+    if (!attachment) throw new NotFoundException('未找到对应附件');
+    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    const buffer = await readFile(filePath);
+    return { buffer, mimeType: attachment.mimeType, fileName: attachment.fileName };
+  }
+
+  /** 获取项目附件文件的纯文本内容（保留供旧代码兼容）。 */
+  async getAttachmentTextContent(attachmentId: string): Promise<{ text: string; fileName: string }> {
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      select: { id: true, fileName: true, objectKey: true, mimeType: true },
+    });
+    if (!attachment) throw new NotFoundException('未找到对应附件');
+
+    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    let text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
+
+    // Fallback: 若 documentParser 解析 DOCX 失败，直接用 JSZip 提取 word/document.xml 的原始文本
+    if (!text.trim() && attachment.fileName.toLowerCase().endsWith('.docx')) {
+      try {
+        const buffer = await readFile(filePath);
+        const zip = await JSZip.loadAsync(buffer);
+        const docXml = await zip.file('word/document.xml')?.async('string');
+        if (docXml) {
+          text = docXml.replace(/<[^>]+>/g, ' ').replace(/&\w+;/g, ' ').replace(/\s+/g, ' ').trim();
+          this.logger.log(`[getAttachmentTextContent] DOCX fallback extracted ${text.length} chars`);
+        }
+      } catch (err) {
+        this.logger.warn(`[getAttachmentTextContent] DOCX fallback also failed: ${err}`);
+      }
+    }
+
+    return { text, fileName: attachment.fileName };
+  }
+
+  /** 用修改后的文本替换附件文件并重新上传到同一阶段。 */
+  async replaceAttachmentWithText(
+    projectId: string,
+    attachmentId: string,
+    text: string,
+    fileName: string,
+    uploadedById?: string,
+  ) {
+    const oldAttachment = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },
+    });
+    if (!oldAttachment) throw new NotFoundException('未找到对应附件');
+
+    // 构造 Multer-like file 对象并持久化
+    const { attachment: newAttachment } = await this.persistUploadedFile(
+      {
+        originalname: Buffer.from(fileName, 'latin1'),
+        buffer: Buffer.from(text, 'utf-8'),
+        mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      } as unknown as Express.Multer.File,
+      `${projectId}-tender-document`,
+      uploadedById,
+    );
+
+    // 删除旧附件并连接新附件到同一阶段
+    await this.prisma.attachment.delete({ where: { id: oldAttachment.id } });
+    try { await unlink(resolve(process.cwd(), 'uploads', oldAttachment.objectKey)); } catch {}
+
+    // 找到刚创建的附件记录并关联到原阶段
+    const createdAttachment = await this.prisma.attachment.findFirst({
+      where: { objectKey: newAttachment.objectKey },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (createdAttachment) {
+      await this.prisma.attachment.update({
+        where: { id: createdAttachment.id },
+        data: { projectManagementStageId: oldAttachment.projectManagementStageId },
+      });
+    }
+
+    return { success: true };
   }
 }

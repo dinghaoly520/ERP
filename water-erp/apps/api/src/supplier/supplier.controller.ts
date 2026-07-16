@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Request, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, Request, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { SupplierService } from './supplier.service';
 import { AuthGuard } from '../auth/auth.guard';
@@ -112,6 +112,25 @@ export class SupplierController {
   @ApiOperation({ summary: '删除分类' })
   async deleteClassification(@Param('id') id: string) {
     return this.supplierService.deleteClassification(id);
+  }
+
+  // ─── 供应商多分类标签 ───
+  @Get(':id/classifications')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: '获取供应商的分类标签列表' })
+  async getSupplierClassifications(@Param('id') id: string) {
+    return this.supplierService.getSupplierClassifications(id);
+  }
+
+  @Put(':id/classifications')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @ApiOperation({ summary: '设置供应商的分类标签（替换全部）' })
+  async setSupplierClassifications(
+    @Param('id') id: string,
+    @Body() dto: { classificationIds: string[] },
+  ) {
+    return this.supplierService.setSupplierClassifications(id, dto.classificationIds);
   }
 
   @Get('eliminate-candidates')
@@ -250,21 +269,21 @@ export class SupplierController {
   }
 
   @Get(':id/evaluations')
-  @UseGuards(ProcurementGuard)
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: '评价记录列表' })
   async listEvaluations(@Param('id') id: string) {
     return this.supplierService.listEvaluations(id);
   }
 
   @Post(':id/evaluations')
-  @UseGuards(ProcurementGuard)
-  @ApiOperation({ summary: '发起评价' })
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: '发起评价（任何登录用户均可评价，系统记录评价人）' })
   async createEvaluation(@Param('id') id: string, @Body() dto: CreateEvaluationDto, @Request() req: any) {
     return this.supplierService.createEvaluation(id, req.user.sub, dto);
   }
 
   @Get(':id/portrait')
-  @UseGuards(ProcurementGuard)
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: '供应商画像' })
   async getPortrait(@Param('id') id: string) {
     return this.supplierService.getSupplierPortrait(id);

@@ -10,9 +10,9 @@ import {
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierClassification, SupplierListResponse } from '@/lib/types';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
-import { useSort, SortableTh } from '@/lib/hooks/use-sort';
-import { Building2, Layers, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, ChevronsUpDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2 } from 'lucide-react';
+import { Building2, Layers, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2 } from 'lucide-react';
 import { exportSuppliersToExcel } from '@/lib/excel-export';
+import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 
 export default function SupplierRepositoryPage() {
   const router = useRouter();
@@ -44,8 +44,8 @@ export default function SupplierRepositoryPage() {
 
   const toggleSelect = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => {
-    if (selected.size === sortedItems.length) setSelected(new Set());
-    else setSelected(new Set(sortedItems.map(s => (s as Supplier).id)));
+    if (selected.size === data.items.length) setSelected(new Set());
+    else setSelected(new Set(data.items.map(s => s.id)));
   };
   const handleBatch = async () => {
     if (!batchModal || !batchReason.trim()) { toast.error('请填写原因'); return; }
@@ -66,10 +66,13 @@ export default function SupplierRepositoryPage() {
   const [statusReason, setStatusReason] = useState('');
   const [statusLoading, setStatusLoading] = useState(false);
 
-  const [showClassMgr, setShowClassMgr] = useState(false);
-  const [editClass, setEditClass] = useState<SupplierClassification | null>(null);
+  // 分类管理弹窗
+  const [classMgrOpen, setClassMgrOpen] = useState(false);
+  const [classEdit, setClassEdit] = useState<Partial<SupplierClassification> | null>(null);
   const [classForm, setClassForm] = useState({ name: '', code: '', description: '' });
   const [classSaving, setClassSaving] = useState(false);
+  const [classDelete, setClassDelete] = useState<SupplierClassification | null>(null);
+  const [classDeleting, setClassDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -98,8 +101,6 @@ export default function SupplierRepositoryPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { refreshMeta(); }, [refreshMeta, data.total]);
-  const { sortKey, sortDir, toggle, sorted } = useSort<Supplier>('createdAt', 'desc');
-  const sortedItems = sorted(data.items);
   const totalPages = Math.max(1, Math.ceil(data.total / pageSize));
 
   const handleStatusAction = async () => {
@@ -113,23 +114,26 @@ export default function SupplierRepositoryPage() {
     setStatusLoading(false);
   };
 
-  const openClassEditor = (c: SupplierClassification | null) => {
-    setEditClass(c);
+  const openClassEdit = (c?: SupplierClassification) => {
+    setClassEdit(c || null);
     setClassForm(c ? { name: c.name, code: c.code, description: c.description || '' } : { name: '', code: '', description: '' });
   };
   const saveClass = async () => {
     if (!classForm.name.trim() || !classForm.code.trim()) { toast.error('请填写分类名称和代码'); return; }
     setClassSaving(true);
     try {
-      if (editClass) { await updateClassification(editClass.id, classForm); toast.success('分类已更新'); }
+      if (classEdit?.id) { await updateClassification(classEdit.id, classForm); toast.success('分类已更新'); }
       else { await createClassification(classForm); toast.success('分类已创建'); }
-      openClassEditor(null); refreshMeta();
+      setClassEdit(null); refreshMeta();
     } catch (e: any) { toast.error(e?.message || '保存失败'); }
     setClassSaving(false);
   };
-  const removeClass = async (c: SupplierClassification) => {
-    if (!confirm(`确认删除分类「${c.name}」？`)) return;
-    try { await deleteClassification(c.id); toast.success('分类已删除'); refreshMeta(); } catch (e: any) { toast.error(e?.message || '删除失败'); }
+  const confirmDeleteClass = async () => {
+    if (!classDelete) return;
+    setClassDeleting(true);
+    try { await deleteClassification(classDelete.id); toast.success(`已删除分类「${classDelete.name}」`); setClassDelete(null); refreshMeta(); }
+    catch (e: any) { toast.error(e?.message || '删除失败'); }
+    setClassDeleting(false);
   };
 
   const STATUS_TABS = [
@@ -186,15 +190,25 @@ export default function SupplierRepositoryPage() {
         </div>
       </div>
 
-      {/* ══════ 分类管理面板 ══════ */}
-      {showClassMgr && (
-        <div className="neu-table-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-black text-[var(--foreground)]">业务分类管理</h2>
-            <button onClick={() => openClassEditor(null)} className="neu-btn-soft"><Plus size={13} />新增分类</button>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            {classifications.map(c => (
+      {/* ══════ 分类管理弹窗 ══════ */}
+      {classMgrOpen && (
+        <Modal
+          open
+          onClose={() => setClassMgrOpen(false)}
+          title="业务分类管理"
+          size="lg"
+          footer={
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs text-[var(--muted-foreground)]">{classifications.length} 个分类</span>
+              <button onClick={() => { setClassMgrOpen(false); }} className="neu-btn-soft">关闭</button>
+            </div>
+          }
+        >
+          <button onClick={() => openClassEdit()} className="neu-btn-soft"><Plus size={13} />新增分类</button>
+          <div className="grid grid-cols-2 gap-3">
+            {classifications.length === 0 ? (
+              <p className="text-sm text-[var(--muted-foreground)] py-8 text-center col-span-2">暂无分类，点击上方按钮创建</p>
+            ) : classifications.map(c => (
               <div key={c.id} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-[var(--foreground)]">{c.name}</span>
@@ -203,27 +217,52 @@ export default function SupplierRepositoryPage() {
                 <span className="font-mono text-[10px] text-[var(--muted-foreground)]">{c.code}</span>
                 {c.description && <span className="text-[10px] text-[var(--muted-foreground)] line-clamp-2">{c.description}</span>}
                 <div className="mt-1 flex gap-2">
-                  <button onClick={() => openClassEditor(c)} className="neu-btn-xs">编辑</button>
-                  <button onClick={() => removeClass(c)} className="neu-btn-xs is-danger">删除</button>
+                  <button onClick={() => openClassEdit(c)} className="neu-btn-xs">编辑</button>
+                  <button onClick={() => setClassDelete(c)} className="neu-btn-xs is-danger">删除</button>
                 </div>
               </div>
             ))}
           </div>
-          {(editClass || classForm.name || classForm.code) && (
-            <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.75rem" }}>
-              <h3 className="text-sm font-black text-[var(--foreground)] mb-3">{editClass ? '编辑分类' : '新增分类'}</h3>
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                <input value={classForm.name} onChange={e => setClassForm({ ...classForm, name: e.target.value })} placeholder="分类名称" className="neu-input text-sm" />
-                <input value={classForm.code} onChange={e => setClassForm({ ...classForm, code: e.target.value })} placeholder="分类代码" className="neu-input text-sm font-mono" />
-                <input value={classForm.description} onChange={e => setClassForm({ ...classForm, description: e.target.value })} placeholder="描述（可选）" className="neu-input text-sm" />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={saveClass} disabled={classSaving} className="neu-btn-soft">{classSaving ? '保存中...' : '保存'}</button>
-                <button onClick={() => openClassEditor(null)} className="neu-btn-soft">取消</button>
-              </div>
-            </div>
-          )}
-        </div>
+        </Modal>
+      )}
+
+      {/* ══════ 分类新增/编辑弹窗 ══════ */}
+      {classEdit !== null && (
+        <Modal
+          open
+          onClose={() => setClassEdit(null)}
+          title={classEdit?.id ? '编辑分类' : '新增分类'}
+          footer={
+            <>
+              <button onClick={() => setClassEdit(null)} className="neu-btn-soft">取消</button>
+              <button onClick={saveClass} disabled={classSaving} className="neu-btn-primary">
+                {classSaving ? '保存中...' : '保存'}
+              </button>
+            </>
+          }
+        >
+          <input value={classForm.name} onChange={e => setClassForm({ ...classForm, name: e.target.value })} placeholder="分类名称" className="neu-input text-sm" />
+          <input value={classForm.code} onChange={e => setClassForm({ ...classForm, code: e.target.value })} placeholder="分类代码" className="neu-input text-sm font-mono" />
+          <input value={classForm.description} onChange={e => setClassForm({ ...classForm, description: e.target.value })} placeholder="描述（可选）" className="neu-input text-sm" />
+        </Modal>
+      )}
+
+      {/* ══════ 分类删除确认弹窗 ══════ */}
+      {classDelete && (
+        <Modal
+          open
+          onClose={() => setClassDelete(null)}
+          title="确认删除分类"
+          description={<>将删除分类「<strong className="text-[var(--foreground)]">{classDelete.name}</strong>」{classDelete._count?.suppliers ? `（当前关联 ${classDelete._count.suppliers} 家供应商）` : ''}，删除后关联供应商将变为未分类。</>}
+          footer={
+            <>
+              <button onClick={() => setClassDelete(null)} className="neu-btn-soft">取消</button>
+              <button onClick={confirmDeleteClass} disabled={classDeleting} className="neu-btn-soft is-danger">
+                {classDeleting ? '删除中...' : '确认删除'}
+              </button>
+            </>
+          }
+        />
       )}
 
       {/* ══════ 工具栏卡片 ══════ */}
@@ -245,9 +284,9 @@ export default function SupplierRepositoryPage() {
           {classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <button onClick={() => { setSearch(''); setFilterStatus(''); setFilterClassification(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs">重置</button>
-        <button onClick={() => router.push('/supplier/approval')} className="neu-btn-xs gap-1">供应商审批</button>
+
         <button onClick={() => setShowAdvanced(!showAdvanced)} className="neu-btn-xs gap-1 text-[var(--muted-foreground)]">{showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}高级筛选</button>
-        <button onClick={() => setShowClassMgr(v => !v)} className="neu-btn-xs gap-1">{showClassMgr ? '收起分类' : '分类管理'}</button>
+        <button onClick={() => setClassMgrOpen(true)} className="neu-btn-xs gap-1">分类管理</button>
         <button onClick={() => exportSuppliersToExcel(data.items)} className="neu-btn-xs gap-1"><FileSpreadsheet size={12} />导出 Excel</button>
       </div>
 
@@ -291,27 +330,27 @@ export default function SupplierRepositoryPage() {
           <table className="neu-table w-full min-w-[780px]">
             <thead>
               <tr>
-                <th style={{ width: 36 }}><input type="checkbox" className="neu-checkbox" checked={selected.size > 0 && selected.size === sortedItems.length} ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < sortedItems.length; }} onChange={toggleAll} /></th>
-                <SortableTh label="企业名称" field="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-                <th className="text-center">统一社会信用代码</th>
-                <SortableTh label="企业类型" field="enterpriseType" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-                <th className="text-center">状态</th>
-                <th className="text-center">分类</th>
-                <SortableTh label="入库时间" field="createdAt" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-                <th className="text-center">操作</th>
+                <th style={{ width: 36 }}><input type="checkbox" className="neu-checkbox" checked={selected.size > 0 && selected.size === data.items.length} ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < data.items.length; }} onChange={toggleAll} /></th>
+                <th style={{ width: 160 }}>企业名称</th>
+                <th className="text-center" style={{ width: 160 }}>统一社会信用代码</th>
+                <th style={{ width: 140 }}>企业类型</th>
+                <th className="text-center" style={{ width: 100 }}>状态</th>
+                <th className="text-center" style={{ width: 200 }}>分类</th>
+                <th className="text-center" style={{ width: 96 }}>入库时间</th>
+                <th className="text-center" style={{ width: 200 }}>操作</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <TableSkeleton cols={8} rows={5} />
-              ) : sortedItems.length === 0 ? (
+              ) : data.items.length === 0 ? (
                 <tr><td colSpan={8} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><Building2 size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无供应商数据</p>
                   </div>
                 </td></tr>
-              ) : sortedItems.map((s: Supplier) => {
+              ) : data.items.map((s: Supplier) => {
                 const statusTone = s.status === 'APPROVED' ? 'green' : s.status === 'PENDING' ? 'blue' : s.status === 'RETURNED' ? 'orange' : s.status === 'DISABLED' ? 'gray' : s.status === 'BLACKLIST' ? 'red' : 'gray';
                 const statusLabel = s.status === 'APPROVED' ? '已入库' : s.status === 'PENDING' ? '待审核' : s.status === 'RETURNED' ? '退回补正' : s.status === 'DISABLED' ? '已停用' : s.status === 'BLACKLIST' ? '黑名单' : s.status;
                 return (
@@ -320,18 +359,18 @@ export default function SupplierRepositoryPage() {
                       <input type="checkbox" className="neu-checkbox" checked={selected.has(s.id)} onChange={() => toggleSelect(s.id)} />
                     </td>
                     <td>
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{s.name[0]}</div>
-                        <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors">{s.name}</span>
+                        <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors" title={s.name}>{s.name}</span>
                         <button onClick={e => { e.stopPropagation(); handleToggleFav(s.id); }} className="text-[var(--muted-foreground)]/30 hover:text-[var(--warning)] transition" title={favIds.has(s.id) ? '取消收藏' : '收藏'}>
                           <Star size={13} fill={favIds.has(s.id) ? 'var(--warning)' : 'none'} stroke={favIds.has(s.id) ? 'var(--warning)' : 'currentColor'} />
                         </button>
                       </div>
                     </td>
-                    <td className="text-center font-mono text-xs text-[var(--muted-foreground)]">{s.creditCode || '—'}</td>
-                    <td className="text-center text-sm text-[var(--muted-foreground)]">{s.enterpriseType || '—'}</td>
+                    <td className="text-center font-mono text-xs text-[var(--muted-foreground)] max-w-[160px] truncate" title={s.creditCode || ''}>{s.creditCode || '—'}</td>
+                    <td className="text-sm text-[var(--muted-foreground)] max-w-[140px] truncate" title={s.enterpriseType || ''}>{normalizeEnterpriseType(s.enterpriseType)}</td>
                     <td className="text-center"><StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></td>
-                    <td className="text-center text-sm text-[var(--muted-foreground)]">{s.classification?.name || '—'}</td>
+                    <td className="text-center text-sm text-[var(--muted-foreground)] max-w-[200px] truncate" title={s.classification?.name || ''}>{s.classification?.name || '—'}</td>
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
                     <td onClick={e => e.stopPropagation()}>
                       <div className="flex flex-wrap justify-center gap-1">

@@ -3,13 +3,19 @@ import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { AiService } from './ai.service';
+import { SupplierEvaluationAnalysisService } from './supplier-evaluation-analysis.service';
+import { SupplierPortraitAnalysisService } from './supplier-portrait-analysis.service';
 
 @ApiTags('AI辅助评标')
 @ApiCookieAuth('token')
 @Controller('ai')
 
 export class AiController {
-  constructor(private aiService: AiService) {}
+  constructor(
+    private aiService: AiService,
+    private supplierEvalAnalysis: SupplierEvaluationAnalysisService,
+    private supplierPortraitAnalysis: SupplierPortraitAnalysisService,
+  ) {}
 
   @Public()
   @Get('bigscreen-insight')
@@ -104,5 +110,21 @@ export class AiController {
   @Roles('admin', 'procurement_staff', 'leader', 'staff')
   async referenceBudget(@Body() payload: any) {
     return this.aiService.generateReferenceBudget(payload);
+  }
+
+  @Post('supplier-evaluation-analysis')
+  @ApiOperation({ summary: 'AI供应商评价维度分析' })
+  @Roles('admin', 'procurement_staff', 'bid_expert', 'leader', 'staff')
+  async supplierEvaluationAnalysis(@Body() payload: { supplierId: string }) {
+    if (!payload.supplierId) throw new BadRequestException('请提供 supplierId');
+    return this.supplierEvalAnalysis.analyze(payload.supplierId);
+  }
+
+  @Post('supplier-portrait-analysis')
+  @ApiOperation({ summary: 'AI供应商综合画像分析' })
+  @Roles('admin', 'procurement_staff', 'bid_expert', 'leader', 'staff')
+  async getSupplierPortraitAnalysis(@Body() payload: { supplierId: string }) {
+    if (!payload.supplierId) throw new BadRequestException('请提供 supplierId');
+    return this.supplierPortraitAnalysis.analyze(payload.supplierId);
   }
 }

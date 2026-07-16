@@ -5,7 +5,7 @@ import { getExpertStatistics, type ExpertStatistics } from '@/lib/api/expert';
 import { StatusBadge } from '@/components/workbench';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { BarChart3, UsersRound, Clock, RefreshCw, ArrowLeft } from 'lucide-react';
+import { BarChart3, Clock, UsersRound } from 'lucide-react';
 
 const levelLabel: Record<string, string> = { A: '优秀', B: '良好', C: '合格', D: '不合格' };
 
@@ -48,8 +48,9 @@ export default function ExpertStatisticsPage() {
             <div><div className="page-hero__title">专家统计</div><div className="page-hero__sub">专家库整体态势、专业分布、评价趋势与活跃度分析</div></div>
           </div>
           <div className="page-hero__right">
-            <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft gap-1"><ArrowLeft size={14} />返回专家库</button>
-            <button onClick={load} className="neu-btn-xs"><RefreshCw size={14} /></button>
+            <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              返回专家库</button>
           </div>
         </div>
         <div className="page-hero__divider">

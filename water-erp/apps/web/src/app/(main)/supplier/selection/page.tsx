@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { recommendSuppliers, getClassifications, polishRequirement, inviteSuppliers, shareShortlist, updateSelectionShortlist } from '@/lib/api/supplier';
+import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import type { SupplierRecommendation, SupplierSelectionResult } from '@/lib/api/supplier';
 import type { SupplierSelectionHistoryRecord } from '@/lib/api/supplier';
 import type { SupplierClassification } from '@/lib/types';
@@ -359,7 +360,7 @@ export default function SupplierSelectionPage() {
                       <div className="flex items-center gap-2 flex-wrap mb-1.5">
                         <span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)] transition" onClick={() => router.push(`/supplier/${r.supplierId}`)}>{r.name}</span>
                         {r.classification && <StatusBadge tone="blue">{r.classification}</StatusBadge>}
-                        {r.enterpriseType && <span className="neu-tab-count">{r.enterpriseType}</span>}
+                        {r.enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType(r.enterpriseType)}</span>}
                         {r.evaluation && (
                           <span
                             className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-extrabold text-white"

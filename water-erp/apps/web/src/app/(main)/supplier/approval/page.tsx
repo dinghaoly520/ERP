@@ -3,10 +3,11 @@
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplierList, approveSupplier, rejectSupplier, returnSupplier, getClassifications, assignClassification } from '@/lib/api/supplier';
+import { getSupplierList, approveSupplier, rejectSupplier, returnSupplier, getClassifications, setSupplierClassifications } from '@/lib/api/supplier';
 import type { SupplierClassification } from '@/lib/types';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
+import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { Building2, Check, RefreshCw, Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 
 const TABS: { key: 'PENDING' | 'RETURNED' | 'REJECTED'; label: string; tone: 'blue' | 'orange' | 'red' }[] = [
@@ -266,7 +267,7 @@ function SupplierApprovalPage() {
                     <td style={{ textAlign: 'center' }}>
                       <span className="font-mono text-xs text-[var(--muted-foreground)]">{s.creditCode || '—'}</span>
                     </td>
-                    <td className="text-center text-sm text-[var(--muted-foreground)]">{s.enterpriseType || '—'}</td>
+                    <td className="text-center text-sm text-[var(--muted-foreground)] max-w-[140px] truncate" title={s.enterpriseType || ''}>{normalizeEnterpriseType(s.enterpriseType)}</td>
                     <td>
                       <div className="flex flex-col items-center gap-0.5">
                         <StatusBadge tone={s.status === 'PENDING' ? 'blue' : s.status === 'RETURNED' ? 'orange' : 'red'}>
@@ -297,7 +298,7 @@ function SupplierApprovalPage() {
                                   const cid = ev.target.value;
                                   if (!cid) return;
                                   try {
-                                    await assignClassification(s.id, cid);
+                                    await setSupplierClassifications(s.id, [cid]);
                                     toast.success(`已为「${s.name}」分配分类`);
                                   } catch (err: any) { toast.error(err?.message || '分配失败'); }
                                 }}

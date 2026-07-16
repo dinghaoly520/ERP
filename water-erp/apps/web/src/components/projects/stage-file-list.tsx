@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import { useState } from "react";
 import { deleteProjectAttachment } from "@/lib/api/project-management";
 import type { ProjectManagementAttachment } from "@/lib/types/project-management";
@@ -9,10 +9,12 @@ export function StageFileList({
   files,
   projectId,
   onDeleted,
+  onEdit,
 }: {
   files: ProjectManagementAttachment[];
   projectId: string;
   onDeleted?: (deletedObjectKey: string) => void;
+  onEdit?: (attachmentId: string, fileName: string) => void;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -38,6 +40,8 @@ export function StageFileList({
     }
   };
 
+  const isDocx = (fileName: string) => fileName.toLowerCase().endsWith('.docx');
+
   return (
     <div className="space-y-2">
       {files.map((file) => (
@@ -53,6 +57,16 @@ export function StageFileList({
               {file.mimeType} · {file.fileSize} bytes
             </div>
           </div>
+          {file.id && isDocx(file.fileName) && onEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(file.id!, file.fileName)}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/70 text-[color:var(--accent)] opacity-0 transition hover:bg-blue-50 group-hover:opacity-100"
+              title="编辑修改"
+            >
+              <Pencil size={13} />
+            </button>
+          )}
           {file.id && (
             <button
               type="button"

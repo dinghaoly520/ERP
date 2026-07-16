@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsArray, ValidateNested, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsArray, ValidateNested, IsOptional, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ExtractionExpertDto {
@@ -10,6 +10,9 @@ export class ExtractionExpertDto {
 
   @IsString() @IsNotEmpty()
   major!: string;
+
+  @IsOptional() @IsBoolean()
+  isLead?: boolean;
 }
 
 export class ConfirmExtractionDto {

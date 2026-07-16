@@ -150,9 +150,17 @@ export class SupplierService {
           classification: true,
           contacts: { where: { isPrimary: true } },
           _count: { select: { evaluations: true } },
+          evaluations: {
+            select: { score: true, level: true, overallScore: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
         },
       }),
     ]);
+
+    // 批量附平均评分
+    await this.attachAvgScores(items);
 
     return { total, page, pageSize, items };
   }
@@ -205,13 +213,35 @@ export class SupplierService {
         classification: true,
         contacts: { where: { isPrimary: true } },
         _count: { select: { evaluations: true } },
+        evaluations: {
+          select: { score: true, level: true, overallScore: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
     });
 
     const idOrder = new Map(ids.map((id, i) => [id, i]));
     items.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
 
+    await this.attachAvgScores(items);
+
     return { total, page, pageSize, items };
+  }
+
+  /** 批量附平均评分到每个 supplier item */
+  private async attachAvgScores(items: any[]) {
+    if (items.length === 0) return;
+    const ids = items.map(i => i.id);
+    const aggs = await this.prisma.supplierEvaluation.groupBy({
+      by: ['supplierId'],
+      where: { supplierId: { in: ids } },
+      _avg: { score: true },
+    });
+    const avgMap = new Map(aggs.map(a => [a.supplierId, a._avg.score]));
+    for (const item of items) {
+      item._avgScore = avgMap.get(item.id) ?? null;
+    }
   }
 
   async get(id: string) {
@@ -914,6 +944,39 @@ export class SupplierService {
     return this.prisma.supplierClassification.delete({
       where: { id },
     });
+  }
+
+  /* ━━━ 供应商多分类管理 ━━━ */
+
+  async getSupplierClassifications(supplierId: string) {
+    return this.prisma.supplierClassificationLink.findMany({
+      where: { supplierId },
+      include: { classification: true },
+    });
+  }
+
+  async setSupplierClassifications(supplierId: string, classificationIds: string[]) {
+    // 校验供应商存在
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId } });
+    if (!supplier) throw new NotFoundException('供应商不存在');
+
+    // 事务：先删后插
+    await this.prisma.$transaction([
+      this.prisma.supplierClassificationLink.deleteMany({ where: { supplierId } }),
+      ...classificationIds.map(cid =>
+        this.prisma.supplierClassificationLink.create({
+          data: { supplierId, classificationId: cid },
+        }),
+      ),
+    ]);
+
+    // 同步更新旧 classificationId 字段为第一个分类（向后兼容）
+    await this.prisma.supplier.update({
+      where: { id: supplierId },
+      data: { classificationId: classificationIds[0] || null },
+    });
+
+    return this.getSupplierClassifications(supplierId);
   }
 
   /* ━━━ 供应商关注/收藏（模型已移除，保留接口兼容）━━━ */

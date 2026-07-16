@@ -68,9 +68,8 @@ export default function CentralCatalogPage() {
         <p className="text-xs text-[var(--muted-foreground)]">
           在采购商城中可查看完整目录、搜索筛选、收藏与提交申购申请
         </p>
-        <button type="button" onClick={handleOpen} className="neu-btn is-info">
-          <ExternalLink size={16} />
-          打开采购商城目录
+        <button type="button" onClick={handleOpen} className="neu-btn is-info inline-flex items-center gap-1.5">
+          <ExternalLink size={16} /> 打开采购商城目录
         </button>
       </div>
     </div>

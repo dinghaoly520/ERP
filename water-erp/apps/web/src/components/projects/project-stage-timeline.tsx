@@ -59,7 +59,7 @@ const STAGE_ACTION_LABELS: Record<string, string> = {
   INITIATION: '项目立项',
   TENDER_DOCUMENT: '采购文件编写',
   SUPPLIER_INVITATION: '供应商邀请',
-  PUBLIC_ANNOUNCEMENT: '采购公告公示',
+  PUBLIC_ANNOUNCEMENT: '公告制作与发布',
   EXPERT_SELECTION: '专家抽取',
   BID_EVALUATION: '开评标管理',
   AWARD_DECISION: '中标通知书制作',
@@ -73,6 +73,8 @@ export function ProjectStageTimeline({
   onStageAction,
   showArchiveStep,
   archiveStepState,
+  tenderDocxAttachments,
+  onEditTenderFile,
 }: {
   stages: ProjectManagementStage[];
   activeStageKey: ProjectWorkflowStageKey;
@@ -80,6 +82,8 @@ export function ProjectStageTimeline({
   onStageAction?: (stageKey: ProjectWorkflowStageKey) => void;
   showArchiveStep: boolean;
   archiveStepState: ArchiveStepState;
+  tenderDocxAttachments?: Array<{ id: string; fileName: string }>;
+  onEditTenderFile?: (attachmentId: string, fileName: string) => void;
 }) {
   const entries: TimelineEntry[] = stages.map((stage): SelectableTimelineEntry => {
     const isCompleted = stage.status === 'COMPLETED';
@@ -203,17 +207,47 @@ export function ProjectStageTimeline({
                         {entry.statusLabel}
                       </div>
                     </div>
-                    {actionLabel && onStageAction && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => { e.stopPropagation(); onStageAction(stageKey); }}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onStageAction(stageKey); } }}
-                        className="pm-stage-action-btn shrink-0"
-                      >
-                        {actionLabel}
-                      </span>
-                    )}
+                    <div className="flex flex-col items-end gap-1.5">
+                      {actionLabel && onStageAction && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); onStageAction(stageKey); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onStageAction(stageKey); } }}
+                          className="pm-stage-action-btn shrink-0"
+                        >
+                          {actionLabel}
+                        </span>
+                      )}
+                      {/* 采购文件修改按钮 — 仅 TENDER_DOCUMENT 阶段，始终显示（无附件时禁用） */}
+                      {onEditTenderFile && stageKey === 'TENDER_DOCUMENT' && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (tenderDocxAttachments && tenderDocxAttachments.length > 0) {
+                              onEditTenderFile(tenderDocxAttachments[0].id, tenderDocxAttachments[0].fileName);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.stopPropagation();
+                              if (tenderDocxAttachments && tenderDocxAttachments.length > 0) {
+                                onEditTenderFile(tenderDocxAttachments[0].id, tenderDocxAttachments[0].fileName);
+                              }
+                            }
+                          }}
+                          className={[
+                            'pm-stage-action-btn shrink-0',
+                            (!tenderDocxAttachments || tenderDocxAttachments.length === 0) ? 'opacity-40 cursor-not-allowed' : '',
+                          ].join(' ')}
+                          title={(!tenderDocxAttachments || tenderDocxAttachments.length === 0) ? '请先在详情区上传 .docx 文件' : undefined}
+                        >
+                          {entry.title === '招标文件' ? '招标文件修改' : '采购文件修改'}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-3 text-xs leading-6 text-[color:var(--muted-foreground)] sm:text-xs">

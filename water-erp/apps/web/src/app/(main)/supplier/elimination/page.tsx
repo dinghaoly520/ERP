@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { AlertTriangle, Trash2, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, Trash2 } from 'lucide-react';
 import { getEliminationCandidates, confirmEliminate } from '@/lib/api/supplier';
 import type { EliminationCandidate } from '@/lib/api/supplier';
 import { Modal } from '@/components/workbench';
@@ -60,7 +60,10 @@ export default function EliminationPage() {
             </div>
           </div>
           <div className="page-hero__right">
-            <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft"><ArrowLeft size={15} />返回供应商库</button>
+            <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              返回供应商库
+            </button>
           </div>
         </div>
       </div>

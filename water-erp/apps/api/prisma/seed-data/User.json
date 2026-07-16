@@ -9702,6 +9702,20 @@
     "updatedAt": "2026-07-08T10:12:14.922Z"
   },
   {
+    "id": "cmrmvzupb0000kozb2ijyav4o",
+    "username": "Swhi-CGZX-01",
+    "displayName": "陈源远",
+    "email": null,
+    "phone": null,
+    "officeLocation": null,
+    "passwordHash": "$2b$10$ssab1PaDnTbcUTUnIuBVkO/8p4xlBddXkQW8bbr3F8AzStvTSpEbS",
+    "role": "leader",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-07-16T02:24:00.000Z",
+    "updatedAt": "2026-07-16T02:24:00.000Z"
+  },
+  {
     "id": "cmrai35fx0001koddsw3fw8d1",
     "username": "Swhi-CGZX-02",
     "displayName": "采购中心领导 02",

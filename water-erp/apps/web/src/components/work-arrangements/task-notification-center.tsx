@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { getNotificationMeta, statusTone } from '@water-erp/shared';
 import { AiPlanningPanel } from '@/components/work-arrangements/ai-planning-panel';
@@ -15,38 +14,6 @@ export interface PlannedItem {
   title: string;
   estimatedMinutes: number;
   link: string;
-}
-
-// ── 名称提取 ──
-
-function extractName(item: NotificationItem): string {
-  const c = item.content || '';
-
-  // 1) 从任意引号中提取名称（“ = ", ” = "）
-  const quoted = c.match(/[“”"「」]([^“”"「」]{2,30})[“”"「」]/);
-  if (quoted) {
-    const name = quoted[1].trim();
-    if (name && !/^(供应商|项目|目录|品类|证书|通知)$/.test(name)) return name;
-  }
-
-  // 2) 无引号：在动作关键字处截断取名称
-  const kw = c.match(
-    /^(.+?)(?:报价调整|申请加入|价格调整|投标截止|评标已|已发布|将于|开标|已通过审核|审核不通过|已被退回|已回复|即将到期|提交了入库|提交了|资质不全|已生成|本周|ERP|您有)/
-  );
-  if (kw) {
-    let raw = kw[1];
-    // 清洗前缀和残留符号
-    raw = raw.replace(/^供应商/g, '').replace(/^项目/g, '');
-    raw = raw.replace(/[“”"「」'，。：:]|供应商/g, '').trim();
-    if (raw) return raw;
-  }
-
-  // 3) 标题去前缀兜底
-  const t = (item.title || '').replace(/^(新供应商|供应商|采购目录|新增品类|月度|周度|系统)/, '');
-  if (t.length >= 3 && t.length <= 16) return t;
-
-  // 4) 最后兜底
-  return c.replace(/[“”"「」]/g, '').slice(0, 12);
 }
 
 // ── 中文标签 + 跳转链接 ──
@@ -88,6 +55,23 @@ const ACTIONABLE_ORDER = [
   'BID_REMINDER', 'SUPPLIER_RETURNED',
 ];
 
+// 特定标题的系统通知——赋予场景化图标
+const TITLE_ICONS: Record<string, string> = {
+  '预算预警':   'TrendingDown',
+  '合同提醒':   'FileText',
+  '专家抽取':   'Users',
+  '阶段变更':   'GitBranch',
+  '工作安排':   'ClipboardList',
+  '公告发布':   'Megaphone',
+  '目录更新':   'ShoppingBag',
+  '澄清请求':   'MessageCircle',
+};
+
+function resolveIcon(type: string, title: string): string {
+  if (TITLE_ICONS[title]) return TITLE_ICONS[title];
+  return getNotificationMeta(type).icon;
+}
+
 // ── 主组件 ──
 
 interface TaskNotificationCenterProps {
@@ -119,39 +103,32 @@ export function TaskNotificationCenter({
 
   const source = directItems && directItems.length > 0 ? directItems : recent;
 
-  const groups = useMemo(() => {
-    const byType = new Map<string, NotificationItem[]>();
-    for (const item of source) {
-      const list = byType.get(item.type) || [];
-      list.push(item);
-      byType.set(item.type, list);
-    }
-
-    return [...byType.entries()]
-      .map(([type, items]) => {
-        const meta = getNotificationMeta(type);
+  // 每条通知独立展示完整标题和内容，不按类型聚合
+  const flatItems = useMemo(() => {
+    return source
+      .map((item) => {
+        const meta = getNotificationMeta(item.type);
         const tone = statusTone[meta.tone] ?? statusTone.gray;
-        const unread = items.filter((n) => !n.isRead).length;
-        const names = items
-          .filter((n) => !n.isRead)
-          .map(extractName)
-          .filter(Boolean)
-          .slice(0, 5);
         return {
-          type, items,
-          label: TYPE_LABELS[type] ?? type,
-          link: TYPE_LINKS[type] ?? '/notifications',
-          icon: meta.icon, toneColor: tone.color, toneBg: tone.bg,
-          count: items.length, unread, names,
+          ...item,
+          typeLabel: TYPE_LABELS[item.type] ?? item.type,
+          link: item.link || TYPE_LINKS[item.type] || '/notifications',
+          icon: resolveIcon(item.type, item.title),
+          toneColor: tone.color,
+          toneBg: tone.bg,
         };
       })
       .sort((a, b) => {
+        // 未读优先
+        if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
+        // 可操作类型优先
         const ai = ACTIONABLE_ORDER.indexOf(a.type);
         const bi = ACTIONABLE_ORDER.indexOf(b.type);
         if (ai !== -1 && bi !== -1) return ai - bi;
         if (ai !== -1) return -1;
         if (bi !== -1) return 1;
-        return a.label.localeCompare(b.label, 'zh');
+        // 最新在前
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
   }, [source]);
 
@@ -159,60 +136,67 @@ export function TaskNotificationCenter({
     <section className="wb-panel">
       <div className="wb-panel-header flex items-center justify-between">
         <span className="text-[15px] font-bold text-[#18243a]">任务通知</span>
-        {groups.length > 0 && (
+        {flatItems.length > 0 && (
           <span className="text-[11px] tabular-nums text-[color:var(--muted-foreground)]">
-            {groups.length} 类 · {totalCount} 条
+            共 {flatItems.length} 条通知
           </span>
         )}
       </div>
 
-      {groups.length === 0 ? (
+      {flatItems.length === 0 ? (
         <div className="flex-1 py-10 text-center text-sm text-[color:var(--muted-foreground)]">
           暂无通知
         </div>
       ) : (
         <div className="flex flex-1 flex-col">
-          {groups.map((g) => {
-            const Icon = (LucideIcons as any)[g.icon] ?? LucideIcons.Bell;
+          {flatItems.map((item) => {
+            const Icon = (LucideIcons as any)[item.icon] ?? LucideIcons.Bell;
             return (
               <button
-                key={g.type}
+                key={item.id}
                 type="button"
-                onClick={() => router.push(g.link)}
-                className="group flex items-start gap-3 border-b border-[#eef3f8] px-4 py-2.5 text-left transition last:border-b-0 hover:bg-[var(--accent-soft)]/8"
+                onClick={() => router.push(item.link)}
+                className="group flex flex-col gap-1 border-b border-[#eef3f8] px-4 py-3 text-left transition last:border-b-0 hover:bg-[var(--accent-soft)]/8"
               >
-                <span
-                  className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md"
-                  style={{ backgroundColor: g.toneBg }}
-                >
-                  <Icon size={12} style={{ color: g.toneColor }} />
-                </span>
-
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline gap-2">
-                    <span className="text-[13px] font-bold text-[#18243a]">{g.label}</span>
-                    {g.unread > 0 ? (
-                      <span
-                        className="rounded-md px-1.5 py-px text-[10px] font-bold tabular-nums"
-                        style={{ color: g.toneColor, backgroundColor: `${g.toneColor}15` }}
-                      >
-                        {g.unread}条待处理
-                      </span>
-                    ) : (
-                      <span className="text-[11px] text-[#8a99ad]">{g.count}条</span>
-                    )}
+                {/* ── Title row: icon + title + neumorphic badge ── */}
+                <span className="flex items-center gap-3">
+                  <span
+                    className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md"
+                    style={{ backgroundColor: item.toneBg }}
+                  >
+                    <Icon size={12} style={{ color: item.toneColor }} />
                   </span>
-                  {g.names.length > 0 && (
-                    <span className="mt-0.5 block text-[11px] leading-snug text-[#5a6d8a] line-clamp-2">
-                      {g.names.join('、')}
+
+                  <span className="min-w-0 flex-1 text-[13px] font-bold text-[#18243a]">
+                    {item.title}
+                  </span>
+
+                  {/* ── Neumorphic badge — "待处理" pill ── */}
+                  {!item.isRead && (
+                    <span
+                      className="shrink-0 flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wide"
+                      style={{
+                        color: item.toneColor,
+                        backgroundColor: `color-mix(in oklch, ${item.toneColor} 8%, transparent)`,
+                        boxShadow:
+                          'inset 0 1px 0 oklch(1 0 0 / 0.55), 1px 1px 2px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.75)',
+                      }}
+                    >
+                      <span
+                        className="h-1 w-1 rounded-full"
+                        style={{ backgroundColor: item.toneColor }}
+                      />
+                      待处理
                     </span>
                   )}
                 </span>
 
-                <ArrowRight
-                  size={13}
-                  className="mt-0.5 flex-shrink-0 text-[color:var(--accent)] opacity-0 transition group-hover:opacity-100"
-                />
+                {/* ── Content row — specific details ── */}
+                {item.content && (
+                  <span className="ml-9 text-[12px] leading-relaxed text-[#5a6d8a] line-clamp-2">
+                    {item.content}
+                  </span>
+                )}
               </button>
             );
           })}

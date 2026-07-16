@@ -40,4 +40,21 @@ export class UpdateExtractedInfoDto {
   @IsOptional()
   @IsString()
   departmentNumber?: string;
+
+  // ── 新增：分步骤展示字段 ──
+  @IsOptional()
+  @IsString()
+  projectOverview?: string;
+
+  @IsOptional()
+  @IsString()
+  bidOpeningTime?: string;
+
+  @IsOptional()
+  @IsString()
+  invitedSuppliers?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentPerformance?: string;
 }

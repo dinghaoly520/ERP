@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Columns3, Check } from "lucide-react";
 import type { SupplierRecommendation } from "@/lib/api/supplier";
 import { Modal } from "@/components/workbench";
+import { normalizeEnterpriseType } from "@/lib/utils/enterprise-type";
 
 type Props = {
   isOpen: boolean;
@@ -113,7 +114,7 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
                               val = c.classification || "—";
                               break;
                             case "enterpriseType":
-                              val = c.enterpriseType || "—";
+                              val = normalizeEnterpriseType(c.enterpriseType);
                               break;
                             case "matchScore":
                               val = (

@@ -234,4 +234,74 @@ export class ProjectManagementController {
   ) {
     return this.projectManagementService.updateExtractedInfo(id, dto);
   }
+
+  /** 直接返回附件原始文件（供 iframe 查看模式展示 Word 文档） */
+  @Get(':id/attachment-file/:attachmentId')
+  async serveAttachmentFile(
+    @Param('id') _id: string,
+    @Param('attachmentId') attachmentId: string,
+    @Res() res: Response,
+  ) {
+    const data = await this.projectManagementService.getAttachmentFile(attachmentId);
+    res.setHeader('Content-Type', data.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(data.fileName)}"`);
+    res.send(data.buffer);
+  }
+
+  /** 获取 DOCX 附件中的段落列表（分段落结构化展示） */
+  @Get(':id/attachment-paragraphs/:attachmentId')
+  getAttachmentParagraphs(
+    @Param('id') _id: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    return this.projectManagementService.getAttachmentParagraphs(attachmentId);
+  }
+
+  /** AI 辅助修改选中段落文本 */
+  @Post(':id/attachment-ai-polish')
+  aiPolishAttachmentSelection(
+    @Param('id') projectId: string,
+    @Body() dto: { text: string; instruction: string },
+  ) {
+    return this.projectManagementService.aiPolishAttachmentSelection(projectId, dto);
+  }
+
+  /** 保存修改后的段落并替换原文件（保留 Word 格式） */
+  @Post(':id/save-paragraphs')
+  saveAttachmentParagraphs(
+    @Param('id') projectId: string,
+    @Body() dto: { attachmentId: string; paragraphs: Array<{ index: number; text: string; rawRange?: { from: number; to: number } }> },
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.projectManagementService.saveAttachmentParagraphs(
+      projectId,
+      dto,
+      user?.sub,
+    );
+  }
+
+  /** 获取项目附件中文件的纯文本内容，供编辑修改使用 */
+  @Get(':id/attachment-text/:attachmentId')
+  getAttachmentTextForEditing(
+    @Param('id') _id: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    return this.projectManagementService.getAttachmentTextContent(attachmentId);
+  }
+
+  /** 用修改后的文本替换附件中的文件内容 */
+  @Post(':id/replace-attachment-text')
+  replaceAttachmentText(
+    @Param('id') projectId: string,
+    @Body() dto: { attachmentId: string; text: string; fileName: string },
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.projectManagementService.replaceAttachmentWithText(
+      projectId,
+      dto.attachmentId,
+      dto.text,
+      dto.fileName,
+      user?.sub,
+    );
+  }
 }

@@ -24,12 +24,19 @@ export class ExpertAdminService {
 
   /* ── 专家库 ── */
 
-  /** 专家库列表（含 ExpertProfile，可按专业筛选） */
+  /** 专家库列表（含 ExpertProfile，可按姓名或专业模糊搜索） */
   async listExperts(search?: string, specialty?: string) {
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       where: {
         role: 'bid_expert',
-        ...(search && { displayName: { contains: search, mode: 'insensitive' } }),
+        ...(search ? {
+          OR: [
+            { displayName: { contains: search, mode: 'insensitive' } },
+            { expertProfile: { specialty: { contains: search, mode: 'insensitive' } } },
+            { expertProfile: { employer: { contains: search, mode: 'insensitive' } } },
+            { department: { name: { contains: search, mode: 'insensitive' } } },
+          ],
+        } : {}),
         ...(specialty && { expertProfile: { specialty } }),
       },
       select: {
@@ -47,6 +54,37 @@ export class ExpertAdminService {
       },
       orderBy: { displayName: 'asc' },
     });
+
+    // 补平均评价分
+    const userIds = users.map(u => u.id);
+    if (userIds.length > 0) {
+      const evalAggs = await this.prisma.expertEvaluation.groupBy({
+        by: ['expertUserId'],
+        where: { expertUserId: { in: userIds } },
+        _avg: { overallScore: true },
+      });
+      const avgMap = new Map(evalAggs.map(a => [a.expertUserId, Math.round((a._avg.overallScore ?? 0) * 10) / 10]));
+      for (const u of users as any[]) {
+        u.avgEvalScore = avgMap.get(u.id) ?? null;
+      }
+    }
+
+    // 补最新一次评价
+    const latestEvals = await this.prisma.expertEvaluation.findMany({
+      where: { expertUserId: { in: userIds } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, expertUserId: true, overallScore: true, level: true, createdAt: true },
+    });
+    const latestMap = new Map<string, any>();
+    for (const e of latestEvals) {
+      if (!latestMap.has(e.expertUserId)) latestMap.set(e.expertUserId, e);
+    }
+    for (const u of users as any[]) {
+      const le = latestMap.get(u.id);
+      u.latestEval = le ? { level: le.level, overallScore: le.overallScore, createdAt: le.createdAt } : null;
+    }
+
+    return users;
   }
 
   /** 全部专业（去重） */
@@ -507,8 +545,8 @@ export class ExpertAdminService {
         dto.experts.map(e =>
           this.prisma.bidExpert.upsert({
             where: { projectId_userId: { projectId, userId: e.userId } },
-            update: { expertName: e.expertName, major: e.major },
-            create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major },
+            update: { expertName: e.expertName, major: e.major, isLead: e.isLead ?? false },
+            create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major, isLead: e.isLead ?? false },
           }),
         ),
       ),
@@ -783,6 +821,25 @@ export class ExpertAdminService {
         D: meanOrNull(byLevel.D),
       },
       expertsWithDeviation: deviations.length,
+    };
+  }
+
+  /** 三维评分分布（全局均分） */
+  async getEvaluationDimensionStats() {
+    const evals = await this.prisma.expertEvaluation.findMany({
+      select: { attendanceScore: true, qualityScore: true, disciplineScore: true },
+    });
+    if (evals.length === 0) {
+      return { attendanceAvg: 0, qualityAvg: 0, disciplineAvg: 0, total: 0 };
+    }
+    let attSum = 0, qualSum = 0, discSum = 0;
+    for (const e of evals) { attSum += e.attendanceScore; qualSum += e.qualityScore; discSum += e.disciplineScore; }
+    const n = evals.length;
+    return {
+      attendanceAvg: Math.round((attSum / n) * 10) / 10,
+      qualityAvg: Math.round((qualSum / n) * 10) / 10,
+      disciplineAvg: Math.round((discSum / n) * 10) / 10,
+      total: n,
     };
   }
 

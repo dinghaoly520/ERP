@@ -43,6 +43,12 @@ export class ExpertAdminController {
     return this.expertAdminService.getEvaluationStats();
   }
 
+  @Get('evaluations/dimensions')
+  @ApiOperation({ summary: '三维评分分布（出勤/质量/廉洁全局均分）' })
+  getEvaluationDimensionStats() {
+    return this.expertAdminService.getEvaluationDimensionStats();
+  }
+
   @Post()
   @ApiOperation({ summary: '录入专家' })
   createExpert(@Body() dto: CreateExpertDto) {

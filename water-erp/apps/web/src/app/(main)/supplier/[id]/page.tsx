@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getClassifications, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, assignClassification } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getClassifications, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, getSupplierClassifications, setSupplierClassifications } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification, SupplierClassification } from '@/lib/types';
 import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supplier';
 import { AlertBanner, type AlertSeverity, Breadcrumb, StatusBadge, Modal } from '@/components/workbench';
@@ -11,6 +11,8 @@ import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2 } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
+
+import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 
 type TabKey = 'info' | 'portrait' | 'contacts' | 'qualifications' | 'evaluations' | 'changes' | 'communications' | 'documents';
 
@@ -53,27 +55,30 @@ export default function SupplierDetailPage() {
   const [actionReason, setActionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // 分类分配弹窗
+  // 分类分配弹窗（多选）
   const [classModal, setClassModal] = useState(false);
   const [classifications, setClassifications] = useState<SupplierClassification[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState('');
+  const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(new Set());
   const [classLoading, setClassLoading] = useState(false);
+  const [classLinks, setClassLinks] = useState<{ classificationId: string; classification: SupplierClassification }[]>([]);
 
   const closeApproval = () => { setApprovalMode(null); setApprovalReason(''); };
 
   const loadAll = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const [s, q, e, c] = await Promise.all([
+    const [s, q, e, c, cl] = await Promise.all([
       getSupplier(id).catch(() => null),
       getQualifications(id).catch(() => []),
       getSupplierEvaluations(id).catch(() => []),
       getSupplierChanges(id).catch(() => []),
+      getSupplierClassifications(id).catch(() => []),
     ]);
     setSupplier(s);
     setQualifications(q);
     setEvaluations(e);
     setChanges(c);
+    setClassLinks(cl);
     setLoading(false);
   }, [id]);
 
@@ -159,12 +164,12 @@ export default function SupplierDetailPage() {
     setActionLoading(false);
   };
 
-  // ── 分类分配 ──
+  // ── 分类分配（多选） ──
   const handleAssignClass = async () => {
-    if (!selectedClassId || !supplier) return;
+    if (!supplier) return;
     setClassLoading(true);
     try {
-      await assignClassification(supplier.id, selectedClassId);
+      await setSupplierClassifications(supplier.id, [...selectedClassIds]);
       toast.success('分类已更新'); setClassModal(false); loadAll();
     } catch (e: any) { toast.error(e?.message || '分类更新失败'); }
     setClassLoading(false);
@@ -244,7 +249,7 @@ export default function SupplierDetailPage() {
             </div>
             <p className="mt-1.5 text-sm text-[var(--muted-foreground)] flex flex-wrap items-center gap-x-3 gap-y-0.5">
               <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
-              {supplier.classification && <><span className="opacity-40">·</span><span>{supplier.classification.name}</span></>}
+              {classLinks.length > 0 && <><span className="opacity-40">·</span><span className="flex items-center gap-1">{classLinks.map(l => <span key={l.classificationId} className="rounded-md bg-[var(--accent)]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[var(--accent)]">{l.classification.name}</span>)}</span></>}
               {avgScore && <><span className="opacity-40">·</span><span>综合评分 {avgScore}</span></>}
               <span className="opacity-40">·</span><span>注册 {daysSinceReg} 天</span>
             </p>
@@ -267,12 +272,20 @@ export default function SupplierDetailPage() {
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             {supplier.status === 'APPROVED' && (
               <>
-                <button onClick={() => { setSelectedClassId(supplier.classificationId || ''); setClassModal(true); }} className="neu-btn-xs">分配分类</button>
+                <button onClick={async () => {
+                  getClassifications().then(setClassifications).catch(() => {});
+                  const links = await getSupplierClassifications(supplier.id).catch(() => []);
+                  setSelectedClassIds(new Set(links.map(l => l.classificationId)));
+                  setClassModal(true);
+                }} className="neu-btn-xs">分配分类</button>
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'disable', supplier }); }} className="neu-btn-xs is-warning">停用</button>
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'blacklist', supplier }); }} className="neu-btn-xs is-danger">黑名单</button>
               </>
             )}
-            <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft">← 返回列表</button>
+            <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              返回列表
+            </button>
           </div>
         </div>
       </div>
@@ -320,7 +333,7 @@ export default function SupplierDetailPage() {
             {/* 中：关键摘要 */}
             <div className="space-y-2.5">
               {[
-                { icon: Building2, label: '企业类型', value: supplier.enterpriseType },
+                { icon: Building2, label: '企业类型', value: normalizeEnterpriseType(supplier.enterpriseType) },
                 { icon: ShieldCheck, label: '法定代表人', value: supplier.legalPerson },
                 { icon: MapPin, label: '注册地址', value: supplier.registeredAddress || '未登记' },
               ].map(item => (
@@ -398,11 +411,11 @@ export default function SupplierDetailPage() {
                   {[
                     ['企业名称', supplier.name],
                     ['统一社会信用代码', supplier.creditCode || '—'],
-                    ['企业类型', supplier.enterpriseType],
+                    ['企业类型', normalizeEnterpriseType(supplier.enterpriseType)],
                     ['法定代表人', supplier.legalPerson],
                     ['注册地址', supplier.registeredAddress || '—'],
                     ['经营范围', supplier.businessScope || '—'],
-                    ['供应商分类', supplier.classification?.name || '未分类'],
+                    ['供应商分类', classLinks.length > 0 ? classLinks.map(l => l.classification.name).join('、') : '未分类'],
                   ].map(([label, value]) => (
                     <div key={label as string}>
                       <p className="text-[11px] text-[var(--muted-foreground)] mb-0.5">{label}</p>
@@ -907,10 +920,24 @@ export default function SupplierDetailPage() {
             </>
           }
         >
-          <select value={selectedClassId} onChange={e => setSelectedClassId(e.target.value)} className="neu-input w-full">
-            <option value="">不分类</option>
-            {classifications.map(c => <option key={c.id} value={c.id}>{c.name}（{c.code}）</option>)}
-          </select>
+          <div className="flex flex-wrap gap-1.5">
+            {classifications.map(c => {
+              const active = selectedClassIds.has(c.id);
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedClassIds(prev => {
+                    const n = new Set(prev);
+                    active ? n.delete(c.id) : n.add(c.id);
+                    return n;
+                  })}
+                  className={`neu-tab text-[11px] !px-2.5 !py-1.5 ${active ? 'is-active' : ''}`}
+                >
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
         </Modal>
       )}
     </div>

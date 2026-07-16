@@ -8650,6 +8650,10 @@ a {
     inset -2px -2px 5px oklch(1 0 0 / 0.5);
 }
 
+/* 禁用态 */
+.neu-btn-soft:disabled { opacity: 0.35; pointer-events: none; }
+.neu-btn-xs:disabled { opacity: 0.35; pointer-events: none; }
+
 /* 状态色变体 —— 用于通过/拒绝/退回等语义操作 */
 .neu-btn-soft.is-success { color: var(--success); }
 .neu-btn-soft.is-success:hover { background: oklch(0.95 0.05 164 / 0.5); }

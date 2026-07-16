@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getExpertRanking, getLoadDistribution } from '@/lib/api/expert';
 import { StatusBadge } from '@/components/workbench';
-import { Trophy, RefreshCw, UsersRound, ArrowLeft, Crown, Medal } from 'lucide-react';
+import { Crown, Medal, RefreshCw, Trophy, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
 
 const PERIOD_LABELS: Record<string, string> = { month: '近一月', quarter: '近一季', all: '累计' };
@@ -43,8 +43,9 @@ export default function ExpertRankingPage() {
             <div><div className="page-hero__title">专家排名</div><div className="page-hero__sub">按评价表现排名，激励专家提升评审质量，辅助抽取决策参考</div></div>
           </div>
           <div className="page-hero__right">
-            <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft gap-1"><ArrowLeft size={14} />返回专家库</button>
-            <button onClick={load} className="neu-btn-xs"><RefreshCw size={14} /></button>
+            <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              返回专家库</button>
           </div>
         </div>
         <div className="page-hero__divider">
