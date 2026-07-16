@@ -238,9 +238,15 @@ export class ExpertService {
       include: { scoreItem: true },
     });
 
-    // 招标文件元信息：仅 active 项目附带（门控要求 OPENING/EVALUATING），restricted 分支不带
+    // 招标文件元信息：通过 projectId 或公告链（OPEN 公告的 bidProjectId 为 null，但
+    // announcement.relatedProjectCode 匹配当前 projectCode）查找
     const tenderDoc = await this.prisma.bidDocument.findFirst({
-      where: { bidProjectId: projectId },
+      where: {
+        OR: [
+          { bidProjectId: projectId },
+          { announcement: { relatedProjectCode: project.projectCode } },
+        ],
+      },
       include: { fileAsset: true },
     });
     return {
@@ -453,8 +459,14 @@ export class ExpertService {
   /** 解密下载招标文件明文 PDF，并写一条访问审计日志（不递增 downloadCount）。 */
   async downloadTenderDocument(userId: string, projectId: string): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
     const expert = await this.assertExpertActiveForProject(userId, projectId);
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { projectCode: true } });
     const doc = await this.prisma.bidDocument.findFirst({
-      where: { bidProjectId: projectId },
+      where: {
+        OR: [
+          { bidProjectId: projectId },
+          { announcement: { relatedProjectCode: project?.projectCode ?? '' } },
+        ],
+      },
       include: { fileAsset: true },
     });
     if (!doc?.fileAsset) throw new NotFoundException({ error: '招标文件不存在', code: 'NOT_FOUND' });

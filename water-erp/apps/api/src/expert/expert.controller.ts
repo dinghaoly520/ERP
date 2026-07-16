@@ -249,8 +249,9 @@ export class ExpertController {
     @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
     @Query('supplierId') supplierId?: string,
+    @Query('scorePointId') scorePointId?: string,
   ) {
-    return this.memoService.getMemos(userId, projectId, supplierId);
+    return this.memoService.getMemos(userId, projectId, supplierId, scorePointId);
   }
 
   @ApiOperation({ summary: '创建备忘（支持 multipart 墨迹 PNG 上传，OCR 自动降级）' })

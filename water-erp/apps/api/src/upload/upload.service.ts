@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenEx
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET, ensureBucket } from './minio.client';
+import { convertOfficeToPdf, sanitizeFileName } from '../common/office-to-pdf.util';
 
 /** Allowed MIME types for upload */
 const ALLOWED_MIME_TYPES = [
@@ -84,22 +85,36 @@ export class UploadService implements OnModuleInit {
   async upload(file: Express.Multer.File, category: string = 'general', userId?: string) {
     this.validateFile(file, category);
 
-    const key = this.generateKey(file.originalname);
-    const sha256 = this.computeSha256(file.buffer);
+    // ① 文件名从 multer 的 latin1 还原为 utf8（中文不乱码）
+    const originalName = sanitizeFileName(file.originalname);
+
+    // ② Office Word 文档自动转 PDF（预览统一，转换失败降级存原始文件）
+    let buffer = file.buffer;
+    let mimeType = file.mimetype;
+    let displayName = originalName;
+    const converted = convertOfficeToPdf(file.buffer, file.mimetype, originalName);
+    if (converted) {
+      buffer = converted.buffer;
+      mimeType = converted.mimeType;
+      displayName = converted.fileName;
+    }
+
+    const key = this.generateKey(displayName);
+    const sha256 = this.computeSha256(buffer);
 
     // 写入 MinIO 对象存储
-    await minioClient.putObject(MINIO_BUCKET, key, file.buffer, file.size, {
-      'Content-Type': file.mimetype,
+    await minioClient.putObject(MINIO_BUCKET, key, buffer, buffer.length, {
+      'Content-Type': mimeType,
     });
-    this.logger.log(`File stored in MinIO: ${key} (${file.size} bytes, ${file.mimetype})`);
+    this.logger.log(`File stored in MinIO: ${key} (${buffer.length} bytes, ${mimeType})`);
 
     // 持久化文件元数据到数据库
     const asset = await this.prisma.fileAsset.create({
       data: {
         key,
-        originalName: file.originalname,
-        mimeType: file.mimetype,
-        size: file.size,
+        originalName: displayName,
+        mimeType,
+        size: buffer.length,
         sha256,
         category,
         uploaderId: userId,

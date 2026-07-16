@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { landingURL } from '@water-erp/config';
 import './login.css';
@@ -26,6 +26,12 @@ const DEMO_ACCOUNTS: Record<Tab, { username: string; password: string }> =
 
 export default function ExpertLoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // 平板深链登录后回到原页面：仅允许站内相对路径，防开放重定向
+  const returnTo = (() => {
+    const r = searchParams.get('redirect');
+    return r && r.startsWith('/') && !r.startsWith('//') ? r : '/';
+  })();
   const [tab, setTab] = useState<Tab>('expert');
   const [form, setForm] = useState({ ...DEMO_ACCOUNTS.expert });
   const [loading, setLoading] = useState(false);
@@ -59,7 +65,7 @@ export default function ExpertLoginPage() {
       // 而管理员登录拿到的是 token_web（按角色命名），读不到。登录响应本身已含 role。
       const { role } = (await res.json()) as { role: string };
       if (tab === 'expert') {
-        if (role === 'bid_expert') { router.push('/'); }
+        if (role === 'bid_expert') { router.push(returnTo); }
         else toast.error('非专家账户，请使用专家账号登录');
       } else if (WEB_ROLES.includes(role)) {
         window.location.href = landingURL(role); // → http://localhost:3005/dashboard

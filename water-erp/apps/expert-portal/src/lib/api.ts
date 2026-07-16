@@ -79,9 +79,14 @@ export async function verifyScoreReview(
 export async function listMemos(
   projectId: string,
   supplierId?: string,
+  scorePointId?: string,
 ): Promise<ExpertMemo[]> {
+  const params = new URLSearchParams();
+  if (supplierId) params.set('supplierId', supplierId);
+  if (scorePointId) params.set('scorePointId', scorePointId);
+  const qs = params.toString();
   return api.get<ExpertMemo[]>(
-    `/expert/projects/${projectId}/memos${supplierId ? `?supplierId=${supplierId}` : ''}`,
+    `/expert/projects/${projectId}/memos${qs ? `?${qs}` : ''}`,
   );
 }
 
@@ -91,6 +96,7 @@ export async function createMemo(
     contentText?: string;
     supplierId?: string;
     scoreItemId?: string;
+    scorePointId?: string;
     sourceDevice?: string;
     inkBlob?: Blob;
   },
@@ -99,6 +105,7 @@ export async function createMemo(
   if (data.contentText !== undefined) fd.append('contentText', data.contentText);
   if (data.supplierId) fd.append('supplierId', data.supplierId);
   if (data.scoreItemId) fd.append('scoreItemId', data.scoreItemId);
+  if (data.scorePointId) fd.append('scorePointId', data.scorePointId);
   if (data.sourceDevice) fd.append('sourceDevice', data.sourceDevice);
   if (data.inkBlob) fd.append('ink', data.inkBlob, 'memo-ink.png');
   return api.post<ExpertMemo>(`/expert/projects/${projectId}/memos`, fd);

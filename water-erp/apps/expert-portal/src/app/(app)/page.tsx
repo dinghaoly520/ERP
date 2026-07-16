@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, CheckCircle, Clipboard, ScrollText, UserCircle, ShieldCheck } from 'lucide-react';
+import { Clock, CheckCircle, Clipboard, ScrollText, UserCircle, ShieldCheck, Tablet } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { ExpertStatistics, ExpertProject, User } from '@/lib/types';
@@ -152,6 +152,15 @@ export default function ExpertDashboardPage() {
                       <span className="text-xs font-semibold text-[#064ea2] w-12 text-right">{ep.progress}%</span>
                       {!ep.signedIn && <span className="text-xs bg-amber-50/50 text-amber-600 px-2 py-0.5 rounded font-semibold">待核验</span>}
                       {ep.progress >= 100 && <span className="text-xs bg-emerald-50/50 text-emerald-600 px-2 py-0.5 rounded font-semibold">已完成</span>}
+                    </div>
+                    <div className="mt-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); router.push(`/tablet/evaluate/${ep.project.id}`); }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#064ea2]/30 bg-[#064ea2]/5 px-3 py-1.5 text-xs font-semibold text-[#064ea2] transition hover:bg-[#064ea2]/10"
+                      >
+                        <Tablet size={13} strokeWidth={1.8} /> 平板评标
+                      </button>
                     </div>
                   </div>
                 );

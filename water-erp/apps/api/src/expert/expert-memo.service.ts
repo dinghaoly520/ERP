@@ -30,6 +30,7 @@ export class ExpertMemoService {
     dto: {
       supplierId?: string;
       scoreItemId?: string;
+      scorePointId?: string;
       contentText?: string;
       inkBuffer?: Buffer;
       sourceDevice?: string;
@@ -87,6 +88,7 @@ export class ExpertMemoService {
         projectId,
         supplierId: dto.supplierId,
         scoreItemId: dto.scoreItemId,
+        scorePointId: dto.scorePointId,
         contentText,
         inkFileId,
         sourceDevice: dto.sourceDevice,
@@ -94,7 +96,7 @@ export class ExpertMemoService {
     });
   }
 
-  async getMemos(userId: string, projectId: string, supplierId?: string) {
+  async getMemos(userId: string, projectId: string, supplierId?: string, scorePointId?: string) {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -108,6 +110,7 @@ export class ExpertMemoService {
         expertId: expert.id,
         projectId,
         ...(supplierId ? { supplierId } : {}),
+        ...(scorePointId ? { scorePointId } : {}),
       },
       orderBy: { createdAt: 'desc' },
     });

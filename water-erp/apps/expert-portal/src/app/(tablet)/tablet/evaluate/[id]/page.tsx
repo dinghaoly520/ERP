@@ -1,17 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, Loader2, Send } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, createMemo } from '@/lib/api';
 import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
 import type { ExpertProjectDetail } from '@/lib/types';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 import { PointChecklistScoring } from '@/components/evaluate/point-checklist-scoring';
 import { MemoPanel } from '@/components/memo/memo-panel';
+import type { AtramentCanvasHandle } from '@/components/memo/atrament-canvas';
 
 // 与 (app) evaluate 页面一致的 score 条目结构（精简版，不含 passed/points 之外的 UI 态）
 type ScoreEntry = {
@@ -45,6 +47,10 @@ export default function TabletEvaluatePage() {
   const [scores, setScores] = useState<Record<string, ScoreEntry>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // 手写备忘得分点上下文（点击左侧得分点 → 选中高亮 → 右侧备忘绑定该得分点）
+  const [activePointId, setActivePointId] = useState<string | null>(null);
+  const [activePointName, setActivePointName] = useState<string>('');
+  const memoCanvasRef = useRef<AtramentCanvasHandle>(null);
 
   // P0-1: hydrate 时用 composite key（与桌面端一致，避免跨供应商串分）
   const loadProject = useCallback(() => {
@@ -190,6 +196,29 @@ export default function TabletEvaluatePage() {
     }
   };
 
+  // 点击得分点：切点时若画布有内容 → 自动保存到旧得分点 → 清屏
+  const handlePointClick = useCallback(
+    async (pointId: string, pointName: string) => {
+      if (activePointId && activePointId !== pointId && memoCanvasRef.current && !memoCanvasRef.current.isEmpty()) {
+        try {
+          const blob = await memoCanvasRef.current.toBlob();
+          if (blob) {
+            await createMemo(projectId, {
+              inkBlob: blob,
+              sourceDevice: 'tablet_handwriting',
+              supplierId: activeSupplier || undefined,
+              scorePointId: activePointId,
+            });
+          }
+        } catch { /* 自动保存失败静默继续 */ }
+        memoCanvasRef.current.clear();
+      }
+      setActivePointId(activePointId === pointId ? null : pointId);
+      setActivePointName(activePointId === pointId ? '' : pointName);
+    },
+    [activePointId, projectId, activeSupplier],
+  );
+
   if (loading || !project) {
     return (
       <div className="flex h-64 items-center justify-center text-[oklch(0.55_0.01_264)]">
@@ -237,9 +266,10 @@ export default function TabletEvaluatePage() {
       />
 
       {/* 主内容：评分 + 备忘面板 */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[1fr_320px]">
+      <PanelGroup orientation="horizontal" className="min-h-0 flex-1 gap-0">
+        <Panel defaultSize={55} minSize={35} className="min-h-0">
         {/* 评分区 */}
-        <div className="min-h-0 overflow-y-auto rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/60 p-3">
+        <div className="h-full overflow-y-auto rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/60 p-3">
           {!canScoreActiveSupplier && (
             <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
               该投标单位未解密成功、已撤回、已废标或已回避，不能评分。
@@ -370,6 +400,8 @@ export default function TabletEvaluatePage() {
                               value={val?.points ?? {}}
                               readOnly={readOnly}
                               compact
+                              selectedPointId={activePointId}
+                              onPointClick={handlePointClick}
                               onChange={(pid, pv) =>
                                 setScores(prev => {
                                   const cur = prev[k] ?? { score: 0, reason: '' };
@@ -447,16 +479,22 @@ export default function TabletEvaluatePage() {
             })}
           </div>
         </div>
-
+        </Panel>
+        <PanelResizeHandle className="w-1.5 bg-[oklch(0.92_0.004_265)] hover:bg-[#064ea2]/20 transition-colors cursor-col-resize" />
+        <Panel defaultSize={45} minSize={25} className="min-h-0">
         {/* 备忘侧栏 */}
-        <aside className="min-h-0 overflow-y-auto rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/70 p-3">
+        <aside className="h-full overflow-y-auto rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/70 p-3">
           <MemoPanel
             projectId={projectId}
             supplierId={activeSupplier || undefined}
+            scorePointId={activePointId ?? undefined}
+            scorePointName={activePointName || undefined}
             compact
+            sourceDevice="tablet"
           />
         </aside>
-      </div>
+        </Panel>
+      </PanelGroup>
 
       {/* 提交栏 */}
       <div className="flex flex-shrink-0 items-center justify-end gap-2">
