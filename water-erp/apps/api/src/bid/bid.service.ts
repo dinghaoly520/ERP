@@ -24,6 +24,7 @@ import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../expert/expert-deviation';
 import { ScoreCategory } from '@prisma/client';
 import { isBondQualified } from './bid-bond-status';
+import { recomputeExpertProgress, recomputeItemFromDecisions } from './score-recalculate.helper';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
@@ -1294,6 +1295,46 @@ export class BidService {
       });
     }
 
+    // checklist 模式：若该 item 有 points，走 decision 汇总（与 ExpertService.submitScores 同口径）
+    const points = await this.prisma.bidScorePoint.findMany({
+      where: { scoreItemId: dto.scoreItemId },
+      select: { id: true, objective: true, fullScore: true, scoreItemId: true },
+    });
+    let finalScore = Number(dto.score);
+    let finalPassed = dto.passed;
+    if (points.length > 0) {
+      // 含得分点的评分项必须提交 pointDecisions（与 ExpertService.submitScores 同口径）
+      if (!dto.pointDecisions || dto.pointDecisions.length === 0) {
+        throw new BadRequestException({
+          error: `评分项 ${scoreItem.name} 含得分点，必须提交得分点裁定`,
+          code: 'DECISIONS_REQUIRED',
+        });
+      }
+      for (const d of dto.pointDecisions) {
+        const pm = points.find(p => p.id === d.pointId);
+        if (!pm) throw new BadRequestException({ error: `得分点 ${d.pointId} 不属于该评分项`, code: 'POINT_NOT_IN_ITEM' });
+        if (Number(d.awardedScore) > Number(pm.fullScore)) {
+          throw new BadRequestException({ error: `得分点 ${d.pointId} 分数超过满分`, code: 'POINT_SCORE_EXCEEDS_MAX' });
+        }
+      }
+      const decisionMap = new Map(dto.pointDecisions.map(d => [d.pointId, { checked: d.checked, awardedScore: Number(d.awardedScore) }]));
+      const recomputed = recomputeItemFromDecisions({
+        category: scoreItem.category,
+        points: points.map(p => ({ id: p.id, objective: p.objective, fullScore: Number(p.fullScore) })),
+        decisions: decisionMap,
+      });
+      finalScore = recomputed.score;
+      finalPassed = recomputed.passed ?? dto.passed;
+
+      for (const d of dto.pointDecisions) {
+        await this.prisma.bidScorePointDecision.upsert({
+          where: { expertId_pointId_supplierId: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId } },
+          update: { checked: d.checked, awardedScore: d.awardedScore, note: d.note },
+          create: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId, checked: d.checked, awardedScore: d.awardedScore, note: d.note },
+        });
+      }
+    }
+
     // 利用唯一约束 upsert：存在则更新，不存在则创建
     const record = await this.prisma.bidScoreRecord.upsert({
       where: {
@@ -1303,14 +1344,14 @@ export class BidService {
           supplierId: dto.supplierId,
         },
       },
-      update: { score: dto.score, reason: dto.reason, ...(dto.passed !== undefined ? { passed: dto.passed } : {}) },
+      update: { score: finalScore, reason: dto.reason, ...(finalPassed !== undefined ? { passed: finalPassed } : {}) },
       create: {
         expertId: dto.expertId,
         scoreItemId: dto.scoreItemId,
         supplierId: dto.supplierId,
-        score: dto.score,
+        score: finalScore,
         reason: dto.reason,
-        ...(dto.passed !== undefined ? { passed: dto.passed } : {}),
+        ...(finalPassed !== undefined ? { passed: finalPassed } : {}),
       },
     });
 
@@ -1337,7 +1378,7 @@ export class BidService {
     }));
 
     const alert = checkScoreAnomaly(
-      { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: Number(dto.score) },
+      { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: finalScore },
       existingScores,
     );
     if (alert) {
@@ -1351,20 +1392,8 @@ export class BidService {
       });
     }
 
-    // 同步更新专家进度和总分（与 ExpertService.submitScores 保持一致）
-    const allScoreItems = await this.prisma.bidScoreItem.findMany({ where: { projectId } });
-    const activeSupplierCount = await this.prisma.bidSupplier.count({
-      where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
-    });
-    const totalItems = allScoreItems.length * activeSupplierCount;
-    const scoredItems = await this.prisma.bidScoreRecord.count({
-      where: { expertId: expert.id, scoreItem: { projectId } },
-    });
-    const progress = totalItems > 0 ? Math.round((scoredItems / totalItems) * 100) : 0;
-    const allRecords = await this.prisma.bidScoreRecord.findMany({
-      where: { expertId: expert.id, scoreItem: { projectId } },
-    });
-    const totalScore = allRecords.reduce((sum, r) => sum + Number(r.score), 0);
+    // 同步更新专家进度和总分（复用纯函数，与 ExpertService.submitScores 同口径）
+    const { progress, totalScore } = await recomputeExpertProgress(this.prisma, dto.expertId, projectId);
     await this.prisma.bidExpert.update({
       where: { id: expert.id },
       data: { progress, totalScore },

@@ -1,6 +1,20 @@
 import { IsString, IsNotEmpty, IsArray, ValidateNested, IsNumber, IsOptional, IsBoolean, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
+class PointDecisionDto {
+  @IsString() @IsNotEmpty()
+  pointId: string;
+
+  @IsBoolean()
+  checked: boolean;
+
+  @IsNumber() @Min(0) @Max(9999.9)
+  awardedScore: number;
+
+  @IsString() @IsOptional()
+  note?: string;
+}
+
 class ScoreItemDto {
   @IsString() @IsNotEmpty()
   scoreItemId: string;
@@ -16,6 +30,9 @@ class ScoreItemDto {
 
   @IsString() @IsOptional()
   reason?: string;
+
+  @IsArray() @ValidateNested({ each: true }) @Type(() => PointDecisionDto) @IsOptional()
+  pointDecisions?: PointDecisionDto[];
 }
 
 export class BatchScoreDto {
