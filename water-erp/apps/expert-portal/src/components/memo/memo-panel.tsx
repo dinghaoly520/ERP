@@ -20,23 +20,36 @@ interface MemoPanelProps {
   scoreItemId?: string;
   /** 紧凑模式（tablet 用更小 padding） */
   compact?: boolean;
+  /** 来源设备：tablet（默认手写）/ desktop（默认键盘）。
+   *  影响默认输入模式 + 落库 sourceDevice 字段（`<device>_<mode>`）。 */
+  sourceDevice?: 'tablet' | 'desktop';
+  /** 强制覆盖默认输入模式（默认随 sourceDevice：tablet→handwriting, desktop→keyboard） */
+  defaultMode?: Mode;
 }
 
 type Mode = 'handwriting' | 'keyboard';
+
+/** 列表展示用：`tablet_handwriting` → 「平板·手写」、`desktop_keyboard` → 「桌面·键盘」 */
+function memoDeviceLabel(sourceDevice: string): string {
+  const [device, input] = sourceDevice.split('_');
+  const deviceLabel = device === 'desktop' ? '桌面' : device === 'tablet' ? '平板' : device;
+  const inputLabel = input === 'handwriting' ? '手写' : input === 'keyboard' ? '键盘' : input;
+  return input ? `${deviceLabel}·${inputLabel}` : deviceLabel;
+}
 
 /**
  * 备忘面板（Phase ⑤ Task 6）
  *
  * - 手写模式：复用 HandwritingCanvas（Task 5），保存为 PNG Blob → createMemo(inkBlob)
  * - 键盘模式：textarea → createMemo(contentText)
- * - sourceDevice 区分来源（tablet_handwriting / tablet_keyboard），后端落库用于审计
+ * - sourceDevice 区分来源（`<device>_<mode>`：tablet_handwriting / tablet_keyboard / desktop_keyboard …），后端落库用于审计
  * - 列表：listMemos 展示文本 + 墨迹原图链接（getMemoInkUrl）+ 删除
  *
  * 说明：ink URL 打开时仅用 `noopener`（不使用 noreferrer）——
  * 若返回的是 /api 下发的代理 URL，referrer 丢失会导致 portal 识别失败返回 401。
  */
-export function MemoPanel({ projectId, supplierId, scoreItemId, compact }: MemoPanelProps) {
-  const [mode, setMode] = useState<Mode>('handwriting');
+export function MemoPanel({ projectId, supplierId, scoreItemId, compact, sourceDevice = 'tablet', defaultMode }: MemoPanelProps) {
+  const [mode, setMode] = useState<Mode>(defaultMode ?? (sourceDevice === 'desktop' ? 'keyboard' : 'handwriting'));
   const [text, setText] = useState('');
   const [memos, setMemos] = useState<ExpertMemo[]>([]);
   const [saving, setSaving] = useState(false);
@@ -76,7 +89,7 @@ export function MemoPanel({ projectId, supplierId, scoreItemId, compact }: MemoP
         }
         await createMemo(projectId, {
           inkBlob: blob,
-          sourceDevice: 'tablet_handwriting',
+          sourceDevice: `${sourceDevice}_handwriting`,
           supplierId,
           scoreItemId,
         });
@@ -89,7 +102,7 @@ export function MemoPanel({ projectId, supplierId, scoreItemId, compact }: MemoP
         }
         await createMemo(projectId, {
           contentText: trimmed,
-          sourceDevice: 'tablet_keyboard',
+          sourceDevice: `${sourceDevice}_keyboard`,
           supplierId,
           scoreItemId,
         });
@@ -134,7 +147,7 @@ export function MemoPanel({ projectId, supplierId, scoreItemId, compact }: MemoP
     <section className="flex h-full flex-col">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="flex items-center gap-1.5 text-sm font-bold text-[oklch(0.18_0.012_265)]">
-          <PenLine size={14} strokeWidth={1.5} /> 手写备忘
+          <PenLine size={14} strokeWidth={1.5} /> 专家备忘
         </h3>
         <div className="flex items-center gap-1 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white p-0.5">
           <button
@@ -242,7 +255,7 @@ export function MemoPanel({ projectId, supplierId, scoreItemId, compact }: MemoP
                   <div className="mt-0.5 text-[10px] text-[oklch(0.62_0.008_264)]">
                     {new Date(m.createdAt).toLocaleString('zh-CN')}
                     {m.sourceDevice &&
-                      ` · ${m.sourceDevice === 'tablet_handwriting' ? '手写' : '键盘'}`}
+                      ` · ${memoDeviceLabel(m.sourceDevice)}`}
                   </div>
                 </div>
                 <button
