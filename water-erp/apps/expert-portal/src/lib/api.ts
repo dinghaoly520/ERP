@@ -49,3 +49,20 @@ export const api = {
   delete: <T>(path: string) =>
     fetchApi<T>(path, { method: 'DELETE' }),
 };
+
+// ── Expert score-review verify ──
+export interface ScoreReviewVerifyResult {
+  id: string;
+  status: string;
+  verifiedAt: string | null;
+}
+
+export async function verifyScoreReview(
+  projectId: string,
+  supplierId: string,
+): Promise<ScoreReviewVerifyResult> {
+  return api.post<ScoreReviewVerifyResult>(
+    `/expert/projects/${projectId}/suppliers/${supplierId}/score-review/verify`,
+    {},
+  );
+}

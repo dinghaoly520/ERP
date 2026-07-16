@@ -14,16 +14,18 @@ import { RequirementComparePanel } from '@/components/evaluate/assist/requiremen
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
 import { DocumentsStep } from '@/components/evaluate/documents-step';
 import { ReportStep } from '@/components/evaluate/report-step';
+import { VerifyScoreStep } from '@/components/evaluate/verify-score-step';
 import { PointChecklistScoring } from '@/components/evaluate/point-checklist-scoring';
 import { formatBytes } from '@/lib/utils';
 
-type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'report';
+type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'verify-score' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
   { key: 'verify', label: '身份核验', Icon: ShieldCheck },
   { key: 'documents', label: '标书获取', Icon: FileText },
   { key: 'assist', label: '辅助评标', Icon: Sparkles },
   { key: 'compare', label: '条款响应核对', Icon: Scale },
   { key: 'scoring', label: '专家打分', Icon: Edit3 },
+  { key: 'verify-score', label: '核对', Icon: CheckCircle },
   { key: 'report', label: '评审报告', Icon: BarChart3 },
 ];
 
@@ -125,6 +127,22 @@ export default function ExpertEvaluatePage() {
   const [aiConsentChecked, setAiConsentChecked] = useState(false);
 
   // P2: step gating — each step is unlocked only when its preconditions are met
+  // Task 6: verify-score completion — all active (decrypted, non-withdrawn) suppliers verified
+  const allScoreReviewsVerified = (): boolean => {
+    if (!project) return false;
+    const reviews = (expert as any)?.scoreReviews as
+      | { supplierId: string; status: string }[]
+      | undefined;
+    if (!reviews) return false;
+    const activeSuppliers = project.suppliers.filter(
+      (s) => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回',
+    );
+    if (activeSuppliers.length === 0) return false;
+    return activeSuppliers.every(
+      (s) =>
+        reviews.find((r) => r.supplierId === s.id)?.status === 'verified',
+    );
+  };
   const stepAccessible = (sKey: Step): boolean => {
     switch (sKey) {
       case 'verify': return true;
@@ -132,6 +150,7 @@ export default function ExpertEvaluatePage() {
       case 'assist': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
       case 'compare': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
       case 'scoring': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
+      case 'verify-score': return (expert?.progress ?? 0) >= 100;
       case 'report': return !!expert?.reportConfirmed || (expert?.progress ?? 0) >= 100;
     }
   };
@@ -142,6 +161,7 @@ export default function ExpertEvaluatePage() {
       case 'assist': return false;
       case 'compare': return false;
       case 'scoring': return !!expert?.reportConfirmed;
+      case 'verify-score': return allScoreReviewsVerified();
       case 'report': return !!expert?.reportConfirmed;
     }
   };
@@ -780,7 +800,7 @@ export default function ExpertEvaluatePage() {
       {/* 主内容区：供应商侧边栏 + 内容 */}
       <div className="flex-1 flex overflow-hidden min-h-0 rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/60">
         {/* 供应商侧边栏 — 辅助评标 / 条款响应核对 / 专家打分步骤显示 */}
-        {(step === 'assist' || step === 'compare' || step === 'scoring') && (
+        {(step === 'assist' || step === 'compare' || step === 'scoring' || step === 'verify-score') && (
           <SupplierSidebar
             suppliers={project.suppliers}
             activeSupplier={activeSupplier}
@@ -1432,6 +1452,23 @@ export default function ExpertEvaluatePage() {
           )}
 
 
+
+          {/* ====== 核对评分（verify-score）— 只读审阅 + 确认核对 ====== */}
+          {step === 'verify-score' && project && activeSupplier && (
+            <VerifyScoreStep
+              projectId={projectId}
+              supplierId={activeSupplier}
+              supplierName={project.suppliers.find((s) => s.id === activeSupplier)?.supplierName || ''}
+              scoreItems={project.scoreItems}
+              scores={scores}
+              reviewStatus={
+                (expert as any)?.scoreReviews?.find(
+                  (r: { supplierId: string; status: string }) => r.supplierId === activeSupplier,
+                )?.status as 'draft' | 'verified' | undefined
+              }
+              onVerified={loadProject}
+            />
+          )}
 
           {/* ====== 评审报告 ====== */}
           {step === 'report' && (

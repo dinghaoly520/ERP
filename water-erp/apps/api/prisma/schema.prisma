@@ -278,6 +278,7 @@ model BidProject {
   supplierSubmissions    SupplierBidSubmission[]
   procurementProject     ProcurementProject?
   reviews                BidRequirementReview[]
+  scoreReviews           BidScoreReview[]
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
 
@@ -301,6 +302,7 @@ model BidSupplier {
   updatedAt             DateTime                  @updatedAt
   bidScoreRecords       BidScoreRecord[]
   pointDecisions        BidScorePointDecision[]
+  scoreReviews          BidScoreReview[]
   bidderResults         AiBidderResult[]
   supervisionAnnotation BidSupervisionAnnotation?
   decryptError          String? // 解密失败原因
@@ -368,6 +370,7 @@ model BidExpert {
   scoreRecords          BidScoreRecord[]
   reviews               BidRequirementReview[]
   pointDecisions        BidScorePointDecision[]
+  scoreReviews          BidScoreReview[] @relation("BidScoreReviews")
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
@@ -442,6 +445,25 @@ model BidScorePointDecision {
   @@unique([expertId, pointId, supplierId])
   @@index([supplierId])
   @@index([expertId, supplierId])
+}
+
+/// P3：核对关口 — per-expert+project+supplier 核对记录（draft|verified），verified 后方可进入评审报告确认
+model BidScoreReview {
+  id          String      @id @default(cuid())
+  expertId    String
+  projectId   String
+  supplierId  String
+  status      String      @default("draft") // "draft" | "verified"
+  verifiedAt  DateTime?
+  expert      BidExpert   @relation("BidScoreReviews", fields: [expertId], references: [id], onDelete: Cascade)
+  project     BidProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier    BidSupplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([expertId, projectId, supplierId])
+  @@index([expertId, supplierId])
+  @@index([projectId, supplierId])
 }
 
 /// P1-E：评分 delta 数据飞轮（专家分 vs AI 建议分差异，用于采纳率统计 + AI 校准 + 专家反向复核）

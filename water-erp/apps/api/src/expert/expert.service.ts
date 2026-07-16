@@ -182,12 +182,23 @@ export class ExpertService {
       ? phone.slice(0, 3) + '****' + phone.slice(-4)
       : null;
 
+    // 查询该专家在本项目所有供应商的评分核对状态
+    const scoreReviews = await this.prisma.bidScoreReview.findMany({
+      where: { expertId: expertRecord.id, projectId },
+      select: { supplierId: true, status: true, verifiedAt: true },
+    });
+
     const myExpertRecord = {
       ...expertRecord,
       phoneVerified: expertRecord.phoneVerified,
       phoneMasked,
       // Exclude nested user object from response
       user: undefined,
+      scoreReviews: scoreReviews.map(r => ({
+        supplierId: r.supplierId,
+        status: r.status,
+        verifiedAt: r.verifiedAt,
+      })),
     };
 
     if (!isActive) {
@@ -963,6 +974,16 @@ export class ExpertService {
         data: { progress, totalScore },
       });
 
+      // phase ③：为每个涉及的供应商 upsert draft review（已 verified 的，专家改分后重置为 draft 需重新核对）
+      const reviewSupplierIds = Array.from(new Set(dto.scores.map(s => s.supplierId)));
+      for (const sid of reviewSupplierIds) {
+        await tx.bidScoreReview.upsert({
+          where: { expertId_projectId_supplierId: { expertId: expert.id, projectId, supplierId: sid } },
+          update: { status: 'draft', verifiedAt: null },
+          create: { expertId: expert.id, projectId, supplierId: sid, status: 'draft' },
+        });
+      }
+
       // Supervision log
       await tx.bidSupervisionLog.create({
         data: {
@@ -1072,6 +1093,37 @@ export class ExpertService {
       .filter((r) => r.supplierId && (r.verdict === 'dispute' || r.verdict === 'doubt'));
   }
 
+  /* ── 核对评分（draft → verified）── */
+
+  async verifyScoreReview(userId: string, projectId: string, supplierId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (expert.reportConfirmed) throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
+
+    // 必须先有评分记录
+    const scores = await this.prisma.bidScoreRecord.findMany({ where: { expertId: expert.id, supplierId } });
+    if (scores.length === 0) throw new BadRequestException({ error: '该供应商尚未评分，无法核对', code: 'SCORING_INCOMPLETE' });
+
+    const updated = await this.prisma.bidScoreReview.update({
+      where: { expertId_projectId_supplierId: { expertId: expert.id, projectId, supplierId } },
+      data: { status: 'verified', verifiedAt: new Date() },
+    });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId,
+        time: new Date(),
+        role: '评审专家',
+        target: expert.expertName,
+        action: '核对评分完成（供应商）',
+        result: '已核对',
+        riskFlag: '无',
+      },
+    });
+
+    return updated;
+  }
+
   /* ── 澄清答疑 ── */
 
   async listClarifications(userId: string, projectId: string) {
@@ -1154,6 +1206,19 @@ export class ExpertService {
       bySupplier.get(key)!.push(r);
     }
 
+    // 查询该专家在本项目所有供应商的评分核对状态（供 report-step 核对徽章 + canConfirm 判定）
+    const reviewRecords = await this.prisma.bidScoreReview.findMany({
+      where: { expertId: expert.id, projectId },
+      select: { supplierId: true, status: true, verifiedAt: true },
+    });
+    const reviewBySupplier = new Map(reviewRecords.map(r => [r.supplierId, r]));
+
+    // 与 confirmReport gate 一致：active = decryptStatus SUCCESS + submitStatus != 已撤回
+    const activeSuppliers = project.suppliers.filter(
+      s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回',
+    );
+    const allVerified = activeSuppliers.length > 0 && activeSuppliers.every(s => reviewBySupplier.get(s.id)?.status === 'verified');
+
     // 按供应商分组汇总评分
     const supplierScores = project.suppliers.map(supplier => {
       const records = bySupplier.get(supplier.id) || [];
@@ -1179,6 +1244,9 @@ export class ExpertService {
         totalScore,
         categoryScores,
         perSupplierComplete: project.scoreItems.length > 0 && records.length === project.scoreItems.length,
+        scoreReview: reviewBySupplier.has(supplier.id)
+          ? { status: reviewBySupplier.get(supplier.id)!.status, verifiedAt: reviewBySupplier.get(supplier.id)!.verifiedAt }
+          : null,
       };
     });
 
@@ -1204,7 +1272,7 @@ export class ExpertService {
       avoidanceConfirmed: expert.avoidanceConfirmed,
       supplierScores,
       scoreItems: project.scoreItems,
-      canConfirm: expert.progress >= 100,
+      canConfirm: expert.progress >= 100 && allVerified,
       overallComplete: expert.progress >= 100,
       myDisputedReviews,
     };
@@ -1225,6 +1293,21 @@ export class ExpertService {
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
     }
     if (expert.progress < 100) throw new ForbiddenException({ error: '评分未完成，无法确认报告', code: 'SCORING_INCOMPLETE' });
+
+    // phase ③：所有活跃供应商必须已核对
+    const activeSuppliers = await this.prisma.bidSupplier.findMany({
+      where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+      select: { id: true },
+    });
+    const verifiedReviews = await this.prisma.bidScoreReview.findMany({
+      where: { expertId: expert.id, projectId, status: 'verified' },
+      select: { supplierId: true },
+    });
+    const verifiedSet = new Set(verifiedReviews.map(r => r.supplierId));
+    const unverified = activeSuppliers.filter(s => !verifiedSet.has(s.id));
+    if (unverified.length > 0) {
+      throw new BadRequestException({ error: `有 ${unverified.length} 个供应商评分未核对`, code: 'REVIEW_PENDING' });
+    }
 
     // 记录监督日志
     await this.prisma.bidSupervisionLog.create({
