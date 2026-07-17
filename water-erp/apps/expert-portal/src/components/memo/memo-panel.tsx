@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import {
-  Eraser, ExternalLink, Keyboard, Loader2, Maximize2, Minimize2,
+  Eraser, ExternalLink, Keyboard, Loader2, Maximize2, Minimize2, ZoomIn, ZoomOut,
   PenLine, Save, Trash2, Undo2,
 } from 'lucide-react';
 import { AtramentCanvas, type AtramentCanvasHandle } from './atrament-canvas';
@@ -58,6 +58,7 @@ export function MemoPanel({
   const [currentColor, setCurrentColor] = useState('#1e3a5f');
   const [currentWeight, setCurrentWeight] = useState(6);
   const [eraseMode, setEraseMode] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
   const canvasRef = useRef<AtramentCanvasHandle>(null);
 
   // 得分点粒度 reload
@@ -177,6 +178,21 @@ export function MemoPanel({
         title="撤销上一笔"
       >
         <Undo2 size={12} strokeWidth={1.7} />
+      </button>
+      <span className="w-px h-4 bg-[oklch(0.88_0.005_264)]" />
+      {/* 缩放 */}
+      <button type="button"
+        onClick={() => { const v = Math.max(0.5, zoomLevel - 0.25); setZoomLevel(v); canvasRef.current?.setZoom(v); }}
+        className="rounded px-0.5 text-[oklch(0.55_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]">
+        <ZoomOut size={12} strokeWidth={1.7} />
+      </button>
+      <span className="text-[10px] text-[oklch(0.45_0.01_264)] min-w-[28px] text-center font-semibold">
+        {Math.round(zoomLevel * 100)}%
+      </span>
+      <button type="button"
+        onClick={() => { const v = Math.min(3, zoomLevel + 0.25); setZoomLevel(v); canvasRef.current?.setZoom(v); }}
+        className="rounded px-0.5 text-[oklch(0.55_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]">
+        <ZoomIn size={12} strokeWidth={1.7} />
       </button>
     </div>
   );

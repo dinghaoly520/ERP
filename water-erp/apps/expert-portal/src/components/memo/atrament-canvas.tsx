@@ -1,12 +1,14 @@
 'use client';
 
-import { useImperativeHandle, useRef, forwardRef, useCallback } from 'react';
+import { useImperativeHandle, useRef, forwardRef, useCallback, useState } from 'react';
 
 export interface AtramentCanvasHandle {
   clear: () => void;  toBlob: () => Promise<Blob | null>;  isEmpty: () => boolean;
   undo: () => void;  setMode: (m: 'draw' | 'erase') => void;  getMode: () => 'draw' | 'erase';
   setColor: (c: string) => void;  getColor: () => string;
   setWeight: (w: number) => void;  getWeight: () => number;
+  /** 设置缩放（1=100%，2=200%）。缩放>1 时容器出现滚动条 */
+  setZoom: (z: number) => void;  getZoom: () => number;
 }
 
 interface Props {
@@ -58,6 +60,7 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
   ({ width = 600, height = 420, strokeColor = '#1e3a5f', baseWeight = 6, className = '', onDirtyChange },
    ref) => {
     const visRef = useRef<HTMLCanvasElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
     const bgRef = useRef<HTMLCanvasElement | null>(null);
     const bgCtxRef = useRef<CanvasRenderingContext2D | null>(null);
     const visCtxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -68,12 +71,13 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
     const color = useRef(strokeColor);
     const weight = useRef(baseWeight);
     const mode = useRef<'draw' | 'erase'>('draw');
+    const [zoom, setZoom] = useState(1);
 
     const toLocal = (e: PointerEvent): Point => {
       const c = visRef.current!;
       const r = c.getBoundingClientRect();
-      const x = (e.clientX - r.left) * (width / r.width);
-      const y = (e.clientY - r.top) * (height / r.height);
+      const x = Math.min(width - 1, Math.max(0, (e.clientX - r.left) * (width / r.width)));
+      const y = Math.min(height - 1, Math.max(0, (e.clientY - r.top) * (height / r.height)));
       const pv = e.pressure;
       return { x, y, pressure: (pv > 0 && pv <= 1) ? pv : 0.5 };
     };
@@ -194,14 +198,36 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       getColor: () => color.current,
       setWeight: (w) => { weight.current = w; },
       getWeight: () => weight.current,
+      setZoom: (z: number) => {
+        const v = Math.max(0.5, Math.min(3, z));
+        setZoom(v);
+        // canvas 内部分辨率不变，只需清屏显示背景
+        requestAnimationFrame(() => {
+          const vc = visCtxRef.current;
+          if (vc && bgRef.current) {
+            vc.save(); vc.setTransform(1,0,0,1,0,0);
+            vc.clearRect(0,0,width,height); vc.drawImage(bgRef.current,0,0);
+            vc.restore();
+          }
+        });
+      },
+      getZoom: () => zoom,
     }), [width, height]);
 
     return (
-      <canvas ref={cbRef}
-        className={`rounded-xl border border-[oklch(0.88_0.005_264)] bg-white ${className}`}
-        style={{ width:'100%', aspectRatio:`${width}/${height}`, touchAction:'none',
-                 WebkitUserSelect:'none', userSelect:'none', WebkitTouchCallout:'none' }}
-      />
+      <div className={`relative rounded-xl border border-[oklch(0.88_0.005_264)] bg-white ${className}`}
+        style={{ width:'100%', paddingBottom:`${(height/width)*100}%` }}>
+        <div ref={scrollRef} className="absolute inset-0 overflow-auto rounded-xl">
+          <canvas ref={cbRef} className="block"
+            style={{
+              ...(zoom <= 1
+                ? { width: '100%', height: '100%' }
+                : { width: width * zoom, height: height * zoom }),
+              touchAction:'none', WebkitUserSelect:'none', userSelect:'none', WebkitTouchCallout:'none',
+            }}
+          />
+        </div>
+      </div>
     );
   });
 AtramentCanvas.displayName = 'AtramentCanvas';
