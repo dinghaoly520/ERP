@@ -56,8 +56,8 @@ export function MemoPanel({
   const [zoomLevel, setZoomLevel] = useState(1);
   const inlineCanvasRef = useRef<AtramentCanvasHandle>(null);
   const fullscreenCanvasRef = useRef<AtramentCanvasHandle>(null);
-  // 全屏切换时暂存 blob，在新 canvas mount 后恢复
-  const pendingBlob = useRef<Blob | null>(null);
+  // 全屏切换时暂存 dataURL，在新 canvas mount 后恢复
+  const pendingDataURL = useRef<string>('');
   // 得分点 → 最新墨迹 blob 本地缓存，切换回来时即时恢复（避免 API 竞态）
   const inkCache = useRef<Map<string, Blob>>(new Map());
   // memos 列表的 ref 镜像，供异步闭包读取最新值（避免 stale closure）
@@ -163,30 +163,46 @@ export function MemoPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scorePointId]);
 
-  // 全屏切换后恢复暂存 blob
+  // 全屏切换后恢复暂存 dataURL（同步捕获，异步恢复，等新 canvas mount）
   useEffect(() => {
-    if (!pendingBlob.current) return;
-    const blob = pendingBlob.current;
-    pendingBlob.current = null;
-    // 等新 canvas mount
-    const timer = setTimeout(async () => {
-      const target = fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
-      await target?.restoreBlob(blob);
-    }, 50);
-    return () => clearTimeout(timer);
+    if (!pendingDataURL.current) return;
+    const dataURL = pendingDataURL.current;
+    pendingDataURL.current = '';
+    let cancelled = false;
+    (async () => {
+      const getRef = () => fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
+      // 轮询等待新 canvas mount（最多 ~30 帧 ≈ 500ms）
+      for (let i = 0; i < 30; i++) {
+        if (cancelled) return;
+        if (getRef()) break;
+        await new Promise<void>(r => requestAnimationFrame(() => r()));
+      }
+      const target = getRef();
+      if (!target || cancelled) return;
+      try {
+        const blob = await (await fetch(dataURL)).blob();
+        if (!cancelled) await target.restoreBlob(blob);
+      } catch { /* restore silent */ }
+    })();
+    return () => { cancelled = true; };
   }, [fullscreen]);
 
-  const enterFullscreen = async () => {
-    const blob = await inlineCanvasRef.current?.toBlob();
-    if (blob) pendingBlob.current = blob;
-    inlineCanvasRef.current?.clear();
+  const enterFullscreen = () => {
+    const c = inlineCanvasRef.current;
+    // 同步捕获（captureDataURL 先 commit 当前笔触再导出，无竞态）
+    let dataURL = '';
+    if (c && !c.isEmpty()) dataURL = c.captureDataURL();
+    c?.clear();
+    if (dataURL) pendingDataURL.current = dataURL;
     setFullscreen(true);
   };
 
-  const exitFullscreen = async () => {
-    const blob = await fullscreenCanvasRef.current?.toBlob();
-    if (blob) pendingBlob.current = blob;
-    fullscreenCanvasRef.current?.clear();
+  const exitFullscreen = () => {
+    const c = fullscreenCanvasRef.current;
+    let dataURL = '';
+    if (c && !c.isEmpty()) dataURL = c.captureDataURL();
+    c?.clear();
+    if (dataURL) pendingDataURL.current = dataURL;
     setFullscreen(false);
   };
 
