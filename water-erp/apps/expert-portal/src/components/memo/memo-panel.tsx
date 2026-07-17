@@ -28,7 +28,7 @@ interface MemoPanelProps {
 type Mode = 'handwriting' | 'keyboard';
 
 const COLORS = [
-  { value: '#1e3a5f', label: '墨蓝' },
+  { value: '#064ea2', label: '蓝' },
   { value: '#000000', label: '黑' },
   { value: '#e74c3c', label: '红' },
 ];
@@ -49,7 +49,7 @@ export function MemoPanel({
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
-  const [currentColor, setCurrentColor] = useState('#1e3a5f');
+  const [currentColor, setCurrentColor] = useState('#000000');
   const [currentWeight, setCurrentWeight] = useState(6);
   const [eraseMode, setEraseMode] = useState(false);
   const [eraserSize, setEraserSize] = useState(3);
@@ -161,10 +161,14 @@ export function MemoPanel({
       {/* 线宽滑块 */}
       <input type="range" min={2} max={12} value={currentWeight}
         onChange={e => { const v=Number(e.target.value); setCurrentWeight(v); canvasRef.current?.setWeight(v); }}
-        className={`w-14 ${sliderCls} [&::-webkit-slider-thumb]:bg-[#064ea2]`}
+        className={`w-16 ${sliderCls} [&::-webkit-slider-thumb]:bg-[#064ea2]`}
         title="笔触粗细"
       />
-      <span className="text-[10px] font-mono tabular-nums text-[oklch(0.45_0.01_264)] w-5 text-right">{currentWeight}</span>
+      <span className="inline-flex items-center justify-center w-5 h-5 shrink-0">
+        <span className="rounded-full transition-all duration-100"
+          style={{ backgroundColor: currentColor, width: Math.max(2, currentWeight / 2), height: Math.max(2, currentWeight / 2) }} />
+      </span>
+      <span className="text-[10px] font-mono tabular-nums text-[oklch(0.45_0.01_264)] w-4 text-right">{currentWeight}</span>
       <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
       {/* 画笔/橡皮 */}
       <button
@@ -177,11 +181,15 @@ export function MemoPanel({
       {/* 橡皮大小（仅擦除模式） */}
       {eraseMode && (
         <>
-          <input type="range" min={1} max={8} value={eraserSize}
+          <input type="range" min={1} max={20} value={eraserSize}
             onChange={e => { const v=Number(e.target.value); setEraserSize(v); canvasRef.current?.setEraserMul(v); }}
-            className={`w-10 ${sliderCls} [&::-webkit-slider-thumb]:bg-amber-500`}
+            className={`w-14 ${sliderCls} [&::-webkit-slider-thumb]:bg-amber-500`}
             title="橡皮大小"
           />
+          <span className="inline-flex items-center justify-center w-5 h-5 shrink-0">
+            <span className="rounded-full border border-amber-400/60 transition-all duration-100"
+              style={{ width: Math.max(3, eraserSize * 1.5), height: Math.max(3, eraserSize * 1.5) }} />
+          </span>
           <span className="text-[10px] font-mono tabular-nums text-amber-600 w-4 text-right">{eraserSize}</span>
         </>
       )}

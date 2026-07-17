@@ -55,7 +55,7 @@ function drawPath(ctx: CanvasRenderingContext2D, pts: Point[], baseW: number, er
 }
 
 export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
-  ({ width = 600, height = 420, strokeColor = '#1e3a5f', baseWeight = 6, className = '', onDirtyChange },
+  ({ width = 600, height = 420, strokeColor = '#000000', baseWeight = 6, className = '', onDirtyChange },
    ref) => {
     const visRef = useRef<HTMLCanvasElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -195,7 +195,7 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       getColor: () => color.current,
       setWeight: (w) => { weight.current = w; },
       getWeight: () => weight.current,
-      setEraserMul: (m: number) => { eraserMul.current = Math.max(1, Math.min(10, m)); },
+      setEraserMul: (m: number) => { eraserMul.current = Math.max(1, Math.min(20, m)); },
       getEraserMul: () => eraserMul.current,
       setZoom: (z: number) => {
         const v = Math.max(0.5, Math.min(3, z));
