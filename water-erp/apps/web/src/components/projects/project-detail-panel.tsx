@@ -26,6 +26,7 @@ import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
 import { ExpertExtractModal } from './expert-extract-modal';
+import { AnnouncementPublishModal } from './announcement-publish-modal';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { Modal } from '@/components/workbench';
 
@@ -369,6 +370,7 @@ export function ProjectDetailPanel({
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [tenderWriteStageAction, setTenderWriteStageAction] = useState<string | null>(null);
   const [expertExtractOpen, setExpertExtractOpen] = useState(false);
+  const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string } | null>(null);
 
   // 步骤检查状态 —— 按 stageKey 缓存结果
@@ -795,6 +797,8 @@ export function ProjectDetailPanel({
                   setTenderWriteStageAction(stageKey);
                 } else if (stageKey === 'EXPERT_SELECTION') {
                   setExpertExtractOpen(true);
+                } else if (stageKey === 'PUBLIC_ANNOUNCEMENT') {
+                  setAnnouncementPublishOpen(true);
                 }
               }}
               showArchiveStep={showArchiveStep}
@@ -1446,6 +1450,14 @@ export function ProjectDetailPanel({
         isOpen={expertExtractOpen}
         onClose={() => setExpertExtractOpen(false)}
         project={item}
+      />
+
+      {/* 公告制作与发布弹窗 */}
+      <AnnouncementPublishModal
+        isOpen={announcementPublishOpen}
+        onClose={() => setAnnouncementPublishOpen(false)}
+        project={item}
+        onPublished={onUpdated}
       />
     </>
   );
