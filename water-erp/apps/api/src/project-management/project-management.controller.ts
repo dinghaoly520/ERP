@@ -147,6 +147,11 @@ export class ProjectManagementController {
     return this.projectManagementService.analyzeProject(id, stageKey);
   }
 
+  @Post(':id/parse-announcement-fields')
+  parseAnnouncementFields(@Param('id') id: string) {
+    return this.projectManagementService.parseAnnouncementFields(id);
+  }
+
   @Get('archive/:procurementRoundId')
   getArchiveDetail(@Param('procurementRoundId') procurementRoundId: string) {
     return this.projectManagementService.getArchiveDetail(procurementRoundId);

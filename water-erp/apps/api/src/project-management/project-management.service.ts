@@ -6499,4 +6499,53 @@ ${JSON.stringify(algorithmResult, null, 2)}
       rows,
     });
   }
+
+  /** 解析项目的 TENDER_DOCUMENT .docx 附件，用 AI 提取公告字段值供预填 */
+  async parseAnnouncementFields(projectId: string): Promise<{ fields: Record<string, string>; extractedText: string } | null> {
+    const stage = await this.prisma.projectManagementStage.findFirst({
+      where: { projectManagementItemId: projectId, stageKey: 'TENDER_DOCUMENT' },
+      include: { attachments: true },
+    });
+    if (!stage) return null;
+    const docxAttachment = stage.attachments.find((a) =>
+      a.fileName.toLowerCase().endsWith('.docx'),
+    );
+    if (!docxAttachment) return null;
+
+    const localPath = resolve(process.cwd(), 'uploads', docxAttachment.objectKey);
+    let buffer: Buffer;
+    try {
+      buffer = await readFile(localPath);
+    } catch {
+      this.logger.warn(`parseAnnouncementFields: 源文件不存在 ${localPath}`);
+      return null;
+    }
+
+    let extractedText: string;
+    try {
+      const mammothResult = await mammoth.extractRawText({ buffer });
+      extractedText = (mammothResult.value || '').slice(0, 12000);
+    } catch {
+      this.logger.warn('parseAnnouncementFields: mammoth 解析失败');
+      return null;
+    }
+
+    const fields: Record<string, string> = {};
+    try {
+      const aiResponse = await this.aiService.chatJson<Record<string, string>>(
+        '你是采购公告字段提取助手。从招标文件原文中提取以下字段，输出严格的 JSON 对象（key 为字段名，value 为提取值）。只包含能提取到的字段，不确定的字段不要输出。字段：projectName(项目名称)、projectOverview(项目概况/采购内容简介)、maxPriceNumeric(预算金额/最高限价)、contactName(联系人)、contactPhone(联系电话)、contactEmail(联系邮箱)、qualificationRequirements(供应商资格要求)、bidOpeningTime(开标时间)。',
+        extractedText,
+        0.1,
+      );
+      if (aiResponse && typeof aiResponse === 'object') {
+        for (const [k, v] of Object.entries(aiResponse)) {
+          if (typeof v === 'string' && v.trim()) fields[k] = v.trim();
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`parseAnnouncementFields: AI 提取失败 ${(e as Error).message}`);
+    }
+
+    return { fields, extractedText };
+  }
 }
