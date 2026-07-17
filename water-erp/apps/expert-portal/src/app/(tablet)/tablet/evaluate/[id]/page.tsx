@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, Send } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, Save, RotateCcw } from 'lucide-react';
 import { api, ApiError, createMemo } from '@/lib/api';
 import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
@@ -28,11 +28,12 @@ const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${s
 /**
  * 平板触屏评标页（Phase ⑤ Task 6 —— MINIMAL 版）
  *
- * 范围：header + SupplierTabBar + 分组评分项（PointChecklistScoring compact）+ MemoPanel 侧栏。
+ * 范围：header + SupplierTabBar + 分组评分项（PointChecklistScoring compact）+ MemoPanel 侧栏
+ *       + 评分草稿暂存/自动恢复（localStorage）+ 暂存/重置/提交操作栏。
  * 非范围（当 follow-up）：
  *   - 7 步 wizard（身份核验/标书获取/AI 辅助/条款核对/核对评分/评审报告）
  *     → 由桌面端 (app) 完成；tablet 假设专家已完成这些前置步骤
- *   - 评分草稿自动保存 / 异议条款联动 / 实时 WS 状态板
+ *   - 异议条款联动 / 实时 WS 状态板
  *
  * 鉴权：(tablet)/layout.tsx 完成；cookie + X-Portal 由 api 客户端处理。
  * 安全：handleSubmitScores 仅对解密成功 + 未撤回 + 未废标的供应商提交。
@@ -52,6 +53,16 @@ export default function TabletEvaluatePage() {
   const [activePointName, setActivePointName] = useState<string>('');
   const memoCanvasRef = useRef<AtramentCanvasHandle>(null);
 
+  // ── 评分草稿（localStorage 暂存 + 自动恢复）──
+  const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
+  const [draftDismissed, setDraftDismissed] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftStorageKey = useMemo(() => {
+    const expertId = project?.myExpertRecord?.id;
+    return expertId ? `expert-draft-tablet:${projectId}:${expertId}` : '';
+  }, [project?.myExpertRecord?.id, projectId]);
+
   // P0-1: hydrate 时用 composite key（与桌面端一致，避免跨供应商串分）
   const loadProject = useCallback(() => {
     setLoading(true);
@@ -59,7 +70,7 @@ export default function TabletEvaluatePage() {
       .then(p => {
         if (p.restricted || (p.stage !== 'OPENING' && p.stage !== 'EVALUATING')) {
           toast.error('该项目尚未进入开评标阶段');
-          router.replace('/');
+          router.replace('/tablet');
           return;
         }
         setProject(p);
@@ -106,6 +117,86 @@ export default function TabletEvaluatePage() {
   }, [projectId, router]);
 
   useEffect(() => { loadProject(); }, [loadProject]);
+
+  // ── 草稿：项目加载后检查是否有未恢复的本地草稿 ──
+  useEffect(() => {
+    if (!draftStorageKey || !project) return;
+    try {
+      const raw = localStorage.getItem(draftStorageKey);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as {
+        scores: Record<string, ScoreEntry>;
+        savedAt: number;
+      };
+      const count = Object.keys(draft.scores ?? {}).length;
+      if (count > 0) setDraftAvailable({ count, savedAt: draft.savedAt });
+    } catch { /* corrupt draft — ignore */ }
+  }, [draftStorageKey, project]);
+
+  // ── 草稿自动暂存（scores 变化后 2 秒防抖）──
+  useEffect(() => {
+    if (!draftStorageKey) return;
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = setTimeout(() => {
+      try {
+        localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
+      } catch { /* quota exceeded — silent */ }
+    }, 2000);
+    return () => {
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+    };
+  }, [scores, draftStorageKey]);
+
+  // ── 草稿操作 ──
+  const saveDraft = useCallback(() => {
+    if (!draftStorageKey) return;
+    setDraftSaving(true);
+    try {
+      localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
+      toast.success('评分已暂存');
+    } catch {
+      toast.error('暂存失败，请检查浏览器存储空间');
+    } finally {
+      setDraftSaving(false);
+    }
+  }, [draftStorageKey, scores]);
+
+  const restoreDraft = useCallback(() => {
+    if (!draftStorageKey) return;
+    try {
+      const raw = localStorage.getItem(draftStorageKey);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as {
+        scores: Record<string, ScoreEntry>;
+        savedAt: number;
+      };
+      setScores((prev) => ({ ...prev, ...draft.scores }));
+      toast.success(`已恢复 ${Object.keys(draft.scores).length} 项评分`);
+    } catch {
+      toast.error('草稿已损坏，无法恢复');
+    }
+    setDraftAvailable(null);
+    setDraftDismissed(true);
+  }, [draftStorageKey]);
+
+  const discardDraft = useCallback(() => {
+    if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+    setDraftAvailable(null);
+    setDraftDismissed(true);
+  }, [draftStorageKey]);
+
+  // 重置当前供应商所有评分
+  const resetCurrentSupplier = useCallback(() => {
+    if (!activeSupplier) return;
+    setScores((prev) => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        if (k.startsWith(`${activeSupplier}:`)) delete next[k];
+      }
+      return next;
+    });
+    toast.success('已重置当前供应商评分');
+  }, [activeSupplier]);
 
   // 默认选中第一家供应商
   useEffect(() => {
@@ -187,6 +278,10 @@ export default function TabletEvaluatePage() {
       });
       await api.post(`/expert/projects/${projectId}/scores`, { scores: payload, supplierName });
       toast.success(`${supplierName} 评分提交成功`);
+      // 提交成功后清除本地草稿
+      if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+      setDraftAvailable(null);
+      setDraftDismissed(true);
       loadProject();
     } catch (e) {
       const err = e as ApiError;
@@ -234,14 +329,14 @@ export default function TabletEvaluatePage() {
   const totalMax = project.scoreItems.reduce((s, si) => s + Number(si.maxScore), 0);
 
   return (
-    <div className="mx-auto flex h-full max-w-[1400px] flex-col gap-3">
+    <div className="mx-auto flex h-full max-w-[1400px] flex-col gap-3 px-3 pt-2 pb-3">
       {/* 顶部信息 */}
       <div className="flex flex-shrink-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
-            onClick={() => router.push('/')}
-            aria-label="返回"
+            onClick={() => router.push('/tablet')}
+            aria-label="返回平板工作台"
             className="flex h-9 w-9 items-center justify-center rounded-lg text-[oklch(0.55_0.01_264)] transition hover:bg-[oklch(0.97_0.005_264)]"
           >
             <ArrowLeft size={16} strokeWidth={1.7} />
@@ -278,6 +373,29 @@ export default function TabletEvaluatePage() {
           {scoreLocked && (
             <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
               评审报告已确认，评分已锁定，不可再修改。
+            </div>
+          )}
+
+          {/* 评分草稿恢复提示 */}
+          {draftAvailable && !draftDismissed && (
+            <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+              <span className="flex-1 text-xs text-amber-700">
+                检测到未提交的评分草稿（{draftAvailable.count} 项 · {new Date(draftAvailable.savedAt).toLocaleString('zh-CN')}）
+              </span>
+              <button
+                type="button"
+                onClick={discardDraft}
+                className="shrink-0 rounded-md border border-amber-300 px-2 py-1 text-[10px] font-semibold text-amber-700 hover:bg-amber-100 transition"
+              >
+                丢弃
+              </button>
+              <button
+                type="button"
+                onClick={restoreDraft}
+                className="shrink-0 rounded-md bg-amber-500 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-amber-600 transition"
+              >
+                恢复
+              </button>
             </div>
           )}
 
@@ -496,16 +614,42 @@ export default function TabletEvaluatePage() {
         </Panel>
       </PanelGroup>
 
-      {/* 提交栏 */}
-      <div className="flex flex-shrink-0 items-center justify-end gap-2">
+      {/* 操作栏：暂存 / 重置 / 提交 */}
+      <div className="flex flex-shrink-0 items-center justify-center gap-2">
+        {!scoreLocked && (
+          <>
+            {/* 暂存评分到本地 */}
+            <button
+              type="button"
+              onClick={saveDraft}
+              disabled={busy || draftSaving || !canScoreActiveSupplier}
+              className="flex items-center gap-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white/80 px-4 py-2.5 text-sm font-semibold text-[oklch(0.45_0.01_264)] transition hover:bg-[oklch(0.97_0.005_264)] active:scale-95 disabled:opacity-50"
+            >
+              <Save size={14} strokeWidth={1.7} />
+              {draftSaving ? '暂存中…' : '暂存'}
+            </button>
+
+            {/* 重置当前供应商评分 */}
+            <button
+              type="button"
+              onClick={resetCurrentSupplier}
+              disabled={busy || !canScoreActiveSupplier}
+              className="flex items-center gap-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white/80 px-4 py-2.5 text-sm font-semibold text-[oklch(0.45_0.01_264)] transition hover:border-[#e74c3c]/30 hover:text-[#e74c3c] active:scale-95 disabled:opacity-50"
+            >
+              <RotateCcw size={14} strokeWidth={1.7} />
+              重置
+            </button>
+          </>
+        )}
+
         <button
           type="button"
           onClick={handleSubmit}
           disabled={busy || !canScoreActiveSupplier || scoreLocked}
-          className="flex items-center gap-1.5 rounded-lg bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#054280] disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#054280] disabled:opacity-50 active:scale-95"
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} strokeWidth={1.7} />}
-          {busy ? '提交中…' : scoreLocked ? '评分已锁定' : '提交评分'}
+          {busy ? '提交中…' : scoreLocked ? '评分已锁定' : '提交'}
         </button>
       </div>
     </div>

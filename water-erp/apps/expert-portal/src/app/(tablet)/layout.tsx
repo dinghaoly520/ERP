@@ -60,43 +60,48 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
   const registeredName = user?.displayName?.trim() || user?.username || '专家';
   const userInitial = registeredName.slice(0, 1);
 
+  // 平板评标界面隐藏 header，把纵向空间全部留给打分 + 手写备忘
+  const isEvaluatePage = pathname.includes('/evaluate/');
+
   return (
     <div className="flex h-screen flex-col overflow-hidden workbench-page-bg text-[#18243a]">
-      {/* 紧凑 header —— 无 sidebar，释放纵向空间 */}
-      <header className="sticky top-0 z-50 flex-shrink-0 border-b border-[#dbe6f3] bg-white/90 backdrop-blur-xl">
-        <div className="flex h-14 items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            {pathname !== '/' && (
+      {/* 紧凑 header —— 评标页隐藏，落地页展示（含退出） */}
+      {!isEvaluatePage && (
+        <header className="sticky top-0 z-50 flex-shrink-0 border-b border-[#dbe6f3] bg-white/90 backdrop-blur-xl">
+          <div className="flex h-14 items-center justify-between px-4">
+            <div className="flex items-center gap-2">
+              {pathname !== '/tablet' && (
+                <button
+                  type="button"
+                  onClick={() => router.push('/tablet')}
+                  aria-label="返回平板工作台"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-[oklch(0.55_0.01_264)] transition hover:bg-[oklch(0.97_0.005_264)]"
+                >
+                  <ArrowLeft size={18} strokeWidth={1.7} />
+                </button>
+              )}
+              <img src="/assets/logo.png" alt="" className="h-7 w-auto object-contain" />
+              <strong className="text-sm font-black tracking-wide text-[#18243a]">专家评标</strong>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 rounded-lg border border-white/40 bg-white/60 px-2.5 py-1.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-[11px] font-black text-white">
+                  {userInitial}
+                </span>
+                <span className="text-xs font-bold text-[#18243a]">{registeredName}</span>
+              </div>
               <button
                 type="button"
-                onClick={() => router.push('/')}
-                aria-label="返回工作台"
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-[oklch(0.55_0.01_264)] transition hover:bg-[oklch(0.97_0.005_264)]"
+                onClick={logout}
+                className="rounded-lg border border-white/40 bg-white/60 px-3 py-2 text-xs font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c]"
               >
-                <ArrowLeft size={18} strokeWidth={1.7} />
+                退出
               </button>
-            )}
-            <img src="/assets/logo.png" alt="" className="h-7 w-auto object-contain" />
-            <strong className="text-sm font-black tracking-wide text-[#18243a]">专家评标</strong>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 rounded-lg border border-white/40 bg-white/60 px-2.5 py-1.5">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-[11px] font-black text-white">
-                {userInitial}
-              </span>
-              <span className="text-xs font-bold text-[#18243a]">{registeredName}</span>
             </div>
-            <button
-              type="button"
-              onClick={logout}
-              className="rounded-lg border border-white/40 bg-white/60 px-3 py-2 text-xs font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c]"
-            >
-              退出
-            </button>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {authError && (
         <div className="mx-4 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
@@ -114,8 +119,8 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
         </div>
       )}
 
-      {/* 全宽 content —— 无 sidebar 占用 */}
-      <main className="flex-1 overflow-y-auto p-4">
+      {/* 全宽 content —— 评标页无 padding（页面自行控制），落地页保留 p-4 */}
+      <main className={`flex-1 overflow-y-auto ${isEvaluatePage ? '' : 'p-4'}`}>
         {children}
       </main>
     </div>

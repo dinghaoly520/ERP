@@ -49,6 +49,16 @@ export default function ExpertLoginPage() {
   const fillDemo = () => setForm({ ...DEMO_ACCOUNTS[tab] });
   const isDev = process.env.NODE_ENV !== 'production';
 
+  // 平板设备检测（与 root layout 脚本、proxy.ts 保持一致的逻辑）
+  const isTabletDevice = () => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    if (/iPad|PlayBook|Kindle|Silk|KFAPWI|Tablet|CrOS/i.test(ua)) return true;
+    if (/Android/i.test(ua) && !/Mobile/i.test(ua)) return true;
+    if (navigator.maxTouchPoints > 1 && !/Mobile/i.test(ua)) return true;
+    return false;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.username || !form.password) { toast.error('请输入用户名和密码'); return; }
@@ -65,7 +75,15 @@ export default function ExpertLoginPage() {
       // 而管理员登录拿到的是 token_web（按角色命名），读不到。登录响应本身已含 role。
       const { role } = (await res.json()) as { role: string };
       if (tab === 'expert') {
-        if (role === 'bid_expert') { router.push(returnTo); }
+        if (role === 'bid_expert') {
+          // 平板设备 → 写 cookie + 整页跳转 tablet（SPA 导航不会触发 beforeInteractive 脚本）
+          if (isTabletDevice()) {
+            document.cookie = 'device_mode=tablet;path=/;max-age=604800;SameSite=Lax';
+            window.location.replace('/tablet');
+          } else {
+            router.push(returnTo);
+          }
+        }
         else toast.error('非专家账户，请使用专家账号登录');
       } else if (WEB_ROLES.includes(role)) {
         window.location.href = landingURL(role); // → http://localhost:3005/dashboard
