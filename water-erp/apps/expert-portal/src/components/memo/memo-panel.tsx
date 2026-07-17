@@ -182,19 +182,8 @@ export function MemoPanel({
       try {
         const blob = await (await fetch(dataURL)).blob();
         if (cancelled || !blob) return;
-        // 进入全屏时缩小墨迹（内嵌 600×260 → 全屏 800×560，原尺寸显大）
-        if (fullscreen) {
-          const scale = 0.4;
-          const img = await createImageBitmap(blob);
-          const c = document.createElement('canvas');
-          c.width = Math.round(img.width * scale);
-          c.height = Math.round(img.height * scale);
-          c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
-          const scaled = await new Promise<Blob | null>(r => c.toBlob(r, 'image/png'));
-          if (scaled) await target.restoreBlob(scaled);
-        } else {
-          await target.restoreBlob(blob);
-        }
+        // 进入全屏时直接按 0.4x 缩放画入（一步到位，无中间 canvas，笔迹清晰）
+        await target.restoreBlob(blob, fullscreen ? 0.4 : undefined);
       } catch { /* restore silent */ }
     })();
     return () => { cancelled = true; };

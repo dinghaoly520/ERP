@@ -9,8 +9,8 @@ export interface AtramentCanvasHandle {
   setWeight: (w: number) => void;  getWeight: () => number;
   setEraserMul: (m: number) => void;  getEraserMul: () => number;
   setZoom: (z: number) => void;  getZoom: () => number;
-  /** 将 PNG Blob 绘制到背景画布（全屏切换时转移笔迹） */
-  restoreBlob: (blob: Blob) => Promise<void>;
+  /** 将 PNG Blob 绘制到背景画布。scale 可选缩放倍率（<1 缩小，=1 原始尺寸）。 */
+  restoreBlob: (blob: Blob, scale?: number) => Promise<void>;
   /** 同步导出可见画布为 dataURL（无竞态，用于得分点切换快速捕获） */
   captureDataURL: () => string;
 }
@@ -238,7 +238,7 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
         const bg = bgRef.current;
         return bg ? bg.toDataURL('image/png') : '';
       },
-      restoreBlob: (blob: Blob) => new Promise<void>((resolve) => {
+      restoreBlob: (blob: Blob, scale?: number) => new Promise<void>((resolve) => {
         const img = new Image();
         img.onload = () => {
           // 全新 canvas（尚未 onDown）bgRef 为空 → 先创建
@@ -246,8 +246,11 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
           const bgCtx = bgCtxRef.current!;
           const bg = bgRef.current!;
           const vc = visCtxRef.current!;
+          const s = scale && scale !== 1 ? scale : 1;
+          const dw = Math.round(img.width * s);
+          const dh = Math.round(img.height * s);
           bgCtx.clearRect(0, 0, width, height);
-          bgCtx.drawImage(img, 0, 0);
+          bgCtx.drawImage(img, 0, 0, dw, dh);
           vc.save(); vc.setTransform(1, 0, 0, 1, 0, 0);
           vc.clearRect(0, 0, width, height);
           vc.drawImage(bg, 0, 0);
