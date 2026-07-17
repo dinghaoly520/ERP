@@ -1799,10 +1799,25 @@ model Attachment {
   projectManagementItem    ProjectManagementItem?  @relation("ProjectManagementAttachments", fields: [projectManagementItemId], references: [id])
   projectManagementStage   ProjectManagementStage? @relation("ProjectManagementStageAttachments", fields: [projectManagementStageId], references: [id])
   uploadedBy               User?                   @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
+  versions                 AttachmentVersion[]
 
   @@index([attachmentType])
   @@index([projectManagementItemId])
   @@index([projectManagementStageId])
+}
+
+/// 采购文件补丁保存前的旧版本归档（定点补丁路径的回滚保险）
+model AttachmentVersion {
+  id           String   @id @default(cuid())
+  attachmentId String
+  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  objectKey    String   @unique
+  fileSize     Int
+  originalHash String
+  createdById  String?
+  createdAt    DateTime @default(now())
+
+  @@index([attachmentId])
 }
 
 // ── 项目管理（全生命周期）──
