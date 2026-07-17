@@ -1,6 +1,7 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { mkdir, readFile, unlink, writeFile, copyFile, access, stat } from 'node:fs/promises';
-import { basename, extname, join, resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { createReadStream } from 'node:fs';
 import JSZip = require('jszip');
 import { Response } from 'express';
@@ -8,6 +9,8 @@ import { ResultStatus, SourceType } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
+import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-html.converter';
+import { patchDocx, ConcurrentEditError } from './docx/html-to-docx.patcher';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } from 'docx';
 import { DocumentParserService } from '../knowledge/services/document-parser.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -5924,7 +5927,14 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return { success: true };
   }
 
-  async getAttachmentHtml(attachmentId: string): Promise<{ fileName: string; html: string }> {
+  /** patcher 默认启用；仅当显式设置 TENDER_DOCX_PATCHER_ENABLED=false 时回退 mammoth 旧路径。 */
+  private get patcherEnabled(): boolean {
+    return process.env.TENDER_DOCX_PATCHER_ENABLED !== 'false';
+  }
+
+  async getAttachmentHtml(
+    attachmentId: string,
+  ): Promise<{ fileName: string; html: string; originalHash: string }> {
     const attachment = await this.prisma.attachment.findUnique({
       where: { id: attachmentId },
       select: { id: true, fileName: true, objectKey: true },
@@ -5934,14 +5944,19 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
     const buffer = await readFile(filePath);
 
-    const result = await this.convertDocxToHtml(buffer);
-
-    const unrecognized = result.messages.filter(m => m.type === 'warning' && /Unrecognised/i.test(m.message));
-    if (unrecognized.length > 0) {
-      this.logger.warn(`mammoth 未识别样式: ${unrecognized.map(m => m.message).join('; ')}`);
+    if (!this.patcherEnabled) {
+      const result = await this.convertDocxToHtmlLegacy(buffer);
+      const unrecognized = result.messages.filter(
+        (m) => m.type === 'warning' && /Unrecognised/i.test(m.message),
+      );
+      if (unrecognized.length > 0) {
+        this.logger.warn(`mammoth 未识别样式: ${unrecognized.map((m) => m.message).join('; ')}`);
+      }
+      return { fileName: attachment.fileName, html: result.value, originalHash: '' };
     }
 
-    return { fileName: attachment.fileName, html: result.value };
+    const { html, originalHash } = await convertDocxToHtmlPatched(buffer);
+    return { fileName: attachment.fileName, html, originalHash };
   }
 
   /** 导入审阅版 DOCX：提取修订/批注/高亮并内嵌到 HTML 中。 */
@@ -6036,8 +6051,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       this.logger.warn(`审阅文件标注提取失败: ${e?.message}`);
     }
 
-    // ── mammoth 转换（与主文档使用相同的样式映射，保证双屏格式一致） ──
-    const result = await this.convertDocxToHtml(buffer);
+    // ── mammoth 转换（审阅版渲染专用：annotation 后处理依赖 mammoth 的 HTML 结构） ──
+    const result = await this.convertDocxToHtmlLegacy(buffer);
 
     let html = result.value;
 
@@ -6095,7 +6110,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /** 统一的 mammoth DOCX→HTML 转换，保证所有视图格式一致。 */
-  private async convertDocxToHtml(buffer: Buffer) {
+  /** 旧路径：mammoth DOCX→HTML（有损），patcher 关闭时回退使用。 */
+  private async convertDocxToHtmlLegacy(buffer: Buffer) {
     const styleMap = [
       "p[style-name='标题 1'] => h1:fresh",
       "p[style-name='标题 2'] => h2:fresh",
@@ -6130,10 +6146,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     );
   }
 
-  /** 将编辑后的 HTML 转回 DOCX 并保存替换原附件。 */
+  /** 将编辑后的 HTML 转回 DOCX 并保存替换原附件。patcher 路径定点补丁、哈希守卫、归档旧版本。 */
   async saveAttachmentHtml(
     projectId: string,
-    dto: { attachmentId: string; html: string },
+    dto: { attachmentId: string; html: string; originalHash?: string },
     uploadedById?: string,
   ) {
     const oldAttachment = await this.prisma.attachment.findUnique({
@@ -6142,10 +6158,32 @@ ${JSON.stringify(algorithmResult, null, 2)}
     });
     if (!oldAttachment) throw new NotFoundException('未找到对应附件');
 
-    // 解析 HTML → docx 段落
-    const children = this.htmlToDocxChildren(dto.html);
-    const doc = new Document({ sections: [{ properties: {}, children }] });
-    const newBuffer = await Packer.toBuffer(doc) as Buffer;
+    const oldPath = resolve(process.cwd(), 'uploads', oldAttachment.objectKey);
+    const usePatcher = this.patcherEnabled && !!dto.originalHash;
+    let newBuffer: Buffer;
+
+    if (usePatcher) {
+      const oldBuffer = await readFile(oldPath);
+      const oldHash = createHash('sha256').update(oldBuffer).digest('hex');
+      if (dto.originalHash !== oldHash) {
+        throw new ConflictException('文件已被他人修改，请刷新重载');
+      }
+      try {
+        newBuffer = await patchDocx(oldBuffer, dto.html, dto.originalHash!);
+      } catch (e) {
+        if (e instanceof ConcurrentEditError) throw new ConflictException(e.message);
+        throw e;
+      }
+      // 归档旧版本（回滚保险）
+      await this.archiveAttachmentVersion(
+        oldAttachment.id, oldAttachment.objectKey, oldBuffer.length, oldHash, uploadedById,
+      );
+    } else {
+      // legacy 回退：整体重建
+      const children = this.htmlToDocxChildren(dto.html);
+      const doc = new Document({ sections: [{ properties: {}, children }] });
+      newBuffer = (await Packer.toBuffer(doc)) as Buffer;
+    }
 
     // 上传新文件，更新现有 attachment 记录（不删除 DB 记录，避免外键问题）
     const persistResult = await this.persistUploadedFile(
@@ -6167,12 +6205,47 @@ ${JSON.stringify(algorithmResult, null, 2)}
       },
     });
 
-    // 清理旧物理文件
-    const oldPath = resolve(process.cwd(), 'uploads', oldAttachment.objectKey);
+    // 清理旧物理文件（patcher 路径已在归档步骤复制到 tender-doc-versions/）
     try { await unlink(oldPath); } catch {}
 
-    this.logger.log(`HTML 附件替换成功：${oldAttachment.id}`);
+    this.logger.log(
+      `HTML 附件保存成功（${usePatcher ? 'patcher' : 'legacy'}）：${oldAttachment.id}`,
+    );
     return { success: true, attachmentId: oldAttachment.id };
+  }
+
+  /** 归档当前 DOCX 到 tender-doc-versions/ 并写一条 AttachmentVersion 记录。 */
+  private async archiveAttachmentVersion(
+    attachmentId: string,
+    objectKey: string,
+    fileSize: number,
+    originalHash: string,
+    userId?: string,
+  ) {
+    const src = resolve(process.cwd(), 'uploads', objectKey);
+    const data = await readFile(src);
+    const versionKey = `tender-doc-versions/${objectKey}-${Date.now()}.docx`;
+    const dest = resolve(process.cwd(), 'uploads', versionKey);
+    await mkdir(dirname(dest), { recursive: true });
+    await writeFile(dest, data);
+    await this.prisma.attachmentVersion.create({
+      data: { attachmentId, objectKey: versionKey, fileSize, originalHash, createdById: userId },
+    });
+  }
+
+  async listAttachmentVersions(attachmentId: string) {
+    return this.prisma.attachmentVersion.findMany({
+      where: { attachmentId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        objectKey: true,
+        fileSize: true,
+        originalHash: true,
+        createdAt: true,
+        createdById: true,
+      },
+    });
   }
 
   /* ══════════ HTML → DOCX 解析器 ══════════ */
