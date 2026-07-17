@@ -60,6 +60,9 @@ export function MemoPanel({
   const pendingBlob = useRef<Blob | null>(null);
   // 得分点 → 最新墨迹 blob 本地缓存，切换回来时即时恢复（避免 API 竞态）
   const inkCache = useRef<Map<string, Blob>>(new Map());
+  // memos 列表的 ref 镜像，供异步闭包读取最新值（避免 stale closure）
+  const memosRef = useRef<ExpertMemo[]>([]);
+  useEffect(() => { memosRef.current = memos; }, [memos]);
 
   // 获取当前活跃的画布（全屏/内嵌）
   const activeCanvas = () => fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
@@ -108,12 +111,19 @@ export function MemoPanel({
 
     // 异步：保存到旧得分点 + 恢复新得分点墨迹
     (async () => {
-      // 保存旧得分点
+      // 保存旧得分点（upsert：先删该得分点旧墨迹，再建新的，避免复制）
       if (dataURL) {
         try {
           const blob = await (await fetch(dataURL)).blob();
           if (switchToken.current === token && prev) {
             inkCache.current.set(prev, blob);
+          }
+          // 删除该得分点已有的 ink 备忘（同一得分点只保留一条最新墨迹）
+          if (prev) {
+            const oldInk = memosRef.current.find(m => m.scorePointId === prev && m.inkFileId);
+            if (oldInk) {
+              try { await deleteMemo(projectId, oldInk.id); } catch { /* del silent */ }
+            }
           }
           await createMemo(projectId, {
             inkBlob: blob,
@@ -121,6 +131,8 @@ export function MemoPanel({
             supplierId,
             scorePointId: prev,
           });
+          // 保存后刷新列表（让删除的旧备忘 + 新备忘同步到 UI）
+          load();
         } catch { /* auto-save silent */ }
       }
       // 被新切换打断 → 放弃恢复
@@ -190,6 +202,13 @@ export function MemoPanel({
         }
         const blob = await c?.toBlob();
         if (!blob) { toast.error('墨迹导出失败'); return; }
+        // upsert：先删该得分点旧 ink 备忘，再建新的（同一得分点只留一条墨迹）
+        if (scorePointId) {
+          const oldInk = memosRef.current.find(m => m.scorePointId === scorePointId && m.inkFileId);
+          if (oldInk) {
+            try { await deleteMemo(projectId, oldInk.id); } catch { /* del silent */ }
+          }
+        }
         await createMemo(projectId, {
           inkBlob: blob,
           sourceDevice: `${sourceDevice}_handwriting`,
