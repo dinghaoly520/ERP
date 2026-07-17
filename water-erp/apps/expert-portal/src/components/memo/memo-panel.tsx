@@ -184,7 +184,7 @@ export function MemoPanel({
         if (cancelled || !blob) return;
         // 进入全屏时缩小墨迹（内嵌 600×260 → 全屏 800×560，原尺寸显大）
         if (fullscreen) {
-          const scale = 0.75;
+          const scale = 0.4;
           const img = await createImageBitmap(blob);
           const c = document.createElement('canvas');
           c.width = Math.round(img.width * scale);
