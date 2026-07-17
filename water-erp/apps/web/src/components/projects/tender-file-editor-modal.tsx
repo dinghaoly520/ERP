@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Clock, FileUp, Loader2, Pencil, RotateCcw, Save, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useDraftAutosave, loadDraft, clearDraft } from '../../hooks/projects/useDraftAutosave';
 
 const API_BASE = '/api';
 
@@ -94,6 +95,11 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
   // 修改历史刷新计数器：每次编辑后递增，触发面板重新扫描
   const [historyVersion, setHistoryVersion] = useState(0);
 
+  // 草稿自动保存（按 attachmentId 分键，防抖 2s）；scheduleRef 供 MutationObserver 内部避免 stale 闭包
+  const scheduleDraftSave = useDraftAutosave(attachmentId, () => editorRef.current?.innerHTML ?? '');
+  const scheduleDraftSaveRef = useRef(scheduleDraftSave);
+  scheduleDraftSaveRef.current = scheduleDraftSave;
+
   /* ── Load ── */
   useEffect(() => {
     if (!isOpen || !attachmentId) return;
@@ -107,6 +113,29 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
         originalHashRef.current = d.originalHash ?? '';
         // 原始纯文本（去标签/折叠空白），用于与追踪器解耦的"是否真的改了"判定（语义对齐后端逐段文字 diff）
         originalTextRef.current = d.html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+        // 草稿恢复：若有未保存草稿且与服务器原文不同，询问是否恢复
+        const draft = loadDraft(attachmentId);
+        const draftText = draft?.html?.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+        if (draft && draft.html && draftText && draftText !== originalTextRef.current) {
+          toast<{ label: string; onClick: () => void }>('检测到未保存的草稿，是否恢复？', {
+            duration: 12000,
+            action: {
+              label: '恢复',
+              onClick: () => {
+                if (!editorRef.current) return;
+                contentReadyRef.current = false;
+                editorRef.current.innerHTML = draft.html;
+                injectDocStyles(editorRef.current);
+                refreshBlockSnapshot();
+                setIsDirty(true); isDirtyRef.current = true;
+                setHistoryVersion(v => v + 1);
+                requestAnimationFrame(() => { requestAnimationFrame(() => { contentReadyRef.current = true; }); });
+                toast.success('已恢复未保存的草稿');
+              },
+            },
+            cancel: { label: '丢弃', onClick: () => clearDraft(attachmentId) },
+          });
+        }
       })
       .catch(e => toast.error(e instanceof Error ? e.message : '加载失败'))
       .finally(() => setLoading(false));
@@ -333,6 +362,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
       mutateDebounceRef.current = setTimeout(() => {
         refreshBlockSnapshot(); // 为新批次准备原文快照
         setHistoryVersion(v => v + 1);
+        scheduleDraftSaveRef.current(); // 触发草稿自动保存（防抖 2s）
       }, 500);
     });
 
@@ -421,6 +451,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
     setRawHtml(originalHtmlRef.current);
     setIsDirty(false); isDirtyRef.current = false;
     setHistoryVersion(0);
+    clearDraft(attachmentId); // 还原全部修改 = 丢弃草稿
     requestAnimationFrame(() => { requestAnimationFrame(() => { contentReadyRef.current = true; }); });
     toast.success('已还原为原始内容');
   }, []);
@@ -484,6 +515,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
       });
       setIsDirty(false); isDirtyRef.current = false;
       setHistoryVersion(0);
+      clearDraft(attachmentId); // 保存成功，清除草稿
       await onFileReplaced();
       onClose();
     } catch (e) {
