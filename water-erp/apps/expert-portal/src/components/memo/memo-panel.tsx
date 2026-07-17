@@ -58,6 +58,8 @@ export function MemoPanel({
   const fullscreenCanvasRef = useRef<AtramentCanvasHandle>(null);
   // 全屏切换时暂存 blob，在新 canvas mount 后恢复
   const pendingBlob = useRef<Blob | null>(null);
+  // 得分点 → 最新墨迹 blob 本地缓存，切换回来时即时恢复（避免 API 竞态）
+  const inkCache = useRef<Map<string, Blob>>(new Map());
 
   // 获取当前活跃的画布（全屏/内嵌）
   const activeCanvas = () => fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
@@ -68,19 +70,26 @@ export function MemoPanel({
     try {
       const list = await listMemos(projectId, supplierId, scorePointId);
       setMemos(list);
-      // 如果画布为空且有手写备忘，恢复最新墨迹到画布
+      // 画布为空 → 恢复手写墨迹（优先本地缓存，零延迟无竞态）
       const c = activeCanvas();
-      if (mode === 'handwriting' && c && c.isEmpty()) {
-        const latestInk = list.find(m => m.inkFileId);
-        if (latestInk?.inkFileId) {
-          try {
-            const { url } = await getMemoInkUrl(projectId, latestInk.id);
-            const res = await fetch(url);
-            if (res.ok) {
-              const blob = await res.blob();
-              await c.restoreBlob(blob);
-            }
-          } catch { /* restore silent */ }
+      if (mode === 'handwriting' && c && c.isEmpty() && scorePointId) {
+        const cached = inkCache.current.get(scorePointId);
+        if (cached) {
+          await c.restoreBlob(cached);
+        } else {
+          // 缓存未命中 → API 兜底（页面刷新等场景）
+          const latestInk = list.find(m => m.inkFileId);
+          if (latestInk?.inkFileId) {
+            try {
+              const { url } = await getMemoInkUrl(projectId, latestInk.id);
+              const res = await fetch(url);
+              if (res.ok) {
+                const blob = await res.blob();
+                inkCache.current.set(scorePointId, blob);
+                await c.restoreBlob(blob);
+              }
+            } catch { /* restore silent */ }
+          }
         }
       }
     } catch (e) {
@@ -106,6 +115,8 @@ export function MemoPanel({
       try {
         const blob = await c.toBlob();
         if (blob) {
+          // 本地缓存：即时恢复用，避免 API 竞态
+          if (prev) inkCache.current.set(prev, blob);
           await createMemo(projectId, {
             inkBlob: blob,
             sourceDevice: `${sourceDevice}_handwriting`,
@@ -164,6 +175,8 @@ export function MemoPanel({
           sourceDevice: `${sourceDevice}_handwriting`,
           supplierId, scorePointId,
         });
+        // 更新本地缓存
+        if (scorePointId) inkCache.current.set(scorePointId, blob);
         c?.clear();
       } else {
         const trimmed = text.trim();
