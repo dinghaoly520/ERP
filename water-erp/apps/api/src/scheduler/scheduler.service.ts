@@ -62,4 +62,67 @@ export class SchedulerService {
     ]);
     this.logger.log(`退库/淘汰预警扫描完成：专家候选 ${experts.length} 名，供应商候选 ${suppliers.length} 家`);
   }
+
+  /** 每分钟扫描定时公告（status=DRAFT + metadata.scheduledPublishDate），到期设 PUBLISHED 并可选发通知 */
+  @Cron('0 * * * * *')
+  async publishScheduledAnnouncements() {
+    const drafts = await this.prisma.announcement.findMany({
+      where: { status: 'DRAFT' },
+    });
+    for (const a of drafts) {
+      const meta = (a.metadata as Record<string, any>) || {};
+      if (!meta.scheduledPublishDate) continue;
+      if (new Date(meta.scheduledPublishDate) <= new Date()) {
+        await this.prisma.announcement.update({
+          where: { id: a.id },
+          data: { status: 'PUBLISHED', publishDate: new Date() },
+        });
+        if (meta.notifyOnPublish) {
+          await this.sendPublishNotifications(a.id, a.title, meta);
+        }
+        this.logger.log(`定时公告发布: ${a.title} (${a.id})`);
+      }
+    }
+  }
+
+  /** 按公告范围向供应商用户发送站内信通知 */
+  private async sendPublishNotifications(
+    annId: string,
+    title: string,
+    meta: Record<string, any>,
+  ) {
+    const visibility = meta.visibility || 'PUBLIC';
+    let userIds: string[];
+    if (
+      visibility === 'RESTRICTED' &&
+      Array.isArray(meta.restrictedSupplierIds) &&
+      meta.restrictedSupplierIds.length > 0
+    ) {
+      const suppliers = await this.prisma.supplier.findMany({
+        where: { id: { in: meta.restrictedSupplierIds } },
+        select: { userId: true },
+      });
+      userIds = suppliers.map((s) => s.userId);
+    } else {
+      const users = await this.prisma.user.findMany({
+        where: { role: 'supplier', isActive: true },
+        select: { id: true },
+      });
+      userIds = users.map((u) => u.id);
+    }
+    for (const userId of userIds) {
+      try {
+        await this.notification.create({
+          userId,
+          type: 'ANNOUNCEMENT_PUBLISHED',
+          title: `新采购公告：${title}`,
+          content: `采购公告「${title}」已发布，请前往供应商门户查看详情。`,
+          link: `/notice/${annId}`,
+        });
+      } catch (e) {
+        this.logger.warn(`通知创建失败 userId=${userId}: ${(e as Error).message}`);
+      }
+    }
+    this.logger.log(`公告通知已发送: ${title}, 收件人 ${userIds.length} 人`);
+  }
 }
