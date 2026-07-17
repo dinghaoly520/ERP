@@ -85,6 +85,9 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
   const scrollLeftRef   = useRef<HTMLDivElement>(null);
   const scrollRightRef  = useRef<HTMLDivElement>(null);
   const originalHtmlRef = useRef('');
+  // 后端定点补丁所需的段落锚点哈希 + 原始纯文本（与追踪器解耦的"是否改动"判定）
+  const originalHashRef = useRef('');
+  const originalTextRef = useRef('');
   const syncingRef      = useRef(false);
   const fileInputRef    = useRef<HTMLInputElement>(null);
   const isDirtyRef      = useRef(false);
@@ -98,8 +101,13 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
     setHistoryVersion(0);
     setReviewHtml(''); setReviewAnnotationCount(0); setReviewFileName('');
     fetch(`${API_BASE}/project-management/${projectId}/attachment-html/${attachmentId}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() as Promise<{ fileName: string; html: string }> : r.text().then(body => { let detail = `HTTP ${r.status}`; try { detail = (JSON.parse(body) as any).message || detail; } catch {} throw new Error(`加载失败（${detail}）`); }))
-      .then(d => { setRawHtml(d.html); originalHtmlRef.current = d.html; })
+      .then(r => r.ok ? r.json() as Promise<{ fileName: string; html: string; originalHash: string }> : r.text().then(body => { let detail = `HTTP ${r.status}`; try { detail = (JSON.parse(body) as any).message || detail; } catch {} throw new Error(`加载失败（${detail}）`); }))
+      .then(d => {
+        setRawHtml(d.html); originalHtmlRef.current = d.html;
+        originalHashRef.current = d.originalHash ?? '';
+        // 原始纯文本（去标签/折叠空白），用于与追踪器解耦的"是否真的改了"判定（语义对齐后端逐段文字 diff）
+        originalTextRef.current = d.html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      })
       .catch(e => toast.error(e instanceof Error ? e.message : '加载失败'))
       .finally(() => setLoading(false));
   }, [isOpen, projectId, attachmentId]);
@@ -437,24 +445,33 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
     toast.success('已撤销该修改');
   }, []);
 
-  /* ── Save：将编辑器 HTML 发送到后端转为 DOCX 并替换原文件 ── */
+  /* ── Save：序列化编辑器 HTML（含 data-pid）+ originalHash 发后端定点补丁。
+        "是否改动"用 textContent 判定，与追踪器解耦——追踪器只负责可视化，不决定存得对不对。── */
   const handleSave = useCallback(async () => {
     if (!editorRef.current) return;
     const styleEl = editorRef.current.querySelector('#tfe-doc-styles');
     if (styleEl) styleEl.remove();
     const editedHtml = editorRef.current.innerHTML;
-    if (!isDirtyRef.current || editedHtml === originalHtmlRef.current) { toast.warning('没有检测到任何修改内容'); return; }
+    // 块级 data-pid 是后端 diff 锚点，此处不得剥离（仅去内联样式块）
+    const currentText = (editorRef.current.textContent || '').replace(/\s+/g, ' ').trim();
+    if (currentText === originalTextRef.current) { toast.warning('没有检测到任何修改内容'); return; }
 
     setSaving(true);
     try {
       const r = await fetch(`${API_BASE}/project-management/${projectId}/save-attachment-html`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attachmentId, html: editedHtml }),
+        body: JSON.stringify({ attachmentId, html: editedHtml, originalHash: originalHashRef.current }),
       });
       if (!r.ok) {
         let msg = `保存失败（${r.status}）`;
         try { msg = (await r.json() as any).message || msg; } catch {}
+        if (r.status === 409) {
+          // 并发冲突：文件已被他人改过，关闭强制重载
+          toast.error(msg || '文件已被他人修改，请刷新重载');
+          onClose();
+          return;
+        }
         throw new Error(msg);
       }
       const data = await r.json() as { success: boolean; attachmentId: string };
