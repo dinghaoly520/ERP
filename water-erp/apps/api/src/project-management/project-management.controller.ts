@@ -289,11 +289,11 @@ export class ProjectManagementController {
     return this.projectManagementService.getAttachmentHtml(attachmentId);
   }
 
-  /** 将编辑后的 HTML 转回 DOCX 并保存替换原附件。 */
+  /** 将编辑后的 HTML 转回 DOCX 并保存替换原附件（patcher 路径需带 originalHash）。 */
   @Post(':id/save-attachment-html')
   saveAttachmentHtml(
     @Param('id') projectId: string,
-    @Body() dto: { attachmentId: string; html: string },
+    @Body() dto: { attachmentId: string; html: string; originalHash?: string },
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     return this.projectManagementService.saveAttachmentHtml(
@@ -301,6 +301,12 @@ export class ProjectManagementController {
       dto,
       user?.sub,
     );
+  }
+
+  /** 列出某附件的历史版本（patcher 保存前的旧版本归档）。 */
+  @Get(':id/attachment/:attachmentId/versions')
+  listAttachmentVersions(@Param('attachmentId') attachmentId: string) {
+    return this.projectManagementService.listAttachmentVersions(attachmentId);
   }
 
   /** 导入审阅版 DOCX，返回带标注的 HTML 用于双屏对比。 */
