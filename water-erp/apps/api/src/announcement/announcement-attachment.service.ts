@@ -1,4 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { resolve } from 'node:path';
+import { readFile, access } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
@@ -23,6 +26,66 @@ export class AnnouncementAttachmentService {
     if (!fileAsset) throw new NotFoundException({ error: '文件不存在', code: 'FILE_NOT_FOUND' });
     return this.prisma.announcementAttachment.create({
       data: { announcementId, fileAssetId, title: title || fileAsset.originalName },
+      include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } } },
+    });
+  }
+
+  /**
+   * 从已有本地对象挂载公告附件（用于「引用项目采购文件」）。
+   * 读取 uploads/<objectKey> 本地文件 → 复制到 MinIO → 建 FileAsset + AnnouncementAttachment。
+   */
+  async attachFromObject(
+    announcementId: string,
+    dto: {
+      objectKey: string;
+      fileName?: string;
+      title?: string;
+      mimeType?: string;
+      size?: number;
+    },
+    userId?: string,
+  ) {
+    const announcement = await this.prisma.announcement.findUnique({ where: { id: announcementId } });
+    if (!announcement) {
+      throw new NotFoundException({ error: '公告不存在', code: 'NOT_FOUND' });
+    }
+
+    const localPath = resolve(process.cwd(), 'uploads', dto.objectKey);
+    try {
+      await access(localPath);
+    } catch {
+      throw new NotFoundException({ error: '源文件不存在', code: 'SOURCE_NOT_FOUND' });
+    }
+    const buffer = await readFile(localPath);
+    const sha256 = createHash('sha256').update(buffer).digest('hex');
+
+    const baseName = dto.fileName || dto.objectKey;
+    const ext = baseName.includes('.') ? baseName.split('.').pop()!.toLowerCase() : 'bin';
+    const key = `uploads/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${ext}`;
+    const mimeType = dto.mimeType || 'application/octet-stream';
+
+    await minioClient.putObject(MINIO_BUCKET, key, buffer, buffer.length, {
+      'Content-Type': mimeType,
+    });
+
+    const fileAsset = await this.prisma.fileAsset.create({
+      data: {
+        key,
+        originalName: baseName,
+        mimeType,
+        size: dto.size ?? buffer.length,
+        sha256,
+        category: 'announcement',
+        uploaderId: userId,
+      },
+    });
+
+    return this.prisma.announcementAttachment.create({
+      data: {
+        announcementId,
+        fileAssetId: fileAsset.id,
+        title: dto.title || baseName,
+      },
       include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } } },
     });
   }
