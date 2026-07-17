@@ -119,17 +119,7 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       e.preventDefault();
       // 手掌抑制：只接受 Apple Pencil
       if (!isPen(e)) return;
-      const v = visRef.current; if (!v) return;
-      if (!visCtxRef.current) {
-        const vc = v.getContext('2d', { willReadFrequently: true });
-        if (!vc) return;
-        vc.lineCap = 'round'; vc.lineJoin = 'round'; visCtxRef.current = vc;
-      }
-      if (!bgRef.current) {
-        const b = document.createElement('canvas'); b.width = width; b.height = height;
-        const bc = b.getContext('2d', { willReadFrequently: true })!;
-        bc.lineCap = 'round'; bc.lineJoin = 'round'; bgRef.current = b; bgCtxRef.current = bc;
-      }
+      if (!ensureContexts()) return;
       snap();
       pathPts.current = [toLocal(e)];
       drawing.current = true; md(true);
@@ -150,6 +140,26 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       commitToBg();
       pathPts.current = [];
       redraw(); // 最后一次刷新确保背景同步
+    };
+
+    // 确保 bg / vis 上下文存在（首次 onDown 或 restoreBlob 时都可能需要）
+    const ensureContexts = (): boolean => {
+      const v = visRef.current;
+      if (!v) return false;
+      if (!visCtxRef.current) {
+        const vc = v.getContext('2d', { willReadFrequently: true });
+        if (!vc) return false;
+        vc.lineCap = 'round'; vc.lineJoin = 'round';
+        visCtxRef.current = vc;
+      }
+      if (!bgRef.current) {
+        const b = document.createElement('canvas'); b.width = width; b.height = height;
+        const bc = b.getContext('2d', { willReadFrequently: true });
+        if (!bc) return false;
+        bc.lineCap = 'round'; bc.lineJoin = 'round';
+        bgRef.current = b; bgCtxRef.current = bc;
+      }
+      return true;
     };
 
     const noop = (e: Event) => e.preventDefault();
@@ -231,18 +241,17 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       restoreBlob: (blob: Blob) => new Promise<void>((resolve) => {
         const img = new Image();
         img.onload = () => {
-          const bgCtx = bgCtxRef.current;
-          const bg = bgRef.current;
-          const vc = visCtxRef.current;
-          if (!bgCtx || !bg) { resolve(); return; }
+          // 全新 canvas（尚未 onDown）bgRef 为空 → 先创建
+          if (!ensureContexts()) { resolve(); return; }
+          const bgCtx = bgCtxRef.current!;
+          const bg = bgRef.current!;
+          const vc = visCtxRef.current!;
           bgCtx.clearRect(0, 0, width, height);
           bgCtx.drawImage(img, 0, 0);
-          if (vc) {
-            vc.save(); vc.setTransform(1, 0, 0, 1, 0, 0);
-            vc.clearRect(0, 0, width, height);
-            vc.drawImage(bg, 0, 0);
-            vc.restore();
-          }
+          vc.save(); vc.setTransform(1, 0, 0, 1, 0, 0);
+          vc.clearRect(0, 0, width, height);
+          vc.drawImage(bg, 0, 0);
+          vc.restore();
           hasDrawn.current = true;
           md(true);
           resolve();
