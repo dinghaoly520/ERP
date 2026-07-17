@@ -11,6 +11,8 @@ export interface AtramentCanvasHandle {
   setZoom: (z: number) => void;  getZoom: () => number;
   /** 将 PNG Blob 绘制到背景画布（全屏切换时转移笔迹） */
   restoreBlob: (blob: Blob) => Promise<void>;
+  /** 同步导出可见画布为 dataURL（无竞态，用于得分点切换快速捕获） */
+  captureDataURL: () => string;
 }
 
 interface Props {
@@ -213,6 +215,19 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
         });
       },
       getZoom: () => zoom,
+      captureDataURL: () => {
+        // 先把当前绘制中的笔触提交到背景
+        if (pathPts.current.length > 0) {
+          const bgCtx = bgCtxRef.current;
+          if (bgCtx) {
+            bgCtx.fillStyle = mode.current === 'erase' ? '#ffffff' : color.current;
+            drawPath(bgCtx, pathPts.current, weight.current, mode.current === 'erase' ? eraserMul.current : 1);
+          }
+          pathPts.current = [];
+        }
+        const bg = bgRef.current;
+        return bg ? bg.toDataURL('image/png') : '';
+      },
       restoreBlob: (blob: Blob) => new Promise<void>((resolve) => {
         const img = new Image();
         img.onload = () => {

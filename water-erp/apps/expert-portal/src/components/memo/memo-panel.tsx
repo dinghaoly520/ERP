@@ -64,70 +64,90 @@ export function MemoPanel({
   // 获取当前活跃的画布（全屏/内嵌）
   const activeCanvas = () => fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
 
-  // 得分点粒度 reload + 自动恢复手写墨迹到画布
+  // 得分点粒度 reload（仅加载备忘列表，画布恢复由 switch effect 统一处理）
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const list = await listMemos(projectId, supplierId, scorePointId);
       setMemos(list);
-      // 画布为空 → 恢复手写墨迹（优先本地缓存，零延迟无竞态）
-      const c = activeCanvas();
-      if (mode === 'handwriting' && c && c.isEmpty() && scorePointId) {
-        const cached = inkCache.current.get(scorePointId);
-        if (cached) {
-          await c.restoreBlob(cached);
-        } else {
-          // 缓存未命中 → API 兜底（页面刷新等场景）
-          const latestInk = list.find(m => m.inkFileId);
-          if (latestInk?.inkFileId) {
-            try {
-              const { url } = await getMemoInkUrl(projectId, latestInk.id);
-              const res = await fetch(url);
-              if (res.ok) {
-                const blob = await res.blob();
-                inkCache.current.set(scorePointId, blob);
-                await c.restoreBlob(blob);
-              }
-            } catch { /* restore silent */ }
-          }
-        }
-      }
     } catch (e) {
       const err = e as { message?: string };
       toast.error(err?.message || '加载备忘失败');
     } finally {
       setLoading(false);
     }
-  }, [projectId, supplierId, scorePointId, mode]);
+  }, [projectId, supplierId, scorePointId]);
 
   useEffect(() => { load(); }, [load]);
 
-  // 切换得分点时自动保存当前画布 → 清屏 → 新得分点备忘自动加载
+  // 切换得分点：先同步捕获 + 清屏 → 再异步保存 + 加载恢复
   const prevPointRef = useRef(scorePointId);
-  const isFirstPoint = useRef(true);
+  const switchToken = useRef(0);
   useEffect(() => {
-    if (isFirstPoint.current) { isFirstPoint.current = false; return; }
     const prev = prevPointRef.current;
-    // 异步保存到旧得分点
+    prevPointRef.current = scorePointId;
+    // 首次渲染（prev 和当前相同且无内容）→ 尝试恢复缓存墨迹
+    if (prev === scorePointId) {
+      const c0 = activeCanvas();
+      if (mode === 'handwriting' && c0 && c0.isEmpty() && scorePointId) {
+        const cached = inkCache.current.get(scorePointId);
+        if (cached) c0.restoreBlob(cached).catch(() => {});
+      }
+      return;
+    }
+    const token = ++switchToken.current;
+
+    const c = activeCanvas();
+    // ★ 同步捕获画布 dataURL（toDataURL 是同步的，不会被后续操作干扰）
+    let dataURL = '';
+    if (mode === 'handwriting' && c && !c.isEmpty()) {
+      dataURL = c.captureDataURL();
+    }
+    // ★ 同步清屏
+    c?.clear();
+
+    // 异步：保存到旧得分点 + 恢复新得分点墨迹
     (async () => {
-      const c = activeCanvas();
-      if (mode !== 'handwriting' || !c?.isEmpty || c.isEmpty()) return;
-      try {
-        const blob = await c.toBlob();
-        if (blob) {
-          // 本地缓存：即时恢复用，避免 API 竞态
-          if (prev) inkCache.current.set(prev, blob);
+      // 保存旧得分点
+      if (dataURL) {
+        try {
+          const blob = await (await fetch(dataURL)).blob();
+          if (switchToken.current === token && prev) {
+            inkCache.current.set(prev, blob);
+          }
           await createMemo(projectId, {
             inkBlob: blob,
             sourceDevice: `${sourceDevice}_handwriting`,
             supplierId,
             scorePointId: prev,
           });
+        } catch { /* auto-save silent */ }
+      }
+      // 被新切换打断 → 放弃恢复
+      if (switchToken.current !== token) return;
+      // 恢复新得分点墨迹
+      if (mode === 'handwriting' && scorePointId) {
+        const cached = inkCache.current.get(scorePointId);
+        if (cached) {
+          await c?.restoreBlob(cached);
+        } else {
+          // API 兜底
+          try {
+            const list = await listMemos(projectId, supplierId, scorePointId);
+            const latestInk = list.find(m => m.inkFileId);
+            if (latestInk?.inkFileId) {
+              const { url } = await getMemoInkUrl(projectId, latestInk.id);
+              const res = await fetch(url);
+              if (res.ok) {
+                const blob = await res.blob();
+                inkCache.current.set(scorePointId, blob);
+                if (switchToken.current === token) await c?.restoreBlob(blob);
+              }
+            }
+          } catch { /* restore silent */ }
         }
-      } catch { /* auto-save silent */ }
-      c.clear();
+      }
     })().catch(() => {});
-    prevPointRef.current = scorePointId;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scorePointId]);
 
@@ -386,7 +406,7 @@ export function MemoPanel({
             {toolbar}
             <div className="relative" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
               onContextMenu={e => e.preventDefault()}>
-              <AtramentCanvas ref={inlineCanvasRef} height={compact ? 320 : 420} />
+              <AtramentCanvas ref={inlineCanvasRef} height={compact ? 260 : 420} />
               <button type="button" onClick={enterFullscreen}
                 className="absolute right-2 top-2 rounded-lg border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)]/80 p-1 text-[oklch(0.45_0.01_264)] transition-all duration-150
                   shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
@@ -430,8 +450,8 @@ export function MemoPanel({
         )}
       </div>
 
-      {/* 备忘列表 */}
-      <div className="mt-3 max-h-[40%] flex-shrink-0 space-y-1.5 overflow-y-auto border-t border-[oklch(0.91_0.006_264)] pt-2">
+      {/* 备忘列表（限制高度，内滚动，不挤压上方画布） */}
+      <div className="mt-2 max-h-[28%] min-h-0 flex-shrink-0 space-y-1.5 overflow-y-auto border-t border-[oklch(0.91_0.006_264)] pt-2">
         {loading ? (
           <p className="py-3 text-center text-xs text-[oklch(0.62_0.008_264)]">加载中…</p>
         ) : memos.length === 0 ? (
