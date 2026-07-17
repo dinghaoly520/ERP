@@ -443,7 +443,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
     const styleEl = editorRef.current.querySelector('#tfe-doc-styles');
     if (styleEl) styleEl.remove();
     const editedHtml = editorRef.current.innerHTML;
-    if (!isDirty || editedHtml === originalHtmlRef.current) { toast.warning('没有检测到任何修改内容'); return; }
+    if (!isDirtyRef.current || editedHtml === originalHtmlRef.current) { toast.warning('没有检测到任何修改内容'); return; }
 
     setSaving(true);
     try {
