@@ -62,19 +62,34 @@ export function MemoPanel({
   // 获取当前活跃的画布（全屏/内嵌）
   const activeCanvas = () => fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
 
-  // 得分点粒度 reload
+  // 得分点粒度 reload + 自动恢复手写墨迹到画布
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const list = await listMemos(projectId, supplierId, scorePointId);
       setMemos(list);
+      // 如果画布为空且有手写备忘，恢复最新墨迹到画布
+      const c = activeCanvas();
+      if (mode === 'handwriting' && c && c.isEmpty()) {
+        const latestInk = list.find(m => m.inkFileId);
+        if (latestInk?.inkFileId) {
+          try {
+            const { url } = await getMemoInkUrl(projectId, latestInk.id);
+            const res = await fetch(url);
+            if (res.ok) {
+              const blob = await res.blob();
+              await c.restoreBlob(blob);
+            }
+          } catch { /* restore silent */ }
+        }
+      }
     } catch (e) {
       const err = e as { message?: string };
       toast.error(err?.message || '加载备忘失败');
     } finally {
       setLoading(false);
     }
-  }, [projectId, supplierId, scorePointId]);
+  }, [projectId, supplierId, scorePointId, mode]);
 
   useEffect(() => { load(); }, [load]);
 
