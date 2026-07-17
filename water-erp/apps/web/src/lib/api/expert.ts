@@ -123,6 +123,7 @@ export function previewExtraction(data: {
   /** @deprecated 兼容旧UI，优先用 extractMode */
   mode?: 'weighted' | 'fair';
   manualQuotas?: { specialty: string; count: number }[];
+  excludedUserIds?: string[];
 }) {
   return api.post<ExtractionPreview>('/expert-admin/extract', data);
 }

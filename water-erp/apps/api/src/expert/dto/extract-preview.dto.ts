@@ -33,4 +33,9 @@ export class ExtractPreviewDto {
   @IsOptional() @IsArray() @ValidateNested({ each: true })
   @Type(() => SpecialtyQuotaDto)
   manualQuotas?: SpecialtyQuotaDto[];
+
+  /** 预排除专家 userId 列表（这些专家不参与抽取） */
+  @IsOptional() @IsArray()
+  @IsString({ each: true })
+  excludedUserIds?: string[];
 }

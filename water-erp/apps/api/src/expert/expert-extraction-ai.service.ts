@@ -66,12 +66,21 @@ export class ExpertExtractionAiService {
     candidates: ExtractionCandidate[],
     totalNeeded: number,
     extractMode: ExtractMode = 'specialty_match',
-  ): Promise<ExpertExtractionLlmResult | undefined> {
+  ): Promise<ExpertExtractionLlmResult> {
     const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey || candidates.length === 0) return undefined;
+    if (!apiKey) throw new Error('AI 服务未配置（缺少 DEEPSEEK_API_KEY 环境变量）');
+    if (candidates.length === 0) throw new Error('无合规候选专家，请检查专家库状态');
+
+    // 预筛选：AI 推理模型对大量候选会耗尽 token，限制到 top 30
+    const MAX_AI_CANDIDATES = 30;
+    const ranked = [...candidates].sort((a, b) => {
+      const levelRank = (l?: string) => (l === 'A' ? 4 : l === 'B' ? 3 : l === 'C' ? 2 : l === 'D' ? 1 : 0);
+      return (levelRank(b.evaluationLevel) + b.pastAvgScore * 0.01) - (levelRank(a.evaluationLevel) + a.pastAvgScore * 0.01);
+    });
+    const aiCandidates = ranked.slice(0, MAX_AI_CANDIDATES);
 
     const indexToId = new Map<string, string>();
-    const lines = candidates.map((c, i) => {
+    const lines = aiCandidates.map((c, i) => {
       const key = `e${i}`;
       indexToId.set(key, c.id);
       return [
@@ -113,21 +122,22 @@ export class ExpertExtractionAiService {
             },
           ],
           temperature: 0.2,
-          max_tokens: 4000,
+          max_tokens: 8000,
         }),
       });
 
       if (!response.ok) {
-        this.logger.warn(`DeepSeek expert-extraction failed: ${response.status} ${await response.text()}`);
-        return undefined;
+        const errText = await response.text();
+        this.logger.warn(`DeepSeek expert-extraction failed: ${response.status} ${errText}`);
+        throw new Error(`AI 服务响应失败（HTTP ${response.status}）`);
       }
 
       const data = await response.json();
       const content: string | undefined = data?.choices?.[0]?.message?.content;
-      if (typeof content !== 'string') return undefined;
+      if (typeof content !== 'string') throw new Error('AI 未返回有效文本内容');
 
       const parsed = this.parseJson(content);
-      if (!parsed) return undefined;
+      if (!parsed) throw new Error('AI 返回数据解析失败（非 JSON 格式）');
 
       const scoredExperts: LlmExpertScore[] = Array.isArray(parsed.scoredExperts)
         ? parsed.scoredExperts
@@ -150,7 +160,7 @@ export class ExpertExtractionAiService {
             .filter((q: LlmSpecialtyQuota) => q.specialty && q.count > 0)
         : [];
 
-      if (scoredExperts.length === 0 && requiredSpecialties.length === 0) return undefined;
+      if (scoredExperts.length === 0 && requiredSpecialties.length === 0) throw new Error('AI 未返回有效评分数据');
 
       return {
         analysis: String(parsed.analysis || '').slice(0, 500),
@@ -158,8 +168,9 @@ export class ExpertExtractionAiService {
         scoredExperts,
       };
     } catch (error) {
-      this.logger.warn(`DeepSeek expert-extraction error: ${error instanceof Error ? error.message : String(error)}`);
-      return undefined;
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`DeepSeek expert-extraction error: ${msg}`);
+      throw new Error(`AI 抽取失败：${msg}`);
     }
   }
 
@@ -169,7 +180,8 @@ export class ExpertExtractionAiService {
       '你是四川水发集团招采系统的评标专家组智能组建助手。',
       `本次共需抽取 ${totalNeeded} 名专家。`,
       '一、requiredSpecialties：推荐专家组的专业构成（各专业需几人，合计应接近 ' + totalNeeded + '），每项含 specialty、count、reason。',
-      '二、scoredExperts：对候选清单中每位专家给出 matchScore(0-100整数)、fitSpecialty(最契合的专业)、reason(20-50字，结合项目与专家各项数据)。',
+      `二、scoredExperts：从候选清单中选出最合适的 ${totalNeeded * 3} 名专家进行评分（不必给所有专家评分），给出 matchScore(0-100整数)、fitSpecialty(最契合的专业)、reason(15-30字)。`,
+      '严格按以下 JSON 格式返回，不要输出其他内容：{"analysis":"简短分析(50字内)","requiredSpecialties":[{"specialty":"","count":0,"reason":""}],"scoredExperts":[{"id":"e0","matchScore":0,"fitSpecialty":"","reason":""}]}',
     ];
 
     const modeInstructions: Record<ExtractMode, string[]> = {

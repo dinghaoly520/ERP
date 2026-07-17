@@ -305,7 +305,9 @@ export class ExpertAdminService {
         _count: { select: { bidExperts: true } },
       },
     });
+    const excludedIds = new Set(dto.excludedUserIds ?? []);
     const eligible = experts.filter((u) => {
+      if (excludedIds.has(u.id)) return false;
       if (u.bidExperts.length > 0) return false;
       const emp = u.expertProfile?.employer?.trim();
       if (emp) {
@@ -410,35 +412,22 @@ export class ExpertAdminService {
 
     let analysis: string;
     let requiredSpecialties: LlmSpecialtyQuota[];
-    let engine: 'deepseek' | 'rules';
     const scoreMap = new Map<string, { matchScore: number; fitSpecialty: string; reason: string }>();
 
-    if (llm && (llm.scoredExperts.length > 0 || llm.requiredSpecialties.length > 0)) {
-      engine = 'deepseek';
-      analysis = llm.analysis;
-      requiredSpecialties = dto.manualQuotas?.length
-        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '' }))
-        : llm.requiredSpecialties;
-      for (const s of llm.scoredExperts) scoreMap.set(s.id, { matchScore: s.matchScore, fitSpecialty: s.fitSpecialty, reason: s.reason });
-      for (const c of candidates) {
-        if (!scoreMap.has(c.id)) {
-          scoreMap.set(c.id, {
-            matchScore: extractMode === 'merit_best' ? this.extendedRuleScore(c) : this.ruleScore(c),
-            fitSpecialty: c.specialty,
-            reason: `专业「${c.specialty}」${c.title ? '、' + c.title : ''}，历史项目 ${c.pastProjects} 个。`,
-          });
-        }
-      }
-    } else {
-      engine = 'rules';
-      const modeLabel = extractMode === 'specialty_match' ? '专业匹配' : extractMode === 'random' ? '随机抽取' : '综合择优';
-      analysis = `基于${modeLabel}规则评分（共 ${eligible.length} 名合规专家）。`;
-      requiredSpecialties = dto.manualQuotas?.length
-        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '' }))
-        : this.ruleComposition(candidates, totalNeeded);
-      for (const c of candidates) {
-        const score = extractMode === 'merit_best' ? this.extendedRuleScore(c) : this.ruleScore(c);
-        scoreMap.set(c.id, { matchScore: score, fitSpecialty: c.specialty, reason: `专业「${c.specialty}」${c.title ? '、' + c.title : ''}，历史项目 ${c.pastProjects} 个。` });
+    // 纯 AI 模式：analyzeAndScore 失败时抛错，不降级
+    const engine = 'deepseek';
+    analysis = llm.analysis;
+    requiredSpecialties = dto.manualQuotas?.length
+      ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '' }))
+      : llm.requiredSpecialties;
+    for (const s of llm.scoredExperts) scoreMap.set(s.id, { matchScore: s.matchScore, fitSpecialty: s.fitSpecialty, reason: s.reason });
+    for (const c of candidates) {
+      if (!scoreMap.has(c.id)) {
+        scoreMap.set(c.id, {
+          matchScore: 50,
+          fitSpecialty: c.specialty,
+          reason: `专业「${c.specialty}」${c.title ? '、' + c.title : ''}，历史项目 ${c.pastProjects} 个。`,
+        });
       }
     }
 
