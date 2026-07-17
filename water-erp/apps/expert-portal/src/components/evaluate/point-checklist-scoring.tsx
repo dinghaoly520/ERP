@@ -10,6 +10,10 @@ interface Props {
   onChange: (pointId: string, v: PointDecisionValue) => void;
   readOnly?: boolean;
   compact?: boolean; // tablet 用更紧凑布局
+  /** 当前选中得分点 id（高亮） */
+  selectedPointId?: string | null;
+  /** 点击得分点行 → 选中用于手写备忘 */
+  onPointClick?: (pointId: string, pointName: string) => void;
 }
 
 /**
@@ -18,15 +22,21 @@ interface Props {
  * - subjective point → 直接数值输入
  * 桌面端与 tablet 端复用（compact 切换紧凑布局）。
  */
-export function PointChecklistScoring({ points, value, onChange, readOnly, compact }: Props) {
+export function PointChecklistScoring({ points, value, onChange, readOnly, compact, selectedPointId, onPointClick }: Props) {
   const sorted = [...points].sort((a, b) => a.seq - b.seq);
   return (
     <div className="space-y-2">
       {sorted.map(p => {
         const v = value[p.id] ?? { checked: false, awardedScore: 0 };
         const max = Number(p.fullScore);
+        const isSelected = selectedPointId === p.id;
         return (
-          <div key={p.id} className={`flex items-center gap-3 rounded-lg border border-blue-100 bg-white ${compact ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
+          <div key={p.id} role="button" tabIndex={0}
+            onClick={() => onPointClick?.(p.id, p.name)}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPointClick?.(p.id, p.name); } }}
+            className={`flex items-center gap-3 rounded-lg border bg-white cursor-pointer transition ${compact ? 'px-2 py-1.5' : 'px-3 py-2'} ${
+              isSelected ? 'border-[#064ea2] bg-blue-50/30 ring-1 ring-[#064ea2]/20' : 'border-blue-100'
+            }`}>
             {p.objective ? (
               <button type="button" disabled={readOnly} onClick={() => onChange(p.id, { checked: !v.checked, awardedScore: !v.checked ? max : 0 })}
                 className={`flex h-6 w-6 items-center justify-center rounded border ${v.checked ? 'bg-[#11a874] border-[#11a874] text-white' : 'border-[oklch(0.8_0.005_264)] text-transparent'} disabled:opacity-50`}>

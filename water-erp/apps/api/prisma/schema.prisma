@@ -452,6 +452,7 @@ model BidScorePoint {
   objective    Boolean      @default(true)
   scoreItem    BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
   decisions    BidScorePointDecision[]
+  memos        ExpertMemo[]
   createdAt    DateTime     @default(now())
 
   @@index([scoreItemId])
@@ -494,6 +495,49 @@ model BidScorePointDecision {
   @@index([expertId, supplierId])
 }
 
+/// P3：核对关口 — per-expert+project+supplier 核对记录（draft|verified），verified 后方可进入评审报告确认
+model BidScoreReview {
+  id         String      @id @default(cuid())
+  expertId   String
+  projectId  String
+  supplierId String
+  status     String      @default("draft") // "draft" | "verified"
+  verifiedAt DateTime?
+  expert     BidExpert   @relation("BidScoreReviews", fields: [expertId], references: [id], onDelete: Cascade)
+  project    BidProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier   BidSupplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([expertId, projectId, supplierId])
+  @@index([expertId, supplierId])
+  @@index([projectId, supplierId])
+}
+
+/// P5：专家手写/键盘备忘（项目/供应商/评分项级），contentText（OCR 或键盘）+ inkFileId→FileAsset（MinIO 笔迹图）
+model ExpertMemo {
+  id           String       @id @default(cuid())
+  expertId     String
+  projectId    String
+  supplierId   String?
+  scoreItemId  String?
+  scorePointId String?
+  contentText  String?
+  inkFileId    String?
+  sourceDevice String? // tablet | desktop
+  expert       BidExpert    @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  project      BidProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier     BidSupplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  scoreItem    BidScoreItem? @relation(fields: [scoreItemId], references: [id], onDelete: SetNull)
+  scorePoint   BidScorePoint? @relation(fields: [scorePointId], references: [id], onDelete: SetNull)
+  inkFile      FileAsset?   @relation(fields: [inkFileId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([expertId, projectId])
+  @@index([projectId, supplierId])
+  @@index([scorePointId])
+}
 /// P1-E：评分 delta 数据飞轮（专家分 vs AI 建议分差异，用于采纳率统计 + AI 校准 + 专家反向复核）
 model BidScoreDelta {
   id                    String   @id @default(cuid())

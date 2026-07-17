@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { encryptBuffer, decryptBuffer, streamToBuffer } from './bid-document.crypto';
 import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
+import { convertOfficeToPdf, sanitizeFileName } from '../common/office-to-pdf.util';
 import * as crypto from 'crypto';
 
 export type AccessScope = 'OPEN' | 'INVITED';
@@ -35,16 +36,28 @@ export class BidDocumentService {
     const existing = await this.prisma.bidDocument.findUnique({ where: { announcementId } });
     if (existing) throw new BadRequestException({ error: '该公告已有招标文件，请先删除', code: 'DOC_EXISTS' });
 
-    // 加密
-    const { ciphertext, decryptKey } = encryptBuffer(file.buffer);
+    // ① 文件名 latin1→utf8 + ② docx/doc 转 PDF（标书获取页可预览）
+    const originalName = sanitizeFileName(file.originalname);
+    let buffer = file.buffer;
+    let mimeType = file.mimetype;
+    let displayName = originalName;
+    const converted = convertOfficeToPdf(file.buffer, file.mimetype, originalName);
+    if (converted) {
+      buffer = converted.buffer;
+      mimeType = converted.mimeType;
+      displayName = converted.fileName;
+    }
+
+    // 加密（转换后的 buffer，若转了 pdf 则加密 pdf 内容）
+    const { ciphertext, decryptKey } = encryptBuffer(buffer);
 
     // 存 MinIO（密文）+ FileAsset 元数据
     const date = new Date().toISOString().slice(0, 10);
     const key = `bid-doc/${date}/${crypto.randomBytes(8).toString('hex')}.enc`;
     await minioClient.putObject(MINIO_BUCKET, key, ciphertext, ciphertext.length, { 'Content-Type': 'application/octet-stream' });
-    const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex'); // 原文 sha256，便于校验
+    const sha256 = crypto.createHash('sha256').update(buffer).digest('hex'); // 原文 sha256，便于校验
     const asset = await this.prisma.fileAsset.create({
-      data: { key, originalName: file.originalname, mimeType: file.mimetype, size: file.buffer.length, sha256, category: 'bid_document', uploaderId },
+      data: { key, originalName: displayName, mimeType, size: buffer.length, sha256, category: 'bid_document', uploaderId },
     });
 
     const accessScope = config.accessScope || 'OPEN';
@@ -52,7 +65,7 @@ export class BidDocumentService {
       data: {
         announcementId,
         fileAssetId: asset.id,
-        title: config.title || file.originalname,
+        title: config.title || displayName,
         accessScope,
         requirePayment: config.requirePayment ?? false,
         price: config.requirePayment ? config.price : null,

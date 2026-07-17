@@ -15,5 +15,9 @@ export class CreateMemoDto {
 
   @IsOptional()
   @IsString()
+  scorePointId?: string;
+
+  @IsOptional()
+  @IsString()
   sourceDevice?: string;
 }
