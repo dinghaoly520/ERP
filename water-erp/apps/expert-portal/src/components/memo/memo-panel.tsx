@@ -32,12 +32,6 @@ const COLORS = [
   { value: '#000000', label: '黑' },
   { value: '#e74c3c', label: '红' },
 ];
-const WEIGHTS = [
-  { value: 4, label: '细' },
-  { value: 6, label: '中' },
-  { value: 9, label: '粗' },
-];
-
 function memoDeviceLabel(sourceDevice: string): string {
   const [device, input] = sourceDevice.split('_');
   const dl = device === 'desktop' ? '桌面' : device === 'tablet' ? '平板' : device;
@@ -58,6 +52,7 @@ export function MemoPanel({
   const [currentColor, setCurrentColor] = useState('#1e3a5f');
   const [currentWeight, setCurrentWeight] = useState(6);
   const [eraseMode, setEraseMode] = useState(false);
+  const [eraserSize, setEraserSize] = useState(3);
   const [zoomLevel, setZoomLevel] = useState(1);
   const canvasRef = useRef<AtramentCanvasHandle>(null);
 
@@ -132,67 +127,81 @@ export function MemoPanel({
 
   const padY = compact ? 'py-1.5' : 'py-2';
 
+  // 新拟态按钮共享样式（tooltip/inline 型——无外凸阴影，仅 hover/active 反馈）
+  const btnBase = `rounded-lg border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-1.5 ${padY} text-[10px] font-semibold
+    transition-all duration-150
+    shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
+    hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
+    active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12),inset_0_-1px_0_oklch(1_0_0_/_.5)] active:translate-y-px`;
+
+  const sliderCls = `h-1 cursor-pointer appearance-none rounded-full
+    bg-[oklch(0.92_0.004_265)]
+    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
+    [&::-webkit-slider-thumb]:shadow-[0_1px_2px_oklch(0.55_0.03_258_/_.15),inset_0_1px_0_oklch(1_0_0_/_.7)]`;
+
   const toolbar = (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       {/* 颜色 */}
       {COLORS.map(c => (
         <button
           key={c.value}
           type="button" title={c.label}
           onClick={() => { setCurrentColor(c.value); canvasRef.current?.setColor(c.value); }}
-          className={`h-5 w-5 rounded-full border-2 transition ${
-            currentColor === c.value ? 'border-[#064ea2] ring-1 ring-[#064ea2]/30' : 'border-[oklch(0.88_0.005_264)]'
-          }`}
+          className={`size-[10px] rounded-full transition-all duration-150
+            shadow-[0_1px_1.5px_oklch(0.55_0.03_258_/_.12),inset_0_1px_0_oklch(1_0_0_/_.5)]
+            hover:scale-110
+            ${currentColor === c.value
+              ? 'ring-2 ring-[#064ea2] ring-offset-1 ring-offset-white scale-110 shadow-[0_1px_2px_oklch(0.55_0.03_258_/_.2),inset_0_1px_0_oklch(1_0_0_/_.6)]'
+              : ''}`}
           style={{ backgroundColor: c.value }}
         />
       ))}
-      <span className="w-px h-4 bg-[oklch(0.88_0.005_264)]" />
-      {/* 线宽 */}
-      {WEIGHTS.map(w => (
-        <button
-          key={w.value} type="button"
-          onClick={() => { setCurrentWeight(w.value); canvasRef.current?.setWeight(w.value); }}
-          className={`px-1.5 rounded text-[10px] font-semibold transition ${
-            currentWeight === w.value ? 'bg-[#064ea2] text-white' : 'text-[oklch(0.55_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]'
-          }`}
-        >
-          {w.label}
-        </button>
-      ))}
-      <span className="w-px h-4 bg-[oklch(0.88_0.005_264)]" />
+      <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
+      {/* 线宽滑块 */}
+      <input type="range" min={2} max={12} value={currentWeight}
+        onChange={e => { const v=Number(e.target.value); setCurrentWeight(v); canvasRef.current?.setWeight(v); }}
+        className={`w-14 ${sliderCls} [&::-webkit-slider-thumb]:bg-[#064ea2]`}
+        title="笔触粗细"
+      />
+      <span className="text-[10px] font-mono tabular-nums text-[oklch(0.45_0.01_264)] w-5 text-right">{currentWeight}</span>
+      <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
       {/* 画笔/橡皮 */}
       <button
         type="button"
-        onClick={() => { const next = !eraseMode; setEraseMode(next); canvasRef.current?.setMode(next ? 'erase' : 'draw'); }}
-        className={`rounded px-1.5 ${padY} text-[10px] font-semibold transition ${
-          eraseMode ? 'bg-amber-100 text-amber-700' : 'text-[oklch(0.55_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]'
-        }`}
+        onClick={() => { const next = !eraseMode; setEraseMode(next); canvasRef.current?.setMode(next ? 'erase' : 'draw'); if(next) canvasRef.current?.setEraserMul(eraserSize); }}
+        className={`${btnBase} ${eraseMode ? 'text-amber-600 border-amber-200 bg-amber-50' : 'text-[oklch(0.45_0.01_265)]'}`}
       >
-        <Eraser size={11} strokeWidth={1.7} />
+        <Eraser size={11} strokeWidth={1.5} />
       </button>
+      {/* 橡皮大小（仅擦除模式） */}
+      {eraseMode && (
+        <>
+          <input type="range" min={1} max={8} value={eraserSize}
+            onChange={e => { const v=Number(e.target.value); setEraserSize(v); canvasRef.current?.setEraserMul(v); }}
+            className={`w-10 ${sliderCls} [&::-webkit-slider-thumb]:bg-amber-500`}
+            title="橡皮大小"
+          />
+          <span className="text-[10px] font-mono tabular-nums text-amber-600 w-4 text-right">{eraserSize}</span>
+        </>
+      )}
+      <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
       {/* 撤销 */}
-      <button
-        type="button"
-        onClick={() => canvasRef.current?.undo()}
-        className="rounded px-1 py-0.5 text-[oklch(0.55_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]"
-        title="撤销上一笔"
-      >
-        <Undo2 size={12} strokeWidth={1.7} />
+      <button type="button" onClick={() => canvasRef.current?.undo()}
+        className={`${btnBase} text-[oklch(0.45_0.01_265)]`} title="撤销上一笔">
+        <Undo2 size={11} strokeWidth={1.5} />
       </button>
-      <span className="w-px h-4 bg-[oklch(0.88_0.005_264)]" />
       {/* 缩放 */}
       <button type="button"
         onClick={() => { const v = Math.max(0.5, zoomLevel - 0.25); setZoomLevel(v); canvasRef.current?.setZoom(v); }}
-        className="rounded px-0.5 text-[oklch(0.55_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]">
-        <ZoomOut size={12} strokeWidth={1.7} />
+        className={`${btnBase} text-[oklch(0.45_0.01_265)]`}>
+        <ZoomOut size={11} strokeWidth={1.5} />
       </button>
-      <span className="text-[10px] text-[oklch(0.45_0.01_264)] min-w-[28px] text-center font-semibold">
-        {Math.round(zoomLevel * 100)}%
-      </span>
+      <span className="text-[10px] font-mono tabular-nums text-[oklch(0.45_0.01_264)] w-[26px] text-center">{Math.round(zoomLevel * 100)}%</span>
       <button type="button"
         onClick={() => { const v = Math.min(3, zoomLevel + 0.25); setZoomLevel(v); canvasRef.current?.setZoom(v); }}
-        className="rounded px-0.5 text-[oklch(0.55_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]">
-        <ZoomIn size={12} strokeWidth={1.7} />
+        className={`${btnBase} text-[oklch(0.45_0.01_265)]`}>
+        <ZoomIn size={11} strokeWidth={1.5} />
       </button>
     </div>
   );
@@ -203,7 +212,7 @@ export function MemoPanel({
         style={{ WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }}
         onContextMenu={e => e.preventDefault()}
         onTouchStart={e => e.preventDefault()}>
-        <div className="flex items-center justify-between px-4 py-2 border-b border-[oklch(0.91_0.006_264)]">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-[oklch(0.92_0.004_265)]">
           <div className="flex items-center gap-2 text-sm font-bold text-[oklch(0.18_0.012_265)]">
             <PenLine size={14} strokeWidth={1.5} />
             全屏手写{scorePointName ? ` · ${scorePointName}` : ''}
@@ -212,19 +221,30 @@ export function MemoPanel({
             {toolbar}
             <button
               type="button" onClick={() => setFullscreen(false)}
-              className="flex items-center gap-1 rounded-lg border border-[oklch(0.91_0.006_264)] px-3 py-1.5 text-xs font-semibold text-[oklch(0.55_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]"
+              className="flex items-center gap-1 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-3 py-1.5 text-xs font-semibold text-[oklch(0.45_0.01_265)]
+                shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
+                hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
+                active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12)] active:translate-y-px transition-all duration-150"
             >
-              <Minimize2 size={13} strokeWidth={1.7} /> 退出全屏
+              <Minimize2 size={13} strokeWidth={1.5} /> 退出全屏
             </button>
           </div>
         </div>
         <AtramentCanvas ref={canvasRef} width={800} height={560} className="flex-1 rounded-none border-0" />
-        <div className="flex items-center gap-2 px-4 py-2 border-t">
+        <div className="flex items-center gap-2 px-4 py-2 border-t border-[oklch(0.92_0.004_265)]">
           <button type="button" onClick={() => { canvasRef.current?.clear(); }}
-            className="rounded-lg border px-3 py-1.5 text-xs">清空</button>
+            className="rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-4 py-2 text-xs font-semibold text-[oklch(0.45_0.01_265)]
+              shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
+              hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
+              active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12)] active:translate-y-px transition-all duration-150">
+            清空</button>
           <button type="button" onClick={doSave} disabled={saving}
-            className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#064ea2] py-2 text-xs font-bold text-white">
-            {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} strokeWidth={1.7} />}
+            className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-[#064ea2] py-2.5 text-xs font-bold text-white
+              shadow-[0_1px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.25)]
+              hover:shadow-[0_2px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.3)]
+              active:shadow-[inset_0_1px_3px_oklch(0.3_0.08_264_/_.4)] active:translate-y-px
+              disabled:opacity-50 transition-all duration-150">
+            {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} strokeWidth={1.5} />}
             {saving ? '保存中…' : '保存手写'}
           </button>
         </div>
@@ -241,18 +261,23 @@ export function MemoPanel({
           <PenLine size={14} strokeWidth={1.5} /> 专家备忘
           {scorePointName && <span className="text-[11px] font-normal text-[#064ea2]">· {scorePointName}</span>}
         </h3>
-        <div className="flex items-center gap-1 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white p-0.5">
+        <div className="flex items-center gap-0 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] p-0.5
+          shadow-[inset_0_1px_2px_oklch(0.55_0.03_258_/_.06)]">
           <button type="button" onClick={() => setMode('handwriting')} aria-pressed={mode === 'handwriting'}
-            className={`flex items-center gap-1 rounded-md px-2 ${padY} text-xs font-semibold transition ${
-              mode === 'handwriting' ? 'bg-[#064ea2] text-white' : 'text-[oklch(0.55_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]'
+            className={`flex items-center gap-1 rounded-lg px-2.5 ${padY} text-xs font-semibold transition-all duration-150 ${
+              mode === 'handwriting'
+                ? 'bg-[#064ea2] text-white shadow-[0_1px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.2)]'
+                : 'text-[oklch(0.55_0.01_264)] hover:text-[oklch(0.35_0.01_264)]'
             }`}>
-            <PenLine size={12} strokeWidth={1.7} /> 手写
+            <PenLine size={12} strokeWidth={1.5} /> 手写
           </button>
           <button type="button" onClick={() => setMode('keyboard')} aria-pressed={mode === 'keyboard'}
-            className={`flex items-center gap-1 rounded-md px-2 ${padY} text-xs font-semibold transition ${
-              mode === 'keyboard' ? 'bg-[#064ea2] text-white' : 'text-[oklch(0.55_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]'
+            className={`flex items-center gap-1 rounded-lg px-2.5 ${padY} text-xs font-semibold transition-all duration-150 ${
+              mode === 'keyboard'
+                ? 'bg-[#064ea2] text-white shadow-[0_1px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.2)]'
+                : 'text-[oklch(0.55_0.01_264)] hover:text-[oklch(0.35_0.01_264)]'
             }`}>
-            <Keyboard size={12} strokeWidth={1.7} /> 键盘
+            <Keyboard size={12} strokeWidth={1.5} /> 键盘
           </button>
         </div>
       </div>
@@ -273,19 +298,28 @@ export function MemoPanel({
               onContextMenu={e => e.preventDefault()}>
               <AtramentCanvas ref={canvasRef} height={compact ? 320 : 420} />
               <button type="button" onClick={() => setFullscreen(true)}
-                className="absolute right-2 top-2 rounded-md bg-white/70 p-1 text-[oklch(0.45_0.01_264)] hover:bg-white hover:text-[#064ea2] transition"
+                className="absolute right-2 top-2 rounded-lg border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)]/80 p-1 text-[oklch(0.45_0.01_264)] transition-all duration-150
+                  shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
+                  hover:text-[#064ea2] hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]"
                 title="全屏手写">
-                <Maximize2 size={14} strokeWidth={1.7} />
+                <Maximize2 size={14} strokeWidth={1.5} />
               </button>
             </div>
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => canvasRef.current?.clear()}
-                className={`flex items-center gap-1 rounded-lg border border-[oklch(0.91_0.006_264)] ${padY} px-3 text-xs font-semibold text-[oklch(0.55_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]`}>
-                <Eraser size={12} strokeWidth={1.7} /> 清空
+                className="flex items-center gap-1 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-3 py-2 text-xs font-semibold text-[oklch(0.45_0.01_265)]
+                  shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
+                  hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
+                  active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12)] active:translate-y-px transition-all duration-150">
+                <Eraser size={12} strokeWidth={1.5} /> 清空
               </button>
               <button type="button" onClick={doSave} disabled={saving}
-                className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#064ea2] px-3 py-2 text-xs font-bold text-white hover:bg-[#054280] disabled:opacity-50">
-                {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} strokeWidth={1.7} />}
+                className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-[#064ea2] px-3 py-2.5 text-xs font-bold text-white
+                  shadow-[0_1px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.25)]
+                  hover:shadow-[0_2px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.3)]
+                  active:shadow-[inset_0_1px_3px_oklch(0.3_0.08_264_/_.4)] active:translate-y-px
+                  disabled:opacity-50 transition-all duration-150">
+                {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} strokeWidth={1.5} />}
                 {saving ? '保存中…' : '保存手写'}
               </button>
             </div>

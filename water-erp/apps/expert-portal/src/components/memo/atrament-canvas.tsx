@@ -7,7 +7,7 @@ export interface AtramentCanvasHandle {
   undo: () => void;  setMode: (m: 'draw' | 'erase') => void;  getMode: () => 'draw' | 'erase';
   setColor: (c: string) => void;  getColor: () => string;
   setWeight: (w: number) => void;  getWeight: () => number;
-  /** 设置缩放（1=100%，2=200%）。缩放>1 时容器出现滚动条 */
+  setEraserMul: (m: number) => void;  getEraserMul: () => number;
   setZoom: (z: number) => void;  getZoom: () => number;
 }
 
@@ -18,23 +18,23 @@ interface Props {
 
 interface Point { x: number; y: number; pressure: number }
 
-/** 半宽（pressure → 半径）。压感灵敏 + 最小宽度保证可见 */
-function halfW(pv: number, baseW: number): number {
-  return Math.max(1.2, baseW * (0.25 + 0.75 * Math.pow(pv, 1.6))) / 2;
+/** 半宽（pressure → 半径）。压感灵敏 + 最小宽度保证可见。eraserMul 橡皮模式放大倍率 */
+function halfW(pv: number, baseW: number, eraserMul = 1): number {
+  return Math.max(1.2, baseW * (0.25 + 0.75 * Math.pow(pv, 1.6))) / 2 * eraserMul;
 }
 
 /** 逐 pair 画填充四边形 + 节点圆。每段用自己的压力→宽，一笔之内轻重粗细实时变化 */
-function drawPath(ctx: CanvasRenderingContext2D, pts: Point[], baseW: number) {
+function drawPath(ctx: CanvasRenderingContext2D, pts: Point[], baseW: number, eraserMul = 1) {
+  const hw = (pv: number) => halfW(pv, baseW, eraserMul);
   if (pts.length < 2) {
     if (pts.length === 1) {
-      const r = halfW(pts[0].pressure, baseW);
+      const r = hw(pts[0].pressure);
       ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, r, 0, Math.PI * 2); ctx.fill();
     }
     return;
   }
-  // 起点圆
   {
-    const r = halfW(pts[0].pressure, baseW);
+    const r = hw(pts[0].pressure);
     ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, r, 0, Math.PI * 2); ctx.fill();
   }
   for (let i = 1; i < pts.length; i++) {
@@ -43,15 +43,13 @@ function drawPath(ctx: CanvasRenderingContext2D, pts: Point[], baseW: number) {
     const len = Math.sqrt(dx * dx + dy * dy);
     if (len < 0.02) continue;
     const nx = -dy / len, ny = dx / len;
-    const ra = halfW(a.pressure, baseW), rb = halfW(b.pressure, baseW);
-    // 四边形
+    const ra = hw(a.pressure), rb = hw(b.pressure);
     ctx.beginPath();
     ctx.moveTo(a.x + nx * ra, a.y + ny * ra);
     ctx.lineTo(b.x + nx * rb, b.y + ny * rb);
     ctx.lineTo(b.x - nx * rb, b.y - ny * rb);
     ctx.lineTo(a.x - nx * ra, a.y - ny * ra);
     ctx.closePath(); ctx.fill();
-    // 节点圆
     ctx.beginPath(); ctx.arc(b.x, b.y, rb, 0, Math.PI * 2); ctx.fill();
   }
 }
@@ -71,6 +69,7 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
     const color = useRef(strokeColor);
     const weight = useRef(baseWeight);
     const mode = useRef<'draw' | 'erase'>('draw');
+    const eraserMul = useRef(3);
     const [zoom, setZoom] = useState(1);
 
     const toLocal = (e: PointerEvent): Point => {
@@ -92,9 +91,8 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       vc.clearRect(0, 0, width, height);
       vc.drawImage(bg, 0, 0);
       vc.restore();
-      vc.fillStyle = color.current;
-      vc.globalCompositeOperation = mode.current === 'erase' ? 'destination-out' : 'source-over';
-      drawPath(vc, pathPts.current, weight.current);
+      vc.fillStyle = mode.current === 'erase' ? '#ffffff' : color.current;
+      drawPath(vc, pathPts.current, weight.current, mode.current === 'erase' ? eraserMul.current : 1);
     };
 
     const md = (d: boolean) => { hasDrawn.current = d; onDirtyChange?.(d); };
@@ -108,10 +106,9 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
     const commitToBg = () => {
       const bgCtx = bgCtxRef.current;
       if (!bgCtx) return;
-      bgCtx.globalCompositeOperation = mode.current === 'erase' ? 'destination-out' : 'source-over';
       bgCtx.strokeStyle = color.current;
-      bgCtx.fillStyle = color.current;
-      drawPath(bgCtx, pathPts.current, weight.current);
+      bgCtx.fillStyle = mode.current === 'erase' ? '#ffffff' : color.current;
+      drawPath(bgCtx, pathPts.current, weight.current, mode.current === 'erase' ? eraserMul.current : 1);
     };
 
     const onDown = (e: PointerEvent) => {
@@ -198,6 +195,8 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       getColor: () => color.current,
       setWeight: (w) => { weight.current = w; },
       getWeight: () => weight.current,
+      setEraserMul: (m: number) => { eraserMul.current = Math.max(1, Math.min(10, m)); },
+      getEraserMul: () => eraserMul.current,
       setZoom: (z: number) => {
         const v = Math.max(0.5, Math.min(3, z));
         setZoom(v);
