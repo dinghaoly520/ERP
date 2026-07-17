@@ -54,7 +54,13 @@ export function MemoPanel({
   const [eraseMode, setEraseMode] = useState(false);
   const [eraserSize, setEraserSize] = useState(3);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const canvasRef = useRef<AtramentCanvasHandle>(null);
+  const inlineCanvasRef = useRef<AtramentCanvasHandle>(null);
+  const fullscreenCanvasRef = useRef<AtramentCanvasHandle>(null);
+  // 全屏切换时暂存 blob，在新 canvas mount 后恢复
+  const pendingBlob = useRef<Blob | null>(null);
+
+  // 获取当前活跃的画布（全屏/内嵌）
+  const activeCanvas = () => fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
 
   // 得分点粒度 reload
   const load = useCallback(async () => {
@@ -72,23 +78,78 @@ export function MemoPanel({
 
   useEffect(() => { load(); }, [load]);
 
+  // 切换得分点时自动保存当前画布 → 清屏 → 新得分点备忘自动加载
+  const prevPointRef = useRef(scorePointId);
+  const isFirstPoint = useRef(true);
+  useEffect(() => {
+    if (isFirstPoint.current) { isFirstPoint.current = false; return; }
+    const prev = prevPointRef.current;
+    // 异步保存到旧得分点
+    (async () => {
+      const c = activeCanvas();
+      if (mode !== 'handwriting' || !c?.isEmpty || c.isEmpty()) return;
+      try {
+        const blob = await c.toBlob();
+        if (blob) {
+          await createMemo(projectId, {
+            inkBlob: blob,
+            sourceDevice: `${sourceDevice}_handwriting`,
+            supplierId,
+            scorePointId: prev,
+          });
+        }
+      } catch { /* auto-save silent */ }
+      c.clear();
+    })().catch(() => {});
+    prevPointRef.current = scorePointId;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scorePointId]);
+
+  // 全屏切换后恢复暂存 blob
+  useEffect(() => {
+    if (!pendingBlob.current) return;
+    const blob = pendingBlob.current;
+    pendingBlob.current = null;
+    // 等新 canvas mount
+    const timer = setTimeout(async () => {
+      const target = fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
+      await target?.restoreBlob(blob);
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [fullscreen]);
+
+  const enterFullscreen = async () => {
+    const blob = await inlineCanvasRef.current?.toBlob();
+    if (blob) pendingBlob.current = blob;
+    inlineCanvasRef.current?.clear();
+    setFullscreen(true);
+  };
+
+  const exitFullscreen = async () => {
+    const blob = await fullscreenCanvasRef.current?.toBlob();
+    if (blob) pendingBlob.current = blob;
+    fullscreenCanvasRef.current?.clear();
+    setFullscreen(false);
+  };
+
   const doSave = useCallback(async () => {
     if (saving) return;
     setSaving(true);
     try {
       if (mode === 'handwriting') {
-        if (canvasRef.current?.isEmpty()) {
+        const c = activeCanvas();
+        if (c?.isEmpty()) {
           toast.warning('请先在手写区书写内容');
           return;
         }
-        const blob = await canvasRef.current?.toBlob();
+        const blob = await c?.toBlob();
         if (!blob) { toast.error('墨迹导出失败'); return; }
         await createMemo(projectId, {
           inkBlob: blob,
           sourceDevice: `${sourceDevice}_handwriting`,
           supplierId, scorePointId,
         });
-        canvasRef.current?.clear();
+        c?.clear();
       } else {
         const trimmed = text.trim();
         if (!trimmed) { toast.warning('请输入备忘内容'); return; }
@@ -147,7 +208,7 @@ export function MemoPanel({
         <button
           key={c.value}
           type="button" title={c.label}
-          onClick={() => { setCurrentColor(c.value); canvasRef.current?.setColor(c.value); }}
+          onClick={() => { setCurrentColor(c.value); activeCanvas()?.setColor(c.value); }}
           className={`size-[10px] rounded-full transition-all duration-150
             shadow-[0_1px_1.5px_oklch(0.55_0.03_258_/_.12),inset_0_1px_0_oklch(1_0_0_/_.5)]
             hover:scale-110
@@ -160,7 +221,7 @@ export function MemoPanel({
       <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
       {/* 线宽滑块 */}
       <input type="range" min={2} max={12} value={currentWeight}
-        onChange={e => { const v=Number(e.target.value); setCurrentWeight(v); canvasRef.current?.setWeight(v); }}
+        onChange={e => { const v=Number(e.target.value); setCurrentWeight(v); activeCanvas()?.setWeight(v); }}
         className={`w-16 ${sliderCls} [&::-webkit-slider-thumb]:bg-[#064ea2]`}
         title="笔触粗细"
       />
@@ -173,7 +234,7 @@ export function MemoPanel({
       {/* 画笔/橡皮 */}
       <button
         type="button"
-        onClick={() => { const next = !eraseMode; setEraseMode(next); canvasRef.current?.setMode(next ? 'erase' : 'draw'); if(next) canvasRef.current?.setEraserMul(eraserSize); }}
+        onClick={() => { const next = !eraseMode; setEraseMode(next); activeCanvas()?.setMode(next ? 'erase' : 'draw'); if(next) activeCanvas()?.setEraserMul(eraserSize); }}
         className={`${btnBase} ${eraseMode ? 'text-amber-600 border-amber-200 bg-amber-50' : 'text-[oklch(0.45_0.01_265)]'}`}
       >
         <Eraser size={11} strokeWidth={1.5} />
@@ -182,7 +243,7 @@ export function MemoPanel({
       {eraseMode && (
         <>
           <input type="range" min={1} max={20} value={eraserSize}
-            onChange={e => { const v=Number(e.target.value); setEraserSize(v); canvasRef.current?.setEraserMul(v); }}
+            onChange={e => { const v=Number(e.target.value); setEraserSize(v); activeCanvas()?.setEraserMul(v); }}
             className={`w-14 ${sliderCls} [&::-webkit-slider-thumb]:bg-amber-500`}
             title="橡皮大小"
           />
@@ -195,19 +256,19 @@ export function MemoPanel({
       )}
       <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
       {/* 撤销 */}
-      <button type="button" onClick={() => canvasRef.current?.undo()}
+      <button type="button" onClick={() => activeCanvas()?.undo()}
         className={`${btnBase} text-[oklch(0.45_0.01_265)]`} title="撤销上一笔">
         <Undo2 size={11} strokeWidth={1.5} />
       </button>
       {/* 缩放 */}
       <button type="button"
-        onClick={() => { const v = Math.max(0.5, zoomLevel - 0.25); setZoomLevel(v); canvasRef.current?.setZoom(v); }}
+        onClick={() => { const v = Math.max(0.5, zoomLevel - 0.25); setZoomLevel(v); activeCanvas()?.setZoom(v); }}
         className={`${btnBase} text-[oklch(0.45_0.01_265)]`}>
         <ZoomOut size={11} strokeWidth={1.5} />
       </button>
       <span className="text-[10px] font-mono tabular-nums text-[oklch(0.45_0.01_264)] w-[26px] text-center">{Math.round(zoomLevel * 100)}%</span>
       <button type="button"
-        onClick={() => { const v = Math.min(3, zoomLevel + 0.25); setZoomLevel(v); canvasRef.current?.setZoom(v); }}
+        onClick={() => { const v = Math.min(3, zoomLevel + 0.25); setZoomLevel(v); activeCanvas()?.setZoom(v); }}
         className={`${btnBase} text-[oklch(0.45_0.01_265)]`}>
         <ZoomIn size={11} strokeWidth={1.5} />
       </button>
@@ -228,7 +289,7 @@ export function MemoPanel({
           <div className="flex items-center gap-2">
             {toolbar}
             <button
-              type="button" onClick={() => setFullscreen(false)}
+              type="button" onClick={exitFullscreen}
               className="flex items-center gap-1 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-3 py-1.5 text-xs font-semibold text-[oklch(0.45_0.01_265)]
                 shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
                 hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
@@ -238,9 +299,9 @@ export function MemoPanel({
             </button>
           </div>
         </div>
-        <AtramentCanvas ref={canvasRef} width={800} height={560} className="flex-1 rounded-none border-0" />
+        <AtramentCanvas ref={fullscreenCanvasRef} width={800} height={560} className="flex-1 rounded-none border-0" />
         <div className="flex items-center gap-2 px-4 py-2 border-t border-[oklch(0.92_0.004_265)]">
-          <button type="button" onClick={() => { canvasRef.current?.clear(); }}
+          <button type="button" onClick={() => { activeCanvas()?.clear(); }}
             className="rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-4 py-2 text-xs font-semibold text-[oklch(0.45_0.01_265)]
               shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
               hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
@@ -290,13 +351,6 @@ export function MemoPanel({
         </div>
       </div>
 
-      {/* 得分点空状态 */}
-      {!scorePointId && !scorePointName && (
-        <p className="mb-2 text-[11px] text-[oklch(0.62_0.008_264)] italic">
-          点击左侧得分点开始手写备忘
-        </p>
-      )}
-
       <div className="flex min-h-0 flex-col">
         {mode === 'handwriting' ? (
           <div className="flex flex-col gap-2">
@@ -304,8 +358,8 @@ export function MemoPanel({
             {toolbar}
             <div className="relative" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
               onContextMenu={e => e.preventDefault()}>
-              <AtramentCanvas ref={canvasRef} height={compact ? 320 : 420} />
-              <button type="button" onClick={() => setFullscreen(true)}
+              <AtramentCanvas ref={inlineCanvasRef} height={compact ? 320 : 420} />
+              <button type="button" onClick={enterFullscreen}
                 className="absolute right-2 top-2 rounded-lg border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)]/80 p-1 text-[oklch(0.45_0.01_264)] transition-all duration-150
                   shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
                   hover:text-[#064ea2] hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]"
@@ -314,7 +368,7 @@ export function MemoPanel({
               </button>
             </div>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => canvasRef.current?.clear()}
+              <button type="button" onClick={() => activeCanvas()?.clear()}
                 className="flex items-center gap-1 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-3 py-2 text-xs font-semibold text-[oklch(0.45_0.01_265)]
                   shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
                   hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]

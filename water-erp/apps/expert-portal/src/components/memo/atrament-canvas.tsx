@@ -9,6 +9,8 @@ export interface AtramentCanvasHandle {
   setWeight: (w: number) => void;  getWeight: () => number;
   setEraserMul: (m: number) => void;  getEraserMul: () => number;
   setZoom: (z: number) => void;  getZoom: () => number;
+  /** 将 PNG Blob 绘制到背景画布（全屏切换时转移笔迹） */
+  restoreBlob: (blob: Blob) => Promise<void>;
 }
 
 interface Props {
@@ -211,6 +213,27 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
         });
       },
       getZoom: () => zoom,
+      restoreBlob: (blob: Blob) => new Promise<void>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const bgCtx = bgCtxRef.current;
+          const bg = bgRef.current;
+          const vc = visCtxRef.current;
+          if (!bgCtx || !bg) { resolve(); return; }
+          bgCtx.clearRect(0, 0, width, height);
+          bgCtx.drawImage(img, 0, 0);
+          if (vc) {
+            vc.save(); vc.setTransform(1, 0, 0, 1, 0, 0);
+            vc.clearRect(0, 0, width, height);
+            vc.drawImage(bg, 0, 0);
+            vc.restore();
+          }
+          hasDrawn.current = true;
+          md(true);
+          resolve();
+        };
+        img.src = URL.createObjectURL(blob);
+      }),
     }), [width, height]);
 
     return (
