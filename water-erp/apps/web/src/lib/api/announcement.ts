@@ -139,6 +139,17 @@ export function removeAttachment(attachmentId: string) {
   return api.delete<{ deleted: boolean }>(`/announcements/attachments/${attachmentId}`);
 }
 
+/** 从已有本地对象挂载公告附件（引用项目采购文件，后端复制到 MinIO） */
+export function attachFromObject(
+  announcementId: string,
+  data: { objectKey: string; fileName?: string; title?: string; mimeType?: string; size?: number },
+) {
+  return api.post<AnnouncementAttachment>(
+    `/announcements/${announcementId}/attachments/from-object`,
+    data,
+  );
+}
+
 /** 上传文件（沿用既有 /upload），返回 fileAsset 信息 */
 export function uploadFile(file: File, category = 'announcement') {
   const fd = new FormData();
