@@ -94,7 +94,8 @@ export function AnnouncementPublishModal({ isOpen, onClose, project, onPublished
     [project],
   );
 
-  // 打开/切换项目时预填
+  // 打开/切换项目时预填表单
+  /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开时重置值，符合 Modalfiorm 惯例 */
   useEffect(() => {
     if (!isOpen || !project) return;
     const pre = buildPrefill(project);
@@ -108,6 +109,7 @@ export function AnnouncementPublishModal({ isOpen, onClose, project, onPublished
     setAttachments([]);
     setPublishDate(new Date().toISOString().slice(0, 10));
   }, [isOpen, project]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // ESC 关闭
   useEffect(() => {
