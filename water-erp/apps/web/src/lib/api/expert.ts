@@ -127,8 +127,15 @@ export function previewExtraction(data: {
   return api.post<ExtractionPreview>('/expert-admin/extract', data);
 }
 
-export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string }[] }) {
+export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string; isLead?: boolean }[] }) {
   return api.post<{ success: boolean; count: number; expertIds: string[] }>('/expert-admin/extract/confirm', data);
+}
+
+export function generateNotification(data: {
+  projectName: string; expertName: string; isLead: boolean;
+  totalExperts: number; extractMode: string; openTime: string;
+}) {
+  return api.post<{ success: boolean; generated: boolean; content: string | null }>('/expert-admin/notification/generate', data);
 }
 
 export function sendExtractionNotify(data: {
@@ -263,6 +270,14 @@ export function getRetireCandidates() {
 }
 export function confirmRetire(id: string, reason: string) {
   return api.post<{ success: boolean }>(`/expert-admin/${id}/retire`, { reason });
+}
+
+/* ── 邀请确认 ── */
+export function confirmInvitation(projectId: string, userId: string) {
+  return api.post<{ success: boolean; status: string }>(`/expert-admin/invitations/${projectId}/${userId}/confirm`, {});
+}
+export function declineInvitation(projectId: string, userId: string) {
+  return api.post<{ success: boolean; status: string }>(`/expert-admin/invitations/${projectId}/${userId}/decline`, {});
 }
 
 /* ── AI 采纳率 ── */

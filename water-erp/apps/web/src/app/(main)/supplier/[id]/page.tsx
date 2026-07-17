@@ -62,6 +62,7 @@ export default function SupplierDetailPage() {
   const [classLoading, setClassLoading] = useState(false);
   const [classLinks, setClassLinks] = useState<{ classificationId: string; classification: SupplierClassification }[]>([]);
 
+  const [barCollapsed, setBarCollapsed] = useState(false);
   const closeApproval = () => { setApprovalMode(null); setApprovalReason(''); };
 
   const loadAll = useCallback(async () => {
@@ -186,6 +187,11 @@ export default function SupplierDetailPage() {
   );
   if (!supplier) return <div className="py-20 text-center text-sm text-[var(--danger)]">供应商不存在</div>;
 
+  const backFrom = (typeof window !== 'undefined' ? new URL(window.location.href).searchParams.get('from') : null);
+  const backPath = backFrom === 'selection' ? '/supplier/selection' : '/supplier/repository';
+  const backLabel = backFrom === 'selection' ? '返回供应商选取' : '返回列表';
+  const breadcrumbRoot = backFrom === 'selection' ? '供应商选取' : '供应商库';
+
   const stLabel = STATUS_LABEL[supplier.status] || supplier.status;
   const stTone = STATUS_TONE[supplier.status] || 'gray';
   const isPending = supplier.status === 'PENDING' || supplier.status === 'RETURNED';
@@ -230,7 +236,7 @@ export default function SupplierDetailPage() {
 
   return (
     <div className={isPending ? 'pb-24' : ''}>
-      <Breadcrumb items={[{ label: '供应商库', path: '/supplier/repository' }, { label: supplier?.name || '详情' }]} />
+      <Breadcrumb items={[{ label: breadcrumbRoot, path: backPath }, { label: supplier?.name || '详情' }]} />
 
       {/* ═══════════════════════════════════════════════════
          顶部信息卡 — 仅核心识别信息（详细字段移至基本信息Tab）
@@ -282,9 +288,9 @@ export default function SupplierDetailPage() {
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'blacklist', supplier }); }} className="neu-btn-xs is-danger">黑名单</button>
               </>
             )}
-            <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft">
+            <button onClick={() => router.push(backPath)} className="neu-btn-soft">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-              返回列表
+              {backLabel}
             </button>
           </div>
         </div>
@@ -811,53 +817,52 @@ export default function SupplierDetailPage() {
 
       {/* ═══ 审批操作栏（PENDING/RETURNED 时固定在底部）═══ */}
       {isPending && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--background)]/85 backdrop-blur-lg border-t border-[color-mix(in_oklch,var(--foreground)_8%,transparent)] px-6 py-3">
-          <div className="max-w-6xl mx-auto flex flex-wrap items-center gap-4">
-            <div className="flex-1 flex items-center gap-3 min-w-[200px]">
-              <span className="text-sm font-bold text-[var(--foreground)]">审批操作</span>
-              {approvalMode === null ? (
-                <span className="text-xs text-[var(--muted-foreground)]">选择审批意见，处理该供应商的注册申请</span>
-              ) : (
-                <span className="text-xs font-semibold" style={{ color: approvalMode === 'approve' ? 'var(--success)' : approvalMode === 'return' ? 'var(--warning)' : 'var(--danger)' }}>
-                  {approvalMode === 'approve' ? '审核通过 — 供应商入库，账户激活' : approvalMode === 'return' ? '退回补正 — 供应商可修改后重新提交' : '审核不通过 — 拒绝注册申请'}
-                </span>
-              )}
+        <div className={`fixed bottom-0 left-0 right-0 z-40 bg-[var(--background)]/85 backdrop-blur-lg border-t border-[color-mix(in_oklch,var(--foreground)_8%,transparent)] transition-all duration-200 ${barCollapsed ? 'px-6 py-1.5' : 'px-6 py-3'}`}>
+          {barCollapsed ? (
+            <div className="max-w-6xl mx-auto flex items-center gap-3">
+              <span className="text-[11px] font-bold text-[var(--muted-foreground)]">审批操作 · {pendingHint}</span>
+              <button onClick={() => setBarCollapsed(false)} className="neu-btn-xs ml-auto">展开</button>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              {approvalMode !== null && approvalMode !== 'approve' && (
-                <input
-                  value={approvalReason}
-                  onChange={e => setApprovalReason(e.target.value)}
-                  placeholder={approvalMode === 'return' ? '退回补正原因（供供应商修改）...' : '不通过原因...'}
-                  className="neu-input w-64"
-                />
-              )}
-              {approvalMode === null ? (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setApprovalMode('approve')} className="neu-btn-soft is-success">
-                    <CheckCircle2 size={16} />通过
-                  </button>
-                  <button onClick={() => setApprovalMode('return')} className="neu-btn-soft is-warning">
-                    <RotateCcw size={16} />退回
-                  </button>
-                  <button onClick={() => setApprovalMode('reject')} className="neu-btn-soft is-danger">
-                    <XCircle size={16} />拒绝
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <button onClick={closeApproval} className="neu-btn-soft">取消</button>
-                  <button onClick={handleApproval} disabled={approvalLoading || (approvalMode !== 'approve' && !approvalReason.trim())}
-                    className={`neu-btn-soft ${
-                      approvalMode === 'approve' ? 'is-success' :
-                      approvalMode === 'return' ? 'is-warning' : 'is-danger'
-                    }`}>
-                    {approvalLoading ? '处理中...' : `确认${approvalMode === 'approve' ? '通过' : approvalMode === 'return' ? '退回' : '拒绝'}`}
-                  </button>
-                </div>
-              )}
+          ) : (
+            <div className="max-w-6xl mx-auto flex flex-wrap items-center gap-4">
+              <div className="flex-1 flex items-center gap-3 min-w-[200px]">
+                <span className="text-sm font-bold text-[var(--foreground)]">审批操作</span>
+                {approvalMode === null ? (
+                  <span className="text-xs text-[var(--muted-foreground)]">选择审批意见，处理该供应商的注册申请</span>
+                ) : (
+                  <span className="text-xs font-semibold" style={{ color: approvalMode === 'approve' ? 'var(--success)' : approvalMode === 'return' ? 'var(--warning)' : 'var(--danger)' }}>
+                    {approvalMode === 'approve' ? '审核通过 — 供应商入库，账户激活' : approvalMode === 'return' ? '退回补正 — 供应商可修改后重新提交' : '审核不通过 — 拒绝注册申请'}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                {approvalMode !== null && approvalMode !== 'approve' && (
+                  <input
+                    value={approvalReason}
+                    onChange={e => setApprovalReason(e.target.value)}
+                    placeholder={approvalMode === 'return' ? '退回补正原因（供供应商修改）...' : '不通过原因...'}
+                    className="neu-input w-64"
+                  />
+                )}
+                {approvalMode === null ? (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setApprovalMode('approve')} className="neu-btn-soft is-success"><CheckCircle2 size={16} />通过</button>
+                    <button onClick={() => setApprovalMode('return')} className="neu-btn-soft is-warning"><RotateCcw size={16} />退回</button>
+                    <button onClick={() => setApprovalMode('reject')} className="neu-btn-soft is-danger"><XCircle size={16} />拒绝</button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button onClick={closeApproval} className="neu-btn-soft">取消</button>
+                    <button onClick={handleApproval} disabled={approvalLoading || (approvalMode !== 'approve' && !approvalReason.trim())}
+                      className={`neu-btn-soft ${approvalMode === 'approve' ? 'is-success' : approvalMode === 'return' ? 'is-warning' : 'is-danger'}`}>
+                      {approvalLoading ? '处理中...' : `确认${approvalMode === 'approve' ? '通过' : approvalMode === 'return' ? '退回' : '拒绝'}`}
+                    </button>
+                  </div>
+                )}
+                <button onClick={() => setBarCollapsed(true)} className="neu-btn-xs ml-2">收起</button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

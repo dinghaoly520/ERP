@@ -121,10 +121,7 @@ export default function SupplierEvaluationPage() {
     }
     setSaving(true);
     try {
-      // 将 evidence 打包进 comment
-      const evidenceJson = JSON.stringify(evidence);
-      const fullComment = [comment, `\n--- 评价依据 ---\n${evidenceJson}`].filter(Boolean).join('\n');
-      await createEvaluation(evalModal.id, { ...scores, comment: fullComment || undefined });
+      await createEvaluation(evalModal.id, { ...scores, comment: comment || undefined, evidence });
       toast.success('评价已提交');
       setHistory(await getSupplierEvaluations(evalModal.id));
       setEvalModal(null);
@@ -149,7 +146,7 @@ export default function SupplierEvaluationPage() {
             </div>
           </div>
           <div className="page-hero__right">
-            <button onClick={loadData} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
+            <button onClick={loadData} disabled={loading} className="neu-btn-xs" aria-label="刷新"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
           </div>
         </div>
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
@@ -337,10 +334,10 @@ export default function SupplierEvaluationPage() {
               <div key={d.key} className="rounded-xl p-4 bg-[var(--surface)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
                 {/* 标题行 */}
                 <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
+                  <label htmlFor={`eval-${d.key}`} className="flex items-center gap-2 cursor-pointer">
                     <span className="text-sm font-bold text-[var(--foreground)]">{d.label}</span>
                     <span className="text-[11px] text-[var(--muted-foreground)] hidden sm:inline">{d.hint}</span>
-                  </div>
+                  </label>
                   <span className="text-sm font-extrabold text-[var(--accent)] tabular-nums">{scores[d.key]}</span>
                 </div>
 
@@ -376,9 +373,23 @@ export default function SupplierEvaluationPage() {
 
                 {/* 滑块 */}
                 <div className="relative">
-                  <input type="range" min={0} max={d.max} step={1} value={scores[d.key]}
+                  <input
+                    id={`eval-${d.key}`}
+                    type="range"
+                    min={0} max={d.max} step={1}
+                    value={scores[d.key]}
+                    aria-label={`${d.label}（满分 ${d.max}）`}
                     onChange={e => setScores({ ...scores, [d.key]: Number(e.target.value) })}
-                    className="w-full accent-[var(--accent)]" />
+                    className="w-full accent-[var(--accent)]"
+                  />
+                  {/* 低/中/高基准标记：30% 与 70% 位置 */}
+                  <div className="absolute top-0 h-full pointer-events-none" style={{ left: '30%', width: 1 }}>
+                    <div className="h-1/2 w-px bg-[var(--muted-foreground)]/15" />
+                  </div>
+                  <div className="absolute top-0 h-full pointer-events-none" style={{ left: '70%', width: 1 }}>
+                    <div className="h-1/2 w-px bg-[var(--muted-foreground)]/15" />
+                  </div>
+                  {/* AI 建议标记线 */}
                   {aiDim && (
                     <div className="absolute top-0 h-full pointer-events-none"
                       style={{ left: `${(aiDim.suggestedScore / d.max) * 100}%`, width: 1 }}>
@@ -428,10 +439,9 @@ export default function SupplierEvaluationPage() {
                     const tone = lv === 'A' ? 'green' : lv === 'B' ? 'blue' : lv === 'C' ? 'orange' : 'red';
                     let evidenceText = '';
                     try {
-                      const m = ev.comment?.match(/--- 评价依据 ---\n(\{[\s\S]*\})/);
-                      if (m) {
-                        const evObj = JSON.parse(m[1]);
-                        evidenceText = Object.entries(evObj).map(([k, v]) => `${DIMENSIONS.find(d => d.key === k)?.label || k}: ${(v as string).slice(0, 30)}`).join(' · ');
+                      const evData = (ev as any).evidence as Record<string, string> | undefined;
+                      if (evData) {
+                        evidenceText = Object.entries(evData).slice(0, 5).map(([k, v]) => `${DIMENSIONS.find(d => d.key === k)?.label || k}: ${(v as string).slice(0, 30)}`).join(' · ');
                       }
                     } catch {}
                     return (

@@ -369,13 +369,21 @@ export async function deleteProjectAttachment(
 }
 
 export type ExtractedInfoPayload = {
+  title?: string;
   initiationDate?: string;
+  evaluationMethod?: string;
   expertInfo?: string;
   biddingUnits?: string;
   awardedSupplier?: string;
   contractAmount?: number;
+  demandProject?: string;
+  demandContractNumber?: string;
   contractNumber?: string;
   departmentNumber?: string;
+  projectOverview?: string;
+  bidOpeningTime?: string;
+  invitedSuppliers?: string;
+  paymentPerformance?: string;
 };
 
 export async function updateProjectExtractedInfo(

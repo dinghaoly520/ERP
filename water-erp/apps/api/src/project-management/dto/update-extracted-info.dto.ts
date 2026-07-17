@@ -3,6 +3,10 @@ import { IsOptional, IsString, IsNumber } from 'class-validator';
 export class UpdateExtractedInfoDto {
   @IsOptional()
   @IsString()
+  title?: string;
+
+  @IsOptional()
+  @IsString()
   initiationDate?: string;
 
   @IsOptional()

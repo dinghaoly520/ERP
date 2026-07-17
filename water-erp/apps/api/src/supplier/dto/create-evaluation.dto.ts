@@ -21,4 +21,7 @@ export class CreateEvaluationDto {
 
   @IsString() @IsOptional()
   comment?: string;
+
+  @IsOptional()
+  evidence?: Record<string, string>;
 }

@@ -133,9 +133,10 @@ export function ProjectManagementPage() {
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
 
   /** Whether the current user is allowed to modify (recycle/restore/delete) a given project */
-  const canModifyProject = (_project: { createdById?: string | null }) => {
+  const canModifyProject = (project: { createdById?: string | null }) => {
     if (!currentUser) return false;
-    if (currentUser.role === 'admin' || currentUser.role === 'procurement_staff') return true;
+    if (currentUser.role === 'admin') return true;
+    if (project.createdById === currentUser.id) return true;
     return false;
   };
 

@@ -43,7 +43,7 @@ export default function ExpertEvaluationPage() {
   const load = useCallback(async () => { setLoading(true); setErrored(false); try { setExperts(await listExperts({ search: search || undefined }) as ExpertListItem[]); } catch (e: any) { setErrored(true); toast.error(e?.message || '加载专家列表失败'); } setLoading(false); }, [search]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { getExpertEvalStats().then(setStats).catch(() => toast.error('加载评价统计失败')); }, [experts.length]);
-  useEffect(() => { getExpertDimensionStats().then(setDimStats).catch(() => {}); }, [experts.length]);
+  useEffect(() => { getExpertDimensionStats().then(setDimStats).catch(() => toast.error('加载维度分布失败')); }, [experts.length]);
 
   const totalPages = Math.max(1, Math.ceil(experts.length / PAGE_SIZE));
   const sortedExperts = useMemo(() => {
@@ -131,7 +131,7 @@ export default function ExpertEvaluationPage() {
           <span className="text-[var(--muted-foreground)]">累计评价 <strong className="tabular-nums text-[var(--foreground)]">{stats.total}</strong> 次</span>
           <span className="text-[var(--muted-foreground)]">平均得分 <strong className="tabular-nums text-[var(--accent)]">{stats.avgScore}</strong></span>
         </div>
-        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索专家姓名" className="neu-input !pl-9" />{search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}</div>
+        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索专家姓名" className="neu-input !pl-9" />{search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--muted-foreground)] z-10" aria-label="清除搜索"><X size={14} /></button>}</div>
       </div>
 
       {/* ════ 三维评分分布 ════ */}

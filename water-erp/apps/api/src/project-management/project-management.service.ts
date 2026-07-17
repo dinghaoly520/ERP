@@ -7,6 +7,8 @@ import { Response } from 'express';
 import { ResultStatus, SourceType } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
+import * as mammoth from 'mammoth';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } from 'docx';
 import { DocumentParserService } from '../knowledge/services/document-parser.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteProjectDto } from './dto/complete-project.dto';
@@ -2767,6 +2769,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
   async updateExtractedInfo(
     projectId: string,
     dto: {
+      title?: string;
       initiationDate?: string;
       evaluationMethod?: string;
       expertInfo?: string;
@@ -2792,6 +2795,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     const updateData: Record<string, unknown> = {};
+
+    if (dto.title !== undefined) {
+      updateData.title = dto.title || null;
+    }
 
     if (dto.initiationDate) {
       const parsedDate = new Date(dto.initiationDate);
@@ -5375,22 +5382,40 @@ ${JSON.stringify(algorithmResult, null, 2)}
     } catch {}
 
     // ── 第一步：提取每段的纯文本 + HTML ──
-    const rawParagraphs: Array<{ text: string; html: string; style: string }> = [];
+    const rawParagraphs: Array<{ text: string; html: string; style: string; origIdx: number }> = [];
     const pRegex = /<w:p[\s>][\s\S]*?<\/w:p>/g;
     let match;
 
     while ((match = pRegex.exec(docXml)) !== null) {
       const pXml = match[0];
 
-      // heading?
-      let style = 'body';
+      // ── 提取样式名和段级别字号 ──
+      let styleName = '';
       let fontSizePt = '';
       const styleMatch = pXml.match(/<w:pStyle w:val="([^"]+)"/);
       if (styleMatch) {
-        const st = styleMatch[1];
-        if (/Heading|heading|题目|标题/.test(st)) style = 'heading';
-        if (styleSizeMap[st]) fontSizePt = (parseInt(styleSizeMap[st], 10) / 2).toFixed(0);
+        styleName = styleMatch[1];
+        if (styleSizeMap[styleName]) fontSizePt = (parseInt(styleSizeMap[styleName], 10) / 2).toFixed(0);
       }
+
+      // 若样式没给字号，从第一个 run 读取
+      if (!fontSizePt) {
+        const firstSz = pXml.match(/<w:sz[^>]*w:val="(\d+)"/);
+        if (firstSz) fontSizePt = (parseInt(firstSz[1], 10) / 2).toFixed(0);
+      }
+
+      const isBold = /<w:b\b/.test(pXml);
+
+      // heading 判定：自定义章样式或粗体≥14pt（Normal 样式≥14pt不算，那是章节内子标题）
+      let isHeading = false;
+      if (/[Hh]eading|^TOC|题目|标题|章标题|目录|摘要|前言|致谢|^Style\d+$/.test(styleName)) {
+        isHeading = true;
+      } else if (isBold && styleName === '') {
+        // 无样式名的粗体大字号（国产文档常见，如页眉章名）
+        const pt = parseInt(fontSizePt, 10) || 0;
+        if (pt >= 14) isHeading = true;
+      }
+      const style = isHeading ? 'heading' : 'body';
 
       // Extract text WITH formatting via runs — handle <w:br/> as line break
       const runs: string[] = [];
@@ -5437,64 +5462,129 @@ ${JSON.stringify(algorithmResult, null, 2)}
       const withLineBreaks = pXml.replace(/<w:br[^>]*\/?>/g, '\n');
       const textContent = this.decodeXmlText(withLineBreaks.replace(/<[^>]+>/g, '')).trim();
       if (textContent.length > 0) {
-        rawParagraphs.push({ text: textContent, html, style });
+        rawParagraphs.push({ text: textContent, html, style, origIdx: rawParagraphs.length });
       }
     }
 
-    // ── 第二步：AI 语义拆分（与之前相同） ──
-    let resultParagraphs: Array<{ index: number; text: string; html: string; style: string; rawRange: { from: number; to: number } }>;
+    // ── 1.5：后处理 ─ 去噪、去重、识别章标题 ──
+    const CHAPTER_TITLE_PATTERN = /^第[一二三四五六七八九十百零\d]+章\b/;
+    const deduped = rawParagraphs.filter((p, i) => {
+      // 纯数字/页码 跳过
+      if (/^\d{4,}$/.test(p.text)) return false;
+      // TOC 目录残留 PAGEREF/TOC 指令
+      if (/PAGEREF\b|^TOC\s/i.test(p.text)) return false;
+      // 连续相同段落（目录镜像），只保留第一个
+      if (i > 0 && p.text === rawParagraphs[i - 1].text) return false;
+      return true;
+    });
+
+    // 章标题识别：①文本含"第X章" ②style=heading 且有章名特征（非封面，短文本）
+    const COVER_PARAS = 6; // 前6段视为封面/目录
+    for (let i = 0; i < deduped.length; i++) {
+      const p = deduped[i];
+      if (p.style !== 'heading') continue;
+      const isChapterByText = CHAPTER_TITLE_PATTERN.test(p.text);
+      // 封面或目录区域的 heading 只保留"第X章"格式
+      if (i < COVER_PARAS && !isChapterByText) { p.style = 'body'; continue; }
+      // 非封面区：style=heading + 短文本(<40字，不含目录字样) = 章标题
+      const isChapterByStyle = p.text.length <= 40 && !/^(目录|目\s*录)/.test(p.text);
+      if (!isChapterByText && !isChapterByStyle) {
+        p.style = 'body';
+      }
+    }
+
+    // ── 第二步：AI 语义分析章节结构，回退到纯规则 ──
+    const resultParagraphs: Array<{ index: number; text: string; html: string; style: string; rawRange: { from: number; to: number } }> = [];
 
     try {
-      const fullText = rawParagraphs.map((p, i) => `[${i}]${p.style === 'heading' ? '[H]' : ''}${p.text}`).join('\n');
-      const aiResult = await this.aiService.chat(
-        `你是文档结构化分析助手。以下是 Word 文档提取出的所有段落（编号[0][1]...，[H]表示标题）。请分析内容逻辑，将这些段落合并/拆分为若干语义区块。每条包含其所含段落的编号范围（连续区间）。
-
-返回 JSON 数组，格式严格为：\n${JSON.stringify([{ from: 0, to: 3 }, { from: 4, to: 6 }])}\n\n要求：
-1. 区块标题从原始段落中的 heading（带[H]）提取；若该区块没有 heading，留空前一个区块用
-2. from/to 编号区间必须连续、覆盖全部非空段落
-3. 同属一个语义区块的段落合并，不要机械拆分
-4. 只用 JSON 数组作答，不要任何解释`,
-        fullText,
-        0.2,
+      const labeledLines = deduped.map((p, i) =>
+        `[${i}]${p.style === 'heading' ? '[H]' : ''}${p.text.slice(0, 120)}`,
       );
+      const aiInput = labeledLines.join('\n');
 
-      const cleanedResult = aiResult.replace(/```(?:json)?\s*|\s*```/g, '').trim();
-      const blocks: Array<{ from: number; to: number }> = JSON.parse(cleanedResult);
+      const aiResult = await Promise.race([
+        this.aiService.chat(
+          `你是采购文件结构化分析助手。以下是 Word 文档去噪后的段落列表（带[H]的是已标记的章标题）。\n\n` +
+          `请按章标题（[H]）将内容分组。每章由一个[H]标题开始，后续所有内容（直到下一个[H]之前）为该章的正文。第一个[H]之前的段落合并为封面/目录区块。\n\n` +
+          `返回严格 JSON 数组，每项：{ "from": 起始段落编号, "to": 结束段落编号 }\n\n` +
+          `要求：\n` +
+          `1. from/to 必须是实际编号，区间连续全覆盖无遗漏无重叠\n` +
+          `2. 每章从 [H] 开始，到下一个 [H]-1 结束\n` +
+          `3. 只用 JSON 数组作答，不要任何解释`,
+          aiInput,
+          0.2,
+        ),
+        new Promise<string>((_, reject) =>
+          setTimeout(() => reject(new Error('AI_GROUPING_TIMEOUT')), 8000),
+        ),
+      ]);
 
-      resultParagraphs = [];
+      const cleaned = aiResult.replace(/```(?:json)?\s*|\s*```/g, '').trim();
+      const blocks: Array<{ from: number; to: number; title?: string }> = JSON.parse(cleaned);
+
+      if (!Array.isArray(blocks) || blocks.length === 0) throw new Error('AI returned empty blocks');
+
       for (const block of blocks) {
-        const blockParas = rawParagraphs.slice(block.from, block.to + 1);
-        const mergedText = blockParas.map(p => p.text).join('\n\n').trim();
-        const mergedHtml = blockParas.map(p => `<div>${p.html}</div>`).join('');
-        const firstHeading = blockParas.find(p => p.style === 'heading');
+        if (typeof block.from !== 'number' || typeof block.to !== 'number') continue;
+        const from = Math.max(0, block.from);
+        const to = Math.min(deduped.length - 1, block.to);
+        if (from > to) continue;
+
+        const blockParas = deduped.slice(from, to + 1);
+        if (blockParas.length === 0) continue;
+        const text = blockParas.map(p => p.text).join('\n\n');
+        const html = blockParas.map(p => `<div>${p.html}</div>`).join('');
+        const hasHeading = blockParas.some(p => p.style === 'heading');
+
         resultParagraphs.push({
           index: resultParagraphs.length,
-          text: mergedText,
-          html: mergedHtml,
-          style: firstHeading ? 'heading' : 'body',
-          rawRange: { from: block.from, to: block.to },
+          text,
+          html,
+          style: hasHeading ? 'heading' : 'body',
+          rawRange: { from: blockParas[0].origIdx, to: blockParas[blockParas.length - 1].origIdx },
         });
       }
 
-      if (!resultParagraphs.length || !blocks.length) throw new Error('Empty block');
-    } catch {
-      resultParagraphs = [];
-      let groupStart = -1;
-      for (let i = 0; i < rawParagraphs.length; i++) {
-        const raw = rawParagraphs[i];
-        if (groupStart < 0) groupStart = i;
-        if (raw.style === 'heading' || i === rawParagraphs.length - 1) {
-          const end = raw.style === 'heading' && i > groupStart ? i - 1 : i;
-          const blockParas = rawParagraphs.slice(groupStart, end + 1);
+      this.logger.log(`AI chapter grouping: ${blocks.length} chapters from ${deduped.length} paragraphs`);
+    } catch (err: any) {
+      this.logger.warn(`AI grouping failed (${err?.message || err}), using rule-based fallback`);
+      // ── fallback：遇 [H] 即切章 ──
+      let blockStart = 0;
+      for (let i = 1; i <= deduped.length; i++) {
+        const isChapterBoundary = i === deduped.length || deduped[i].style === 'heading';
+        if (!isChapterBoundary) continue;
+
+        const blockParas = deduped.slice(blockStart, i);
+        if (blockParas.length === 0) { blockStart = i; continue; }
+
+        const text = blockParas.map(p => p.text).join('\n\n');
+        const html = blockParas.map(p => `<div>${p.html}</div>`).join('');
+        const isChapter = blockParas[0].style === 'heading';
+        const splitSize = isChapter ? 2500 : 1500;
+
+        if (text.length <= splitSize) {
           resultParagraphs.push({
-            index: resultParagraphs.length,
-            text: blockParas.map(p => p.text).join('\n\n'),
-            html: blockParas.map(p => `<div>${p.html}</div>`).join(''),
-            style: blockParas.some(p => p.style === 'heading') ? 'heading' : 'body',
-            rawRange: { from: groupStart, to: end },
+            index: resultParagraphs.length, text, html,
+            style: isChapter ? 'heading' : 'body',
+            rawRange: { from: blockParas[0].origIdx, to: blockParas[blockParas.length - 1].origIdx },
           });
-          groupStart = raw.style === 'heading' ? i : -1;
+        } else {
+          let subFrom = 0, acc = 0;
+          for (let j = 0; j < blockParas.length; j++) {
+            acc += blockParas[j].text.length;
+            if (acc >= splitSize || j === blockParas.length - 1) {
+              const sub = blockParas.slice(subFrom, j + 1);
+              resultParagraphs.push({
+                index: resultParagraphs.length, text: sub.map(p => p.text).join('\n\n'),
+                html: sub.map(p => `<div>${p.html}</div>`).join(''),
+                style: (isChapter && subFrom === 0) ? 'heading' : 'body',
+                rawRange: { from: sub[0].origIdx, to: sub[sub.length - 1].origIdx },
+              });
+              subFrom = j + 1; acc = 0;
+            }
+          }
         }
+        blockStart = i;
       }
     }
 
@@ -5673,6 +5763,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return this.decodeXmlText(withLineBreaks.replace(/<[^>]+>/g, '')).trim();
   }
 
+
   /** 将新文本写入 <w:p> XML，保留所有 <w:r>/<w:rPr> 结构与格式。
    *  文字按比例分配到各 <w:t> 节点，\n 转换为 <w:br/> 保留换行。 */
   private applyTextToParagraphXml(paragraphXml: string, newText: string): string {
@@ -5831,5 +5922,508 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     return { success: true };
+  }
+
+  async getAttachmentHtml(attachmentId: string): Promise<{ fileName: string; html: string }> {
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      select: { id: true, fileName: true, objectKey: true },
+    });
+    if (!attachment) throw new NotFoundException('未找到对应附件');
+
+    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    const buffer = await readFile(filePath);
+
+    const result = await this.convertDocxToHtml(buffer);
+
+    const unrecognized = result.messages.filter(m => m.type === 'warning' && /Unrecognised/i.test(m.message));
+    if (unrecognized.length > 0) {
+      this.logger.warn(`mammoth 未识别样式: ${unrecognized.map(m => m.message).join('; ')}`);
+    }
+
+    return { fileName: attachment.fileName, html: result.value };
+  }
+
+  /** 导入审阅版 DOCX：提取修订/批注/高亮并内嵌到 HTML 中。 */
+  async importReviewFile(file: Express.Multer.File): Promise<{ html: string; annotationCount: number }> {
+    const buffer = file.buffer;
+
+    // 每条标注：{ fingerprint: 标注文字, type, note?: 批注内容 }
+    interface InlineAnnotation { fingerprint: string; type: 'insertion' | 'deletion' | 'comment' | 'highlight'; note?: string }
+    const inlineAnnotations: InlineAnnotation[] = [];
+
+    try {
+      const zip = await JSZip.loadAsync(buffer);
+      const docXml = await zip.file('word/document.xml')?.async('string');
+
+      // 提取 XML 文本的辅助函数
+      const xmText = (xml: string) => xml.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/\s+/g, ' ').trim();
+
+      // ── 1. 提取批注引用范围 <w:commentRangeStart>/<w:commentRangeEnd> ──
+      // 同时读取 comments.xml 获取批注文本
+      let commentNotes: Map<number, string> = new Map();
+      try {
+        const commentsXml = await zip.file('word/comments.xml')?.async('string');
+        if (commentsXml) {
+          const commentRegex = /<w:comment\s+[^>]*w:id="(\d+)"[^>]*>([\s\S]*?)<\/w:comment>/g;
+          let cm: RegExpExecArray | null;
+          while ((cm = commentRegex.exec(commentsXml)) !== null) {
+            const cid = parseInt(cm[1], 10);
+            const note = xmText(cm[0]);
+            if (note) commentNotes.set(cid, note);
+          }
+        }
+      } catch {}
+
+      if (docXml) {
+        // 批注范围标记
+        const rangeStarts = new Map<number, { idx: number; endIdx?: number }>();
+        const rsRegex = /<w:commentRangeStart[^>]*w:id="(\d+)"[^>]*\/>/g;
+        let rsm: RegExpExecArray | null;
+        while ((rsm = rsRegex.exec(docXml)) !== null) {
+          rangeStarts.set(parseInt(rsm[1], 10), { idx: rsm.index });
+        }
+        const reRegex = /<w:commentRangeEnd[^>]*w:id="(\d+)"[^>]*\/>/g;
+        let rem: RegExpExecArray | null;
+        while ((rem = reRegex.exec(docXml)) !== null) {
+          const existing = rangeStarts.get(parseInt(rem[1], 10));
+          if (existing) existing.endIdx = rem.index;
+        }
+
+        // 对每个批注范围，取首个有意义的短文本片段作为指纹（跨段落时 mammoth 会拆分，长文本无法精确匹配）
+        for (const [cid, range] of rangeStarts) {
+          if (!range.endIdx) continue;
+          const middle = docXml.slice(range.idx, range.endIdx);
+          const fullText = xmText(middle);
+          if (fullText.length === 0) continue;
+          // 仅用前 35 个字符做指纹（mammoth 输出中更易精确匹配，且跨段时不会因断行而丢失匹配）
+          const shortFp = fullText.length > 35 ? fullText.slice(0, 35) + '…' : fullText;
+          inlineAnnotations.push({
+            fingerprint: shortFp,
+            type: 'comment',
+            note: commentNotes.get(cid),
+          });
+        }
+
+        // ── 2. 提取高亮 run ──
+        // mammoth 会丢弃 <w:highlight>，所以要对含高亮的 <w:r> 取其 <w:t> 文本作为指纹
+        const highlightRegex = /<w:r[^>]*>[\s\S]*?<w:highlight[^>]*w:val="([^"]+)"[^>]*\/>[\s\S]*?<w:t[^>]*>([\s\S]*?)<\/w:t>[\s\S]*?<\/w:r>/g;
+        let hm: RegExpExecArray | null;
+        while ((hm = highlightRegex.exec(docXml)) !== null) {
+          const color = hm[1];
+          if (color === 'none') continue;
+          const fp = hm[2].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").trim();
+          if (fp.length >= 2) {
+            inlineAnnotations.push({ fingerprint: fp, type: 'highlight' });
+          }
+        }
+
+        // ── 3. 提取修订插入 <w:ins> ──
+        for (const m of docXml.matchAll(/<w:ins[\s>][\s\S]*?<\/w:ins>/g)) {
+          const fp = xmText(m[0]);
+          if (fp.length >= 2) inlineAnnotations.push({ fingerprint: fp, type: 'insertion' });
+        }
+
+        // ── 4. 提取修订删除 <w:del> ──
+        for (const m of docXml.matchAll(/<w:del[\s>][\s\S]*?<\/w:del>/g)) {
+          const fp = xmText(m[0]);
+          if (fp.length >= 2) inlineAnnotations.push({ fingerprint: fp, type: 'deletion' });
+        }
+      }
+
+      this.logger.log(`审阅文件解析完成：${inlineAnnotations.length} 条内嵌标注`);
+    } catch (e: any) {
+      this.logger.warn(`审阅文件标注提取失败: ${e?.message}`);
+    }
+
+    // ── mammoth 转换（与主文档使用相同的样式映射，保证双屏格式一致） ──
+    const result = await this.convertDocxToHtml(buffer);
+
+    let html = result.value;
+
+    // ── 后处理：在 HTML 中为每条标注包裹 <mark class="tfe-review-xxx"> ──
+    // 为每条标注的文字指纹在 HTML 中查找对应位置，包裹标注标签
+    for (const anno of inlineAnnotations) {
+      let fp = anno.fingerprint;
+      // 标注指纹可能带"…"省略尾缀
+      // 查找纯文本匹配（在 > 和 < 之间，跳过标签）
+      // 用更精确的从左到右扫描
+      // 查找模式：先尝试完整指纹，若以"…"结尾且未匹配则去尾再试
+      let searchStart = 0;
+      let found = false;
+      while (!found) {
+        let idx = html.indexOf(fp, searchStart);
+        if (idx === -1 && fp.endsWith('…')) {
+          fp = fp.slice(0, -1);
+          idx = html.indexOf(fp, searchStart);
+        }
+        if (idx === -1) break;
+        // 确保不在 HTML 标签内（前面没有未闭合的 <）
+        const before = html.slice(Math.max(0, idx - 200), idx);
+        if (before.includes('<') && before.lastIndexOf('<') > before.lastIndexOf('>')) {
+          // 匹配点在标签属性内，跳过
+          searchStart = idx + 1;
+          continue;
+        }
+
+        // 找到后，按类型包裹
+        let className: string;
+        let extraAttrs = '';
+        if (anno.type === 'insertion') {
+          className = 'tfe-review-insertion';
+          extraAttrs = 'title="修订：新增"';
+        } else if (anno.type === 'deletion') {
+          className = 'tfe-review-deletion';
+          extraAttrs = 'title="修订：删除"';
+        } else if (anno.type === 'comment') {
+          className = 'tfe-review-comment';
+          const note = (anno.note || '（未填写批注内容）').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          extraAttrs = `data-comment="${note}" title="批注 · 点击查看内容"`;
+        } else {
+          className = 'tfe-review-highlight';
+          extraAttrs = 'title="高亮"';
+        }
+
+        html = html.slice(0, idx) +
+          `<mark class="${className}" ${extraAttrs}>${fp}</mark>` +
+          html.slice(idx + fp.length);
+        found = true;
+      }
+    }
+
+    return { html, annotationCount: inlineAnnotations.length };
+  }
+
+  /** 统一的 mammoth DOCX→HTML 转换，保证所有视图格式一致。 */
+  private async convertDocxToHtml(buffer: Buffer) {
+    const styleMap = [
+      "p[style-name='标题 1'] => h1:fresh",
+      "p[style-name='标题 2'] => h2:fresh",
+      "p[style-name='标题 3'] => h3:fresh",
+      "p[style-name='标题 4'] => h4:fresh",
+      "p[style-name='Heading 1'] => h1:fresh",
+      "p[style-name='Heading 2'] => h2:fresh",
+      "p[style-name='Heading 3'] => h3:fresh",
+      "p[style-name='Heading 4'] => h4:fresh",
+      "p[style-name='TOC 标题'] => h2:fresh",
+      "p[style-name='TOC Heading'] => h2:fresh",
+      "p[style-name='章标题'] => h1:fresh",
+      "p[style-name='节标题'] => h2:fresh",
+      "p[style-name='条标题'] => h3:fresh",
+      "p[style-name='Style1'] => h1:fresh",
+      "p[style-name='Style2'] => h2:fresh",
+      "p[style-name='Style3'] => h3:fresh",
+      "p[style-name='题目'] => h1:fresh",
+      "p[style-name='正文'] => p",
+      "r[style-name='页眉'] => span",
+      "r[style-name='页脚'] => span",
+      "r[style-name='页码'] => span",
+    ];
+    return mammoth.convertToHtml(
+      { buffer },
+      {
+        styleMap,
+        convertImage: mammoth.images.imgElement((image: any) =>
+          Promise.resolve({ src: `data:${image.contentType};base64,${Buffer.from(image.buffer).toString('base64')}` }),
+        ),
+      },
+    );
+  }
+
+  /** 将编辑后的 HTML 转回 DOCX 并保存替换原附件。 */
+  async saveAttachmentHtml(
+    projectId: string,
+    dto: { attachmentId: string; html: string },
+    uploadedById?: string,
+  ) {
+    const oldAttachment = await this.prisma.attachment.findUnique({
+      where: { id: dto.attachmentId },
+      select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },
+    });
+    if (!oldAttachment) throw new NotFoundException('未找到对应附件');
+
+    // 解析 HTML → docx 段落
+    const children = this.htmlToDocxChildren(dto.html);
+    const doc = new Document({ sections: [{ properties: {}, children }] });
+    const newBuffer = await Packer.toBuffer(doc) as Buffer;
+
+    // 上传新文件，更新现有 attachment 记录（不删除 DB 记录，避免外键问题）
+    const persistResult = await this.persistUploadedFile(
+      {
+        fieldname: 'file', originalname: oldAttachment.fileName, encoding: '7bit',
+        mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        buffer: Buffer.from(newBuffer), size: newBuffer.length,
+        stream: null as any, destination: '', filename: '', path: '',
+      } as Express.Multer.File,
+      `${projectId}-tender-document`, uploadedById,
+    );
+
+    await this.prisma.attachment.update({
+      where: { id: oldAttachment.id },
+      data: {
+        objectKey: persistResult.attachment.objectKey,
+        fileSize: persistResult.attachment.fileSize,
+        uploadedById: persistResult.attachment.uploadedById,
+      },
+    });
+
+    // 清理旧物理文件
+    const oldPath = resolve(process.cwd(), 'uploads', oldAttachment.objectKey);
+    try { await unlink(oldPath); } catch {}
+
+    this.logger.log(`HTML 附件替换成功：${oldAttachment.id}`);
+    return { success: true, attachmentId: oldAttachment.id };
+  }
+
+  /* ══════════ HTML → DOCX 解析器 ══════════ */
+
+  /** 将编辑后的 HTML 解析为 docx Paragraph/Table 数组。 */
+  private htmlToDocxChildren(html: string): (Paragraph | Table)[] {
+    const result: (Paragraph | Table)[] = [];
+    let remaining = html
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"');
+
+    while (remaining.length > 0) {
+      remaining = remaining.trimStart();
+      if (remaining.length === 0) break;
+
+      // 1) 表格
+      if (/^<table[\s>]/i.test(remaining)) {
+        const inner = this.extractTagInner(remaining, 'table');
+        if (inner !== null) {
+          const table = this.parseTable(inner);
+          if (table) result.push(table);
+          remaining = this.skipTag(remaining, 'table');
+          continue;
+        }
+      }
+
+      // 2) 列表
+      if (/^<(ul|ol)[\s>]/i.test(remaining)) {
+        const tag = remaining.match(/^<(ul|ol)/i)![1];
+        const inner = this.extractTagInner(remaining, tag);
+        if (inner !== null) {
+          const items = this.extractAllTagInners(inner, 'li');
+          for (const liHtml of items) {
+            const p = this.inlineHtmlToParagraph(liHtml);
+            if (p) result.push(p);
+          }
+          remaining = this.skipTag(remaining, tag);
+          continue;
+        }
+      }
+
+      // 3) 块级元素
+      const blockMatch = remaining.match(/^<(h[1-6]|p|div|li|blockquote|th|td)([\s>])/i);
+      if (blockMatch) {
+        const tag = blockMatch[1].toLowerCase();
+        const inner = this.extractTagInner(remaining, tag);
+        if (inner !== null) {
+          const heading = this.parseHeadingLevel(tag);
+          const p = this.inlineHtmlToParagraph(inner, heading);
+          if (p) result.push(p);
+          remaining = this.skipTag(remaining, tag);
+          continue;
+        }
+      }
+
+      // 4) <br/> 独立换行
+      if (/^<br[\s/>]/i.test(remaining)) {
+        result.push(new Paragraph({ children: [] }));
+        const end = remaining.indexOf('>') + 1;
+        remaining = remaining.slice(end);
+        continue;
+      }
+
+      // 5) 独立 <img> → 跳过（base64 图片回写 DOCX 需原始数据）
+      if (/^<img[\s>]/i.test(remaining)) {
+        const end = remaining.indexOf('>') + 1;
+        remaining = remaining.slice(end);
+        continue;
+      }
+
+      // 6) HTML 注释
+      if (remaining.startsWith('<!--')) {
+        const end = remaining.indexOf('-->') + 3;
+        remaining = remaining.slice(end);
+        continue;
+      }
+
+      // 7) 未知标签或裸文本 — 跳过标签，提取文本
+      if (remaining.startsWith('<')) {
+        const end = remaining.indexOf('>');
+        if (end !== -1) { remaining = remaining.slice(end + 1); continue; }
+      }
+
+      // 裸文本（无标签包裹）
+      const nextTag = remaining.indexOf('<');
+      if (nextTag === -1) {
+        const text = remaining.trim();
+        if (text) result.push(new Paragraph({ children: [new TextRun({ text, size: 21 })] }));
+        break;
+      }
+      const text = remaining.slice(0, nextTag).trim();
+      if (text) result.push(new Paragraph({ children: [new TextRun({ text, size: 21 })] }));
+      remaining = remaining.slice(nextTag);
+    }
+
+    return result;
+  }
+
+  /** 提取 <tag>...</tag> 内部内容（处理嵌套）。返回 null 表示未匹配。 */
+  private extractTagInner(html: string, tag: string): string | null {
+    const openMatch = html.match(new RegExp(`<${tag}[^>]*>`, 'i'));
+    if (!openMatch) return null;
+    let depth = 1;
+    let pos = (openMatch.index || 0) + openMatch[0].length;
+    const tagRegex = new RegExp(`<(/?)${tag}([\\s>])`, 'gi');
+    tagRegex.lastIndex = pos;
+    let m: RegExpExecArray | null;
+    while ((m = tagRegex.exec(html)) !== null) {
+      if (m[1] === '/') { depth--; } else { depth++; }
+      if (depth === 0) return html.slice(pos, m.index);
+    }
+    return null;
+  }
+
+  /** 提取所有 <tag> 的内部内容（用于 li 等）。 */
+  private extractAllTagInners(html: string, tag: string): string[] {
+    const results: string[] = [];
+    const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(html)) !== null) results.push(m[1]);
+    return results;
+  }
+
+  /** 跳过整个 <tag>...</tag>，返回后续内容。 */
+  private skipTag(html: string, tag: string): string {
+    const openMatch = html.match(new RegExp(`<${tag}[^>]*>`, 'i'));
+    if (!openMatch) return html;
+    let depth = 1;
+    let pos = (openMatch.index || 0) + openMatch[0].length;
+    const tagRegex = new RegExp(`<(/?)${tag}([\\s>])`, 'gi');
+    tagRegex.lastIndex = pos;
+    let m: RegExpExecArray | null;
+    while ((m = tagRegex.exec(html)) !== null) {
+      if (m[1] === '/') depth--; else depth++;
+      if (depth === 0) return html.slice(m.index + m[0].length + 1); // +1 for >
+    }
+    return html.slice(pos); // 未找到闭合标签，跳过剩余
+  }
+
+  /** 将 h1-h6 映射为 docx HeadingLevel。 */
+  private parseHeadingLevel(tag: string) {
+    const map: Record<string, any> = {
+      h1: HeadingLevel.HEADING_1, h2: HeadingLevel.HEADING_2, h3: HeadingLevel.HEADING_3,
+      h4: HeadingLevel.HEADING_4, h5: HeadingLevel.HEADING_5, h6: HeadingLevel.HEADING_6,
+    };
+    return map[tag];
+  }
+
+  /** 解析带内联格式的 HTML 片段 → Paragraph（含粗体/斜体/下划线/换行）。 */
+  private inlineHtmlToParagraph(innerHtml: string, heading?: any): Paragraph | null {
+    const runs = this.parseInlineRuns(innerHtml);
+    if (runs.length === 0) return null;
+    return new Paragraph(heading ? { heading, children: runs } : { children: runs });
+  }
+
+  /** 将内联 HTML 解析为 TextRun 数组。处理：<strong>/<b>、<em>/<i>、<u>、<br>。 */
+  private parseInlineRuns(html: string): TextRun[] {
+    const runs: TextRun[] = [];
+    let remaining = html;
+    let bold = false, italic = false, underline = false;
+
+    while (remaining.length > 0) {
+      if (remaining.startsWith('<br')) {
+        runs.push(new TextRun({ break: 1 }));
+        const end = remaining.indexOf('>') + 1;
+        remaining = remaining.slice(end > 0 ? end : 4);
+        continue;
+      }
+
+      // 检查开关标签
+      const tagMatch = remaining.match(/^<\s*\/?\s*(\w+)[^>]*>/);
+      if (tagMatch) {
+        const fullTag = tagMatch[0];
+        const tag = tagMatch[1].toLowerCase();
+        const isClose = fullTag.startsWith('</');
+
+        if (tag === 'strong' || tag === 'b') { bold = !isClose; remaining = remaining.slice(fullTag.length); continue; }
+        if (tag === 'em' || tag === 'i') { italic = !isClose; remaining = remaining.slice(fullTag.length); continue; }
+        if (tag === 'u') { underline = !isClose; remaining = remaining.slice(fullTag.length); continue; }
+        if (tag === 'span' || tag === 'a' || tag === 'sub' || tag === 'sup') {
+          // 保留文本内容，忽略样式标签
+          remaining = remaining.slice(fullTag.length);
+          continue;
+        }
+        // 未知标签 → 当作文本处理
+      }
+
+      // 提取直到下一个 < 的纯文本
+      const lt = remaining.indexOf('<');
+      const chunk = lt === -1 ? remaining : remaining.slice(0, lt);
+      remaining = lt === -1 ? '' : remaining.slice(lt);
+
+      if (chunk) {
+        const lines = chunk.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          if (i > 0) runs.push(new TextRun({ break: 1 }));
+          if (lines[i]) {
+            runs.push(new TextRun({
+              text: lines[i],
+              bold: bold || undefined,
+              italics: italic || undefined,
+              underline: underline ? { type: 'single' as any } : undefined,
+              size: 21,
+            }));
+          }
+        }
+      }
+    }
+
+    return runs;
+  }
+
+  /** 解析 <table> 内部 HTML → docx Table（含框线）。 */
+  private parseTable(innerHtml: string): Table | null {
+    const rows: TableRow[] = [];
+    const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let trMatch: RegExpExecArray | null;
+
+    const cellBorder = {
+      style: BorderStyle.SINGLE,
+      size: 4,
+      color: '000000',
+    };
+    const cb = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder };
+
+    while ((trMatch = trRegex.exec(innerHtml)) !== null) {
+      const cells: TableCell[] = [];
+      const tdRegex = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+      let tdMatch: RegExpExecArray | null;
+
+      while ((tdMatch = tdRegex.exec(trMatch[1])) !== null) {
+        const p = this.inlineHtmlToParagraph(tdMatch[1]);
+        cells.push(new TableCell({
+          borders: cb,
+          width: { size: 4680, type: WidthType.DXA },
+          children: p ? [p] : [new Paragraph({ children: [] })],
+        }));
+      }
+
+      if (cells.length > 0) {
+        rows.push(new TableRow({ children: cells }));
+      }
+    }
+
+    if (rows.length === 0) return null;
+    return new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows,
+    });
   }
 }

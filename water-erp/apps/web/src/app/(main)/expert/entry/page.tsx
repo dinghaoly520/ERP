@@ -48,12 +48,14 @@ export default function ExpertEntryPage() {
     if (!form.specialty.trim()) e.specialty = '请选择或输入专业领域';
     if (form.phone.trim() && !validatePhone(form.phone)) e.phone = '手机号格式不正确（11位数字）';
     if (form.idNumber.trim() && !validateIdNumber(form.idNumber)) e.idNumber = '身份证号格式不正确（18位）';
+    if (form.email.trim() && !validateEmail(form.email)) e.email = '邮箱格式不正确';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
   const submit = async () => { setServerError(''); if (!validate()) return; setSaving(true); try { await createExpert(form); toast.success('专家录入成功'); clearDraft(); router.push('/expert/repository'); } catch (e: any) { setServerError(e?.message || '录入失败'); } setSaving(false); };
   const validatePhone = (v: string) => /^1[3-9]\d{9}$/.test(v.trim());
   const validateIdNumber = (v: string) => /^\d{17}[\dXx]$/.test(v.trim());
+  const validateEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
   const inputCls = (field: keyof FormFields) => `neu-input w-full text-sm ${errors[field] ? '!border-[var(--danger)]' : ''}`;
   const FieldError = ({ field }: { field: keyof FormFields }) => errors[field] ? <p className="text-xs font-medium text-[var(--danger)] mt-0.5">{errors[field]}</p> : null;

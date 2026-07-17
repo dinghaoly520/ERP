@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getAiAdoptionRate, type ExpertPortrait } from '@/lib/api/expert';
+import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getAiAdoptionRate, confirmInvitation, declineInvitation, type ExpertPortrait } from '@/lib/api/expert';
 import { AlertBanner, Breadcrumb, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
 import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw } from 'lucide-react';
@@ -14,6 +14,7 @@ interface ScoreRecord { id: string; score: number; reason: string | null; scoreI
 interface Assignment {
   id: string; expertName: string; major: string; progress: number;
   signedIn: boolean; avoidanceConfirmed: boolean; totalScore: number;
+  isLead: boolean; invitationStatus: string;
   project: { id: string; projectCode: string; name: string; stage: string; procurementMethod: string; openTime: string };
   scoreRecords: ScoreRecord[];
 }
@@ -220,6 +221,27 @@ export default function ExpertDetailPage() {
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold flex-shrink-0 rounded-full" style={{ color: stageColor, background: `color-mix(in oklch, ${stageColor} 10%, transparent)` }}>
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: stageColor }} />{STAGE_LABEL[a.project.stage] || a.project.stage}
                     </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    {a.isLead && <StatusBadge tone="purple">组长</StatusBadge>}
+                    {a.invitationStatus === 'pending' && <><StatusBadge tone="blue">待确认</StatusBadge>
+                      <button
+                        onClick={async (ev) => { ev.stopPropagation();
+                          try { await confirmInvitation(a.project.id, expertId); toast.success('已确认参与'); reload(); }
+                          catch (e: any) { toast.error(e?.message || '操作失败'); }
+                        }}
+                        className="neu-btn-xs is-success"
+                      >确认</button>
+                      <button
+                        onClick={async (ev) => { ev.stopPropagation();
+                          try { await declineInvitation(a.project.id, expertId); toast.success('已标记拒绝'); reload(); }
+                          catch (e: any) { toast.error(e?.message || '操作失败'); }
+                        }}
+                        className="neu-btn-xs is-danger"
+                      >拒绝</button>
+                    </>}
+                    {a.invitationStatus === 'confirmed' && <StatusBadge tone="green">已确认</StatusBadge>}
+                    {a.invitationStatus === 'declined' && <StatusBadge tone="red">已拒绝</StatusBadge>}
                   </div>
                   <div className="grid grid-cols-4 gap-3 text-[12px] text-[var(--muted-foreground)] mb-3">
                     <span>专业：<strong className="text-[var(--foreground)]">{a.major || '—'}</strong></span>

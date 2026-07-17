@@ -215,4 +215,68 @@ export class ExpertExtractionAiService {
     if (match) { try { return JSON.parse(match[0]); } catch { /* ignore */ } }
     return undefined;
   }
+
+  /** AI 生成单专家个性化通知内容 */
+  async generateNotification(params: {
+    projectName: string;
+    expertName: string;
+    isLead: boolean;
+    totalExperts: number;
+    extractMode: string;
+    openTime: string;
+  }): Promise<string | null> {
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      this.logger.warn('DEEPSEEK_API_KEY not configured, cannot generate notification via AI');
+      return null;
+    }
+
+    const roleText = params.isLead ? '评审组长' : '评审专家组成员';
+    const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+    const prompt = `你是四川水发集团采购中心的评审专家邀请通知撰写人。请撰写一封评审邀请通知模板。
+
+撰写规范：
+- 第一行必须是：[[专家姓名]]专家您好！（注意：[[专家姓名]] 是占位符，请原样输出，不要替换）
+- 正文中用"评审专家组成员"作为角色占位符（系统会根据实际角色替换为"评审组长"或"评审专家组成员"）
+- 本项目共 ${params.totalExperts} 位专家参与评审
+- 必须包含的信息：项目名称「${params.projectName}」、开标时间「${params.openTime || '待定'}」、评审地点「设计公司3楼采购中心开评标室」
+- 提醒专家认真履责、遵守评审纪律、及时回避利益冲突
+- 提醒专家请于24小时内回复是否参加，逾期未确认视为自动放弃
+- 落款：四川水发集团采购中心，日期为${today}
+- 严格禁止：
+  1. 不要使用任何 Markdown 符号或格式标记（如 ** 加粗、- 列表、# 标题等），纯文本即可
+  2. 不要提及遴选方式或抽取方式
+  3. 不要提及或列出其他专家的姓名
+  4. 不要加引号、星号等特殊符号
+- 语气正式、诚恳
+- 直接输出通知全文，不要加任何前缀、说明或标头`;
+
+    try {
+      const response = await fetch(`${DEEPSEEK_API_URL.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: DEEPSEEK_MODEL,
+          messages: [
+            { role: 'system', content: '你是一位专业的政府企业采购评审管理专家，擅长撰写正式、诚恳的通知文书。' },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.5,
+          max_tokens: 1200,
+        }),
+      });
+
+      if (!response.ok) {
+        this.logger.warn(`DeepSeek notification generation failed: ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json();
+      const content: string | undefined = data?.choices?.[0]?.message?.content;
+      return typeof content === 'string' ? content.trim() : null;
+    } catch (err) {
+      this.logger.warn(`DeepSeek notification generation error: ${String(err)}`);
+      return null;
+    }
+  }
 }

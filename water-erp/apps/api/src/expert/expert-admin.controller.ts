@@ -61,6 +61,15 @@ export class ExpertAdminController {
     return this.expertAdminService.previewExtraction(dto.projectId, dto);
   }
 
+  @Post('notification/generate')
+  @ApiOperation({ summary: 'AI 生成单专家个性化通知内容（DeepSeek）' })
+  generateNotification(@Body() body: {
+    projectName: string; expertName: string; isLead: boolean;
+    totalExperts: number; extractMode: string; openTime: string;
+  }) {
+    return this.expertAdminService.generateNotificationAi(body);
+  }
+
   @Post('extract/confirm')
   @ApiOperation({ summary: '确认专家抽取（建 BidExpert + 写审计日志）' })
   confirmExtraction(@Body() dto: ConfirmExtractionDto, @Request() req: any) {
@@ -85,6 +94,18 @@ export class ExpertAdminController {
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 20,
     );
+  }
+
+  @Post('invitations/:projectId/:userId/confirm')
+  @ApiOperation({ summary: '标记专家已确认参与评审邀请' })
+  confirmInvitation(@Param('projectId') projectId: string, @Param('userId') userId: string) {
+    return this.expertAdminService.confirmInvitation(projectId, userId);
+  }
+
+  @Post('invitations/:projectId/:userId/decline')
+  @ApiOperation({ summary: '标记专家已拒绝参与评审邀请' })
+  declineInvitation(@Param('projectId') projectId: string, @Param('userId') userId: string) {
+    return this.expertAdminService.declineInvitation(projectId, userId);
   }
 
   @Get('retire-candidates')

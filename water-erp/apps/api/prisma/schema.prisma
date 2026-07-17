@@ -278,7 +278,10 @@ model BidProject {
   supplierSubmissions    SupplierBidSubmission[]
   procurementProject     ProcurementProject?
   reviews                BidRequirementReview[]
-  createdAt              DateTime                   @default(now())
+  bidInvalidBids          BidInvalidBid[]
+  expertMemos             ExpertMemo[]
+  bidScoreReviews         BidScoreReview[]
+  createdAt               DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
 
   @@index([stage])
@@ -303,10 +306,33 @@ model BidSupplier {
   pointDecisions        BidScorePointDecision[]
   bidderResults         AiBidderResult[]
   supervisionAnnotation BidSupervisionAnnotation?
-  decryptError          String? // 解密失败原因
+  bidScoreReviews        BidScoreReview[]
+  decryptError           String? // 解密失败原因
+  bidValidity            String? // 废标标记：'valid' | 'invalid'
 
   @@unique([projectId, supplierName])
   @@index([supplierId])
+}
+
+model BidInvalidBid {
+  id          String    @id @default(cuid())
+  projectId   String
+  supplierId  String
+  scoreItemId String
+  failCount   Int       @default(0)
+  totalCount  Int       @default(0)
+  status      String    @default("invalid") // 'invalid' | 'revoked'
+  revokedAt   DateTime?
+  revokedBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project   BidProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier  Supplier     @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  scoreItem BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, supplierId, scoreItemId])
+  @@index([projectId, supplierId])
 }
 
 model BidOpeningSession {
@@ -354,6 +380,7 @@ model BidExpert {
   expertName            String
   major                 String
   isLead                Boolean          @default(false)
+  invitationStatus      String           @default("pending") // pending | confirmed | declined
   signedIn              Boolean          @default(false)
   phoneVerified         Boolean          @default(false)
   avoidanceConfirmed    Boolean          @default(false)
@@ -369,11 +396,32 @@ model BidExpert {
   scoreRecords          BidScoreRecord[]
   reviews               BidRequirementReview[]
   pointDecisions        BidScorePointDecision[]
+  expertMemos           ExpertMemo[]
+  bidScoreReviews        BidScoreReview[]
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
   @@unique([projectId, userId])
   @@index([userId])
+}
+
+model ExpertMemo {
+  id          String    @id @default(cuid())
+  expertId    String
+  projectId   String
+  supplierId  String?
+  scoreItemId String?
+  contentText String?
+  inkFileId   String?
+  sourceDevice String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  expert   BidExpert @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  project  BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  inkFile  FileAsset? @relation(fields: [inkFileId], references: [id], onDelete: SetNull)
+
+  @@index([expertId, projectId])
 }
 
 model BidScoreItem {
@@ -388,6 +436,7 @@ model BidScoreItem {
   project         BidProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scoreRecords    BidScoreRecord[]
   points          BidScorePoint[]
+  bidInvalidBids  BidInvalidBid[]
   createdAt       DateTime         @default(now())
 
   @@index([projectId])
@@ -464,6 +513,24 @@ model BidScoreDelta {
   @@index([projectId])
   @@index([expertId])
   @@map("bid_score_deltas")
+}
+
+model BidScoreReview {
+  id         String    @id @default(cuid())
+  expertId   String
+  projectId  String
+  supplierId String
+  status     String    @default("draft") // 'draft' | 'verified'
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  expert   BidExpert   @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  project  BidProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier BidSupplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([expertId, projectId, supplierId])
+  @@index([projectId, expertId])
 }
 
 model BidClarification {
@@ -648,6 +715,7 @@ model Supplier {
   bidSuppliers        BidSupplier[]
   bidSubmissions      SupplierBidSubmission[]
   bidDocumentAccesses BidDocumentAccess[]
+  bidInvalidBids      BidInvalidBid[]
   catalogApplications SupplierCatalogApplication[]
   catalogSupplies     CatalogSupplier[]
   clarifications      BidClarification[]
@@ -730,6 +798,7 @@ model SupplierEvaluation {
   complianceScore     Decimal  @db.Decimal(5, 1)
   overallScore        Decimal  @db.Decimal(5, 1)
   comment             String?
+  evidence            Json?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -952,6 +1021,7 @@ model FileAsset {
   updatedAt       DateTime @updatedAt
 
   uploader User? @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+  expertMemos ExpertMemo[]
 
   announcementAttachments AnnouncementAttachment[]
   bidDocuments            BidDocument[]

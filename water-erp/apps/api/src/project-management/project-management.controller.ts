@@ -280,6 +280,40 @@ export class ProjectManagementController {
     );
   }
 
+  /** 获取 DOCX 附件的完整 HTML（mammoth 转换，图片 base64 内嵌），用于全文档预览编辑。 */
+  @Get(':id/attachment-html/:attachmentId')
+  getAttachmentHtml(
+    @Param('id') _id: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    return this.projectManagementService.getAttachmentHtml(attachmentId);
+  }
+
+  /** 将编辑后的 HTML 转回 DOCX 并保存替换原附件。 */
+  @Post(':id/save-attachment-html')
+  saveAttachmentHtml(
+    @Param('id') projectId: string,
+    @Body() dto: { attachmentId: string; html: string },
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.projectManagementService.saveAttachmentHtml(
+      projectId,
+      dto,
+      user?.sub,
+    );
+  }
+
+  /** 导入审阅版 DOCX，返回带标注的 HTML 用于双屏对比。 */
+  @Post(':id/import-review-file')
+  @UseInterceptors(FileInterceptor('file'))
+  importReviewFile(
+    @Param('id') _projectId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('请选择要导入的审阅文件');
+    return this.projectManagementService.importReviewFile(file);
+  }
+
   /** 获取项目附件中文件的纯文本内容，供编辑修改使用 */
   @Get(':id/attachment-text/:attachmentId')
   getAttachmentTextForEditing(

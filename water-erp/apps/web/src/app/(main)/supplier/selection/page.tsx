@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { recommendSuppliers, getClassifications, polishRequirement, inviteSuppliers, shareShortlist, updateSelectionShortlist } from '@/lib/api/supplier';
+import { recommendSuppliers, getClassifications, polishRequirement, inviteSuppliers, shareShortlist, updateSelectionShortlist, notifySuppliers, generateNotificationContent } from '@/lib/api/supplier';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import type { SupplierRecommendation, SupplierSelectionResult } from '@/lib/api/supplier';
 import type { SupplierSelectionHistoryRecord } from '@/lib/api/supplier';
 import type { SupplierClassification } from '@/lib/types';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidProjectDetail } from '@/lib/api/expert';
-import { Wand2, Copy, Download, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, Share2, ListPlus } from 'lucide-react';
+import { Wand2, Copy, Download, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, Share2, ListPlus, Bell, MessageSquare } from 'lucide-react';
+import { Modal } from '@/components/workbench';
 import { StatusBadge } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { SelectionHistoryDialog } from '@/components/supplier/selection-history-dialog';
@@ -18,6 +19,13 @@ import { exportShortlistToExcel } from '@/lib/excel-export';
 
 const scoreVar = (s: number): string => (s >= 85 ? 'var(--success)' : s >= 70 ? 'var(--accent)' : s >= 55 ? 'var(--warning)' : 'var(--danger)');
 const scoreLabel = (s: number) => (s >= 85 ? '强匹配' : s >= 70 ? '较匹配' : s >= 55 ? '可考虑' : '弱匹配');
+
+const STAGE_LABELS: Record<string, string> = {
+  DOWNLOAD: '下载标书', SUBMIT: '投标提交', OPENING: '开标中', EVALUATING: '评标中', ARCHIVED: '已归档',
+};
+const METHOD_LABELS: Record<string, string> = {
+  '公开招标': '公开招标', '邀请招标': '邀请招标', '竞争性谈判': '竞争性谈判', '竞争性磋商': '竞争性磋商', '询价': '询价', '单一来源': '单一来源',
+};
 
 const PROMPT_TEMPLATE = `【项目概况】
 （描述项目名称、建设地点、规模、投资概算）
@@ -46,11 +54,56 @@ export default function SupplierSelectionPage() {
   const [showCompare, setShowCompare] = useState(false);
   const [savedHistoryId, setSavedHistoryId] = useState<string | null>(null);
   const [inviting, setInviting] = useState(false);
+  const [shareModal, setShareModal] = useState(false);
+  const [shareNote, setShareNote] = useState('');
+  const [shareSending, setShareSending] = useState(false);
+  const [notifyModal, setNotifyModal] = useState(false);
+  const [notifyTemplate, setNotifyTemplate] = useState({ title: '', body: '' });
+  const [notifyChannels, setNotifyChannels] = useState<string[]>(['in_app']);
+  const [notifyAiLoading, setNotifyAiLoading] = useState(false);
+  const [notifySending, setNotifySending] = useState(false);
+  const [notifyActiveSupplier, setNotifyActiveSupplier] = useState<string>('');
+  // 逐供应商个性化消息（key=sid, value={title,body}）。缺失时回退到模板。
+  const [notifyPerSupplier, setNotifyPerSupplier] = useState<Map<string, { title: string; body: string }>>(new Map());
   const [error, setError] = useState('');
   const [result, setResult] = useState<SupplierSelectionResult | null>(null);
   const [shortlist, setShortlist] = useState<Map<string, { item: SupplierRecommendation; note: string }>>(new Map());
 
   useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); listBidProjects().then(setProjects).catch(() => {}); }, []);
+
+  // 恢复上次会话状态（从详情页返回时不丢失已输入的需求和筛选条件）
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    try {
+      const saved = sessionStorage.getItem('supplier-selection-state');
+      if (saved) {
+        const state = JSON.parse(saved);
+        if (state.requirement) setRequirement(state.requirement);
+        if (state.classificationId) setClassificationId(state.classificationId);
+        if (state.projectId) setProjectId(state.projectId);
+        if (state.maxCount) setMaxCount(state.maxCount);
+        if (state.result) setResult(state.result);
+        if (state.shortlistArr) {
+          const m = new Map<string, { item: SupplierRecommendation; note: string }>();
+          (state.shortlistArr as [string, any][]).forEach(([k, v]) => m.set(k, v));
+          setShortlist(m);
+        }
+      }
+    } catch {}
+  }, []);
+
+  // 输入状态变化时持久化到 sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('supplier-selection-state', JSON.stringify({
+        requirement, classificationId, projectId, maxCount,
+        result: result ? { ...result, recommendations: result.recommendations.slice(0, 20) } : null,
+        shortlistArr: [...shortlist.entries()],
+      }));
+    } catch {}
+  }, [requirement, classificationId, projectId, maxCount]);
   useEffect(() => { if (!projectId) { setProjectDetail(null); return; } getBidProjectDetail(projectId).then(setProjectDetail).catch(() => setProjectDetail(null)); }, [projectId]);
   const selectedProject = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
 
@@ -60,7 +113,7 @@ export default function SupplierSelectionPage() {
     try {
       let fullReq = requirement.trim();
       if (selectedProject && projectDetail) {
-        const ctx = [`关联项目：${selectedProject.name}（${selectedProject.projectCode}）`,`采购方式：${selectedProject.procurementMethod}`,`项目阶段：${selectedProject.stage}`,projectDetail.suppliers?.length ? `已有参与供应商：${projectDetail.suppliers.map(s => s.supplierName).join('、')}` : ''].filter(Boolean).join('；');
+        const ctx = [`关联项目：${selectedProject.name}（${selectedProject.projectCode}）`,`采购方式：${METHOD_LABELS[selectedProject.procurementMethod] || selectedProject.procurementMethod}`,`项目阶段：${STAGE_LABELS[selectedProject.stage] || selectedProject.stage}`,projectDetail.suppliers?.length ? `已有参与供应商：${projectDetail.suppliers.map(s => s.supplierName).join('、')}` : ''].filter(Boolean).join('；');
         fullReq = `${ctx}\n${fullReq}`;
       }
       const res = await recommendSuppliers({ requirement: fullReq, classificationId: classificationId || undefined, maxCount });
@@ -79,7 +132,12 @@ export default function SupplierSelectionPage() {
     if (!requirement.trim()) { toast.error('请先填写采购需求'); return; }
     setPolishing(true);
     try {
-      const res = await polishRequirement({ text: requirement.trim() });
+      const res = await polishRequirement({
+        text: requirement.trim(),
+        projectName: selectedProject?.name,
+        procurementMethod: selectedProject?.procurementMethod,
+        deadline: selectedProject?.deadline,
+      });
       setRequirement(res.polished);
       toast.success('需求已润色');
     } catch (e: any) { toast.error(e?.message || '润色失败'); }
@@ -114,14 +172,76 @@ export default function SupplierSelectionPage() {
     setInviting(false);
   };
 
-  const handleShare = async () => {
-    const shortlistData = [...shortlist.values()].map(({ item: r, note }) => ({ name: r.name, matchScore: r.matchScore, reason: r.reason }));
-    const note = prompt('分享备注（可选）：');
-    if (note === null) return;
+  const handleNotifyAi = async () => {
+    setNotifyAiLoading(true);
     try {
-      await shareShortlist({ requirement: requirement.trim(), shortlist: shortlistData, note: note || undefined });
+      const res = await generateNotificationContent({
+        projectName: selectedProject?.name,
+        projectCode: selectedProject?.projectCode,
+        supplierNames: [...shortlist.values()].map(v => v.item.name),
+      });
+      const body = `{供应商名称} 您好！\n\n${res.body}`;
+      setNotifyTemplate({ title: res.title, body });
+      setNotifyPerSupplier(new Map()); // 清空个性化覆盖，统一使用模板
+      toast.success('AI 已生成通知模板');
+    } catch (e: any) { toast.error(e?.message || 'AI 生成失败'); }
+    setNotifyAiLoading(false);
+  };
+
+  const handleNotify = async () => {
+    if (!notifyTemplate.title.trim()) { toast.error('请填写通知标题'); return; }
+    setNotifySending(true);
+    try {
+      const ids = [...shortlist.keys()];
+      const hasOverrides = ids.some(sid => notifyPerSupplier.has(sid));
+
+      if (hasOverrides) {
+        let sent = 0;
+        for (const sid of ids) {
+          const msg = getSupplierMessage(sid);
+          const name = shortlist.get(sid)?.item.name || '';
+          await notifySuppliers({
+            supplierIds: [sid],
+            channels: notifyChannels,
+            type: 'SELECTION_NOTIFY',
+            title: msg.title.replace(/\{供应商名称\}/g, name),
+            content: msg.body.replace(/\{供应商名称\}/g, name),
+          });
+          sent++;
+        }
+        toast.success(`已通知 ${sent} 家供应商`);
+      } else {
+        const res = await notifySuppliers({
+          supplierIds: ids, channels: notifyChannels, type: 'SELECTION_NOTIFY',
+          title: notifyTemplate.title.trim(), content: notifyTemplate.body.trim(),
+        });
+        toast.success(`已通知 ${res.sent} 家供应商${res.notFound > 0 ? `，${res.notFound} 家未找到关联账户` : ''}`);
+      }
+      setNotifyModal(false);
+      setNotifyTemplate({ title: '', body: '' });
+      setNotifyPerSupplier(new Map());
+    } catch (e: any) { toast.error(e?.message || '通知发送失败'); }
+    setNotifySending(false);
+  };
+
+  // 取某供应商的实际通知内容（有个性化覆盖则用覆盖，否则用模板）
+  const getSupplierMessage = (sid: string) => {
+    const override = notifyPerSupplier.get(sid);
+    if (override) return override;
+    return { title: notifyTemplate.title, body: notifyTemplate.body };
+  };
+
+  const handleShare = async () => {
+    if (!shareNote.trim()) return;
+    setShareSending(true);
+    const shortlistData = [...shortlist.values()].map(({ item: r, note }) => ({ name: r.name, matchScore: r.matchScore, reason: r.reason }));
+    try {
+      await shareShortlist({ requirement: requirement.trim(), shortlist: shortlistData, note: shareNote.trim() || undefined });
       toast.success('候选名单已分享');
+      setShareModal(false);
+      setShareNote('');
     } catch (e: any) { toast.error(e?.message || '分享失败'); }
+    setShareSending(false);
   };
 
   const handleBatchAdd = (count?: number) => {
@@ -182,8 +302,8 @@ export default function SupplierSelectionPage() {
             </select>
             {selectedProject && projectDetail && (
               <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
-                <span className="rounded-md bg-[var(--surface)] px-2 py-0.5 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">{selectedProject.procurementMethod}</span>
-                <span className="rounded-md bg-[var(--surface)] px-2 py-0.5 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">{selectedProject.stage}</span>
+                <span className="rounded-md bg-[var(--surface)] px-2 py-0.5 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">{METHOD_LABELS[selectedProject.procurementMethod] || selectedProject.procurementMethod}</span>
+                <span className="rounded-md bg-[var(--surface)] px-2 py-0.5 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">{STAGE_LABELS[selectedProject.stage] || selectedProject.stage}</span>
                 {projectDetail.suppliers?.length > 0 && (
                   <span className="w-full rounded-md bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1 text-xs text-[var(--warning)]">已有参与：{projectDetail.suppliers.map(s => s.supplierName).join('、')}</span>
                 )}
@@ -272,7 +392,8 @@ export default function SupplierSelectionPage() {
           <div className="space-y-2">
             <div className="flex gap-1.5">
               <button onClick={() => setShowCompare(true)} disabled={shortlist.size < 2} className="neu-btn-xs flex-1" title="横向对比至少需要 2 家供应商"><Columns3 size={12} />对比</button>
-              <button onClick={handleShare} className="neu-btn-xs flex-1" title="分享给采购主管"><Share2 size={12} />分享</button>
+              <button onClick={() => { setShareNote(''); setShareModal(true); }} className="neu-btn-xs flex-1" title="分享给采购主管"><Share2 size={12} />分享</button>
+              <button onClick={() => { setNotifyTemplate({ title: '项目邀请通知', body: '' }); setNotifyPerSupplier(new Map()); setNotifyChannels(['in_app']); setNotifyActiveSupplier(''); setNotifyModal(true); }} className="neu-btn-xs flex-1" title="通知候选供应商"><Bell size={12} />通知</button>
             </div>
             <div className="flex gap-1.5">
               {projectId && (
@@ -329,7 +450,6 @@ export default function SupplierSelectionPage() {
               <div className="flex items-center gap-2 mb-3">
                 <FileSearch size={16} className="text-[var(--accent)]" />
                 <h2 className="text-sm font-bold text-[var(--foreground)]">智能分析摘要</h2>
-                <StatusBadge tone={result.engine === 'deepseek' ? 'purple' : 'gray'} className="ml-auto">{result.engine === 'deepseek' ? `AI · ${result.model}` : '规则引擎'}</StatusBadge>
               </div>
               <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{result.summary}</p>
               <div className="flex gap-4 mt-3 text-xs text-[var(--muted-foreground)]">
@@ -358,7 +478,7 @@ export default function SupplierSelectionPage() {
                     <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-sm font-extrabold text-white">{idx + 1}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                        <span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)] transition" onClick={() => router.push(`/supplier/${r.supplierId}`)}>{r.name}</span>
+                        <span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)] transition" onClick={() => router.push(`/supplier/${r.supplierId}?from=selection`)}>{r.name}</span>
                         {r.classification && <StatusBadge tone="blue">{r.classification}</StatusBadge>}
                         {r.enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType(r.enterpriseType)}</span>}
                         {r.evaluation && (
@@ -386,7 +506,7 @@ export default function SupplierSelectionPage() {
                       </p>}
                     </div>
                     <div className="flex flex-col gap-2 flex-shrink-0">
-                      <button onClick={() => router.push(`/supplier/${r.supplierId}`)} className="neu-btn-xs">详情</button>
+                      <button onClick={() => router.push(`/supplier/${r.supplierId}?from=selection`)} className="neu-btn-xs">详情</button>
                       <button onClick={() => toggleShortlist(r)} className={`neu-btn-xs ${inList ? 'is-success' : ''}`}>{inList ? <><X size={12} />移除</> : <><Plus size={12} />加入候选</>}</button>
                     </div>
                   </div>
@@ -423,6 +543,162 @@ export default function SupplierSelectionPage() {
         candidates={[...shortlist.values()].map((v) => v.item)}
         onClose={() => setShowCompare(false)}
       />
+
+      {/* ══════ 分享候选人名单弹窗 ══════ */}
+      {shareModal && (
+        <Modal
+          open
+          onClose={() => setShareModal(false)}
+          title="分享候选名单"
+          description={`将选中的 ${shortlist.size} 家供应商分享给采购主管审阅`}
+          footer={
+            <>
+              <button onClick={() => setShareModal(false)} className="neu-btn-soft">取消</button>
+              <button onClick={handleShare} disabled={shareSending || !shareNote.trim()} className="neu-btn-primary">
+                {shareSending ? '分享中...' : '确认分享'}
+              </button>
+            </>
+          }
+        >
+          <textarea
+            value={shareNote}
+            onChange={e => setShareNote(e.target.value)}
+            placeholder={`分享备注（必填），如：已根据水利工程施工需求筛选，建议约谈以下 ${shortlist.size} 家供应商。分类优先级：工程技术>设备供应`}
+            className="neu-input w-full h-24 resize-none text-sm"
+          />
+          <div className="rounded-xl p-3 bg-[var(--surface)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+            <p className="text-[10px] font-semibold text-[var(--muted-foreground)] mb-1.5">将分享以下供应商：</p>
+            <div className="flex flex-wrap gap-1">
+              {[...shortlist.values()].map(({ item: r }) => (
+                <span key={r.supplierId} className="neu-tab-count">{r.name}</span>
+              ))}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ══════ 通知供应商弹窗 ══════ */}
+      {notifyModal && (
+        <Modal
+          open
+          onClose={() => setNotifyModal(false)}
+          title="通知候选供应商"
+          description={`模板中 {供应商名称} 将自动替换。点击供应商名称可单独调整其通知内容`}
+          size="lg"
+          footer={
+            <>
+              <button onClick={() => setNotifyModal(false)} className="neu-btn-soft">取消</button>
+              <button onClick={handleNotify} disabled={notifySending || !notifyTemplate.title.trim()} className="neu-btn-primary">
+                {notifySending ? `发送中...` : `一键通知 ${shortlist.size} 家供应商`}
+              </button>
+            </>
+          }
+        >
+          {/* 渠道 + AI */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">渠道</span>
+              {[
+                { key: 'in_app', label: '站内通知', icon: <MessageSquare size={12} /> },
+                { key: 'sms', label: '短信通知', icon: <Bell size={12} /> },
+              ].map(ch => {
+                const active = notifyChannels.includes(ch.key);
+                return (
+                  <button
+                    key={ch.key}
+                    onClick={() => setNotifyChannels(prev => active ? prev.filter(c => c !== ch.key) : [...prev, ch.key])}
+                    className={`neu-tab text-[11px] gap-1 ${active ? 'is-active' : ''}`}
+                  >
+                    {ch.icon}{ch.label}
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={handleNotifyAi} disabled={notifyAiLoading || shortlist.size === 0} className="neu-btn-xs gap-1">
+              <Sparkles size={10} />
+              {notifyAiLoading ? 'AI 生成中...' : 'AI 生成'}
+            </button>
+          </div>
+
+          {/* 模板编辑 */}
+          <div className="rounded-xl p-3 bg-[var(--surface)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+            <p className="text-[10px] font-semibold text-[var(--muted-foreground)] mb-1.5">通知模板（{`{供应商名称}`} 自动替换）</p>
+            <input
+              value={notifyTemplate.title}
+              onChange={e => setNotifyTemplate(prev => ({ ...prev, title: e.target.value }))}
+              placeholder="通知标题"
+              className="neu-input text-sm mb-2"
+            />
+            <textarea
+              value={notifyTemplate.body}
+              onChange={e => setNotifyTemplate(prev => ({ ...prev, body: e.target.value }))}
+              placeholder={`{供应商名称} 您好！\n\n您已被纳入项目候选名单，请关注后续正式采购邀请。`}
+              className="neu-input w-full h-24 resize-none text-xs"
+            />
+          </div>
+
+          {/* 逐供应商标签 + 展开详情 */}
+          <div className="rounded-xl p-3 bg-[var(--surface)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {[...shortlist.values()].map(({ item: r }) => (
+                <button
+                  key={r.supplierId}
+                  onClick={() => setNotifyActiveSupplier(prev => prev === r.supplierId ? '' : r.supplierId)}
+                  className={`neu-tab text-[11px] !px-2.5 !py-1.5 gap-1 ${notifyActiveSupplier === r.supplierId ? 'is-active' : ''} ${notifyPerSupplier.has(r.supplierId) ? 'ring-1 ring-[var(--accent)]/30' : ''}`}
+                >
+                  {r.name}{notifyPerSupplier.has(r.supplierId) ? <span className="text-[var(--accent)] text-[9px]">⚙</span> : ''}
+                </button>
+              ))}
+            </div>
+
+            {/* 展开的供应商详情 + 可编辑通知 */}
+            {notifyActiveSupplier && (() => {
+              const supplier = [...shortlist.values()].find(v => v.item.supplierId === notifyActiveSupplier);
+              if (!supplier) return null;
+              const msg = getSupplierMessage(notifyActiveSupplier);
+              const r = supplier.item;
+              return (
+                <div className="rounded-lg bg-[var(--background)]/60 p-3 text-xs space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-[var(--foreground)]">{r.name}</span>
+                    <span className="text-[var(--muted-foreground)]/60">匹配 {r.matchScore} 分</span>
+                    <span className="text-[var(--muted-foreground)]/60">·</span>
+                    <span className="text-[var(--muted-foreground)]/60">{r.classification || '未分类'}</span>
+                    {notifyPerSupplier.has(r.supplierId) && (
+                      <button
+                        onClick={() => setNotifyPerSupplier(prev => { const n = new Map(prev); n.delete(r.supplierId); return new Map(n); })}
+                        className="ml-auto neu-btn-xs text-[10px]"
+                      >
+                        恢复为模板
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    value={msg.title}
+                    onChange={e => setNotifyPerSupplier(prev => {
+                      const n = new Map(prev);
+                      n.set(r.supplierId, { ...msg, title: e.target.value });
+                      return n;
+                    })}
+                    placeholder="通知标题"
+                    className="neu-input text-xs !h-8"
+                  />
+                  <textarea
+                    value={msg.body}
+                    onChange={e => setNotifyPerSupplier(prev => {
+                      const n = new Map(prev);
+                      n.set(r.supplierId, { ...msg, body: e.target.value });
+                      return n;
+                    })}
+                    placeholder="通知正文"
+                    className="neu-input w-full h-20 resize-none text-xs"
+                  />
+                </div>
+              );
+            })()}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

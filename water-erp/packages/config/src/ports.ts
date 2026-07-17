@@ -8,6 +8,7 @@ export const PORTS = {
   expert: 3006,    // 专家门户
   bid: 3007,       // 开评标管理端
   assistant: 3008, // 水叮当智能助手
+  bigscreen: 3010,  // 大屏
 } as const;
 
 export type AppName = keyof typeof PORTS;

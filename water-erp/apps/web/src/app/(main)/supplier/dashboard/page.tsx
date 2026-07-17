@@ -355,6 +355,48 @@ export default function SupplierDashboardPage() {
         </div>
       </div>
 
+      {/* ══════ 待处理指引 ══════ */}
+      {((stats && (stats.pending > 0 || (stats.disabled ?? 0) + (stats.blacklist ?? 0) > 0)) || (alerts && (alerts.expiredCount > 0 || alerts.expiringCount > 0))) && (
+        <div className="flex flex-wrap gap-2">
+          {stats && stats.pending > 0 && (
+            <Link href="/supplier/approval" className="kpi-card group flex items-center gap-3 p-3 rounded-xl flex-1 min-w-[180px]">
+              <div className="neu-icon-well flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]">
+                <Clock3 size={15} className="text-[var(--warning)]" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-[var(--foreground)]">待审核</div>
+                <div className="text-[1.35rem] font-black tabular-nums text-[var(--warning)] leading-none">{stats.pending}</div>
+                <div className="text-[9px] text-[var(--muted-foreground)]">前往审批 →</div>
+              </div>
+            </Link>
+          )}
+          {alerts && alerts.expiredCount > 0 && (
+            <Link href="/supplier/qualification-alerts" className="kpi-card group flex items-center gap-3 p-3 rounded-xl flex-1 min-w-[180px]">
+              <div className="neu-icon-well flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]">
+                <AlertTriangle size={15} className="text-[var(--danger)]" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-[var(--foreground)]">资质过期</div>
+                <div className="text-[1.35rem] font-black tabular-nums text-[var(--danger)] leading-none">{alerts.expiredCount}</div>
+                <div className="text-[9px] text-[var(--muted-foreground)]">前往预警 →</div>
+              </div>
+            </Link>
+          )}
+          {alerts && alerts.expiringCount > 0 && (
+            <Link href="/supplier/qualification-alerts" className="kpi-card group flex items-center gap-3 p-3 rounded-xl flex-1 min-w-[180px]">
+              <div className="neu-icon-well flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]">
+                <Clock3 size={15} className="text-[var(--warning)]" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-[var(--foreground)]">即将到期</div>
+                <div className="text-[1.35rem] font-black tabular-nums text-[var(--warning)] leading-none">{alerts.expiringCount}</div>
+                <div className="text-[9px] text-[var(--muted-foreground)]">前往预警 →</div>
+              </div>
+            </Link>
+          )}
+        </div>
+      )}
+
       {/* ══════ 资质预警 ══════ */}
       {alerts && (alerts.expiredCount > 0 || alerts.expiringCount > 0) && (
         <div className="neu-table-card p-4">

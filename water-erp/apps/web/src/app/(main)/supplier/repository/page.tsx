@@ -161,7 +161,7 @@ export default function SupplierRepositoryPage() {
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
             <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
             <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
-            <button onClick={loadData} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
+            <button onClick={loadData} disabled={loading} className="neu-btn-xs" aria-label="刷新"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
           </div>
         </div>
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
@@ -362,7 +362,7 @@ export default function SupplierRepositoryPage() {
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{s.name[0]}</div>
                         <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors" title={s.name}>{s.name}</span>
-                        <button onClick={e => { e.stopPropagation(); handleToggleFav(s.id); }} className="text-[var(--muted-foreground)]/30 hover:text-[var(--warning)] transition" title={favIds.has(s.id) ? '取消收藏' : '收藏'}>
+                        <button onClick={e => { e.stopPropagation(); handleToggleFav(s.id); }} className="text-[var(--muted-foreground)]/30 hover:text-[var(--warning)] transition" title={favIds.has(s.id) ? '取消收藏' : '收藏'} aria-label={favIds.has(s.id) ? '取消收藏' : '收藏'}>
                           <Star size={13} fill={favIds.has(s.id) ? 'var(--warning)' : 'none'} stroke={favIds.has(s.id) ? 'var(--warning)' : 'currentColor'} />
                         </button>
                       </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { type CatalogApplication, listCatalogApplications, reviewCatalogApplication } from '@/lib/api/catalog';
+import { type CatalogApplication, listApplications as listCatalogApplications, reviewCatalogApplication } from '@/lib/api/catalog-admin';
 import { StatusBadge } from '@/components/workbench';
 import { CheckCircle, XCircle, RotateCcw, MessageSquare, ChevronDown, ChevronUp, ClipboardCheck, RefreshCw, Search, X } from 'lucide-react';
 

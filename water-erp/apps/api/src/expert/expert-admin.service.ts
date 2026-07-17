@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
-import type { LlmSpecialtyQuota } from './expert-extraction-ai.service';
+import type { LlmSpecialtyQuota, ExpertExtractionLlmResult } from './expert-extraction-ai.service';
 import type { CreateExpertDto } from './dto/create-expert.dto';
 import type { ExtractPreviewDto } from './dto/extract-preview.dto';
 import type { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
@@ -282,7 +282,6 @@ export class ExpertAdminService {
   async previewExtraction(projectId: string, dto: ExtractPreviewDto) {
     const totalNeeded = Math.min(Math.max(dto.totalNeeded ?? 5, 1), 9);
     const alternatives = Math.min(Math.max(dto.alternatives ?? 2, 0), 5);
-    // 新 extractMode 优先，兼容旧 mode 参数（weighted→specialty_match, fair→random）
     const extractMode: 'specialty_match' | 'random' | 'merit_best' =
       dto.extractMode ?? (dto.mode === 'fair' ? 'random' : 'specialty_match');
 
@@ -401,7 +400,7 @@ export class ExpertAdminService {
       };
     });
 
-    // AI 分析（带模式指令）
+    // AI 分析（带模式指令）；any error → undefined → falls back to rules engine
     const llm = await this.extractionAi.analyzeAndScore(
       { name: project.name, procurementMethod: project.procurementMethod, scope: project.riskNote || project.name, budget: undefined },
       candidates,
@@ -545,8 +544,8 @@ export class ExpertAdminService {
         dto.experts.map(e =>
           this.prisma.bidExpert.upsert({
             where: { projectId_userId: { projectId, userId: e.userId } },
-            update: { expertName: e.expertName, major: e.major, isLead: e.isLead ?? false },
-            create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major, isLead: e.isLead ?? false },
+            update: { expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, invitationStatus: 'pending' },
+            create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, invitationStatus: 'pending' },
           }),
         ),
       ),
@@ -560,7 +559,7 @@ export class ExpertAdminService {
           details: {
             projectName: project.name,
             expertCount: dto.experts.length,
-            experts: dto.experts.map(e => ({ userId: e.userId, name: e.expertName, major: e.major })),
+            experts: dto.experts.map(e => ({ userId: e.userId, name: e.expertName, major: e.major, isLead: e.isLead ?? false })),
           },
         },
       }).catch((err) => {
@@ -570,6 +569,36 @@ export class ExpertAdminService {
     ]);
 
     return { success: true, count: created.length, expertIds: dto.experts.map(e => e.userId) };
+  }
+
+  /** AI 生成单专家个性化通知内容 */
+  async generateNotificationAi(params: {
+    projectName: string; expertName: string; isLead: boolean;
+    totalExperts: number; extractMode: string; openTime: string;
+  }) {
+    const text = await this.extractionAi.generateNotification(params);
+    if (text) return { success: true, generated: true, content: text };
+    return { success: true, generated: false, content: null };
+  }
+
+  /** 标记专家已确认参与评审（管理员手动确认或回调触发） */
+  async confirmInvitation(projectId: string, userId: string) {
+    const result = await this.prisma.bidExpert.updateMany({
+      where: { projectId, userId, invitationStatus: 'pending' },
+      data: { invitationStatus: 'confirmed' },
+    });
+    if (result.count === 0) throw new NotFoundException('未找到该项目的待确认邀请记录');
+    return { success: true, status: 'confirmed' };
+  }
+
+  /** 标记专家已拒绝参与评审 */
+  async declineInvitation(projectId: string, userId: string) {
+    const result = await this.prisma.bidExpert.updateMany({
+      where: { projectId, userId, invitationStatus: 'pending' },
+      data: { invitationStatus: 'declined' },
+    });
+    if (result.count === 0) throw new NotFoundException('未找到该项目的待确认邀请记录');
+    return { success: true, status: 'declined' };
   }
 
   /** 抽取确认后发送通知（逐专家逐渠道投递） */

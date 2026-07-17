@@ -2,32 +2,64 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Building2, Clock3 } from 'lucide-react';
+import { AlertTriangle, Building2, Clock3, Check, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { getQualificationAlerts } from '@/lib/api/supplier';
 import type { QualificationAlerts, QualificationAlertItem } from '@/lib/api/supplier';
+
+const DISMISSED_KEY = 'qual-alerts-dismissed';
 
 export default function QualificationAlertsPage() {
   const router = useRouter();
   const [data, setData] = useState<QualificationAlerts | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     getQualificationAlerts().then(setData).catch(() => {}).finally(() => setLoading(false));
+    try {
+      const saved = sessionStorage.getItem(DISMISSED_KEY);
+      if (saved) setDismissedIds(new Set(JSON.parse(saved)));
+    } catch {}
   }, []);
 
-  const filtered = data?.items.filter(i => !statusFilter || i.status === statusFilter) ?? [];
+  const dismissItem = (id: string) => {
+    const next = new Set(dismissedIds);
+    next.add(id);
+    setDismissedIds(next);
+    try { sessionStorage.setItem(DISMISSED_KEY, JSON.stringify([...next])); } catch {}
+    toast.success('已标记为已处理');
+  };
+
+  const unDismissAll = () => {
+    setDismissedIds(new Set());
+    try { sessionStorage.removeItem(DISMISSED_KEY); } catch {}
+    toast.success('已恢复全部预警');
+  };
+
+  const filtered = (data?.items || [])
+    .filter(i => !statusFilter || i.status === statusFilter)
+    .filter(i => !dismissedIds.has(i.id));
+
+  const dismissedCount = (data?.items || []).filter(i => dismissedIds.has(i.id)).length;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
             <div className="page-hero__icon"><AlertTriangle size={17} /></div>
-            <div><div className="page-hero__title">资质到期预警</div><div className="page-hero__sub">监控供应商资质有效期，提前发现到期风险</div></div>
+            <div>
+              <div className="page-hero__title">资质到期预警</div>
+              <div className="page-hero__sub">监控供应商资质有效期，提前发现到期风险{dismissedCount > 0 ? `（已处理 ${dismissedCount} 项）` : ''}</div>
+            </div>
           </div>
           <div className="page-hero__right">
+            {dismissedCount > 0 && (
+              <button onClick={unDismissAll} className="neu-btn-xs">恢复全部</button>
+            )}
             <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
               返回供应商库
@@ -68,12 +100,17 @@ export default function QualificationAlertsPage() {
             <table className="workbench-table">
               <thead>
                 <tr>
-                  <th>供应商</th><th>资质名称</th><th>类型</th><th>到期日</th><th>剩余</th><th>状态</th>
+                  <th>供应商</th><th>资质名称</th><th>类型</th><th>到期日</th><th>剩余</th><th>状态</th><th className="w-20">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center text-[var(--muted-foreground)] py-8">暂无数据</td></tr>
+                {filtered.length === 0 && !dismissedCount ? (
+                  <tr><td colSpan={7} className="text-center text-[var(--muted-foreground)] py-8">暂无资质到期预警</td></tr>
+                ) : filtered.length === 0 && dismissedCount > 0 ? (
+                  <tr><td colSpan={7} className="text-center text-[var(--muted-foreground)] py-8">
+                    全部 {dismissedCount} 项预警已标记为已处理
+                    <button onClick={unDismissAll} className="ml-2 text-[var(--accent)] hover:underline text-xs">恢复全部</button>
+                  </td></tr>
                 ) : filtered.map(q => {
                   const isExpired = q.status === '已过期';
                   const isExpiring = q.status === '即将过期';
@@ -100,6 +137,11 @@ export default function QualificationAlertsPage() {
                           style={{ color: dayColor, backgroundColor: `color-mix(in_oklch,${dayColor}_12%,transparent)` }}>
                           {q.status}
                         </span>
+                      </td>
+                      <td>
+                        <button onClick={() => dismissItem(q.id)} className="neu-btn-xs gap-1" title="标记为已处理">
+                          <Check size={11} />已处理
+                        </button>
                       </td>
                     </tr>
                   );

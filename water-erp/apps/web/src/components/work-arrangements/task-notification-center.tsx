@@ -2,9 +2,11 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { ListChecks } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { getNotificationMeta, statusTone } from '@water-erp/shared';
 import { AiPlanningPanel } from '@/components/work-arrangements/ai-planning-panel';
+import { Modal } from '@/components/workbench';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import type { NotificationItem } from '@/lib/api/notification';
 import { listNotifications } from '@/lib/api/notification';
@@ -72,6 +74,99 @@ function resolveIcon(type: string, title: string): string {
   return getNotificationMeta(type).icon;
 }
 
+// ── 通知条目增强 ──
+
+type EnrichedItem = NotificationItem & {
+  typeLabel: string;
+  link: string;
+  icon: string;
+  toneColor: string;
+  toneBg: string;
+};
+
+function enrich(item: NotificationItem): EnrichedItem {
+  const meta = getNotificationMeta(item.type);
+  const tone = statusTone[meta.tone] ?? statusTone.gray;
+  return {
+    ...item,
+    typeLabel: TYPE_LABELS[item.type] ?? item.type,
+    link: item.link || TYPE_LINKS[item.type] || '/notifications',
+    icon: resolveIcon(item.type, item.title),
+    toneColor: tone.color,
+    toneBg: tone.bg,
+  };
+}
+
+function sortNotifications(items: EnrichedItem[]): EnrichedItem[] {
+  return [...items].sort((a, b) => {
+    if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
+    const ai = ACTIONABLE_ORDER.indexOf(a.type);
+    const bi = ACTIONABLE_ORDER.indexOf(b.type);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+}
+
+// ── 单条通知行（在面板和弹窗中共用）──
+
+function NotificationRow({
+  item,
+  onClick,
+}: {
+  item: EnrichedItem;
+  onClick: () => void;
+}) {
+  const Icon = (LucideIcons as any)[item.icon] ?? LucideIcons.Bell;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex flex-col gap-1 border-b border-[#eef3f8] px-4 py-3 text-left transition last:border-b-0 hover:bg-[var(--accent-soft)]/8"
+    >
+      {/* Title row: icon + title + neumorphic badge */}
+      <span className="flex items-center gap-3">
+        <span
+          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md"
+          style={{ backgroundColor: item.toneBg }}
+        >
+          <Icon size={12} style={{ color: item.toneColor }} />
+        </span>
+
+        <span className="min-w-0 flex-1 text-[13px] font-bold text-[#18243a]">
+          {item.title}
+        </span>
+
+        {!item.isRead && (
+          <span
+            className="shrink-0 flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wide"
+            style={{
+              color: item.toneColor,
+              backgroundColor: `color-mix(in oklch, ${item.toneColor} 8%, transparent)`,
+              boxShadow:
+                'inset 0 1px 0 oklch(1 0 0 / 0.55), 1px 1px 2px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.75)',
+            }}
+          >
+            <span
+              className="h-1 w-1 rounded-full"
+              style={{ backgroundColor: item.toneColor }}
+            />
+            待处理
+          </span>
+        )}
+      </span>
+
+      {/* Content row */}
+      {item.content && (
+        <span className="ml-9 text-[12px] leading-relaxed text-[#5a6d8a] line-clamp-2">
+          {item.content}
+        </span>
+      )}
+    </button>
+  );
+}
+
 // ── 主组件 ──
 
 interface TaskNotificationCenterProps {
@@ -92,6 +187,7 @@ export function TaskNotificationCenter({
   const { recent } = useNotifications();
   const [directItems, setDirectItems] = useState<NotificationItem[] | null>(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,116 +199,99 @@ export function TaskNotificationCenter({
 
   const source = directItems && directItems.length > 0 ? directItems : recent;
 
-  // 每条通知独立展示完整标题和内容，不按类型聚合
-  const flatItems = useMemo(() => {
-    return source
-      .map((item) => {
-        const meta = getNotificationMeta(item.type);
-        const tone = statusTone[meta.tone] ?? statusTone.gray;
-        return {
-          ...item,
-          typeLabel: TYPE_LABELS[item.type] ?? item.type,
-          link: item.link || TYPE_LINKS[item.type] || '/notifications',
-          icon: resolveIcon(item.type, item.title),
-          toneColor: tone.color,
-          toneBg: tone.bg,
-        };
-      })
-      .sort((a, b) => {
-        // 未读优先
-        if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
-        // 可操作类型优先
-        const ai = ACTIONABLE_ORDER.indexOf(a.type);
-        const bi = ACTIONABLE_ORDER.indexOf(b.type);
-        if (ai !== -1 && bi !== -1) return ai - bi;
-        if (ai !== -1) return -1;
-        if (bi !== -1) return 1;
-        // 最新在前
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
-  }, [source]);
+  const allItems = useMemo(
+    () => sortNotifications(source.map(enrich)),
+    [source],
+  );
+
+  const shownItems = allItems.slice(0, 10);
+  const hasMore = allItems.length > 10;
 
   return (
-    <section className="wb-panel">
-      <div className="wb-panel-header flex items-center justify-between">
-        <span className="text-[15px] font-bold text-[#18243a]">任务通知</span>
-        {flatItems.length > 0 && (
-          <span className="text-[11px] tabular-nums text-[color:var(--muted-foreground)]">
-            共 {flatItems.length} 条通知
-          </span>
-        )}
-      </div>
-
-      {flatItems.length === 0 ? (
-        <div className="flex-1 py-10 text-center text-sm text-[color:var(--muted-foreground)]">
-          暂无通知
+    <>
+      <section className="wb-panel">
+        <div className="wb-panel-header flex items-center justify-between">
+          <span className="text-[15px] font-bold text-[#18243a]">任务通知</span>
+          {allItems.length > 0 && (
+            <span className="text-[11px] tabular-nums text-[color:var(--muted-foreground)]">
+              共 {allItems.length} 条{hasMore ? '，显示前 10 条' : ''}
+            </span>
+          )}
         </div>
-      ) : (
-        <div className="flex flex-1 flex-col">
-          {flatItems.map((item) => {
-            const Icon = (LucideIcons as any)[item.icon] ?? LucideIcons.Bell;
-            return (
-              <button
+
+        {allItems.length === 0 ? (
+          <div className="flex-1 py-10 text-center text-sm text-[color:var(--muted-foreground)]">
+            暂无通知
+          </div>
+        ) : (
+          <div className="flex flex-1 flex-col">
+            {shownItems.map((item) => (
+              <NotificationRow
                 key={item.id}
-                type="button"
+                item={item}
                 onClick={() => router.push(item.link)}
-                className="group flex flex-col gap-1 border-b border-[#eef3f8] px-4 py-3 text-left transition last:border-b-0 hover:bg-[var(--accent-soft)]/8"
+              />
+            ))}
+
+            {/* ── 查看更多 ── */}
+            {hasMore && (
+              <button
+                type="button"
+                onClick={() => setShowAll(true)}
+                className="flex items-center justify-center gap-1.5 border-b border-[#eef3f8] px-4 py-2.5 text-[12px] font-semibold text-[color:var(--accent)] transition last:border-b-0 hover:bg-[var(--accent-soft)]/10"
               >
-                {/* ── Title row: icon + title + neumorphic badge ── */}
-                <span className="flex items-center gap-3">
-                  <span
-                    className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md"
-                    style={{ backgroundColor: item.toneBg }}
-                  >
-                    <Icon size={12} style={{ color: item.toneColor }} />
-                  </span>
-
-                  <span className="min-w-0 flex-1 text-[13px] font-bold text-[#18243a]">
-                    {item.title}
-                  </span>
-
-                  {/* ── Neumorphic badge — "待处理" pill ── */}
-                  {!item.isRead && (
-                    <span
-                      className="shrink-0 flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wide"
-                      style={{
-                        color: item.toneColor,
-                        backgroundColor: `color-mix(in oklch, ${item.toneColor} 8%, transparent)`,
-                        boxShadow:
-                          'inset 0 1px 0 oklch(1 0 0 / 0.55), 1px 1px 2px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.75)',
-                      }}
-                    >
-                      <span
-                        className="h-1 w-1 rounded-full"
-                        style={{ backgroundColor: item.toneColor }}
-                      />
-                      待处理
-                    </span>
-                  )}
-                </span>
-
-                {/* ── Content row — specific details ── */}
-                {item.content && (
-                  <span className="ml-9 text-[12px] leading-relaxed text-[#5a6d8a] line-clamp-2">
-                    {item.content}
-                  </span>
-                )}
+                <ListChecks size={14} />
+                查看更多（共 {allItems.length - 10} 条未显示）
               </button>
-            );
-          })}
+            )}
+          </div>
+        )}
+
+        <hr className="wb-section-rule" />
+
+        <div className="wb-panel-body">
+          <AiPlanningPanel
+            dailyPlan={dailyPlan} refreshingPlan={refreshingPlan}
+            showProjectBrief={showProjectBrief}
+            onRefreshPlan={() => onRefreshPlan()}
+            onSelectTimeBlock={onSelectTimeBlock} onShowHistory={onShowHistory}
+          />
         </div>
+      </section>
+
+      {/* ── 全部通知弹窗 ── */}
+      {showAll && (
+        <Modal
+          open
+          onClose={() => setShowAll(false)}
+          title={
+            <span className="flex items-center gap-2.5">
+              <ListChecks size={18} className="text-[color:var(--accent)]" />
+              全部通知
+            </span>
+          }
+          description={`共 ${allItems.length} 条通知`}
+          size="lg"
+        >
+          <div className="-mx-2 max-h-[60vh] overflow-y-auto divide-y divide-[#eef3f8]">
+            {allItems.map((item) => (
+              <NotificationRow
+                key={item.id}
+                item={item}
+                onClick={() => {
+                  router.push(item.link);
+                  setShowAll(false);
+                }}
+              />
+            ))}
+            {allItems.length === 0 && (
+              <div className="py-16 text-center text-sm text-[color:var(--muted-foreground)]">
+                暂无通知
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
-
-      <hr className="wb-section-rule" />
-
-      <div className="wb-panel-body">
-        <AiPlanningPanel
-          dailyPlan={dailyPlan} refreshingPlan={refreshingPlan}
-          showProjectBrief={showProjectBrief}
-          onRefreshPlan={() => onRefreshPlan()}
-          onSelectTimeBlock={onSelectTimeBlock} onShowHistory={onShowHistory}
-        />
-      </div>
-    </section>
+    </>
   );
 }

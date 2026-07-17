@@ -61,8 +61,13 @@ export function recommendSuppliers(data: { requirement: string; classificationId
 }
 
 // AI 润色采购需求描述
-export function polishRequirement(data: { text: string }) {
+export function polishRequirement(data: { text: string; projectName?: string; procurementMethod?: string; deadline?: string }) {
   return api.post<{ polished: string }>('/ai/polish-requirement', data);
+}
+
+// ── AI 生成通知文案 ──
+export function generateNotificationContent(data: { projectName?: string; projectCode?: string; supplierNames: string[] }) {
+  return api.post<{ title: string; body: string }>('/ai/generate-notification', data);
 }
 
 // ── 选取历史 ──
@@ -96,6 +101,15 @@ export function updateSelectionShortlist(historyId: string, shortlistedIds: stri
 
 export function deleteSelectionHistory(id: string) {
   return api.delete<null>(`/ai/selection-history/${id}`);
+}
+
+// ── 通知供应商 ──
+export interface NotifySuppliersResult {
+  totalTargets: number; sent: number; notFound: number;
+  results: { supplierId: string; supplierName: string; channels: Record<string, string> }[];
+}
+export function notifySuppliers(data: { supplierIds: string[]; channels: string[]; type: string; title: string; content: string }) {
+  return api.post<NotifySuppliersResult>('/supplier/notify', data);
 }
 
 // ── 邀请供应商到招标项目 ──
@@ -167,6 +181,7 @@ export function createEvaluation(id: string, data: {
   complianceScore: number;
   overallScore: number;
   comment?: string;
+  evidence?: Record<string, string>;
 }) {
   return api.post<SupplierEvaluation>(`/supplier/${id}/evaluations`, data);
 }

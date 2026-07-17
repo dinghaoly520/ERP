@@ -133,6 +133,16 @@ export class SupplierController {
     return this.supplierService.setSupplierClassifications(id, dto.classificationIds);
   }
 
+  @Post('notify')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @ApiOperation({ summary: '向指定供应商发送通知（站内+短信）' })
+  async notifySuppliers(
+    @Body() dto: { supplierIds: string[]; channels: string[]; type: string; title: string; content: string },
+  ) {
+    return this.supplierService.notifySuppliers(dto.supplierIds, dto.channels, { type: dto.type, title: dto.title, content: dto.content });
+  }
+
   @Get('eliminate-candidates')
   @UseGuards(ProcurementGuard)
   @ApiOperation({ summary: '供应商淘汰候选扫描（预警，不自动停用）' })

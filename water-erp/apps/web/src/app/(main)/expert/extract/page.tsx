@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { STAGE_LABEL } from '@water-erp/shared';
@@ -63,11 +63,18 @@ export function ExpertExtractPage({
   const [replaceSearch, setReplaceSearch] = useState('');
   // 通知弹窗
   const [showNotifyModal, setShowNotifyModal] = useState(false);
-  const [notifyChannels, setNotifyChannels] = useState<string[]>(['in_app']);
-  const [notifyMessage, setNotifyMessage] = useState('');
+  const [notifyChannelsByExpert, setNotifyChannelsByExpert] = useState<Map<string, string[]>>(new Map());
+  const [notifyMessages, setNotifyMessages] = useState<Map<string, string>>(new Map());
+  const [notifyActiveExpert, setNotifyActiveExpert] = useState<string>('');
+  const [openTimeDate, setOpenTimeDate] = useState('');
+  const [openTimeTime, setOpenTimeTime] = useState('');
+  const openTimeFormatted = openTimeDate
+    ? `${openTimeDate.replace(/-/g, '年').replace(/^(\d{4})年(\d{2})年(\d{2})$/, '$1年$2月$3日')} ${openTimeTime || '00:00'}`
+    : '';
   const [notifying, setNotifying] = useState(false);
   const [notifyResults, setNotifyResults] = useState<any>(null);
   const [confirmedExpertIds, setConfirmedExpertIds] = useState<string[]>([]);
+  const [notifyExpertList, setNotifyExpertList] = useState<ExtractionSelected[]>([]);
   // 专家选取
   const [manualSearch, setManualSearch] = useState('');
   const [manualResults, setManualResults] = useState<ExpertListItem[]>([]);
@@ -79,8 +86,45 @@ export function ExpertExtractPage({
   const [historyData, setHistoryData] = useState<{ total: number; page: number; pageSize: number; items: any[] } | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
   const autoAnalyzedRef = useRef(false);
+  const storageKey = 'expert-extract-session';
 
-  // 接收模态框传入的预计算结果，直接填充状态
+  // 状态变更时自动保存到 sessionStorage（页面切换后恢复）
+  const stateRef = useRef({ pid, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd });
+  stateRef.current = { pid, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd };
+  useEffect(() => {
+    const save = () => {
+      const s = stateRef.current;
+      sessionStorage.setItem(storageKey, JSON.stringify({ ...s, notifyMessagesArr: [...notifyMessages.entries()] }));
+    };
+    window.addEventListener('beforeunload', save);
+    return () => { save(); window.removeEventListener('beforeunload', save); };
+  }, [storageKey, notifyMessages]);
+
+  // 初始化时从 sessionStorage 恢复状态
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(storageKey);
+      if (!raw || autoAnalyzedRef.current) return;
+      const snap = JSON.parse(raw);
+      if (snap.pid) setPid(snap.pid);
+      if (snap.extractMode) setExtractMode(snap.extractMode);
+      if (snap.quotas?.length) setQuotas(snap.quotas);
+      if (snap.selectedExperts?.length) setSelectedExperts(snap.selectedExperts);
+      if (snap.alternativeExperts?.length) setAlternativeExperts(snap.alternativeExperts);
+      if (snap.leadExpertId != null) setLeadExpertId(snap.leadExpertId);
+      if (snap.preview) setPreview(snap.preview);
+      if (snap.done) setDone(snap.done);
+      if (snap.confirmedExpertIds?.length) setConfirmedExpertIds(snap.confirmedExpertIds);
+      if (snap.manualExperts?.length) setManualExperts(snap.manualExperts);
+      if (snap.notifyMessagesArr?.length) setNotifyMessages(new Map(snap.notifyMessagesArr));
+      if (snap.openTimeDate) setOpenTimeDate(snap.openTimeDate);
+      if (snap.openTimeTime) setOpenTimeTime(snap.openTimeTime);
+      if (snap.tn != null) setTn(snap.tn);
+      if (snap.alt != null) setAlt(snap.alt);
+      if (snap.error) setError(snap.error);
+      if (snap.pd) setPd(snap.pd);
+    } catch { sessionStorage.removeItem(storageKey); }
+  }, []);
   useEffect(() => {
     if (!autoExtractResult || autoAnalyzedRef.current) return;
     autoAnalyzedRef.current = true;
@@ -89,7 +133,7 @@ export function ExpertExtractPage({
     setPreview(autoExtractResult.preview);
     setSelectedExperts(autoExtractResult.selected);
     setAlternativeExperts(autoExtractResult.alternatives);
-    setNotifyMessage(autoExtractResult.notifyMessage);
+    setNotifyMessages(new Map(autoExtractResult.selected.map((s: ExtractionSelected) => [s.userId, autoExtractResult.notifyMessage])));
   }, [autoExtractResult]);
 
   useEffect(() => { listBidProjects().then(setProjects).catch(() => toast.error('加载项目列表失败')); listSpecialties().then(setSpecs).catch(() => {}); }, []);
@@ -135,7 +179,8 @@ export function ExpertExtractPage({
             setPreview(result);
             setSelectedExperts([...result.selected]);
             setAlternativeExperts([...result.alternatives]);
-            setNotifyMessage(`您已被选为「${defaultProjectTitle}」评审专家，请登录专家门户查看详情并完成评审任务。`);
+            const defMsg = `您已被选为「${defaultProjectTitle}」评审专家，请于24小时内回复是否确认参加，逾期视为放弃。`;
+            setNotifyMessages(new Map(result.selected.map((s: any) => [s.userId, defMsg])));
           }
         }
       } catch (e: any) {
@@ -145,7 +190,18 @@ export function ExpertExtractPage({
     })();
   }, [defaultProjectTitle, projects]);
 
-  useEffect(() => { if (!pid) { setPd(null); return; } getBidProjectDetail(pid).then(setPd).catch(() => setPd(null)); }, [pid]);
+  useEffect(() => {
+    if (!pid) { setPd(null); return; }
+    getBidProjectDetail(pid).then(setPd).catch(() => setPd(null));
+    // 切换项目后清空已选专家和抽取结果，避免跨项目混淆
+    setSelectedExperts([]);
+    setAlternativeExperts([]);
+    setManualExperts([]);
+    setLeadExpertId(null);
+    setPreview(null);
+    setDone(false);
+    setError('');
+  }, [pid]);
   useEffect(() => { if (!pid || specs.length === 0) return; Promise.all(specs.map(s => listExperts({ specialty: s }).then(l => ({ s, c: Array.isArray(l) ? l.length : 0 })))).then(rs => { const m = new Map<string, number>(); rs.forEach(({ s, c }) => { if (c > 0) m.set(s, c); }); setPool(m); }).catch(() => {}); }, [pid, specs]);
 
   // 专家选取：搜索专家（防抖 300ms）
@@ -225,7 +281,6 @@ export function ExpertExtractPage({
         setSelectedExperts([...result.selected]);
         setAlternativeExperts([...result.alternatives]);
       }
-      setNotifyMessage(`您已被选为「${sel?.name || '采购项目'}」评审专家，请登录专家门户查看详情并完成评审任务。`);
       toast.dismiss('extract-loading');
     } catch (e: any) {
       toast.dismiss('extract-loading');
@@ -237,35 +292,61 @@ export function ExpertExtractPage({
 
   const confirm = async () => {
     if (!pid || selectedExperts.length === 0) return;
+    if (!leadExpertId) { setError('请指定一位专家担任评审组长'); return; }
     setConfirming(true);
     try {
       const exps = selectedExperts.map(s => ({ userId: s.userId, expertName: s.name, major: s.specialty, isLead: s.userId === leadExpertId }));
       const result = await confirmExtraction({ projectId: pid, experts: exps });
       setConfirmedExpertIds(result.expertIds || exps.map(e => e.userId));
+
+      if (pd?.openTime) {
+        const d = new Date(pd.openTime);
+        setOpenTimeDate(d.toISOString().slice(0, 10));
+        setOpenTimeTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+      }
+
+      setNotifyMessages(new Map());
+      setNotifyActiveExpert(exps[0]?.userId || '');
+      setNotifyExpertList(selectedExperts);
       setShowNotifyModal(true);
     } catch (e: any) { toast.error(e?.message || '确认失败'); }
     setConfirming(false);
   };
 
   const sendNotify = async () => {
-    if (notifyChannels.length === 0 || confirmedExpertIds.length === 0) return;
+    if (confirmedExpertIds.length === 0) return;
     setNotifying(true);
     try {
-      const result = await sendExtractionNotify({ projectId: pid, expertIds: confirmedExpertIds, channels: notifyChannels, message: notifyMessage });
-      setNotifyResults(result.results);
+      const allResults: any[] = [];
+      for (const eid of confirmedExpertIds) {
+        const msg = notifyMessages.get(eid) || '';
+        if (!msg) continue;
+        const channels = notifyChannelsByExpert.get(eid) || ['in_app', 'sms', 'phone'];
+        if (channels.length === 0) continue;
+        const result = await sendExtractionNotify({ projectId: pid, expertIds: [eid], channels, message: msg });
+        if (result.results) allResults.push(...result.results);
+      }
+      setNotifyResults(allResults);
       setDone(true);
       toast.success(`通知已发送（${confirmedExpertIds.length} 名专家）`);
     } catch (e: any) { toast.error(e?.message || '通知发送失败'); }
     setNotifying(false);
   };
 
-  const toggleChannel = (ch: string) => setNotifyChannels(prev => prev.includes(ch) ? prev.filter(c => c !== ch) : [...prev, ch]);
+  const toggleChannelForExpert = (expertId: string, ch: string) => {
+    setNotifyChannelsByExpert(prev => {
+      const current = prev.get(expertId) || ['in_app', 'sms', 'phone'];
+      const updated = current.includes(ch) ? current.filter(c => c !== ch) : [...current, ch];
+      return new Map(prev).set(expertId, updated);
+    });
+  };
+  const getChannelsForExpert = (expertId: string) => notifyChannelsByExpert.get(expertId) || ['in_app', 'sms', 'phone'];
 
   // 抽取历史
   const openHistory = async (page = 1) => {
     setShowHistory(true); setHistoryLoading(true); setHistoryPage(page);
     try {
-      const data = await getExtractionHistory({ projectId: pid || undefined, page, pageSize: 15 });
+      const data = await getExtractionHistory({ page, pageSize: 15 });
       setHistoryData(data);
     } catch { setHistoryData(null); }
     setHistoryLoading(false);
@@ -306,7 +387,7 @@ export function ExpertExtractPage({
     setShowReplaceModal(false);
     setReplaceTarget(null);
   };
-  const reset = () => { setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setShowNotifyModal(false); setNotifyResults(null); setConfirmedExpertIds([]); };
+  const reset = () => { setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setShowNotifyModal(false); setNotifyResults(null); setConfirmedExpertIds([]); sessionStorage.removeItem(storageKey); };
 
   // ── 配置卡片 ──
   const configCard = (
@@ -411,7 +492,9 @@ export function ExpertExtractPage({
                     {e.userId === leadExpertId && <span className="text-[11px]">👑</span>}
                     {e.name}
                     <span className="text-[var(--muted-foreground)]">{e.specialty}</span>
-                    <button onClick={() => setLeadExpertId(e.userId === leadExpertId ? null : e.userId)} className={`text-[10px] ${e.userId === leadExpertId ? 'text-[var(--accent)]' : 'text-[var(--muted-foreground)] hover:text-[var(--accent)]'}`} title="设为组长">组长</button>
+                    <button onClick={() => setLeadExpertId(e.userId === leadExpertId ? null : e.userId)} className={`text-[10px] font-semibold ${e.userId === leadExpertId ? 'text-[var(--accent)]' : 'text-[var(--muted-foreground)]/50'}`} title={e.userId === leadExpertId ? '取消组长' : '设为组长'}>
+                      {e.userId === leadExpertId ? '组长 ✓' : '设为组长'}
+                    </button>
                     <button onClick={() => removeManualExpert(e.userId)} className="ml-0.5 text-[var(--danger)] hover:text-[var(--danger)]"><X size={11} /></button>
                   </span>
                 ))}
@@ -458,19 +541,31 @@ export function ExpertExtractPage({
             onClick={async () => {
               if (!pid) { setError('请选择采购项目'); return; }
               if (manualExperts.length === 0) { setError('请至少选择一位专家'); return; }
+              if (!leadExpertId) { setError('请指定一位专家担任评审组长'); return; }
               setConfirming(true); setError('');
               try {
                 const exps = manualExperts.map(s => ({ userId: s.userId, expertName: s.name, major: s.specialty, isLead: s.userId === leadExpertId }));
                 const result = await confirmExtraction({ projectId: pid, experts: exps });
                 setConfirmedExpertIds(result.expertIds || exps.map(e => e.userId));
+
+                if (pd?.openTime) {
+                  const d = new Date(pd.openTime);
+                  setOpenTimeDate(d.toISOString().slice(0, 10));
+                  setOpenTimeTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+                }
+
+                setNotifyMessages(new Map());
+                setNotifyActiveExpert(exps[0]?.userId || '');
+                setNotifyExpertList(manualExperts);
                 setShowNotifyModal(true);
               } catch (e: any) { setError(e?.message || '确认失败'); }
               setConfirming(false);
             }}
-            disabled={confirming}
+            disabled={confirming || manualExperts.length === 0 || !leadExpertId}
             className="neu-btn-soft is-success justify-center"
+            title={!leadExpertId ? '请先指定评审组长' : undefined}
           >
-            <Check size={16} />{confirming ? '确认中...' : `确认选取 ${manualExperts.length} 名专家`}
+            <Check size={16} />{confirming ? '确认中...' : `确认选取 ${manualExperts.length} 名专家${!leadExpertId ? ' · 请指定组长' : ''}`}
           </button>
         </div>
       )}
@@ -569,24 +664,67 @@ export function ExpertExtractPage({
     <Modal
       open
       onClose={() => setShowNotifyModal(false)}
-      size="md"
+      size="lg"
       title={
         <span className="flex items-center gap-2">
           <span className="neu-icon-well flex h-8 w-8 items-center justify-center rounded-[10px]"><Bell size={14} className="text-[var(--accent)]" /></span>
           通知专家组成员
         </span>
       }
-      description={`${confirmedExpertIds.length} 名专家`}
+      description={(() => {
+        const names = notifyExpertList.filter(s => confirmedExpertIds.includes(s.userId)).map(e => e.name).join('、');
+        return names || `${confirmedExpertIds.length} 名专家`;
+      })()}
       footer={
         <>
-          <button onClick={() => { setShowNotifyModal(false); setDone(true); toast.success(`专家组已组建（${selectedExperts.length} 人）`); }} className="neu-btn-soft flex-1 justify-center">跳过通知</button>
-          <button onClick={sendNotify} disabled={notifying || notifyChannels.length === 0} className="neu-btn-soft is-success flex-1 justify-center">{notifying ? '发送中...' : `发送通知（${notifyChannels.length} 渠道）`}</button>
+          <button onClick={sendNotify} disabled={notifying} className="neu-btn-soft is-success flex-1 justify-center">
+            {notifying ? '发送中...' : '发送通知并邀请确认'}
+          </button>
         </>
       }
     >
-      {/* 通知渠道选择 */}
+      {/* 开标时间（全局设置，影响所有专家通知中的时间占位） */}
       <div>
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-2">通知渠道</span>
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
+          开标时间 <span className="text-[var(--danger)]">*</span>
+        </span>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <span className="text-[10px] font-semibold text-[var(--muted-foreground)] block mb-0.5">日期</span>
+            <input type="date" value={openTimeDate} onChange={e => setOpenTimeDate(e.target.value)} className="neu-input text-sm w-full" />
+          </div>
+          <div className="w-[120px]">
+            <span className="text-[10px] font-semibold text-[var(--muted-foreground)] block mb-0.5">时间</span>
+            <input type="time" value={openTimeTime} onChange={e => setOpenTimeTime(e.target.value)} className="neu-input text-sm w-full" />
+          </div>
+        </div>
+        {openTimeFormatted && <p className="text-[10px] text-[var(--accent)]/70 mt-1">已设置：{openTimeFormatted}</p>}
+      </div>
+
+      {/* 待通知专家名单（按标签页切换查看个性化内容与渠道） */}
+      <div>
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-2">
+          待通知专家 · {confirmedExpertIds.length} 人（点击切换查看个性化通知与渠道设置）
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          {notifyExpertList.filter(s => confirmedExpertIds.includes(s.userId)).map(e => (
+            <button
+              key={e.userId}
+              onClick={() => setNotifyActiveExpert(e.userId)}
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold shadow-[inset_0_1px_0_oklch(1_0_0/0.5)] transition-colors ${e.userId === notifyActiveExpert ? 'bg-[var(--accent)] text-white' : e.userId === leadExpertId ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)]' : 'bg-[var(--surface)] text-[var(--foreground)] hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]'}`}
+            >
+              {e.userId === leadExpertId && <span className="text-[11px]">👑</span>}
+              {e.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 当前选中专家的通知渠道 */}
+      <div>
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-2">
+          {notifyExpertList.find(e => e.userId === notifyActiveExpert)?.name || '专家'} 的通知渠道
+        </span>
         <div className="flex gap-2">
           {[
             { key: 'in_app', icon: Bell, label: 'OA站内信' },
@@ -595,8 +733,8 @@ export function ExpertExtractPage({
           ].map(ch => (
             <button
               key={ch.key}
-              onClick={() => toggleChannel(ch.key)}
-              className={`neu-tab flex-col gap-1 py-2 flex-1 ${notifyChannels.includes(ch.key) ? 'is-active' : ''}`}
+              onClick={() => toggleChannelForExpert(notifyActiveExpert, ch.key)}
+              className={`neu-tab flex-col gap-1 py-2 flex-1 ${getChannelsForExpert(notifyActiveExpert).includes(ch.key) ? 'is-active' : ''}`}
             >
               <ch.icon size={16} />
               <span className="text-[11px]">{ch.label}</span>
@@ -605,14 +743,62 @@ export function ExpertExtractPage({
         </div>
       </div>
 
-      {/* 消息模板 */}
+      {/* 消息模板（每位专家独立内容） */}
       <div>
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-2">通知内容</span>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-[var(--muted-foreground)]">
+            通知内容 · {notifyExpertList.filter(s => confirmedExpertIds.includes(s.userId)).find(e => e.userId === notifyActiveExpert)?.name || ''}
+          </span>
+            <button
+              onClick={async () => {
+                const projectName = sel?.name || '采购项目';
+                const experts = notifyExpertList.filter(s => confirmedExpertIds.includes(s.userId));
+                const totalExperts = experts.length;
+                toast.loading(`AI 正在生成通知…`, { id: 'notif-ai-all' });
+                try {
+                  const res = await generateNotification({
+                    projectName, expertName: '[[专家姓名]]',
+                    isLead: false,
+                    totalExperts, extractMode: MODE_LABELS[extractMode], openTime: openTimeFormatted,
+                  });
+                  if (!res.generated || !res.content) {
+                    toast.error('生成失败', { id: 'notif-ai-all' });
+                    return;
+                  }
+                  const template = res.content;
+                  const newMessages = new Map(notifyMessages);
+                  for (const expert of experts) {
+                    const role = expert.userId === leadExpertId ? '评审组长' : '评审专家组成员';
+                    const personalized = template
+                      .replace(/\[\[专家姓名\]\]/g, expert.name)
+                      .replace(/评审专家组成员/g, role);
+                    newMessages.set(expert.userId, personalized);
+                  }
+                  setNotifyMessages(newMessages);
+                  toast.success(`已为 ${totalExperts} 位专家生成通知`, { id: 'notif-ai-all' });
+                } catch {
+                  toast.error('生成失败', { id: 'notif-ai-all' });
+                }
+              }}
+              className="neu-btn-xs"
+            >
+              <Sparkles size={11} />AI 生成
+            </button>
+        </div>
+        {!notifyMessages.get(notifyActiveExpert) && (
+          <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_6%,transparent)] px-3 py-2 text-[11px] text-[var(--warning)]">
+            该专家尚未生成通知内容，请点击上方"AI 生成"按钮
+          </div>
+        )}
         <textarea
-          value={notifyMessage}
-          onChange={e => setNotifyMessage(e.target.value)}
-          className="neu-input text-sm w-full min-h-[80px] resize-y"
-          rows={3}
+          value={(() => {
+            const content = notifyMessages.get(notifyActiveExpert) || '';
+            return openTimeFormatted ? content.replace('____年__月__日 __:__', openTimeFormatted) : content;
+          })()}
+          onChange={e => setNotifyMessages(prev => new Map(prev).set(notifyActiveExpert, e.target.value))}
+          placeholder="点击上方 AI 生成按钮自动填充该专家的通知内容"
+          className="neu-input text-sm w-full min-h-[260px] resize-y"
+          rows={14}
         />
       </div>
     </Modal>
@@ -726,7 +912,13 @@ export function ExpertExtractPage({
                         <p className="text-xs text-[var(--muted-foreground)] mb-1">{s.reason}</p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <button onClick={() => setLeadExpertId(s.userId === leadExpertId ? null : s.userId)} className={`neu-btn-xs ${s.userId === leadExpertId ? 'is-active' : ''}`} title="设为组长">👑</button>
+                        <button
+                          onClick={() => setLeadExpertId(s.userId === leadExpertId ? null : s.userId)}
+                          className={`neu-btn-xs ${s.userId === leadExpertId ? 'is-active' : ''}`}
+                          title={s.userId === leadExpertId ? '取消组长' : '设为组长'}
+                        >
+                          {s.userId === leadExpertId ? '组长' : '设为组长'}
+                        </button>
                         <button onClick={() => openReplace(i, 'selected')} className="neu-btn-xs" title="替换"><Pencil size={11} /></button>
                         <button onClick={() => removeExpert(i, 'selected')} className="neu-btn-xs is-danger" title="移除"><X size={11} /></button>
                       </div>
@@ -756,7 +948,9 @@ export function ExpertExtractPage({
                   </div>
                 )}
 
-                <button onClick={confirm} disabled={confirming || selectedExperts.length === 0} className="neu-btn-soft is-success w-full justify-center"><Check size={16} />{confirming ? '确认中...' : `确认组建专家组（${selectedExperts.length} 人）`}</button>
+                <button onClick={confirm} disabled={confirming || selectedExperts.length === 0 || !leadExpertId} className="neu-btn-soft is-success w-full justify-center" title={!leadExpertId ? '请先指定评审组长' : undefined}>
+                  <Check size={16} />{confirming ? '确认中...' : `确认组建专家组（${selectedExperts.length} 人）`}{!leadExpertId ? ' · 请指定组长' : ''}
+                </button>
               </div>
             )}
 
@@ -764,19 +958,25 @@ export function ExpertExtractPage({
             {done && (
               <div className="neu-table-card p-10 text-center">
                 <ShieldCheck size={40} className="mx-auto text-[var(--success)] mb-3" />
-                <h3 className="text-lg font-bold text-[var(--foreground)] mb-1">专家组已组建</h3>
-                <p className="text-sm text-[var(--muted-foreground)]">已为「{sel?.name}」分配专家</p>
+                <h3 className="text-lg font-bold text-[var(--foreground)] mb-1">通知已发送，等待专家确认</h3>
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  已向「{sel?.name}」的 {selectedExperts.length} 名专家发出邀请通知，专家确认后即正式加入评审组
+                </p>
                 {notifyResults && (
-                  <div className="mt-4 text-left max-w-sm mx-auto space-y-1">
-                    <span className="text-xs font-semibold text-[var(--muted-foreground)]">通知投递状态</span>
-                    {notifyResults.map((r: any) => (
-                      <div key={r.userId} className="text-xs text-[var(--muted-foreground)] flex items-center gap-2">
-                        <span className="font-medium text-[var(--foreground)]">{selectedExperts.find(e => e.userId === r.userId)?.name || r.userId}</span>
-                        {Object.entries(r.results).map(([ch, status]) => (
-                          <span key={ch} className={`${status === 'sent' ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>{ch}:{status as string}</span>
-                        ))}
-                      </div>
-                    ))}
+                  <div className="mt-4 text-left max-w-md mx-auto space-y-1">
+                    <span className="text-xs font-semibold text-[var(--muted-foreground)]">通知投递与确认状态</span>
+                    {notifyResults.map((r: any) => {
+                      const expert = selectedExperts.find(e => e.userId === r.userId);
+                      return (
+                        <div key={r.userId} className="text-xs flex items-center gap-2 py-0.5 border-b border-[var(--muted)]/10 last:border-0">
+                          <span className="font-medium text-[var(--foreground)] min-w-[60px]">{expert?.name || r.userId}</span>
+                          {Object.entries(r.results).map(([ch, status]) => (
+                            <span key={ch} className={status === 'sent' ? 'text-[var(--success)]' : 'text-[var(--warning)]'}>{ch}:{status as string}</span>
+                          ))}
+                          <StatusBadge tone="blue" className="ml-auto">待确认</StatusBadge>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 <div className="flex justify-center gap-3 mt-6"><button onClick={() => router.push('/expert/repository')} className="neu-btn-soft">
@@ -810,7 +1010,7 @@ export function ExpertExtractPage({
               抽取历史
             </span>
           }
-          description={pid ? `「${sel?.name || pid}」的历次专家组组建记录` : '全部项目的专家组组建记录'}
+          description="全部项目的专家组抽取与组建记录"
         >
           {/* 内容区 */}
           {historyLoading ? (
@@ -864,10 +1064,11 @@ export function ExpertExtractPage({
                               {d.experts.map((ex: any, ei: number) => (
                                 <span
                                   key={ei}
-                                  className="inline-flex items-center rounded-[7px] px-2 py-0.5 text-[10px] font-medium
+                                  className={`inline-flex items-center rounded-[7px] px-2 py-0.5 text-[10px] font-medium
                                     shadow-[inset_0_0.5px_0_oklch(1_0_0/0.5),0.5px_0.5px_1.5px_oklch(0.55_0.03_258/0.06)]
-                                    text-[var(--foreground)] bg-[color-mix(in_oklch,var(--surface)_50%,transparent)]"
+                                    ${ex.isLead ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)]' : 'text-[var(--foreground)] bg-[color-mix(in_oklch,var(--surface)_50%,transparent)]'}`}
                                 >
+                                  {ex.isLead && <span className="mr-0.5">👑</span>}
                                   {ex.name}
                                   <span className="ml-1 text-[var(--muted-foreground)]/70">{ex.major}</span>
                                 </span>

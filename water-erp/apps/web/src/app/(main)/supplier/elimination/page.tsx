@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { AlertTriangle, Trash2 } from 'lucide-react';
+import { AlertTriangle, Trash2, RefreshCw, X } from 'lucide-react';
 import { getEliminationCandidates, confirmEliminate } from '@/lib/api/supplier';
 import type { EliminationCandidate } from '@/lib/api/supplier';
 import { Modal } from '@/components/workbench';
@@ -13,10 +13,30 @@ export default function EliminationPage() {
   const router = useRouter();
   const [candidates, setCandidates] = useState<EliminationCandidate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [confirmModal, setConfirmModal] = useState<EliminationCandidate | null>(null);
   const [reason, setReason] = useState('');
 
-  useEffect(() => { getEliminationCandidates().then(setCandidates).catch(() => {}).finally(() => setLoading(false)); }, []);
+  const loadData = async () => {
+    setLoading(true);
+    try { setCandidates(await getEliminationCandidates()); } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  const handleManualScan = async () => {
+    setRefreshing(true);
+    toast.info('正在扫描供应商绩效数据…');
+    try {
+      const fresh = await getEliminationCandidates();
+      setCandidates(fresh);
+      toast.success(fresh.length > 0 ? `扫描完成，发现 ${fresh.length} 个淘汰候选` : '扫描完成，当前无淘汰候选');
+    } catch (e: any) {
+      toast.error('扫描失败，请稍后重试');
+    }
+    setRefreshing(false);
+  };
 
   const openConfirm = (c: EliminationCandidate) => {
     setConfirmModal(c);
@@ -28,7 +48,6 @@ export default function EliminationPage() {
     if (!reason.trim()) { toast.error('请填写淘汰原因'); return; }
     const target = confirmModal;
     const prevCandidates = candidates;
-    // 乐观移除
     setCandidates(prev => prev.filter(c => c.supplierId !== target.supplierId));
     setConfirmModal(null);
     let cancelled = false;
@@ -49,7 +68,7 @@ export default function EliminationPage() {
   };
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -60,10 +79,19 @@ export default function EliminationPage() {
             </div>
           </div>
           <div className="page-hero__right">
+            <button onClick={handleManualScan} disabled={refreshing || loading} className="neu-btn-xs gap-1" title="手动触发绩效扫描">
+              <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
+              {refreshing ? '扫描中...' : '手动扫描'}
+            </button>
             <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
               返回供应商库
             </button>
+          </div>
+        </div>
+        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
+          <div className="text-[10px] text-[var(--muted-foreground)]">
+            自动扫描周期：每周一凌晨 1 点。{refreshing ? '正在手动扫描...' : `当前 ${candidates.length} 个候选 ${loading ? '' : '，点击「手动扫描」立即执行'}`}
           </div>
         </div>
       </div>
@@ -74,7 +102,7 @@ export default function EliminationPage() {
         <div className="neu-table-card py-12 text-center">
           <AlertTriangle size={32} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
           <p className="text-sm text-[var(--muted-foreground)]">暂无淘汰候选</p>
-          <p className="mt-1 text-xs text-[var(--muted-foreground)]/60">系统每周一凌晨 1 点自动扫描</p>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]/60">点击「手动扫描」可立即执行一次扫描</p>
         </div>
       ) : (
         <div className="neu-table-card overflow-hidden">
@@ -103,7 +131,6 @@ export default function EliminationPage() {
         </div>
       )}
 
-      {/* ══════ 淘汰确认弹窗 ══════ */}
       {confirmModal && (
         <Modal
           open

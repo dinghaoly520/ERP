@@ -19,6 +19,7 @@ export function SelectionHistoryDialog({ isOpen, onApply, onApplyShortlist, onCl
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const loadRecords = async () => {
     setLoading(true);
@@ -54,6 +55,12 @@ export function SelectionHistoryDialog({ isOpen, onApply, onApplyShortlist, onCl
   const truncate = (text: string, maxLen = 80) =>
     text.length > maxLen ? text.slice(0, maxLen) + "…" : text;
 
+  const filtered = searchTerm.trim()
+    ? records.filter(r =>
+        r.requirement.includes(searchTerm.trim()) ||
+        r.classificationName?.includes(searchTerm.trim()))
+    : records;
+
   return (
     <Modal
       open={isOpen}
@@ -62,6 +69,22 @@ export function SelectionHistoryDialog({ isOpen, onApply, onApplyShortlist, onCl
       description="点击「应用」将恢复当时的采购需求与筛选条件，便于复用或对比。"
       size="lg"
     >
+          {/* 搜索框 */}
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
+            <input
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="搜索需求描述或分类名称…"
+              className="neu-input !pl-9 text-sm"
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-[color:var(--muted-foreground)]">
               <Loader2 size={16} className="animate-spin" />
@@ -74,16 +97,21 @@ export function SelectionHistoryDialog({ isOpen, onApply, onApplyShortlist, onCl
           ) : records.length === 0 ? (
             <div className="neu-card-static !rounded-[16px] flex flex-col items-center justify-center px-5 py-12 text-center">
               <History size={32} className="text-[var(--muted-foreground)]/30 mb-4" />
-              <p className="text-sm text-[color:var(--muted-foreground)]">
-                暂无选取记录
-              </p>
+              <p className="text-sm text-[color:var(--muted-foreground)]">暂无选取记录</p>
+              <p className="mt-1 text-xs text-[color:var(--muted-foreground)]/60">每次智能推荐成功后，系统会自动保存选取历史</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="neu-card-static !rounded-[16px] flex flex-col items-center justify-center px-5 py-12 text-center">
+              <Search size={28} className="text-[var(--muted-foreground)]/30 mb-3" />
+              <p className="text-sm text-[color:var(--muted-foreground)]">无匹配记录</p>
               <p className="mt-1 text-xs text-[color:var(--muted-foreground)]/60">
-                每次智能推荐成功后，系统会自动保存选取历史
+                共 {records.length} 条记录，尝试调整搜索关键词
+                <button onClick={() => setSearchTerm('')} className="ml-1.5 text-[var(--accent)] hover:underline">清除搜索</button>
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {records.map((record) => (
+              {filtered.map((record) => (
                 <div
                   key={record.id}
                   className="neu-card-static !rounded-[16px] px-4 py-4"

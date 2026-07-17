@@ -151,7 +151,7 @@ export class SupplierService {
           contacts: { where: { isPrimary: true } },
           _count: { select: { evaluations: true } },
           evaluations: {
-            select: { score: true, level: true, overallScore: true },
+            select: { score: true, level: true, overallScore: true, evidence: true },
             orderBy: { createdAt: 'desc' },
             take: 1,
           },
@@ -214,7 +214,7 @@ export class SupplierService {
         contacts: { where: { isPrimary: true } },
         _count: { select: { evaluations: true } },
         evaluations: {
-          select: { score: true, level: true, overallScore: true },
+          select: { score: true, level: true, overallScore: true, evidence: true },
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
@@ -620,6 +620,7 @@ export class SupplierService {
         complianceScore: dto.complianceScore,
         overallScore: dto.overallScore,
         comment: dto.comment,
+        evidence: dto.evidence ?? undefined,
       },
     });
 
@@ -977,6 +978,32 @@ export class SupplierService {
     });
 
     return this.getSupplierClassifications(supplierId);
+  }
+
+  /* ━━━ 通知供应商 ━━━ */
+
+  async notifySuppliers(
+    supplierIds: string[],
+    channels: string[],
+    payload: { type: string; title: string; content: string },
+  ) {
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { id: { in: supplierIds } },
+      select: { id: true, name: true, userId: true },
+    });
+
+    const results: Array<{ supplierId: string; supplierName: string; userId: string; channels: Record<string, string> }> = [];
+
+    for (const s of suppliers) {
+      // 占位符替换：{供应商名称} / {name} / {supplierName} → 实际供应商名称
+      const title = payload.title.replace(/\{(供应商名称|name|supplierName)\}/g, s.name);
+      const content = payload.content.replace(/\{(供应商名称|name|supplierName)\}/g, s.name);
+      const r = await this.notificationService.sendToUser(s.userId, channels, { type: payload.type, title, content });
+      results.push({ supplierId: s.id, supplierName: s.name, userId: s.userId, channels: r.results });
+    }
+
+    const notFound = supplierIds.length - suppliers.length;
+    return { totalTargets: supplierIds.length, sent: results.length, notFound, results };
   }
 
   /* ━━━ 供应商关注/收藏（模型已移除，保留接口兼容）━━━ */

@@ -716,6 +716,13 @@ function SuppliersTab() {
   const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
   const [radarData, setRadarData] = useState<PriceRadarData>({ minPrice: null, avgPrice: null, stdDeviation: null, outliers: [], items: [] });
   const [radarLoading, setRadarLoading] = useState(false);
+  const [radarPage, setRadarPage] = useState(1);
+  const RADAR_PAGE_SIZE = 20;
+  const radarPages = Math.max(1, Math.ceil(radarData.items.length / RADAR_PAGE_SIZE));
+  const pagedRadarItems = useMemo(
+    () => radarData.items.slice((radarPage - 1) * RADAR_PAGE_SIZE, radarPage * RADAR_PAGE_SIZE),
+    [radarData.items, radarPage],
+  );
   const [insights, setInsights] = useState<SearchInsights>({ gapKeywords: [], topSearches: [] });
   const [insightsLoading, setInsightsLoading] = useState(false);
 
@@ -812,7 +819,7 @@ function SuppliersTab() {
             <table className="neu-table w-full text-xs">
               <thead><tr><th>编码</th><th>名称</th><th>供应商</th><th className="text-right">参考价</th><th className="text-center">标记</th></tr></thead>
               <tbody>
-                {radarData.items.map(it => (
+                {pagedRadarItems.map(it => (
                   <tr key={it.id} className={it.isOutlier ? 'bg-[var(--warning-soft)]' : ''}>
                     <td className="font-mono text-[var(--accent)]">{it.code}</td>
                     <td>{it.name}</td>
@@ -827,6 +834,15 @@ function SuppliersTab() {
                 ))}
               </tbody>
             </table>
+            {radarData.items.length > RADAR_PAGE_SIZE && (
+              <div className="neu-table-card-footer flex justify-between items-center px-4 py-2 text-xs text-[var(--muted-foreground)]">
+                <span>共 <strong className="tabular-nums text-[var(--foreground)]">{radarData.items.length}</strong> 条 · 第 {radarPage}/{radarPages} 页</span>
+                <div className="flex gap-1">
+                  <button disabled={radarPage <= 1} onClick={() => setRadarPage(p => p - 1)} aria-label="上一页" className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-[-90deg]" /></button>
+                  <button disabled={radarPage >= radarPages} onClick={() => setRadarPage(p => p + 1)} aria-label="下一页" className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-90" /></button>
+                </div>
+              </div>
+            )}
           </div>
         </div>)}
 
@@ -972,8 +988,37 @@ function CatalogManagementPageInner() {
 export default function CatalogManagementPage() {
   // useSearchParams 须在 Suspense 边界内（Next.js App Router 构建要求）
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<CatalogPageSkeleton />}>
       <CatalogManagementPageInner />
     </Suspense>
+  );
+}
+
+function CatalogPageSkeleton() {
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="page-hero">
+        <div className="page-hero__row">
+          <div className="page-hero__left flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[var(--muted)] animate-pulse" />
+            <div className="flex flex-col gap-1.5">
+              <div className="h-5 w-20 rounded bg-[var(--muted)] animate-pulse" />
+              <div className="h-3 w-64 rounded bg-[var(--muted)] animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="h-8 w-20 rounded-lg bg-[var(--muted)] animate-pulse" />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="kpi-card p-3 rounded-xl h-14 animate-pulse" />
+        ))}
+      </div>
+      <div className="neu-card rounded-2xl h-80 animate-pulse" />
+    </div>
   );
 }

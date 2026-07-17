@@ -50,7 +50,7 @@ export class AiController {
 
   @Post('supplier-selection')
   @ApiOperation({ summary: 'AI智能推荐供应商（按采购需求）' })
-  @Roles('admin', 'procurement_staff', 'bid_host', 'leader', 'staff')
+  @Roles('admin', 'procurement_staff', 'bid_expert', 'bid_host', 'leader', 'staff')
   async recommendSuppliers(
     @Body() body: { requirement?: string; classificationId?: string; maxCount?: number },
   ) {
@@ -58,10 +58,14 @@ export class AiController {
     if (!requirement) {
       throw new BadRequestException({ error: '请填写采购需求', code: 'REQUIREMENT_REQUIRED' });
     }
-    return this.aiService.recommendSuppliers(requirement, {
-      classificationId: body.classificationId,
-      maxCount: body.maxCount,
-    });
+    try {
+      return await this.aiService.recommendSuppliers(requirement, {
+        classificationId: body.classificationId,
+        maxCount: body.maxCount,
+      });
+    } catch (e: any) {
+      throw new BadRequestException({ error: e?.message || '智能推荐服务暂时不可用，请稍后重试', code: 'RECOMMEND_FAILED' });
+    }
   }
 
   @Post('dashboard-summary')
@@ -110,6 +114,27 @@ export class AiController {
   @Roles('admin', 'procurement_staff', 'leader', 'staff')
   async referenceBudget(@Body() payload: any) {
     return this.aiService.generateReferenceBudget(payload);
+  }
+
+  @Post('generate-notification')
+  @ApiOperation({ summary: 'AI生成供应商通知文案' })
+  @Roles('admin', 'procurement_staff', 'bid_expert', 'leader', 'staff')
+  async generateNotificationContent(
+    @Body() payload: { projectName?: string; projectCode?: string; supplierNames: string[] },
+  ) {
+    return this.aiService.generateNotificationContent(payload);
+  }
+
+  @Post('polish-requirement')
+  @ApiOperation({ summary: 'AI润色采购需求描述' })
+  @Roles('admin', 'procurement_staff', 'bid_expert', 'leader', 'staff')
+  async polishRequirement(@Body() payload: { text: string; projectName?: string; procurementMethod?: string; deadline?: string }) {
+    if (!payload.text?.trim()) throw new BadRequestException('请提供需求文本');
+    return this.aiService.polishRequirement(payload.text.trim(), {
+      projectName: payload.projectName,
+      procurementMethod: payload.procurementMethod,
+      deadline: payload.deadline,
+    });
   }
 
   @Post('supplier-evaluation-analysis')

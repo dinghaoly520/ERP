@@ -209,28 +209,53 @@ export function toggleSubscribe(itemId: string) {
 export interface PricePrediction { opportunity: string | null; predictions: { price: number }[] }
 export async function getPricePrediction(itemId: string): Promise<PricePrediction | null> {
   // 预测为可选能力：失败/无数据时静默返回 null（ TrendsTab 容错 ）
-  try {
-    const res = await fetch(`/api/catalog/${itemId}/prediction`, { credentials: 'include', headers: { 'X-Portal': 'web' } });
-    if (!res.ok) return null;
-    return await res.json() as PricePrediction;
-  } catch { return null; }
+  return request<PricePrediction>(`/api/catalog/${itemId}/prediction`).catch(() => null);
 }
 
 // ── 价格申请（审批）──
 
-export type ApplicationType = 'NEW_ITEM' | 'JOIN_EXISTING' | 'PRICE_ADJUST';
+export type ApplicationType = 'NEW_ITEM' | 'JOIN_EXISTING' | 'PRICE_ADJUST' | 'UPDATE_QUOTE';
 export type ApplicationStatus = 'PENDING' | 'COUNTERED' | 'APPROVED' | 'REJECTED' | 'RETURNED' | 'WITHDRAWN';
 export interface CatalogApplication {
   id: string; type: ApplicationType; status: ApplicationStatus;
   quotedPrice: number | string | null; counterPrice: number | string | null;
   deliveryPeriod?: string | null; region?: string | null; proposedName?: string | null;
-  supplier?: { name: string } | null; catalogItem?: { name: string } | null;
+  supplier?: { id?: string; name: string; userId?: string; status?: string } | null;
+  catalogItem?: { id?: string; code?: string; name: string; specification?: string; category?: string; group?: string; unit?: string } | null;
+  // ── 独立审批页（price-alerts）扩展字段 ──
+  supplierId?: string; catalogItemId?: string | null;
+  proposedSpec?: string | null; proposedCategory?: string | null;
+  proposedGroup?: string | null; proposedUnit?: string | null;
+  minOrder?: string | null; taxIncluded?: boolean; freightIncluded?: boolean;
+  counterNote?: string | null; qualificationNote?: string | null;
+  reviewedBy?: string | null; reviewedAt?: string | null;
+  rejectReason?: string | null; reviewerNote?: string | null;
+  approvedReferencePrice?: number | null;
+  approvedPriceMin?: number | null; approvedPriceMax?: number | null;
+  approvedValidUntil?: string | null;
+  createdAt?: string; updatedAt?: string;
 }
-export function listApplications(status?: string) {
-  return request<CatalogApplication[]>(`/api/catalog/applications${status && status !== '全部' ? `?status=${status}` : ''}`);
+export function listApplications(statusOrParams?: string | { status?: string; type?: string }) {
+  const sp = new URLSearchParams();
+  if (typeof statusOrParams === 'string') {
+    if (statusOrParams && statusOrParams !== '全部') sp.set('status', statusOrParams);
+  } else if (statusOrParams) {
+    if (statusOrParams.status && statusOrParams.status !== '全部') sp.set('status', statusOrParams.status);
+    if (statusOrParams.type && statusOrParams.type !== '全部') sp.set('type', statusOrParams.type);
+  }
+  return request<CatalogApplication[]>(`/api/catalog/applications${sp.toString() ? '?' + sp.toString() : ''}`);
 }
 export function reviewApplication(id: string, action: string, body?: Record<string, unknown>) {
   return request<CatalogApplication>(`/api/catalog/applications/${id}/review`, { method: 'POST', body: JSON.stringify({ action, ...body }) });
+}
+export function reviewCatalogApplication(id: string, body: {
+  action: 'approve' | 'reject' | 'return' | 'counter';
+  reason?: string; counterPrice?: number; counterNote?: string;
+  referencePrice?: number; priceMin?: number; priceMax?: number;
+  validUntil?: string; code?: string;
+}) {
+  return request<CatalogApplication>(`/api/catalog/applications/${id}/review`, { method: 'POST', body: JSON.stringify(body) });
+}
 }
 
 // ── 比价雷达 / 搜索洞察 ──

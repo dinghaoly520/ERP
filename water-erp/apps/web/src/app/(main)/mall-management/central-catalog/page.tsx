@@ -28,7 +28,7 @@ export default function CentralCatalogPage() {
   };
 
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 text-center">
+    <div className="min-h-[calc(100vh-180px)] flex flex-col items-center justify-center gap-6 text-center py-8">
       <div className="neu-card rounded-2xl p-8 flex flex-col items-center gap-5 max-w-md">
         <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-[var(--accent-tint)] text-[var(--accent)]">
           <ShoppingBag size={22} />

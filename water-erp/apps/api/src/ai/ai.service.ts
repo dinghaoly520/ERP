@@ -39,7 +39,22 @@ export class AiService {
   }
 
   /** 润色采购需求描述 —— AI 优化表达，使需求更精准 */
-  async polishRequirement(text: string): Promise<{ polished: string }> {
+  async polishRequirement(
+    text: string,
+    projectCtx?: { projectName?: string; procurementMethod?: string; deadline?: string },
+  ): Promise<{ polished: string }> {
+    const ctxParts: string[] = [];
+    if (projectCtx?.projectName) {
+      ctxParts.push(`关联项目名称：${projectCtx.projectName}`);
+      ctxParts.push(`（根据项目名称推断项目类型、行业归属和常规需求）`);
+    }
+    if (projectCtx?.procurementMethod) ctxParts.push(`采购方式：${projectCtx.procurementMethod}`);
+    if (projectCtx?.deadline) ctxParts.push(`截止日期：${projectCtx.deadline}`);
+
+    const projectContext = ctxParts.length > 0
+      ? `\n\n【项目背景信息】\n${ctxParts.join('\n')}\n请根据项目名称推断该项目所属行业和常规采购内容，在润色时补充合理的项目概况（建设地点可写项目所在地区）、采购范围（根据行业推断常规采购项）、资质要求（根据行业查相关资质标准）和特殊要求（工期、质量、业绩门槛）。对于无法从项目名精确推断的具体数值（如工期天数、投资概算金额），请保留「（填写…）」占位符。`
+      : '';
+
     const system = `你是一名政府采购招标文件撰写专家。请对用户的采购需求描述进行文字润色：
 1. 修正语法错误、错别字和不规范的表达
 2. 使专业术语使用更准确
@@ -47,8 +62,35 @@ export class AiService {
 4. 保持原文的结构框架（【项目概况】【采购范围】【资质要求】【特殊要求】），不要改变格式
 5. 如果原文内容已经很好，直接返回原文，不要强行修改
 只输出润色后的文本，不要添加任何解释或标记。`;
-    const polished = await this.llm.chat(system, text, 0.3);
+
+    const input = text + projectContext;
+    const polished = await this.llm.chat(system, input, 0.3);
     return { polished: polished.trim() || text };
+  }
+
+  /** 生成通知供应商的文案（标题+正文），基于项目信息 */
+  async generateNotificationContent(context: {
+    projectName?: string; projectCode?: string; supplierNames: string[];
+  }): Promise<{ title: string; body: string }> {
+    const system = `你是一名政府采购中心的项目负责人。需要向候选供应商发送通知。
+
+要求：标题简洁（含项目关键信息，不超过 30 字）；正文正式友好，包含：告知被纳入候选名单、项目信息、提醒关注后续正式邀请。不要列举供应商名单。输出纯 JSON（不要 markdown）：{ "title": "...", "body": "..." }`;
+
+    const info = [
+      context.projectName ? `项目名称：${context.projectName}` : '',
+      context.projectCode ? `项目编号：${context.projectCode}` : '',
+      `候选供应商（${context.supplierNames.length} 家）：${context.supplierNames.join('、')}`,
+    ].filter(Boolean).join('\n');
+
+    try {
+      const result = await this.llm.chatJson<{ title: string; body: string }>(system, info, 0.3);
+      return { title: result.title || '项目候选通知', body: result.body || '' };
+    } catch {
+      return {
+        title: '项目候选通知',
+        body: `您已被初步筛选为 ${context.projectName || '相关项目'} 的候选供应商。请留意后续正式采购邀请及招标文件。如有疑问请与采购中心联系。`,
+      };
+    }
   }
 
   /** 工作台问候语（兼容旧引用） */

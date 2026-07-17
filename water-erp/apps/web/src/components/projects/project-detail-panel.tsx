@@ -314,6 +314,7 @@ export function ProjectDetailPanel({
   // 提取信息编辑状态
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValues, setEditValues] = useState({
+    title: '',
     initiationDate: '',
     expertInfo: '',
     biddingUnits: '',
@@ -868,7 +869,17 @@ export function ProjectDetailPanel({
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="col-span-2">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目名称</span>
-                    <div className="mt-0.5 font-semibold text-[color:var(--foreground)]">{item.title}</div>
+                    {editingField === 'title' ? (
+                      <div className="mt-0.5 flex items-center gap-1.5">
+                        <input type="text" value={editValues.title} onChange={(e) => setEditValues((prev) => ({ ...prev, title: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('title'); if (e.key === 'Escape') setEditingField(null); }} />
+                        <button type="button" onClick={() => void handleSaveField('title')} className="neu-btn-xs"><Save size={13} /></button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleStartEdit('title', item.title)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                        <span className="font-semibold text-[color:var(--foreground)]">{item.title || <span className="text-[color:var(--muted-foreground)]/50">未命名项目</span>}</span>
+                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
+                      </button>
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">申请人</span>

@@ -47,17 +47,18 @@ function SupplierApprovalPage() {
 
   const batchApprove = async () => {
     if (selected.size === 0) return;
-    if (!confirm(`确认批量通过 ${selected.size} 个供应商审核？`)) return;
     setBatchApproving(true);
     let done = 0;
     for (const id of selected) { try { await approveSupplier(id); done++; } catch {} }
     toast.success(`已批量通过 ${done} 个供应商`);
     setSelected(new Set());
     setBatchApproving(false);
+    setBatchApproveModal(false);
     loadData(); loadCounts();
   };
 
   const [batchModal, setBatchModal] = useState<{ type: 'return' | 'reject'; ids: Set<string> } | null>(null);
+  const [batchApproveModal, setBatchApproveModal] = useState(false);
   const [batchReason, setBatchReason] = useState('');
 
   const executeBatchReturnReject = async () => {
@@ -203,7 +204,7 @@ function SupplierApprovalPage() {
             <div className="neu-batch-bar-spacer" />
             {tab !== 'REJECTED' && (
               <>
-                <button onClick={batchApprove} disabled={batchApproving} className="neu-btn-xs is-success">
+                <button onClick={() => setBatchApproveModal(true)} disabled={batchApproving} className="neu-btn-xs is-success">
                   <Check size={12} />{batchApproving ? '批量通过中...' : '批量通过'}
                 </button>
                 <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'return', ids: new Set(selected) }); }} className="neu-btn-xs is-warning">
@@ -390,6 +391,24 @@ function SupplierApprovalPage() {
             placeholder={batchModal.type === 'return' ? '请填写批量退回补正原因...' : '请填写批量不通过原因...'}
             className="neu-input w-full h-24 resize-none text-sm" />
         </Modal>
+      )}
+
+      {/* ══════ 批量通过确认弹窗 ══════ */}
+      {batchApproveModal && (
+        <Modal
+          open
+          onClose={() => setBatchApproveModal(false)}
+          title="确认批量通过"
+          description={<>将对选中的 <strong className="text-[var(--foreground)]">{selected.size}</strong> 个供应商统一审核通过，通过后供应商将入库并激活账户。</>}
+          footer={
+            <>
+              <button onClick={() => setBatchApproveModal(false)} className="neu-btn-soft">取消</button>
+              <button onClick={batchApprove} disabled={batchApproving} className="neu-btn-soft is-success">
+                {batchApproving ? '审核中...' : '确认通过'}
+              </button>
+            </>
+          }
+        />
       )}
     </div>
   );
