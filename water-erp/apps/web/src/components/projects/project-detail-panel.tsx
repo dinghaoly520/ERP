@@ -26,7 +26,7 @@ import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
 import { ExpertExtractModal } from './expert-extract-modal';
-import { AnnouncementPublishModal } from './announcement-publish-modal';
+import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { Modal } from '@/components/workbench';
 
@@ -1452,8 +1452,8 @@ export function ProjectDetailPanel({
         project={item}
       />
 
-      {/* 公告制作与发布弹窗 */}
-      <AnnouncementPublishModal
+      {/* 公告制作与发布弹窗（两步向导）*/}
+      <AnnouncementPublishWizard
         isOpen={announcementPublishOpen}
         onClose={() => setAnnouncementPublishOpen(false)}
         project={item}
