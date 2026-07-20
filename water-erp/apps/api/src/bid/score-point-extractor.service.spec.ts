@@ -123,4 +123,19 @@ describe('ScorePointExtractorService', () => {
     const r = await service.extractScorePoints('p1', 'i1');
     expect(r).toEqual([]);
   });
+
+  // E4: 去重
+  it('E4: 与已有得分点名称高度相似时标 duplicate', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 50, points: [{ name: '施工组织设计' }] });
+    plaintextFetcher.fetchTenderPlaintext.mockResolvedValue(Buffer.from('fake-tender'));
+    validator.retryChatJson.mockResolvedValue({
+      items: [
+        { name: '施工组织设计方案', fullScore: 15, evidenceHint: '', objective: true },
+        { name: '完全不同的新项', fullScore: 10, evidenceHint: '', objective: true },
+      ],
+    });
+    const r = await service.extractScorePoints('p1', 'i1');
+    expect(r[0].duplicate).toBe(true);   // 与已有「施工组织设计」高度相似
+    expect(r[1].duplicate).toBeUndefined();
+  });
 });

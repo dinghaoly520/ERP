@@ -224,6 +224,10 @@ export interface ScorePointSuggestion {
   fullScore: number;
   evidenceHint: string;
   objective: boolean;
+  evidenceSection?: string;   // 招标文件章节
+  confidence?: number;         // 0-1 信心分
+  adjusted?: boolean;          // 分数被等比缩放
+  duplicate?: boolean;         // 与已有得分点重复
 }
 
 export function extractScorePoints(projectId: string, itemId: string) {

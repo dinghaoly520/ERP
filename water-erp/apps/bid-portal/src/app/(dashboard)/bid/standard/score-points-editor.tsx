@@ -36,10 +36,18 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
     setExtractError(null);
     try {
       const list = await extractScorePoints(projectId, item.id);
-      setSuggestions(list.map((s) => ({ ...s, selected: true })));
-      if (list.length === 0) setExtractError('AI 未从招标文件提取到得分点建议。');
+      // E3: 按 confidence 降序,重复项默认不选
+      const sorted = [...list].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+      setSuggestions(sorted.map((s) => ({ ...s, selected: !s.duplicate })));
+      if (list.length === 0) {
+        if (item.category === 'PRICE') {
+          setExtractError('价格分类别的得分点由报价公式计算,无需 AI 提取。');
+        } else {
+          setExtractError('AI 未从招标文件提取到得分点建议。');
+        }
+      }
     } catch (e: any) {
-      setExtractError(e?.message ?? 'AI 提取失败，请检查招标文件是否已发布。');
+      setExtractError(e?.message ?? 'AI 提取暂时不可用,请稍后重试或手动添加。');
     } finally {
       setExtracting(false);
     }
@@ -185,39 +193,61 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
         </button>
       </div>
 
-      {/* AI 提取建议审核弹窗 */}
+      {/* AI 提取建议审核弹窗（E3+E4 增强） */}
       {suggestions && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-4 shadow-xl">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-4 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[oklch(0.18_0.012_265)]">AI 提取得分点建议（来自招标文件）</h3>
+              <h3 className="text-sm font-semibold text-[oklch(0.18_0.012_265)]">
+                AI 提取得分点建议（来自招标文件） · <span className="font-mono">{suggestions.length}</span> 项
+              </h3>
               <button onClick={() => setSuggestions(null)} className="text-[oklch(0.6_0.01_264)] hover:text-red-600"><X size={16} /></button>
             </div>
             <div className="max-h-80 space-y-1.5 overflow-y-auto">
-              {suggestions.map((s, idx) => (
-                <div key={idx} className="flex items-center gap-2 rounded-lg border border-[oklch(0.92_0.004_265)] px-2 py-1.5 text-sm">
-                  <input type="checkbox" checked={s.selected} onChange={() => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, selected: !p.selected } : p))} />
-                  <input
-                    className="flex-1 rounded border border-[oklch(0.9_0.005_264)] px-1.5 py-0.5"
-                    value={s.name}
-                    onChange={(e) => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, name: e.target.value } : p))}
-                  />
-                  <input
-                    type="number" min={0} step={0.5} className="w-16 rounded border border-[oklch(0.9_0.005_264)] px-1 py-0.5 text-right"
-                    value={s.fullScore}
-                    onChange={(e) => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, fullScore: Number(e.target.value) } : p))}
-                  />
-                  <button
-                    onClick={() => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, objective: !p.objective } : p))}
-                    className={`rounded px-1.5 py-0.5 text-xs ${s.objective ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}
-                  >{s.objective ? '客观' : '主观'}</button>
-                  <span className="max-w-[120px] truncate text-xs text-[oklch(0.55_0.01_264)]" title={s.evidenceHint}>{s.evidenceHint}</span>
+              {suggestions.map((s, idx) => {
+                const conf = s.confidence ?? 0;
+                const confColor = conf >= 0.8 ? 'text-[#11a874]' : conf >= 0.5 ? 'text-[#f5a623]' : 'text-[#e74c3c]';
+                return (
+                <div key={idx} className={`rounded-lg border px-2 py-2 text-sm ${s.duplicate ? 'border-[#fde68a] bg-[#fffbeb]' : s.adjusted ? 'border-[#fde68a] bg-[#fffdf5]' : 'border-[oklch(0.92_0.004_265)]'}`}>
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={s.selected} onChange={() => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, selected: !p.selected } : p))} />
+                    <input
+                      className="min-w-[120px] flex-1 rounded border border-[oklch(0.9_0.005_264)] px-1.5 py-0.5"
+                      value={s.name}
+                      onChange={(e) => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, name: e.target.value } : p))}
+                    />
+                    <input
+                      type="number" min={0} step={0.5} className="w-16 rounded border border-[oklch(0.9_0.005_264)] px-1 py-0.5 text-right font-mono"
+                      value={s.fullScore}
+                      onChange={(e) => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, fullScore: Number(e.target.value) } : p))}
+                    />
+                    {s.adjusted && <span title="分数被等比缩放" className="text-xs">⚠️</span>}
+                    <button
+                      onClick={() => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, objective: !p.objective } : p))}
+                      className={`rounded px-1.5 py-0.5 text-xs ${s.objective ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}
+                    >{s.objective ? '客观' : '主观'}</button>
+                    <span className={`font-mono text-xs ${confColor}`} title={`信心分 ${conf}`}>
+                      {conf >= 0.8 ? '●●●' : conf >= 0.5 ? '●●○' : '●○○'}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-[oklch(0.55_0.01_264)]">
+                    {s.evidenceSection && <span className="truncate" title={s.evidenceSection}>📎 {s.evidenceSection}</span>}
+                    {s.evidenceHint && <span className="truncate max-w-[200px]" title={s.evidenceHint}>{s.evidenceHint}</span>}
+                    {s.duplicate && <span className="rounded bg-[#fef3c7] px-1.5 py-0.5 text-[#92400e] font-bold">可能重复</span>}
+                  </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
-            <div className="mt-3 flex justify-end gap-2">
-              <button onClick={() => setSuggestions(null)} className="rounded-lg px-3 py-1 text-sm text-[oklch(0.5_0.01_264)]">取消</button>
-              <button onClick={handleImportSelected} className="rounded-lg bg-[oklch(0.55_0.18_258)] px-3 py-1 text-sm text-white">导入选中的 {suggestions.filter((s) => s.selected).length} 项</button>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-xs text-[oklch(0.5_0.01_264)]">
+                已选 {suggestions.filter((s) => s.selected).length}/{suggestions.length} 项
+                {suggestions.filter((s) => s.duplicate).length > 0 && ` · ${suggestions.filter((s) => s.duplicate).length} 项疑似重复`}
+              </span>
+              <div className="flex gap-2">
+                <button onClick={() => setSuggestions(null)} className="rounded-lg px-3 py-1 text-sm text-[oklch(0.5_0.01_264)]">取消</button>
+                <button onClick={handleImportSelected} className="rounded-lg bg-[oklch(0.55_0.18_258)] px-3 py-1 text-sm text-white">导入选中的 {suggestions.filter((s) => s.selected).length} 项</button>
+              </div>
             </div>
           </div>
         </div>

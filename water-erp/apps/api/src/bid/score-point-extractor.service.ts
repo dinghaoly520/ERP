@@ -16,6 +16,7 @@ export interface ScorePointSuggestion {
   evidenceSection?: string;   // E1: 招标文件相关章节名称（如'第三章 评标办法'）
   confidence?: number;         // E1: 0-1 信心分
   adjusted?: boolean;          // E2: true 表示 fullScore 被等比缩放过
+  duplicate?: boolean;         // E4: true 表示与已有得分点高度相似
 }
 
 @Injectable()
@@ -73,6 +74,16 @@ export class ScorePointExtractorService {
       );
     } catch {
       return [];
+    }
+
+    // E4: 去重 —— 标记与已有得分点高度相似的建议
+    for (const point of result.items) {
+      for (const existing of item.points) {
+        if (this.isDuplicateName(point.name, existing.name)) {
+          point.duplicate = true;
+          break;
+        }
+      }
     }
 
     // E2: fullScore 归一化 —— 如果合计超过 maxScore,等比缩放
@@ -182,6 +193,31 @@ export class ScorePointExtractorService {
       // Step 3: embedding 不可用时回退
       return tenderText.slice(0, 8000);
     }
+  }
+
+  // ── E4 辅助方法 ──
+
+  /** Levenshtein 编辑距离 */
+  private levenshtein(a: string, b: string): number {
+    const m = a.length, n = b.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, (_, i) => [i]);
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      }
+    }
+    return dp[m][n];
+  }
+
+  /** 判断两个名称是否高度相似（编辑距离归一化 ≤ 0.3 或互相包含）。 */
+  private isDuplicateName(a: string, b: string): boolean {
+    const na = a.trim(), nb = b.trim();
+    if (na === nb) return true;
+    if (na.includes(nb) || nb.includes(na)) return true;
+    const dist = this.levenshtein(na, nb);
+    const maxLen = Math.max(na.length, nb.length);
+    return maxLen > 0 && dist / maxLen <= 0.3;
   }
 
   private async getTenderText(projectId: string): Promise<string | null> {
