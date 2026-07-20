@@ -29,6 +29,7 @@
     "db:migrate": "pnpm --filter api exec prisma migrate dev",
     "db:studio": "pnpm --filter api exec prisma studio",
     "db:seed": "pnpm --filter api exec prisma db seed",
+    "db:validate": "pnpm --filter api exec prisma validate",
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
     "infra:logs": "docker compose logs -f"

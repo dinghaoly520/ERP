@@ -70,6 +70,7 @@ const ALL_TABLES = [
   'ai_bidder_results', 'ai_concordance_results',
   'assistant_alerts', 'assistant_conversations', 'assistant_messages',
   'bid_requirement_reviews', 'bid_score_deltas',
+  'ScoreTemplate',
 ] as const;
 
 // 按外键依赖分层写入（父表在前）。空快照 createMany 等价于空操作。
@@ -81,6 +82,7 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['Announcement', 'announcement'],
   ['CatalogCategory', 'catalogCategory'],
   ['CatalogItem', 'catalogItem'],
+  ['ScoreTemplate', 'scoreTemplate'],
   // Level 1 —— 依赖 Level 0
   ['CategoryAttributeTemplate', 'categoryAttributeTemplate'],
   ['User', 'user'],
