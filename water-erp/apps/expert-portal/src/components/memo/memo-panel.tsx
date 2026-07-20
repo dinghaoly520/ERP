@@ -172,7 +172,7 @@ export function MemoPanel({
   // 全屏 vs 内嵌 的缩放比例：坐标 0.4（字占左上角），笔触 0.6（视觉粗细一致）
   // 互逆：进全屏 *0.4/*0.6，出全屏 *2.5/*1.667 还原
   const COORD_SCALE = 0.4;
-  const WEIGHT_SCALE = 0.6;
+  const WEIGHT_SCALE = 0.45;
 
   // 全屏切换后恢复矢量笔触（rAF 同步恢复，无取消机制，避免 cleanup 吞掉恢复）
   useEffect(() => {
