@@ -256,7 +256,6 @@ export function reviewCatalogApplication(id: string, body: {
 }) {
   return request<CatalogApplication>(`/api/catalog/applications/${id}/review`, { method: 'POST', body: JSON.stringify(body) });
 }
-}
 
 // ── 比价雷达 / 搜索洞察 ──
 

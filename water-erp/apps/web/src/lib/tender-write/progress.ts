@@ -14,6 +14,39 @@ export function buildTenderSectionProgress(
     const filledFields = section.fields.filter((field) => {
       const value = draft[field.key as keyof ReadyTenderDraft];
 
+      // 响应保证金选择"不收取"时，所有响应保证金相关字段一律视为已填写
+      // （select/composite/toggle 字段会在下方分支被短路，必须在此提前返回）
+      if (
+        [
+          'responseDepositAmount',
+          'responseDepositForm',
+          'responseDepositBankInfo',
+          'responseDepositOtherForm',
+          'responseDepositOtherRequirement',
+          'responseDepositNonRefundType',
+          'responseDepositNonRefundContent',
+        ].includes(field.key)
+      ) {
+        const depositType = draft['responseDepositType' as keyof ReadyTenderDraft] as string;
+        if (depositType === 'none') {
+          return true;
+        }
+      }
+
+      // 履约保证金选择"不收取"时，所有履约保证金相关字段一律视为已填写
+      if (
+        [
+          'performanceDepositAmount',
+          'performanceDepositForm',
+          'performanceDepositOtherForm',
+        ].includes(field.key)
+      ) {
+        const depositType = draft['performanceDepositType' as keyof ReadyTenderDraft] as string;
+        if (depositType === 'none') {
+          return true;
+        }
+      }
+
       // For select fields, check if value matches any option
       if (field.select) {
         return field.select.options.some(opt => opt.value === value);

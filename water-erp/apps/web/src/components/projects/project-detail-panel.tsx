@@ -26,6 +26,7 @@ import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
 import { ExpertExtractModal } from './expert-extract-modal';
+import { SupplierExtractModal } from './supplier-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { Modal } from '@/components/workbench';
@@ -370,6 +371,7 @@ export function ProjectDetailPanel({
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [tenderWriteStageAction, setTenderWriteStageAction] = useState<string | null>(null);
   const [expertExtractOpen, setExpertExtractOpen] = useState(false);
+  const [supplierExtractOpen, setSupplierExtractOpen] = useState(false);
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string } | null>(null);
 
@@ -797,6 +799,8 @@ export function ProjectDetailPanel({
                   setTenderWriteStageAction(stageKey);
                 } else if (stageKey === 'EXPERT_SELECTION') {
                   setExpertExtractOpen(true);
+                } else if (stageKey === 'SUPPLIER_INVITATION') {
+                  setSupplierExtractOpen(true);
                 } else if (stageKey === 'PUBLIC_ANNOUNCEMENT') {
                   setAnnouncementPublishOpen(true);
                 }
@@ -1449,6 +1453,13 @@ export function ProjectDetailPanel({
       <ExpertExtractModal
         isOpen={expertExtractOpen}
         onClose={() => setExpertExtractOpen(false)}
+        project={item}
+      />
+
+      {/* 供应商抽取弹窗 */}
+      <SupplierExtractModal
+        isOpen={supplierExtractOpen}
+        onClose={() => setSupplierExtractOpen(false)}
         project={item}
       />
 
