@@ -307,6 +307,7 @@ model BidSupplier {
   bidderResults         AiBidderResult[]
   supervisionAnnotation BidSupervisionAnnotation?
   bidScoreReviews        BidScoreReview[]
+  expertMemos            ExpertMemo[]
   decryptError           String? // 解密失败原因
   bidValidity            String? // 废标标记：'valid' | 'invalid'
 
@@ -405,25 +406,6 @@ model BidExpert {
   @@index([userId])
 }
 
-model ExpertMemo {
-  id          String    @id @default(cuid())
-  expertId    String
-  projectId   String
-  supplierId  String?
-  scoreItemId String?
-  contentText String?
-  inkFileId   String?
-  sourceDevice String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  expert   BidExpert @relation(fields: [expertId], references: [id], onDelete: Cascade)
-  project  BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  inkFile  FileAsset? @relation(fields: [inkFileId], references: [id], onDelete: SetNull)
-
-  @@index([expertId, projectId])
-}
-
 model BidScoreItem {
   id              String           @id @default(cuid())
   projectId       String
@@ -437,6 +419,7 @@ model BidScoreItem {
   scoreRecords    BidScoreRecord[]
   points          BidScorePoint[]
   bidInvalidBids  BidInvalidBid[]
+  memos           ExpertMemo[]
   createdAt       DateTime         @default(now())
 
   @@index([projectId])
@@ -493,25 +476,6 @@ model BidScorePointDecision {
   @@unique([expertId, pointId, supplierId])
   @@index([supplierId])
   @@index([expertId, supplierId])
-}
-
-/// P3：核对关口 — per-expert+project+supplier 核对记录（draft|verified），verified 后方可进入评审报告确认
-model BidScoreReview {
-  id         String      @id @default(cuid())
-  expertId   String
-  projectId  String
-  supplierId String
-  status     String      @default("draft") // "draft" | "verified"
-  verifiedAt DateTime?
-  expert     BidExpert   @relation("BidScoreReviews", fields: [expertId], references: [id], onDelete: Cascade)
-  project    BidProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  supplier   BidSupplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-
-  @@unique([expertId, projectId, supplierId])
-  @@index([expertId, supplierId])
-  @@index([projectId, supplierId])
 }
 
 /// P5：专家手写/键盘备忘（项目/供应商/评分项级），contentText（OCR 或键盘）+ inkFileId→FileAsset（MinIO 笔迹图）
