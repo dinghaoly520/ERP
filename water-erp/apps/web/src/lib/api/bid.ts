@@ -29,13 +29,17 @@ export interface BidProjectRef {
   name: string;
   stage: BidStage;
   procurementMethod: string;
+  round?: number; // 多轮采购：所属轮次（再次采购递增）
   openTime: string;
   deadline: string;
+  /** 关联招标公告的发布时间（投递起点），无公告时为 null */
+  publishTime: string | null;
 }
 
-/** 确保 ProjectManagementItem 已关联 BidProject（无则创建并回写）*/
-export function ensureBidProject(projectItemId: string) {
-  return api.get<BidProjectRef>(`/project-management/${projectItemId}/bid-project`);
+/** 确保 ProjectManagementItem 已关联 BidProject（按轮：无则建；round 缺省取 currentRound）*/
+export function ensureBidProject(projectItemId: string, round?: number) {
+  const qs = round != null ? `?round=${round}` : '';
+  return api.get<BidProjectRef>(`/project-management/${projectItemId}/bid-project${qs}`);
 }
 
 /* ── 开标工作台（聚合：项目 + 供应商投递 + 专家确认 + stats）── */
@@ -210,6 +214,11 @@ export function nudgeSuppliers(bidProjectId: string, onlyUnsubmitted = true) {
 
 export function nudgeExperts(bidProjectId: string, reason: 'signin' | 'score' = 'signin') {
   return api.post<{ notified: number }>(`/bid/projects/${bidProjectId}/nudge-experts`, { reason });
+}
+
+/** 通知开标时间变更（向全部投标供应商 + 评标专家）*/
+export function notifyBidScheduleChange(bidProjectId: string, openTime: string) {
+  return api.post<{ reached: number }>(`/bid/projects/${bidProjectId}/notify-schedule-change`, { openTime });
 }
 
 /* ── 开标决策 ── */

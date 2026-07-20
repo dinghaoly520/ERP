@@ -6,6 +6,7 @@ import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import {
   analyzeProjectManagementItem,
   completeProjectManagementItem,
+  reprocProject,
   fetchProjectAttributions,
   refreshProjectSummary,
   updateProjectStage,
@@ -29,6 +30,7 @@ import { ExpertExtractModal } from './expert-extract-modal';
 import { SupplierExtractModal } from './supplier-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { BidConfirmPanel } from './bid-confirm-panel';
+import { AwardFileMaker } from './award-file-maker';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { Modal } from '@/components/workbench';
 
@@ -288,6 +290,8 @@ export function ProjectDetailPanel({
   currentUsername?: string;
 }) {
   const [selectedStageKey, setSelectedStageKey] = useState(item.currentStage);
+  const [selectedRound, setSelectedRound] = useState(item.currentRound ?? 1);
+  const [bidConfirmRound, setBidConfirmRound] = useState(1);
 
   // 本地 item 镜像 —— 上传后立即注入附件，不等父组件 onUpdated 回流
   const [localItem, setLocalItem] = useState(item);
@@ -342,7 +346,7 @@ export function ProjectDetailPanel({
 
   const archiveStepState = getArchiveStepState(item);
   const showArchiveStep = archiveStepState !== 'PENDING';
-  const isCurrentStage = selectedStage.stageKey === localItem.currentStage;
+  const isCurrentStage = selectedStage.stageKey === localItem.currentStage && selectedRound === (localItem.currentRound ?? 1);
   const stageLocked = selectedStage.status === 'NOT_STARTED';
   const hasStageFiles = (selectedStage.attachments?.length ?? 0) > 0;
   const stageProcessing = uploading || analysisLoading;
@@ -375,6 +379,7 @@ export function ProjectDetailPanel({
   const [supplierExtractOpen, setSupplierExtractOpen] = useState(false);
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
   const [bidConfirmOpen, setBidConfirmOpen] = useState(false);
+  const [awardFileMakerOpen, setAwardFileMakerOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string } | null>(null);
 
   // 步骤检查状态 —— 按 stageKey 缓存结果
@@ -642,6 +647,20 @@ export function ProjectDetailPanel({
     }
   };
 
+  // 流标归档：绕过合同完成校验（allowIncomplete）
+  const handleAwardArchive = async () => {
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await completeProjectManagementItem(item.id, true);
+      await onUpdated();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '归档失败。');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const moveToRecycleBin = async () => {
     setSubmitting(true);
     setErrorMessage(null);
@@ -795,7 +814,8 @@ export function ProjectDetailPanel({
             <ProjectStageTimeline
               stages={localItem.stages}
               activeStageKey={selectedStage.stageKey}
-              onSelect={setSelectedStageKey}
+              activeRound={selectedRound}
+              onSelect={(key, round) => { setSelectedStageKey(key); setSelectedRound(round); }}
               onStageAction={(stageKey) => {
                 if (stageKey === 'TENDER_DOCUMENT') {
                   setTenderWriteStageAction(stageKey);
@@ -806,7 +826,10 @@ export function ProjectDetailPanel({
                 } else if (stageKey === 'PUBLIC_ANNOUNCEMENT') {
                   setAnnouncementPublishOpen(true);
                 } else if (stageKey === 'BID_EVALUATION') {
+                  setBidConfirmRound(selectedRound);
                   setBidConfirmOpen(true);
+                } else if (stageKey === 'AWARD_DECISION') {
+                  setAwardFileMakerOpen(true);
                 }
               }}
               showArchiveStep={showArchiveStep}
@@ -1480,6 +1503,17 @@ export function ProjectDetailPanel({
         isOpen={bidConfirmOpen}
         onClose={() => setBidConfirmOpen(false)}
         project={item}
+        round={bidConfirmRound}
+      />
+
+      {/* 定标 · 文件制作（中标公告 / 中标通知书 / 流标公告）*/}
+      <AwardFileMaker
+        isOpen={awardFileMakerOpen}
+        onClose={() => setAwardFileMakerOpen(false)}
+        project={item}
+        onPublished={onUpdated}
+        onReproc={async () => { await reprocProject(item.id); await onUpdated(); }}
+        onArchive={handleAwardArchive}
       />
     </>
   );

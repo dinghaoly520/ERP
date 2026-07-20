@@ -152,10 +152,17 @@ export class ProjectManagementController {
     return this.projectManagementService.parseAnnouncementFields(id);
   }
 
-  /** 开标确认：获取（必要时创建并回写）当前项目关联的 BidProject */
+  /** 开标确认：获取（必要时创建）指定轮次的 BidProject */
   @Get(':id/bid-project')
-  getBidProject(@Param('id') id: string) {
-    return this.projectManagementService.ensureBidProject(id);
+  getBidProject(@Param('id') id: string, @Query('round') round?: string) {
+    const roundNum = round != null && round !== '' ? Number(round) : undefined;
+    return this.projectManagementService.ensureBidProject(id, Number.isNaN(roundNum as number) ? undefined : roundNum);
+  }
+
+  /** 流标后再次采购：按采购方式在定标后插入新一轮"采购文件→定标"阶段 */
+  @Post(':id/reproc')
+  reproc(@Param('id') id: string) {
+    return this.projectManagementService.reproc(id);
   }
 
   @Get('archive/:procurementRoundId')

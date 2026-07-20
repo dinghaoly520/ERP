@@ -176,12 +176,11 @@ interface TaskNotificationCenterProps {
   onRefreshPlan: () => void;
   onSelectTimeBlock: (taskIds: string[]) => void;
   onAddToCalendar: (items: PlannedItem[]) => void;
-  onShowHistory: () => void;
 }
 
 export function TaskNotificationCenter({
   dailyPlan, refreshingPlan, showProjectBrief = false,
-  onRefreshPlan, onSelectTimeBlock, onAddToCalendar, onShowHistory,
+  onRefreshPlan, onSelectTimeBlock, onAddToCalendar,
 }: TaskNotificationCenterProps) {
   const router = useRouter();
   const { recent } = useNotifications();
@@ -254,7 +253,7 @@ export function TaskNotificationCenter({
             dailyPlan={dailyPlan} refreshingPlan={refreshingPlan}
             showProjectBrief={showProjectBrief}
             onRefreshPlan={() => onRefreshPlan()}
-            onSelectTimeBlock={onSelectTimeBlock} onShowHistory={onShowHistory}
+            onSelectTimeBlock={onSelectTimeBlock}
           />
         </div>
       </section>

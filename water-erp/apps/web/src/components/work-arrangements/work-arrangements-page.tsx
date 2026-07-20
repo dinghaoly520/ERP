@@ -807,11 +807,11 @@ export function WorkArrangementsPage({
           <div className="w-[calc(40%-0.5rem)] shrink-0 hidden xl:block" aria-hidden />
           {/* 左列 absolute — 高度严格等于右列 */}
           <div className="absolute left-0 top-0 bottom-0 w-[calc(40%-0.5rem)] hidden xl:block">
-            <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={highlightedTaskIds} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew}/>
+            <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={highlightedTaskIds} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => setShowHistoryDrawer(true)}/>
           </div>
           {/* 移动端左列全宽 */}
           <div className="w-full xl:hidden">
-            <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={highlightedTaskIds} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew}/>
+            <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={highlightedTaskIds} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => setShowHistoryDrawer(true)}/>
           </div>
           {/* 右列 — 自然高度 */}
           <div className="flex-1 min-w-0 flex flex-col gap-4">
@@ -826,7 +826,6 @@ export function WorkArrangementsPage({
                 if (id) handleSelectTask(id);
               }}
               onAddToCalendar={handleAddToCalendar}
-              onShowHistory={() => setShowHistoryDrawer(true)}
             />
           </div>
         </div>

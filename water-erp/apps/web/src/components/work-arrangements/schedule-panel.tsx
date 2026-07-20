@@ -1,14 +1,14 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { Plus, History } from 'lucide-react';
 import { WorkCalendar } from '@/components/work-arrangements/work-calendar';
 import { WorkDateTaskList } from '@/components/work-arrangements/work-date-task-list';
 import type { WorkArrangementItem } from '@/lib/types/work-arrangements';
 
-export function SchedulePanel({ selectedDate, items, tasksForSelectedDate, unscheduledItems, selectedItemId, highlightedTaskIds, onDateSelect, onSelectTask, onCreateNew }: {
+export function SchedulePanel({ selectedDate, items, tasksForSelectedDate, unscheduledItems, selectedItemId, highlightedTaskIds, onDateSelect, onSelectTask, onCreateNew, onShowHistory }: {
   selectedDate: Date; items: WorkArrangementItem[]; tasksForSelectedDate: WorkArrangementItem[];
   unscheduledItems: WorkArrangementItem[]; selectedItemId: string | null; highlightedTaskIds: string[];
-  onDateSelect: (d: Date) => void; onSelectTask: (id: string) => void; onCreateNew: () => void;
+  onDateSelect: (d: Date) => void; onSelectTask: (id: string) => void; onCreateNew: () => void; onShowHistory: () => void;
 }) {
   const m = selectedDate.getMonth()+1, d = selectedDate.getDate();
   const w = ['周日','周一','周二','周三','周四','周五','周六'][selectedDate.getDay()];
@@ -16,7 +16,10 @@ export function SchedulePanel({ selectedDate, items, tasksForSelectedDate, unsch
     <section className="wb-panel h-full">
       <div className="wb-panel-header">
         <span className="text-[15px] font-bold text-[#18243a]">{m}月{d}日 {w} · {tasksForSelectedDate.length}项</span>
-        <button type="button" onClick={onCreateNew} className="neu-btn-xs"><Plus size={12}/><span>新建</span></button>
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={onCreateNew} className="neu-btn-xs"><Plus size={12}/><span>新建</span></button>
+          <button type="button" onClick={onShowHistory} className="neu-btn-xs"><History size={12}/><span>历史</span></button>
+        </div>
       </div>
       <div className="wb-panel-body flex flex-col gap-4">
         <div className="shrink-0 rounded-[16px] bg-[var(--accent-soft)]/20 px-2 py-1"><WorkCalendar items={items} selectedDate={selectedDate} onDateSelect={onDateSelect}/></div>

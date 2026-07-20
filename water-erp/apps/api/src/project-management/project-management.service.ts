@@ -90,6 +90,55 @@ function isSelfCompany(name: string): boolean {
   );
 }
 
+/** 解析项目基本信息中的开标时间字符串：兼容 ISO、"2026年8月15日"、"2026-08-15"、"2026/8/15 10:00" 等 */
+function parseBidOpeningTime(raw: string | null | undefined): Date | null {
+  if (!raw) return null;
+  const direct = new Date(raw);
+  if (!Number.isNaN(direct.getTime())) return direct;
+  const m = raw.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):?(\d{2}))?/);
+  if (!m) return null;
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0));
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+/** 再次采购时按采购方式插入的阶段段（与前端 PROCUREMENT_METHOD_STAGES 的 TENDER_DOCUMENT→AWARD_DECISION 一致）*/
+const REPROC_STAGE_SEGMENTS: Record<string, Array<{ key: string; label: string }>> = {
+  谈判采购: [
+    { key: 'TENDER_DOCUMENT', label: '采购文件' },
+    { key: 'SUPPLIER_INVITATION', label: '供应商邀请' },
+    { key: 'EXPERT_SELECTION', label: '专家选取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+  ],
+  竞价采购: [
+    { key: 'TENDER_DOCUMENT', label: '采购文件' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
+    { key: 'EXPERT_SELECTION', label: '专家抽取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+  ],
+  直接采购: [
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示(供应商邀请)' },
+    { key: 'EXPERT_SELECTION', label: '专家选取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+  ],
+  邀请招标: [
+    { key: 'TENDER_DOCUMENT', label: '招标文件' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
+    { key: 'EXPERT_SELECTION', label: '专家抽取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+  ],
+  询比采购: [
+    { key: 'TENDER_DOCUMENT', label: '采购文件' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
+    { key: 'EXPERT_SELECTION', label: '专家选取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+  ],
+};
+
 @Injectable()
 export class ProjectManagementService {
   private readonly logger = new Logger(ProjectManagementService.name);
@@ -154,7 +203,7 @@ export class ProjectManagementService {
    * 已关联 → 返回该 BidProject 概要；未关联 → 按项目信息创建并回写 bidProjectId。
    * 兼容未来"立项时自动创建"：无论关联何时建立，本方法都幂等返回。
    */
-  async ensureBidProject(itemId: string) {
+  async ensureBidProject(itemId: string, round?: number) {
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: itemId },
       select: {
@@ -165,42 +214,61 @@ export class ProjectManagementService {
         bidOpeningTime: true,
         initiationDate: true,
         projectOverview: true,
-        bidProjectId: true,
+        currentRound: true,
       },
     });
     if (!item) {
       throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
     }
 
-    if (item.bidProjectId) {
-      const existing = await this.prisma.bidProject.findUnique({
-        where: { id: item.bidProjectId },
-        select: {
-          id: true,
-          projectCode: true,
-          name: true,
-          stage: true,
-          procurementMethod: true,
-          openTime: true,
-          deadline: true,
-        },
-      });
-      if (existing) {
-        return {
-          ...existing,
-          openTime: existing.openTime.toISOString(),
-          deadline: existing.deadline.toISOString(),
-        };
+    const targetRound = round ?? item.currentRound ?? 1;
+
+    // 关联的招标公告发布时间（投递时间范围起点）：按项目标题匹配 BID_NOTICE
+    const announcement = await this.prisma.announcement.findFirst({
+      where: { title: item.title, type: 'BID_NOTICE' },
+      orderBy: { publishDate: 'desc' },
+      select: { publishDate: true },
+    });
+    const publishTimeIso = announcement?.publishDate
+      ? announcement.publishDate.toISOString()
+      : null;
+
+    // 多轮：按 (projectManagementItemId, round) 查当前轮的 BidProject
+    const existing = await this.prisma.bidProject.findFirst({
+      where: { projectManagementItemId: itemId, round: targetRound },
+      select: {
+        id: true,
+        projectCode: true,
+        name: true,
+        stage: true,
+        procurementMethod: true,
+        openTime: true,
+        deadline: true,
+      },
+    });
+    if (existing) {
+      // :3005 进入开标确认意味着公告已发布、投递已开放；历史停在 DOWNLOAD 的项目自动推进到 SUBMIT
+      let stage = existing.stage;
+      if (stage === 'DOWNLOAD') {
+        await this.prisma.bidProject.update({ where: { id: existing.id }, data: { stage: 'SUBMIT' } });
+        stage = 'SUBMIT';
+        this.logger.log(`开标确认：项目 ${existing.projectCode} 自动推进 DOWNLOAD → SUBMIT`);
       }
+      return {
+        ...existing,
+        stage,
+        round: targetRound,
+        openTime: existing.openTime.toISOString(),
+        deadline: existing.deadline.toISOString(),
+        publishTime: publishTimeIso,
+      };
     }
 
-    // 解析开标时间：bidOpeningTime 字符串 → initiationDate → 当前时间
-    const parsedOpen = item.bidOpeningTime ? new Date(item.bidOpeningTime) : null;
-    const openTime =
-      parsedOpen && !Number.isNaN(parsedOpen.getTime())
-        ? parsedOpen
-        : (item.initiationDate ?? new Date());
-    const deadline = new Date(openTime.getTime() + 7 * 86400000);
+    // 开标时间：取项目基本信息 bidOpeningTime（兼容中文日期），fallback initiationDate → 当前时间
+    const parsedOpen = parseBidOpeningTime(item.bidOpeningTime);
+    const openTime = parsedOpen ?? (item.initiationDate ?? new Date());
+    // 投递截止 = 开标前 12 小时（业务规则）
+    const deadline = new Date(openTime.getTime() - 12 * 60 * 60 * 1000);
 
     const created = await this.prisma.bidProject.create({
       data: {
@@ -211,15 +279,14 @@ export class ProjectManagementService {
         deadline,
         budget: item.budgetAmount != null ? Number(item.budgetAmount) : null,
         scope: item.projectOverview || null,
-        stage: 'DOWNLOAD',
+        // 公告已发布，直接进入投标投递期
+        stage: 'SUBMIT',
+        projectManagementItemId: itemId,
+        round: targetRound,
       },
     });
-    await this.prisma.projectManagementItem.update({
-      where: { id: itemId },
-      data: { bidProjectId: created.id },
-    });
     this.logger.log(
-      `为项目管理项 ${itemId} 创建开评标项目 ${created.projectCode}`,
+      `为项目管理项 ${itemId} 第 ${targetRound} 轮创建开评标项目 ${created.projectCode}`,
     );
     return {
       id: created.id,
@@ -227,9 +294,64 @@ export class ProjectManagementService {
       name: created.name,
       stage: created.stage,
       procurementMethod: created.procurementMethod,
+      round: targetRound,
       openTime: created.openTime.toISOString(),
       deadline: created.deadline.toISOString(),
+      publishTime: publishTimeIso,
     };
+  }
+
+  /**
+   * 流标后再次采购：在当前 AWARD_DECISION 后、CONTRACT 前插入新一轮
+   * "采购文件→定标"阶段（按 procurementMethod），round 递增。允许多次循环。
+   */
+  async reproc(itemId: string) {
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: itemId },
+      select: { id: true, procurementMethod: true, stages: { orderBy: { stageOrder: 'asc' } } },
+    });
+    if (!item) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const segment = REPROC_STAGE_SEGMENTS[item.procurementMethod];
+    if (!segment || segment.length === 0) {
+      throw new BadRequestException({ error: '当前采购方式不支持再次采购', code: 'UNSUPPORTED' });
+    }
+
+    const maxRound = item.stages.reduce((m, s) => Math.max(m, s.round ?? 1), 1);
+    const newRound = maxRound + 1;
+
+    // 新一轮插在 CONTRACT 前；CONTRACT 及之后阶段 stageOrder 后移
+    const contract = item.stages.find((s) => s.stageKey === 'CONTRACT');
+    const insertAt = contract
+      ? contract.stageOrder
+      : item.stages.reduce((m, s) => Math.max(m, s.stageOrder), 0) + 1;
+    const shift = segment.length;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.projectManagementStage.updateMany({
+        where: { projectManagementItemId: itemId, stageOrder: { gte: insertAt } },
+        data: { stageOrder: { increment: shift } },
+      });
+      await tx.projectManagementStage.createMany({
+        data: segment.map((s, i) => ({
+          projectManagementItemId: itemId,
+          stageKey: s.key,
+          stageName: s.label,
+          stageOrder: insertAt + i,
+          round: newRound,
+          status: 'NOT_STARTED',
+        })),
+      });
+    });
+
+    // 当前阶段指向新一轮首个阶段（如 TENDER_DOCUMENT / PUBLIC_ANNOUNCEMENT），currentRound 递增
+    await this.prisma.projectManagementItem.update({
+      where: { id: itemId },
+      data: { currentStage: segment[0].key, currentRound: newRound },
+    });
+
+    this.logger.log(`项目 ${itemId} 再次采购：插入第 ${newRound} 轮（${segment.length} 个阶段），currentStage → ${segment[0].key}`);
+    return { round: newRound, inserted: segment.length };
   }
 
   async createFromInitiation(dto: CreateProjectFromInitiationDto) {
@@ -579,7 +701,7 @@ export class ProjectManagementService {
 
         const rawBidTime = this.extractBidOpeningTimeFromText(text);
         if (rawBidTime) {
-          const bidOpeningTime = await this.aiMinimalPolish(rawBidTime);
+          const bidOpeningTime = await this.aiNormalizeBidOpeningTime(rawBidTime);
           await this.prisma.projectManagementItem.update({
             where: { id: projectId },
             data: { bidOpeningTime },
@@ -2768,7 +2890,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
-    if (project.currentStage !== 'CONTRACT') {
+    // allowIncomplete：流标归档等场景，跳过"合同完成"校验
+    if (!dto.allowIncomplete && project.currentStage !== 'CONTRACT') {
       throw new BadRequestException('只有合同阶段完成后才允许归档。');
     }
 
@@ -2784,8 +2907,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     const contractStage = stages.find((stage) => stage.stageKey === 'CONTRACT');
     if (
-      !contractStage ||
-      contractStage.status !== PROJECT_STAGE_STATUS.COMPLETED
+      !dto.allowIncomplete &&
+      (!contractStage || contractStage.status !== PROJECT_STAGE_STATUS.COMPLETED)
     ) {
       throw new BadRequestException('合同阶段尚未完成。');
     }
@@ -5267,6 +5390,29 @@ ${JSON.stringify(algorithmResult, null, 2)}
       return text;
     } catch {
       return text; // AI 不可用时直接返回原文
+    }
+  }
+
+  /**
+   * 规范化开标时间：统一为"YYYY年M月D日H:MM"格式（24小时制）。
+   * 保留原文时分；若无时分，含"下午/午后"线索补 14:00，否则补 9:00。
+   */
+  private async aiNormalizeBidOpeningTime(text: string): Promise<string> {
+    if (!text) return text;
+    try {
+      const systemPrompt =
+        '你是开标时间规范化助手。把输入的开标时间文本规范化为"YYYY年M月D日H:MM"格式（24小时制，分钟两位）。' +
+        '规则：① 保留原文的日期与时分；② 若原文只有日期没有具体时分，按线索补全：含"下午/午后"补 14:00、含"上午"补 9:00、无线索默认补 9:00；' +
+        '③ 把"X时X分""X点X分"统一为"H:MM"；④ 直接输出规范化结果，不要解释、引号或前后缀。' +
+        '示例：输入"2026年7月25日"→"2026年7月25日9:00"；输入"2026.7.25 下午两点"→"2026年7月25日14:00"；输入"2026-07-25 14:00"→"2026年7月25日14:00"。';
+      const result = await this.aiService.chat(systemPrompt, text, 0.2);
+      const cleaned = result?.trim().replace(/^["'"，。.\s]+|["'"，。.\s]+$/g, '');
+      if (cleaned && /\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}:\d{2}/.test(cleaned)) {
+        return cleaned.replace(/\s+/g, '');
+      }
+      return text; // AI 输出不合格式时回退原文
+    } catch {
+      return text;
     }
   }
 

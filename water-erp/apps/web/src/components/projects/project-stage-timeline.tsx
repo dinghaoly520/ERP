@@ -3,6 +3,7 @@ import {
   type ProjectManagementStage,
   type ProjectWorkflowStageKey,
 } from '@/lib/types/project-management';
+import { Fragment } from 'react';
 
 type ArchiveStepState = 'PENDING' | 'READY' | 'DONE';
 
@@ -22,6 +23,7 @@ type TimelineEntryBase = {
 type SelectableTimelineEntry = TimelineEntryBase & {
   selectable: true;
   stageKey: ProjectWorkflowStageKey;
+  round: number;
   isInProgress: boolean;
 };
 
@@ -62,13 +64,14 @@ const STAGE_ACTION_LABELS: Record<string, string> = {
   PUBLIC_ANNOUNCEMENT: '公告制作与发布',
   EXPERT_SELECTION: '专家抽取',
   BID_EVALUATION: '开标确认',
-  AWARD_DECISION: '中标通知书制作',
+  AWARD_DECISION: '文件制作',
   CONTRACT: '合同编制',
 };
 
 export function ProjectStageTimeline({
   stages,
   activeStageKey,
+  activeRound,
   onSelect,
   onStageAction,
   showArchiveStep,
@@ -78,7 +81,8 @@ export function ProjectStageTimeline({
 }: {
   stages: ProjectManagementStage[];
   activeStageKey: ProjectWorkflowStageKey;
-  onSelect: (stageKey: ProjectWorkflowStageKey) => void;
+  activeRound: number;
+  onSelect: (stageKey: ProjectWorkflowStageKey, round: number) => void;
   onStageAction?: (stageKey: ProjectWorkflowStageKey) => void;
   showArchiveStep: boolean;
   archiveStepState: ArchiveStepState;
@@ -111,6 +115,7 @@ export function ProjectStageTimeline({
           : 'pm-stage-node--idle',
       selectable: true,
       stageKey: stage.stageKey,
+      round: stage.round ?? 1,
       isInProgress,
       progressLabel: isCompleted ? '已完成' : isInProgress ? '进行中' : '待解锁',
       progressClassName: isCompleted
@@ -152,159 +157,195 @@ export function ProjectStageTimeline({
     } satisfies ArchiveTimelineEntry);
   }
 
+  // 分组：采购阶段按 round 分，CONTRACT 单独末组
+  const groups: { label?: string; items: TimelineEntry[] }[] = [];
+  const purchaseEntries = entries.filter(
+    (e) => e.selectable && (e as SelectableTimelineEntry).stageKey !== 'CONTRACT',
+  );
+  const roundMap = new Map<number, TimelineEntry[]>();
+  for (const e of purchaseEntries) {
+    const r = (e as SelectableTimelineEntry).round;
+    if (!roundMap.has(r)) roundMap.set(r, []);
+    roundMap.get(r)!.push(e);
+  }
+  const sortedRounds = [...roundMap.keys()].sort((a, b) => a - b);
+  const showRoundLabels = sortedRounds.length > 1;
+  for (const r of sortedRounds) {
+    groups.push({
+      label: showRoundLabels ? (r === 1 ? '首轮采购' : `第 ${r} 轮`) : undefined,
+      items: roundMap.get(r)!,
+    });
+  }
+  const contractEntry = entries.find(
+    (e) => e.selectable && (e as SelectableTimelineEntry).stageKey === 'CONTRACT',
+  );
+  if (contractEntry) groups.push({ items: [contractEntry] });
+  const archiveEntry = entries.find((e) => !e.selectable);
+  if (archiveEntry) groups.push({ items: [archiveEntry] });
+
   return (
     <div className="pm-stage-rail px-1 py-1 sm:px-2">
-      <div className="pm-stage-track">
-        {entries.map((entry, index) => {
-          const isLastEntry = index === entries.length - 1;
-          const segmentClassName = [
-            'pm-stage-track__segment',
-            !isLastEntry ? 'pm-stage-track__segment--linked' : '',
-          ]
-            .filter(Boolean)
-            .join(' ');
+      {groups.map((group, gi) => (
+        <Fragment key={gi}>
+          {group.label && (
+            <div className="flex items-center justify-center py-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+              <span className="rounded-full border px-3 py-0.5" style={{ borderColor: 'oklch(0.6 0.04 258 / 0.18)' }}>
+                {group.label}
+              </span>
+            </div>
+          )}
+          <div className="pm-stage-track">
+            {group.items.map((entry, index) => {
+              const isLastEntry = index === group.items.length - 1;
+              const segmentClassName = [
+                'pm-stage-track__segment',
+                !isLastEntry ? 'pm-stage-track__segment--linked' : '',
+              ]
+                .filter(Boolean)
+                .join(' ');
 
-          if (entry.selectable) {
-            const isSelected = entry.stageKey === activeStageKey;
-            const stageKey = entry.stageKey;
-            const actionLabel = STAGE_ACTION_LABELS[stageKey];
+              if (entry.selectable) {
+                const isSelected = entry.stageKey === activeStageKey && entry.round === activeRound;
+                const stageKey = entry.stageKey;
+                const actionLabel = STAGE_ACTION_LABELS[stageKey];
 
-            return (
-              <div key={entry.key} className={segmentClassName}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(stageKey)}
-                  data-selected={isSelected}
-                  className={[
-                    'pm-stage-card interactive-surface group relative flex min-h-[172px] min-w-0 flex-1 flex-col rounded-[28px] px-4 py-4 text-left',
-                    entry.toneClassName,
-                  ].join(' ')}
-                >
-                  <span aria-hidden="true" className="pm-stage-card__flow" />
-
-                  <div className="flex items-start justify-between gap-3">
-                    <span
+                return (
+                  <div key={entry.key} className={segmentClassName}>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(stageKey, entry.round)}
+                      data-selected={isSelected}
                       className={[
-                        'pm-stage-node flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
-                        entry.nodeClassName,
+                        'pm-stage-card interactive-surface group relative flex min-h-[172px] min-w-0 flex-1 flex-col rounded-[28px] px-4 py-4 text-left',
+                        entry.toneClassName,
                       ].join(' ')}
                     >
-                      {entry.orderLabel}
-                    </span>
-                    <div className="flex min-w-0 flex-col items-end gap-2 text-right">
-                      <span className={['pm-stage-progress', entry.progressClassName].join(' ')}>
-                        {entry.progressLabel}
-                      </span>
-                    </div>
-                  </div>
+                      <span aria-hidden="true" className="pm-stage-card__flow" />
 
-                  <div className="mt-4 flex-1 flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <span
+                          className={[
+                            'pm-stage-node flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
+                            entry.nodeClassName,
+                          ].join(' ')}
+                        >
+                          {entry.orderLabel}
+                        </span>
+                        <div className="flex min-w-0 flex-col items-end gap-2 text-right">
+                          <span className={['pm-stage-progress', entry.progressClassName].join(' ')}>
+                            {entry.progressLabel}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex-1 flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className={['pm-stage-card__title text-[15px] font-semibold leading-6 sm:text-[15px]', entry.accentClassName].join(' ')}>
+                            {entry.title}
+                          </div>
+                          <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] sm:text-[11px]">
+                            {entry.statusLabel}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5">
+                          {actionLabel && onStageAction && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => { e.stopPropagation(); onStageAction(stageKey); }}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onStageAction(stageKey); } }}
+                              className="pm-stage-action-btn shrink-0"
+                            >
+                              {actionLabel}
+                            </span>
+                          )}
+                          {onEditTenderFile && stageKey === 'TENDER_DOCUMENT' && (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (tenderDocxAttachments && tenderDocxAttachments.length > 0) {
+                                  onEditTenderFile(tenderDocxAttachments[0].id, tenderDocxAttachments[0].fileName);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.stopPropagation();
+                                  if (tenderDocxAttachments && tenderDocxAttachments.length > 0) {
+                                    onEditTenderFile(tenderDocxAttachments[0].id, tenderDocxAttachments[0].fileName);
+                                  }
+                                }
+                              }}
+                              className={[
+                                'pm-stage-action-btn shrink-0',
+                                (!tenderDocxAttachments || tenderDocxAttachments.length === 0) ? 'opacity-40 cursor-not-allowed' : '',
+                              ].join(' ')}
+                              title={(!tenderDocxAttachments || tenderDocxAttachments.length === 0) ? '请先在详情区上传 .docx 文件' : undefined}
+                            >
+                              {entry.title === '招标文件' ? '招标文件修改' : '采购文件修改'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 text-xs leading-6 text-[color:var(--muted-foreground)] sm:text-xs">
+                        {entry.summary}
+                      </div>
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={entry.key} className={segmentClassName}>
+                  <button
+                    type="button"
+                    data-archive-state={archiveStepState}
+                    disabled
+                    className={[
+                      'pm-stage-card group relative flex min-h-[172px] min-w-0 flex-1 cursor-default flex-col rounded-[28px] px-4 py-4 text-left',
+                      entry.toneClassName,
+                    ].join(' ')}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={['pm-stage-card__flow', 'pm-stage-card__flow--archive'].join(' ')}
+                    />
+                    <div className="flex items-start justify-between gap-3">
+                      <span
+                        className={[
+                          'pm-stage-node flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
+                          entry.nodeClassName,
+                        ].join(' ')}
+                      >
+                        {entry.orderLabel}
+                      </span>
+                      <div className="flex min-w-0 flex-col items-end gap-2 text-right">
+                        <span className={['pm-stage-progress', entry.progressClassName].join(' ')}>
+                          {entry.progressLabel}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex-1">
                       <div className={['pm-stage-card__title text-[15px] font-semibold leading-6 sm:text-[15px]', entry.accentClassName].join(' ')}>
                         {entry.title}
                       </div>
                       <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] sm:text-[11px]">
                         {entry.statusLabel}
                       </div>
+                      <div className="mt-3 text-xs leading-6 text-[color:var(--muted-foreground)] sm:text-xs">
+                        {entry.summary}
+                      </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1.5">
-                      {actionLabel && onStageAction && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && (
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => { e.stopPropagation(); onStageAction(stageKey); }}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onStageAction(stageKey); } }}
-                          className="pm-stage-action-btn shrink-0"
-                        >
-                          {actionLabel}
-                        </span>
-                      )}
-                      {/* 采购文件修改按钮 — 仅 TENDER_DOCUMENT 阶段，始终显示（无附件时禁用） */}
-                      {onEditTenderFile && stageKey === 'TENDER_DOCUMENT' && (
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (tenderDocxAttachments && tenderDocxAttachments.length > 0) {
-                              onEditTenderFile(tenderDocxAttachments[0].id, tenderDocxAttachments[0].fileName);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.stopPropagation();
-                              if (tenderDocxAttachments && tenderDocxAttachments.length > 0) {
-                                onEditTenderFile(tenderDocxAttachments[0].id, tenderDocxAttachments[0].fileName);
-                              }
-                            }
-                          }}
-                          className={[
-                            'pm-stage-action-btn shrink-0',
-                            (!tenderDocxAttachments || tenderDocxAttachments.length === 0) ? 'opacity-40 cursor-not-allowed' : '',
-                          ].join(' ')}
-                          title={(!tenderDocxAttachments || tenderDocxAttachments.length === 0) ? '请先在详情区上传 .docx 文件' : undefined}
-                        >
-                          {entry.title === '招标文件' ? '招标文件修改' : '采购文件修改'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 text-xs leading-6 text-[color:var(--muted-foreground)] sm:text-xs">
-                    {entry.summary}
-                  </div>
-                </button>
-              </div>
-            );
-          }
-
-          return (
-            <div key={entry.key} className={segmentClassName}>
-              <button
-                type="button"
-                data-archive-state={archiveStepState}
-                disabled
-                className={[
-                  'pm-stage-card group relative flex min-h-[172px] min-w-0 flex-1 cursor-default flex-col rounded-[28px] px-4 py-4 text-left',
-                  entry.toneClassName,
-                ].join(' ')}
-              >
-                <span
-                  aria-hidden="true"
-                  className={['pm-stage-card__flow', 'pm-stage-card__flow--archive'].join(' ')}
-                />
-                <div className="flex items-start justify-between gap-3">
-                  <span
-                    className={[
-                      'pm-stage-node flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
-                      entry.nodeClassName,
-                    ].join(' ')}
-                  >
-                    {entry.orderLabel}
-                  </span>
-                  <div className="flex min-w-0 flex-col items-end gap-2 text-right">
-                    <span className={['pm-stage-progress', entry.progressClassName].join(' ')}>
-                      {entry.progressLabel}
-                    </span>
-                  </div>
+                  </button>
                 </div>
-
-                <div className="mt-4 flex-1">
-                  <div className={['pm-stage-card__title text-[15px] font-semibold leading-6 sm:text-[15px]', entry.accentClassName].join(' ')}>
-                    {entry.title}
-                  </div>
-                  <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] sm:text-[11px]">
-                    {entry.statusLabel}
-                  </div>
-                  <div className="mt-3 text-xs leading-6 text-[color:var(--muted-foreground)] sm:text-xs">
-                    {entry.summary}
-                  </div>
-                </div>
-              </button>
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </Fragment>
+      ))}
     </div>
   );
 }

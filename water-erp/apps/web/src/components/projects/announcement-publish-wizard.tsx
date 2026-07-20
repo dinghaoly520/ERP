@@ -48,12 +48,14 @@ type Props = {
   onClose: () => void;
   project: ProjectManagementItem | null;
   onPublished: () => void;
+  /** 锁定的公告分类；默认 procurement_document（采购文件公告）。定标阶段复用时传 winning_bid / failed_bid */
+  initialCategory?: AnnouncementCategory;
 };
 
 const inputCls =
   'w-full px-3 py-2 border border-[var(--border)] bg-[var(--background)] rounded-lg text-sm placeholder-[var(--muted-foreground)]/60 focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10';
 
-export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished }: Props) {
+export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, initialCategory = 'procurement_document' }: Props) {
   // Wizard state
   const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(true);
@@ -122,7 +124,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     // ★ 同步锁定 procurement_document（项目管理入口只做采购文件公告）+ 项目数据预填
     // 不依赖 .docx 解析，确保无论解析成功与否都直接进入编辑页、不显示分类选择
     const avail = getAvailableAnnouncementCategories(tt);
-    const procCat = avail.find((c) => c === 'procurement_document');
+    const procCat = avail.find((c) => c === initialCategory);
     if (!procCat) {
       setCategory(null);
       setDraft(null);
@@ -292,7 +294,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         status,
         publishDate: publishTiming === 'now' ? new Date().toISOString() : undefined,
         metadata: meta,
-        relatedProjectCode: draftRecord.projectCode || null,
+        relatedProjectCode: draftRecord.projectCode || undefined,
       });
       const id = saved.id;
       setAnnId(id);

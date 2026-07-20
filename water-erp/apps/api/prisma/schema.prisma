@@ -265,6 +265,8 @@ model BidProject {
   bondRequired           Boolean                    @default(false) // 是否要求投标保证金
   bondAmount             Decimal?                   @db.Decimal(14, 2) // 保证金金额（仅记录，不严格校验）
   encryptionKeyId        String? // Track C: 项目数据密钥引用
+  projectManagementItemId String? // 多轮采购：所属项目管理项
+  round                  Int                      @default(1) // 采购轮次（再次采购递增）
   suppliers              BidSupplier[]
   openingSession         BidOpeningSession?
   openingRecords         BidOpeningRecord[]
@@ -278,7 +280,7 @@ model BidProject {
   supervisionAnnotations BidSupervisionAnnotation[]
   supplierSubmissions    SupplierBidSubmission[]
   procurementProject     ProcurementProject?
-  projectManagementItem  ProjectManagementItem?
+  projectManagementItem  ProjectManagementItem? @relation(fields: [projectManagementItemId], references: [id])
   reviews                BidRequirementReview[]
   bidInvalidBids          BidInvalidBid[]
   expertMemos             ExpertMemo[]
@@ -1884,8 +1886,8 @@ model ProjectManagementItem {
   createdBy                   User?                    @relation("ProjectCreatedBy", fields: [createdById], references: [id])
   stages                      ProjectManagementStage[]
   workArrangements            WorkArrangement[]
-  bidProjectId                String?                  @unique
-  bidProject                  BidProject?              @relation(fields: [bidProjectId], references: [id])
+  currentRound                Int                      @default(1) // 当前采购轮次（再次采购递增）
+  bidProjects                 BidProject[]
 
   @@index([status, currentStage])
   @@index([title])
@@ -1898,6 +1900,7 @@ model ProjectManagementStage {
   stageKey                String
   stageName               String
   stageOrder              Int
+  round                   Int                   @default(1)
   status                  ProjectStageStatus    @default(NOT_STARTED)
   note                    String?
   completedAt             DateTime?
@@ -1906,7 +1909,7 @@ model ProjectManagementStage {
   attachments             Attachment[]          @relation("ProjectManagementStageAttachments")
   projectManagementItem   ProjectManagementItem @relation(fields: [projectManagementItemId], references: [id], onDelete: Cascade)
 
-  @@unique([projectManagementItemId, stageKey])
+  @@unique([projectManagementItemId, stageKey, round])
   @@index([projectManagementItemId, stageOrder])
 }
 

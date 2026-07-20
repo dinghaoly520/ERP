@@ -167,7 +167,7 @@ export class AiService {
 
 ═════════════════════════════════════════
 其他字段：
-- headerGreeting: 80-120字关怀问候。像一个贴心的私人助理在汇报今日概况。语气温暖自然，先问候，再简述今日任务总量，挑出1-2项最紧迫的任务给出关怀提醒，最后以鼓励收尾。禁用姓名职位称呼。示例："下午好。今天有8项工作需要你关注，其中3项比较紧急——供应商审批已经等了快一天了，价格复核也有2项需要你的判断。不过别担心，我已经帮你排好了时间顺序。今天一定能顺利处理的。"
+- headerGreeting: 80-120字今日工作简报。像一个贴心的私人助理在简报今日安排。语气温暖自然，**直接从今日任务总量切入——不要任何问候语（"早/中/下午好"等问候已由页面标题栏单独显示，重复会冗余）**，挑出1-2项最紧迫的任务给出关怀提醒，最后以鼓励收尾。禁用姓名职位称呼。**严禁以任何标点符号开头，必须直接以汉字正文开始**。示例："今天有8项工作需要你关注，其中3项比较紧急——供应商审批已经等了快一天了，价格复核也有2项需要你的判断。不过别担心，我已经帮你排好了时间顺序。今天一定能顺利处理的。"
 - dailyQuote: 20-35字。接在"{period}，{userName}。"之后的一句温暖问候续句，像一个有文化品位的私人助理在说话。要求：(1)与时段呼应——早晨可以是"晨光正好，先把要紧事理顺"、午后"沏杯热茶，案子一件件来"、晚间"今日辛苦，收尾工作交给我看着"；(2)融入当日天气或季节感知；(3)语气从容、关心分寸刚好——不过分亲密也不像机器；(4)一句话结尾，不拆两段；(5)禁止使用{name}、禁用职位称呼、禁用古诗词引用。示例："清晨的风还透着凉意，围好围巾再开始办公吧。"
 - namePraise: ""
 - dailyGreeting: ""
@@ -205,7 +205,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       });
       return {
         date: context.date,
-        headerGreeting: result.headerGreeting || `${period}好。今天有${totalItems}项任务需要关注，${criticalCount}项比较紧急。别担心，按优先级一步步处理就好。`,
+        headerGreeting: this.trimLeadingPunctuation(result.headerGreeting) || `今天有${totalItems}项任务需要关注，${criticalCount}项比较紧急。别担心，按优先级一步步处理就好。`,
         namePraise: result.namePraise || '',
         dailyGreeting: '',
         riskSummary: result.riskSummary || (todoCount > 5 ? '待办事项较多' : '风险可控'),
@@ -221,7 +221,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     } catch {
       return {
         date: context.date,
-        headerGreeting: `${period}好。今天有${totalItems}项任务需要关注，别担心，按优先级逐步处理就好。`,
+        headerGreeting: `今天有${totalItems}项任务需要关注，别担心，按优先级逐步处理就好。`,
         namePraise: '',
         dailyGreeting: '',
         riskSummary: '风险可控',
@@ -1363,7 +1363,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 
 ═════════════════════════════════════════
 其他字段：
-- headerGreeting: 80-120字关怀问候。像一个贴心的私人助理在向用户汇报今日概况。语气温暖自然，先问候（根据时段变化），再简述今日任务总量（"今天有N项工作需要你关注"），挑出1-2项最紧迫或最重要的任务给出关怀提醒，最后以一句鼓励或轻松的话收尾。必须覆盖：问候语+数据简述+关怀提醒+鼓励收尾。禁用姓名职位称呼。
+- headerGreeting: 80-120字今日工作简报。像一个贴心的私人助理在简报今日安排。语气温暖自然，**直接从今日任务总量切入——不要任何问候语（"早/中/下午好"等问候已由页面标题栏单独显示，重复会冗余）**，挑出1-2项最紧迫或最重要的任务给出关怀提醒，最后以一句鼓励或轻松的话收尾。必须覆盖：数据简述+关怀提醒+鼓励收尾。禁用姓名职位称呼。**严禁以任何标点符号开头，必须直接以汉字正文开始**。
 - dailyQuote: 20-35字。接在"{period}，{userName}。"之后的一句温暖问候续句，像一个有文化品位的私人助理在说话。要求：(1)与时段呼应——早晨可以是"晨光正好，先把要紧事理顺"、午后"沏杯热茶，案子一件件来"、晚间"今日辛苦，收尾工作交给我看着"；(2)融入当日天气或季节感知；(3)语气从容、关心分寸刚好——不过分亲密也不像机器；(4)一句话结尾，不拆两段；(5)禁止使用{name}、禁用职位称呼、禁用古诗词引用。示例："清晨的风还透着凉意，围好围巾再开始办公吧。"
 - namePraise: ""
 - dailyGreeting: ""
@@ -1401,7 +1401,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       });
       return {
         date: context.date,
-        headerGreeting: result.headerGreeting || `${period}好。新的一天，愿你从容应对每一件事。`,
+        headerGreeting: this.trimLeadingPunctuation(result.headerGreeting) || `新的一天，愿你从容应对每一件事。`,
         namePraise: result.namePraise || '',
         dailyGreeting: result.dailyGreeting || `今日共${totalItems}项任务，${todoCount}项待处理，${criticalCount}项紧急。`,
         riskSummary: result.riskSummary || (todoCount > 5 ? '待办事项较多' : '风险可控'),
@@ -1416,7 +1416,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       };
     } catch {
       return {
-        date: context.date, headerGreeting: `${period}好。`, namePraise: '',
+        date: context.date, headerGreeting: `今日共${totalItems}项任务需要关注。`, namePraise: '',
         dailyGreeting: `今日共${totalItems}项任务`, riskSummary: '风险可控',
         aiSuggestion: '按优先级处理', overview: `${totalItems}项任务`,
         focusItems: [], timeBlocks: [], riskAlerts: [],
@@ -1549,6 +1549,13 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       },
       domainFocus,
     };
+  }
+
+  /** 去掉字符串开头的空白和中英文标点符号。
+   *  LLM 偶尔会把问候语漏掉、直接以句号开头（如"。今天有..."），这里做兜底清洗。 */
+  private trimLeadingPunctuation(s: string | null | undefined): string {
+    if (!s) return '';
+    return s.replace(/^[\s。，、；：！？.,;:!?'""''（）()【】《》<>\[\]\-—~·…]+/, '');
   }
 
   /** Normalize a time-slot string into HH:MM format, handling ISO 8601 and HH:MM inputs. */

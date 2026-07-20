@@ -114,6 +114,7 @@ export type ProjectManagementStage = {
   stageKey: ProjectWorkflowStageKey;
   stageName: string;
   stageOrder: number;
+  round?: number | null;
   status: ProjectStageStatus;
   note?: string | null;
   completedAt?: string | null;
@@ -156,6 +157,7 @@ export type ProjectManagementItem = {
   projectReason: string;
   supplierRequirements: string;
   currentStage: ProjectWorkflowStageKey;
+  currentRound?: number | null;
   status: ProjectManagementItemStatus;
   archivedProcurementRoundId?: string | null;
   // 需求表独有字段

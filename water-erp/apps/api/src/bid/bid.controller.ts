@@ -131,6 +131,16 @@ export class BidController {
     @CurrentUser('sub') userId: string,
   ) { return this.bidService.nudgeExperts(id, dto?.reason ?? 'signin', userId); }
 
+  @Post('projects/:id/notify-schedule-change')
+  @ApiOperation({ summary: '通知开标时间变更（向投标供应商 + 评标专家）' })
+  notifyScheduleChange(
+    @Param('id') id: string,
+    @Body() dto: { openTime: string },
+    @CurrentUser('sub') userId?: string,
+  ) {
+    return this.bidService.notifyScheduleChange(id, dto.openTime, userId);
+  }
+
   @Post('projects/:id/decrypt/:supplierId')
   @ApiOperation({ summary: '解密供应商投标' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })

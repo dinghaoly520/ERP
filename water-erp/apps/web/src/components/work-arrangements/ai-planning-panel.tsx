@@ -3,7 +3,6 @@
 import {
   Sparkles,
   RefreshCw,
-  History,
   CalendarClock,
   AlertTriangle,
   Target,
@@ -27,7 +26,6 @@ interface AiPlanningPanelProps {
   showProjectBrief?: boolean;
   onRefreshPlan: () => void;
   onSelectTimeBlock: (taskIds: string[]) => void;
-  onShowHistory: () => void;
 }
 
 
@@ -37,7 +35,6 @@ export function AiPlanningPanel({
   showProjectBrief = false,
   onRefreshPlan,
   onSelectTimeBlock,
-  onShowHistory,
 }: AiPlanningPanelProps) {
   return (
     <section className="flex flex-col">
@@ -51,10 +48,6 @@ export function AiPlanningPanel({
           >
             <RefreshCw size={12} className={refreshingPlan ? 'animate-spin' : ''} />
             <span className="hidden sm:inline">AI 安排</span>
-          </button>
-          <button type="button" onClick={onShowHistory} className="neu-btn-xs">
-            <History size={12} />
-            <span className="hidden sm:inline">历史</span>
           </button>
         </div>
       </div>

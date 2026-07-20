@@ -1,4 +1,4 @@
-import { CalendarClock, Lightbulb, Sparkles, RefreshCw, History } from 'lucide-react';
+import { CalendarClock, Lightbulb, Sparkles, RefreshCw } from 'lucide-react';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 
 /** Normalize a time-slot string (ISO 8601 or HH:MM) into a clean HH:MM display. */
@@ -15,11 +15,11 @@ function formatTimeSlot(raw: string): string {
 }
 
 export function WorkbenchPlanningPanel({
-  dailyPlan, refreshingPlan, onSelectTimeBlock, onRefreshPlan, onShowHistory,
+  dailyPlan, refreshingPlan, onSelectTimeBlock, onRefreshPlan,
   showAiScheduling = true, isChairman = false,
 }: {
   dailyPlan: WorkArrangementDailyPlan | null; refreshingPlan: boolean;
-  onSelectTimeBlock: (taskIds: string[]) => void; onRefreshPlan: () => void; onShowHistory: () => void;
+  onSelectTimeBlock: (taskIds: string[]) => void; onRefreshPlan: () => void;
   showAiScheduling?: boolean; isChairman?: boolean;
 }) {
   return (

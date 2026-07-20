@@ -125,4 +125,54 @@ export class SchedulerService {
     }
     this.logger.log(`公告通知已发送: ${title}, 收件人 ${userIds.length} 人`);
   }
+
+  /** 每小时扫描：投标投递截止（开标前 12h）落在未来 1 小时窗口内的项目，自动催促未投递供应商 */
+  @Cron('0 0 * * * *')
+  async autoNudgePendingBidders() {
+    const now = new Date();
+    const windowEnd = new Date(now.getTime() + 60 * 60 * 1000);
+    const projects = await this.prisma.bidProject.findMany({
+      where: { stage: 'SUBMIT' },
+      select: { id: true, name: true, openTime: true },
+    });
+    for (const p of projects) {
+      const deadline = new Date(p.openTime.getTime() - 12 * 60 * 60 * 1000);
+      if (deadline >= now && deadline <= windowEnd) {
+        try {
+          await this.sendBidDeadlineNudge(p.id, p.name, deadline);
+          this.logger.log(`自动催促投标: ${p.name} (截止 ${deadline.toISOString()})`);
+        } catch (e) {
+          this.logger.warn(`自动催促投标失败 ${p.id}: ${(e as Error).message}`);
+        }
+      }
+    }
+  }
+
+  /** 向未投递供应商发送投标截止提醒（站内信）*/
+  private async sendBidDeadlineNudge(projectId: string, projectName: string, deadline: Date) {
+    const suppliers = await this.prisma.bidSupplier.findMany({
+      where: { projectId, submitStatus: { not: '已提交' } },
+      include: { supplier: { select: { userId: true } } },
+    });
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const fmt = `${deadline.getFullYear()}-${pad(deadline.getMonth() + 1)}-${pad(deadline.getDate())} ${pad(deadline.getHours())}:${pad(deadline.getMinutes())}`;
+    let sent = 0;
+    for (const s of suppliers) {
+      const userId = s.supplier?.userId;
+      if (!userId) continue;
+      try {
+        await this.notification.create({
+          userId,
+          type: 'BID_DEADLINE_NUDGE',
+          title: `投标即将截止：${projectName}`,
+          content: `项目「${projectName}」投标将于 ${fmt} 截止，请尽快前往供应商门户提交投标文件。`,
+          link: '/dashboard',
+        });
+        sent += 1;
+      } catch (e) {
+        this.logger.warn(`催促通知失败 userId=${userId}: ${(e as Error).message}`);
+      }
+    }
+    this.logger.log(`投标截止催促已发送: ${projectName}, 收件人 ${sent} 人`);
+  }
 }

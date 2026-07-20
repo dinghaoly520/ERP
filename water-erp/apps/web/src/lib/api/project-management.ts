@@ -114,6 +114,15 @@ export async function fetchProjectManagementList(status?: 'ACTIVE' | 'ARCHIVED' 
   return parseJsonResponse<ProjectManagementItem[]>(response);
 }
 
+/** 流标后再次采购：按采购方式在定标后插入新一轮"采购文件→定标"阶段 */
+export async function reprocProject(projectId: string) {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/reproc`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  return parseJsonResponse<{ round: number; inserted: number }>(response);
+}
+
 export async function extractInitiationFields(file: File) {
   const formData = new FormData();
   formData.append('file', file);
@@ -345,12 +354,12 @@ export async function analyzeProjectManagementItem(
   return parseJsonResponse<ProjectDetailAnalysis>(response);
 }
 
-export async function completeProjectManagementItem(projectId: string) {
+export async function completeProjectManagementItem(projectId: string, allowIncomplete?: boolean) {
   const response = await fetch(`${API_BASE}/project-management/${projectId}/complete`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ confirmedCompleted: true }),
+    body: JSON.stringify({ confirmedCompleted: true, allowIncomplete: !!allowIncomplete }),
   });
 
   return parseJsonResponse<ProjectManagementItem>(response);

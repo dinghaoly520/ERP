@@ -2431,6 +2431,61 @@ export class BidService {
     return { reached: userIds.length };
   }
 
+  /** 通知开标时间变更：向全部投标供应商 + 评标专家发送变更通知 */
+  async notifyScheduleChange(id: string, openTime: string, actorId?: string): Promise<{ reached: number }> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { id: true, projectCode: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const [suppliers, experts] = await Promise.all([
+      this.prisma.bidSupplier.findMany({
+        where: { projectId: id },
+        select: { supplier: { select: { userId: true } } },
+      }),
+      this.prisma.bidExpert.findMany({
+        where: { projectId: id },
+        select: { userId: true },
+      }),
+    ]);
+
+    const userIdSet = new Set<string>();
+    for (const s of suppliers) {
+      if (s.supplier?.userId) userIdSet.add(s.supplier.userId);
+    }
+    for (const e of experts) {
+      if (e.userId) userIdSet.add(e.userId);
+    }
+    const userIds = [...userIdSet];
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const d = new Date(openTime);
+    const fmt = Number.isNaN(d.getTime())
+      ? openTime
+      : `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+    await this.notifyParticipants(userIds, {
+      type: 'BID_SCHEDULE_CHANGE',
+      title: `开标时间变更：${project.name}`,
+      content: `项目 ${project.projectCode}（${project.name}）开标时间已调整为 ${fmt}，请留意最新安排。`,
+      link: `/dashboard`,
+    });
+
+    if (actorId) {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: actorId,
+          action: 'BID_SCHEDULE_CHANGE_NOTIFY',
+          resourceType: project.projectCode,
+          details: { projectId: id, reached: userIds.length, openTime: fmt },
+        },
+      });
+    }
+
+    return { reached: userIds.length };
+  }
+
   /**
    * 邀请供应商加入项目名册（BidSupplier）——补齐邀请招标缺失的管理端写入路径。
    * - 仅 DOWNLOAD/SUBMIT 阶段可邀请（开标后名册锁定）

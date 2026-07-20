@@ -15,7 +15,6 @@ import {
   FileText,
   Gavel,
   Pencil,
-  Play,
   PlusCircle,
   RefreshCw,
   Save,
@@ -42,7 +41,7 @@ import {
   listScoreTemplates,
   nudgeExperts,
   nudgeSuppliers,
-  openSubmission,
+  notifyBidScheduleChange,
   saveScoreTemplate,
   startOpening,
   updateBidProjectSchedule,
@@ -60,6 +59,7 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   project: ProjectManagementItem | null;
+  round?: number;
 };
 
 /* ── 日期工具 ── */
@@ -79,7 +79,7 @@ function formatDateTime(iso: string | null): string {
 
 const SCORE_CATEGORIES = Object.keys(SCORE_CATEGORY_LABELS) as ScoreCategory[];
 
-export function BidConfirmPanel({ isOpen, onClose, project }: Props) {
+export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
   const [bidProject, setBidProject] = useState<BidProjectRef | null>(null);
   const [workspace, setWorkspace] = useState<BidWorkspace | null>(null);
   const [scoreItems, setScoreItems] = useState<BidScoreItem[]>([]);
@@ -109,6 +109,10 @@ export function BidConfirmPanel({ isOpen, onClose, project }: Props) {
   const [tplName, setTplName] = useState('');
   const [tplListOpen, setTplListOpen] = useState(false);
 
+  // 延时开标后的"是否通知供应商与专家"确认
+  const [notifyConfirmOpen, setNotifyConfirmOpen] = useState(false);
+  const [pendingOpenTime, setPendingOpenTime] = useState('');
+
   const showToast = useCallback((text: string, tone: 'ok' | 'err' = 'ok') => setToast({ text, tone }), []);
 
   const load = useCallback(async () => {
@@ -117,7 +121,7 @@ export function BidConfirmPanel({ isOpen, onClose, project }: Props) {
     setError(null);
     try {
       listScoreTemplates().then(setTemplates).catch(() => { /* 模板加载失败不阻塞主流程 */ });
-      const bp = await ensureBidProject(project.id);
+      const bp = await ensureBidProject(project.id, round);
       setBidProject(bp);
       const [ws, items] = await Promise.all([getBidWorkspace(bp.id), listScoreItems(bp.id)]);
       setWorkspace(ws);
@@ -154,6 +158,8 @@ export function BidConfirmPanel({ isOpen, onClose, project }: Props) {
       setSaveTplOpen(false);
       setTplName('');
       setTplListOpen(false);
+      setNotifyConfirmOpen(false);
+      setPendingOpenTime('');
     }
   }, [isOpen]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -206,15 +212,6 @@ export function BidConfirmPanel({ isOpen, onClose, project }: Props) {
     }, '催促失败');
   }
 
-  async function handleOpenSubmission() {
-    if (!bpId) return;
-    await withBusy(async () => {
-      await openSubmission(bpId);
-      showToast('已开放投标投递');
-      await load();
-    }, '开放投递失败');
-  }
-
   async function handleStartOpening() {
     if (!bpId) return;
     await withBusy(async () => {
@@ -231,8 +228,21 @@ export function BidConfirmPanel({ isOpen, onClose, project }: Props) {
       const updated = await updateBidProjectSchedule(bpId, { openTime: iso });
       setBidProject(updated);
       setDelayOpen(false);
-      showToast('开标时间已更新');
+      // 弹出"是否通知供应商与专家"确认
+      setPendingOpenTime(updated.openTime);
+      setNotifyConfirmOpen(true);
     }, '更新开标时间失败');
+  }
+
+  async function handleConfirmNotify(notify: boolean) {
+    const openTime = pendingOpenTime;
+    setNotifyConfirmOpen(false);
+    setPendingOpenTime('');
+    if (!notify || !bpId) return;
+    await withBusy(async () => {
+      const r = await notifyBidScheduleChange(bpId, openTime);
+      showToast(`已通知 ${r.reached ?? 0} 位供应商/专家`);
+    }, '通知失败');
   }
 
   /* ── 评分项 CRUD ── */
@@ -408,6 +418,10 @@ export function BidConfirmPanel({ isOpen, onClose, project }: Props) {
 
   /* ── 渲染 ── */
   const stats = workspace?.stats;
+  // 投递截止 = 开标前 12 小时（业务规则）
+  const submitDeadline = bidProject
+    ? new Date(new Date(bidProject.openTime).getTime() - 12 * 60 * 60 * 1000)
+    : null;
 
   return (
     <div className="fixed inset-0 z-[500] flex flex-col">
@@ -488,14 +502,26 @@ export function BidConfirmPanel({ isOpen, onClose, project }: Props) {
                 accent="var(--stage-supplier)"
                 accentSoft="var(--stage-supplier-soft)"
                 action={
-                  <button
-                    type="button"
-                    onClick={() => void handleNudgeSuppliers()}
-                    disabled={busy || stats.supplierTotal === 0}
-                    className="neu-btn-soft !h-[32px] !text-xs"
-                  >
-                    <BellRing size={13} /> 催促未投递
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] sm:inline-flex"
+                      style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}
+                      title="标书投递时间范围：公告发布 → 开标前 12 小时"
+                    >
+                      <Clock size={11} />
+                      <span className="tabular-nums">{bidProject.publishTime ? formatDateTime(bidProject.publishTime) : '待发布'}</span>
+                      <span className="opacity-50">→</span>
+                      <span className="tabular-nums">{submitDeadline ? formatDateTime(submitDeadline.toISOString()) : '—'}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void handleNudgeSuppliers()}
+                      disabled={busy || stats.supplierTotal === 0}
+                      className="neu-btn-soft !h-[32px] !text-xs"
+                    >
+                      <BellRing size={13} /> 催促未投递
+                    </button>
+                  </div>
                 }
               >
                 {workspace.suppliers.length === 0 ? (
@@ -859,11 +885,6 @@ export function BidConfirmPanel({ isOpen, onClose, project }: Props) {
                   <span>{BID_STAGE_LABELS[stage]}</span>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
-                  {stage === 'DOWNLOAD' && (
-                    <button type="button" onClick={() => void handleOpenSubmission()} disabled={busy} className="neu-btn-primary !h-[36px]">
-                      <Play size={14} /> 开放投标投递
-                    </button>
-                  )}
                   {stage === 'SUBMIT' && (
                     <>
                       <button type="button" onClick={() => setDelayOpen(true)} disabled={busy} className="neu-btn-soft !h-[36px]">
@@ -898,6 +919,31 @@ export function BidConfirmPanel({ isOpen, onClose, project }: Props) {
             >
               {toast.tone === 'ok' ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
               {toast.text}
+            </div>
+          </div>
+        )}
+
+        {/* ── 延时开标后的通知确认对话框 ── */}
+        {notifyConfirmOpen && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center px-6" style={{ background: 'oklch(0.975 0.012 258 / 0.5)', backdropFilter: 'blur(2px)' }}>
+            <div className="w-full max-w-[420px] rounded-[20px] px-6 py-5" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
+              <div className="mb-2 flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-[10px]" style={{ background: 'var(--stage-evaluation-soft)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}>
+                  <BellRing size={15} style={{ color: 'var(--stage-evaluation)' }} />
+                </div>
+                <span className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">通知供应商与专家</span>
+              </div>
+              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
+                开标时间已更新为
+                <span className="mx-1 font-semibold tabular-nums text-[var(--foreground)]">{formatDateTime(pendingOpenTime)}</span>
+                。是否立即通知所有投标供应商与评标专家？
+              </p>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => void handleConfirmNotify(false)} className="neu-btn-soft !h-[36px] !text-xs">不通知</button>
+                <button type="button" onClick={() => void handleConfirmNotify(true)} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
+                  <BellRing size={13} /> 立即通知
+                </button>
+              </div>
             </div>
           </div>
         )}
