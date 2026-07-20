@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, Loader2, Send, Save, RotateCcw } from 'lucide-react';
-import { api, ApiError, createMemo } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
@@ -13,7 +13,6 @@ import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'reac
 import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 import { PointChecklistScoring } from '@/components/evaluate/point-checklist-scoring';
 import { MemoPanel } from '@/components/memo/memo-panel';
-import type { AtramentCanvasHandle } from '@/components/memo/atrament-canvas';
 
 // 与 (app) evaluate 页面一致的 score 条目结构（精简版，不含 passed/points 之外的 UI 态）
 type ScoreEntry = {
@@ -51,7 +50,6 @@ export default function TabletEvaluatePage() {
   // 手写备忘得分点上下文（点击左侧得分点 → 选中高亮 → 右侧备忘绑定该得分点）
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [activePointName, setActivePointName] = useState<string>('');
-  const memoCanvasRef = useRef<AtramentCanvasHandle>(null);
 
   // ── 评分草稿（localStorage 暂存 + 自动恢复）──
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
@@ -291,27 +289,13 @@ export default function TabletEvaluatePage() {
     }
   };
 
-  // 点击得分点：切点时若画布有内容 → 自动保存到旧得分点 → 清屏
+  // 点击得分点：切换选中 → MemoPanel 内部自动保存/加载
   const handlePointClick = useCallback(
-    async (pointId: string, pointName: string) => {
-      if (activePointId && activePointId !== pointId && memoCanvasRef.current && !memoCanvasRef.current.isEmpty()) {
-        try {
-          const blob = await memoCanvasRef.current.toBlob();
-          if (blob) {
-            await createMemo(projectId, {
-              inkBlob: blob,
-              sourceDevice: 'tablet_handwriting',
-              supplierId: activeSupplier || undefined,
-              scorePointId: activePointId,
-            });
-          }
-        } catch { /* 自动保存失败静默继续 */ }
-        memoCanvasRef.current.clear();
-      }
+    (pointId: string, pointName: string) => {
       setActivePointId(activePointId === pointId ? null : pointId);
       setActivePointName(activePointId === pointId ? '' : pointName);
     },
-    [activePointId, projectId, activeSupplier],
+    [activePointId],
   );
 
   if (loading || !project) {
