@@ -13,6 +13,10 @@ export interface AtramentCanvasHandle {
   restoreBlob: (blob: Blob, scale?: number) => Promise<void>;
   /** 同步导出可见画布为 dataURL（无竞态，用于得分点切换快速捕获） */
   captureDataURL: () => string;
+  /** 导出矢量笔触数组（跨 canvas 清晰转移用，支持按比例缩放重绘） */
+  captureStrokes: () => Stroke[];
+  /** 按矢量笔触重绘到当前画布。scale 坐标+粗细同步缩放，永远清晰 */
+  restoreStrokes: (srcStrokes: Stroke[], scale?: number) => void;
 }
 
 interface Props {
@@ -21,6 +25,15 @@ interface Props {
 }
 
 interface Point { x: number; y: number; pressure: number }
+
+/** 一笔的矢量数据（用于跨 canvas 清晰转移，按比例缩放重绘） */
+export interface Stroke {
+  pts: Point[];
+  color: string;
+  weight: number;
+  mode: 'draw' | 'erase';
+  eraserMul: number;
+}
 
 /** 半宽（pressure → 半径）。压感灵敏 + 最小宽度保证可见。eraserMul 橡皮模式放大倍率 */
 function halfW(pv: number, baseW: number, eraserMul = 1): number {
@@ -67,6 +80,7 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
     const bgCtxRef = useRef<CanvasRenderingContext2D | null>(null);
     const visCtxRef = useRef<CanvasRenderingContext2D | null>(null);
     const snapshots = useRef<string[]>([]);
+    const strokes = useRef<Stroke[]>([]);
     const hasDrawn = useRef(false);
     const drawing = useRef(false);
     const pathPts = useRef<Point[]>([]);
@@ -113,6 +127,14 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       bgCtx.strokeStyle = color.current;
       bgCtx.fillStyle = mode.current === 'erase' ? '#ffffff' : color.current;
       drawPath(bgCtx, pathPts.current, weight.current, mode.current === 'erase' ? eraserMul.current : 1);
+      // 记录矢量笔触（跨 canvas 清晰转移用）
+      strokes.current.push({
+        pts: pathPts.current.map(p => ({ ...p })),
+        color: color.current,
+        weight: weight.current,
+        mode: mode.current,
+        eraserMul: eraserMul.current,
+      });
     };
 
     const onDown = (e: PointerEvent) => {
@@ -199,10 +221,10 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
     }, [width, height]);
 
     useImperativeHandle(ref, () => ({
-      clear: () => { const bg=bgRef.current,vc=visCtxRef.current; if(bg){const c=bgCtxRef.current;c?.clearRect(0,0,width,height);} vc?.clearRect(0,0,width,height); pathPts.current=[]; snapshots.current=[]; md(false); },
+      clear: () => { const bg=bgRef.current,vc=visCtxRef.current; if(bg){const c=bgCtxRef.current;c?.clearRect(0,0,width,height);} vc?.clearRect(0,0,width,height); pathPts.current=[]; snapshots.current=[]; strokes.current=[]; md(false); },
       toBlob: () => new Promise(r => { visRef.current?.toBlob(b => r(b), 'image/png'); }),
       isEmpty: () => !hasDrawn.current,
-      undo: () => { const s=snapshots.current; if(!s.length)return; const bg=bgCtxRef.current,b=bgRef.current,vc=visCtxRef.current; if(!bg||!b)return; const img=new Image(); img.onload=()=>{bg.clearRect(0,0,width,height);bg.drawImage(img,0,0); if(vc){vc.clearRect(0,0,width,height);vc.drawImage(b,0,0);} if(s.length<=1)md(false);}; img.src=s.pop()!; },
+      undo: () => { const s=snapshots.current; if(!s.length)return; strokes.current.pop(); const bg=bgCtxRef.current,b=bgRef.current,vc=visCtxRef.current; if(!bg||!b)return; const img=new Image(); img.onload=()=>{bg.clearRect(0,0,width,height);bg.drawImage(img,0,0); if(vc){vc.clearRect(0,0,width,height);vc.drawImage(b,0,0);} if(s.length<=1)md(false);}; img.src=s.pop()!; },
       setMode: (m) => { mode.current = m; },
       getMode: () => mode.current,
       setColor: (c) => { color.current = c; const bc=bgCtxRef.current; if(bc)bc.strokeStyle=c; const vc=visCtxRef.current; if(vc)vc.strokeStyle=c; },
@@ -237,6 +259,35 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
         }
         const bg = bgRef.current;
         return bg ? bg.toDataURL('image/png') : '';
+      },
+      captureStrokes: () => strokes.current.map(s => ({
+        pts: s.pts.map(p => ({ ...p })),
+        color: s.color, weight: s.weight, mode: s.mode, eraserMul: s.eraserMul,
+      })),
+      restoreStrokes: (srcStrokes: Stroke[], scale?: number) => {
+        if (!ensureContexts()) return;
+        const bgCtx = bgCtxRef.current!;
+        const bg = bgRef.current!;
+        const vc = visCtxRef.current!;
+        const s = scale && scale !== 1 ? scale : 1;
+        bgCtx.clearRect(0, 0, width, height);
+        const scaled: Stroke[] = [];
+        for (const st of srcStrokes) {
+          const pts = st.pts.map(p => ({ x: p.x * s, y: p.y * s, pressure: p.pressure }));
+          bgCtx.fillStyle = st.mode === 'erase' ? '#ffffff' : st.color;
+          drawPath(bgCtx, pts, st.weight * s, st.mode === 'erase' ? st.eraserMul : 1);
+          scaled.push({
+            pts: pts.map(p => ({ ...p })),
+            color: st.color, weight: st.weight * s, mode: st.mode, eraserMul: st.eraserMul,
+          });
+        }
+        vc.save(); vc.setTransform(1, 0, 0, 1, 0, 0);
+        vc.clearRect(0, 0, width, height);
+        vc.drawImage(bg, 0, 0);
+        vc.restore();
+        strokes.current = scaled;
+        hasDrawn.current = scaled.length > 0;
+        md(scaled.length > 0);
       },
       restoreBlob: (blob: Blob, scale?: number) => new Promise<void>((resolve) => {
         const img = new Image();

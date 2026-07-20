@@ -7,7 +7,7 @@ import {
   Eraser, ExternalLink, Keyboard, Loader2, Maximize2, Minimize2, ZoomIn, ZoomOut,
   PenLine, Save, Trash2, Undo2,
 } from 'lucide-react';
-import { AtramentCanvas, type AtramentCanvasHandle } from './atrament-canvas';
+import { AtramentCanvas, type AtramentCanvasHandle, type Stroke } from './atrament-canvas';
 import {
   createMemo, deleteMemo, getMemoInkUrl, listMemos,
 } from '@/lib/api';
@@ -56,8 +56,8 @@ export function MemoPanel({
   const [zoomLevel, setZoomLevel] = useState(1);
   const inlineCanvasRef = useRef<AtramentCanvasHandle>(null);
   const fullscreenCanvasRef = useRef<AtramentCanvasHandle>(null);
-  // 全屏切换时暂存 dataURL，在新 canvas mount 后恢复
-  const pendingDataURL = useRef<string>('');
+  // 全屏切换时暂存矢量笔触，在新 canvas mount 后恢复
+  const pendingStrokes = useRef<Stroke[] | null>(null);
   // 得分点 → 最新墨迹 blob 本地缓存，切换回来时即时恢复（避免 API 竞态）
   const inkCache = useRef<Map<string, Blob>>(new Map());
   // memos 列表的 ref 镜像，供异步闭包读取最新值（避免 stale closure）
@@ -163,15 +163,14 @@ export function MemoPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scorePointId]);
 
-  // 全屏切换后恢复暂存 dataURL（同步捕获，异步恢复，等新 canvas mount）
+  // 全屏切换后恢复暂存矢量笔触（矢量重绘，按比例缩放，永远清晰）
   useEffect(() => {
-    if (!pendingDataURL.current) return;
-    const dataURL = pendingDataURL.current;
-    pendingDataURL.current = '';
+    if (!pendingStrokes.current) return;
+    const src = pendingStrokes.current;
+    pendingStrokes.current = null;
     let cancelled = false;
     (async () => {
       const getRef = () => fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
-      // 轮询等待新 canvas mount（最多 ~30 帧 ≈ 500ms）
       for (let i = 0; i < 30; i++) {
         if (cancelled) return;
         if (getRef()) break;
@@ -179,32 +178,27 @@ export function MemoPanel({
       }
       const target = getRef();
       if (!target || cancelled) return;
-      try {
-        const blob = await (await fetch(dataURL)).blob();
-        if (cancelled || !blob) return;
-        // 进入全屏时直接按 0.4x 缩放画入（一步到位，无中间 canvas，笔迹清晰）
-        await target.restoreBlob(blob, fullscreen ? 0.4 : undefined);
-      } catch { /* restore silent */ }
+      // 进全屏 0.4x 缩小，出全屏 2.5x 放大还原（坐标+笔触粗细同步缩放，矢量清晰）
+      const scale = fullscreen ? 0.4 : 2.5;
+      target.restoreStrokes(src, scale);
     })();
     return () => { cancelled = true; };
   }, [fullscreen]);
 
   const enterFullscreen = () => {
     const c = inlineCanvasRef.current;
-    // 同步捕获（captureDataURL 先 commit 当前笔触再导出，无竞态）
-    let dataURL = '';
-    if (c && !c.isEmpty()) dataURL = c.captureDataURL();
+    // 同步捕获矢量笔触
+    const strokes = c && !c.isEmpty() ? c.captureStrokes() : null;
     c?.clear();
-    if (dataURL) pendingDataURL.current = dataURL;
+    if (strokes && strokes.length) pendingStrokes.current = strokes;
     setFullscreen(true);
   };
 
   const exitFullscreen = () => {
     const c = fullscreenCanvasRef.current;
-    let dataURL = '';
-    if (c && !c.isEmpty()) dataURL = c.captureDataURL();
+    const strokes = c && !c.isEmpty() ? c.captureStrokes() : null;
     c?.clear();
-    if (dataURL) pendingDataURL.current = dataURL;
+    if (strokes && strokes.length) pendingStrokes.current = strokes;
     setFullscreen(false);
   };
 
