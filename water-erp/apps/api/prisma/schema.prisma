@@ -255,6 +255,7 @@ model BidProject {
   openTime               DateTime
   deadline               DateTime
   stage                  BidStage                   @default(DOWNLOAD)
+  scoreStandardPublishedAt DateTime?
   riskNote               String?
   budget                 Decimal?                   @db.Decimal(14, 2)
   scope                  String?
@@ -568,8 +569,10 @@ model BidSupervisionLog {
   target    String
   action    String
   result    String
-  riskFlag  String     @default("无")
-  project   BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  riskFlag     String     @default("无")
+  operatorId   String?
+  operatorRole String?
+  project      BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt DateTime   @default(now())
 
   @@index([projectId])
