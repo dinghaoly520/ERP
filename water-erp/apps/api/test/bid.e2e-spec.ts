@@ -303,11 +303,10 @@ describe('Bid Lifecycle (e2e)', () => {
     });
     // 满足 P2(≥1 专家) + G4(≥1 解密成功供应商),使闸门推进到 G9(评分标准完整性)
     const expertUser = await prisma.user.findFirst({ where: { role: 'bid_expert' } });
-    if (expertUser) {
-      await prisma.bidExpert.create({
-        data: { projectId: proj.id, userId: expertUser.id, expertName: expertUser.username, major: '综合' },
-      });
-    }
+    expect(expertUser).toBeTruthy();
+    await prisma.bidExpert.create({
+      data: { projectId: proj.id, userId: expertUser!.id, expertName: expertUser!.username, major: '综合' },
+    });
     await prisma.bidSupplier.create({
       data: { projectId: proj.id, supplierName: '残缺测试供应商', decryptStatus: 'SUCCESS', submitStatus: '已提交' },
     });

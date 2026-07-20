@@ -1976,7 +1976,7 @@ export class BidService {
     return this.prisma.bidScoreItem.update({
       where: { id: itemId },
       data: {
-        ...(dto.category && { category: dto.category }),
+        ...(dto.category !== undefined && { category: dto.category }),
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.maxScore !== undefined && { maxScore: dto.maxScore }),
       },

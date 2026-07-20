@@ -286,6 +286,18 @@ async function main() {
   }
   console.log(`    专家 ${experts.length} 名：重命名 ${renamed}、仅改口令 ${passwordOnly}、冲突跳过 ${conflictSkipped}`);
 
+  // ═══ 「陈源远」账号口令规整 ═══
+  // User.json 把 staff 账号改名「陈源远」，但 passwordHash 与文档口令「陈源远@2026」不匹配，
+  // 导致每次 db:seed 后登录失败（401），连带 bid/auth/catalog/upload e2e 全挂。
+  // 幂等：每次 seed 后「陈源远」口令恒为 陈源远@2026，便于演示登录与 e2e。
+  console.log('▶ 规整「陈源远」账号口令（陈源远@2026）');
+  const staffHash = hashSync('陈源远@2026', 10);
+  const staffUsers = await prisma.user.findMany({ where: { username: '陈源远' } });
+  for (const u of staffUsers) {
+    await prisma.user.update({ where: { id: u.id }, data: { passwordHash: staffHash } });
+  }
+  console.log(`    陈源远 ${staffUsers.length} 个账号口令已重置`);
+
   // ═══ 投标文件持久化（让端到端 AI 分析可重现）═══
   await ensureBidFiles();
 
