@@ -1,44 +1,130 @@
-# Task 5 Report: HandwritingCanvas 手写画布组件
+# Task 5 Report — B2 publish 端点 + 锁定判定升级
 
-## Changes
+## Commit
 
-### `apps/expert-portal/src/components/memo/handwriting-canvas.tsx`（新建）
-- `HandwritingCanvas`（`forwardRef` + `useImperativeHandle`）暴露 `{ clear, toBlob, isEmpty }`。
-- **pointer events**：`onPointerDown/Move/Up/Leave` + `setPointerCapture`，保证拖出 canvas 仍可绘制。
-- **坐标缩放**：`pos()` 按 `getBoundingClientRect()` 将客户端坐标映射到 canvas 内部分辨率（CSS 尺寸 → `width`×`height`），避免 HiDPI 模糊。
-- **`touch-action: none`**（内联 `style.touchAction`）—— 阻止平板滚动/缩放干扰手写。
-- **`toBlob()`** 导出 PNG Blob，供 Task 4 的 `createMemo`（FormData ink）上传。
-- 设计系统：`rounded-xl` + `oklch(0.88 0.005 264)` 边框 + 白底。
+- **SHA:** `0e2397e5`
+- **Subject:** `feat(bid): B2 评分标准发布动作 + 锁定判定(publishedAt)`
+- **Branch:** `feat/score-standard-biz-p0`
 
-### 对 brief 代码的两处必要修正
-1. **`touch-action="none"` JSX 属性 → `style={{ touchAction: 'none' }}`**
-   - 原因：React 19 虽会把带连字符的未知属性透传到 DOM，但浏览器**不会**把名为 `touch-action` 的 HTML 属性解释为 CSS `touch-action` 属性。HTML 属性对 `<canvas>` 无此语义，样式不会生效 → 平板仍会滚动/缩放。
-   - 全局约束明确要求 "via inline style or className"，故移入 `style`。
+## 1. `assertScoreItemsEditable` 签名升级
 
-2. **`toBlob()` 的 `?? resolve(null)` 空值合并缺陷**
-   - 原代码：`canvasRef.current?.toBlob(b => resolve(b), 'image/png') ?? resolve(null)`
-   - 缺陷：`HTMLCanvasElement.toBlob()` 返回 `void`（运行时为 `undefined`），`??` 左侧**恒为** `undefined` → `resolve(null)` **立即**触发，Promise 提前 settle 为 `null`；`toBlob` 异步回调里的 `resolve(b)` 被忽略。**结果：toBlob 永远返回 null。**
-   - 修正：显式判空 `if (!canvas) { resolve(null); return; }`，再调 `canvas.toBlob(b => resolve(b), 'image/png')`，确保仅一次 resolve 且路径正确。
+`apps/api/src/bid/bid.service.ts:1916`
+```ts
+private assertScoreItemsEditable(stage: BidStage, publishedAt: Date | null) {
+  if (publishedAt || stage === 'EVALUATING' || stage === 'ARCHIVED') {
+    throw new ConflictException({
+      error: '评分标准已发布或项目已进入评标/归档阶段,已锁定',
+      code: 'SCORE_ITEMS_LOCKED',
+    });
+  }
+}
+```
 
-## tsc Clean
-`pnpm --filter expert-portal exec tsc --noEmit` → **EXIT=0**（无错误）
+## 2. 5 调用点变更（file:line）
 
-## Self-Review Checklist
+| # | Method | File:Line (post-edit) | select change | call change |
+|---|--------|----------------------|---------------|-------------|
+| a | `createScoreItem` | `bid.service.ts:1936` | `select: { stage: true, name: true, scoreStandardPublishedAt: true }` | `assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt)` |
+| b | `updateScoreItem` | `bid.service.ts:1962` | `select: { stage: true, scoreStandardPublishedAt: true }` | same |
+| c | `deleteScoreItem` | `bid.service.ts:1989` | `select: { stage: true, name: true, scoreStandardPublishedAt: true }` | same |
+| d | `applyScoreItemTemplate` | `bid.service.ts:2104` | `select: { stage: true, name: true, scoreStandardPublishedAt: true }` | same |
+| e | `assertScoreItemInProject` | `bid.service.ts:2016` | `include: { project: { select: { stage: true, scoreStandardPublishedAt: true } } }` | `assertScoreItemsEditable(item.project.stage as BidStage, item.project.scoreStandardPublishedAt)` |
 
-| 要求 | 状态 | 说明 |
-|---|---|---|
-| `touch-action: none`（防平板滚动/缩放） | YES | `style={{ touchAction: 'none' }}` —— 内联样式，浏览器一定识别 |
-| `forwardRef` + `useImperativeHandle` 暴露 `{clear, toBlob, isEmpty}` | YES | 接口签名与 brief 完全一致；`displayName` 已设 |
-| pointer down/move/up + `setPointerCapture` | YES | `down` 内 `setPointerCapture(e.pointerId)`；`up/leave` 均复位 `drawing` |
-| CSS 尺寸 ↔ canvas 分辨率 缩放 | YES | `pos()` 用 `getBoundingClientRect()` 比例换算 |
-| `toBlob` 输出 PNG Blob | YES | `'image/png'`；canvas 未挂载时返回 `null`（修正了 brief 的 `??` 缺陷） |
-| `clear()` 重置 `isEmpty` | YES | `clearRect` + `hasInk.current = false` |
-| 设计系统（oklch 边框 / rounded） | YES | `border-[oklch(0.88_0.005_264)]` + `rounded-xl` |
-| `isEmpty()` 反映真实笔画状态 | YES | `down` 内置 `hasInk.current = true`；`clear` 复位 |
+## 3. `publishScoreStandard` service method
 
-## Concerns
+`apps/api/src/bid/bid.service.ts:2136-2164`
+```ts
+/** 发布评分标准:校验完整性 → 置 publishedAt → 此后写操作锁定。 */
+async publishScoreStandard(projectId: string, actor: { userId: string; role: string; username: string }) {
+  const project = await this.prisma.bidProject.findUnique({
+    where: { id: projectId },
+    select: { stage: true, scoreStandardPublishedAt: true, name: true },
+  });
+  if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+  if (project.scoreStandardPublishedAt) {
+    throw new ConflictException({ error: '评分标准已发布,不可重复发布', code: 'SCORE_STANDARD_ALREADY_PUBLISHED' });
+  }
+  await this.scoreStandardValidator!.assertScoreStandardComplete(projectId);
 
-- **无 canvas/DOM 自动化测试**（按 brief 要求）。验证 = tsc clean + 逐项 self-review。
-- `canvasRef.current!` 在 `pos()` 中用非空断言：仅在 `down/move`（pointer 事件已在 canvas 上触发）内调用，挂载态有保障；仍属可接受的窄域断言。
-- 默认 `strokeColor='#1e3a5f'`、`lineWidth=2.5` 为硬编码；调用方可通过 props 覆盖 `strokeColor`，但 `lineWidth` 目前不可调（未列入 brief 接口，保持简洁）。
-- 高 DPI 屏幕**未**做 `devicePixelRatio` 缩放（canvas 内部 `width×height` 固定）；当前 600×320 在常见平板上够用，如需更清晰可后续按 DPR 放大 backing store。
+  const updated = await this.prisma.$transaction(async (tx) => {
+    const result = await tx.bidProject.update({
+      where: { id: projectId },
+      data: { scoreStandardPublishedAt: new Date() },
+    });
+    await tx.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '开标主持人',
+        operatorId: actor.userId, operatorRole: actor.role,
+        target: project.name, action: '编制评分标准', result: '发布评分标准', riskFlag: '无',
+      },
+    });
+    return result;
+  });
+  this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result: '发布评分标准', riskFlag: '无' });
+  return updated;
+}
+```
+
+Audit log write is inline (not refactored into `logScoreStdOp`) per Task 5 critical constraint — Task 6 will introduce the helper.
+
+## 4. Controller publish endpoint
+
+`apps/api/src/bid/bid.controller.ts:195-198`
+```ts
+@Post('projects/:id/score-items/publish')
+@ApiOperation({ summary: '发布评分标准(发布后只读)' })
+publishScoreStandard(@Param('id') id: string, @CurrentUser('sub') userId: string, @CurrentUser('role') role: string, @CurrentUser('username') username: string) {
+  return this.bidService.publishScoreStandard(id, { userId, role, username });
+}
+```
+
+Only the NEW endpoint receives `@CurrentUser` — existing 4 endpoints (`create/update/delete/applyTemplate`) untouched, deferred to Task 6.
+
+## 5. e2e publish-loop case
+
+`apps/api/test/bid.e2e-spec.ts:332-388`
+
+Covers all 4 transitions:
+- 残缺（1 项 maxScore=20, Σ≠100）→ `MAX_SCORE_SUM_NOT_100` (409)
+- 补齐完整标准 → 201
+- 此后 `POST /score-items` → `SCORE_ITEMS_LOCKED` (409)
+- 重复 publish → `SCORE_STANDARD_ALREADY_PUBLISHED` (409)
+
+Cleanup deletes BidScorePoint / BidScoreItem / BidSupervisionLog / BidProject for the temp project.
+
+## 6. Verification output
+
+```
+pnpm --filter api test:e2e -- test/bid.e2e-spec.ts
+Test Suites: 1 passed, 1 total
+Tests:       14 passed, 14 total
+Time:        4.757 s
+```
+
+```
+pnpm --filter api exec tsc --noEmit
+(no output — clean)
+```
+
+## 7. Files Changed
+
+- `water-erp/apps/api/src/bid/bid.service.ts` — `assertScoreItemsEditable` signature + 5 call-site selects + `publishScoreStandard` method (+58/−14)
+- `water-erp/apps/api/src/bid/bid.controller.ts` — `publish` endpoint (+6)
+- `water-erp/apps/api/test/bid.e2e-spec.ts` — publish-loop case (+48)
+
+## 8. Self-Review
+
+- ✅ `assertScoreItemsEditable(stage, publishedAt)` — locks when `publishedAt != null || stage in {EVALUATING, ARCHIVED}` (per brief).
+- ✅ All 5 call sites select `scoreStandardPublishedAt` and pass it through.
+- ✅ `publishScoreStandard` order: not-found → already-published → completeness → `$transaction(update + supervision log)` → gateway notify.
+- ✅ Audit log inline with `operatorId`/`operatorRole` from `actor` — no `logScoreStdOp` pre-created (Task 6 scope).
+- ✅ Controller endpoint is the only NEW place with `@CurrentUser`; existing 4 endpoints untouched.
+- ✅ Used `scoreStandardValidator!.assertScoreStandardComplete(...)` to match Task 3 `!` pattern at call sites (brief omitted `!` but the field is `@Optional()`, so strict-nullable would fail without `!`).
+- ✅ e2e temp project includes required schema fields (`procurementMethod`/`openTime`/`deadline`) — brief omitted them; added to match Prisma schema, mirroring Task 3 e2e pattern.
+- ✅ All 14 e2e cases green (10 pre-existing + 3 from Task 3 + 1 new); tsc clean.
+
+## 9. Concerns
+
+- **Brief omission 1**: Brief's Step 3 code uses `this.scoreStandardValidator.assertScoreStandardComplete(...)` (no `!`). I used `!` to match the Task 3 pattern at the 5 existing call sites — without it TypeScript strict null check fails. No behavior change.
+- **Brief omission 2**: Brief's Step 5 e2e `prisma.bidProject.create()` data omits required schema fields (`procurementMethod`, `openTime`, `deadline`). I added them (same shape as Task 3 e2e projects) — test logic is verbatim from brief.
+- **Branch**: Commit landed on `feat/score-standard-biz-p0` (the active Task-chain branch), not `main`. No push performed per project policy.

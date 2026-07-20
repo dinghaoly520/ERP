@@ -346,7 +346,7 @@ export default function TabletEvaluatePage() {
 
       {/* 主内容：评分 + 备忘面板 */}
       <PanelGroup orientation="horizontal" className="min-h-0 flex-1 gap-0">
-        <Panel defaultSize={55} minSize={35} className="min-h-0">
+        <Panel defaultSize={65} minSize={40} className="min-h-0">
         {/* 评分区 */}
         <div className="h-full overflow-y-auto rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/60 p-3">
           {!canScoreActiveSupplier && (
@@ -582,8 +582,8 @@ export default function TabletEvaluatePage() {
           </div>
         </div>
         </Panel>
-        <PanelResizeHandle className="w-1.5 bg-[oklch(0.92_0.004_265)] hover:bg-[#064ea2]/20 transition-colors cursor-col-resize" />
-        <Panel defaultSize={45} minSize={25} className="min-h-0">
+        <PanelResizeHandle className="w-1 bg-transparent hover:bg-[#064ea2]/10 transition-colors cursor-col-resize" />
+        <Panel defaultSize={35} minSize={20} className="min-h-0">
         {/* 备忘侧栏 */}
         <aside className="h-full overflow-y-auto rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/70 p-3">
           <MemoPanel
