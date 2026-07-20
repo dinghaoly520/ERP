@@ -1038,7 +1038,7 @@ describe('BidService — score items (评分标准)', () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '项目A' });
     prisma.bidScoreItem.create.mockResolvedValue({ id: 'i1', name: '技术评分' });
 
-    const res = await service.createScoreItem('p1', { category: 'TECHNICAL' as any, name: '技术评分', maxScore: 50 });
+    const res = await service.createScoreItem('p1', { category: 'TECHNICAL' as any, name: '技术评分', maxScore: 50 }, { userId: 'u1', role: 'bid_host' });
     expect(res.id).toBe('i1');
     expect(prisma.bidScoreItem.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 50 }),
@@ -1049,37 +1049,37 @@ describe('BidService — score items (评分标准)', () => {
   it('createScoreItem 在 OPENING 阶段仍可编辑（评标前最后窗口）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
     prisma.bidScoreItem.create.mockResolvedValue({ id: 'i1' });
-    await expect(service.createScoreItem('p1', { category: 'PRICE' as any, name: '价格', maxScore: 30 })).resolves.toBeDefined();
+    await expect(service.createScoreItem('p1', { category: 'PRICE' as any, name: '价格', maxScore: 30 }, { userId: 'u1', role: 'bid_host' })).resolves.toBeDefined();
   });
 
   it('createScoreItem 在 EVALUATING 阶段锁定抛 ConflictException', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '项目A' });
-    await expect(service.createScoreItem('p1', { category: 'PRICE' as any, name: '价格', maxScore: 30 }))
+    await expect(service.createScoreItem('p1', { category: 'PRICE' as any, name: '价格', maxScore: 30 }, { userId: 'u1', role: 'bid_host' }))
       .rejects.toThrow(ConflictException);
     expect(prisma.bidScoreItem.create).not.toHaveBeenCalled();
   });
 
   it('createScoreItem 在 ARCHIVED 阶段锁定抛 ConflictException', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', name: '项目A' });
-    await expect(service.createScoreItem('p1', { category: 'PRICE' as any, name: '价格', maxScore: 30 }))
+    await expect(service.createScoreItem('p1', { category: 'PRICE' as any, name: '价格', maxScore: 30 }, { userId: 'u1', role: 'bid_host' }))
       .rejects.toThrow(ConflictException);
   });
 
   it('createScoreItem 项目不存在抛 BadRequestException', async () => {
     prisma.bidProject.findUnique.mockResolvedValue(null);
-    await expect(service.createScoreItem('p1', { category: 'PRICE' as any, name: '价格', maxScore: 30 }))
+    await expect(service.createScoreItem('p1', { category: 'PRICE' as any, name: '价格', maxScore: 30 }, { userId: 'u1', role: 'bid_host' }))
       .rejects.toThrow(BadRequestException);
   });
 
   it('updateScoreItem 校验评分项归属本项目', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '项目A' });
     prisma.bidScoreItem.findFirst.mockResolvedValue(null); // 不属于本项目
-    await expect(service.updateScoreItem('p1', 'iX', { name: '改名' })).rejects.toThrow(BadRequestException);
+    await expect(service.updateScoreItem('p1', 'iX', { name: '改名' }, { userId: 'u1', role: 'bid_host' })).rejects.toThrow(BadRequestException);
   });
 
   it('deleteScoreItem 仅在编辑窗口内放行', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '项目A' });
-    await expect(service.deleteScoreItem('p1', 'i1')).rejects.toThrow(ConflictException);
+    await expect(service.deleteScoreItem('p1', 'i1', { userId: 'u1', role: 'bid_host' })).rejects.toThrow(ConflictException);
   });
 
   it('applyScoreItemTemplate 幂等：仅补齐缺失项', async () => {
@@ -1089,7 +1089,7 @@ describe('BidService — score items (评分标准)', () => {
       .mockResolvedValueOnce([{ name: '资格性审查' }])              // 去重查询
       .mockResolvedValue([{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }, { id: 'e' }]); // 模板应用后回读
 
-    await service.applyScoreItemTemplate('p1');
+    await service.applyScoreItemTemplate('p1', { userId: 'u1', role: 'bid_host' });
     // 5 项模板中已有 1 项，应仅创建 4 项
     expect(prisma.bidScoreItem.createMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.arrayContaining([expect.objectContaining({ name: '技术评分', maxScore: 50 })]),
@@ -1103,13 +1103,13 @@ describe('BidService — score items (评分标准)', () => {
     prisma.bidScoreItem.findMany.mockResolvedValue([
       { name: '资格性审查' }, { name: '符合性审查' }, { name: '商务评分' }, { name: '技术评分' }, { name: '价格评分' },
     ]);
-    await service.applyScoreItemTemplate('p1');
+    await service.applyScoreItemTemplate('p1', { userId: 'u1', role: 'bid_host' });
     expect(prisma.bidScoreItem.createMany).not.toHaveBeenCalled();
   });
 
   it('applyScoreItemTemplate 在 EVALUATING 阶段锁定', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '项目A' });
-    await expect(service.applyScoreItemTemplate('p1')).rejects.toThrow(ConflictException);
+    await expect(service.applyScoreItemTemplate('p1', { userId: 'u1', role: 'bid_host' })).rejects.toThrow(ConflictException);
   });
 });
 

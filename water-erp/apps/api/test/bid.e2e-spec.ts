@@ -376,4 +376,30 @@ describe('Bid Lifecycle (e2e)', () => {
     await prisma.bidSupervisionLog.deleteMany({ where: { projectId: proj.id } });
     await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
   });
+
+  it('updateScoreItem 修改 maxScore → BidSupervisionLog 含 operatorId 与 diff', async () => {
+    const proj = await prisma.bidProject.create({
+      data: { projectCode: `BID-T6-${Date.now()}`, name: 'B3审计项目', stage: 'DOWNLOAD', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },
+    });
+    const item = await prisma.bidScoreItem.create({ data: { projectId: proj.id, category: 'TECHNICAL', name: '技术', maxScore: 50 } });
+
+    await request(app.getHttpServer())
+      .patch(`/api/bid/projects/${proj.id}/score-items/${item.id}`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .send({ maxScore: 45 })
+      .expect(200);
+
+    const log = await prisma.bidSupervisionLog.findFirst({
+      where: { projectId: proj.id, action: '编制评分标准' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(log).toBeTruthy();
+    expect(log!.operatorId).toBeTruthy();
+    expect(log!.operatorRole).toBeTruthy();
+    expect(log!.result).toContain('50→45');
+
+    await prisma.bidSupervisionLog.deleteMany({ where: { projectId: proj.id } });
+    await prisma.bidScoreItem.deleteMany({ where: { projectId: proj.id } });
+    await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
+  });
 });

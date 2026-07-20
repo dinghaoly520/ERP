@@ -22,7 +22,7 @@ import { decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome 
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../expert/expert-deviation';
-import { ScoreCategory } from '@prisma/client';
+import { Prisma, ScoreCategory } from '@prisma/client';
 import { isBondQualified } from './bid-bond-status';
 import { recomputeExpertProgress, recomputeItemFromDecisions } from './score-recalculate.helper';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -1912,6 +1912,24 @@ export class BidService {
    * 评分项是评标段的前置条件：无评分项则专家无法打分、无法确认报告、无法生成结果。
    * 一旦项目进入评标（专家已开始打分）或归档，评分标准锁定，禁止增删改。 */
 
+  /** 写评分标准审计日志，统一带 operatorId/operatorRole 以便追溯。 */
+  private async logScoreStdOp(
+    tx: Prisma.TransactionClient,
+    projectId: string,
+    projectName: string,
+    actor: { userId: string; role: string },
+    action: string,
+    result: string,
+  ) {
+    await tx.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '开标主持人',
+        operatorId: actor.userId, operatorRole: actor.role,
+        target: projectName, action, result, riskFlag: '无',
+      },
+    });
+  }
+
   /** 评分标准仅在 DOWNLOAD/SUBMIT/OPENING 阶段且未发布时可编辑；已发布或进入评标/归档阶段锁定（409）。 */
   private assertScoreItemsEditable(stage: BidStage, publishedAt: Date | null) {
     if (publishedAt || stage === 'EVALUATING' || stage === 'ARCHIVED') {
@@ -1930,7 +1948,7 @@ export class BidService {
     });
   }
 
-  async createScoreItem(projectId: string, dto: CreateScoreItemDto) {
+  async createScoreItem(projectId: string, dto: CreateScoreItemDto, actor: { userId: string; role: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
       select: { stage: true, name: true, scoreStandardPublishedAt: true },
@@ -1939,51 +1957,20 @@ export class BidService {
     this.assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt);
     this.scoreStandardValidator!.assertPassFailMaxScore(dto.category, dto.maxScore);
 
+    const result = `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`;
     const created = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.bidScoreItem.create({
+      const item = await tx.bidScoreItem.create({
         data: { projectId, category: dto.category, name: dto.name, maxScore: dto.maxScore },
       });
-      await tx.bidSupervisionLog.create({
-        data: {
-          projectId, time: new Date(), role: '开标主持人', target: project.name,
-          action: '编制评分标准', result: `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`, riskFlag: '无',
-        },
-      });
-      return result;
+      await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', result);
+      return item;
     });
 
-    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result: `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`, riskFlag: '无' });
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result, riskFlag: '无' });
     return created;
   }
 
-  async updateScoreItem(projectId: string, itemId: string, dto: UpdateScoreItemDto) {
-    const project = await this.prisma.bidProject.findUnique({
-      where: { id: projectId },
-      select: { stage: true, scoreStandardPublishedAt: true },
-    });
-    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    this.assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt);
-
-    const existing = await this.prisma.bidScoreItem.findFirst({ where: { id: itemId, projectId } });
-    if (!existing) throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
-
-    if (dto.category !== undefined || dto.maxScore !== undefined) {
-      const nextCategory = dto.category ?? existing.category;
-      const nextMaxScore = dto.maxScore ?? Number(existing.maxScore);
-      this.scoreStandardValidator!.assertPassFailMaxScore(nextCategory, nextMaxScore);
-    }
-
-    return this.prisma.bidScoreItem.update({
-      where: { id: itemId },
-      data: {
-        ...(dto.category !== undefined && { category: dto.category }),
-        ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.maxScore !== undefined && { maxScore: dto.maxScore }),
-      },
-    });
-  }
-
-  async deleteScoreItem(projectId: string, itemId: string) {
+  async updateScoreItem(projectId: string, itemId: string, dto: UpdateScoreItemDto, actor: { userId: string; role: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
       select: { stage: true, name: true, scoreStandardPublishedAt: true },
@@ -1994,17 +1981,52 @@ export class BidService {
     const existing = await this.prisma.bidScoreItem.findFirst({ where: { id: itemId, projectId } });
     if (!existing) throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.bidSupervisionLog.create({
+    // Task 3: 通过性审查类别(QUALIFICATION/RESPONSIVE) 满分必须为 0
+    if (dto.category !== undefined || dto.maxScore !== undefined) {
+      const nextCategory = dto.category ?? existing.category;
+      const nextMaxScore = dto.maxScore ?? Number(existing.maxScore);
+      this.scoreStandardValidator!.assertPassFailMaxScore(nextCategory, nextMaxScore);
+    }
+
+    const diffs: string[] = [];
+    if (dto.category !== undefined && dto.category !== existing.category) diffs.push(`category ${existing.category}→${dto.category}`);
+    if (dto.name !== undefined && dto.name !== existing.name) diffs.push(`name ${existing.name}→${dto.name}`);
+    if (dto.maxScore !== undefined && Number(dto.maxScore) !== Number(existing.maxScore)) diffs.push(`maxScore ${existing.maxScore}→${dto.maxScore}`);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.bidScoreItem.update({
+        where: { id: itemId },
         data: {
-          projectId, time: new Date(), role: '开标主持人', target: project.name,
-          action: '编制评分标准', result: `删除评分项「${existing.name}」`, riskFlag: '无',
+          ...(dto.category !== undefined && { category: dto.category }),
+          ...(dto.name !== undefined && { name: dto.name }),
+          ...(dto.maxScore !== undefined && { maxScore: dto.maxScore }),
         },
       });
+      if (diffs.length > 0) {
+        await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', `修改评分项「${existing.name}」:${diffs.join(', ')}`);
+      }
+      return updated;
+    });
+  }
+
+  async deleteScoreItem(projectId: string, itemId: string, actor: { userId: string; role: string }) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, name: true, scoreStandardPublishedAt: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt);
+
+    const existing = await this.prisma.bidScoreItem.findFirst({ where: { id: itemId, projectId } });
+    if (!existing) throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
+
+    const result = `删除评分项「${existing.name}」`;
+    await this.prisma.$transaction(async (tx) => {
+      await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', result);
       await tx.bidScoreItem.delete({ where: { id: itemId } });
     });
 
-    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result: `删除评分项「${existing.name}」`, riskFlag: '无' });
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result, riskFlag: '无' });
     return { deleted: true };
   }
 
@@ -2098,7 +2120,7 @@ export class BidService {
   }
 
   /** 应用标准评分模板（幂等：按 name 去重，已存在的项不重复创建）。立即解除新建项目的评标死锁。 */
-  async applyScoreItemTemplate(projectId: string) {
+  async applyScoreItemTemplate(projectId: string, actor: { userId: string; role: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
       select: { stage: true, name: true, scoreStandardPublishedAt: true },
@@ -2119,16 +2141,14 @@ export class BidService {
     const toCreate = TEMPLATE.filter(t => !existingNames.has(t.name));
 
     if (toCreate.length > 0) {
-      await this.prisma.bidScoreItem.createMany({
-        data: toCreate.map(t => ({ projectId, category: t.category, name: t.name, maxScore: t.maxScore })),
+      const result = `应用标准模板，新增 ${toCreate.length} 项`;
+      await this.prisma.$transaction(async (tx) => {
+        await tx.bidScoreItem.createMany({
+          data: toCreate.map(t => ({ projectId, category: t.category, name: t.name, maxScore: t.maxScore })),
+        });
+        await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', result);
       });
-      await this.prisma.bidSupervisionLog.create({
-        data: {
-          projectId, time: new Date(), role: '开标主持人', target: project.name,
-          action: '编制评分标准', result: `应用标准模板，新增 ${toCreate.length} 项`, riskFlag: '无',
-        },
-      });
-      this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result: `应用标准模板，新增 ${toCreate.length} 项`, riskFlag: '无' });
+      this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result, riskFlag: '无' });
     }
     return this.listScoreItems(projectId);
   }
@@ -2150,13 +2170,7 @@ export class BidService {
         where: { id: projectId },
         data: { scoreStandardPublishedAt: new Date() },
       });
-      await tx.bidSupervisionLog.create({
-        data: {
-          projectId, time: new Date(), role: '开标主持人',
-          operatorId: actor.userId, operatorRole: actor.role,
-          target: project.name, action: '编制评分标准', result: '发布评分标准', riskFlag: '无',
-        },
-      });
+      await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', '发布评分标准');
       return result;
     });
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result: '发布评分标准', riskFlag: '无' });

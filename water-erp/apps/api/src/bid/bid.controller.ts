@@ -186,11 +186,24 @@ export class BidController {
 
   @Post('projects/:id/score-items')
   @ApiOperation({ summary: '新增评分项' })
-  createScoreItem(@Param('id') id: string, @Body() dto: CreateScoreItemDto) { return this.bidService.createScoreItem(id, dto); }
+  createScoreItem(
+    @Param('id') id: string,
+    @Body() dto: CreateScoreItemDto,
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.bidService.createScoreItem(id, dto, { userId, role });
+  }
 
   @Post('projects/:id/score-items/template')
   @ApiOperation({ summary: '应用标准评分模板（幂等）' })
-  applyScoreItemTemplate(@Param('id') id: string) { return this.bidService.applyScoreItemTemplate(id); }
+  applyScoreItemTemplate(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.bidService.applyScoreItemTemplate(id, { userId, role });
+  }
 
   @Post('projects/:id/score-items/publish')
   @ApiOperation({ summary: '发布评分标准(发布后只读)' })
@@ -200,14 +213,25 @@ export class BidController {
 
   @Patch('projects/:id/score-items/:itemId')
   @ApiOperation({ summary: '更新评分项' })
-  updateScoreItem(@Param('id') id: string, @Param('itemId') itemId: string, @Body() dto: UpdateScoreItemDto) {
-    return this.bidService.updateScoreItem(id, itemId, dto);
+  updateScoreItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: UpdateScoreItemDto,
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.bidService.updateScoreItem(id, itemId, dto, { userId, role });
   }
 
   @Delete('projects/:id/score-items/:itemId')
   @ApiOperation({ summary: '删除评分项' })
-  deleteScoreItem(@Param('id') id: string, @Param('itemId') itemId: string) {
-    return this.bidService.deleteScoreItem(id, itemId);
+  deleteScoreItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.bidService.deleteScoreItem(id, itemId, { userId, role });
   }
 
   // ── 得分点（checklist 子项）CRUD ──
