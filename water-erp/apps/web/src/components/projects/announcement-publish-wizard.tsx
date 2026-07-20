@@ -9,15 +9,11 @@ import {
   createAnnouncement,
   listAttachments,
   addAttachment,
-  removeAttachment,
   uploadFile,
   attachFromObject,
   parseAnnouncementFields,
 } from '@/lib/api/announcement';
-import type {
-  AnnouncementAttachment,
-  AnnouncementStatus,
-} from '@/lib/api/announcement';
+import type { AnnouncementStatus } from '@/lib/api/announcement';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { AnnouncementDialog } from '@/components/tender-write/announcement-dialog';
@@ -76,9 +72,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   const [scheduledDate, setScheduledDate] = useState('');
   const [attachOn, setAttachOn] = useState(false);
   const [tenderOn, setTenderOn] = useState(false);
-  const [notifyOnPublish, setNotifyOnPublish] = useState(false);
+  const [notifyOnPublish, setNotifyOnPublish] = useState(true);
   const [annId, setAnnId] = useState<string | null>(null);
-  const [attachments, setAttachments] = useState<AnnouncementAttachment[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; title: string }>>([]);
   const [busy, setBusy] = useState(false);
 
   // Supplier picker
@@ -99,11 +95,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setAnnId(null);
     setAttachOn(false);
     setTenderOn(false);
-    setNotifyOnPublish(false);
+    setNotifyOnPublish(true);
     setVisibility('PUBLIC');
     setRestrictedSupplierIds([]);
     setPublishTiming('now');
     setScheduledDate('');
+    setPendingFiles([]);
 
     const tt = mapProcurementMethodToTenderType(project.procurementMethod);
     if (!tt) {
@@ -188,11 +185,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setCategory(cat);
   }, []);
 
-  const loadAttachments = async (id: string) => {
-    try {
-      setAttachments(await listAttachments(id));
-    } catch {
-      /* ignore */
+  // 发布时上传本地暂存的附件（附件 API 需要 announcementId，故在 create 之后批量上传）
+  const uploadPendingFiles = async (id: string) => {
+    for (const item of pendingFiles) {
+      try {
+        const asset = await uploadFile(item.file, 'announcement');
+        await addAttachment(id, asset.id, item.title || item.file.name);
+      } catch (e) {
+        toast.error(`附件上传失败：${item.file.name} ${(e as Error).message}`);
+      }
     }
   };
 
@@ -214,7 +215,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         toast.error(`采购文件引用失败：${f.fileName} ${(e as Error).message}`);
       }
     }
-    await loadAttachments(id);
   };
 
   const handlePublish = async () => {
@@ -255,6 +255,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       });
       const id = saved.id;
       setAnnId(id);
+      await uploadPendingFiles(id);
       await ensureTenderAttached(id);
       toast.success(publishTiming === 'now' ? '已发布' : '已保存为定时发布');
       onPublished();
@@ -511,17 +512,14 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 </label>
               </div>
 
-              {/* Attachment section (only after draft saved) */}
-              {attachOn && annId && (
+              {/* Attachment section — 本地暂存，发布时统一上传 */}
+              {attachOn && (
                 <AttachmentSection
-                  annId={annId}
-                  attachments={attachments}
-                  onChanged={() => loadAttachments(annId)}
+                  pendingFiles={pendingFiles}
+                  onAdd={(file, title) => setPendingFiles((prev) => [...prev, { file, title }])}
+                  onRemove={(idx) => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
                   inputCls={inputCls}
                 />
-              )}
-              {attachOn && !annId && (
-                <p className="text-xs text-[var(--muted-foreground)]">发布后可上传附件。</p>
               )}
             </div>
           )}
@@ -569,39 +567,31 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 }
 
 function AttachmentSection({
-  annId,
-  attachments,
-  onChanged,
+  pendingFiles,
+  onAdd,
+  onRemove,
   inputCls,
 }: {
-  annId: string;
-  attachments: AnnouncementAttachment[];
-  onChanged: () => void;
+  pendingFiles: Array<{ file: File; title: string }>;
+  onAdd: (file: File, title: string) => void;
+  onRemove: (index: number) => void;
   inputCls: string;
 }) {
   const [attTitle, setAttTitle] = useState('');
-  const [uploading, setUploading] = useState(false);
 
-  const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    setUploading(true);
-    try {
-      const asset = await uploadFile(f, 'announcement');
-      await addAttachment(annId, asset.id, attTitle || f.name);
-      setAttTitle('');
-      onChanged();
-      toast.success('附件已添加');
-    } catch (err) {
-      toast.error((err as Error).message || '上传失败');
-    }
-    setUploading(false);
+    onAdd(f, attTitle);
+    setAttTitle('');
     e.target.value = '';
   };
 
   return (
     <div className="rounded-xl border border-[var(--border)] p-4">
-      <div className="text-xs font-bold text-[var(--accent-strong)] mb-3">附件（公开可下载）</div>
+      <div className="text-xs font-bold text-[var(--accent-strong)] mb-3">
+        附件（公开可下载 · 发布时上传）
+      </div>
       <div className="space-y-3">
         <div className="flex gap-2">
           <input
@@ -610,41 +600,28 @@ function AttachmentSection({
             placeholder="附件标题（可选）"
             className={inputCls + ' flex-1'}
           />
-          <label
-            className={[
-              'neu-btn-primary cursor-pointer whitespace-nowrap',
-              uploading ? 'opacity-50' : '',
-            ].join(' ')}
-          >
-            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            {uploading ? '上传中...' : '添加附件'}
-            <input type="file" className="hidden" onChange={onUpload} />
+          <label className="neu-btn-primary cursor-pointer whitespace-nowrap">
+            <Upload size={14} />
+            添加附件
+            <input type="file" className="hidden" onChange={onSelect} />
           </label>
         </div>
-        {attachments.length === 0 ? (
+        {pendingFiles.length === 0 ? (
           <p className="text-xs text-[var(--muted-foreground)]">暂无附件</p>
         ) : (
-          attachments.map((a) => (
+          pendingFiles.map((item, idx) => (
             <div
-              key={a.id}
+              key={idx}
               className="flex items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2"
             >
               <div>
-                <div className="text-sm font-semibold">{a.title}</div>
+                <div className="text-sm font-semibold">{item.title || item.file.name}</div>
                 <div className="text-xs text-[var(--muted-foreground)]">
-                  {a.fileAsset.originalName} · {(a.fileAsset.size / 1024).toFixed(0)} KB
+                  {item.file.name} · {(item.file.size / 1024).toFixed(0)} KB
                 </div>
               </div>
-              <button
-                onClick={async () => {
-                  if (confirm('删除该附件？')) {
-                    await removeAttachment(a.id);
-                    onChanged();
-                  }
-                }}
-                className="neu-btn-xs is-danger"
-              >
-                删除
+              <button onClick={() => onRemove(idx)} className="neu-btn-xs is-danger">
+                移除
               </button>
             </div>
           ))
