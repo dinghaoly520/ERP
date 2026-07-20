@@ -104,8 +104,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setRestrictedSupplierIds([]);
     setPublishTiming('now');
     setScheduledDate('');
-    setCategory(null);
-    setDraft(null);
 
     const tt = mapProcurementMethodToTenderType(project.procurementMethod);
     if (!tt) {
@@ -119,25 +117,34 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     const preTender = buildPrefillFromProject(project, tt) as ReadyTenderDraft;
     setTenderDraftForDialog(preTender);
 
-    // Async: parse .docx → 合并预填 + 自动选分类
+    // ★ 同步锁定 procurement_document（项目管理入口只做采购文件公告）+ 项目数据预填
+    // 不依赖 .docx 解析，确保无论解析成功与否都直接进入编辑页、不显示分类选择
+    const avail = getAvailableAnnouncementCategories(tt);
+    const procCat = avail.find((c) => c === 'procurement_document');
+    if (!procCat) {
+      setCategory(null);
+      setDraft(null);
+      setLoading(false);
+      return;
+    }
+    const emptyDraft = createEmptyAnnouncementDraft(tt, procCat);
+    const filledDraft = applyAutoFill(
+      emptyDraft,
+      preTender as Record<string, string>,
+      getAnnouncementFields(tt, procCat),
+    );
+    setCategory(procCat);
+    setDraft(filledDraft);
+
+    // ★ Async: .docx 解析仅作额外字段叠加（失败不影响进入编辑页）
     parseAnnouncementFields(project.id)
       .then((parsed) => {
         if (!parsed?.fields) return;
         const merged = { ...preTender, ...parsed.fields } as ReadyTenderDraft;
         setTenderDraftForDialog(merged);
-        const avail = getAvailableAnnouncementCategories(tt);
-        const procCat = avail.find((c) => c === 'procurement_document') ?? avail[0];
-        if (procCat) {
-          const empty = createEmptyAnnouncementDraft(tt, procCat);
-          const filled = applyAutoFill(
-            empty,
-            merged as Record<string, string>,
-            getAnnouncementFields(tt, procCat),
-          );
-          const withParsed = { ...filled, ...parsed.fields } as AnnouncementDraft;
-          setCategory(procCat);
-          setDraft(withParsed);
-        }
+        setDraft((prev) =>
+          prev ? ({ ...prev, ...parsed.fields } as AnnouncementDraft) : prev,
+        );
       })
       .catch(() => {
         /* .docx 解析可选，失败静默 */
