@@ -169,26 +169,17 @@ export function MemoPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scorePointId]);
 
-  // 全屏切换后恢复暂存矢量笔触（矢量重绘，按比例缩放，永远清晰）
+  // 全屏切换后恢复矢量笔触（rAF 同步恢复，无取消机制，避免 cleanup 吞掉恢复）
   useEffect(() => {
     if (!pendingStrokes.current) return;
     const src = pendingStrokes.current;
     pendingStrokes.current = null;
-    let cancelled = false;
-    (async () => {
-      const getRef = () => fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
-      for (let i = 0; i < 30; i++) {
-        if (cancelled) return;
-        if (getRef()) break;
-        await new Promise<void>(r => requestAnimationFrame(() => r()));
-      }
-      const target = getRef();
-      if (!target || cancelled) return;
-      // 进全屏 0.4x 缩小，出全屏 2.5x 放大还原（坐标+笔触粗细同步缩放，矢量清晰）
-      const scale = fullscreen ? 0.4 : 2.5;
-      target.restoreStrokes(src, scale);
-    })();
-    return () => { cancelled = true; };
+    const target = fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
+    if (!target) return;
+    // 进全屏 0.4x 缩小，出全屏 2.5x 放大还原（坐标+笔触粗细同步缩放，矢量清晰）
+    const scale = fullscreen ? 0.4 : 2.5;
+    // rAF：此时 React 已 commit 新 canvas 到 DOM，ref 已绑定，下一帧绘制前同步画上
+    requestAnimationFrame(() => target.restoreStrokes(src, scale));
   }, [fullscreen]);
 
   const enterFullscreen = () => {
@@ -219,7 +210,7 @@ export function MemoPanel({
           return;
         }
         // 同步捕获矢量（缓存用，保持全屏切换清晰）
-        const strokes = c.captureStrokes();
+        const strokes = c?.captureStrokes() ?? [];
         const blob = await c?.toBlob();
         if (!blob) { toast.error('墨迹导出失败'); return; }
         // upsert：先删该得分点旧 ink 备忘，再建新的（同一得分点只留一条墨迹）

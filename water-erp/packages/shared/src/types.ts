@@ -303,6 +303,7 @@ export interface ExpertMemo {
   projectId: string;
   supplierId?: string | null;
   scoreItemId?: string | null;
+  scorePointId?: string | null;
   contentText?: string | null;
   inkFileId?: string | null;
   sourceDevice?: string | null;
