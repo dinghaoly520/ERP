@@ -328,4 +328,52 @@ describe('Bid Lifecycle (e2e)', () => {
     await prisma.bidScoreItem.deleteMany({ where: { projectId: proj.id } });
     await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
   });
+
+  it('评分标准 publish 闭环:残缺→409;完整→成功;此后写→409;重复→409', async () => {
+    const proj = await prisma.bidProject.create({
+      data: { projectCode: `BID-T5-${Date.now()}`, name: 'B2发布项目', stage: 'DOWNLOAD', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },
+    });
+    // 残缺(只有 1 项,Σ≠100)→ 409
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${proj.id}/score-items/publish`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .expect(409)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'MAX_SCORE_SUM_NOT_100' }));
+
+    // 补齐完整标准
+    const items = await Promise.all([
+      prisma.bidScoreItem.create({ data: { projectId: proj.id, category: 'BUSINESS', name: '商务', maxScore: 20 } }),
+      prisma.bidScoreItem.create({ data: { projectId: proj.id, category: 'TECHNICAL', name: '技术', maxScore: 50 } }),
+      prisma.bidScoreItem.create({ data: { projectId: proj.id, category: 'PRICE', name: '价格', maxScore: 30 } }),
+    ]);
+    await prisma.bidScorePoint.createMany({
+      data: items.map((it) => ({ scoreItemId: it.id, name: `${it.name}-要点`, fullScore: Number(it.maxScore), seq: 1 })),
+    });
+
+    // 完整 → 发布成功
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${proj.id}/score-items/publish`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .expect(201);
+
+    // 此后写 → 409 SCORE_ITEMS_LOCKED
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${proj.id}/score-items`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .send({ category: 'TECHNICAL', name: '新项', maxScore: 5 })
+      .expect(409)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'SCORE_ITEMS_LOCKED' }));
+
+    // 重复 publish → 409
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${proj.id}/score-items/publish`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .expect(409)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'SCORE_STANDARD_ALREADY_PUBLISHED' }));
+
+    await prisma.bidScorePoint.deleteMany({ where: { scoreItem: { projectId: proj.id } } });
+    await prisma.bidScoreItem.deleteMany({ where: { projectId: proj.id } });
+    await prisma.bidSupervisionLog.deleteMany({ where: { projectId: proj.id } });
+    await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
+  });
 });

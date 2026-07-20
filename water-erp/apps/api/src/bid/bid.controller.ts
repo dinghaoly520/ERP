@@ -192,6 +192,12 @@ export class BidController {
   @ApiOperation({ summary: '应用标准评分模板（幂等）' })
   applyScoreItemTemplate(@Param('id') id: string) { return this.bidService.applyScoreItemTemplate(id); }
 
+  @Post('projects/:id/score-items/publish')
+  @ApiOperation({ summary: '发布评分标准(发布后只读)' })
+  publishScoreStandard(@Param('id') id: string, @CurrentUser('sub') userId: string, @CurrentUser('role') role: string, @CurrentUser('username') username: string) {
+    return this.bidService.publishScoreStandard(id, { userId, role, username });
+  }
+
   @Patch('projects/:id/score-items/:itemId')
   @ApiOperation({ summary: '更新评分项' })
   updateScoreItem(@Param('id') id: string, @Param('itemId') itemId: string, @Body() dto: UpdateScoreItemDto) {
