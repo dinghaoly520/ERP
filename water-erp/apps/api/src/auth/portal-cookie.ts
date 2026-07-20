@@ -12,6 +12,8 @@ export const ROLE_PORTAL: Record<string, string> = {
   admin: 'web',
   bid_host: 'web',
   procurement_staff: 'web',
+  leader: 'web',
+  staff: 'web',
   supplier: 'supplier',
   bid_expert: 'expert',
   mall: 'mall',

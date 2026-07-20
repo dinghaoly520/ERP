@@ -28,6 +28,7 @@ import { TenderWriteModal } from './tender-write-modal';
 import { ExpertExtractModal } from './expert-extract-modal';
 import { SupplierExtractModal } from './supplier-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
+import { BidConfirmPanel } from './bid-confirm-panel';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { Modal } from '@/components/workbench';
 
@@ -373,6 +374,7 @@ export function ProjectDetailPanel({
   const [expertExtractOpen, setExpertExtractOpen] = useState(false);
   const [supplierExtractOpen, setSupplierExtractOpen] = useState(false);
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
+  const [bidConfirmOpen, setBidConfirmOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string } | null>(null);
 
   // 步骤检查状态 —— 按 stageKey 缓存结果
@@ -803,6 +805,8 @@ export function ProjectDetailPanel({
                   setSupplierExtractOpen(true);
                 } else if (stageKey === 'PUBLIC_ANNOUNCEMENT') {
                   setAnnouncementPublishOpen(true);
+                } else if (stageKey === 'BID_EVALUATION') {
+                  setBidConfirmOpen(true);
                 }
               }}
               showArchiveStep={showArchiveStep}
@@ -1469,6 +1473,13 @@ export function ProjectDetailPanel({
         onClose={() => setAnnouncementPublishOpen(false)}
         project={item}
         onPublished={onUpdated}
+      />
+
+      {/* 开标确认面板：投标状态 / 专家确认 / 评分标准 / 开标决策 */}
+      <BidConfirmPanel
+        isOpen={bidConfirmOpen}
+        onClose={() => setBidConfirmOpen(false)}
+        project={item}
       />
     </>
   );

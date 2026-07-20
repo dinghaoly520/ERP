@@ -149,6 +149,89 @@ export class ProjectManagementService {
     }));
   }
 
+  /**
+   * 开标确认：确保项目管理项已关联 BidProject。
+   * 已关联 → 返回该 BidProject 概要；未关联 → 按项目信息创建并回写 bidProjectId。
+   * 兼容未来"立项时自动创建"：无论关联何时建立，本方法都幂等返回。
+   */
+  async ensureBidProject(itemId: string) {
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: itemId },
+      select: {
+        id: true,
+        title: true,
+        procurementMethod: true,
+        budgetAmount: true,
+        bidOpeningTime: true,
+        initiationDate: true,
+        projectOverview: true,
+        bidProjectId: true,
+      },
+    });
+    if (!item) {
+      throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    }
+
+    if (item.bidProjectId) {
+      const existing = await this.prisma.bidProject.findUnique({
+        where: { id: item.bidProjectId },
+        select: {
+          id: true,
+          projectCode: true,
+          name: true,
+          stage: true,
+          procurementMethod: true,
+          openTime: true,
+          deadline: true,
+        },
+      });
+      if (existing) {
+        return {
+          ...existing,
+          openTime: existing.openTime.toISOString(),
+          deadline: existing.deadline.toISOString(),
+        };
+      }
+    }
+
+    // 解析开标时间：bidOpeningTime 字符串 → initiationDate → 当前时间
+    const parsedOpen = item.bidOpeningTime ? new Date(item.bidOpeningTime) : null;
+    const openTime =
+      parsedOpen && !Number.isNaN(parsedOpen.getTime())
+        ? parsedOpen
+        : (item.initiationDate ?? new Date());
+    const deadline = new Date(openTime.getTime() + 7 * 86400000);
+
+    const created = await this.prisma.bidProject.create({
+      data: {
+        name: item.title,
+        projectCode: `BID-${Date.now()}`,
+        procurementMethod: item.procurementMethod || '公开招标',
+        openTime,
+        deadline,
+        budget: item.budgetAmount != null ? Number(item.budgetAmount) : null,
+        scope: item.projectOverview || null,
+        stage: 'DOWNLOAD',
+      },
+    });
+    await this.prisma.projectManagementItem.update({
+      where: { id: itemId },
+      data: { bidProjectId: created.id },
+    });
+    this.logger.log(
+      `为项目管理项 ${itemId} 创建开评标项目 ${created.projectCode}`,
+    );
+    return {
+      id: created.id,
+      projectCode: created.projectCode,
+      name: created.name,
+      stage: created.stage,
+      procurementMethod: created.procurementMethod,
+      openTime: created.openTime.toISOString(),
+      deadline: created.deadline.toISOString(),
+    };
+  }
+
   async createFromInitiation(dto: CreateProjectFromInitiationDto) {
     await this.prisma.department.upsert({
       where: { name: dto.requesterDepartment },

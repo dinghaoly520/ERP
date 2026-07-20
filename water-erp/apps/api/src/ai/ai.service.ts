@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../local-ai/llm.service';
 import { NotificationService } from '../notification/notification.service';
@@ -1496,51 +1496,59 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       .map(([type,count]) => ({ label: typeLabels[type] || type, pct: totalTyped > 0 ? Math.round((count/totalTyped)*100) : 0 }));
 
     // Let AI generate the narrative
-    try {
-      const systemPrompt = `你是${userName}的私人工作分析师。根据提供的审计日志和任务数据，用温暖、有洞察力的语言写一段120-150字的"工作画像"叙事。
+    const systemPrompt = `你是${userName}的私人工作分析师。根据提供的审计日志和任务数据，用温暖、有洞察力的语言写一篇约500字的"工作画像"叙事，分为2-3个自然段。
 
-要求：
-1. 像一个了解你的导师在娓娓道来你的工作风格，不是冰冷的数据汇报
-2. 自然融入关键数据点（审批次数、高峰时段、主要领域），但不堆砌数字，侧重"这意味着什么"
-3. 给出一条建设性的、有温度的观察或建议
-4. 纯中文、段落式、不使用Markdown
-5. 示例风格："你的工作节奏很有规律。过去这段时间里，你最活跃的时段是上午——早晨的专注力让你高效处理了47次审批，平均响应间隔不到两小时。你主要深耕在审批处理和项目跟进这两个领域，这反映出你是一个执行导向的人。有一点值得关注：你的工作类型中缺少文档和复盘类任务，适当留出一些回顾的时间，会让长期效率更高。"
+把以下主题自然地融入这 2-3 个段落（不要逐条罗列，也不要加标题或序号）：
+- 工作节奏：高峰日/时段、连续活跃、响应间隔等数据刻画的工作习惯
+- 核心领域：从任务类型分布看出的深耕方向与背后能力
+- 协作与风格：执行/思考/关系导向等协作偏好
+- 一个闪光点：基于数据的具体肯定
+- 一条建设性建议：有温度、可操作
 
-附带生成JSON:
+写作要求：
+- 像一个了解你多年的导师在娓娓道来，有温度、有洞察，不是冰冷的数据汇报
+- 第二人称"你"叙述，亲切但有分寸
+- 自然融入关键数据点（审批次数、高峰时段、主要领域、完成率等），每处数字紧跟"这意味着什么"
+- 严格 2-3 个自然段，**段落之间只用一个换行分隔、禁止空行**（换行符 \\n，不是 \\n\\n）
+- 纯中文、不使用Markdown、不加标题或序号
+- 如果某些数据为空或为0，巧妙规避或以中性表达处理，不要生硬地说"暂无数据"
+
+返回 JSON:
 {
-  "narrative": "120-150字的工作风格叙事",
-  "insight": "20-30字的一句建设性观察"
+  "narrative": "约500字、2-3段的工作画像叙事（段落之间用单个 \\n 分隔，禁止空行）"
 }`;
 
-      const userPrompt = `用户: ${userName}
+    const userPrompt = `用户: ${userName}
 审批记录: ${approvalActs.length}条，平均响应间隔${avgHoursStr}，峰值时段${dayLabels[peakDayIdx]}${period}（${peakHour}:00左右），最近连续活跃${streak}天
-任务总览: 共${tasks.total}项，已完成${tasks.completed}项
-任务类型分布: ${JSON.stringify(tasks.byType)}`;
+任务总览: 共${tasks.total}项，已完成${tasks.completed}项，完成率${tasks.total > 0 ? Math.round((tasks.completed / tasks.total) * 100) : 0}%
+任务类型分布: ${JSON.stringify(tasks.byType)}
+任务类型含义: APPROVAL=审批处理, FOLLOW_UP=项目跟进, WRITING=文档撰写, COMMUNICATION=沟通协调, REVIEW=审核审查, MEETING=会议研讨, ARCHIVE=资料归档, RESEARCH=调研分析`;
 
-      const result = await this.llm.chatJson<{ narrative: string; insight: string }>(systemPrompt, userPrompt, 0.7);
-
-      return {
-        narrative: result.narrative || `你是一位工作中注重效率的人。系统记录了${approvalActs.length}次审批操作，主要活跃在${dayLabels[peakDayIdx]}的${period}。你在${domainFocus.map(d=>d.label).join('、')}等领域积累了丰富的经验。`,
-        metrics: {
-          totalApprovals: approvalActs.length,
-          avgResponseHours: avgHours,
-          completionStreak: streak,
-          peakDay: dayLabels[peakDayIdx], peakPeriod: period,
-        },
-        domainFocus,
-      };
-    } catch {
-      return {
-        narrative: `你是一位注重效率的工作者。系统记录了${approvalActs.length}次审批操作，主要活跃在${dayLabels[peakDayIdx]}的${period}。继续推进任务，画像会越来越清晰。`,
-        metrics: {
-          totalApprovals: approvalActs.length,
-          avgResponseHours: avgHours,
-          completionStreak: streak,
-          peakDay: dayLabels[peakDayIdx], peakPeriod: period,
-        },
-        domainFocus,
-      };
+    // AI 调用失败时直接抛错 —— 不再返回降级文案，让前端显示"未成功生成"。
+    // DeepSeek 偶发失败（限流 / 网络抖动 / JSON 解析），重试 1 次再放弃。
+    let result: { narrative: string } | null = null;
+    for (let attempt = 0; attempt < 2 && !result?.narrative; attempt++) {
+      try {
+        result = await this.llm.chatJson<{ narrative: string }>(systemPrompt, userPrompt, 0.7);
+      } catch (err) {
+        if (attempt === 1) throw err;
+      }
     }
+
+    if (!result?.narrative) {
+      throw new ServiceUnavailableException('工作画像生成返回空内容，请稍后重试');
+    }
+
+    return {
+      narrative: result.narrative.replace(/\n{2,}/g, '\n').trim(),
+      metrics: {
+        totalApprovals: approvalActs.length,
+        avgResponseHours: avgHours,
+        completionStreak: streak,
+        peakDay: dayLabels[peakDayIdx], peakPeriod: period,
+      },
+      domainFocus,
+    };
   }
 
   /** Normalize a time-slot string into HH:MM format, handling ISO 8601 and HH:MM inputs. */

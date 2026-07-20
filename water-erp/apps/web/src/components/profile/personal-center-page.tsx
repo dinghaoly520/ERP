@@ -14,7 +14,7 @@ import { TabSecurity } from './tab-security';
 import { TabActivityLog } from './tab-activity-log';
 import { TabPreferences } from './tab-preferences';
 import { TabWorkOverview } from './tab-work-overview';
-import { TabWorkPortrait } from './tab-work-portrait';
+import { clearWorkPortraitCache } from './tab-work-portrait';
 
 export function PersonalCenterPage() {
   const router = useRouter();
@@ -51,6 +51,7 @@ export function PersonalCenterPage() {
     try {
       await logout();
       clearWorkspaceCache();
+      clearWorkPortraitCache();
       startTransition(() => { router.replace('/login'); router.refresh(); });
     } finally {
       setLoggingOut(false);
@@ -97,7 +98,6 @@ export function PersonalCenterPage() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'work-overview': return <TabWorkOverview />;
-      case 'work-portrait': return <TabWorkPortrait />;
       case 'basic-info': return <TabBasicInfo user={user} departments={departments} onUserUpdated={handleUserUpdated} />;
       case 'security': return <TabSecurity user={user} />;
       case 'activity-log': return <TabActivityLog />;

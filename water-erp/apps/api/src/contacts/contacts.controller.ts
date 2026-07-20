@@ -20,7 +20,7 @@ export class ContactsController {
   constructor(private readonly contactsService: ContactsService) {}
 
   @Post()
-  @Roles('procurement_staff', 'admin')
+  @Roles('procurement_staff', 'leader', 'admin', 'staff')
   create(@Body() dto: CreateContactDto) {
     return this.contactsService.create(dto);
   }
@@ -41,13 +41,13 @@ export class ContactsController {
   }
 
   @Put(':id')
-  @Roles('procurement_staff', 'admin')
+  @Roles('procurement_staff', 'leader', 'admin', 'staff')
   update(@Param('id') id: string, @Body() dto: UpdateContactDto) {
     return this.contactsService.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles('procurement_staff', 'admin')
+  @Roles('procurement_staff', 'leader', 'admin', 'staff')
   delete(@Param('id') id: string) {
     return this.contactsService.delete(id);
   }

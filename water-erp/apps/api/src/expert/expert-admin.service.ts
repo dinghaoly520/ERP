@@ -528,16 +528,26 @@ export class ExpertAdminService {
       }
     }
 
+    // 正选专家创建为 expertRole=正选
+    const expertCreates = dto.experts.map(e =>
+      this.prisma.bidExpert.upsert({
+        where: { projectId_userId: { projectId, userId: e.userId } },
+        update: { expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, expertRole: '正选', invitationStatus: 'pending' },
+        create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, expertRole: '正选', invitationStatus: 'pending' },
+      }),
+    );
+
+    // 候补专家创建为 expertRole=候补
+    const candidateCreates = (dto.candidates ?? []).map(c =>
+      this.prisma.bidExpert.upsert({
+        where: { projectId_userId: { projectId, userId: c.userId } },
+        update: { expertName: c.expertName, major: c.major, expertRole: '候补', invitationStatus: 'pending' },
+        create: { projectId, userId: c.userId, expertName: c.expertName, major: c.major, expertRole: '候补', invitationStatus: 'pending' },
+      }),
+    );
+
     const [created] = await Promise.all([
-      this.prisma.$transaction(
-        dto.experts.map(e =>
-          this.prisma.bidExpert.upsert({
-            where: { projectId_userId: { projectId, userId: e.userId } },
-            update: { expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, invitationStatus: 'pending' },
-            create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, invitationStatus: 'pending' },
-          }),
-        ),
-      ),
+      this.prisma.$transaction([...expertCreates, ...candidateCreates]),
       // 审计日志（不阻断主流程）
       this.prisma.auditLog.create({
         data: {
@@ -560,7 +570,67 @@ export class ExpertAdminService {
     return { success: true, count: created.length, expertIds: dto.experts.map(e => e.userId) };
   }
 
-  /** AI 生成单专家个性化通知内容 */
+  /** 查询项目专家邀请状态（正选+候补） */
+  async getProjectInvitations(projectId: string) {
+    const records = await this.prisma.bidExpert.findMany({
+      where: { projectId },
+      orderBy: [{ expertRole: 'asc' }, { createdAt: 'asc' }],
+      select: {
+        id: true, userId: true, expertName: true, major: true,
+        isLead: true, expertRole: true, invitationStatus: true,
+      },
+    });
+    const confirmed = records.filter(r => r.invitationStatus === 'confirmed').length;
+    const declined = records.filter(r => r.invitationStatus === 'declined').length;
+    const pending = records.filter(r => r.invitationStatus === 'pending').length;
+    const candidates = records.filter(r => r.expertRole === '候补' && r.invitationStatus === 'pending');
+    return {
+      experts: records,
+      summary: {
+        total: records.length,
+        confirmed,
+        declined,
+        pending,
+        availableCandidates: candidates.length,
+        allDeclined: records.filter(r => r.expertRole === '正选').every(r => r.invitationStatus !== 'pending')
+          && records.filter(r => r.expertRole === '候补').every(r => r.invitationStatus !== 'pending'),
+      },
+    };
+  }
+
+  /** 自动递补：将第一个待确认的候补提升为正选 */
+  async autoPromoteCandidate(projectId: string) {
+    const candidate = await this.prisma.bidExpert.findFirst({
+      where: { projectId, expertRole: '候补', invitationStatus: 'pending' },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!candidate) return null;
+    await this.prisma.bidExpert.update({
+      where: { id: candidate.id },
+      data: { expertRole: '正选' },
+    });
+    return { userId: candidate.userId, expertName: candidate.expertName, major: candidate.major };
+  }
+
+  /** 标记专家已拒绝参与评审，并自动递补候补 */
+  async declineInvitation(projectId: string, userId: string) {
+    const result = await this.prisma.bidExpert.updateMany({
+      where: { projectId, userId, invitationStatus: 'pending' },
+      data: { invitationStatus: 'declined' },
+    });
+    if (result.count === 0) throw new NotFoundException('未找到该项目的待确认邀请记录');
+
+    // 检查是否是正选拒绝，如果是则自动递补候补
+    const declinedExpert = await this.prisma.bidExpert.findFirst({
+      where: { projectId, userId },
+    });
+    let promoted: { userId: string; expertName: string; major: string } | null = null;
+    if (declinedExpert?.expertRole === '正选') {
+      promoted = await this.autoPromoteCandidate(projectId);
+    }
+
+    return { success: true, status: 'declined', promoted };
+  }
   async generateNotificationAi(params: {
     projectName: string; expertName: string; isLead: boolean;
     totalExperts: number; extractMode: string; openTime: string;
@@ -578,16 +648,6 @@ export class ExpertAdminService {
     });
     if (result.count === 0) throw new NotFoundException('未找到该项目的待确认邀请记录');
     return { success: true, status: 'confirmed' };
-  }
-
-  /** 标记专家已拒绝参与评审 */
-  async declineInvitation(projectId: string, userId: string) {
-    const result = await this.prisma.bidExpert.updateMany({
-      where: { projectId, userId, invitationStatus: 'pending' },
-      data: { invitationStatus: 'declined' },
-    });
-    if (result.count === 0) throw new NotFoundException('未找到该项目的待确认邀请记录');
-    return { success: true, status: 'declined' };
   }
 
   /** 抽取确认后发送通知（逐专家逐渠道投递） */

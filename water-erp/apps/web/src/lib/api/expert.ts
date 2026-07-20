@@ -128,7 +128,7 @@ export function previewExtraction(data: {
   return api.post<ExtractionPreview>('/expert-admin/extract', data);
 }
 
-export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string; isLead?: boolean }[] }) {
+export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string; isLead?: boolean }[]; candidates?: { userId: string; expertName: string; major: string }[] }) {
   return api.post<{ success: boolean; count: number; expertIds: string[] }>('/expert-admin/extract/confirm', data);
 }
 
@@ -278,7 +278,14 @@ export function confirmInvitation(projectId: string, userId: string) {
   return api.post<{ success: boolean; status: string }>(`/expert-admin/invitations/${projectId}/${userId}/confirm`, {});
 }
 export function declineInvitation(projectId: string, userId: string) {
-  return api.post<{ success: boolean; status: string }>(`/expert-admin/invitations/${projectId}/${userId}/decline`, {});
+  return api.post<{ success: boolean; status: string; promoted?: { userId: string; expertName: string; major: string } | null }>(`/expert-admin/invitations/${projectId}/${userId}/decline`, {});
+}
+
+export function getProjectInvitations(projectId: string) {
+  return api.get<{
+    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string }[];
+    summary: { total: number; confirmed: number; declined: number; pending: number; availableCandidates: number; allDeclined: boolean };
+  }>(`/expert-admin/invitations/${projectId}`);
 }
 
 /* ── AI 采纳率 ── */

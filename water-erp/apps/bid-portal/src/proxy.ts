@@ -32,7 +32,7 @@ export default async function proxy(request: NextRequest) {
   }
 
   // 验证 token + 角色范围 — 调用后端 /auth/me。
-  // 允许角色与 bid.controller 的 @Roles('admin','bid_host','procurement_staff') 保持一致，
+  // 允许角色与 bid.controller 的 @Roles('admin','bid_host','procurement_staff','leader','staff') 保持一致，
   // 避免"外壳被拦但 API 可调"的不一致；如需收紧为 admin/bid_host，仅改此数组即可。
   try {
     const res = await fetch(portalURL('api', '/api/auth/me'), {
@@ -42,7 +42,7 @@ export default async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL(LOGIN_URL));
     }
     const me = await res.json();
-    const ALLOWED_ROLES = ['admin', 'bid_host', 'procurement_staff'];
+    const ALLOWED_ROLES = ['admin', 'bid_host', 'procurement_staff', 'leader', 'staff'];
     if (!ALLOWED_ROLES.includes(me?.role)) {
       return NextResponse.redirect(new URL(LOGIN_URL));
     }

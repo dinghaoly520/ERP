@@ -202,8 +202,8 @@ export class CatalogController {
   // ── 目录项关联 ──
 
   @Get('items/:id/relations') async listItemRelations(@Param('id') id: string) { return this.catalogService.listItemRelations(id); }
-  @Post('admin/items/:id/relations') @Roles('admin', 'procurement_staff') async createItemRelation(@Request() req: any, @Param('id') id: string, @Body() dto: { relatedItemId: string; relationType: string }) { return this.catalogService.createItemRelation(req.user.sub, id, dto); }
-  @Delete('admin/items/:id/relations/:relationId') @Roles('admin', 'procurement_staff') async deleteItemRelation(@Param('relationId', new ParseIntPipe()) relationId: number) { return this.catalogService.deleteItemRelation(relationId); }
+  @Post('admin/items/:id/relations') @Roles('admin', 'procurement_staff', 'leader', 'staff') async createItemRelation(@Request() req: any, @Param('id') id: string, @Body() dto: { relatedItemId: string; relationType: string }) { return this.catalogService.createItemRelation(req.user.sub, id, dto); }
+  @Delete('admin/items/:id/relations/:relationId') @Roles('admin', 'procurement_staff', 'leader', 'staff') async deleteItemRelation(@Param('relationId', new ParseIntPipe()) relationId: number) { return this.catalogService.deleteItemRelation(relationId); }
 
   // ── 供应商目录供货申请（管理员审核）──
 

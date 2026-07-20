@@ -45,6 +45,7 @@ const STEPS = [
   { num: 2, label: '描述需求', desc: '撰写采购需求，AI 润色优化' },
   { num: 3, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
   { num: 4, label: '确认通知', desc: '发送通知 / 邀请 / 分享名单' },
+  { num: 5, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
 
 export function SupplierSelectionPage({
@@ -82,8 +83,12 @@ export function SupplierSelectionPage({
   const [error, setError] = useState('');
   const [result, setResult] = useState<SupplierSelectionResult | null>(null);
   const [shortlist, setShortlist] = useState<Map<string, { item: SupplierRecommendation; note: string }>>(new Map());
-  const [step, setStep] = useState(1); // 向导步骤：1=选择项目 2=描述需求 3=审核候选 4=确认通知
+  const [step, setStep] = useState(1); // 向导步骤：1=选择项目 2=描述需求 3=审核候选 4=确认通知 5=供应商确认
   const [notified, setNotified] = useState(false); // 第 4 步：是否已完成通知发送
+  // 第 5 步：逐供应商确认状态（待确认 / 已确认 / 已放弃）
+  const [confirmations, setConfirmations] = useState<Map<string, 'pending' | 'confirmed' | 'declined'>>(new Map());
+  const [notifyNotFound, setNotifyNotFound] = useState(0); // 第 5 步：通知未找到关联账户的供应商数
+  const [completed, setCompleted] = useState(false); // 第 5 步：本批次选取是否已确认完成
 
   useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); listBidProjects().then(setProjects).catch(() => {}); }, []);
 
@@ -102,6 +107,14 @@ export function SupplierSelectionPage({
         if (state.maxCount) setMaxCount(state.maxCount);
         if (state.result) setResult(state.result);
         if (state.step) setStep(state.step);
+        if (state.notified) setNotified(true);
+        if (state.completed) setCompleted(true);
+        if (typeof state.notifyNotFound === 'number') setNotifyNotFound(state.notifyNotFound);
+        if (state.confirmationsArr) {
+          const cm = new Map<string, 'pending' | 'confirmed' | 'declined'>();
+          (state.confirmationsArr as [string, string][]).forEach(([k, v]) => cm.set(k, v as 'pending' | 'confirmed' | 'declined'));
+          setConfirmations(cm);
+        }
         if (state.shortlistArr) {
           const m = new Map<string, { item: SupplierRecommendation; note: string }>();
           (state.shortlistArr as [string, any][]).forEach(([k, v]) => m.set(k, v));
@@ -118,9 +131,11 @@ export function SupplierSelectionPage({
         requirement, classificationId, projectId, maxCount, step,
         result: result ? { ...result, recommendations: result.recommendations.slice(0, 20) } : null,
         shortlistArr: [...shortlist.entries()],
+        notified, notifyNotFound, completed,
+        confirmationsArr: [...confirmations.entries()],
       }));
     } catch {}
-  }, [requirement, classificationId, projectId, maxCount, step, result, shortlist]);
+  }, [requirement, classificationId, projectId, maxCount, step, result, shortlist, notified, notifyNotFound, completed, confirmations]);
   useEffect(() => { if (!projectId) { setProjectDetail(null); return; } getBidProjectDetail(projectId).then(setProjectDetail).catch(() => setProjectDetail(null)); }, [projectId]);
   const selectedProject = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
 
@@ -222,30 +237,37 @@ export function SupplierSelectionPage({
       const ids = [...shortlist.keys()];
       const hasOverrides = ids.some(sid => notifyPerSupplier.has(sid));
 
+      let totalSent = 0;
+      let totalNotFound = 0;
       if (hasOverrides) {
-        let sent = 0;
         for (const sid of ids) {
           const msg = getSupplierMessage(sid);
           const name = shortlist.get(sid)?.item.name || '';
-          await notifySuppliers({
+          const r = await notifySuppliers({
             supplierIds: [sid],
             channels: notifyChannels,
             type: 'SELECTION_NOTIFY',
             title: msg.title.replace(/\{供应商名称\}/g, name),
             content: msg.body.replace(/\{供应商名称\}/g, name),
           });
-          sent++;
+          totalSent += r.sent || 1;
+          totalNotFound += r.notFound || 0;
         }
-        setNotified(true);
-        toast.success(`已通知 ${sent} 家供应商`);
       } else {
         const res = await notifySuppliers({
           supplierIds: ids, channels: notifyChannels, type: 'SELECTION_NOTIFY',
           title: notifyTemplate.title.trim(), content: notifyTemplate.body.trim(),
         });
-        setNotified(true);
-        toast.success(`已通知 ${res.sent} 家供应商${res.notFound > 0 ? `，${res.notFound} 家未找到关联账户` : ''}`);
+        totalSent = res.sent;
+        totalNotFound = res.notFound;
       }
+      setNotified(true);
+      setNotifyNotFound(totalNotFound);
+      setCompleted(false);
+      toast.success(`已通知 ${totalSent} 家供应商${totalNotFound > 0 ? `，${totalNotFound} 家未找到关联账户` : ''}`);
+      // 进入第 5 步：供应商确认（初始化全部为待确认）
+      setConfirmations(new Map([...shortlist.keys()].map(sid => [sid, 'pending' as const])));
+      setStep(5);
       setNotifyModal(false);
       setNotifyTemplate({ title: '', body: '' });
       setNotifyPerSupplier(new Map());
@@ -308,7 +330,32 @@ export function SupplierSelectionPage({
   const copyList = async () => { if (shortlist.size === 0) return; try { await navigator.clipboard.writeText(buildExportText()); toast.success('已复制到剪贴板'); } catch { toast.error('复制失败'); } };
   const downloadList = () => { if (shortlist.size === 0) return; const blob = new Blob([buildExportText()], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `供应商候选名单_${new Date().toISOString().slice(0, 10)}.txt`; a.click(); URL.revokeObjectURL(url); };
 
-  const reset = () => { setStep(1); setResult(null); setShortlist(new Map()); setNotified(false); setError(''); sessionStorage.removeItem('supplier-selection-state'); };
+  const reset = () => { setStep(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); sessionStorage.removeItem('supplier-selection-state'); };
+
+  // 第 5 步：完成本批次选取（记录汇总、清空会话，给采购员闭环）
+  const completeSelection = () => {
+    const summary = `已记录：${confirmedCount} 家确认 / ${declinedCount} 家放弃 / ${pendingCount} 家待确认`;
+    toast.success(summary);
+    setCompleted(true);
+    // 完成后清空会话，下次进入从第 1 步开始
+    setTimeout(() => {
+      sessionStorage.removeItem('supplier-selection-state');
+    }, 500);
+  };
+
+  // 第 5 步：循环切换供应商确认状态（待确认 → 已确认 → 已放弃 → 待确认）
+  const cycleConfirmation = (sid: string) => {
+    setConfirmations(prev => {
+      const n = new Map(prev);
+      const cur = n.get(sid) || 'pending';
+      n.set(sid, cur === 'pending' ? 'confirmed' : cur === 'confirmed' ? 'declined' : 'pending');
+      return n;
+    });
+  };
+  // 确认状态派生统计
+  const confirmedCount = [...confirmations.values()].filter(s => s === 'confirmed').length;
+  const declinedCount = [...confirmations.values()].filter(s => s === 'declined').length;
+  const pendingCount = shortlist.size - confirmedCount - declinedCount;
 
   // ── 第 3 步：候选名单 sidebar（边看推荐边构建名单） ──
   const shortlistPanel = (
@@ -336,8 +383,8 @@ export function SupplierSelectionPage({
               <div key={sid} className="kpi-card flex flex-col gap-2 p-3">
                 <div className="flex items-center gap-2">
                   <div className="flex flex-col gap-0.5 flex-shrink-0">
-                    <button onClick={() => moveShortlistItem(idx, idx - 1)} disabled={idx === 0} className="text-[var(--muted-foreground)]/40 hover:text-[var(--muted-foreground)] disabled:opacity-20 transition"><ChevronUp size={10} /></button>
-                    <button onClick={() => moveShortlistItem(idx, idx + 1)} disabled={idx === shortlist.size - 1} className="text-[var(--muted-foreground)]/40 hover:text-[var(--muted-foreground)] disabled:opacity-20 transition"><ChevronDown size={10} /></button>
+                    <button onClick={() => moveShortlistItem(idx, idx - 1)} disabled={idx === 0} aria-label="上移" className="p-1 text-[var(--muted-foreground)]/40 hover:text-[var(--muted-foreground)] disabled:opacity-20 transition"><ChevronUp size={14} /></button>
+                    <button onClick={() => moveShortlistItem(idx, idx + 1)} disabled={idx === shortlist.size - 1} aria-label="下移" className="p-1 text-[var(--muted-foreground)]/40 hover:text-[var(--muted-foreground)] disabled:opacity-20 transition"><ChevronDown size={14} /></button>
                   </div>
                   <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-[var(--accent)] text-[10px] font-extrabold text-white">{idx + 1}</span>
                   <div className="flex-1 min-w-0">
@@ -402,14 +449,15 @@ export function SupplierSelectionPage({
       {/* ══ 向导步骤指示器 ══ */}
       <div className="neu-table-card p-0">
         <div className="flex">
-          {STEPS.map((s) => (
+          {STEPS.map((s) => {
+            const reachable = s.num <= step || (s.num === 3 && !!result);
+            return (
             <button
               key={s.num}
-              onClick={() => {
-                // 允许回退到已完成的步骤；第 3 步在有结果时也可跳入
-                if (s.num <= step || (s.num === 3 && result)) setStep(s.num);
-              }}
-              className={`flex-1 flex items-center gap-3 px-4 py-3 text-left transition-colors ${step === s.num ? 'bg-[color-mix(in_oklch,var(--accent)_4%,transparent)]' : ''} ${s.num > 1 && 'border-l border-[var(--muted)]/15'}`}
+              onClick={() => { if (reachable) setStep(s.num); }}
+              aria-disabled={!reachable}
+              aria-current={step === s.num ? 'step' : undefined}
+              className={`flex-1 flex items-center gap-3 px-4 py-3 text-left transition-colors ${step === s.num ? 'bg-[color-mix(in_oklch,var(--accent)_4%,transparent)]' : ''} ${s.num > 1 && 'border-l border-[var(--muted)]/15'} ${!reachable ? 'cursor-default' : ''}`}
             >
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-extrabold transition-colors ${step === s.num ? 'bg-[var(--accent)] text-white' : step > s.num ? 'bg-[var(--success)]/30 text-[var(--success)]' : 'bg-[var(--muted)]/25 text-[var(--muted-foreground)]'}`}>
                 {step > s.num ? '✓' : s.num}
@@ -419,7 +467,8 @@ export function SupplierSelectionPage({
                 <div className="text-[10px] text-[var(--muted-foreground)]/60 leading-tight truncate hidden md:block">{s.desc}</div>
               </div>
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -589,7 +638,7 @@ export function SupplierSelectionPage({
                             {inList && <StatusBadge tone="green">已入选</StatusBadge>}
                           </div>
                           <div className="flex items-center gap-2 mb-2">
-                            <div className="flex-1 h-2 rounded-full bg-[var(--muted)]/50 overflow-hidden max-w-[280px]"><div className="h-full rounded-full transition-all duration-700" style={{ width: `${r.matchScore}%`, backgroundColor: scoreVar(r.matchScore) }} /></div>
+                            <div className="flex-1 h-2 rounded-full bg-[var(--muted)]/50 overflow-hidden max-w-[280px]"><div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${r.matchScore}%`, backgroundColor: scoreVar(r.matchScore) }} /></div>
                             <strong className="text-sm tabular-nums min-w-[2rem] text-right" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</strong>
                             <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ color: scoreVar(r.matchScore), backgroundColor: `color-mix(in oklch, ${scoreVar(r.matchScore)} 14%, transparent)` }}>{scoreLabel(r.matchScore)}</span>
                           </div>
@@ -637,16 +686,6 @@ export function SupplierSelectionPage({
       {/* ── 步骤 4：确认通知 / 邀请 / 分享 ── */}
       {step === 4 && (
         <div className="space-y-4">
-          {notified && (
-            <div className="neu-table-card p-5 flex items-center gap-3">
-              <ShieldCheck size={28} className="text-[var(--success)] flex-shrink-0" />
-              <div>
-                <div className="text-sm font-bold text-[var(--foreground)]">通知已发送给候选供应商</div>
-                <p className="text-xs text-[var(--muted-foreground)]">供应商收到后将确认参与意向，可继续发送正式邀请或分享名单</p>
-              </div>
-            </div>
-          )}
-
           <div className="neu-table-card p-5 space-y-4">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">4</span>
@@ -709,6 +748,113 @@ export function SupplierSelectionPage({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── 步骤 5：供应商确认 ── */}
+      {step === 5 && (
+        <div className="space-y-4">
+          {completed ? (
+            <div className="neu-table-card p-10 text-center">
+              <div className="flex h-14 w-14 mx-auto items-center justify-center rounded-[16px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
+                <Check size={28} className="text-[var(--success)]" />
+              </div>
+              <h3 className="mt-4 text-lg font-bold text-[var(--foreground)] mb-1">本批次选取已完成</h3>
+              <p className="text-sm text-[var(--muted-foreground)]">
+                已记录 <strong className="text-[var(--success)]">{confirmedCount}</strong> 家确认 · <strong className="text-[var(--danger)]">{declinedCount}</strong> 家放弃 · <strong className="text-[var(--foreground)]">{pendingCount}</strong> 家待确认
+              </p>
+              <div className="flex justify-center gap-3 mt-6">
+                <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                  返回供应商库
+                </button>
+                <button onClick={reset} className="neu-btn-soft">开始新一批选取</button>
+              </div>
+            </div>
+          ) : notified ? (
+            <>
+              <div className="neu-table-card p-6 space-y-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[13px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
+                    <ShieldCheck size={22} className="text-[var(--success)]" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base font-bold text-[var(--foreground)]">通知已发送，等待供应商确认</h3>
+                    <p className="text-xs text-[var(--muted-foreground)] mt-0.5 leading-relaxed">
+                      已向 {shortlist.size} 家候选供应商发出邀请通知{notifyNotFound > 0 && `（${notifyNotFound} 家未找到关联账户，需另行联系）`}。供应商通过供应商门户确认后，可点击列表按钮手动同步状态
+                    </p>
+                    {/* 内联确认进度（distill：取代原三宫格统计卡） */}
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2" aria-live="polite" aria-atomic="true">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-1.5 w-36 rounded-full overflow-hidden bg-[var(--muted)]/25">
+                          {shortlist.size > 0 && confirmedCount > 0 && (
+                            <div className="h-full transition-[width] duration-500" style={{ width: `${confirmedCount / shortlist.size * 100}%`, background: 'var(--success)' }} />
+                          )}
+                          {shortlist.size > 0 && declinedCount > 0 && (
+                            <div className="h-full transition-[width] duration-500" style={{ width: `${declinedCount / shortlist.size * 100}%`, background: 'var(--danger)' }} />
+                          )}
+                        </div>
+                        <span className="text-[11px] tabular-nums text-[var(--muted-foreground)]">{confirmedCount}/{shortlist.size}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] tabular-nums">
+                        <span className="font-bold text-[var(--success)]">{confirmedCount} 已确认</span>
+                        <span className="text-[var(--muted-foreground)]">{pendingCount} 待确认</span>
+                        {declinedCount > 0 && <span className="font-bold text-[var(--danger)]">{declinedCount} 已放弃</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 逐供应商确认列表 */}
+                <div className="space-y-2">
+                  {[...shortlist.entries()].map(([sid, { item: r }], idx) => {
+                    const status = confirmations.get(sid) || 'pending';
+                    const contact = r.contacts?.find(c => c.isPrimary) || r.contacts?.[0];
+                    return (
+                      <div key={sid} className="flex items-center gap-3 rounded-xl bg-[var(--surface)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{idx + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-bold text-[var(--foreground)] truncate">{r.name}</div>
+                          <div className="text-[11px] text-[var(--muted-foreground)] truncate">
+                            匹配度 <span className="font-bold" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</span>
+                            {contact ? ` · ${contact.name} ${contact.phone}` : ''}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => cycleConfirmation(sid)}
+                          title="点击切换确认状态"
+                          aria-label={`切换 ${r.name} 的确认状态，当前${status === 'confirmed' ? '已确认' : status === 'declined' ? '已放弃' : '待确认'}`}
+                          className={`neu-btn-xs !py-1.5 !px-3 flex-shrink-0 ${status === 'confirmed' ? 'is-success' : status === 'declined' ? 'is-danger' : ''}`}
+                        >
+                          {status === 'confirmed' ? <><Check size={12} />已确认</> : status === 'declined' ? <><X size={12} />已放弃</> : '待确认'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">5</span>
+                  <span className="text-sm font-bold text-[var(--foreground)]">供应商确认</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={reset} className="neu-btn-soft">重新选取</button>
+                  <button onClick={() => setStep(4)} className="neu-btn-soft">返回通知</button>
+                  <button onClick={completeSelection} className="neu-btn-soft is-success">
+                    <Check size={14} />完成选取
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="neu-table-card py-14 text-center">
+              <Bell size={32} className="mx-auto text-[var(--muted-foreground)]/40 mb-3" />
+              <p className="text-sm text-[var(--muted-foreground)]">请先返回第 4 步发送通知</p>
+              <button onClick={() => setStep(4)} className="neu-btn-soft mt-4">返回第 4 步：确认通知</button>
+            </div>
+          )}
         </div>
       )}
 
