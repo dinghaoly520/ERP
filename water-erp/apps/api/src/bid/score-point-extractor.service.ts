@@ -41,6 +41,11 @@ export class ScorePointExtractorService {
       throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
     }
 
+    // E5: PRICE 类别的得分点由报价公式计算，无需 AI 提取
+    if (item.category === 'PRICE') {
+      return [];
+    }
+
     const tenderText = await this.getTenderText(projectId);
     if (!tenderText) {
       throw new BadRequestException({ error: '招标文件未就绪（未发布招标公告或无招标文件）', code: 'TENDER_NOT_READY' });
@@ -55,14 +60,20 @@ export class ScorePointExtractorService {
       .replace('{{EXISTING_POINTS}}', JSON.stringify(item.points.map((p) => p.name)))
       .replace('{{TENDER_TEXT}}', JSON.stringify(relevantText));
 
-    const result = await this.validator.retryChatJson<{ items: ScorePointSuggestion[] }>(
-      this.llm,
-      SCORE_POINTS_EXTRACT_SYSTEM,
-      prompt,
-      (raw): raw is { items: ScorePointSuggestion[] } =>
-        !!raw && typeof raw === 'object' && Array.isArray((raw as any).items),
-      2,
-    );
+    // E6: LLM 降级 —— 失败不抛 500,返回空数组让管理员手动添加
+    let result: { items: ScorePointSuggestion[] };
+    try {
+      result = await this.validator.retryChatJson<{ items: ScorePointSuggestion[] }>(
+        this.llm,
+        SCORE_POINTS_EXTRACT_SYSTEM,
+        prompt,
+        (raw): raw is { items: ScorePointSuggestion[] } =>
+          !!raw && typeof raw === 'object' && Array.isArray((raw as any).items),
+        2,
+      );
+    } catch {
+      return [];
+    }
 
     // E2: fullScore 归一化 —— 如果合计超过 maxScore,等比缩放
     const maxScore = Number(item.maxScore);

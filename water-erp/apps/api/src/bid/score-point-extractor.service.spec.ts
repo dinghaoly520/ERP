@@ -106,4 +106,21 @@ describe('ScorePointExtractorService', () => {
     expect(promptArg).toContain('评分细则测试文本');
     expect(plaintextFetcher.fetchTenderPlaintext).toHaveBeenCalledTimes(1);
   });
+
+  // E5: PRICE 类别直接返回空数组,不调 LLM
+  it('E5: PRICE 类别直接返回空数组,不调 LLM', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'PRICE', name: '价格评分', maxScore: 30, points: [] });
+    const r = await service.extractScorePoints('p1', 'i1');
+    expect(r).toEqual([]);
+    expect(plaintextFetcher.fetchTenderPlaintext).not.toHaveBeenCalled();
+  });
+
+  // E6: LLM 故障降级,不抛 500
+  it('E6: LLM 故障返回空数组不抛异常', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 50, points: [] });
+    plaintextFetcher.fetchTenderPlaintext.mockResolvedValue(Buffer.from('fake-tender'));
+    validator.retryChatJson.mockRejectedValue(new Error('LLM down'));
+    const r = await service.extractScorePoints('p1', 'i1');
+    expect(r).toEqual([]);
+  });
 });
