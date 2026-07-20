@@ -17,7 +17,7 @@ import {
 import { Roles } from '../common/decorators/roles.decorator';
 
 @Controller('tender-sample')
-@Roles('procurement_staff', 'admin')
+@Roles('procurement_staff', 'leader', 'admin', 'staff')
 export class TenderSampleController {
   constructor(private readonly tenderSampleService: TenderSampleService) {}
 
