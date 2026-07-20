@@ -82,6 +82,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   // Supplier picker
   const [allSuppliers, setAllSuppliers] = useState<Supplier[]>([]);
   const [supplierSearch, setSupplierSearch] = useState('');
+  // 直接采购：自动匹配公告中拟定供应商的待匹配名称（匹配完清空）
+  const [autoMatchName, setAutoMatchName] = useState('');
 
   const tenderFiles = useMemo<ProjectManagementAttachment[]>(
     () => project?.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT')?.attachments ?? [],
@@ -100,6 +102,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setNotifyOnPublish(true);
     setVisibility('PUBLIC');
     setRestrictedSupplierIds([]);
+    setAutoMatchName('');
     setPublishTiming('now');
     setScheduledDate('');
     setPendingFiles([]);
@@ -135,6 +138,17 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setCategory(procCat);
     setDraft(filledDraft);
 
+    // ★ 默认公告范围：竞价采购/直接采购 → 部分供应商可见；其余 → 全部可见
+    const defaultRestricted = tt === 'INTERNAL_BIDDING' || tt === 'SINGLE_SOURCE';
+    setVisibility(defaultRestricted ? 'RESTRICTED' : 'PUBLIC');
+
+    // ★ 直接采购：自动读取公告中的拟定供应商（draft.supplierName，来自项目 awardedSupplier）
+    //   匹配供应商库并选中；供应商列表加载后由下方 useEffect 消费 autoMatchName
+    if (tt === 'SINGLE_SOURCE') {
+      const sn = (filledDraft as Record<string, string>).supplierName || '';
+      if (sn.trim()) setAutoMatchName(sn);
+    }
+
     // ★ Async: .docx 解析仅作额外字段叠加（失败不影响进入编辑页）
     parseAnnouncementFields(project.id)
       .then((parsed) => {
@@ -162,16 +176,27 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     return () => document.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
 
-  // Supplier list for picker
+  // Supplier list for picker（visibility 为部分可见时加载；并消费 autoMatchName 自动选中）
   useEffect(() => {
-    if (visibility === 'RESTRICTED' && isOpen) {
-      getSupplierList({ status: 'APPROVED', search: supplierSearch || undefined, pageSize: 200 })
-        .then((r) => setAllSuppliers(r.items))
-        .catch(() => {
-          /* ignore */
-        });
-    }
-  }, [visibility, isOpen, supplierSearch]);
+    if (visibility !== 'RESTRICTED' || !isOpen) return;
+    getSupplierList({ status: 'APPROVED', search: supplierSearch || undefined, pageSize: 200 })
+      .then((r) => {
+        setAllSuppliers(r.items);
+        if (autoMatchName.trim()) {
+          const name = autoMatchName.trim();
+          const matched = r.items.filter(
+            (s) => s.name === name || s.name.includes(name) || name.includes(s.name),
+          );
+          if (matched.length > 0) {
+            setRestrictedSupplierIds(matched.map((s) => s.id));
+          }
+          setAutoMatchName('');
+        }
+      })
+      .catch(() => {
+        /* ignore */
+      });
+  }, [visibility, isOpen, supplierSearch, autoMatchName]);
 
   const handleNext = () => {
     if (!draft || !category) {
