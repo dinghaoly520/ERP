@@ -35,6 +35,7 @@ export function getAnnouncementLabel(
     if (tenderType === "INVITED_BIDDING") return "邀请招标公告";
     if (tenderType === "INTERNAL_BIDDING") return "竞价采购公告";
     if (tenderType === "SINGLE_SOURCE") return "直接采购公告";
+    if (tenderType === "INQUIRY_PURCHASE") return "询比采购公告";
   }
   if (category === "failed_bid") return "流标公告";
   if (category === "winning_bid") return "中标公告";
@@ -332,7 +333,7 @@ export function getAnnouncementFields(
     if (tenderType === "SINGLE_SOURCE") {
       return SINGLE_SOURCE_ANNOUNCEMENT_FIELDS;
     }
-    // INVITED_BIDDING and INTERNAL_BIDDING share the same fields
+    // INVITED_BIDDING / INTERNAL_BIDDING / INQUIRY_PURCHASE share the same fields
     return INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS;
   }
   if (category === "failed_bid") {
@@ -426,6 +427,7 @@ export function createEmptyAnnouncementDraft(
     if (tenderType === "SINGLE_SOURCE") {
       return createEmptySingleSourceAnnouncementDraft();
     }
+    // INVITED_BIDDING / INTERNAL_BIDDING / INQUIRY_PURCHASE share the same draft shape
     return createEmptyInvitedBiddingAnnouncementDraft();
   }
   if (category === "failed_bid") {

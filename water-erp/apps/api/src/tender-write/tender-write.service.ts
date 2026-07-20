@@ -29,6 +29,7 @@ import {
   INVITED_BIDDING_TEMPLATE_FILE,
   INVITED_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
   INTERNAL_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
+  INQUIRY_PURCHASE_ANNOUNCEMENT_TEMPLATE_FILE,
   SINGLE_SOURCE_ANNOUNCEMENT_TEMPLATE_FILE,
   FAILED_BID_ANNOUNCEMENT_TEMPLATE_FILE,
   WINNING_BID_ANNOUNCEMENT_TEMPLATE_FILE,
@@ -277,6 +278,16 @@ export class TenderWriteService {
           draft as Record<string, string>,
         );
         typeLabel = '竞价采购公告';
+      } else if (tenderType === 'INQUIRY_PURCHASE') {
+        templatePath = path.resolve(
+          process.cwd(),
+          INQUIRY_PURCHASE_ANNOUNCEMENT_TEMPLATE_FILE,
+        );
+        // 询比采购公示字段与邀请招标公告完全一致，复用同一替换计划
+        replacementPlan = buildInvitedBiddingAnnouncementPlan(
+          draft as Record<string, string>,
+        );
+        typeLabel = '询比采购公告';
       } else {
         templatePath = path.resolve(
           process.cwd(),

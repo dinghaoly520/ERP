@@ -34,7 +34,7 @@ export const ANNOUNCEMENT_AVAILABILITY: Record<
   AnnouncementCategory[]
 > = {
   COMPETITIVE_NEGOTIATION: ["failed_bid", "winning_bid"],
-  INQUIRY_PURCHASE: ["failed_bid", "winning_bid"],
+  INQUIRY_PURCHASE: ["procurement_document", "failed_bid", "winning_bid"],
   INTERNAL_BIDDING: ["procurement_document", "failed_bid", "winning_bid"],
   INVITED_BIDDING: ["procurement_document", "failed_bid", "winning_bid"],
   SINGLE_SOURCE: ["procurement_document", "failed_bid", "winning_bid"],
