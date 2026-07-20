@@ -15,8 +15,8 @@ export interface AtramentCanvasHandle {
   captureDataURL: () => string;
   /** 导出矢量笔触数组（跨 canvas 清晰转移用，支持按比例缩放重绘） */
   captureStrokes: () => Stroke[];
-  /** 按矢量笔触重绘到当前画布。scale 坐标+粗细同步缩放，永远清晰 */
-  restoreStrokes: (srcStrokes: Stroke[], scale?: number) => void;
+  /** 按矢量笔触重绘到当前画布。coordScale 缩放坐标，weightScale 缩放笔触粗细（独立） */
+  restoreStrokes: (srcStrokes: Stroke[], coordScale?: number, weightScale?: number) => void;
 }
 
 interface Props {
@@ -264,22 +264,23 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
         pts: s.pts.map(p => ({ ...p })),
         color: s.color, weight: s.weight, mode: s.mode, eraserMul: s.eraserMul,
       })),
-      restoreStrokes: (srcStrokes: Stroke[], scale?: number) => {
+      restoreStrokes: (srcStrokes: Stroke[], coordScale?: number, weightScale?: number) => {
         if (!ensureContexts()) return;
         const bgCtx = bgCtxRef.current!;
         const bg = bgRef.current!;
         const vc = visCtxRef.current!;
-        const s = scale && scale !== 1 ? scale : 1;
+        const cs = coordScale && coordScale !== 1 ? coordScale : 1;
+        const ws = weightScale && weightScale !== 1 ? weightScale : 1;
         bgCtx.clearRect(0, 0, width, height);
         const scaled: Stroke[] = [];
         for (const st of srcStrokes) {
-          // 坐标缩放（字占左上角），笔触粗细不缩放（与原画布一致）
-          const pts = st.pts.map(p => ({ x: p.x * s, y: p.y * s, pressure: p.pressure }));
+          // 坐标按 coordScale 缩放（字占左上角），weight 按 weightScale 缩放（视觉粗细一致）
+          const pts = st.pts.map(p => ({ x: p.x * cs, y: p.y * cs, pressure: p.pressure }));
           bgCtx.fillStyle = st.mode === 'erase' ? '#ffffff' : st.color;
-          drawPath(bgCtx, pts, st.weight, st.mode === 'erase' ? st.eraserMul : 1);
+          drawPath(bgCtx, pts, st.weight * ws, st.mode === 'erase' ? st.eraserMul : 1);
           scaled.push({
             pts: pts.map(p => ({ ...p })),
-            color: st.color, weight: st.weight, mode: st.mode, eraserMul: st.eraserMul,
+            color: st.color, weight: st.weight * ws, mode: st.mode, eraserMul: st.eraserMul,
           });
         }
         vc.save(); vc.setTransform(1, 0, 0, 1, 0, 0);

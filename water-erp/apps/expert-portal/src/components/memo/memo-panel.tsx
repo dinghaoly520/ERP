@@ -169,6 +169,11 @@ export function MemoPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scorePointId]);
 
+  // 全屏 vs 内嵌 的缩放比例：坐标 0.4（字占左上角），笔触 0.6（视觉粗细一致）
+  // 互逆：进全屏 *0.4/*0.6，出全屏 *2.5/*1.667 还原
+  const COORD_SCALE = 0.4;
+  const WEIGHT_SCALE = 0.6;
+
   // 全屏切换后恢复矢量笔触（rAF 同步恢复，无取消机制，避免 cleanup 吞掉恢复）
   useEffect(() => {
     if (!pendingStrokes.current) return;
@@ -176,21 +181,22 @@ export function MemoPanel({
     pendingStrokes.current = null;
     const target = fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
     if (!target) return;
-    // 进全屏 0.4x 缩小，出全屏 2.5x 放大还原（坐标+笔触粗细同步缩放，矢量清晰）
-    const scale = fullscreen ? 0.4 : 2.5;
-    // rAF：此时 React 已 commit 新 canvas 到 DOM，ref 已绑定，下一帧绘制前同步画上
-    requestAnimationFrame(() => target.restoreStrokes(src, scale));
+    // 进全屏缩小，出全屏放大还原（坐标与笔触各自互逆）
+    const cs = fullscreen ? COORD_SCALE : 1 / COORD_SCALE;
+    const ws = fullscreen ? WEIGHT_SCALE : 1 / WEIGHT_SCALE;
+    requestAnimationFrame(() => target.restoreStrokes(src, cs, ws));
   }, [fullscreen]);
 
   const enterFullscreen = () => {
     const c = inlineCanvasRef.current;
-    // 同步捕获矢量笔触
     const strokes = c && !c.isEmpty() ? c.captureStrokes() : null;
     c?.clear();
     if (strokes && strokes.length) pendingStrokes.current = strokes;
     setFullscreen(true);
-    // 进全屏后同步当前笔触宽度到全屏 canvas（保持与内嵌一致）
-    requestAnimationFrame(() => fullscreenCanvasRef.current?.setWeight(currentWeight));
+    // 全屏笔触按 WEIGHT_SCALE 缩小，新画的字与恢复的字粗细一致
+    const fsWeight = Math.max(2, +(currentWeight * WEIGHT_SCALE).toFixed(1));
+    setCurrentWeight(fsWeight);
+    requestAnimationFrame(() => fullscreenCanvasRef.current?.setWeight(fsWeight));
   };
 
   const exitFullscreen = () => {
@@ -199,6 +205,10 @@ export function MemoPanel({
     c?.clear();
     if (strokes && strokes.length) pendingStrokes.current = strokes;
     setFullscreen(false);
+    // 退出恢复内嵌笔触（全屏 weight / WEIGHT_SCALE = 原值）
+    const inlineWeight = Math.max(2, +(currentWeight / WEIGHT_SCALE).toFixed(1));
+    setCurrentWeight(inlineWeight);
+    requestAnimationFrame(() => inlineCanvasRef.current?.setWeight(inlineWeight));
   };
 
   const doSave = useCallback(async () => {
