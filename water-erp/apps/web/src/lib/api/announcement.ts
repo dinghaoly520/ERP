@@ -242,6 +242,40 @@ export async function exportAnnouncementDocument(payload: {
   };
 }
 
+/** 生成公告 docx + 全文文本（公告发布向导用：正文取全文、docx 上传到阶段） */
+export async function buildAnnouncement(payload: {
+  tenderType: ReadyTenderDocumentType;
+  category: AnnouncementCategory;
+  draft: AnnouncementDraft;
+}): Promise<{ blob: Blob; fileName: string; textContent: string }> {
+  const response = await fetch(`${API_BASE}/tender-write/build-announcement`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.text()));
+  }
+
+  const { bufferBase64, fileName, textContent } = (await response.json()) as {
+    bufferBase64: string;
+    fileName: string;
+    textContent: string;
+  };
+
+  // base64 → Blob
+  const binary = atob(bufferBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+
+  return { blob, fileName, textContent };
+}
+
 export type WinningBidImporter = {
   name: string;
   price: string;

@@ -12,8 +12,10 @@ import {
   uploadFile,
   attachFromObject,
   parseAnnouncementFields,
+  buildAnnouncement,
 } from '@/lib/api/announcement';
 import type { AnnouncementStatus } from '@/lib/api/announcement';
+import { uploadProjectStageAttachment } from '@/lib/api/project-management';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { AnnouncementDialog } from '@/components/tender-write/announcement-dialog';
@@ -232,17 +234,31 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     }
     const title = `${getAnnouncementLabel(tenderType, category)} — ${project?.title || ''}`;
     const draftRecord = draft as Record<string, string>;
-    const content = `<p>${Object.entries(draftRecord)
-      .filter(([, v]) => v?.trim())
-      .map(([k, v]) => `<strong>${k}:</strong> ${v}`)
-      .join('</p><p>')}</p>`;
     setBusy(true);
-    const meta: Record<string, unknown> = { ...draft, visibility };
-    if (visibility === 'RESTRICTED') meta.restrictedSupplierIds = restrictedSupplierIds;
-    if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
-    meta.notifyOnPublish = notifyOnPublish;
-    const status: AnnouncementStatus = publishTiming === 'scheduled' ? 'DRAFT' : 'PUBLISHED';
     try {
+      // 1. 用公告模板渲染生成 docx + 提取公告全文（mammoth）
+      const { blob, fileName, textContent } = await buildAnnouncement({
+        tenderType,
+        category,
+        draft,
+      });
+
+      // 2. 正文 = 公告全文 → HTML 段落（escape 防注入，空行分段，段内换行转 <br/>）
+      const esc = (s: string) =>
+        s.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+      const content = textContent.trim()
+        ? textContent
+            .split(/\n\s*\n/)
+            .map((p) => `<p>${esc(p).replace(/\n/g, '<br/>')}</p>`)
+            .join('')
+        : `<p>${esc(title)}</p>`;
+
+      // 3. 创建公告（正文为全文）
+      const meta: Record<string, unknown> = { ...draft, visibility };
+      if (visibility === 'RESTRICTED') meta.restrictedSupplierIds = restrictedSupplierIds;
+      if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
+      meta.notifyOnPublish = notifyOnPublish;
+      const status: AnnouncementStatus = publishTiming === 'scheduled' ? 'DRAFT' : 'PUBLISHED';
       const saved = await createAnnouncement({
         title,
         content,
@@ -250,13 +266,26 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         summary: draftRecord.projectOverview?.slice(0, 100) || '',
         status,
         publishDate: publishTiming === 'now' ? new Date().toISOString() : undefined,
-        metadata: meta as Record<string, unknown>,
+        metadata: meta,
         relatedProjectCode: draftRecord.projectCode || null,
       });
       const id = saved.id;
       setAnnId(id);
+
+      // 4. 把生成的公告 docx 上传到项目 PUBLIC_ANNOUNCEMENT 阶段
+      try {
+        const docFile = new File([blob], fileName, {
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+        await uploadProjectStageAttachment(project!.id, 'PUBLIC_ANNOUNCEMENT', docFile);
+      } catch (e) {
+        toast.error(`公告文件上传到阶段失败：${(e as Error).message}`);
+      }
+
+      // 5. 其他附件 + 引用采购文件
       await uploadPendingFiles(id);
       await ensureTenderAttached(id);
+
       toast.success(publishTiming === 'now' ? '已发布' : '已保存为定时发布');
       onPublished();
       onClose();

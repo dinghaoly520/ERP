@@ -8,6 +8,7 @@ import { promises as fs } from 'fs';
 import { existsSync, readFileSync } from 'fs';
 import * as path from 'path';
 import * as JSZip from 'jszip';
+import * as mammoth from 'mammoth';
 import pdfParse = require('pdf-parse');
 import * as XLSX from 'xlsx';
 import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto } from './tender-write.dto';
@@ -358,6 +359,28 @@ export class TenderWriteService {
       buffer: await zip.generateAsync({ type: 'nodebuffer' }),
       fileName,
     };
+  }
+
+  /**
+   * 生成公告 docx（复用 exportAnnouncement）并用 mammoth 提取公告全文文本。
+   * 供项目管理「公告制作与发布」向导调用：正文用全文、docx 上传到 PUBLIC_ANNOUNCEMENT 阶段。
+   */
+  async buildAnnouncementWithContent(dto: ExportAnnouncementDto): Promise<{
+    buffer: Buffer;
+    fileName: string;
+    textContent: string;
+  }> {
+    const { buffer, fileName } = await this.exportAnnouncement(dto);
+    let textContent = '';
+    try {
+      const mammothResult = await mammoth.extractRawText({ buffer });
+      textContent = mammothResult.value || '';
+    } catch (e) {
+      this.logger.warn(
+        `buildAnnouncementWithContent: mammoth 提取全文失败 ${(e as Error).message}`,
+      );
+    }
+    return { buffer, fileName, textContent };
   }
 
   /**
