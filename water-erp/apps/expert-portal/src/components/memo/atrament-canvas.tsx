@@ -273,12 +273,13 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
         bgCtx.clearRect(0, 0, width, height);
         const scaled: Stroke[] = [];
         for (const st of srcStrokes) {
+          // 坐标缩放（字占左上角），笔触粗细不缩放（与原画布一致）
           const pts = st.pts.map(p => ({ x: p.x * s, y: p.y * s, pressure: p.pressure }));
           bgCtx.fillStyle = st.mode === 'erase' ? '#ffffff' : st.color;
-          drawPath(bgCtx, pts, st.weight * s, st.mode === 'erase' ? st.eraserMul : 1);
+          drawPath(bgCtx, pts, st.weight, st.mode === 'erase' ? st.eraserMul : 1);
           scaled.push({
             pts: pts.map(p => ({ ...p })),
-            color: st.color, weight: st.weight * s, mode: st.mode, eraserMul: st.eraserMul,
+            color: st.color, weight: st.weight, mode: st.mode, eraserMul: st.eraserMul,
           });
         }
         vc.save(); vc.setTransform(1, 0, 0, 1, 0, 0);
