@@ -1,5 +1,5 @@
 jest.mock('../ai-bid-analysis/utils/file-processor', () => ({
-  processFile: jest.fn().mockResolvedValue({ text: 'mocked tender text' }),
+  processFile: jest.fn().mockImplementation(async (_ocr: unknown, buffer: Buffer) => ({ text: buffer.toString('utf-8') })),
 }));
 
 import { ScorePointExtractorService } from './score-point-extractor.service';
@@ -10,6 +10,7 @@ describe('ScorePointExtractorService', () => {
   const validator = { retryChatJson: jest.fn() };
   const plaintextFetcher = { fetchTenderPlaintext: jest.fn() };
   const ocr = {};
+  const embedding = { embed: jest.fn() };
   const prisma = {
     bidScoreItem: { findFirst: jest.fn() },
   };
@@ -21,6 +22,7 @@ describe('ScorePointExtractorService', () => {
       validator as any,
       plaintextFetcher as any,
       ocr as any,
+      embedding as any,
       prisma as any,
     );
   });
@@ -60,6 +62,48 @@ describe('ScorePointExtractorService', () => {
     validator.retryChatJson.mockResolvedValue({ items: [] });
     await service.extractScorePoints('p1', 'i1');
     await service.extractScorePoints('p1', 'i1');
+    expect(plaintextFetcher.fetchTenderPlaintext).toHaveBeenCalledTimes(1);
+  });
+
+  // E2: fullScore 归一化
+  it('E2: fullScore 合计超过满分时等比缩放', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 40, points: [] });
+    plaintextFetcher.fetchTenderPlaintext.mockResolvedValue(Buffer.from('fake-tender'));
+    // embedding 不需要（正则优先命中无章节标题 → 回退截断）
+    validator.retryChatJson.mockResolvedValue({
+      items: [
+        { name: 'A', fullScore: 30, evidenceHint: '', objective: true },
+        { name: 'B', fullScore: 30, evidenceHint: '', objective: true },
+      ],
+    });
+    const r = await service.extractScorePoints('p1', 'i1');
+    expect(r[0].fullScore).toBe(20);
+    expect(r[1].fullScore).toBe(20);
+    expect(r[0].adjusted).toBe(true);
+    expect(r[1].adjusted).toBe(true);
+  });
+
+  it('E2: 合计未超满分时不调整', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 50, points: [] });
+    plaintextFetcher.fetchTenderPlaintext.mockResolvedValue(Buffer.from('fake-tender'));
+    validator.retryChatJson.mockResolvedValue({
+      items: [{ name: 'A', fullScore: 15, evidenceHint: '', objective: true }],
+    });
+    const r = await service.extractScorePoints('p1', 'i1');
+    expect(r[0].fullScore).toBe(15);
+    expect(r[0].adjusted).toBeUndefined();
+  });
+
+  // E1: 正则命中章节
+  it('E1: 正则命中评标办法章节时返回该章文本', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 50, points: [] });
+    const tenderWithChapter = '第一章 总则\n无关内容\n第二章 评标办法\n评分细则测试文本\n包含评分标准内容\n需要足够长才能通过 100 字校验所以多写一些\n'.repeat(3);
+    plaintextFetcher.fetchTenderPlaintext.mockResolvedValue(Buffer.from(tenderWithChapter));
+    validator.retryChatJson.mockResolvedValue({ items: [] });
+    await service.extractScorePoints('p1', 'i1');
+    // 验证 LLM 收到的 prompt 包含章节文本
+    const promptArg = validator.retryChatJson.mock.calls[0][2] as string;
+    expect(promptArg).toContain('评分细则测试文本');
     expect(plaintextFetcher.fetchTenderPlaintext).toHaveBeenCalledTimes(1);
   });
 });
