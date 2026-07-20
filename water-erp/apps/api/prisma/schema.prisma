@@ -333,7 +333,7 @@ model BidInvalidBid {
   updatedAt   DateTime  @updatedAt
 
   project   BidProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  supplier  Supplier     @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplier  BidSupplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade) // Fixed: FK targets BidSupplier (not Supplier), matching code usage & migration
   scoreItem BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, supplierId, scoreItemId])

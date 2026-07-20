@@ -22,7 +22,7 @@ export interface ScorePointSuggestion {
 @Injectable()
 export class ScorePointExtractorService {
   private readonly tenderTextCache = new Map<string, { text: string; expiresAt: number }>();
-  private static readonly CACHE_TTL_MS = 5 * 60 * 1000;
+  private static readonly CACHE_TTL_MS = 1 * 60 * 1000; // 1 min,公告重发后快速过期
 
   constructor(
     private readonly llm: LlmService,
