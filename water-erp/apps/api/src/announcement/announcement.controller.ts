@@ -8,6 +8,8 @@ import { BidDocumentService } from './bid-document.service';
 import { AnnouncementAttachmentService } from './announcement-attachment.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
 
 @ApiTags('信息公告')
@@ -83,6 +85,17 @@ export class AnnouncementController {
   @ApiOperation({ summary: '添加公告附件' })
   async addAttachment(@Param('id') id: string, @Body() body: { fileAssetId: string; title?: string }) {
     return this.attachmentService.add(id, body.fileAssetId, body.title || '');
+  }
+
+  @Post(':id/attachments/from-object')
+  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @ApiOperation({ summary: '从已有对象挂载公告附件（引用项目采购文件）' })
+  async attachFromObject(
+    @Param('id') id: string,
+    @Body() body: { objectKey: string; fileName?: string; title?: string; mimeType?: string; size?: number },
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.attachmentService.attachFromObject(id, body, user?.sub);
   }
 
   @Delete('attachments/:aid')

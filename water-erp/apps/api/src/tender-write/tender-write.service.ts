@@ -8,6 +8,7 @@ import { promises as fs } from 'fs';
 import { existsSync, readFileSync } from 'fs';
 import * as path from 'path';
 import * as JSZip from 'jszip';
+import * as mammoth from 'mammoth';
 import pdfParse = require('pdf-parse');
 import * as XLSX from 'xlsx';
 import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto } from './tender-write.dto';
@@ -29,6 +30,7 @@ import {
   INVITED_BIDDING_TEMPLATE_FILE,
   INVITED_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
   INTERNAL_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
+  INQUIRY_PURCHASE_ANNOUNCEMENT_TEMPLATE_FILE,
   SINGLE_SOURCE_ANNOUNCEMENT_TEMPLATE_FILE,
   FAILED_BID_ANNOUNCEMENT_TEMPLATE_FILE,
   WINNING_BID_ANNOUNCEMENT_TEMPLATE_FILE,
@@ -277,6 +279,16 @@ export class TenderWriteService {
           draft as Record<string, string>,
         );
         typeLabel = '竞价采购公告';
+      } else if (tenderType === 'INQUIRY_PURCHASE') {
+        templatePath = path.resolve(
+          process.cwd(),
+          INQUIRY_PURCHASE_ANNOUNCEMENT_TEMPLATE_FILE,
+        );
+        // 询比采购公示字段与邀请招标公告完全一致，复用同一替换计划
+        replacementPlan = buildInvitedBiddingAnnouncementPlan(
+          draft as Record<string, string>,
+        );
+        typeLabel = '询比采购公告';
       } else {
         templatePath = path.resolve(
           process.cwd(),
@@ -347,6 +359,28 @@ export class TenderWriteService {
       buffer: await zip.generateAsync({ type: 'nodebuffer' }),
       fileName,
     };
+  }
+
+  /**
+   * 生成公告 docx（复用 exportAnnouncement）并用 mammoth 提取公告全文文本。
+   * 供项目管理「公告制作与发布」向导调用：正文用全文、docx 上传到 PUBLIC_ANNOUNCEMENT 阶段。
+   */
+  async buildAnnouncementWithContent(dto: ExportAnnouncementDto): Promise<{
+    buffer: Buffer;
+    fileName: string;
+    textContent: string;
+  }> {
+    const { buffer, fileName } = await this.exportAnnouncement(dto);
+    let textContent = '';
+    try {
+      const mammothResult = await mammoth.extractRawText({ buffer });
+      textContent = mammothResult.value || '';
+    } catch (e) {
+      this.logger.warn(
+        `buildAnnouncementWithContent: mammoth 提取全文失败 ${(e as Error).message}`,
+      );
+    }
+    return { buffer, fileName, textContent };
   }
 
   /**

@@ -54,6 +54,18 @@ export class TenderWriteController {
     res.send(buffer);
   }
 
+  /** 生成公告 docx + 全文文本（供项目管理公告发布向导：正文取全文、docx 上传到阶段） */
+  @Post('build-announcement')
+  async buildAnnouncement(@Body() dto: ExportAnnouncementDto) {
+    const { buffer, fileName, textContent } =
+      await this.tenderWriteService.buildAnnouncementWithContent(dto);
+    return {
+      bufferBase64: buffer.toString('base64'),
+      fileName,
+      textContent,
+    };
+  }
+
   @Post('import-autofill')
   @UseInterceptors(
     FilesInterceptor('files', 10, {

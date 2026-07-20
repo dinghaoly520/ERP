@@ -234,6 +234,35 @@ export class BidController {
     return this.bidService.deleteScoreItem(id, itemId, { userId, role });
   }
 
+  // ── 评分模板（整套评分标准的保存 / 列表 / 应用 / 删除）──
+
+  @Get('score-templates')
+  @ApiOperation({ summary: '评分标准模板列表（自己 + 公共）' })
+  listScoreTemplates(@CurrentUser('sub') userId?: string) {
+    return this.bidService.listScoreTemplates(userId);
+  }
+
+  @Post('score-templates')
+  @ApiOperation({ summary: '保存当前项目评分标准为模板（含得分点）' })
+  saveScoreTemplate(
+    @Body() dto: { projectId: string; name: string },
+    @CurrentUser('sub') userId?: string,
+  ) {
+    return this.bidService.saveScoreTemplate(dto.projectId, dto.name, userId);
+  }
+
+  @Delete('score-templates/:templateId')
+  @ApiOperation({ summary: '删除评分模板（仅创建者）' })
+  deleteScoreTemplate(@Param('templateId') templateId: string, @CurrentUser('sub') userId?: string) {
+    return this.bidService.deleteScoreTemplate(templateId, userId);
+  }
+
+  @Post('projects/:id/apply-score-template/:templateId')
+  @ApiOperation({ summary: '应用评分模板到项目（幂等：同名分项跳过）' })
+  applyScoreTemplate(@Param('id') id: string, @Param('templateId') templateId: string) {
+    return this.bidService.applyScoreTemplateById(id, templateId);
+  }
+
   // ── 得分点（checklist 子项）CRUD ──
   @Get('projects/:id/score-items/:itemId/points')
   @ApiOperation({ summary: '列出某评分项的得分点' })

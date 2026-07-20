@@ -147,6 +147,17 @@ export class ProjectManagementController {
     return this.projectManagementService.analyzeProject(id, stageKey);
   }
 
+  @Post(':id/parse-announcement-fields')
+  parseAnnouncementFields(@Param('id') id: string) {
+    return this.projectManagementService.parseAnnouncementFields(id);
+  }
+
+  /** 开标确认：获取（必要时创建并回写）当前项目关联的 BidProject */
+  @Get(':id/bid-project')
+  getBidProject(@Param('id') id: string) {
+    return this.projectManagementService.ensureBidProject(id);
+  }
+
   @Get('archive/:procurementRoundId')
   getArchiveDetail(@Param('procurementRoundId') procurementRoundId: string) {
     return this.projectManagementService.getArchiveDetail(procurementRoundId);

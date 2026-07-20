@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { STAGE_LABEL } from '@water-erp/shared';
@@ -92,8 +92,21 @@ export function ExpertExtractPage({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyData, setHistoryData] = useState<{ total: number; page: number; pageSize: number; items: any[] } | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
+  // 专家确认状态
+  const [invitationData, setInvitationData] = useState<Awaited<ReturnType<typeof getProjectInvitations>> | null>(null);
   const autoAnalyzedRef = useRef(false);
   const storageKey = 'expert-extract-session';
+
+  // 步骤5：轮询专家确认状态
+  useEffect(() => {
+    if (step !== 5 || !pid) return;
+    const poll = async () => {
+      try { setInvitationData(await getProjectInvitations(pid)); } catch {}
+    };
+    poll();
+    const t = setInterval(poll, 5000);
+    return () => clearInterval(t);
+  }, [step, pid]);
 
   // 状态变更时自动保存到 sessionStorage（页面切换后恢复）
   const stateRef = useRef({ pid, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd });
@@ -155,7 +168,7 @@ export function ExpertExtractPage({
     autoAnalyzedRef.current = true;
     setPid(match.id);
 
-    // 匹配成功后自动执行：分析专业 → 执行抽取
+    // 匹配成功后自动执行：分析专业  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg> 执行抽取
     (async () => {
       try {
         // 第一步：AI 分析项目需求，获取推荐专业和人数
@@ -325,7 +338,8 @@ export function ExpertExtractPage({
     setConfirming(true);
     try {
       const exps = selectedExperts.map(s => ({ userId: s.userId, expertName: s.name, major: s.specialty, isLead: s.userId === leadExpertId }));
-      const result = await confirmExtraction({ projectId: pid, experts: exps });
+      const candidates = alternativeExperts.map(s => ({ userId: s.userId, expertName: s.name, major: s.specialty }));
+      const result = await confirmExtraction({ projectId: pid, experts: exps, candidates });
       setConfirmedExpertIds(result.expertIds || exps.map(e => e.userId));
 
       if (pd?.openTime) {
@@ -358,6 +372,7 @@ export function ExpertExtractPage({
       }
       setNotifyResults(allResults);
       setDone(true);
+      setStep(5);
       toast.success(`通知已发送（${confirmedExpertIds.length} 名专家）`);
     } catch (e: any) { toast.error(e?.message || '通知发送失败'); }
     setNotifying(false);
@@ -420,263 +435,6 @@ export function ExpertExtractPage({
   const reset = () => { setStep(1); setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setShowNotifyModal(false); setNotifyResults(null); setConfirmedExpertIds([]); sessionStorage.removeItem(storageKey); };
 
   // ── 配置卡片 ──
-  const configCard = (
-    <div className="neu-table-card p-5 space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="neu-icon-well flex h-8 w-8 items-center justify-center rounded-[10px]"><Sparkles size={14} className="text-[var(--accent)]" /></div>
-        <div><span className="text-sm font-bold text-[var(--foreground)]">抽取配置</span><span className="ml-2 text-xs text-[var(--muted-foreground)]">{MODE_LABELS[extractMode]} · {et}人</span></div>
-      </div>
-      <div>
-        <label className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">采购项目 *</label>
-        {defaultProjectTitle ? (
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-[var(--foreground)] truncate">{defaultProjectTitle}</span>
-            {sel && <span className="text-[11px] text-[var(--muted-foreground)]">（{sel.projectCode}）</span>}
-          </div>
-        ) : projects.length === 0 ? (
-          <div className="neu-input text-sm w-full flex items-center justify-center py-3 text-[var(--muted-foreground)]">暂无采购项目，请先在开评标管理端创建</div>
-        ) : (
-          <select value={pid} onChange={e => setPid(e.target.value)} className="neu-input text-sm max-w-[420px]"><option value="">请选择需要组建评审组的项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}</select>
-        )}
-      </div>
-      {sel && pd && (
-        <div className="flex flex-wrap gap-2 text-xs">
-          <span className="rounded-lg bg-[var(--surface)] px-2 py-1 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">采购方式：{sel.procurementMethod}</span>
-          <span className="rounded-lg bg-[var(--surface)] px-2 py-1 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">阶段：{STAGE_LABEL[sel.stage] || sel.stage}</span>
-          {pd.suppliers?.length > 0 && <span className="w-full rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs text-[var(--warning)]">参与供应商（将自动回避）：{pd.suppliers.map(s => s.supplierName).join('、')}</span>}
-          {pd.experts?.length > 0 && <span className="w-full rounded-lg bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-3 py-2 text-xs text-[var(--success)]">已分配专家：{pd.experts.map(e => `${e.expertName}（${e.major}）`).join('、')}</span>}
-        </div>
-      )}
-      <hr className="wb-section-rule" />
-
-      {/* 预排除专家 */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-[var(--muted-foreground)]">预排除专家{excludedExpertIds.length > 0 && ` · 已排除 ${excludedExpertIds.length} 人`}</span>
-          {excludedExpertIds.length > 0 && (
-            <button onClick={() => { setExcludedExpertIds([]); setExcludedExpertMap(new Map()); }} className="text-[10px] text-[var(--danger)] hover:text-[var(--danger)]">全部清除</button>
-          )}
-        </div>
-        <div className="relative mb-2">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
-          <input value={excludeSearch} onChange={e => setExcludeSearch(e.target.value)} placeholder="搜索要排除的专家姓名/专业/单位..." className="neu-input !pl-9 text-sm w-full" />
-        </div>
-        {excludeSearch.trim() && (
-          <div className="max-h-[160px] overflow-y-auto space-y-1 rounded-xl bg-[var(--surface)] p-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)] mb-2">
-            {excludeSearching ? (
-              <p className="text-xs text-[var(--muted-foreground)] text-center py-3">搜索中...</p>
-            ) : excludeResults.length === 0 ? (
-              <p className="text-xs text-[var(--muted-foreground)] text-center py-3">未匹配到专家</p>
-            ) : (
-              excludeResults.filter(e => !excludedExpertIds.includes(e.id)).slice(0, 10).map(e => (
-                <div key={e.id} className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]">
-                  <div className="min-w-0 flex-1">
-                    <span className="text-sm font-bold text-[var(--foreground)]">{e.displayName}</span>
-                    {e.expertProfile?.specialty && <span className="ml-2 text-xs text-[var(--muted-foreground)]">{e.expertProfile.specialty}</span>}
-                    {e.expertProfile?.employer && <span className="ml-1 text-xs text-[var(--muted-foreground)]/60">{e.expertProfile.employer}</span>}
-                  </div>
-                  <button onClick={() => toggleExcludeExpert(e)} className="neu-btn-xs is-warning shrink-0 ml-2">排除</button>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-        {excludedExpertIds.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {excludedExpertIds.map(id => {
-              const info = excludedExpertMap.get(id);
-              if (!info) return null;
-              return (
-                <span key={id} className="inline-flex items-center gap-1 rounded-lg bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
-                  {info.name}
-                  <span className="text-[var(--muted-foreground)]">{info.specialty}</span>
-                  <button onClick={() => { setExcludedExpertIds(prev => prev.filter(x => x !== id)); setExcludedExpertMap(prev => { const m = new Map(prev); m.delete(id); return m; }); }} className="ml-0.5"><X size={11} /></button>
-                </span>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* 四种抽取模式 */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {(Object.entries(MODE_LABELS) as [ExtractMode, string][]).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setExtractMode(key)}
-            className={`neu-tab flex-col gap-0.5 py-2.5 ${extractMode === key ? 'is-active' : ''}`}
-          >
-            <span className="text-xs font-bold">{label}</span>
-            <span className="text-[10px] text-[var(--muted-foreground)] leading-tight">{MODE_DESCS[key]}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* 模式特定配置 */}
-      {extractMode === 'specialty_match' && (
-        <div>
-          <div className="flex items-center justify-between mb-3"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业配额（正选合计 {qt} 人）</span><button onClick={addQ} className="neu-btn-xs"><Plus size={12} />添加专业</button></div>
-          {quotas.map((q, i) => (
-            <div key={i} className="flex items-center gap-2 mb-2">
-              <select value={q.specialty} onChange={e => upQ(i, 'specialty', e.target.value)} className="neu-input text-sm flex-1"><option value="">选择专业</option>{specs.map(s => <option key={s} value={s}>{s}{pool.has(s) ? `（${pool.get(s)}人可用）` : ''}</option>)}</select>
-              <div className="flex items-center gap-1"><button onClick={() => upQ(i, 'count', Math.max(1, q.count - 1))} className="neu-btn-xs">−</button><span className="w-6 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">{q.count}</span><button onClick={() => upQ(i, 'count', q.count + 1)} className="neu-btn-xs">+</button></div>
-              <button onClick={() => rmQ(i)} disabled={quotas.length <= 1} className="neu-btn-xs is-danger">×</button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 手动选取：搜索+选中 */}
-      {extractMode === 'manual' && (
-        <div className="space-y-3">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
-            <input value={manualSearch} onChange={e => setManualSearch(e.target.value)} placeholder="搜索姓名、专业或单位..." className="neu-input !pl-9 text-sm w-full" />
-          </div>
-          {manualSearch.trim() && (
-            <div className="max-h-[220px] overflow-y-auto space-y-1 rounded-xl bg-[var(--surface)] p-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
-              {manualSearching ? (
-                <p className="text-xs text-[var(--muted-foreground)] text-center py-4"><RefreshCw size={12} className="animate-spin inline mr-1" />搜索中...</p>
-              ) : manualResults.length === 0 ? (
-                <p className="text-xs text-[var(--muted-foreground)] text-center py-4">未匹配到专家，请更换搜索词</p>
-              ) : (
-                manualResults.map(e => {
-                  const selected = manualExperts.some(x => x.userId === e.id);
-                  return (
-                    <div key={e.id} className={`flex items-center justify-between rounded-lg px-3 py-2 ${selected ? 'bg-[color-mix(in_oklch,var(--accent)_10%,transparent)]' : ''}`}>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-[var(--foreground)] truncate">{e.displayName}</span>
-                          {e.expertProfile?.specialty && <StatusBadge tone="blue">{e.expertProfile.specialty}</StatusBadge>}
-                          {e.isActive ? <StatusBadge tone="green">可用</StatusBadge> : <StatusBadge tone="gray">已停用</StatusBadge>}
-                        </div>
-                        <div className="text-xs text-[var(--muted-foreground)] truncate mt-0.5">{e.expertProfile?.title || ''}{e.expertProfile?.employer ? ` · ${e.expertProfile.employer}` : ''}</div>
-                      </div>
-                      <button onClick={() => { selected ? removeManualExpert(e.id) : addManualExpert(e); }} className={`neu-btn-xs shrink-0 ml-2 ${selected ? 'is-warning' : 'is-info'}`}>
-                        {selected ? '移除' : '选取'}
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          )}
-          {/* 已选专家 */}
-          {manualExperts.length > 0 && (
-            <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">
-              <span className="text-xs font-bold text-[var(--muted-foreground)]">已选专家组 · {manualExperts.length} 人{leadExpertId && '（已设组长）'}</span>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {manualExperts.map(e => (
-                  <span key={e.userId} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold shadow-[inset_0_1px_0_oklch(1_0_0/0.5)] ${e.userId === leadExpertId ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)]' : 'bg-[var(--surface)] text-[var(--foreground)]'}`}>
-                    {e.userId === leadExpertId && <span className="text-[11px]">👑</span>}
-                    {e.name}
-                    <span className="text-[var(--muted-foreground)]">{e.specialty}</span>
-                    <button onClick={() => setLeadExpertId(e.userId === leadExpertId ? null : e.userId)} className={`text-[10px] font-semibold ${e.userId === leadExpertId ? 'text-[var(--accent)]' : 'text-[var(--muted-foreground)]/50'}`} title={e.userId === leadExpertId ? '取消组长' : '设为组长'}>
-                      {e.userId === leadExpertId ? '组长 ✓' : '设为组长'}
-                    </button>
-                    <button onClick={() => removeManualExpert(e.userId)} className="ml-0.5 text-[var(--danger)] hover:text-[var(--danger)]"><X size={11} /></button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 人数配置 + 操作按钮（手动模式不显示） */}
-      {extractMode !== 'manual' && (
-        <div className="flex items-end gap-3">
-          <div className="flex gap-3 flex-1">
-            <label className="space-y-1 text-xs font-semibold text-[var(--muted-foreground)] flex-1">候补人数<select value={alt} onChange={e => setAlt(Number(e.target.value))} className="neu-input text-sm w-full">{[0,1,2,3,5].map(n => <option key={n} value={n}>{n} 名</option>)}</select></label>
-            {extractMode !== 'specialty_match' && (
-              <label className="space-y-1 text-xs font-semibold text-[var(--muted-foreground)] flex-1">正选人数<select value={tn} onChange={e => setTn(Number(e.target.value))} className="neu-input text-sm w-full">{[1,2,3,5,7,9].map(n => <option key={n} value={n}>{n} 名</option>)}</select></label>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)] cursor-pointer select-none whitespace-nowrap">
-              <span>对比</span>
-              <button
-                onClick={(e) => { e.preventDefault(); setCompareMode(v => !v); }}
-                className="neu-toggle"
-                data-on={compareMode}
-                aria-pressed={compareMode}
-                aria-label="对比模式"
-              >
-                <span className="neu-toggle__knob" />
-              </button>
-            </label>
-            <button onClick={run} disabled={loading || !pid} className="neu-btn-soft !w-auto justify-center px-6">
-              {loading ? <RefreshCw size={15} className="animate-spin" /> : <Sparkles size={15} />}
-              {loading ? '抽取中...' : '开始抽取'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 手动选取：确认按钮 */}
-      {extractMode === 'manual' && (
-        <div className="flex justify-end">
-          <button
-            onClick={async () => {
-              if (!pid) { setError('请选择采购项目'); return; }
-              if (manualExperts.length === 0) { setError('请至少选择一位专家'); return; }
-              if (!leadExpertId) { setError('请指定一位专家担任评审组长'); return; }
-              setConfirming(true); setError('');
-              try {
-                const exps = manualExperts.map(s => ({ userId: s.userId, expertName: s.name, major: s.specialty, isLead: s.userId === leadExpertId }));
-                const result = await confirmExtraction({ projectId: pid, experts: exps });
-                setConfirmedExpertIds(result.expertIds || exps.map(e => e.userId));
-
-                if (pd?.openTime) {
-                  const d = new Date(pd.openTime);
-                  setOpenTimeDate(d.toISOString().slice(0, 10));
-                  setOpenTimeTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
-                }
-
-                setNotifyMessages(new Map());
-                setNotifyActiveExpert(exps[0]?.userId || '');
-                setNotifyExpertList(manualExperts);
-                setStep(4);
-                setShowNotifyModal(true);
-              } catch (e: any) { setError(e?.message || '确认失败'); }
-              setConfirming(false);
-            }}
-            disabled={confirming || manualExperts.length === 0 || !leadExpertId}
-            className="neu-btn-soft is-success justify-center"
-            title={!leadExpertId ? '请先指定评审组长' : undefined}
-          >
-            <Check size={16} />{confirming ? '确认中...' : `确认选取 ${manualExperts.length} 名专家${!leadExpertId ? ' · 请指定组长' : ''}`}
-          </button>
-        </div>
-      )}
-      {compareMode && (
-        <div className="flex items-center gap-2 rounded-lg bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-3 py-1.5">
-          <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">对比方案 B：</span>
-          <select value={compareMode2} onChange={e => setCompareMode2(e.target.value as ExtractMode)} className="workbench-input !h-[28px] !text-[11px] !w-auto !min-w-[80px]">
-            {extractMode !== 'specialty_match' && <option value="specialty_match">专业匹配</option>}
-            {extractMode !== 'random' && <option value="random">随机抽取</option>}
-            {extractMode !== 'merit_best' && <option value="merit_best">综合择优</option>}
-          </select>
-        </div>
-      )}
-    </div>
-  );
-
-  // ── 专家库概览 ──
-  const poolCard = pool.size > 0 ? (
-    <div className="neu-table-card p-4 text-sm">
-      <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">专家库各专业可用人数</span>
-      <div className="mt-3 space-y-1.5">
-        {[...pool.entries()].sort((a, b) => b[1] - a[1]).map(([specialty, count]) => (
-          <div key={specialty} className="flex items-center justify-between text-xs">
-            <span className="font-medium text-[var(--foreground)]">{specialty}</span>
-            <span className={`font-bold tabular-nums ${count < 3 ? 'text-[var(--danger)]' : 'text-[var(--foreground)]'}`}>{count} 人{count < 3 && <span className="ml-1 text-[10px] text-[var(--danger)]">⚠</span>}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  ) : null;
-
   // ── 替换/添加弹窗 ──
   // 被替换的原专家信息
   const replacedExpert = useMemo(() => {
@@ -920,6 +678,7 @@ export function ExpertExtractPage({
             { num: 2, label: '配置抽取', desc: '选择抽取模式、专业配额与预排除' },
             { num: 3, label: '审核调整', desc: '查看 AI 推荐结果，手动调整专家组' },
             { num: 4, label: '确认通知', desc: '确定组长、发送通知给专家' },
+            { num: 5, label: '专家确认', desc: '查看专家回复，自动递补候补' },
           ].map((s) => (
             <button
               key={s.num}
@@ -942,7 +701,7 @@ export function ExpertExtractPage({
 
       {/* ── 步骤 1：选择项目 + 预排除 ── */}
       {step === 1 && (
-        <div className="max-w-[560px] space-y-4">
+        <div className="space-y-4">
           <div className="neu-table-card p-5 space-y-4">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">1</span>
@@ -958,7 +717,7 @@ export function ExpertExtractPage({
               ) : projects.length === 0 ? (
                 <div className="neu-input text-sm w-full flex items-center justify-center py-3 text-[var(--muted-foreground)]">暂无采购项目，请先在开评标管理端创建</div>
               ) : (
-                <select value={pid} onChange={e => setPid(e.target.value)} className="neu-input text-sm max-w-[420px]"><option value="">请选择需要组建评审组的项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}</select>
+                <select value={pid} onChange={e => setPid(e.target.value)} className="neu-input text-sm max-w-[600px]"><option value="">请选择需要组建评审组的项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}</select>
               )}
             </div>
             {sel && pd && (
@@ -1004,14 +763,14 @@ export function ExpertExtractPage({
           </div>
 
           <div className="flex justify-end">
-            <button onClick={() => { if (!pid) { setError('请先选择采购项目'); return; } setError(''); setStep(2); }} disabled={!pid} className="neu-btn-soft is-info">下一步：配置抽取 →</button>
+            <button onClick={() => { if (!pid) { setError('请先选择采购项目'); return; } setError(''); setStep(2); }} disabled={!pid} className="neu-btn-soft is-info"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg> 下一步：配置抽取</button>
           </div>
         </div>
       )}
 
       {/* ── 步骤 2：抽取配置 ── */}
       {step === 2 && (
-        <div className="max-w-[560px] space-y-4">
+        <div className="space-y-4">
           <div className="neu-table-card p-5 space-y-4">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">2</span>
@@ -1023,7 +782,7 @@ export function ExpertExtractPage({
 
             {/* 抽取模式 */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {(Object.entries(MODE_LABELS) as [ExtractMode, string][]).filter(([k]) => k !== 'manual').map(([key, label]) => (
+              {(Object.entries(MODE_LABELS) as [ExtractMode, string][]).map(([key, label]) => (
                 <button key={key} onClick={() => setExtractMode(key)} className={`neu-tab flex-col gap-0.5 py-2.5 ${extractMode === key ? 'is-active' : ''}`}>
                   <span className="text-xs font-bold">{label}</span>
                   <span className="text-[10px] text-[var(--muted-foreground)] leading-tight">{MODE_DESCS[key]}</span>
@@ -1045,7 +804,47 @@ export function ExpertExtractPage({
               </div>
             )}
 
-            {/* 人数 + 抽取按钮 */}
+            {/* 专家选取：搜索+选中 */}
+            {extractMode === 'manual' && (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
+                  <input value={manualSearch} onChange={e => setManualSearch(e.target.value)} placeholder="搜索姓名、专业或单位..." className="neu-input !pl-9 text-sm" />
+                </div>
+                {manualSearch.trim() && (
+                  <div className="max-h-[220px] overflow-y-auto space-y-1 rounded-xl bg-[var(--surface)] p-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+                    {manualSearching ? <p className="text-xs text-[var(--muted-foreground)] text-center py-4"><RefreshCw size={12} className="animate-spin inline mr-1" />搜索中...</p>
+                    : manualResults.length === 0 ? <p className="text-xs text-[var(--muted-foreground)] text-center py-4">未匹配到专家，请更换搜索词</p>
+                    : manualResults.map(e => {
+                      const selected = manualExperts.some(x => x.userId === e.id);
+                      return (
+                        <div key={e.id} className={`flex items-center justify-between rounded-lg px-3 py-2 ${selected ? 'bg-[color-mix(in_oklch,var(--accent)_10%,transparent)]' : ''}`}>
+                          <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="text-sm font-bold text-[var(--foreground)] truncate">{e.displayName}</span>{e.expertProfile?.specialty && <StatusBadge tone="blue">{e.expertProfile.specialty}</StatusBadge>}{e.isActive ? <StatusBadge tone="green">可用</StatusBadge> : <StatusBadge tone="gray">已停用</StatusBadge>}</div><div className="text-xs text-[var(--muted-foreground)] truncate mt-0.5">{e.expertProfile?.title || ''}{e.expertProfile?.employer ? ` · ${e.expertProfile.employer}` : ''}</div></div>
+                          <button onClick={() => { selected ? removeManualExpert(e.id) : addManualExpert(e); }} className={`neu-btn-xs shrink-0 ml-2 ${selected ? 'is-warning' : 'is-info'}`}>{selected ? '移除' : '选取'}</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {manualExperts.length > 0 && (
+                  <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">
+                    <span className="text-xs font-bold text-[var(--muted-foreground)]">已选专家组 · {manualExperts.length} 人{leadExpertId && '（已设组长）'}</span>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {manualExperts.map(e => (
+                        <span key={e.userId} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold shadow-[inset_0_1px_0_oklch(1_0_0/0.5)] ${e.userId === leadExpertId ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)]' : 'bg-[var(--surface)] text-[var(--foreground)]'}`}>
+                          {e.userId === leadExpertId && <span className="text-[11px]">👑</span>}{e.name}<span className="text-[var(--muted-foreground)]">{e.specialty}</span>
+                          <button onClick={() => setLeadExpertId(e.userId === leadExpertId ? null : e.userId)} className={`text-[10px] font-semibold ${e.userId === leadExpertId ? 'text-[var(--accent)]' : 'text-[var(--muted-foreground)]/50'}`}>{e.userId === leadExpertId ? '组长 ✓' : '设为组长'}</button>
+                          <button onClick={() => removeManualExpert(e.userId)} className="ml-0.5 text-[var(--danger)] hover:text-[var(--danger)]"><X size={11} /></button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 人数 + 抽取按钮（手动模式不显示） */}
+            {extractMode !== 'manual' && (
             <div className="flex items-end gap-3">
               <div className="flex gap-3 flex-1">
                 <label className="space-y-1 text-xs font-semibold text-[var(--muted-foreground)] flex-1">候补人数<select value={alt} onChange={e => setAlt(Number(e.target.value))} className="neu-input text-sm w-full">{[0,1,2,3,5].map(n => <option key={n} value={n}>{n} 名</option>)}</select></label>
@@ -1053,9 +852,42 @@ export function ExpertExtractPage({
               </div>
               <button onClick={run} disabled={loading || !pid} className="neu-btn-soft !w-auto justify-center px-6"><Sparkles size={15} />{loading ? '抽取中...' : '开始抽取'}</button>
             </div>
+            )}
           </div>
+          {extractMode === 'manual' && (
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={async () => {
+                  if (!pid) { setError('请选择采购项目'); return; }
+                  if (manualExperts.length === 0) { setError('请至少选择一位专家'); return; }
+                  if (!leadExpertId) { setError('请指定一位专家担任评审组长'); return; }
+                  setConfirming(true); setError('');
+                  try {
+                    const exps = manualExperts.map(s => ({ userId: s.userId, expertName: s.name, major: s.specialty, isLead: s.userId === leadExpertId }));
+                    const result = await confirmExtraction({ projectId: pid, experts: exps });
+                    setConfirmedExpertIds(result.expertIds || exps.map(e => e.userId));
+                    if (pd?.openTime) {
+                      const d = new Date(pd.openTime);
+                      setOpenTimeDate(d.toISOString().slice(0, 10));
+                      setOpenTimeTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+                    }
+                    setNotifyMessages(new Map());
+                    setNotifyActiveExpert(exps[0]?.userId || '');
+                    setNotifyExpertList(manualExperts);
+                    setStep(4);
+                    setShowNotifyModal(true);
+                  } catch (e: any) { setError(e?.message || '确认失败'); }
+                  setConfirming(false);
+                }}
+                disabled={confirming || manualExperts.length === 0 || !leadExpertId}
+                className="neu-btn-soft is-success justify-center"
+              >
+                <Check size={16} />{confirming ? '确认中...' : `确认选取 ${manualExperts.length} 名专家${!leadExpertId ? ' · 请指定组长' : ''}`}
+              </button>
+            </div>
+          )}
           <div className="flex justify-between">
-            <button onClick={() => setStep(1)} className="neu-btn-soft">← 上一步</button>
+            <button onClick={() => setStep(1)} className="neu-btn-soft"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg> 上一步：选择项目</button>
           </div>
         </div>
       )}
@@ -1209,9 +1041,14 @@ export function ExpertExtractPage({
               返回专家库</button><button onClick={reset} className="neu-btn-soft">重新抽取</button></div>
               </div>
             )}
-            <div className="flex justify-between pt-4">
-              <button onClick={() => setStep(2)} className="neu-btn-soft">← 返回上一步</button>
-              <button onClick={confirm} disabled={confirming || selectedExperts.length === 0 || !leadExpertId} className="neu-btn-soft is-success" title={!leadExpertId ? '请先指定评审组长' : undefined}>
+            <div className="flex items-center justify-between pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+              <div className="flex items-center gap-3">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">3</span>
+                <span className="text-sm font-bold text-[var(--foreground)]">审核调整</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setStep(2)} className="neu-btn-soft"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg> 返回上一步：抽取配置</button>
+                <button onClick={confirm} disabled={confirming || selectedExperts.length === 0 || !leadExpertId} className="neu-btn-soft is-success" title={!leadExpertId ? '请先指定评审组长' : undefined}>
                 <Check size={16} />{confirming ? '确认中...' : `确认组建专家组（${selectedExperts.length} 人）`}{!leadExpertId ? ' · 请指定组长' : ''}
               </button>
             </div>
@@ -1221,7 +1058,7 @@ export function ExpertExtractPage({
 
       {/* ── 步骤 4：发送通知 ── */}
       {step === 4 && done && (
-        <div className="max-w-[560px] space-y-4">
+        <div className="space-y-4">
           <div className="neu-table-card p-10 text-center">
             <ShieldCheck size={40} className="mx-auto text-[var(--success)] mb-3" />
             <h3 className="text-lg font-bold text-[var(--foreground)] mb-1">通知已发送，等待专家确认</h3>
@@ -1253,6 +1090,102 @@ export function ExpertExtractPage({
               <button onClick={reset} className="neu-btn-soft">重新抽取</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── 步骤 5：专家确认 ── */}
+      {step === 5 && (
+        <div className="space-y-4">
+          {invitationData && (
+            <>
+              {/* 摘要 */}
+              <div className="grid grid-cols-4 gap-3">
+                <div className="kpi-card flex flex-col gap-1 p-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">已确认</span>
+                  <span className="text-[1.55rem] font-black tabular-nums text-[var(--success)] leading-none">{invitationData.summary.confirmed}</span>
+                </div>
+                <div className="kpi-card flex flex-col gap-1 p-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">待回复</span>
+                  <span className="text-[1.55rem] font-black tabular-nums text-[var(--accent)] leading-none">{invitationData.summary.pending}</span>
+                </div>
+                <div className="kpi-card flex flex-col gap-1 p-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">已拒绝</span>
+                  <span className="text-[1.55rem] font-black tabular-nums text-[var(--danger)] leading-none">{invitationData.summary.declined}</span>
+                </div>
+                <div className="kpi-card flex flex-col gap-1 p-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">可用候补</span>
+                  <span className="text-[1.55rem] font-black tabular-nums text-[var(--foreground)] leading-none">{invitationData.summary.availableCandidates}</span>
+                </div>
+              </div>
+
+              {/* 全部拒绝警报 */}
+              {invitationData.summary.allDeclined && (
+                <div className="rounded-xl bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">
+                  <AlertTriangle size={16} className="inline mr-2" />
+                  所有专家（含候补）均已拒绝或已回复，请重新进行抽取或手动选取专家
+                </div>
+              )}
+
+              {/* 专家列表 */}
+              <div className="neu-table-card">
+                <div className="overflow-x-auto">
+                  <table className="neu-table w-full min-w-[600px]">
+                    <thead>
+                      <tr>
+                        <th>专家</th>
+                        <th className="text-center">专业</th>
+                        <th className="text-center">角色</th>
+                        <th className="text-center">回复状态</th>
+                        <th className="text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invitationData.experts.map(e => (
+                        <tr key={e.id}>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              {e.isLead && <span className="text-[11px]">👑</span>}
+                              <span className="text-sm font-bold text-[var(--foreground)]">{e.expertName}</span>
+                            </div>
+                          </td>
+                          <td className="text-center text-sm text-[var(--muted-foreground)]">{e.major}</td>
+                          <td className="text-center"><StatusBadge tone={e.expertRole === '正选' ? 'green' : 'gray'}>{e.expertRole}</StatusBadge></td>
+                          <td className="text-center">
+                            {e.invitationStatus === 'confirmed' && <StatusBadge tone="green">已确认</StatusBadge>}
+                            {e.invitationStatus === 'pending' && <StatusBadge tone="blue">待回复</StatusBadge>}
+                            {e.invitationStatus === 'declined' && <StatusBadge tone="red">已拒绝</StatusBadge>}
+                          </td>
+                          <td className="text-center">
+                            {e.invitationStatus === 'pending' && (
+                              <div className="flex justify-center gap-1">
+                                <button onClick={async () => { try { await confirmInvitation(pid, e.userId); setInvitationData(await getProjectInvitations(pid)); toast.success(`${e.expertName} 已确认`); } catch (err: any) { toast.error(err?.message || '操作失败'); } }} className="neu-btn-xs is-success">确认</button>
+                                <button onClick={async () => { try { const res = await declineInvitation(pid, e.userId); setInvitationData(await getProjectInvitations(pid)); if (res.promoted) { toast.success(`${e.expertName} 已拒绝，候补 ${res.promoted.expertName} 已自动递补`); } else { toast.success(`${e.expertName} 已标记拒绝`); } } catch (err: any) { toast.error(err?.message || '操作失败'); } }} className="neu-btn-xs is-danger">拒绝</button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">5</span>
+                  <span className="text-sm font-bold text-[var(--foreground)]">专家确认</span>
+                  <span className="text-xs text-[var(--muted-foreground)]">每 5 秒自动刷新</span>
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setStep(4)} className="neu-btn-soft"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg> 返回上一步：确认通知</button>
+                  <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft">完成</button>
+                </div>
+              </div>
+            </>
+          )}
+          {!invitationData && (
+            <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]"><RefreshCw size={14} className="animate-spin inline mr-2" />加载专家确认状态...</div>
+          )}
         </div>
       )}
 
@@ -1357,14 +1290,14 @@ export function ExpertExtractPage({
                       disabled={historyPage <= 1}
                       className="neu-btn-xs"
                     >
-                      ←
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                     </button>
                     <button
                       onClick={() => openHistory(historyPage + 1)}
                       disabled={historyPage >= Math.ceil(historyData.total / historyData.pageSize)}
                       className="neu-btn-xs"
                     >
-                      →
+                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
                     </button>
                   </div>
                 </div>

@@ -1747,6 +1747,8 @@ export const INVITED_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE =
   '模板文件/邀请招标公告模板.docx';
 export const INTERNAL_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE =
   '模板文件/竞价采购公示采购公告.docx';
+export const INQUIRY_PURCHASE_ANNOUNCEMENT_TEMPLATE_FILE =
+  '模板文件/询比采购公示.docx';
 export const SINGLE_SOURCE_ANNOUNCEMENT_TEMPLATE_FILE =
   '模板文件/直接采购公告模板.docx';
 export const FAILED_BID_ANNOUNCEMENT_TEMPLATE_FILE = '模板文件/流标公示模板.docx';

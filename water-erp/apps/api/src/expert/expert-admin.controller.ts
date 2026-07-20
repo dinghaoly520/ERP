@@ -96,6 +96,12 @@ export class ExpertAdminController {
     );
   }
 
+  @Get('invitations/:projectId')
+  @ApiOperation({ summary: '查询项目专家邀请状态（正选+候补）' })
+  getProjectInvitations(@Param('projectId') projectId: string) {
+    return this.expertAdminService.getProjectInvitations(projectId);
+  }
+
   @Post('invitations/:projectId/:userId/confirm')
   @ApiOperation({ summary: '标记专家已确认参与评审邀请' })
   confirmInvitation(@Param('projectId') projectId: string, @Param('userId') userId: string) {

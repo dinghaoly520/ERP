@@ -2177,6 +2177,99 @@ export class BidService {
     return updated;
   }
 
+  /* ── 评分模板（用户保存的整套评分标准，跨项目复用）── */
+
+  async saveScoreTemplate(projectId: string, name: string, userId?: string) {
+    const items = await this.prisma.bidScoreItem.findMany({
+      where: { projectId },
+      include: { points: { orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (items.length === 0) {
+      throw new BadRequestException({ error: '当前项目尚无评分项，无法保存为模板', code: 'EMPTY' });
+    }
+    const payload = {
+      items: items.map((it) => ({
+        category: it.category,
+        name: it.name,
+        maxScore: Number(it.maxScore),
+        points: it.points.map((p) => ({
+          name: p.name,
+          fullScore: Number(p.fullScore),
+          evidenceHint: p.evidenceHint,
+          objective: p.objective,
+        })),
+      })),
+    };
+    return this.prisma.scoreTemplate.create({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: { name, payload: payload as any, createdById: userId ?? null },
+    });
+  }
+
+  async listScoreTemplates(userId?: string) {
+    return this.prisma.scoreTemplate.findMany({
+      where: userId ? { OR: [{ createdById: userId }, { createdById: null }] } : {},
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, name: true, createdByName: true, createdAt: true },
+    });
+  }
+
+  async applyScoreTemplateById(projectId: string, templateId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, scoreStandardPublishedAt: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt);
+
+    const tpl = await this.prisma.scoreTemplate.findUnique({ where: { id: templateId } });
+    if (!tpl) throw new BadRequestException({ error: '模板不存在', code: 'NOT_FOUND' });
+
+    const payload = tpl.payload as {
+      items: Array<{
+        category: ScoreCategory;
+        name: string;
+        maxScore: number;
+        points?: Array<{ name: string; fullScore: number; evidenceHint?: string | null; objective?: boolean }>;
+      }>;
+    };
+    const existing = await this.prisma.bidScoreItem.findMany({ where: { projectId }, select: { name: true } });
+    const existingNames = new Set(existing.map((e) => e.name));
+    const toCreate = payload.items.filter((it) => !existingNames.has(it.name));
+
+    for (const it of toCreate) {
+      const created = await this.prisma.bidScoreItem.create({
+        data: { projectId, category: it.category, name: it.name, maxScore: it.maxScore },
+      });
+      if (it.points && it.points.length > 0) {
+        await this.prisma.bidScorePoint.createMany({
+          data: it.points.map((p) => ({
+            scoreItemId: created.id,
+            name: p.name,
+            fullScore: p.fullScore,
+            evidenceHint: p.evidenceHint ?? null,
+            objective: p.objective ?? true,
+          })),
+        });
+      }
+    }
+    return this.listScoreItems(projectId);
+  }
+
+  async deleteScoreTemplate(templateId: string, userId?: string) {
+    const tpl = await this.prisma.scoreTemplate.findUnique({
+      where: { id: templateId },
+      select: { id: true, createdById: true },
+    });
+    if (!tpl) throw new BadRequestException({ error: '模板不存在', code: 'NOT_FOUND' });
+    if (tpl.createdById && tpl.createdById !== userId) {
+      throw new BadRequestException({ error: '只能删除自己保存的模板', code: 'FORBIDDEN' });
+    }
+    await this.prisma.scoreTemplate.delete({ where: { id: templateId } });
+    return { deleted: true };
+  }
+
   // ── Supervision Annotations ──
 
   async upsertSupervisionAnnotation(projectId: string, dto: UpsertSupervisionAnnotationDto) {

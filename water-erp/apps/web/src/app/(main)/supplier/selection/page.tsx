@@ -9,7 +9,7 @@ import type { SupplierRecommendation, SupplierSelectionResult } from '@/lib/api/
 import type { SupplierSelectionHistoryRecord } from '@/lib/api/supplier';
 import type { SupplierClassification } from '@/lib/types';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidProjectDetail } from '@/lib/api/expert';
-import { Wand2, Copy, Download, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, Share2, ListPlus, Bell, MessageSquare } from 'lucide-react';
+import { Wand2, Copy, Download, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, Share2, ListPlus, Bell, MessageSquare, ShieldCheck, Check } from 'lucide-react';
 import { Modal } from '@/components/workbench';
 import { StatusBadge } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
@@ -39,7 +39,22 @@ const PROMPT_TEMPLATE = `【项目概况】
 【特殊要求】
 （工期要求、质量等级、环保要求、业绩门槛等）`;
 
-export default function SupplierSelectionPage() {
+// 向导步骤定义
+const STEPS = [
+  { num: 1, label: '选择项目', desc: '关联采购项目与供应商分类' },
+  { num: 2, label: '描述需求', desc: '撰写采购需求，AI 润色优化' },
+  { num: 3, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
+  { num: 4, label: '确认通知', desc: '发送通知 / 邀请 / 分享名单' },
+  { num: 5, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
+] as const;
+
+export function SupplierSelectionPage({
+  hideHeader,
+  defaultProjectTitle,
+}: {
+  hideHeader?: boolean;
+  defaultProjectTitle?: string;
+}) {
   const router = useRouter();
   const [classifications, setClassifications] = useState<SupplierClassification[]>([]);
   const [projects, setProjects] = useState<BidProjectOption[]>([]);
@@ -68,6 +83,12 @@ export default function SupplierSelectionPage() {
   const [error, setError] = useState('');
   const [result, setResult] = useState<SupplierSelectionResult | null>(null);
   const [shortlist, setShortlist] = useState<Map<string, { item: SupplierRecommendation; note: string }>>(new Map());
+  const [step, setStep] = useState(1); // 向导步骤：1=选择项目 2=描述需求 3=审核候选 4=确认通知 5=供应商确认
+  const [notified, setNotified] = useState(false); // 第 4 步：是否已完成通知发送
+  // 第 5 步：逐供应商确认状态（待确认 / 已确认 / 已放弃）
+  const [confirmations, setConfirmations] = useState<Map<string, 'pending' | 'confirmed' | 'declined'>>(new Map());
+  const [notifyNotFound, setNotifyNotFound] = useState(0); // 第 5 步：通知未找到关联账户的供应商数
+  const [completed, setCompleted] = useState(false); // 第 5 步：本批次选取是否已确认完成
 
   useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); listBidProjects().then(setProjects).catch(() => {}); }, []);
 
@@ -85,6 +106,15 @@ export default function SupplierSelectionPage() {
         if (state.projectId) setProjectId(state.projectId);
         if (state.maxCount) setMaxCount(state.maxCount);
         if (state.result) setResult(state.result);
+        if (state.step) setStep(state.step);
+        if (state.notified) setNotified(true);
+        if (state.completed) setCompleted(true);
+        if (typeof state.notifyNotFound === 'number') setNotifyNotFound(state.notifyNotFound);
+        if (state.confirmationsArr) {
+          const cm = new Map<string, 'pending' | 'confirmed' | 'declined'>();
+          (state.confirmationsArr as [string, string][]).forEach(([k, v]) => cm.set(k, v as 'pending' | 'confirmed' | 'declined'));
+          setConfirmations(cm);
+        }
         if (state.shortlistArr) {
           const m = new Map<string, { item: SupplierRecommendation; note: string }>();
           (state.shortlistArr as [string, any][]).forEach(([k, v]) => m.set(k, v));
@@ -98,14 +128,27 @@ export default function SupplierSelectionPage() {
   useEffect(() => {
     try {
       sessionStorage.setItem('supplier-selection-state', JSON.stringify({
-        requirement, classificationId, projectId, maxCount,
+        requirement, classificationId, projectId, maxCount, step,
         result: result ? { ...result, recommendations: result.recommendations.slice(0, 20) } : null,
         shortlistArr: [...shortlist.entries()],
+        notified, notifyNotFound, completed,
+        confirmationsArr: [...confirmations.entries()],
       }));
     } catch {}
-  }, [requirement, classificationId, projectId, maxCount]);
+  }, [requirement, classificationId, projectId, maxCount, step, result, shortlist, notified, notifyNotFound, completed, confirmations]);
   useEffect(() => { if (!projectId) { setProjectDetail(null); return; } getBidProjectDetail(projectId).then(setProjectDetail).catch(() => setProjectDetail(null)); }, [projectId]);
   const selectedProject = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
+
+  // 模态入口：按项目标题自动匹配并跳到第 2 步（需求描述）
+  const autoMatchedRef = useRef(false);
+  useEffect(() => {
+    if (!defaultProjectTitle || !projects.length || autoMatchedRef.current) return;
+    const match = projects.find(p => p.name === defaultProjectTitle || p.name.includes(defaultProjectTitle) || defaultProjectTitle.includes(p.name));
+    if (!match) return;
+    autoMatchedRef.current = true;
+    setProjectId(match.id);
+    setStep(2);
+  }, [defaultProjectTitle, projects]);
 
   const run = async () => {
     if (!requirement.trim()) { setError('请先描述采购需求'); return; }
@@ -119,6 +162,7 @@ export default function SupplierSelectionPage() {
       const res = await recommendSuppliers({ requirement: fullReq, classificationId: classificationId || undefined, maxCount });
       setResult(res);
       setShortlist(new Map());
+      setStep(3); // 自动跳转到审核候选步骤
       if (res.recommendations.length === 0) setError('未找到匹配的候选供应商，请调整需求描述或筛选条件');
       // Capture history ID for later shortlist save
       const { getSelectionHistory } = await import('@/lib/api/supplier');
@@ -167,7 +211,6 @@ export default function SupplierSelectionPage() {
       const res = await inviteSuppliers(projectId, ids);
       if (res.skipped > 0) toast.warning(`已添加 ${res.added} 家，跳过 ${res.skipped} 家（已在项目中）`);
       else toast.success(`已发送 ${res.added} 家供应商邀请`);
-      setShortlist(new Map());
     } catch (e: any) { toast.error(e?.message || '邀请失败'); }
     setInviting(false);
   };
@@ -177,7 +220,6 @@ export default function SupplierSelectionPage() {
     try {
       const res = await generateNotificationContent({
         projectName: selectedProject?.name,
-        projectCode: selectedProject?.projectCode,
         supplierNames: [...shortlist.values()].map(v => v.item.name),
       });
       const body = `{供应商名称} 您好！\n\n${res.body}`;
@@ -195,28 +237,37 @@ export default function SupplierSelectionPage() {
       const ids = [...shortlist.keys()];
       const hasOverrides = ids.some(sid => notifyPerSupplier.has(sid));
 
+      let totalSent = 0;
+      let totalNotFound = 0;
       if (hasOverrides) {
-        let sent = 0;
         for (const sid of ids) {
           const msg = getSupplierMessage(sid);
           const name = shortlist.get(sid)?.item.name || '';
-          await notifySuppliers({
+          const r = await notifySuppliers({
             supplierIds: [sid],
             channels: notifyChannels,
             type: 'SELECTION_NOTIFY',
             title: msg.title.replace(/\{供应商名称\}/g, name),
             content: msg.body.replace(/\{供应商名称\}/g, name),
           });
-          sent++;
+          totalSent += r.sent || 1;
+          totalNotFound += r.notFound || 0;
         }
-        toast.success(`已通知 ${sent} 家供应商`);
       } else {
         const res = await notifySuppliers({
           supplierIds: ids, channels: notifyChannels, type: 'SELECTION_NOTIFY',
           title: notifyTemplate.title.trim(), content: notifyTemplate.body.trim(),
         });
-        toast.success(`已通知 ${res.sent} 家供应商${res.notFound > 0 ? `，${res.notFound} 家未找到关联账户` : ''}`);
+        totalSent = res.sent;
+        totalNotFound = res.notFound;
       }
+      setNotified(true);
+      setNotifyNotFound(totalNotFound);
+      setCompleted(false);
+      toast.success(`已通知 ${totalSent} 家供应商${totalNotFound > 0 ? `，${totalNotFound} 家未找到关联账户` : ''}`);
+      // 进入第 5 步：供应商确认（初始化全部为待确认）
+      setConfirmations(new Map([...shortlist.keys()].map(sid => [sid, 'pending' as const])));
+      setStep(5);
       setNotifyModal(false);
       setNotifyTemplate({ title: '', body: '' });
       setNotifyPerSupplier(new Map());
@@ -279,72 +330,34 @@ export default function SupplierSelectionPage() {
   const copyList = async () => { if (shortlist.size === 0) return; try { await navigator.clipboard.writeText(buildExportText()); toast.success('已复制到剪贴板'); } catch { toast.error('复制失败'); } };
   const downloadList = () => { if (shortlist.size === 0) return; const blob = new Blob([buildExportText()], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `供应商候选名单_${new Date().toISOString().slice(0, 10)}.txt`; a.click(); URL.revokeObjectURL(url); };
 
-  const inputCard = (
-    <div className="neu-table-card p-5 space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="neu-icon-well flex h-8 w-8 items-center justify-center rounded-[10px]"><Wand2 size={14} className="text-[var(--accent)]" /></div>
-        <div><span className="text-sm font-bold text-[var(--foreground)]">需求配置</span><span className="ml-2 text-xs text-[var(--muted-foreground)]">描述采购需求，关联项目，配置 AI 匹配参数</span></div>
-      </div>
+  const reset = () => { setStep(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); sessionStorage.removeItem('supplier-selection-state'); };
 
-      {/* ── 前置筛选 —— */}
-      <div>
-        <div className="flex items-center gap-2.5 mb-4">
-          <span className="flex h-[7px] w-[7px] flex-shrink-0 rounded-full bg-[var(--foreground)]/50" />
-          <span className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--foreground)]/70">筛选范围</span>
-        </div>
+  // 第 5 步：完成本批次选取（记录汇总、清空会话，给采购员闭环）
+  const completeSelection = () => {
+    const summary = `已记录：${confirmedCount} 家确认 / ${declinedCount} 家放弃 / ${pendingCount} 家待确认`;
+    toast.success(summary);
+    setCompleted(true);
+    // 完成后清空会话，下次进入从第 1 步开始
+    setTimeout(() => {
+      sessionStorage.removeItem('supplier-selection-state');
+    }, 500);
+  };
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-[11px] font-semibold text-[var(--muted-foreground)] block mb-1.5">项目关联</label>
-            <select value={projectId} onChange={e => setProjectId(e.target.value)} className="neu-input text-sm w-full">
-              <option value="">不关联项目</option>
-              {projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}
-            </select>
-            {selectedProject && projectDetail && (
-              <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
-                <span className="rounded-md bg-[var(--surface)] px-2 py-0.5 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">{METHOD_LABELS[selectedProject.procurementMethod] || selectedProject.procurementMethod}</span>
-                <span className="rounded-md bg-[var(--surface)] px-2 py-0.5 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">{STAGE_LABELS[selectedProject.stage] || selectedProject.stage}</span>
-                {projectDetail.suppliers?.length > 0 && (
-                  <span className="w-full rounded-md bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1 text-xs text-[var(--warning)]">已有参与：{projectDetail.suppliers.map(s => s.supplierName).join('、')}</span>
-                )}
-              </div>
-            )}
-          </div>
+  // 第 5 步：循环切换供应商确认状态（待确认 → 已确认 → 已放弃 → 待确认）
+  const cycleConfirmation = (sid: string) => {
+    setConfirmations(prev => {
+      const n = new Map(prev);
+      const cur = n.get(sid) || 'pending';
+      n.set(sid, cur === 'pending' ? 'confirmed' : cur === 'confirmed' ? 'declined' : 'pending');
+      return n;
+    });
+  };
+  // 确认状态派生统计
+  const confirmedCount = [...confirmations.values()].filter(s => s === 'confirmed').length;
+  const declinedCount = [...confirmations.values()].filter(s => s === 'declined').length;
+  const pendingCount = shortlist.size - confirmedCount - declinedCount;
 
-          <div>
-            <label className="text-[11px] font-semibold text-[var(--muted-foreground)] block mb-1.5">供应商分类</label>
-            <select value={classificationId} onChange={e => setClassificationId(e.target.value)} className="neu-input text-sm w-full">
-              <option value="">全部分类</option>
-              {classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <p className="mt-2.5 text-[11px] text-[var(--muted-foreground)]/50 leading-relaxed">指定分类后 AI 将在该分类范围内进行语义匹配与排序，精准限定可显著提升推荐质量</p>
-      </div>
-
-      <hr className="wb-section-rule" />
-
-      <div>
-        <label className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">采购需求描述 *</label>
-        <textarea value={requirement} onChange={e => setRequirement(e.target.value)} placeholder={PROMPT_TEMPLATE} className="neu-input w-full !min-h-[260px] resize-y font-mono text-xs leading-relaxed" />
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button onClick={() => setRequirement(PROMPT_TEMPLATE)} className="neu-btn-xs text-[11px] gap-1.5" disabled={polishing || loading}>填充模板</button>
-          <button onClick={polish} disabled={polishing || !requirement.trim()} className="neu-btn-xs text-[11px] gap-1.5">
-            <Sparkles size={11} />{polishing ? '润色中...' : 'AI 润色'}
-          </button>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">推荐数量 <select value={maxCount} onChange={e => setMaxCount(Number(e.target.value))} className="workbench-input text-xs py-1.5 !h-auto">{[5,8,10,15,20].map(n => <option key={n} value={n}>{n} 家</option>)}</select></div>
-          <button onClick={run} disabled={loading || !requirement.trim()} className="neu-btn-soft"><Wand2 size={15} />{loading ? '智能匹配中...' : '智能推荐'}</button>
-        </div>
-      </div>
-    </div>
-  );
-
+  // ── 第 3 步：候选名单 sidebar（边看推荐边构建名单） ──
   const shortlistPanel = (
     <div className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
       <div className="flex items-center justify-between mb-3">
@@ -370,8 +383,8 @@ export default function SupplierSelectionPage() {
               <div key={sid} className="kpi-card flex flex-col gap-2 p-3">
                 <div className="flex items-center gap-2">
                   <div className="flex flex-col gap-0.5 flex-shrink-0">
-                    <button onClick={() => moveShortlistItem(idx, idx - 1)} disabled={idx === 0} className="text-[var(--muted-foreground)]/40 hover:text-[var(--muted-foreground)] disabled:opacity-20 transition"><ChevronUp size={10} /></button>
-                    <button onClick={() => moveShortlistItem(idx, idx + 1)} disabled={idx === shortlist.size - 1} className="text-[var(--muted-foreground)]/40 hover:text-[var(--muted-foreground)] disabled:opacity-20 transition"><ChevronDown size={10} /></button>
+                    <button onClick={() => moveShortlistItem(idx, idx - 1)} disabled={idx === 0} aria-label="上移" className="p-1 text-[var(--muted-foreground)]/40 hover:text-[var(--muted-foreground)] disabled:opacity-20 transition"><ChevronUp size={14} /></button>
+                    <button onClick={() => moveShortlistItem(idx, idx + 1)} disabled={idx === shortlist.size - 1} aria-label="下移" className="p-1 text-[var(--muted-foreground)]/40 hover:text-[var(--muted-foreground)] disabled:opacity-20 transition"><ChevronDown size={14} /></button>
                   </div>
                   <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-[var(--accent)] text-[10px] font-extrabold text-white">{idx + 1}</span>
                   <div className="flex-1 min-w-0">
@@ -389,20 +402,12 @@ export default function SupplierSelectionPage() {
               </div>
             );
           })}
-          <div className="space-y-2">
-            <div className="flex gap-1.5">
-              <button onClick={() => setShowCompare(true)} disabled={shortlist.size < 2} className="neu-btn-xs flex-1" title="横向对比至少需要 2 家供应商"><Columns3 size={12} />对比</button>
-              <button onClick={() => { setShareNote(''); setShareModal(true); }} className="neu-btn-xs flex-1" title="分享给采购主管"><Share2 size={12} />分享</button>
-              <button onClick={() => { setNotifyTemplate({ title: '项目邀请通知', body: '' }); setNotifyPerSupplier(new Map()); setNotifyChannels(['in_app']); setNotifyActiveSupplier(''); setNotifyModal(true); }} className="neu-btn-xs flex-1" title="通知候选供应商"><Bell size={12} />通知</button>
-            </div>
-            <div className="flex gap-1.5">
-              {projectId && (
-                <button onClick={handleInvite} disabled={inviting} className="neu-btn-xs flex-1">
-                  <Send size={12} />{inviting ? '发送中...' : '发送邀请'}
-                </button>
-              )}
-              <button onClick={() => setShortlist(new Map())} className="neu-btn-xs is-danger flex-1">清空名单</button>
-            </div>
+          <div className="flex gap-1.5 pt-1">
+            <button onClick={() => setStep(4)} disabled={shortlist.size === 0} className="neu-btn-soft is-info flex-1 justify-center">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              下一步：确认通知
+            </button>
+            <button onClick={() => setShortlist(new Map())} className="neu-btn-xs is-danger">清空</button>
           </div>
         </div>
       )}
@@ -412,120 +417,442 @@ export default function SupplierSelectionPage() {
   return (
     <div className="flex flex-col gap-5">
       {/* ══════ page-hero ══════ */}
-      <div className="page-hero">
-        <div className="page-hero__row">
-          <div className="page-hero__left">
-            <div className="page-hero__icon"><Building2 size={17} /></div>
-            <div>
-              <div className="page-hero__title">供应商智能选取</div>
-              <div className="page-hero__sub">基于采购需求多维度分析，AI 从供应商库中智能匹配并推荐最优候选</div>
+      {!hideHeader && (
+        <div className="page-hero">
+          <div className="page-hero__row">
+            <div className="page-hero__left">
+              <div className="page-hero__icon"><Building2 size={17} /></div>
+              <div>
+                <div className="page-hero__title">供应商智能选取</div>
+                <div className="page-hero__sub">基于采购需求多维度分析，AI 从供应商库中智能匹配并推荐最优候选</div>
+              </div>
+            </div>
+            <div className="page-hero__right">
+              <button onClick={() => setShowHistory(true)} className="neu-btn-xs gap-1.5">
+                <Clock3 size={13} />选取历史
+              </button>
+              <RulesPopover accentColor="var(--success)">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)] mb-3">供应商 AI 匹配规则</h3>
+                <ol className="space-y-2 text-xs text-[var(--muted-foreground)] leading-relaxed">
+                  <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--success)]">1.</span>需求关键词提取：从采购需求描述中提取项目类型、资质要求、技术参数等关键维度</li>
+                  <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--success)]">2.</span>候选池粗筛：按供应商分类、企业类型、历史评价分数进行合规过滤</li>
+                  <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--success)]">3.</span>资质与能力评分：综合资质匹配度、历史履约评价、经营范围与项目契合度，形成 0-100 匹配分</li>
+                  <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--success)]">4.</span>综合排序：按匹配度降序输出推荐列表，≥85 强匹配 / ≥70 较匹配 / ≥55 可考虑 / 弱匹配</li>
+                  <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--success)]">5.</span>候选管理：支持加入/移除候选名单，拖拽排序，添加备注，导出为 TXT 名单</li>
+                </ol>
+              </RulesPopover>
             </div>
           </div>
-          <div className="page-hero__right">
-            <button onClick={() => setShowHistory(true)} className="neu-btn-xs gap-1.5">
-              <Clock3 size={13} />选取历史
+        </div>
+      )}
+
+      {/* ══ 向导步骤指示器 ══ */}
+      <div className="neu-table-card p-0">
+        <div className="flex">
+          {STEPS.map((s) => {
+            const reachable = s.num <= step || (s.num === 3 && !!result);
+            return (
+            <button
+              key={s.num}
+              onClick={() => { if (reachable) setStep(s.num); }}
+              aria-disabled={!reachable}
+              aria-current={step === s.num ? 'step' : undefined}
+              className={`flex-1 flex items-center gap-3 px-4 py-3 text-left transition-colors ${step === s.num ? 'bg-[color-mix(in_oklch,var(--accent)_4%,transparent)]' : ''} ${s.num > 1 && 'border-l border-[var(--muted)]/15'} ${!reachable ? 'cursor-default' : ''}`}
+            >
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-extrabold transition-colors ${step === s.num ? 'bg-[var(--accent)] text-white' : step > s.num ? 'bg-[var(--success)]/30 text-[var(--success)]' : 'bg-[var(--muted)]/25 text-[var(--muted-foreground)]'}`}>
+                {step > s.num ? '✓' : s.num}
+              </span>
+              <div className="min-w-0">
+                <div className={`text-[13px] font-bold ${step === s.num ? 'text-[var(--foreground)]' : step > s.num ? 'text-[var(--muted-foreground)]' : 'text-[var(--muted-foreground)]/50'}`}>{s.label}</div>
+                <div className="text-[10px] text-[var(--muted-foreground)]/60 leading-tight truncate hidden md:block">{s.desc}</div>
+              </div>
             </button>
-            <RulesPopover accentColor="var(--success)">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)] mb-3">供应商 AI 匹配规则</h3>
-              <ol className="space-y-2 text-xs text-[var(--muted-foreground)] leading-relaxed">
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--success)]">1.</span>需求关键词提取：从采购需求描述中提取项目类型、资质要求、技术参数等关键维度</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--success)]">2.</span>候选池粗筛：按供应商分类、企业类型、历史评价分数进行合规过滤</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--success)]">3.</span>资质与能力评分：综合资质匹配度、历史履约评价、经营范围与项目契合度，形成 0-100 匹配分</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--success)]">4.</span>综合排序：按匹配度降序输出推荐列表，≥85 强匹配 / ≥70 较匹配 / ≥55 可考虑 / 弱匹配</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--success)]">5.</span>候选管理：支持加入/移除候选名单，拖拽排序，添加备注，导出为 TXT 名单</li>
-              </ol>
-            </RulesPopover>
-          </div>
+            );
+          })}
         </div>
       </div>
 
-      {result !== null && !loading ? (
-        <div className={`grid grid-cols-1 gap-5 items-start ${shortlist.size > 0 ? 'lg:grid-cols-3' : ''}`}>
-          <div className={`space-y-4 ${shortlist.size > 0 ? 'lg:col-span-2' : ''}`}>
-            {inputCard}
+      {error && step !== 3 && <div className="rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">{error}</div>}
 
-            {error && <div className="rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">{error}</div>}
-
-            <div className="neu-table-card p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <FileSearch size={16} className="text-[var(--accent)]" />
-                <h2 className="text-sm font-bold text-[var(--foreground)]">智能分析摘要</h2>
-              </div>
-              <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{result.summary}</p>
-              <div className="flex gap-4 mt-3 text-xs text-[var(--muted-foreground)]">
-                <span>候选池 <strong className="text-[var(--foreground)]">{result.candidatePool}</strong> 家</span>
-                <span>推荐 <strong className="text-[var(--foreground)]">{result.recommendations.length}</strong> 家</span>
-              </div>
+      {/* ── 步骤 1：选择项目 + 分类 ── */}
+      {step === 1 && (
+        <div className="space-y-4">
+          <div className="neu-table-card p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">1</span>
+              <span className="text-sm font-bold text-[var(--foreground)]">选择采购项目与供应商分类</span>
             </div>
-
-            {/* Batch toolbar */}
-            <div className="wb-toolbar !px-3 !py-2">
-              <button onClick={() => handleBatchAdd()} className="neu-btn-xs gap-1">
-                <ListPlus size={12} />全部加入候选
-              </button>
-              <span className="text-[10px] text-[var(--muted-foreground)]/70">或加入前</span>
-              {[3, 5, 8, 10].map(n => (
-                <button key={n} onClick={() => handleBatchAdd(n)} className="neu-tab text-[11px] !px-2.5 !py-1">{n} 名</button>
-              ))}
-            </div>
-
-            {result.recommendations.map((r, idx) => {
-              const inList = shortlist.has(r.supplierId);
-              const contact = r.contacts?.find(c => c.isPrimary) || r.contacts?.[0];
-              return (
-                <div key={r.supplierId} className={`neu-table-card p-4 ${inList ? 'ring-2 ring-[var(--success)]/30' : ''}`}>
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-sm font-extrabold text-white">{idx + 1}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                        <span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)] transition" onClick={() => router.push(`/supplier/${r.supplierId}?from=selection`)}>{r.name}</span>
-                        {r.classification && <StatusBadge tone="blue">{r.classification}</StatusBadge>}
-                        {r.enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType(r.enterpriseType)}</span>}
-                        {r.evaluation && (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-extrabold text-white"
-                            style={{ backgroundColor: r.evaluation.level === 'A' ? 'var(--success)' : r.evaluation.level === 'B' ? 'var(--accent)' : r.evaluation.level === 'C' ? 'var(--warning)' : 'var(--danger)' }}
-                            title={`${r.evaluation.avgScore}分 · ${r.evaluation.count}次评价`}
-                          >
-                            {r.evaluation.level}
-                          </span>
-                        )}
-                        {inList && <StatusBadge tone="green">已入选</StatusBadge>}
-                      </div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="flex-1 h-2 rounded-full bg-[var(--muted)]/50 overflow-hidden max-w-[280px]"><div className="h-full rounded-full transition-all duration-700" style={{ width: `${r.matchScore}%`, backgroundColor: scoreVar(r.matchScore) }} /></div>
-                        <strong className="text-sm tabular-nums min-w-[2rem] text-right" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</strong>
-                        <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ color: scoreVar(r.matchScore), backgroundColor: `color-mix(in oklch, ${scoreVar(r.matchScore)} 14%, transparent)` }}>{scoreLabel(r.matchScore)}</span>
-                      </div>
-                      <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{r.reason}</p>
-                      {contact && <p className="mt-1.5 text-xs text-[var(--muted-foreground)] inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span>联系人：{contact.name}{contact.phone ? ` · ${contact.phone}` : ''}{r.legalPerson ? ` ｜ 法定代表人：${r.legalPerson}` : ''}</span>
-                        <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${r.activeProjects >= 5 ? 'bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[var(--danger)]' : r.activeProjects > 0 ? 'bg-[color-mix(in_oklch,var(--foreground)_6%,transparent)] text-[var(--muted-foreground)]' : 'bg-[color-mix(in_oklch,var(--success)_8%,transparent)] text-[var(--success)]'}`}>
-                          {r.activeProjects >= 5 ? '繁忙' : r.activeProjects > 0 ? '正常' : '空闲'} · {r.activeProjects} 项目
-                        </span>
-                      </p>}
-                    </div>
-                    <div className="flex flex-col gap-2 flex-shrink-0">
-                      <button onClick={() => router.push(`/supplier/${r.supplierId}?from=selection`)} className="neu-btn-xs">详情</button>
-                      <button onClick={() => toggleShortlist(r)} className={`neu-btn-xs ${inList ? 'is-success' : ''}`}>{inList ? <><X size={12} />移除</> : <><Plus size={12} />加入候选</>}</button>
-                    </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] font-semibold text-[var(--muted-foreground)] block mb-1.5">项目关联</label>
+                {defaultProjectTitle ? (
+                  <div className="neu-input text-sm w-full flex items-center py-2.5">
+                    <span className="font-bold text-[var(--foreground)] truncate">{defaultProjectTitle}</span>
                   </div>
-                </div>
-              );
-            })}
+                ) : (
+                  <select value={projectId} onChange={e => setProjectId(e.target.value)} className="neu-input text-sm w-full">
+                    <option value="">不关联项目</option>
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                )}
+                {selectedProject && projectDetail && (
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+                    <span className="rounded-md bg-[var(--surface)] px-2 py-0.5 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">{METHOD_LABELS[selectedProject.procurementMethod] || selectedProject.procurementMethod}</span>
+                    <span className="rounded-md bg-[var(--surface)] px-2 py-0.5 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">{STAGE_LABELS[selectedProject.stage] || selectedProject.stage}</span>
+                    {projectDetail.suppliers?.length > 0 && (
+                      <span className="w-full rounded-md bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1 text-xs text-[var(--warning)]">已有参与：{projectDetail.suppliers.map(s => s.supplierName).join('、')}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-[var(--muted-foreground)] block mb-1.5">供应商分类</label>
+                <select value={classificationId} onChange={e => setClassificationId(e.target.value)} className="neu-input text-sm w-full">
+                  <option value="">全部分类</option>
+                  {classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            </div>
           </div>
-          {shortlist.size > 0 && <div className="lg:col-span-1">{shortlistPanel}</div>}
+
+          <div className="flex justify-end">
+            <button onClick={() => { setError(''); setStep(2); }} className="neu-btn-soft is-info">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              下一步：描述需求
+            </button>
+          </div>
         </div>
-      ) : (
-        <div>
-          {inputCard}
-          {error && <div className="mt-4 rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">{error}</div>}
+      )}
+
+      {/* ── 步骤 2：需求描述 ── */}
+      {step === 2 && (
+        <div className="space-y-4">
+          <div className="neu-table-card p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">2</span>
+              <div><span className="text-sm font-bold text-[var(--foreground)]">描述采购需求</span><span className="ml-2 text-xs text-[var(--muted-foreground)]">AI 将按需求语义匹配候选</span></div>
+            </div>
+
+            {selectedProject && (
+              <div className="text-xs text-[var(--muted-foreground)] rounded-lg bg-[var(--surface)] px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+                <strong className="text-[var(--foreground)]">{selectedProject.name}</strong> · {METHOD_LABELS[selectedProject.procurementMethod] || selectedProject.procurementMethod} · {STAGE_LABELS[selectedProject.stage] || selectedProject.stage}
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">采购需求描述 *</label>
+              <textarea value={requirement} onChange={e => setRequirement(e.target.value)} placeholder={PROMPT_TEMPLATE} className="neu-input w-full !min-h-[260px] resize-y font-mono text-xs leading-relaxed" />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button onClick={() => setRequirement(PROMPT_TEMPLATE)} className="neu-btn-xs text-[11px] gap-1.5" disabled={polishing || loading}>填充模板</button>
+                <button onClick={polish} disabled={polishing || !requirement.trim()} className="neu-btn-xs text-[11px] gap-1.5">
+                  <Sparkles size={11} />{polishing ? '润色中...' : 'AI 润色'}
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">推荐数量
+                  <select value={maxCount} onChange={e => setMaxCount(Number(e.target.value))} className="workbench-input text-xs py-1.5 !h-auto">{[5,8,10,15,20].map(n => <option key={n} value={n}>{n} 家</option>)}</select>
+                </div>
+                <button onClick={run} disabled={loading || !requirement.trim()} className="neu-btn-soft">
+                  <Wand2 size={15} />{loading ? '智能匹配中...' : '智能推荐'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {error && <div className="rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">{error}</div>}
+
+          <div className="flex justify-between">
+            <button onClick={() => setStep(1)} className="neu-btn-soft">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              上一步：选择项目
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── 步骤 3：审核候选（推荐结果 + 候选名单 sidebar） ── */}
+      {step === 3 && (
+        <div className="space-y-4">
           {loading && (
-            <div className="mt-4 neu-table-card py-14 text-center">
+            <div className="neu-table-card py-14 text-center">
               <div className="inline-flex items-center gap-2 text-sm font-bold text-[var(--accent)]">
                 <RefreshCw size={14} className="animate-spin" />AI 正在分析采购需求，从供应商库中匹配候选...
               </div>
               <p className="mt-3 text-xs text-[var(--muted-foreground)] max-w-md mx-auto leading-relaxed">分析维度：需求关键词提取 → 候选池粗筛 → 资质与能力评分 → 综合排序</p>
+            </div>
+          )}
+
+          {result && !loading && (
+            <div className={`grid grid-cols-1 gap-5 items-start ${shortlist.size > 0 ? 'lg:grid-cols-3' : ''}`}>
+              <div className={`space-y-4 ${shortlist.size > 0 ? 'lg:col-span-2' : ''}`}>
+                {error && <div className="rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">{error}</div>}
+
+                <div className="neu-table-card p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FileSearch size={16} className="text-[var(--accent)]" />
+                    <h2 className="text-sm font-bold text-[var(--foreground)]">智能分析摘要</h2>
+                  </div>
+                  <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{result.summary}</p>
+                  <div className="flex gap-4 mt-3 text-xs text-[var(--muted-foreground)]">
+                    <span>候选池 <strong className="text-[var(--foreground)]">{result.candidatePool}</strong> 家</span>
+                    <span>推荐 <strong className="text-[var(--foreground)]">{result.recommendations.length}</strong> 家</span>
+                  </div>
+                </div>
+
+                {/* Batch toolbar */}
+                <div className="wb-toolbar !px-3 !py-2">
+                  <button onClick={() => handleBatchAdd()} className="neu-btn-xs gap-1">
+                    <ListPlus size={12} />全部加入候选
+                  </button>
+                  <span className="text-[10px] text-[var(--muted-foreground)]/70">或加入前</span>
+                  {[3, 5, 8, 10].map(n => (
+                    <button key={n} onClick={() => handleBatchAdd(n)} className="neu-tab text-[11px] !px-2.5 !py-1">{n} 名</button>
+                  ))}
+                </div>
+
+                {result.recommendations.map((r, idx) => {
+                  const inList = shortlist.has(r.supplierId);
+                  const contact = r.contacts?.find(c => c.isPrimary) || r.contacts?.[0];
+                  return (
+                    <div key={r.supplierId} className={`neu-table-card p-4 ${inList ? 'ring-2 ring-[var(--success)]/30' : ''}`}>
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-sm font-extrabold text-white">{idx + 1}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                            <span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)] transition" onClick={() => router.push(`/supplier/${r.supplierId}?from=selection`)}>{r.name}</span>
+                            {r.classification && <StatusBadge tone="blue">{r.classification}</StatusBadge>}
+                            {r.enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType(r.enterpriseType)}</span>}
+                            {r.evaluation && (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-extrabold text-white"
+                                style={{ backgroundColor: r.evaluation.level === 'A' ? 'var(--success)' : r.evaluation.level === 'B' ? 'var(--accent)' : r.evaluation.level === 'C' ? 'var(--warning)' : 'var(--danger)' }}
+                                title={`${r.evaluation.avgScore}分 · ${r.evaluation.count}次评价`}
+                              >
+                                {r.evaluation.level}
+                              </span>
+                            )}
+                            {inList && <StatusBadge tone="green">已入选</StatusBadge>}
+                          </div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="flex-1 h-2 rounded-full bg-[var(--muted)]/50 overflow-hidden max-w-[280px]"><div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${r.matchScore}%`, backgroundColor: scoreVar(r.matchScore) }} /></div>
+                            <strong className="text-sm tabular-nums min-w-[2rem] text-right" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</strong>
+                            <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ color: scoreVar(r.matchScore), backgroundColor: `color-mix(in oklch, ${scoreVar(r.matchScore)} 14%, transparent)` }}>{scoreLabel(r.matchScore)}</span>
+                          </div>
+                          <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{r.reason}</p>
+                          {contact && <p className="mt-1.5 text-xs text-[var(--muted-foreground)] inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span>联系人：{contact.name}{contact.phone ? ` · ${contact.phone}` : ''}{r.legalPerson ? ` ｜ 法定代表人：${r.legalPerson}` : ''}</span>
+                            <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${r.activeProjects >= 5 ? 'bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[var(--danger)]' : r.activeProjects > 0 ? 'bg-[color-mix(in_oklch,var(--foreground)_6%,transparent)] text-[var(--muted-foreground)]' : 'bg-[color-mix(in_oklch,var(--success)_8%,transparent)] text-[var(--success)]'}`}>
+                              {r.activeProjects >= 5 ? '繁忙' : r.activeProjects > 0 ? '正常' : '空闲'} · {r.activeProjects} 项目
+                            </span>
+                          </p>}
+                        </div>
+                        <div className="flex flex-col gap-2 flex-shrink-0">
+                          <button onClick={() => router.push(`/supplier/${r.supplierId}?from=selection`)} className="neu-btn-xs">详情</button>
+                          <button onClick={() => toggleShortlistAndSave(r)} className={`neu-btn-xs ${inList ? 'is-success' : ''}`}>{inList ? <><X size={12} />移除</> : <><Plus size={12} />加入候选</>}</button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {shortlist.size > 0 && <div className="lg:col-span-1">{shortlistPanel}</div>}
+            </div>
+          )}
+
+          {!result && !loading && (
+            <div className="neu-table-card py-14 text-center">
+              <Wand2 size={32} className="mx-auto text-[var(--muted-foreground)]/40 mb-3" />
+              <p className="text-sm text-[var(--muted-foreground)]">返回上一步调整需求后重新执行智能推荐</p>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+            <button onClick={() => setStep(2)} className="neu-btn-soft">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              上一步：描述需求
+            </button>
+            <button onClick={() => setStep(4)} disabled={shortlist.size === 0} className="neu-btn-soft is-info" title={shortlist.size === 0 ? '请先加入候选供应商' : undefined}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              下一步：确认通知{shortlist.size === 0 ? ' · 请先加入候选' : `（${shortlist.size} 家）`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── 步骤 4：确认通知 / 邀请 / 分享 ── */}
+      {step === 4 && (
+        <div className="space-y-4">
+          <div className="neu-table-card p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">4</span>
+              <div>
+                <span className="text-sm font-bold text-[var(--foreground)]">候选名单已定稿</span>
+                <span className="ml-2 text-xs text-[var(--muted-foreground)]">{shortlist.size} 家供应商 · 平均匹配度 {shortlist.size > 0 ? Math.round([...shortlist.values()].reduce((s, v) => s + v.item.matchScore, 0) / shortlist.size) : 0}</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-[var(--surface)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+              <div className="flex flex-wrap gap-1.5">
+                {[...shortlist.entries()].map(([sid, { item: r }], idx) => (
+                  <span key={sid} className="inline-flex items-center gap-1.5 rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-[5px] bg-[var(--accent)] text-[9px] text-white">{idx + 1}</span>
+                    {r.name}
+                    <span className="text-[10px] font-bold" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* 操作动作网格 */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <button
+                onClick={() => { setNotifyTemplate({ title: '项目邀请通知', body: '' }); setNotifyPerSupplier(new Map()); setNotifyChannels(['in_app']); setNotifyActiveSupplier(''); setNotifyModal(true); }}
+                className="neu-btn-soft is-success justify-center !py-3"
+              >
+                <Bell size={15} />通知候选供应商
+              </button>
+              {projectId && (
+                <button onClick={handleInvite} disabled={inviting} className="neu-btn-soft justify-center !py-3">
+                  <Send size={15} />{inviting ? '发送中...' : '发送项目邀请'}
+                </button>
+              )}
+              <button onClick={() => { setShareNote(''); setShareModal(true); }} className="neu-btn-soft justify-center !py-3">
+                <Share2 size={15} />分享给采购主管
+              </button>
+              <button onClick={() => setShowCompare(true)} disabled={shortlist.size < 2} className="neu-btn-soft justify-center !py-3" title="横向对比至少需要 2 家供应商">
+                <Columns3 size={15} />横向对比
+              </button>
+              <button onClick={() => exportShortlistToExcel([...shortlist.values()], selectedProject?.name)} className="neu-btn-soft justify-center !py-3">
+                <FileSpreadsheet size={15} />导出 Excel
+              </button>
+              <button onClick={copyList} className="neu-btn-soft justify-center !py-3">
+                <Copy size={15} />复制名单
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+            <div className="flex items-center gap-3">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">4</span>
+              <span className="text-sm font-bold text-[var(--foreground)]">确认通知</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={reset} className="neu-btn-soft">重新选取</button>
+              <button onClick={() => setStep(3)} className="neu-btn-soft">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                返回调整名单
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 步骤 5：供应商确认 ── */}
+      {step === 5 && (
+        <div className="space-y-4">
+          {completed ? (
+            <div className="neu-table-card p-10 text-center">
+              <div className="flex h-14 w-14 mx-auto items-center justify-center rounded-[16px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
+                <Check size={28} className="text-[var(--success)]" />
+              </div>
+              <h3 className="mt-4 text-lg font-bold text-[var(--foreground)] mb-1">本批次选取已完成</h3>
+              <p className="text-sm text-[var(--muted-foreground)]">
+                已记录 <strong className="text-[var(--success)]">{confirmedCount}</strong> 家确认 · <strong className="text-[var(--danger)]">{declinedCount}</strong> 家放弃 · <strong className="text-[var(--foreground)]">{pendingCount}</strong> 家待确认
+              </p>
+              <div className="flex justify-center gap-3 mt-6">
+                <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                  返回供应商库
+                </button>
+                <button onClick={reset} className="neu-btn-soft">开始新一批选取</button>
+              </div>
+            </div>
+          ) : notified ? (
+            <>
+              <div className="neu-table-card p-6 space-y-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[13px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
+                    <ShieldCheck size={22} className="text-[var(--success)]" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base font-bold text-[var(--foreground)]">通知已发送，等待供应商确认</h3>
+                    <p className="text-xs text-[var(--muted-foreground)] mt-0.5 leading-relaxed">
+                      已向 {shortlist.size} 家候选供应商发出邀请通知{notifyNotFound > 0 && `（${notifyNotFound} 家未找到关联账户，需另行联系）`}。供应商通过供应商门户确认后，可点击列表按钮手动同步状态
+                    </p>
+                    {/* 内联确认进度（distill：取代原三宫格统计卡） */}
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2" aria-live="polite" aria-atomic="true">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-1.5 w-36 rounded-full overflow-hidden bg-[var(--muted)]/25">
+                          {shortlist.size > 0 && confirmedCount > 0 && (
+                            <div className="h-full transition-[width] duration-500" style={{ width: `${confirmedCount / shortlist.size * 100}%`, background: 'var(--success)' }} />
+                          )}
+                          {shortlist.size > 0 && declinedCount > 0 && (
+                            <div className="h-full transition-[width] duration-500" style={{ width: `${declinedCount / shortlist.size * 100}%`, background: 'var(--danger)' }} />
+                          )}
+                        </div>
+                        <span className="text-[11px] tabular-nums text-[var(--muted-foreground)]">{confirmedCount}/{shortlist.size}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] tabular-nums">
+                        <span className="font-bold text-[var(--success)]">{confirmedCount} 已确认</span>
+                        <span className="text-[var(--muted-foreground)]">{pendingCount} 待确认</span>
+                        {declinedCount > 0 && <span className="font-bold text-[var(--danger)]">{declinedCount} 已放弃</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 逐供应商确认列表 */}
+                <div className="space-y-2">
+                  {[...shortlist.entries()].map(([sid, { item: r }], idx) => {
+                    const status = confirmations.get(sid) || 'pending';
+                    const contact = r.contacts?.find(c => c.isPrimary) || r.contacts?.[0];
+                    return (
+                      <div key={sid} className="flex items-center gap-3 rounded-xl bg-[var(--surface)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{idx + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-bold text-[var(--foreground)] truncate">{r.name}</div>
+                          <div className="text-[11px] text-[var(--muted-foreground)] truncate">
+                            匹配度 <span className="font-bold" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</span>
+                            {contact ? ` · ${contact.name} ${contact.phone}` : ''}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => cycleConfirmation(sid)}
+                          title="点击切换确认状态"
+                          aria-label={`切换 ${r.name} 的确认状态，当前${status === 'confirmed' ? '已确认' : status === 'declined' ? '已放弃' : '待确认'}`}
+                          className={`neu-btn-xs !py-1.5 !px-3 flex-shrink-0 ${status === 'confirmed' ? 'is-success' : status === 'declined' ? 'is-danger' : ''}`}
+                        >
+                          {status === 'confirmed' ? <><Check size={12} />已确认</> : status === 'declined' ? <><X size={12} />已放弃</> : '待确认'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">5</span>
+                  <span className="text-sm font-bold text-[var(--foreground)]">供应商确认</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={reset} className="neu-btn-soft">重新选取</button>
+                  <button onClick={() => setStep(4)} className="neu-btn-soft">返回通知</button>
+                  <button onClick={completeSelection} className="neu-btn-soft is-success">
+                    <Check size={14} />完成选取
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="neu-table-card py-14 text-center">
+              <Bell size={32} className="mx-auto text-[var(--muted-foreground)]/40 mb-3" />
+              <p className="text-sm text-[var(--muted-foreground)]">请先返回第 4 步发送通知</p>
+              <button onClick={() => setStep(4)} className="neu-btn-soft mt-4">返回第 4 步：确认通知</button>
             </div>
           )}
         </div>
@@ -701,4 +1028,8 @@ export default function SupplierSelectionPage() {
       )}
     </div>
   );
+}
+
+export default function SupplierSelectionPageWrapper() {
+  return <SupplierSelectionPage />;
 }

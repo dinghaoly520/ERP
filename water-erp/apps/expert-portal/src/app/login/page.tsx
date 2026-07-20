@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { landingURL } from '@water-erp/config';
+import { portalURL } from '@water-erp/config';
 import './login.css';
 
 const IconUser = (
@@ -16,13 +16,13 @@ const IconLock = (
 type Tab = 'expert' | 'admin';
 
 /** 管理员 Tab 接受的 web 端角色（与后端 portal-cookie 的 ROLE_PORTAL 对齐） */
-const WEB_ROLES = ['admin', 'bid_host', 'procurement_staff'];
+const WEB_ROLES = ['admin', 'bid_host', 'procurement_staff', 'leader', 'staff'];
 
 // Dev-only demo accounts — stripped to empty in production builds.
 const DEMO_ACCOUNTS: Record<Tab, { username: string; password: string }> =
   process.env.NODE_ENV === 'production'
     ? { expert: { username: '', password: '' }, admin: { username: '', password: '' } }
-    : { expert: { username: '周祥志', password: 'expert@2026' }, admin: { username: '陈主任', password: 'czr@2026' } };
+    : { expert: { username: '周祥志', password: 'expert@2026' }, admin: { username: 'Swhi-CGZX-01', password: 'abc123' } };
 
 export default function ExpertLoginPage() {
   const router = useRouter();
@@ -32,8 +32,8 @@ export default function ExpertLoginPage() {
     const r = searchParams.get('redirect');
     return r && r.startsWith('/') && !r.startsWith('//') ? r : '/';
   })();
-  const [tab, setTab] = useState<Tab>('expert');
-  const [form, setForm] = useState({ ...DEMO_ACCOUNTS.expert });
+  const [tab, setTab] = useState<Tab>('admin');
+  const [form, setForm] = useState({ ...DEMO_ACCOUNTS.admin });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -86,7 +86,9 @@ export default function ExpertLoginPage() {
         }
         else toast.error('非专家账户，请使用专家账号登录');
       } else if (WEB_ROLES.includes(role)) {
-        window.location.href = landingURL(role); // → http://localhost:3005/dashboard
+        // 管理员 Tab = 开评标管理端(:3007) 入口：无论具体 web 端角色，统一跳 :3007/bid。
+        // 与 bid-portal proxy.ts 的 ALLOWED_ROLES 对齐（admin/bid_host/procurement_staff/leader/staff）。
+        window.location.href = portalURL('bid', '/bid');
       } else {
         toast.error('请使用管理员账号登录');
       }

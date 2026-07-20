@@ -441,12 +441,20 @@ export function AnnouncementDialog({
   tenderDraft,
   selectedMeta,
   onClose,
+  embedded = false,
+  initialCategory = null,
+  initialDraft = null,
+  onDraftChange,
 }: {
   isOpen: boolean;
   tenderType: ReadyTenderDocumentType;
   tenderDraft: ReadyTenderDraft;
   selectedMeta: TenderDocumentTypeMeta;
   onClose: () => void;
+  embedded?: boolean;
+  initialCategory?: AnnouncementCategory | null;
+  initialDraft?: AnnouncementDraft | null;
+  onDraftChange?: (draft: AnnouncementDraft, category: AnnouncementCategory) => void;
 }) {
   const [step, setStep] = useState<"select_category" | "edit">("select_category");
   const [category, setCategory] = useState<AnnouncementCategory | null>(null);
@@ -470,19 +478,32 @@ export function AnnouncementDialog({
   const [importingBidders, setImportingBidders] = useState(false);
 
   // Reset state when dialog opens with a new tender type
+  /* eslint-disable react-hooks/set-state-in-effect -- modal/dialog form reset is intentional */
   useEffect(() => {
-    if (isOpen) {
-      setStep("select_category");
-      setCategory(null);
-      setDraft(null);
+    if (!isOpen) return;
+    if (embedded && initialCategory && initialDraft) {
+      setStep("edit");
+      setCategory(initialCategory);
+      setDraft(initialDraft);
       setErrorMessage(null);
       setSuccessMessage(null);
       setFavoriteStates({});
       setGeneratingStates({});
       setSampleDrawerState(null);
       setAiError(null);
+      return;
     }
-  }, [isOpen, tenderType]);
+    setStep("select_category");
+    setCategory(null);
+    setDraft(null);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setFavoriteStates({});
+    setGeneratingStates({});
+    setSampleDrawerState(null);
+    setAiError(null);
+  }, [isOpen, tenderType, embedded, initialCategory, initialDraft]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const fields = useMemo(() => {
     if (!tenderType || !category) return [];
@@ -505,7 +526,15 @@ export function AnnouncementDialog({
     const filledDraft = applyAutoFill(emptyDraft, tenderDraftRecord, getAnnouncementFields(tenderType, cat));
     setDraft(filledDraft);
     setStep("edit");
+    if (embedded && onDraftChange) onDraftChange(filledDraft, cat);
   };
+
+  // Notify parent wizard of any subsequent draft changes
+  useEffect(() => {
+    if (embedded && onDraftChange && draft && category) {
+      onDraftChange(draft, category);
+    }
+  }, [draft, category, embedded, onDraftChange]);
 
   const handleFieldChange = (key: AnnouncementFieldKey, value: string) => {
     setDraft((prev) => {
@@ -754,41 +783,9 @@ export function AnnouncementDialog({
 
   const draftRecord = (draft ?? {}) as Record<string, string>;
 
-  return (
+  const modalBody = (
     <>
-      <Modal
-        open={isOpen}
-        onClose={onClose}
-        title={step === "select_category" ? "选择公告类型" : dialogTitle}
-        description={`${selectedMeta.label} · 公告`}
-        size="lg"
-        className={step === "edit" ? "!max-w-[min(1200px,95vw)]" : undefined}
-        footer={
-          step === "edit" && draft ? (
-            <>
-              <button
-                type="button"
-                onClick={handleBack}
-                className="neu-btn-soft"
-              >
-                ← 返回选择
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleExport()}
-                disabled={exporting}
-                className="tender-btn tender-btn--export disabled:cursor-not-allowed"
-              >
-                <span className="tb-icon tb-anim-bob">
-                  <FileDown size={13} />
-                </span>
-                {exporting ? "导出中..." : "导出公告"}
-              </button>
-            </>
-          ) : undefined
-        }
-      >
-        {step === "select_category" ? (
+      {step === "select_category" ? (
           /* Category Selection */
           <div className="grid gap-4">
             {availableCategories.map((cat) => {
@@ -943,7 +940,45 @@ export function AnnouncementDialog({
             {aiError}
           </div>
         )}
-      </Modal>
+    </>
+  );
+
+  return (
+    <>
+      {embedded ? (
+        <div className="flex-1 min-h-0 flex flex-col">
+          {modalBody}
+        </div>
+      ) : (
+        <Modal
+          open={isOpen}
+          onClose={onClose}
+          title={step === "select_category" ? "选择公告类型" : dialogTitle}
+          description={`${selectedMeta.label} · 公告`}
+          size="lg"
+          className={step === "edit" ? "!max-w-[min(1200px,95vw)]" : undefined}
+          footer={
+            step === "edit" && draft ? (
+              <>
+                <button type="button" onClick={handleBack} className="neu-btn-soft">
+                  ← 返回选择
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleExport()}
+                  disabled={exporting}
+                  className="tender-btn tender-btn--export disabled:cursor-not-allowed"
+                >
+                  <span className="tb-icon tb-anim-bob"><FileDown size={13} /></span>
+                  {exporting ? "导出中..." : "导出公告"}
+                </button>
+              </>
+            ) : undefined
+          }
+        >
+          {modalBody}
+        </Modal>
+      )}
 
       {/* Sample drawer */}
       {sampleDrawerState && (

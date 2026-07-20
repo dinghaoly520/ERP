@@ -208,7 +208,11 @@ function InvitedOrInternalBiddingAnnouncementPreview({
   );
 
   const docLabel =
-    tenderType === "INVITED_BIDDING" ? "邀请招标公告" : "竞价采购公告";
+    tenderType === "INQUIRY_PURCHASE"
+      ? "询比采购公告"
+      : tenderType === "INVITED_BIDDING"
+        ? "邀请招标公告"
+        : "竞价采购公告";
 
   return (
     <div className="mx-auto max-w-[72ch] space-y-5">
@@ -225,7 +229,12 @@ function InvitedOrInternalBiddingAnnouncementPreview({
       <div className="text-[0.92rem] leading-8 text-[color:var(--foreground)]">
         <p className="indent-8">
           四川水发勘测设计研究有限公司采用
-          {tenderType === "INVITED_BIDDING" ? "邀请招标" : "竞价采购"}方式对
+          {tenderType === "INQUIRY_PURCHASE"
+            ? "询比采购"
+            : tenderType === "INVITED_BIDDING"
+              ? "邀请招标"
+              : "竞价采购"}
+          方式对
           {PV(draft.projectName, "{{项目名称}}", "projectName")}进行采购，现公示如下：
         </p>
       </div>

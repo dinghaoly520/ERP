@@ -278,6 +278,7 @@ model BidProject {
   supervisionAnnotations BidSupervisionAnnotation[]
   supplierSubmissions    SupplierBidSubmission[]
   procurementProject     ProcurementProject?
+  projectManagementItem  ProjectManagementItem?
   reviews                BidRequirementReview[]
   bidInvalidBids          BidInvalidBid[]
   expertMemos             ExpertMemo[]
@@ -382,6 +383,7 @@ model BidExpert {
   expertName            String
   major                 String
   isLead                Boolean          @default(false)
+  expertRole            String           @default("正选") // 正选 | 候补
   invitationStatus      String           @default("pending") // pending | confirmed | declined
   signedIn              Boolean          @default(false)
   phoneVerified         Boolean          @default(false)
@@ -420,7 +422,7 @@ model BidScoreItem {
   scoreRecords    BidScoreRecord[]
   points          BidScorePoint[]
   bidInvalidBids  BidInvalidBid[]
-  memos           ExpertMemo[]
+  expertMemos     ExpertMemo[]
   createdAt       DateTime         @default(now())
 
   @@index([projectId])
@@ -1882,6 +1884,8 @@ model ProjectManagementItem {
   createdBy                   User?                    @relation("ProjectCreatedBy", fields: [createdById], references: [id])
   stages                      ProjectManagementStage[]
   workArrangements            WorkArrangement[]
+  bidProjectId                String?                  @unique
+  bidProject                  BidProject?              @relation(fields: [bidProjectId], references: [id])
 
   @@index([status, currentStage])
   @@index([title])
@@ -2198,4 +2202,17 @@ model WorkArrangementDailyPlanCache {
 
   @@unique([userId, date])
   @@index([userId, date])
+}
+
+/// 评分标准模板（用户保存的整套评分项 + 得分点，便于跨项目复用）
+model ScoreTemplate {
+  id            String   @id @default(cuid())
+  name          String
+  // { items: [{ category, name, maxScore, points: [{ name, fullScore, evidenceHint, objective }] }] }
+  payload       Json
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+
+  @@index([createdById])
 }

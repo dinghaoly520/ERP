@@ -61,7 +61,7 @@ const STAGE_ACTION_LABELS: Record<string, string> = {
   SUPPLIER_INVITATION: '供应商邀请',
   PUBLIC_ANNOUNCEMENT: '公告制作与发布',
   EXPERT_SELECTION: '专家抽取',
-  BID_EVALUATION: '开评标管理',
+  BID_EVALUATION: '开标确认',
   AWARD_DECISION: '中标通知书制作',
   CONTRACT: '合同编制',
 };

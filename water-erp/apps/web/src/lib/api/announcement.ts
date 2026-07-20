@@ -139,6 +139,17 @@ export function removeAttachment(attachmentId: string) {
   return api.delete<{ deleted: boolean }>(`/announcements/attachments/${attachmentId}`);
 }
 
+/** 从已有本地对象挂载公告附件（引用项目采购文件，后端复制到 MinIO） */
+export function attachFromObject(
+  announcementId: string,
+  data: { objectKey: string; fileName?: string; title?: string; mimeType?: string; size?: number },
+) {
+  return api.post<AnnouncementAttachment>(
+    `/announcements/${announcementId}/attachments/from-object`,
+    data,
+  );
+}
+
 /** 上传文件（沿用既有 /upload），返回 fileAsset 信息 */
 export function uploadFile(file: File, category = 'announcement') {
   const fd = new FormData();
@@ -229,6 +240,40 @@ export async function exportAnnouncementDocument(payload: {
       parseFileName(response.headers.get("content-disposition")) ??
       "公告.docx",
   };
+}
+
+/** 生成公告 docx + 全文文本（公告发布向导用：正文取全文、docx 上传到阶段） */
+export async function buildAnnouncement(payload: {
+  tenderType: ReadyTenderDocumentType;
+  category: AnnouncementCategory;
+  draft: AnnouncementDraft;
+}): Promise<{ blob: Blob; fileName: string; textContent: string }> {
+  const response = await fetch(`${API_BASE}/tender-write/build-announcement`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.text()));
+  }
+
+  const { bufferBase64, fileName, textContent } = (await response.json()) as {
+    bufferBase64: string;
+    fileName: string;
+    textContent: string;
+  };
+
+  // base64 → Blob
+  const binary = atob(bufferBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+
+  return { blob, fileName, textContent };
 }
 
 export type WinningBidImporter = {
@@ -391,4 +436,17 @@ export async function updateNotificationLedger(rows: unknown[][]) {
       parseFileName(response.headers.get("content-disposition")) ??
       "中标通知书台账.xlsx",
   };
+}
+
+/** 解析项目 TENDER_DOCUMENT 阶段 .docx 文件，用 AI 提取公告字段 */
+export type ParsedAnnouncementFields = {
+  fields: Record<string, string>;
+  extractedText: string;
+} | null;
+
+export function parseAnnouncementFields(projectId: string) {
+  return api.post<ParsedAnnouncementFields>(
+    `/project-management/${projectId}/parse-announcement-fields`,
+    {},
+  );
 }

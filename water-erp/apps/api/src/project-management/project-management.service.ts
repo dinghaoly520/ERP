@@ -149,6 +149,89 @@ export class ProjectManagementService {
     }));
   }
 
+  /**
+   * 开标确认：确保项目管理项已关联 BidProject。
+   * 已关联 → 返回该 BidProject 概要；未关联 → 按项目信息创建并回写 bidProjectId。
+   * 兼容未来"立项时自动创建"：无论关联何时建立，本方法都幂等返回。
+   */
+  async ensureBidProject(itemId: string) {
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: itemId },
+      select: {
+        id: true,
+        title: true,
+        procurementMethod: true,
+        budgetAmount: true,
+        bidOpeningTime: true,
+        initiationDate: true,
+        projectOverview: true,
+        bidProjectId: true,
+      },
+    });
+    if (!item) {
+      throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    }
+
+    if (item.bidProjectId) {
+      const existing = await this.prisma.bidProject.findUnique({
+        where: { id: item.bidProjectId },
+        select: {
+          id: true,
+          projectCode: true,
+          name: true,
+          stage: true,
+          procurementMethod: true,
+          openTime: true,
+          deadline: true,
+        },
+      });
+      if (existing) {
+        return {
+          ...existing,
+          openTime: existing.openTime.toISOString(),
+          deadline: existing.deadline.toISOString(),
+        };
+      }
+    }
+
+    // 解析开标时间：bidOpeningTime 字符串 → initiationDate → 当前时间
+    const parsedOpen = item.bidOpeningTime ? new Date(item.bidOpeningTime) : null;
+    const openTime =
+      parsedOpen && !Number.isNaN(parsedOpen.getTime())
+        ? parsedOpen
+        : (item.initiationDate ?? new Date());
+    const deadline = new Date(openTime.getTime() + 7 * 86400000);
+
+    const created = await this.prisma.bidProject.create({
+      data: {
+        name: item.title,
+        projectCode: `BID-${Date.now()}`,
+        procurementMethod: item.procurementMethod || '公开招标',
+        openTime,
+        deadline,
+        budget: item.budgetAmount != null ? Number(item.budgetAmount) : null,
+        scope: item.projectOverview || null,
+        stage: 'DOWNLOAD',
+      },
+    });
+    await this.prisma.projectManagementItem.update({
+      where: { id: itemId },
+      data: { bidProjectId: created.id },
+    });
+    this.logger.log(
+      `为项目管理项 ${itemId} 创建开评标项目 ${created.projectCode}`,
+    );
+    return {
+      id: created.id,
+      projectCode: created.projectCode,
+      name: created.name,
+      stage: created.stage,
+      procurementMethod: created.procurementMethod,
+      openTime: created.openTime.toISOString(),
+      deadline: created.deadline.toISOString(),
+    };
+  }
+
   async createFromInitiation(dto: CreateProjectFromInitiationDto) {
     await this.prisma.department.upsert({
       where: { name: dto.requesterDepartment },
@@ -6498,5 +6581,54 @@ ${JSON.stringify(algorithmResult, null, 2)}
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows,
     });
+  }
+
+  /** 解析项目的 TENDER_DOCUMENT .docx 附件，用 AI 提取公告字段值供预填 */
+  async parseAnnouncementFields(projectId: string): Promise<{ fields: Record<string, string>; extractedText: string } | null> {
+    const stage = await this.prisma.projectManagementStage.findFirst({
+      where: { projectManagementItemId: projectId, stageKey: 'TENDER_DOCUMENT' },
+      include: { attachments: true },
+    });
+    if (!stage) return null;
+    const docxAttachment = stage.attachments.find((a) =>
+      a.fileName.toLowerCase().endsWith('.docx'),
+    );
+    if (!docxAttachment) return null;
+
+    const localPath = resolve(process.cwd(), 'uploads', docxAttachment.objectKey);
+    let buffer: Buffer;
+    try {
+      buffer = await readFile(localPath);
+    } catch {
+      this.logger.warn(`parseAnnouncementFields: 源文件不存在 ${localPath}`);
+      return null;
+    }
+
+    let extractedText: string;
+    try {
+      const mammothResult = await mammoth.extractRawText({ buffer });
+      extractedText = (mammothResult.value || '').slice(0, 12000);
+    } catch {
+      this.logger.warn('parseAnnouncementFields: mammoth 解析失败');
+      return null;
+    }
+
+    const fields: Record<string, string> = {};
+    try {
+      const aiResponse = await this.aiService.chatJson<Record<string, string>>(
+        '你是采购公告字段提取助手。从招标文件原文中提取以下字段，输出严格的 JSON 对象（key 为字段名，value 为提取值）。只包含能提取到的字段，不确定的字段不要输出。字段：projectName(项目名称)、projectOverview(项目概况/采购内容简介)、maxPriceNumeric(预算金额/最高限价)、contactName(联系人)、contactPhone(联系电话)、contactEmail(联系邮箱)、qualificationRequirements(供应商资格要求)、bidOpeningTime(开标时间)。',
+        extractedText,
+        0.1,
+      );
+      if (aiResponse && typeof aiResponse === 'object') {
+        for (const [k, v] of Object.entries(aiResponse)) {
+          if (typeof v === 'string' && v.trim()) fields[k] = v.trim();
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`parseAnnouncementFields: AI 提取失败 ${(e as Error).message}`);
+    }
+
+    return { fields, extractedText };
   }
 }
