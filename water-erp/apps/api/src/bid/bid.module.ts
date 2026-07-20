@@ -10,6 +10,7 @@ import { NotificationModule } from '../notification/notification.module';
 import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 import { AiBidAnalysisModule } from '../ai-bid-analysis/ai-bid-analysis.module';
 import { ScorePointExtractorService } from './score-point-extractor.service';
+import { ScoreStandardValidator } from './score-standard-validator.service';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { ScorePointExtractorService } from './score-point-extractor.service';
     AiBidAnalysisModule, // ← 为了注入 PlaintextFetcherService（Task 1: AI 提取得分点）
   ],
   controllers: [BidController],
-  providers: [BidService, BidGateway, ClarificationAiService, ScorePointExtractorService],
+  providers: [BidService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator],
   exports: [BidGateway, BidService, ClarificationAiService],
 })
 export class BidModule {}
