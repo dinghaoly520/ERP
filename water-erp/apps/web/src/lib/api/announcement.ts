@@ -403,3 +403,16 @@ export async function updateNotificationLedger(rows: unknown[][]) {
       "中标通知书台账.xlsx",
   };
 }
+
+/** 解析项目 TENDER_DOCUMENT 阶段 .docx 文件，用 AI 提取公告字段 */
+export type ParsedAnnouncementFields = {
+  fields: Record<string, string>;
+  extractedText: string;
+} | null;
+
+export function parseAnnouncementFields(projectId: string) {
+  return api.post<ParsedAnnouncementFields>(
+    `/project-management/${projectId}/parse-announcement-fields`,
+    {},
+  );
+}
