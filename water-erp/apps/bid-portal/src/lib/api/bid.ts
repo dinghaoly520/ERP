@@ -185,6 +185,10 @@ export function applyScoreItemTemplate(projectId: string) {
   return api.post<ScoreItem[]>(`/bid/projects/${projectId}/score-items/template`, {});
 }
 
+export function publishScoreStandard(projectId: string) {
+  return api.post<{ scoreStandardPublishedAt: string }>(`/bid/projects/${projectId}/score-items/publish`, {});
+}
+
 export function updateScoreItem(projectId: string, itemId: string, body: { category?: string; name?: string; maxScore?: number }) {
   return api.patch<ScoreItem>(`/bid/projects/${projectId}/score-items/${itemId}`, body);
 }

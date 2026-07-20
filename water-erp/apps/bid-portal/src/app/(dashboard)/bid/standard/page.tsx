@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState, useMemo, useCallback } from 'react';
 import { api } from '@/lib/api';
 import {
   listScoreItems, createScoreItem, updateScoreItem, deleteScoreItem, applyScoreItemTemplate,
+  publishScoreStandard,
   type ScoreItem,
 } from '@/lib/api/bid';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
@@ -22,6 +23,7 @@ const inputCls = 'workbench-input';
 export default function BidStandardPage() {
   const { projectId } = useBidProjectContext();
   const [stage, setStage] = useState('');
+  const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [items, setItems] = useState<ScoreItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -35,19 +37,37 @@ export default function BidStandardPage() {
     if (!projectId) return;
     setLoading(true);
     Promise.all([
-      api.get<{ stage: string }>(`/bid/projects/${projectId}`).then(p => setStage(p.stage)).catch(() => {}),
+      api.get<{ stage: string; scoreStandardPublishedAt: string | null }>(`/bid/projects/${projectId}`)
+        .then(p => { setStage(p.stage); setPublishedAt(p.scoreStandardPublishedAt); })
+        .catch(() => {}),
       listScoreItems(projectId).then(setItems).catch(() => setItems([])),
     ]).finally(() => setLoading(false));
     setShowAdd(false);
     setEditingId(null);
   }, [projectId]);
 
-  const locked = stage === 'EVALUATING' || stage === 'ARCHIVED';
+  const locked = !!publishedAt || stage === 'EVALUATING' || stage === 'ARCHIVED';
   const totalMax = useMemo(() => items.reduce((s, i) => s + Number(i.maxScore), 0), [items]);
   const scoredTotal = useMemo(
     () => items.filter(i => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0),
     [items],
   );
+
+  const handlePublish = async () => {
+    if (!projectId) return;
+    const scoredSum = items.filter(i => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0);
+    const incomplete = items.filter(i => Number(i.maxScore) > 0 && (!i.points || i.points.length === 0));
+    if (scoredSum !== 100 || incomplete.length > 0) {
+      toast.error(`发布前请确保:打分项满分合计=100(当前 ${scoredSum}),且每个打分项至少 1 个得分点`);
+      return;
+    }
+    if (!window.confirm('发布后评分标准将锁定,不可再修改。确认发布?')) return;
+    try {
+      const res = await publishScoreStandard(projectId);
+      setPublishedAt(res.scoreStandardPublishedAt);
+      toast.success('评分标准已发布');
+    } catch (e: any) { toast.error(e.body?.error || e.message || '发布失败'); }
+  };
 
   const handleApplyTemplate = async () => {
     if (!projectId) return;
@@ -130,8 +150,9 @@ export default function BidStandardPage() {
         <div className="flex items-center gap-2 rounded-xl border border-[#fde68a] bg-[#fffbeb] px-4 py-3 text-sm text-[#92400e]">
           <Lock size={14} strokeWidth={1.8} />
           <span>
-            项目处于「{STAGE_LABEL[stage] || stage}」阶段，评分标准已锁定，不可修改。
-            {stage === 'EVALUATING' && ' 专家已开始打分。'}
+            {publishedAt
+              ? `评分标准已发布(${new Date(publishedAt).toLocaleString('zh-CN')}),不可修改。`
+              : `项目处于「${STAGE_LABEL[stage] || stage}」阶段,评分标准已锁定,不可修改。${stage === 'EVALUATING' ? ' 专家已开始打分。' : ''}`}
           </span>
         </div>
       )}
@@ -142,6 +163,13 @@ export default function BidStandardPage() {
         action={
           !locked && (
             <div className="flex items-center gap-2">
+              <button
+                onClick={handlePublish}
+                className="flex items-center gap-1.5 rounded-xl bg-[#11a874] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#0e8f61]"
+              >
+                <Check size={14} strokeWidth={1.8} />
+                发布评分标准
+              </button>
               <button
                 onClick={handleApplyTemplate}
                 className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff]"
