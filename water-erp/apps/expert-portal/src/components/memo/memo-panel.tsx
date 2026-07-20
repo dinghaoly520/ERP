@@ -189,7 +189,15 @@ export function MemoPanel({
     c?.clear();
     if (strokes && strokes.length) pendingStrokes.current = strokes;
     setFullscreen(true);
+    // 进全屏默认笔触宽度 4
+    setCurrentWeight(4);
   };
+
+  // 进全屏后同步 canvas 笔触宽度（全屏 canvas mount 后）
+  useEffect(() => {
+    if (!fullscreen) return;
+    requestAnimationFrame(() => fullscreenCanvasRef.current?.setWeight(4));
+  }, [fullscreen]);
 
   const exitFullscreen = () => {
     const c = fullscreenCanvasRef.current;
