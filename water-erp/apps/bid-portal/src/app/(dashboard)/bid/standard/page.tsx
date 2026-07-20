@@ -66,7 +66,7 @@ export default function BidStandardPage() {
       const res = await publishScoreStandard(projectId);
       setPublishedAt(res.scoreStandardPublishedAt);
       toast.success('评分标准已发布');
-    } catch (e: any) { toast.error(e.body?.error || e.message || '发布失败'); }
+    } catch (e: any) { toast.error(e.message || '发布失败'); }
   };
 
   const handleApplyTemplate = async () => {
