@@ -58,8 +58,8 @@ export function MemoPanel({
   const fullscreenCanvasRef = useRef<AtramentCanvasHandle>(null);
   // 全屏切换时暂存矢量笔触，在新 canvas mount 后恢复
   const pendingStrokes = useRef<Stroke[] | null>(null);
-  // 得分点 → 最新墨迹 blob 本地缓存，切换回来时即时恢复（避免 API 竞态）
-  const inkCache = useRef<Map<string, Blob>>(new Map());
+  // 得分点 → 墨迹缓存（strokes 矢量 + blob 位图）。恢复优先用 strokes（支持全屏矢量转移）
+  const inkCache = useRef<Map<string, { strokes: Stroke[]; blob: Blob }>>(new Map());
   // memos 列表的 ref 镜像，供异步闭包读取最新值（避免 stale closure）
   const memosRef = useRef<ExpertMemo[]>([]);
   useEffect(() => { memosRef.current = memos; }, [memos]);
@@ -94,16 +94,19 @@ export function MemoPanel({
       const c0 = activeCanvas();
       if (mode === 'handwriting' && c0 && c0.isEmpty() && scorePointId) {
         const cached = inkCache.current.get(scorePointId);
-        if (cached) c0.restoreBlob(cached).catch(() => {});
+        if (cached?.strokes.length) c0.restoreStrokes(cached.strokes);
+        else if (cached?.blob) c0.restoreBlob(cached.blob).catch(() => {});
       }
       return;
     }
     const token = ++switchToken.current;
 
     const c = activeCanvas();
-    // ★ 同步捕获画布 dataURL（toDataURL 是同步的，不会被后续操作干扰）
+    // ★ 同步捕获：矢量笔触（全屏切换用）+ dataURL（API 保存用）
+    let capturedStrokes: Stroke[] | null = null;
     let dataURL = '';
     if (mode === 'handwriting' && c && !c.isEmpty()) {
+      capturedStrokes = c.captureStrokes();
       dataURL = c.captureDataURL();
     }
     // ★ 同步清屏
@@ -116,7 +119,7 @@ export function MemoPanel({
         try {
           const blob = await (await fetch(dataURL)).blob();
           if (switchToken.current === token && prev) {
-            inkCache.current.set(prev, blob);
+            inkCache.current.set(prev, { strokes: capturedStrokes ?? [], blob });
           }
           // 删除该得分点已有的 ink 备忘（同一得分点只保留一条最新墨迹）
           if (prev) {
@@ -140,10 +143,13 @@ export function MemoPanel({
       // 恢复新得分点墨迹
       if (mode === 'handwriting' && scorePointId) {
         const cached = inkCache.current.get(scorePointId);
-        if (cached) {
-          await c?.restoreBlob(cached);
+        if (cached?.strokes.length) {
+          // 矢量恢复（填充 strokes.current，后续全屏切换可用）
+          c?.restoreStrokes(cached.strokes);
+        } else if (cached?.blob) {
+          await c?.restoreBlob(cached.blob);
         } else {
-          // API 兜底
+          // API 兜底（位图，无 strokes，全屏切换会回退位图模式）
           try {
             const list = await listMemos(projectId, supplierId, scorePointId);
             const latestInk = list.find(m => m.inkFileId);
@@ -152,7 +158,7 @@ export function MemoPanel({
               const res = await fetch(url);
               if (res.ok) {
                 const blob = await res.blob();
-                inkCache.current.set(scorePointId, blob);
+                inkCache.current.set(scorePointId, { strokes: [], blob });
                 if (switchToken.current === token) await c?.restoreBlob(blob);
               }
             }
@@ -212,6 +218,8 @@ export function MemoPanel({
           toast.warning('请先在手写区书写内容');
           return;
         }
+        // 同步捕获矢量（缓存用，保持全屏切换清晰）
+        const strokes = c.captureStrokes();
         const blob = await c?.toBlob();
         if (!blob) { toast.error('墨迹导出失败'); return; }
         // upsert：先删该得分点旧 ink 备忘，再建新的（同一得分点只留一条墨迹）
@@ -226,8 +234,8 @@ export function MemoPanel({
           sourceDevice: `${sourceDevice}_handwriting`,
           supplierId, scorePointId,
         });
-        // 更新本地缓存
-        if (scorePointId) inkCache.current.set(scorePointId, blob);
+        // 更新本地缓存（strokes + blob）
+        if (scorePointId) inkCache.current.set(scorePointId, { strokes, blob });
         c?.clear();
       } else {
         const trimmed = text.trim();
