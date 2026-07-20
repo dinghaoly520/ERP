@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { ClarificationAiService } from './clarification-ai.service';
 import { BidGateway } from './bid.gateway';
+import { ScoreStandardValidator } from './score-standard-validator.service';
 import { assertBidStageTransition } from './bid-state';
 
 // Mock decrypt utilities and MinIO client for decryptSupplier tests
@@ -121,6 +122,7 @@ describe('BidService — stage transitions', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
         { provide: ClarificationAiService, useValue: { draftQuestion: jest.fn().mockResolvedValue({ drafts: [], basis: [] }), summarizeReply: jest.fn().mockResolvedValue(null) } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 
@@ -894,9 +896,10 @@ describe('BidService — stage transitions', () => {
 
     it('G9: 未编制评分标准时拒绝', async () => {
       prisma.bidSupplier.count.mockResolvedValue(2);
-      prisma.bidScoreItem.count.mockResolvedValue(0);
+      const validator = service['scoreStandardValidator'] as any;
+      validator.assertScoreStandardComplete.mockRejectedValueOnce({ response: { code: 'MAX_SCORE_SUM_NOT_100', statusCode: 409 } });
       await expect(service.startEvaluation('p1', 'u1')).rejects.toMatchObject({
-        response: { code: 'NO_SCORE_ITEMS' },
+        response: { code: 'MAX_SCORE_SUM_NOT_100' },
       });
     });
 
@@ -1017,6 +1020,7 @@ describe('BidService — score items (评分标准)', () => {
       providers: [
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { create: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
       ],
     }).compile();
@@ -1695,6 +1699,7 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
       providers: [
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { create: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
       ],
     }).compile();

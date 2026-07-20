@@ -30,6 +30,7 @@ import { Queue } from 'bullmq';
 import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 import { buildArchiveAiUsage } from '../ai-bid-analysis/utils/archive-ai-usage';
 import { ClarificationAiService } from './clarification-ai.service';
+import { ScoreStandardValidator } from './score-standard-validator.service';
 
 @Injectable()
 export class BidService {
@@ -41,6 +42,8 @@ export class BidService {
     @Optional()
     @InjectQueue(QUEUE_NAMES.TENDER_PROCESSING)
     private readonly tenderQueue?: Queue,
+    @Optional()
+    private readonly scoreStandardValidator?: ScoreStandardValidator,
   ) {}
 
   private readonly logger = new Logger(BidService.name);
@@ -573,14 +576,8 @@ export class BidService {
       });
     }
 
-    // G9: 至少一个评分项，否则专家无法打分、progress 恒 0、无法确认报告/生成结果
-    const scoreItemCount = await this.prisma.bidScoreItem.count({ where: { projectId: id } });
-    if (scoreItemCount === 0) {
-      throw new BadRequestException({
-        error: '项目尚未编制评分标准，请先在评标办法页添加评分项或应用标准模板',
-        code: 'NO_SCORE_ITEMS',
-      });
-    }
+    // G9: 评分标准完整(打分类 Σ=100 + 每个打分类项 ≥1 得分点),否则专家无法打分
+    await this.scoreStandardValidator!.assertScoreStandardComplete(id);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.bidProject.update({
@@ -1940,6 +1937,7 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     this.assertScoreItemsEditable(project.stage);
+    this.scoreStandardValidator!.assertPassFailMaxScore(dto.category, dto.maxScore);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const result = await tx.bidScoreItem.create({
@@ -1968,6 +1966,12 @@ export class BidService {
 
     const existing = await this.prisma.bidScoreItem.findFirst({ where: { id: itemId, projectId } });
     if (!existing) throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
+
+    if (dto.category !== undefined || dto.maxScore !== undefined) {
+      const nextCategory = dto.category ?? existing.category;
+      const nextMaxScore = dto.maxScore ?? Number(existing.maxScore);
+      this.scoreStandardValidator!.assertPassFailMaxScore(nextCategory, nextMaxScore);
+    }
 
     return this.prisma.bidScoreItem.update({
       where: { id: itemId },
@@ -2026,34 +2030,43 @@ export class BidService {
   }
 
   async createScorePoint(projectId: string, itemId: string, dto: CreateScorePointDto) {
-    await this.assertScoreItemInProject(projectId, itemId);
-    return this.prisma.bidScorePoint.create({
-      data: {
-        scoreItemId: itemId,
-        name: dto.name,
-        fullScore: dto.fullScore,
-        seq: dto.seq ?? 0,
-        evidenceHint: dto.evidenceHint ?? null,
-        objective: dto.objective ?? true,
-      },
+    const item = await this.assertScoreItemInProject(projectId, itemId);
+    return this.prisma.$transaction(async (tx) => {
+      await this.scoreStandardValidator!.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), Number(dto.fullScore));
+      return tx.bidScorePoint.create({
+        data: {
+          scoreItemId: itemId,
+          name: dto.name,
+          fullScore: dto.fullScore,
+          seq: dto.seq ?? 0,
+          evidenceHint: dto.evidenceHint ?? null,
+          objective: dto.objective ?? true,
+        },
+      });
     });
   }
 
   async updateScorePoint(projectId: string, itemId: string, pointId: string, dto: UpdateScorePointDto) {
-    await this.assertScoreItemInProject(projectId, itemId);
+    const item = await this.assertScoreItemInProject(projectId, itemId);
     const existing = await this.prisma.bidScorePoint.findFirst({ where: { id: pointId, scoreItemId: itemId } });
     if (!existing) {
       throw new BadRequestException({ error: '得分点不存在', code: 'NOT_FOUND' });
     }
-    return this.prisma.bidScorePoint.update({
-      where: { id: pointId },
-      data: {
-        ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.fullScore !== undefined && { fullScore: dto.fullScore }),
-        ...(dto.seq !== undefined && { seq: dto.seq }),
-        ...(dto.evidenceHint !== undefined && { evidenceHint: dto.evidenceHint }),
-        ...(dto.objective !== undefined && { objective: dto.objective }),
-      },
+    const delta = dto.fullScore !== undefined ? Number(dto.fullScore) - Number(existing.fullScore) : 0;
+    return this.prisma.$transaction(async (tx) => {
+      if (delta !== 0) {
+        await this.scoreStandardValidator!.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), delta);
+      }
+      return tx.bidScorePoint.update({
+        where: { id: pointId },
+        data: {
+          ...(dto.name !== undefined && { name: dto.name }),
+          ...(dto.fullScore !== undefined && { fullScore: dto.fullScore }),
+          ...(dto.seq !== undefined && { seq: dto.seq }),
+          ...(dto.evidenceHint !== undefined && { evidenceHint: dto.evidenceHint }),
+          ...(dto.objective !== undefined && { objective: dto.objective }),
+        },
+      });
     });
   }
 
@@ -2068,15 +2081,19 @@ export class BidService {
 
   /** 批量导入得分点（管理员审核 AI 建议后）。复用 assertScoreItemInProject 做归属 + 阶段锁校验。 */
   async batchCreateScorePoints(projectId: string, itemId: string, dto: BatchCreateScorePointsDto) {
-    await this.assertScoreItemInProject(projectId, itemId);
-    return this.prisma.bidScorePoint.createMany({
-      data: dto.points.map((p) => ({
-        scoreItemId: itemId,
-        name: p.name,
-        fullScore: p.fullScore,
-        evidenceHint: p.evidenceHint ?? null,
-        objective: p.objective ?? true,
-      })),
+    const item = await this.assertScoreItemInProject(projectId, itemId);
+    const delta = dto.points.reduce((s, p) => s + Number(p.fullScore), 0);
+    return this.prisma.$transaction(async (tx) => {
+      await this.scoreStandardValidator!.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), delta);
+      return tx.bidScorePoint.createMany({
+        data: dto.points.map((p) => ({
+          scoreItemId: itemId,
+          name: p.name,
+          fullScore: p.fullScore,
+          evidenceHint: p.evidenceHint ?? null,
+          objective: p.objective ?? true,
+        })),
+      });
     });
   }
 

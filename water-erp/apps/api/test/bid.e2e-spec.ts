@@ -39,12 +39,13 @@ describe('Bid Lifecycle (e2e)', () => {
 
     prisma = app.get(PrismaService);
 
-    adminCookie = await loginAs(app, '陈主任', 'czr@2026', 'web');
+    adminCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
     supplierCookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
   });
 
   afterAll(async () => {
     if (createdProjectId) {
+      await prisma.bidScorePoint.deleteMany({ where: { scoreItem: { projectId: createdProjectId } } }).catch(() => {});
       await prisma.bidSupervisionLog.deleteMany({ where: { projectId: createdProjectId } });
       await prisma.bidScoreItem.deleteMany({ where: { projectId: createdProjectId } });
       await prisma.bidExpert.deleteMany({ where: { projectId: createdProjectId } });
@@ -175,8 +176,21 @@ describe('Bid Lifecycle (e2e)', () => {
     await prisma.bidExpert.create({
       data: { projectId: createdProjectId, userId: expertUser!.id, expertName: expertUser!.username, major: '综合' },
     });
-    await prisma.bidScoreItem.create({
-      data: { projectId: createdProjectId, category: 'TECHNICAL', name: '技术方案', maxScore: 10 },
+    // 完整评分标准(满足 startEvaluation 新闸门)
+    await prisma.bidScoreItem.createMany({
+      data: [
+        { projectId: createdProjectId, category: 'QUALIFICATION', name: '资格性审查', maxScore: 0 },
+        { projectId: createdProjectId, category: 'RESPONSIVE', name: '符合性审查', maxScore: 0 },
+        { projectId: createdProjectId, category: 'BUSINESS', name: '商务评分', maxScore: 20 },
+        { projectId: createdProjectId, category: 'TECHNICAL', name: '技术评分', maxScore: 50 },
+        { projectId: createdProjectId, category: 'PRICE', name: '价格评分', maxScore: 30 },
+      ],
+    });
+    const scoringItems = await prisma.bidScoreItem.findMany({
+      where: { projectId: createdProjectId, category: { in: ['BUSINESS', 'TECHNICAL', 'PRICE'] } },
+    });
+    await prisma.bidScorePoint.createMany({
+      data: scoringItems.map((it) => ({ scoreItemId: it.id, name: `${it.name}-要点1`, fullScore: Number(it.maxScore), seq: 1 })),
     });
 
     await request(app.getHttpServer())
@@ -267,5 +281,52 @@ describe('Bid Lifecycle (e2e)', () => {
     await prisma.bidOpeningSession.deleteMany({ where: { projectId: tmpId } }).catch(() => {});
     await prisma.bidSupervisionLog.deleteMany({ where: { projectId: tmpId } }).catch(() => {});
     await prisma.bidProject.delete({ where: { id: tmpId } }).catch(() => {});
+  });
+
+  it('通过性类别 maxScore≠0 → 400 PASS_FAIL_MUST_BE_ZERO', async () => {
+    const proj = await prisma.bidProject.create({
+      data: { projectCode: `BID-T3-${Date.now()}`, name: 'B1校验项目', stage: 'DOWNLOAD', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },
+    });
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${proj.id}/score-items`)
+      .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
+      .send({ category: 'QUALIFICATION', name: '资格', maxScore: 5 })
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'PASS_FAIL_MUST_BE_ZERO' }));
+    await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
+  });
+
+  it('startEvaluation 残缺标准(无得分点)→ 409 SCORE_ITEM_HAS_NO_POINTS', async () => {
+    const proj = await prisma.bidProject.create({
+      data: { projectCode: `BID-T3B-${Date.now()}`, name: 'B1残缺项目', stage: 'OPENING', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },
+    });
+    // 满足 P2(≥1 专家) + G4(≥1 解密成功供应商),使闸门推进到 G9(评分标准完整性)
+    const expertUser = await prisma.user.findFirst({ where: { role: 'bid_expert' } });
+    if (expertUser) {
+      await prisma.bidExpert.create({
+        data: { projectId: proj.id, userId: expertUser.id, expertName: expertUser.username, major: '综合' },
+      });
+    }
+    await prisma.bidSupplier.create({
+      data: { projectId: proj.id, supplierName: '残缺测试供应商', decryptStatus: 'SUCCESS', submitStatus: '已提交' },
+    });
+    await prisma.bidScoreItem.createMany({
+      data: [
+        { projectId: proj.id, category: 'BUSINESS', name: '商务', maxScore: 20 },
+        { projectId: proj.id, category: 'TECHNICAL', name: '技术', maxScore: 50 },
+        { projectId: proj.id, category: 'PRICE', name: '价格', maxScore: 30 },
+      ],
+    });
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${proj.id}/start-evaluation`)
+      .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
+      .expect(409)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'SCORE_ITEM_HAS_NO_POINTS' }));
+    await prisma.bidExpert.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.bidSupplier.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.bidScoreItem.deleteMany({ where: { projectId: proj.id } });
+    await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
   });
 });
