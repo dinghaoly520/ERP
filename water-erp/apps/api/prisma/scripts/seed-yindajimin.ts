@@ -185,7 +185,32 @@ async function stepBids() {
     console.log(`  + [${n}] ${b.name} bidSupplier=${bs.id} asset=${asset.id} (${buf.length}B 明文)`);
   }
 }
-async function stepScore() { console.log('▶ score（Task 4 填充）'); }
+async function stepScore() {
+  console.log('▶ score: BidOpeningSession + 5 个 BidScoreItem');
+  const project = await prisma.bidProject.findUnique({ where: { projectCode: PROJECT_CODE } });
+  if (!project) throw new Error('项目不存在，请先跑 --step=basics');
+
+  await prisma.bidOpeningSession.upsert({
+    where: { projectId: project.id },
+    create: { projectId: project.id, host: '李主任', supervisor: '周老师', status: '已开标', decryptWindowStart: new Date('2026-07-25T02:00:00.000Z'), decryptWindowEnd: new Date('2026-07-25T06:00:00.000Z') },
+    update: { status: '已开标' },
+  });
+  console.log('  + BidOpeningSession（已开标）');
+
+  const items = [
+    { category: 'QUALIFICATION', name: '资格性审查', maxScore: 0 },
+    { category: 'RESPONSIVE', name: '符合性审查', maxScore: 0 },
+    { category: 'BUSINESS', name: '商务评分', maxScore: 20 },
+    { category: 'TECHNICAL', name: '技术评分', maxScore: 30 },
+    { category: 'PRICE', name: '价格评分', maxScore: 50 },
+  ] as const;
+  for (const it of items) {
+    const exist = await prisma.bidScoreItem.findFirst({ where: { projectId: project.id, category: it.category } });
+    if (exist) { console.log(`  · BidScoreItem ${it.category} 已存在，跳过`); continue; }
+    await prisma.bidScoreItem.create({ data: { projectId: project.id, category: it.category, name: it.name, maxScore: it.maxScore } });
+    console.log(`  + BidScoreItem ${it.category} maxScore=${it.maxScore}`);
+  }
+}
 async function stepExperts() { console.log('▶ experts（Task 5 填充）'); }
 async function stepAi() { console.log('▶ ai（Task 6 填充）'); }
 async function stepAdvance() { console.log('▶ advance（Task 7 填充）'); }
