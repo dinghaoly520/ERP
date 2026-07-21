@@ -8,6 +8,7 @@ import {
   PenLine, Save, Trash2, Undo2,
 } from 'lucide-react';
 import { AtramentCanvas, type AtramentCanvasHandle, type Stroke } from './atrament-canvas';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import {
   createMemo, deleteMemo, getMemoInkUrl, listMemos,
 } from '@/lib/api';
@@ -49,6 +50,10 @@ export function MemoPanel({
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
+  // 清屏二次确认弹窗（拟态 ConfirmDialog）
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  // 删除备忘二次确认弹窗：存待删备忘 id
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [currentColor, setCurrentColor] = useState('#000000');
   const [currentWeight, setCurrentWeight] = useState(6);
   const [eraseMode, setEraseMode] = useState(false);
@@ -261,7 +266,6 @@ export function MemoPanel({
   }, [saving, mode, projectId, sourceDevice, supplierId, scorePointId, text, load]);
 
   const handleDelete = async (memoId: string) => {
-    if (!confirm('确认删除该条备忘？')) return;
     try {
       await deleteMemo(projectId, memoId);
       setMemos(prev => prev.filter(m => m.id !== memoId));
@@ -365,48 +369,60 @@ export function MemoPanel({
     </div>
   );
 
+  // 清屏按钮：全屏工具栏用紧凑款(toolbar)，内嵌底栏用款(action)；点击都弹 ConfirmDialog
+  const clearButton = (variant: 'toolbar' | 'action') => {
+    const cls = variant === 'toolbar'
+      ? `${btnBase} flex items-center gap-0.5 text-[oklch(0.45_0.01_265)] hover:border-[#e74c3c]/40 hover:text-[#e74c3c]`
+      : `flex items-center gap-1 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-3 py-2 text-xs font-semibold text-[oklch(0.45_0.01_265)]
+         shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
+         hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
+         hover:border-[#e74c3c]/40 hover:text-[#e74c3c]
+         active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12)] active:translate-y-px transition-all duration-150`;
+    return (
+      <button type="button" onClick={() => setClearConfirmOpen(true)} title="清空全部笔画" className={cls}>
+        <Trash2 size={variant === 'toolbar' ? 11 : 12} strokeWidth={1.5} /> 清屏
+      </button>
+    );
+  };
+
   const fullscreenOverlay = fullscreen && mode === 'handwriting'
     ? createPortal(
       <div className="fixed inset-0 z-50 flex flex-col bg-white"
         style={{ WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }}
         onContextMenu={e => e.preventDefault()}
         onTouchStart={e => e.preventDefault()}>
-        <div className="flex items-center justify-between px-4 py-2 border-b border-[oklch(0.92_0.004_265)]">
-          <div className="flex items-center gap-2 text-sm font-bold text-[oklch(0.18_0.012_265)]">
-            <PenLine size={14} strokeWidth={1.5} />
-            全屏手写{scorePointName ? ` · ${scorePointName}` : ''}
-          </div>
-          <div className="flex items-center gap-2">
-            {toolbar}
-            <button
-              type="button" onClick={exitFullscreen}
-              className="flex items-center gap-1 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-3 py-1.5 text-xs font-semibold text-[oklch(0.45_0.01_265)]
-                shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
-                hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
-                active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12)] active:translate-y-px transition-all duration-150"
-            >
-              <Minimize2 size={13} strokeWidth={1.5} /> 退出全屏
-            </button>
-          </div>
-        </div>
-        <AtramentCanvas ref={fullscreenCanvasRef} width={800} height={560} className="flex-1 rounded-none border-0" />
-        <div className="flex items-center gap-2 px-4 py-2 border-t border-[oklch(0.92_0.004_265)]">
-          <button type="button" onClick={() => { activeCanvas()?.clear(); }}
-            className="rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-4 py-2 text-xs font-semibold text-[oklch(0.45_0.01_265)]
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-2 border-b border-[oklch(0.92_0.004_265)]">
+          {/* 左：退出全屏 */}
+          <button
+            type="button" onClick={exitFullscreen}
+            className="justify-self-start flex items-center gap-1 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-3 py-1.5 text-xs font-semibold text-[oklch(0.45_0.01_265)]
               shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
               hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
-              active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12)] active:translate-y-px transition-all duration-150">
-            清空</button>
-          <button type="button" onClick={doSave} disabled={saving}
-            className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-[#064ea2] py-2.5 text-xs font-bold text-white
+              active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12)] active:translate-y-px transition-all duration-150"
+          >
+            <Minimize2 size={13} strokeWidth={1.5} /> 退出全屏
+          </button>
+          {/* 中：工具栏 + 清屏，顶部居中 */}
+          <div className="justify-self-center flex items-center gap-1.5">
+            {toolbar}
+            <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
+            {clearButton('toolbar')}
+          </div>
+          {/* 右：保存 */}
+          <button
+            type="button" onClick={doSave} disabled={saving}
+            className="justify-self-end flex items-center gap-1 rounded-xl bg-[#064ea2] px-3 py-1.5 text-xs font-bold text-white
               shadow-[0_1px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.25)]
               hover:shadow-[0_2px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.3)]
               active:shadow-[inset_0_1px_3px_oklch(0.3_0.08_264_/_.4)] active:translate-y-px
-              disabled:opacity-50 transition-all duration-150">
+              disabled:opacity-50 transition-all duration-150"
+          >
             {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} strokeWidth={1.5} />}
-            {saving ? '保存中…' : '保存手写'}
+            {saving ? '保存中…' : '保存'}
           </button>
         </div>
+        <AtramentCanvas ref={fullscreenCanvasRef} width={800} height={560} fillContainer
+          className="flex-1 min-h-0 rounded-none border-0" />
       </div>,
       document.body,
     )
@@ -415,6 +431,33 @@ export function MemoPanel({
   return (
     <section className="flex h-full flex-col">
       {fullscreenOverlay}
+      <ConfirmDialog
+        open={clearConfirmOpen}
+        title="清空全部笔画"
+        message="将清空当前画布上所有手写内容，此操作不可撤销。"
+        confirmText="清空"
+        cancelText="取消"
+        danger
+        onConfirm={() => {
+          activeCanvas()?.clear();
+          setClearConfirmOpen(false);
+        }}
+        onCancel={() => setClearConfirmOpen(false)}
+      />
+      <ConfirmDialog
+        open={deleteTargetId !== null}
+        title="删除备忘"
+        message="确认删除该条备忘？此操作不可撤销。"
+        confirmText="删除"
+        cancelText="取消"
+        danger
+        onConfirm={async () => {
+          const id = deleteTargetId;
+          setDeleteTargetId(null);
+          if (id) await handleDelete(id);
+        }}
+        onCancel={() => setDeleteTargetId(null)}
+      />
       <div className="mb-3 flex items-center justify-between">
         <h3 className="flex items-center gap-1.5 text-sm font-bold text-[oklch(0.18_0.012_265)]">
           <PenLine size={14} strokeWidth={1.5} /> 专家备忘
@@ -458,13 +501,7 @@ export function MemoPanel({
               </button>
             </div>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => activeCanvas()?.clear()}
-                className="flex items-center gap-1 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-3 py-2 text-xs font-semibold text-[oklch(0.45_0.01_265)]
-                  shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
-                  hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
-                  active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12)] active:translate-y-px transition-all duration-150">
-                <Eraser size={12} strokeWidth={1.5} /> 清空
-              </button>
+              {clearButton('action')}
               <button type="button" onClick={doSave} disabled={saving}
                 className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-[#064ea2] px-3 py-2.5 text-xs font-bold text-white
                   shadow-[0_1px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.25)]
@@ -518,7 +555,7 @@ export function MemoPanel({
                     {m.sourceDevice && ` · ${memoDeviceLabel(m.sourceDevice)}`}
                   </div>
                 </div>
-                <button type="button" onClick={() => handleDelete(m.id)} aria-label="删除备忘"
+                <button type="button" onClick={() => setDeleteTargetId(m.id)} aria-label="删除备忘"
                   className="shrink-0 rounded p-1 text-[oklch(0.62_0.008_264)] hover:bg-red-50 hover:text-red-500">
                   <Trash2 size={12} strokeWidth={1.7} />
                 </button>

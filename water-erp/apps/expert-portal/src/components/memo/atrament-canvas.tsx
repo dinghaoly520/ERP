@@ -22,6 +22,8 @@ export interface AtramentCanvasHandle {
 interface Props {
   width?: number; height?: number; strokeColor?: string; baseWeight?: number;
   className?: string;  onDirtyChange?: (dirty: boolean) => void;
+  /** 填满父容器高度（由外层 flex-1 决定高），不再用 padding-bottom 宽高比撑高——全屏 flex 布局用，避免宽屏下 padding-bottom% 相对宽度算出过高把兄弟元素顶出视口 */
+  fillContainer?: boolean;
 }
 
 interface Point { x: number; y: number; pressure: number }
@@ -72,7 +74,7 @@ function drawPath(ctx: CanvasRenderingContext2D, pts: Point[], baseW: number, er
 }
 
 export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
-  ({ width = 600, height = 420, strokeColor = '#000000', baseWeight = 6, className = '', onDirtyChange },
+  ({ width = 600, height = 420, strokeColor = '#000000', baseWeight = 6, className = '', onDirtyChange, fillContainer = false },
    ref) => {
     const visRef = useRef<HTMLCanvasElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -318,7 +320,9 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
 
     return (
       <div className={`relative rounded-xl border border-[oklch(0.88_0.005_264)] bg-white ${className}`}
-        style={{ width:'100%', paddingBottom:`${(height/width)*100}%` }}>
+        style={fillContainer
+          ? { width: '100%' }
+          : { width: '100%', paddingBottom: `${(height / width) * 100}%` }}>
         <div ref={scrollRef} className="absolute inset-0 overflow-auto rounded-xl">
           <canvas ref={cbRef} className="block"
             style={{
