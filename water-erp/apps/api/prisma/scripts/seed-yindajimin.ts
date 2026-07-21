@@ -25,6 +25,35 @@ import { hashSync } from 'bcryptjs';
 import { minioClient, MINIO_BUCKET } from '../../src/upload/minio.client';
 import { encryptBuffer } from '../../src/announcement/bid-document.crypto';
 import { wrapKey } from '../../src/common/crypto/envelope-crypto';
+import { NestFactory } from '@nestjs/core';
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { BullModule } from '@nestjs/bullmq';
+// Nest DI 相关从编译产物 dist 引入（tsx/esbuild 不生成 emitDecoratorMetadata，
+// 直接 import src 会让 Nest 构造注入失败；dist 由 tsc 编译含 reflect-metadata）
+import { PrismaModule } from '../../dist/prisma/prisma.module';
+import { RedisModule } from '../../dist/redis/redis.module';
+import { StorageModule } from '../../dist/storage/storage.module';
+import { LocalAiModule } from '../../dist/local-ai/local-ai.module';
+import { AiBidAnalysisModule } from '../../dist/ai-bid-analysis/ai-bid-analysis.module';
+import { ScorePointExtractorService } from '../../dist/bid/score-point-extractor.service';
+
+// 精简 module：只引入 ScorePointExtractorService 所需依赖（LocalAiModule 是 @Global 提供 LLM/OCR/Embedding，
+// AiBidAnalysisModule 提供 PlaintextFetcherService，PrismaModule 提供 PrismaService）。
+// 避开 AppModule 全量初始化——它在 createApplicationContext 下会触发 BidService 的 context 模式依赖问题。
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    BullModule.forRoot({ connection: { url: process.env.REDIS_URL || 'redis://localhost:6380' } }),
+    PrismaModule,
+    RedisModule,
+    StorageModule,
+    LocalAiModule,
+    AiBidAnalysisModule,
+  ],
+  providers: [ScorePointExtractorService],
+})
+class SeedYindajiminModule {}
 
 const prisma = new PrismaClient();
 
@@ -242,7 +271,56 @@ async function stepExperts() {
     console.log(`  + BidExpert「${name}」userId=${user.id}${name === '阴红宇' ? ' (isLead)' : ''}`);
   }
 }
-async function stepAi() { console.log('▶ ai（Task 6 填充）'); }
+async function stepAi() {
+  console.log('▶ ai: bootstrap Nest → ScorePointExtractorService 真实提取');
+  const project = await prisma.bidProject.findUnique({ where: { projectCode: PROJECT_CODE } });
+  if (!project) throw new Error('项目不存在');
+
+  const app = await NestFactory.createApplicationContext(SeedYindajiminModule, { logger: ['error', 'warn'] });
+  try {
+    const extractor = app.get(ScorePointExtractorService);
+    const items = await prisma.bidScoreItem.findMany({ where: { projectId: project.id } });
+
+    for (const item of items) {
+      if (item.category === 'PRICE') {
+        await prisma.bidScorePoint.deleteMany({ where: { scoreItemId: item.id } });
+        await prisma.bidScorePoint.create({ data: { scoreItemId: item.id, name: '评审价', fullScore: 50, seq: 0, evidenceHint: '最低价法：有效评审价由低到高排序' } });
+        console.log('  + PRICE 手动得分点：评审价（50）');
+        continue;
+      }
+
+      console.log(`  · 提取 ${item.category}（${item.name}）...`);
+      let suggestions: { name: string; fullScore: number; evidenceHint?: string; objective?: boolean }[] = [];
+      try {
+        suggestions = await extractor.extractScorePoints(project.id, item.id);
+      } catch (e) {
+        console.warn(`  ⚠ ${item.category} 提取失败：${(e as Error).message}（回退：跳过）`);
+      }
+      if (suggestions.length === 0) {
+        console.warn(`  ⚠ ${item.category} 提取返回空 — 保留既有得分点`);
+        continue;
+      }
+
+      await prisma.bidScorePoint.deleteMany({ where: { scoreItemId: item.id } });
+      for (const [idx, s] of suggestions.entries()) {
+        await prisma.bidScorePoint.create({
+          data: {
+            scoreItemId: item.id,
+            name: s.name,
+            fullScore: Number(s.fullScore) || 0,
+            seq: idx,
+            evidenceHint: s.evidenceHint ?? null,
+            objective: s.objective ?? true,
+          },
+        });
+      }
+      await prisma.bidScoreItem.update({ where: { id: item.id }, data: { criteriaSource: 'ai_inferred' } });
+      console.log(`  + ${item.category}：${suggestions.length} 个得分点`);
+    }
+  } finally {
+    await app.close();
+  }
+}
 async function stepAdvance() { console.log('▶ advance（Task 7 填充）'); }
 
 const STEPS: Record<string, () => Promise<void>> = {
