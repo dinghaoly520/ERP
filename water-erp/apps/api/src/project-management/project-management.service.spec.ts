@@ -382,7 +382,10 @@ describe('ProjectManagementService', () => {
     const aiService = {
       analyzeProjectDetail: jest.fn(),
     };
-    const documentParser = {};
+    const documentParser = {
+      parse: jest.fn().mockResolvedValue(''),
+      parseWithOcr: jest.fn().mockResolvedValue(''),
+    };
 
     const readFileMock = readFile as jest.MockedFunction<typeof readFile>;
     const writeFileMock = writeFile as jest.MockedFunction<typeof writeFile>;
@@ -455,7 +458,7 @@ describe('ProjectManagementService', () => {
       currentStage: 'INITIATION',
       status: 'ACTIVE',
     });
-    prisma.projectManagementStage.createMany.mockResolvedValue({ count: 6 });
+    prisma.projectManagementStage.createMany.mockResolvedValue({ count: 7 });
     prisma.attachment.create.mockResolvedValue({ id: 'att-01' });
 
     await expect(
@@ -486,13 +489,14 @@ describe('ProjectManagementService', () => {
     });
 
     // 公开招标 + only initiationAttachment (hasDemand=false, hasInitiation=true):
-    // source filters out PROCUREMENT_DEMAND and PUBLIC_ANNOUNCEMENT,
+    // source filters out PROCUREMENT_DEMAND and PUBLIC_ANNOUNCEMENT (9 − 2 = 7),
     // INITIATION is COMPLETED, TENDER_DOCUMENT is the first IN_PROGRESS stage.
     const expectedStages = [
-      { key: 'INITIATION', label: '项目立项', status: 'COMPLETED' },
+      { key: 'INITIATION', label: '采购立项', status: 'COMPLETED' },
       { key: 'TENDER_DOCUMENT', label: '采购文件', status: 'IN_PROGRESS' },
+      { key: 'SUPPLIER_INVITATION', label: '供应商邀请', status: 'NOT_STARTED' },
       { key: 'EXPERT_SELECTION', label: '专家抽取', status: 'NOT_STARTED' },
-      { key: 'BID_EVALUATION', label: '评标过程', status: 'NOT_STARTED' },
+      { key: 'BID_EVALUATION', label: '开标评标', status: 'NOT_STARTED' },
       { key: 'AWARD_DECISION', label: '定标', status: 'NOT_STARTED' },
       { key: 'CONTRACT', label: '合同', status: 'NOT_STARTED' },
     ];
@@ -984,7 +988,7 @@ describe('ProjectManagementService', () => {
     prisma.projectManagementStage.updateMany.mockResolvedValue({ count: 1 });
     prisma.projectManagementItem.update.mockResolvedValue({
       id: 'pm-01',
-      currentStage: 'PUBLIC_ANNOUNCEMENT',
+      currentStage: 'SUPPLIER_INVITATION',
     });
     aiService.analyzeProjectDetail.mockResolvedValue({
       summary: {
@@ -1001,17 +1005,18 @@ describe('ProjectManagementService', () => {
       status: 'COMPLETED',
     });
 
+    // TENDER_DOCUMENT 完成后,下一阶段是 SUPPLIER_INVITATION(供应商邀请)
     expect(prisma.projectManagementStage.updateMany).toHaveBeenCalledWith({
       where: {
         projectManagementItemId: 'pm-01',
-        stageKey: 'PUBLIC_ANNOUNCEMENT',
+        stageKey: 'SUPPLIER_INVITATION',
         status: 'NOT_STARTED',
       },
       data: { status: 'IN_PROGRESS' },
     });
     expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
       where: { id: 'pm-01' },
-      data: { currentStage: 'PUBLIC_ANNOUNCEMENT' },
+      data: { currentStage: 'SUPPLIER_INVITATION' },
     });
   });
 
