@@ -12,10 +12,12 @@ import { SectionCard } from '@water-erp/ui';
 import { TableSkeleton } from '@/components/skeleton';
 import Dialog from '@/components/dialog';
 import NoProjectGuide from '@/components/no-project-guide';
-import { Plus, Pencil, Trash2, Check, X, FileSpreadsheet, Lock, ChevronRight, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, FileSpreadsheet, Lock, ChevronRight, ChevronDown, Save } from 'lucide-react';
 import { CATEGORY_LABEL, CATEGORY_COLOR, STAGE_LABEL, isPassFailCategory } from '@water-erp/shared';
 import { toast } from 'sonner';
 import { ScorePointsEditor } from './score-points-editor';
+import { SaveTemplateDialog } from './save-template-dialog';
+import { TemplateLibraryDialog } from './template-library-dialog';
 
 const CATEGORY_OPTIONS = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'];
 const inputCls = 'workbench-input';
@@ -32,6 +34,8 @@ export default function BidStandardPage() {
   const [editDraft, setEditDraft] = useState({ category: 'TECHNICAL', name: '', maxScore: 0 });
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [showSaveTpl, setShowSaveTpl] = useState(false);
+  const [showLib, setShowLib] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -161,31 +165,49 @@ export default function BidStandardPage() {
         title="评分项"
         description="资格审查 / 响应性为通过性审查（满分 0）；商务 / 技术 / 价格为打分项。"
         action={
-          !locked && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            {items.length > 0 && (
               <button
-                onClick={handlePublish}
-                className="flex items-center gap-1.5 rounded-xl bg-[#11a874] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#0e8f61]"
-              >
-                <Check size={14} strokeWidth={1.8} />
-                发布评分标准
-              </button>
-              <button
-                onClick={handleApplyTemplate}
+                onClick={() => setShowSaveTpl(true)}
                 className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff]"
               >
-                <FileSpreadsheet size={14} strokeWidth={1.8} />
-                应用标准模板
+                <Save size={14} strokeWidth={1.8} />
+                存为模板
               </button>
-              <button
-                onClick={() => { setShowAdd(true); setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 }); }}
-                className="flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#054280]"
-              >
-                <Plus size={14} strokeWidth={2} />
-                新增评分项
-              </button>
-            </div>
-          )
+            )}
+            <button
+              onClick={() => setShowLib(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff]"
+            >
+              <FileSpreadsheet size={14} strokeWidth={1.8} />
+              模板库
+            </button>
+            {!locked && (
+              <>
+                <button
+                  onClick={handlePublish}
+                  className="flex items-center gap-1.5 rounded-xl bg-[#11a874] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#0e8f61]"
+                >
+                  <Check size={14} strokeWidth={1.8} />
+                  发布评分标准
+                </button>
+                <button
+                  onClick={handleApplyTemplate}
+                  className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff]"
+                >
+                  <FileSpreadsheet size={14} strokeWidth={1.8} />
+                  应用标准模板
+                </button>
+                <button
+                  onClick={() => { setShowAdd(true); setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 }); }}
+                  className="flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#054280]"
+                >
+                  <Plus size={14} strokeWidth={2} />
+                  新增评分项
+                </button>
+              </>
+            )}
+          </div>
         }
       >
         {/* ── Summary ── */}
@@ -390,6 +412,15 @@ export default function BidStandardPage() {
           确定要删除评分项「{deleteConfirm?.name}」吗？此操作不可撤销。
         </p>
       </Dialog>
+
+      <SaveTemplateDialog open={showSaveTpl} onClose={() => setShowSaveTpl(false)} projectId={projectId} />
+      <TemplateLibraryDialog
+        open={showLib}
+        onClose={() => setShowLib(false)}
+        projectId={projectId}
+        locked={locked}
+        onChanged={setItems}
+      />
     </div>
   );
 }
