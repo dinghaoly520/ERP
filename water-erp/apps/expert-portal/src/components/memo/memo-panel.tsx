@@ -295,7 +295,8 @@ export function MemoPanel({
     [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
     [&::-webkit-slider-thumb]:shadow-[0_1px_2px_oklch(0.55_0.03_258_/_.15),inset_0_1px_0_oklch(1_0_0_/_.7)]`;
 
-  const toolbar = (
+  // 工具栏：全屏带缩放(zoom:true)，略缩页去缩放、清屏占位(zoom:false)；清屏统一居末，点击弹 ConfirmDialog
+  const renderToolbar = ({ zoom }: { zoom: boolean }) => (
     <div className="flex items-center gap-1.5">
       {/* 颜色 */}
       {COLORS.map(c => (
@@ -354,36 +355,33 @@ export function MemoPanel({
         className={`${btnBase} text-[oklch(0.45_0.01_265)]`} title="撤销上一笔">
         <Undo2 size={11} strokeWidth={1.5} />
       </button>
-      {/* 缩放 */}
+      {/* 缩放（仅全屏） */}
+      {zoom && (
+        <>
+          <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
+          <button type="button"
+            onClick={() => { const v = Math.max(0.5, zoomLevel - 0.25); setZoomLevel(v); activeCanvas()?.setZoom(v); }}
+            className={`${btnBase} text-[oklch(0.45_0.01_265)]`}>
+            <ZoomOut size={11} strokeWidth={1.5} />
+          </button>
+          <span className="text-[10px] font-mono tabular-nums text-[oklch(0.45_0.01_264)] w-[26px] text-center">{Math.round(zoomLevel * 100)}%</span>
+          <button type="button"
+            onClick={() => { const v = Math.min(3, zoomLevel + 0.25); setZoomLevel(v); activeCanvas()?.setZoom(v); }}
+            className={`${btnBase} text-[oklch(0.45_0.01_265)]`}>
+            <ZoomIn size={11} strokeWidth={1.5} />
+          </button>
+        </>
+      )}
+      <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
+      {/* 清屏：弹 ConfirmDialog */}
       <button type="button"
-        onClick={() => { const v = Math.max(0.5, zoomLevel - 0.25); setZoomLevel(v); activeCanvas()?.setZoom(v); }}
-        className={`${btnBase} text-[oklch(0.45_0.01_265)]`}>
-        <ZoomOut size={11} strokeWidth={1.5} />
-      </button>
-      <span className="text-[10px] font-mono tabular-nums text-[oklch(0.45_0.01_264)] w-[26px] text-center">{Math.round(zoomLevel * 100)}%</span>
-      <button type="button"
-        onClick={() => { const v = Math.min(3, zoomLevel + 0.25); setZoomLevel(v); activeCanvas()?.setZoom(v); }}
-        className={`${btnBase} text-[oklch(0.45_0.01_265)]`}>
-        <ZoomIn size={11} strokeWidth={1.5} />
+        onClick={() => setClearConfirmOpen(true)}
+        className={`${btnBase} flex items-center gap-0.5 text-[oklch(0.45_0.01_265)] hover:border-[#e74c3c]/40 hover:text-[#e74c3c]`}
+        title="清空全部笔画">
+        <Trash2 size={11} strokeWidth={1.5} /> 清屏
       </button>
     </div>
   );
-
-  // 清屏按钮：全屏工具栏用紧凑款(toolbar)，内嵌底栏用款(action)；点击都弹 ConfirmDialog
-  const clearButton = (variant: 'toolbar' | 'action') => {
-    const cls = variant === 'toolbar'
-      ? `${btnBase} flex items-center gap-0.5 text-[oklch(0.45_0.01_265)] hover:border-[#e74c3c]/40 hover:text-[#e74c3c]`
-      : `flex items-center gap-1 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-3 py-2 text-xs font-semibold text-[oklch(0.45_0.01_265)]
-         shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
-         hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
-         hover:border-[#e74c3c]/40 hover:text-[#e74c3c]
-         active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12)] active:translate-y-px transition-all duration-150`;
-    return (
-      <button type="button" onClick={() => setClearConfirmOpen(true)} title="清空全部笔画" className={cls}>
-        <Trash2 size={variant === 'toolbar' ? 11 : 12} strokeWidth={1.5} /> 清屏
-      </button>
-    );
-  };
 
   const fullscreenOverlay = fullscreen && mode === 'handwriting'
     ? createPortal(
@@ -402,12 +400,8 @@ export function MemoPanel({
           >
             <Minimize2 size={13} strokeWidth={1.5} /> 退出全屏
           </button>
-          {/* 中：工具栏 + 清屏，顶部居中 */}
-          <div className="justify-self-center flex items-center gap-1.5">
-            {toolbar}
-            <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
-            {clearButton('toolbar')}
-          </div>
+          {/* 中：工具栏（含清屏），顶部居中 */}
+          <div className="justify-self-center">{renderToolbar({ zoom: true })}</div>
           {/* 右：保存 */}
           <button
             type="button" onClick={doSave} disabled={saving}
@@ -487,8 +481,8 @@ export function MemoPanel({
       <div className="flex min-h-0 flex-col">
         {mode === 'handwriting' ? (
           <div className="flex flex-col gap-2">
-            {/* 工具栏 */}
-            {toolbar}
+            {/* 工具栏（略缩页：去缩放，清屏占位） */}
+            {renderToolbar({ zoom: false })}
             <div className="relative" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
               onContextMenu={e => e.preventDefault()}>
               <AtramentCanvas ref={inlineCanvasRef} height={compact ? 260 : 420} />
@@ -501,7 +495,6 @@ export function MemoPanel({
               </button>
             </div>
             <div className="flex items-center gap-2">
-              {clearButton('action')}
               <button type="button" onClick={doSave} disabled={saving}
                 className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-[#064ea2] px-3 py-2.5 text-xs font-bold text-white
                   shadow-[0_1px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.25)]
