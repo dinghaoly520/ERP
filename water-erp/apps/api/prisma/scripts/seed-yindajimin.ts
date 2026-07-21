@@ -22,6 +22,9 @@ import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { hashSync } from 'bcryptjs';
+import { minioClient, MINIO_BUCKET } from '../../src/upload/minio.client';
+import { encryptBuffer } from '../../src/announcement/bid-document.crypto';
+import { wrapKey } from '../../src/common/crypto/envelope-crypto';
 
 const prisma = new PrismaClient();
 
@@ -114,7 +117,37 @@ async function stepBasics() {
   });
   console.log('  + Announcement BID_NOTICE/PUBLISHED');
 }
-async function stepTender() { console.log('▶ tender（Task 2 填充）'); }
+async function stepTender() {
+  console.log('▶ tender: docx→pdf→加密→MinIO→BidDocument');
+  const ann = await prisma.announcement.findFirst({ where: { relatedProjectCode: PROJECT_CODE } });
+  if (!ann) throw new Error('公告不存在，请先跑 --step=basics');
+
+  // docx → pdf（libreoffice headless）
+  execSync(`libreoffice --headless --convert-to pdf --outdir /tmp "${TENDER_DOCX}"`, { stdio: 'pipe' });
+  const pdfPath = '/tmp/' + TENDER_DOCX.split('/').pop()!.replace(/\.docx$/i, '.pdf');
+  const plaintext = readFileSync(pdfPath);
+  console.log(`  · 招标 PDF 明文 ${plaintext.length}B`);
+
+  const TENDER_KEY = 'yindajimin/tender.pdf';
+  const sha = createHash('sha256').update(plaintext).digest('hex');
+
+  const asset = await prisma.fileAsset.upsert({
+    where: { key: TENDER_KEY },
+    create: { key: TENDER_KEY, originalName: '引大济岷钻孔项目招标文件.pdf', mimeType: 'application/pdf', size: plaintext.length, sha256: sha, category: 'tender', sealedPath: TENDER_KEY },
+    update: { size: plaintext.length, sha256: sha, sealedPath: TENDER_KEY },
+  });
+
+  const { ciphertext, decryptKey } = encryptBuffer(plaintext);
+  await minioClient.putObject(MINIO_BUCKET, TENDER_KEY, ciphertext, ciphertext.length, { 'Content-Type': 'application/pdf' });
+  const wrapped = wrapKey(decryptKey, KMS!);
+
+  await prisma.bidDocument.upsert({
+    where: { announcementId: ann.id },
+    create: { announcementId: ann.id, fileAssetId: asset.id, title: '引大济岷钻孔项目招标文件', accessScope: 'OPEN', decryptKey: wrapped },
+    update: { fileAssetId: asset.id, decryptKey: wrapped },
+  });
+  console.log(`  + BidDocument（announcementId=${ann.id}, asset=${asset.id}, decryptKey 已 wrap）`);
+}
 async function stepBids() { console.log('▶ bids（Task 3 填充）'); }
 async function stepScore() { console.log('▶ score（Task 4 填充）'); }
 async function stepExperts() { console.log('▶ experts（Task 5 填充）'); }
