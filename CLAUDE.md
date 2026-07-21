@@ -219,19 +219,19 @@ Passwords follow `<username>@2026` convention:
 
 | Account | Password | Role | Portal |
 |---------|----------|------|--------|
-| `陈主任` | `czr@2026` | mall | 采购商城 (:3003) |
+| `陈源远` | `陈源远@2026` | mall | 采购商城 (:3003) |
 | `supplier1` | `supplier1@2026` | supplier (approved) | 供应商门户 (:3004) |
 | `四川水发建设有限公司` | `supplier@2026` | supplier (approved) · 英雄项目 3 家之一 | 供应商门户 (:3004) |
 | `中科院成都信息技术股份有限公司` | `supplier@2026` | supplier (approved) · 英雄项目评标第 1 名 | 供应商门户 (:3004) |
 | `四川省通信产业服务有限公司` | `supplier@2026` | supplier (approved) · 英雄项目解密异常 | 供应商门户 (:3004) |
 | `huaxi` | `huaxi@2026` | supplier (approved) · 成都华西物资供应 · 参与旧种子项目 | 供应商门户 (:3004) |
-| `陈主任` | `czr@2026` | procurement_staff | 采购管理工作台 (:3005) |
+| `陈源远` | `陈源远@2026` | procurement_staff | 采购管理工作台 (:3005) |
 | 专家姓名（如 `刘苡池`） | `expert@2026` | bid_expert | 专家门户 (:3006) |
-| `陈主任` | `czr@2026` | bid_host | 开评标管理端 (:3007) |
+| `陈源远` | `陈源远@2026` | bid_host | 开评标管理端 (:3007) |
 
-> **「陈主任」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），三个 role 不同的账号共用登录名「陈主任」/ `czr@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、采购管理端→procurement_staff、开标端（专家门户 admin tab）→bid_host。详见 `auth.service.ts` 的 `PORTAL_ROLE_PRIORITY`。
+> **「陈源远」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），三个 role 不同的账号共用登录名「陈源远」/ `陈源远@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、采购管理端→procurement_staff、开标端（专家门户 admin tab）→bid_host。详见 `auth.service.ts` 的 `PORTAL_ROLE_PRIORITY`。
 
-> `admin` role exists in schema/RBAC but has no seeded user. Use `陈主任` (bid_host) for bid portal access.
+> `admin` role exists in schema/RBAC but has no seeded user. Use `陈源远` (bid_host) for bid portal access.
 
 > **评审专家库（186 名）**：来自真实专家库（`apps/api/prisma/seed-data/ExpertProfile.json`）。`seed.ts` 末尾会把真实库导出的编号用户名重置为专家姓名、口令统一为 `expert@2026`，便于演示登录。
 
