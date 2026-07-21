@@ -9,8 +9,10 @@
     "target": "ES2021",
     "sourceMap": true,
     "outDir": "./dist",
+    "rootDir": "./src",
     "baseUrl": "./",
     "incremental": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "skipLibCheck": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
@@ -23,5 +25,5 @@
   "ts-node": {
     "require": ["tsconfig-paths/register"]
   },
-  "exclude": ["node_modules", "dist", "scripts", "test", "**/*.spec.ts"]
+  "exclude": ["node_modules", "dist", "scripts", "prisma", "test", "**/*.spec.ts"]
 }
