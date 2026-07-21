@@ -321,7 +321,33 @@ async function stepAi() {
     await app.close();
   }
 }
-async function stepAdvance() { console.log('▶ advance（Task 7 填充）'); }
+async function stepAdvance() {
+  console.log('▶ advance: 校验前置 → stage=EVALUATING');
+  const project = await prisma.bidProject.findUnique({ where: { projectCode: PROJECT_CODE } });
+  if (!project) throw new Error('项目不存在');
+
+  // 前置校验（与 bid.service.startEvaluation 对齐）
+  const expertCount = await prisma.bidExpert.count({ where: { projectId: project.id } });
+  const evaluableCount = await prisma.bidSupplier.count({ where: { projectId: project.id, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } } });
+  const scoringItems = await prisma.bidScoreItem.findMany({ where: { projectId: project.id, category: { in: ['BUSINESS', 'TECHNICAL', 'PRICE'] } }, include: { points: true } });
+  const sumScore = scoringItems.reduce((s, i) => s + Number(i.maxScore), 0);
+  const eachHasPoint = scoringItems.every((i) => i.points.length >= 1);
+  console.log(`  · 前置：experts=${expertCount}（需≥1）evaluableSuppliers=${evaluableCount}（需≥1）打分Σ=${sumScore}（需100）每项有点=${eachHasPoint}`);
+  if (expertCount === 0 || evaluableCount === 0 || sumScore !== 100 || !eachHasPoint) {
+    throw new Error('前置不满足，无法推进 EVALUATING（检查前置 task 是否跑全 + AI 提取是否有得分点）');
+  }
+
+  await prisma.bidProject.update({ where: { id: project.id }, data: { stage: 'EVALUATING' } });
+  await prisma.bidSupervisionLog.create({
+    data: { projectId: project.id, time: new Date(), role: '系统', target: project.name, action: '启动评标 (OPENING→EVALUATING)', result: '阶段变更成功', riskFlag: '无' },
+  });
+  await prisma.aiBidAnalysisTask.upsert({
+    where: { projectId: project.id },
+    create: { projectId: project.id, status: 'PENDING' },
+    update: {},
+  });
+  console.log('  + stage=EVALUATING（supervision log + 占位 AiBidAnalysisTask）');
+}
 
 const STEPS: Record<string, () => Promise<void>> = {
   basics: stepBasics, tender: stepTender, bids: stepBids, score: stepScore,
