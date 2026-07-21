@@ -37,13 +37,12 @@ export class BidService {
   constructor(
     private prisma: PrismaService,
     private notificationService: NotificationService,
+    private readonly scoreStandardValidator: ScoreStandardValidator,
     @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
     @Optional()
     @InjectQueue(QUEUE_NAMES.TENDER_PROCESSING)
     private readonly tenderQueue?: Queue,
-    @Optional()
-    private readonly scoreStandardValidator?: ScoreStandardValidator,
   ) {}
 
   private readonly logger = new Logger(BidService.name);
@@ -577,7 +576,7 @@ export class BidService {
     }
 
     // G9: 评分标准完整(打分类 Σ=100 + 每个打分类项 ≥1 得分点),否则专家无法打分
-    await this.scoreStandardValidator!.assertScoreStandardComplete(id);
+    await this.scoreStandardValidator.assertScoreStandardComplete(id);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.bidProject.update({
@@ -1955,7 +1954,7 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     this.assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt);
-    this.scoreStandardValidator!.assertPassFailMaxScore(dto.category, dto.maxScore);
+    this.scoreStandardValidator.assertPassFailMaxScore(dto.category, dto.maxScore);
 
     const result = `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`;
     const created = await this.prisma.$transaction(async (tx) => {
@@ -1985,7 +1984,7 @@ export class BidService {
     if (dto.category !== undefined || dto.maxScore !== undefined) {
       const nextCategory = dto.category ?? existing.category;
       const nextMaxScore = dto.maxScore ?? Number(existing.maxScore);
-      this.scoreStandardValidator!.assertPassFailMaxScore(nextCategory, nextMaxScore);
+      this.scoreStandardValidator.assertPassFailMaxScore(nextCategory, nextMaxScore);
     }
 
     const diffs: string[] = [];
@@ -2054,7 +2053,7 @@ export class BidService {
   async createScorePoint(projectId: string, itemId: string, dto: CreateScorePointDto) {
     const item = await this.assertScoreItemInProject(projectId, itemId);
     return this.prisma.$transaction(async (tx) => {
-      await this.scoreStandardValidator!.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), Number(dto.fullScore));
+      await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), Number(dto.fullScore));
       return tx.bidScorePoint.create({
         data: {
           scoreItemId: itemId,
@@ -2077,7 +2076,7 @@ export class BidService {
     const delta = dto.fullScore !== undefined ? Number(dto.fullScore) - Number(existing.fullScore) : 0;
     return this.prisma.$transaction(async (tx) => {
       if (delta !== 0) {
-        await this.scoreStandardValidator!.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), delta);
+        await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), delta);
       }
       return tx.bidScorePoint.update({
         where: { id: pointId },
@@ -2106,7 +2105,7 @@ export class BidService {
     const item = await this.assertScoreItemInProject(projectId, itemId);
     const delta = dto.points.reduce((s, p) => s + Number(p.fullScore), 0);
     return this.prisma.$transaction(async (tx) => {
-      await this.scoreStandardValidator!.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), delta);
+      await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), delta);
       return tx.bidScorePoint.createMany({
         data: dto.points.map((p) => ({
           scoreItemId: itemId,
@@ -2163,7 +2162,7 @@ export class BidService {
     if (project.scoreStandardPublishedAt) {
       throw new ConflictException({ error: '评分标准已发布,不可重复发布', code: 'SCORE_STANDARD_ALREADY_PUBLISHED' });
     }
-    await this.scoreStandardValidator!.assertScoreStandardComplete(projectId);
+    await this.scoreStandardValidator.assertScoreStandardComplete(projectId);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.bidProject.update({
@@ -2236,7 +2235,7 @@ export class BidService {
     };
     // B1: 通过性类别 maxScore 必须为 0
     for (const it of payload.items) {
-      this.scoreStandardValidator!.assertPassFailMaxScore(it.category, it.maxScore);
+      this.scoreStandardValidator.assertPassFailMaxScore(it.category, it.maxScore);
     }
 
     const created = await this.prisma.$transaction(async (tx) => {

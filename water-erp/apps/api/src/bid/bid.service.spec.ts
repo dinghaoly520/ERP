@@ -118,6 +118,7 @@ describe('BidService — stage transitions', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
@@ -989,6 +990,7 @@ describe('BidService — decryptSupplier 真实校验', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { create: jest.fn() } },
         { provide: BidGateway, useValue: { notifyDecryptStatus: jest.fn(), notifyStageChange: jest.fn(), notifyAnomaly: jest.fn(), notifySupervisionLog: jest.fn(), notifySubmissionOpened: jest.fn(), notifyOpeningStarted: jest.fn(), notifyEvaluationStarted: jest.fn(), broadcastAggregatePresence: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
       ],
     }).compile();
@@ -1131,6 +1133,7 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
       providers: [
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { create: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
       ],
     }).compile();
@@ -1204,6 +1207,7 @@ describe('BidService — nudge (催办)', () => {
       providers: [
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { create: notifyCreate } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
       ],
     }).compile();
@@ -1345,6 +1349,7 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
       providers: [
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { create: notifyCreate } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
       ],
     }).compile();
@@ -1485,6 +1490,7 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
@@ -1532,6 +1538,7 @@ describe('BidService — createProject 字段写入', () => {
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
@@ -1569,6 +1576,7 @@ describe('BidService — getOpeningRecordDraft', () => {
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
@@ -1630,6 +1638,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
@@ -1819,6 +1828,7 @@ describe('BidService — revokeInvalidBid (废标复核撤销)', () => {
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
