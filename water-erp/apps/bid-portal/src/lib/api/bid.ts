@@ -241,6 +241,32 @@ export function batchCreateScorePoints(
   return api.post<{ count: number }>(`/bid/projects/${projectId}/score-items/${itemId}/points/batch`, { points });
 }
 
+// ── 评分模板（用户保存的可复用整套评分标准）──
+
+export interface ScoreTemplateSummary {
+  id: string;
+  name: string;
+  createdById: string | null;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+export function listScoreTemplates() {
+  return api.get<ScoreTemplateSummary[]>('/bid/score-templates');
+}
+
+export function saveScoreTemplate(projectId: string, name: string) {
+  return api.post<ScoreTemplateSummary>('/bid/score-templates', { projectId, name });
+}
+
+export function deleteScoreTemplate(templateId: string) {
+  return api.delete<void>(`/bid/score-templates/${templateId}`);
+}
+
+export function applyScoreTemplateById(projectId: string, templateId: string) {
+  return api.post<ScoreItem[]>(`/bid/projects/${projectId}/apply-score-template/${templateId}`, {});
+}
+
 export function listEvaluationResults(projectId: string) {
   return api.get(`/bid/projects/${projectId}/evaluation-results`);
 }
