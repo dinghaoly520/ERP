@@ -22,6 +22,7 @@ interface Props {
 
 export function ScorePointsEditor({ projectId, item, points, onChanged }: Props) {
   const isPassFail = item.category === 'QUALIFICATION' || item.category === 'RESPONSIVE';
+  const isPrice = item.category === 'PRICE'; // 价格分按公式计算,不提取得分点
   const [draft, setDraft] = useState({ name: '', fullScore: 0, evidenceHint: '', objective: true });
   const [busy, setBusy] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -104,6 +105,8 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
           </div>
         ) : <span />}
         <div className="flex items-center gap-2">
+          {isPrice && <span className="text-xs text-[oklch(0.55_0.01_264)]">价格分按报价公式,无需提取得分点</span>}
+          {!isPrice && (
           <button
             onClick={handleExtract}
             disabled={extracting}
@@ -112,6 +115,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
           >
             <Sparkles size={13} /> {extracting ? '提取中…' : 'AI 提取建议'}
           </button>
+          )}
           {extractError && <span className="text-xs text-red-600">{extractError}</span>}
         </div>
       </div>
