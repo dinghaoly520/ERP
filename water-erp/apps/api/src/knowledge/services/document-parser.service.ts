@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { OcrService } from '../../local-ai/ocr.service';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 const pdfParse = require('pdf-parse');
 const execFileAsync = promisify(execFile);
 

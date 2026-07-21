@@ -10,7 +10,7 @@ import { Injectable, Logger } from '@nestjs/common';
    依赖：sm-crypto（国密 SM2/SM3/SM4 npm 包）
    ================================================================= */
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 const sm2 = require('sm-crypto').sm2;
 
 export interface Sm2KeyPair {

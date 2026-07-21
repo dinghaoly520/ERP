@@ -3074,7 +3074,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   private async generateArchiveFiles(project: any, stages: any[], archivedAt: Date, archiveHook: string) {
     // Primary archive path: project local directory (uploads/archive)
     const localArchiveBasePath = resolve(process.cwd(), 'uploads', 'archive');
@@ -3615,7 +3615,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }> | null = null;
 
       // Try cache first (exact fingerprint match)
-      let cachedByKey = new Map<string, { objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>();
+      const cachedByKey = new Map<string, { objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>();
       try {
         const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
           fingerprint?: string;
@@ -5601,7 +5601,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     if (!docXml) throw new NotFoundException('无法解析 DOCX 文档');
 
     // ── 提取 styles.xml 用于字号映射 ──
-    let styleSizeMap: Record<string, string> = {};
+    const styleSizeMap: Record<string, string> = {};
     try {
       const stylesXml = await zip.file('word/styles.xml')?.async('string');
       if (stylesXml) {
@@ -5680,7 +5680,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
           for (const t of tMatches) {
             const txt = this.decodeXmlText(t.replace(/<[^>]+>/g, ''));
             if (!txt) continue;
-            let tag = bold ? 'strong' : 'span';
+            const tag = bold ? 'strong' : 'span';
             let inline = '';
             if (fontSizePt) inline += `font-size:${fontSizePt}px;`;
             inline += cssExtra;
@@ -6205,7 +6205,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
       // ── 1. 提取批注引用范围 <w:commentRangeStart>/<w:commentRangeEnd> ──
       // 同时读取 comments.xml 获取批注文本
-      let commentNotes: Map<number, string> = new Map();
+      const commentNotes: Map<number, string> = new Map();
       try {
         const commentsXml = await zip.file('word/comments.xml')?.async('string');
         if (commentsXml) {
@@ -6581,7 +6581,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const openMatch = html.match(new RegExp(`<${tag}[^>]*>`, 'i'));
     if (!openMatch) return null;
     let depth = 1;
-    let pos = (openMatch.index || 0) + openMatch[0].length;
+    const pos = (openMatch.index || 0) + openMatch[0].length;
     const tagRegex = new RegExp(`<(/?)${tag}([\\s>])`, 'gi');
     tagRegex.lastIndex = pos;
     let m: RegExpExecArray | null;
@@ -6606,7 +6606,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const openMatch = html.match(new RegExp(`<${tag}[^>]*>`, 'i'));
     if (!openMatch) return html;
     let depth = 1;
-    let pos = (openMatch.index || 0) + openMatch[0].length;
+    const pos = (openMatch.index || 0) + openMatch[0].length;
     const tagRegex = new RegExp(`<(/?)${tag}([\\s>])`, 'gi');
     tagRegex.lastIndex = pos;
     let m: RegExpExecArray | null;

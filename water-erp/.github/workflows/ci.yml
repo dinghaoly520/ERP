@@ -33,6 +33,8 @@ jobs:
       - name: TypeScript type check (api)
         run: pnpm --filter api exec tsc --noEmit
 
-      # TODO: 加 lint(需先在 api/package.json 装 eslint 依赖)
+      - name: Lint (api)
+        run: pnpm --filter api exec eslint "src/**/*.ts" "test/**/*.ts"
+
       - name: Unit tests (api)
         run: pnpm --filter api test

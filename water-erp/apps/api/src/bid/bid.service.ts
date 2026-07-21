@@ -2201,7 +2201,7 @@ export class BidService {
       })),
     };
     return this.prisma.scoreTemplate.create({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       data: { name, payload: payload as any, createdById: userId ?? null },
     });
   }

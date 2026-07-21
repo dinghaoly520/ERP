@@ -10,7 +10,7 @@ jest.mock('../upload/minio.client', () => ({
   MINIO_BUCKET: 'test-bucket',
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const { minioClient } = require('../upload/minio.client');
 
 describe('AnnouncementAttachmentService.attachFromObject', () => {

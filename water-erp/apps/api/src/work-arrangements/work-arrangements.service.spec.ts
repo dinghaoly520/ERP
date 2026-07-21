@@ -33,7 +33,7 @@ describe('WorkArrangementsService', () => {
     };
 
     (prisma as Record<string, unknown>).$transaction = jest.fn(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       async (callback: (tx: any) => unknown) => callback(prisma),
     );
 

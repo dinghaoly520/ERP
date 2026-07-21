@@ -130,7 +130,7 @@ ${toolList}
     ];
 
     let answer: string;
-    let cards: unknown[] = [];
+    const cards: unknown[] = [];
     const citations: unknown[] = [];
     const pendingActions: unknown[] = [];
 
@@ -454,7 +454,7 @@ ${toolList}
    */
   private stripAllToolCalls(text: string): string {
     const calls = this.parseAllToolCalls(text);
-    let result = text;
+    const result = text;
     // Re-scan and remove each TOOL_CALL:{...} block by balanced braces
     const marker = 'TOOL_CALL:';
     let output = '';
