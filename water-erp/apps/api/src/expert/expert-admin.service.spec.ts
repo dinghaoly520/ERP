@@ -21,6 +21,7 @@ describe('ExpertAdminService', () => {
       },
       expertEvaluation: {
         findMany: jest.fn().mockResolvedValue([]),
+        groupBy: jest.fn().mockResolvedValue([]),
       },
       expertProfile: {
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -58,7 +59,9 @@ describe('ExpertAdminService', () => {
       await service.listExperts('王');
       expect(prisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ displayName: { contains: '王', mode: 'insensitive' } }),
+          where: expect.objectContaining({ OR: expect.arrayContaining([
+            expect.objectContaining({ displayName: { contains: '王', mode: 'insensitive' } }),
+          ]) }),
         }),
       );
     });

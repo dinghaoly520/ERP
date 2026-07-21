@@ -3,6 +3,7 @@ import { AiService } from './ai.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupplierSelectionAiService } from './supplier-selection-ai.service';
 import { LlmService } from '../local-ai/llm.service';
+import { NotificationService } from '../notification/notification.service';
 
 describe('AiService', () => {
   let service: AiService;
@@ -55,6 +56,7 @@ describe('AiService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: SupplierSelectionAiService, useValue: { rankCandidates: jest.fn() } },
         { provide: LlmService, useValue: { chatJson: jest.fn() } },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn() } },
       ],
     }).compile();
 
