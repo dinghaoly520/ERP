@@ -1016,7 +1016,7 @@ describe('BidService — score items (评分标准)', () => {
       bidScoreItem: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
       bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
-      scoreTemplate: { findMany: jest.fn() },
+      scoreTemplate: { findMany: jest.fn(), create: jest.fn() },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const module = await Test.createTestingModule({
@@ -1127,6 +1127,15 @@ describe('BidService — score items (评分标准)', () => {
     expect(res).toHaveLength(2);
     expect(res[0].createdById).toBe('u1');
     expect(res[1].createdById).toBeNull();
+  });
+
+  it('saveScoreTemplate 写入 createdById + createdByName', async () => {
+    prisma.bidScoreItem.findMany.mockResolvedValue([{ category: 'TECHNICAL', name: '技术', maxScore: 50, points: [] }]);
+    prisma.scoreTemplate.create.mockResolvedValue({ id: 't9' });
+    await service.saveScoreTemplate('p1', '我的模板', 'u1', '陈源远');
+    expect(prisma.scoreTemplate.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ name: '我的模板', createdById: 'u1', createdByName: '陈源远' }),
+    }));
   });
 });
 

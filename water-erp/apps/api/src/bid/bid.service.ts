@@ -2178,7 +2178,7 @@ export class BidService {
 
   /* ── 评分模板（用户保存的整套评分标准，跨项目复用）── */
 
-  async saveScoreTemplate(projectId: string, name: string, userId?: string) {
+  async saveScoreTemplate(projectId: string, name: string, userId?: string, username?: string) {
     const items = await this.prisma.bidScoreItem.findMany({
       where: { projectId },
       include: { points: { orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },
@@ -2202,7 +2202,7 @@ export class BidService {
     };
     return this.prisma.scoreTemplate.create({
        
-      data: { name, payload: payload as any, createdById: userId ?? null },
+      data: { name, payload: payload as any, createdById: userId ?? null, createdByName: username ?? null },
     });
   }
 

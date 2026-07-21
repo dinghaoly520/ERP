@@ -257,8 +257,9 @@ export class BidController {
   saveScoreTemplate(
     @Body() dto: { projectId: string; name: string },
     @CurrentUser('sub') userId?: string,
+    @CurrentUser('username') username?: string,
   ) {
-    return this.bidService.saveScoreTemplate(dto.projectId, dto.name, userId);
+    return this.bidService.saveScoreTemplate(dto.projectId, dto.name, userId, username);
   }
 
   @Delete('score-templates/:templateId')
