@@ -289,10 +289,9 @@ async function main() {
   }
   console.log(`    专家 ${experts.length} 名：重命名 ${renamed}、仅改口令 ${passwordOnly}、冲突跳过 ${conflictSkipped}`);
 
-  // ═══ 「陈源远」账号口令规整 ═══
-  // User.json 把 staff 账号改名「陈源远」，但 passwordHash 与文档口令「陈源远@2026」不匹配，
-  // 导致每次 db:seed 后登录失败（401），连带 bid/auth/catalog/upload e2e 全挂。
-  // 幂等：每次 seed 后「陈源远」口令恒为 陈源远@2026，便于演示登录与 e2e。
+  // ═══ 「陈源远」账号口令规整（冗余保护）═══
+  // User.json 的 passwordHash 已修正为「陈源远@2026」的正确 bcrypt。
+  // 此 override 保留作 belt-and-suspenders：防止有人误改 User.json hash 时 seed 仍能保证可登录。
   console.log('▶ 规整「陈源远」账号口令（陈源远@2026）');
   const staffHash = hashSync('陈源远@2026', 10);
   const staffUsers = await prisma.user.findMany({ where: { username: '陈源远' } });
