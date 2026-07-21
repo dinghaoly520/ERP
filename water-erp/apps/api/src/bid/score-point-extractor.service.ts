@@ -125,6 +125,35 @@ export class ScorePointExtractorService {
   }
 
   /**
+   * 规则优先：正则匹配「资格审查/符合性审查」章节（pass/fail 类专用）。
+   * QUALIFICATION → 资格审查段；RESPONSIVE → 符合性审查段。返回章节全文或 null。
+   * 关键：审查表（营业执照/资质/业绩；授权书/保证金/报价等）在「资格审查/符合性审查」节，
+   * 不在「评分标准」节——后者只是评标办法说明（如最低价法），不含审查项。
+   */
+  private extractReviewSectionRegex(text: string, category: string): string | null {
+    const isQual = category === 'QUALIFICATION';
+    const patterns = isQual
+      ? [
+          /资格审查要求[\s\S]*?(?=符合性审查要求|综合评分法评标标准|第[一二三四五六七八九十百\d]+章\s)/i,
+          /一、响应文件的资格审查[\s\S]*?(?=二、|综合评分法评标标准)/i,
+          /资格审查[\s\S]*?(?=符合性审查|综合评分法评标标准|第[一二三四五六七八九十百\d]+章\s)/i,
+        ]
+      : [
+          /符合性审查要求[\s\S]*?(?=综合评分法评标标准|比较和评价|第[一二三四五六七八九十百\d]+章\s)/i,
+          /2\s*符合性审查[\s\S]*?(?=3\s|综合评分法评标标准|比较和评价)/i,
+          /符合性审查[\s\S]*?(?=综合评分法评标标准|比较和评价|第[一二三四五六七八九十百\d]+章\s)/i,
+        ];
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const section = match[0].trim();
+        if (section.length > 100) return section;
+      }
+    }
+    return null;
+  }
+
+  /**
    * 分段：按双换行拆分，超 1500 字按单换行再拆。
    */
   private splitParagraphs(text: string): { content: string; index: number }[] {
@@ -162,6 +191,13 @@ export class ScorePointExtractorService {
     tenderText: string,
     item: { category: string; name: string },
   ): Promise<string> {
+    // Step 0: pass/fail 类（资格/符合性审查）优先定位审查表章节（而非评分标准节——后者只含评标办法说明）
+    if (item.category === 'QUALIFICATION' || item.category === 'RESPONSIVE') {
+      const reviewSection = this.extractReviewSectionRegex(tenderText, item.category);
+      if (reviewSection && reviewSection.length > 100) {
+        return reviewSection.slice(0, 16000);
+      }
+    }
     // Step 1: 正则匹配「评标办法」章节
     const regexSection = this.extractScoringSectionRegex(tenderText);
     if (regexSection && regexSection.length > 200) {

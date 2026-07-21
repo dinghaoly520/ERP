@@ -117,6 +117,7 @@ export class LlmService {
         body: JSON.stringify({
           model: provider.model,
           temperature,
+          max_tokens: 8192,
           ...(seed != null ? { seed } : {}),
           messages: [
             { role: 'system', content: systemPrompt },
@@ -167,6 +168,7 @@ export class LlmService {
         body: JSON.stringify({
           model: provider.model,
           temperature,
+          max_tokens: 8192,
           response_format: { type: 'json_object' },
           ...(seed != null ? { seed } : {}),
           messages: [
