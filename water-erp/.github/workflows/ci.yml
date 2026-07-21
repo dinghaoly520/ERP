@@ -34,4 +34,5 @@ jobs:
         run: pnpm --filter api exec tsc --noEmit
 
       # TODO: 加 lint(需先在 api/package.json 装 eslint 依赖)
-      # TODO: 加 unit test(需先修 3 个 pre-existing 失败: project-management / ai / expert-admin spec mock)
+      - name: Unit tests (api)
+        run: pnpm --filter api test
