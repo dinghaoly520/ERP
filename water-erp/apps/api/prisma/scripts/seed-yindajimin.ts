@@ -148,7 +148,43 @@ async function stepTender() {
   });
   console.log(`  + BidDocument（announcementId=${ann.id}, asset=${asset.id}, decryptKey 已 wrap）`);
 }
-async function stepBids() { console.log('▶ bids（Task 3 填充）'); }
+async function stepBids() {
+  console.log('▶ bids: 3 家 BidSupplier + 投标 PDF 明文入库 + Submission');
+  const project = await prisma.bidProject.findUnique({ where: { projectCode: PROJECT_CODE } });
+  if (!project) throw new Error('项目不存在，请先跑 --step=basics');
+
+  for (const [i, b] of BID_PDFS.entries()) {
+    const n = i + 1;
+    const supplier = await prisma.supplier.findFirst({ where: { name: b.name } });
+    if (!supplier) throw new Error(`Supplier「${b.name}」不存在，请先跑 --step=basics`);
+
+    // FileAsset（投标 PDF 明文）— 幂等
+    const key = `yindajimin/bid-${n}.pdf`;
+    const buf = readFileSync(b.path);
+    const sha = createHash('sha256').update(buf).digest('hex');
+    const asset = await prisma.fileAsset.upsert({
+      where: { key },
+      create: { key, originalName: `${b.name}-投标文件.pdf`, mimeType: 'application/pdf', size: buf.length, sha256: sha, category: 'bid', sealedPath: key },
+      update: { size: buf.length, sha256: sha, sealedPath: key },
+    });
+    await minioClient.putObject(MINIO_BUCKET, key, buf, buf.length, { 'Content-Type': 'application/pdf' });
+
+    // BidSupplier（@@unique [projectId, supplierName]）— decryptStatus=SUCCESS
+    const bs = await prisma.bidSupplier.upsert({
+      where: { projectId_supplierName: { projectId: project.id, supplierName: b.name } },
+      create: { projectId: project.id, supplierId: supplier.id, supplierName: b.name, downloadStatus: '已下载', submitStatus: '已提交', encryptStatus: '校验通过', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
+      update: { supplierId: supplier.id, decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+    });
+
+    // SupplierBidSubmission（@@unique [supplierId, projectId]）— 明文兼容：sealedKey=null
+    await prisma.supplierBidSubmission.upsert({
+      where: { supplierId_projectId: { supplierId: supplier.id, projectId: project.id } },
+      create: { supplierId: supplier.id, projectId: project.id, technicalFileAssetId: asset.id, businessFileAssetId: asset.id, status: 'submitted', submittedAt: new Date() },
+      update: { technicalFileAssetId: asset.id, businessFileAssetId: asset.id, status: 'submitted' },
+    });
+    console.log(`  + [${n}] ${b.name} bidSupplier=${bs.id} asset=${asset.id} (${buf.length}B 明文)`);
+  }
+}
 async function stepScore() { console.log('▶ score（Task 4 填充）'); }
 async function stepExperts() { console.log('▶ experts（Task 5 填充）'); }
 async function stepAi() { console.log('▶ ai（Task 6 填充）'); }
