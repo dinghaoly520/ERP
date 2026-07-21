@@ -377,6 +377,61 @@ describe('Bid Lifecycle (e2e)', () => {
     await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
   });
 
+  it('ScoreTemplate apply 闭环:保存模板→应用→审计含 operatorId;通过性 maxScore≠0→400', async () => {
+    const proj = await prisma.bidProject.create({
+      data: { projectCode: `BID-TPL-${Date.now()}`, name: '模板测试项目', stage: 'DOWNLOAD', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },
+    });
+    // 先建一个完整标准(满足保存模板的前置)
+    await prisma.bidScoreItem.create({ data: { projectId: proj.id, category: 'TECHNICAL', name: '技术', maxScore: 50 } });
+
+    // 保存为模板
+    const saved = await request(app.getHttpServer())
+      .post('/api/bid/score-templates')
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .send({ projectId: proj.id, name: 'E2E测试模板' })
+      .expect(201);
+    const templateId = saved.body.id;
+
+    // 应用到新项目
+    const proj2 = await prisma.bidProject.create({
+      data: { projectCode: `BID-TPL2-${Date.now()}`, name: '模板应用项目', stage: 'DOWNLOAD', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },
+    });
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${proj2.id}/apply-score-template/${templateId}`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .expect(201);
+
+    // 审计含 operatorId
+    const log = await prisma.bidSupervisionLog.findFirst({
+      where: { projectId: proj2.id, action: '编制评分标准' },
+    });
+    expect(log).toBeTruthy();
+    expect(log!.operatorId).toBeTruthy();
+    expect(log!.result).toContain('E2E测试模板');
+
+    // 通过性类别 maxScore≠0 → 400(模板含非法项时)
+    const badProj = await prisma.bidProject.create({
+      data: { projectCode: `BID-TPL3-${Date.now()}`, name: '模板校验项目', stage: 'DOWNLOAD', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },
+    });
+    await prisma.bidScoreItem.create({ data: { projectId: badProj.id, category: 'TECHNICAL', name: '技术', maxScore: 50 } });
+    const badTpl = await prisma.scoreTemplate.create({
+      data: { name: '坏模板', payload: { items: [{ category: 'QUALIFICATION', name: '资格', maxScore: 5 }] } as any },
+    });
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${badProj.id}/apply-score-template/${badTpl.id}`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'PASS_FAIL_MUST_BE_ZERO' }));
+
+    await prisma.scoreTemplate.deleteMany({ where: { id: { in: [templateId, badTpl.id] } } });
+    for (const p of [proj.id, proj2.id, badProj.id]) {
+      await prisma.bidScorePoint.deleteMany({ where: { scoreItem: { projectId: p } } }).catch(() => {});
+      await prisma.bidScoreItem.deleteMany({ where: { projectId: p } }).catch(() => {});
+      await prisma.bidSupervisionLog.deleteMany({ where: { projectId: p } }).catch(() => {});
+      await prisma.bidProject.delete({ where: { id: p } }).catch(() => {});
+    }
+  });
+
   it('updateScoreItem 修改 maxScore → BidSupervisionLog 含 operatorId 与 diff', async () => {
     const proj = await prisma.bidProject.create({
       data: { projectCode: `BID-T6-${Date.now()}`, name: 'B3审计项目', stage: 'DOWNLOAD', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },

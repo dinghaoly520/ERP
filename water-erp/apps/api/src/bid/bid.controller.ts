@@ -269,8 +269,13 @@ export class BidController {
 
   @Post('projects/:id/apply-score-template/:templateId')
   @ApiOperation({ summary: '应用评分模板到项目（幂等：同名分项跳过）' })
-  applyScoreTemplate(@Param('id') id: string, @Param('templateId') templateId: string) {
-    return this.bidService.applyScoreTemplateById(id, templateId);
+  applyScoreTemplate(
+    @Param('id') id: string,
+    @Param('templateId') templateId: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.bidService.applyScoreTemplateById(id, templateId, { userId, role });
   }
 
   // ── 得分点（checklist 子项）CRUD ──

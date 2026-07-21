@@ -2215,10 +2215,10 @@ export class BidService {
     });
   }
 
-  async applyScoreTemplateById(projectId: string, templateId: string) {
+  async applyScoreTemplateById(projectId: string, templateId: string, actor: { userId: string; role: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, scoreStandardPublishedAt: true },
+      select: { stage: true, scoreStandardPublishedAt: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     this.assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt);
@@ -2234,26 +2234,40 @@ export class BidService {
         points?: Array<{ name: string; fullScore: number; evidenceHint?: string | null; objective?: boolean }>;
       }>;
     };
-    const existing = await this.prisma.bidScoreItem.findMany({ where: { projectId }, select: { name: true } });
-    const existingNames = new Set(existing.map((e) => e.name));
-    const toCreate = payload.items.filter((it) => !existingNames.has(it.name));
-
-    for (const it of toCreate) {
-      const created = await this.prisma.bidScoreItem.create({
-        data: { projectId, category: it.category, name: it.name, maxScore: it.maxScore },
-      });
-      if (it.points && it.points.length > 0) {
-        await this.prisma.bidScorePoint.createMany({
-          data: it.points.map((p) => ({
-            scoreItemId: created.id,
-            name: p.name,
-            fullScore: p.fullScore,
-            evidenceHint: p.evidenceHint ?? null,
-            objective: p.objective ?? true,
-          })),
-        });
-      }
+    // B1: 通过性类别 maxScore 必须为 0
+    for (const it of payload.items) {
+      this.scoreStandardValidator!.assertPassFailMaxScore(it.category, it.maxScore);
     }
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.bidScoreItem.findMany({ where: { projectId }, select: { name: true } });
+      const existingNames = new Set(existing.map((e) => e.name));
+      const toCreate = payload.items.filter((it) => !existingNames.has(it.name));
+
+      for (const it of toCreate) {
+        const item = await tx.bidScoreItem.create({
+          data: { projectId, category: it.category, name: it.name, maxScore: it.maxScore },
+        });
+        if (it.points && it.points.length > 0) {
+          await tx.bidScorePoint.createMany({
+            data: it.points.map((p) => ({
+              scoreItemId: item.id,
+              name: p.name,
+              fullScore: p.fullScore,
+              evidenceHint: p.evidenceHint ?? null,
+              objective: p.objective ?? true,
+            })),
+          });
+        }
+      }
+
+      if (toCreate.length > 0) {
+        await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', `应用模板「${tpl.name}」新增 ${toCreate.length} 项`);
+      }
+      return toCreate.length;
+    });
+
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '编制评分标准', target: project.name, result: `应用模板「${tpl.name}」`, riskFlag: '无' });
     return this.listScoreItems(projectId);
   }
 
