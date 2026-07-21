@@ -1016,6 +1016,7 @@ describe('BidService — score items (评分标准)', () => {
       bidScoreItem: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
       bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
+      scoreTemplate: { findMany: jest.fn() },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const module = await Test.createTestingModule({
@@ -1112,6 +1113,20 @@ describe('BidService — score items (评分标准)', () => {
   it('applyScoreItemTemplate 在 EVALUATING 阶段锁定', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '项目A' });
     await expect(service.applyScoreItemTemplate('p1', { userId: 'u1', role: 'bid_host' })).rejects.toThrow(ConflictException);
+  });
+
+  it('listScoreTemplates select 含 createdById（前端区分我的/公共）', async () => {
+    prisma.scoreTemplate.findMany.mockResolvedValue([
+      { id: 't1', name: '水务通用', createdById: 'u1', createdByName: '张三', createdAt: new Date() },
+      { id: 't2', name: '公共模板', createdById: null, createdByName: null, createdAt: new Date() },
+    ]);
+    const res = await service.listScoreTemplates('u1');
+    expect(prisma.scoreTemplate.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      select: expect.objectContaining({ id: true, name: true, createdById: true, createdByName: true, createdAt: true }),
+    }));
+    expect(res).toHaveLength(2);
+    expect(res[0].createdById).toBe('u1');
+    expect(res[1].createdById).toBeNull();
   });
 });
 

@@ -2210,7 +2210,7 @@ export class BidService {
     return this.prisma.scoreTemplate.findMany({
       where: userId ? { OR: [{ createdById: userId }, { createdById: null }] } : {},
       orderBy: { createdAt: 'desc' },
-      select: { id: true, name: true, createdByName: true, createdAt: true },
+      select: { id: true, name: true, createdById: true, createdByName: true, createdAt: true },
     });
   }
 
