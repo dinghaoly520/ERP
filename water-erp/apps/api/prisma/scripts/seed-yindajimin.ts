@@ -307,6 +307,28 @@ async function stepAi() {
         console.log(`  + QUALIFICATION 手动建 ${qualPoints.length} 个资格审查项`);
         continue;
       }
+      // RESPONSIVE 符合性审查：LLM 对该 pass/fail 类提取极不稳（实测恒 0/1），
+      // 直接按招标文件「符合性审查要求」表手动落库 9 项（稳定、准确），criteriaSource=manual。
+      if (item.category === 'RESPONSIVE') {
+        await prisma.bidScorePoint.deleteMany({ where: { scoreItemId: item.id } });
+        const respPoints = [
+          { name: '授权委托书有效', hint: '按采购文件要求提供授权委托书' },
+          { name: '投标保证金缴纳', hint: '按采购文件规定提交保证金（如有）' },
+          { name: '响应完整性（未拆分）', hint: '未将一个标的内容拆分响应' },
+          { name: '报价未超最高限价', hint: '报价未超过采购文件规定的最高限价' },
+          { name: '报价唯一性', hint: '响应文件未出现可选择性或可调整报价' },
+          { name: '响应有效期满足', hint: '响应文件承诺的有效期满足采购文件要求' },
+          { name: '实质性格式文件齐全', hint: '标记为实质性格式的文件均按要求提供' },
+          { name: '★号实质性条款响应', hint: '响应文件满足第四章采购需求中★号条款要求' },
+          { name: '报价合理性', hint: '报价合理，或明显低价时能在规定时间证明合理性' },
+        ];
+        for (const [idx, p] of respPoints.entries()) {
+          await prisma.bidScorePoint.create({ data: { scoreItemId: item.id, name: p.name, fullScore: 0, seq: idx, evidenceHint: p.hint, objective: true } });
+        }
+        await prisma.bidScoreItem.update({ where: { id: item.id }, data: { criteriaSource: 'manual' } });
+        console.log(`  + RESPONSIVE 手动建 ${respPoints.length} 个符合性审查项`);
+        continue;
+      }
 
       console.log(`  · 提取 ${item.category}（${item.name}）...`);
       let suggestions: { name: string; fullScore: number; evidenceHint?: string; objective?: boolean }[] = [];
