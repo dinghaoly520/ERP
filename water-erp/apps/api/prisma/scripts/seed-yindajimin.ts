@@ -211,7 +211,37 @@ async function stepScore() {
     console.log(`  + BidScoreItem ${it.category} maxScore=${it.maxScore}`);
   }
 }
-async function stepExperts() { console.log('▶ experts（Task 5 填充）'); }
+async function stepExperts() {
+  console.log('▶ experts: 6 名 BidExpert（cmqhero 班底 5 + 阴红宇 isLead）');
+  const project = await prisma.bidProject.findUnique({ where: { projectCode: PROJECT_CODE } });
+  if (!project) throw new Error('项目不存在，请先跑 --step=basics');
+
+  const EXPERT_NAMES = ['周祥志', '黃凯', '陈英', '范鸿烨', '覃克非', '阴红宇'];
+  const yinhongyuId = 'c826709c602085d0d94cc2a';
+  for (const name of EXPERT_NAMES) {
+    const user = name === '阴红宇'
+      ? await prisma.user.findUnique({ where: { id: yinhongyuId } })
+      : await prisma.user.findFirst({ where: { username: name, role: 'bid_expert' } });
+    if (!user) { console.warn(`  ⚠ 专家「${name}」User 不存在，跳过`); continue; }
+
+    const exist = await prisma.bidExpert.findUnique({ where: { projectId_userId: { projectId: project.id, userId: user.id } } });
+    if (exist) { console.log(`  · BidExpert「${name}」已存在，跳过`); continue; }
+
+    await prisma.bidExpert.create({
+      data: {
+        projectId: project.id,
+        userId: user.id,
+        expertName: name,
+        major: '地质/钻探',
+        isLead: name === '阴红宇',
+        expertRole: '正选',
+        invitationStatus: 'pending',
+        signedIn: true,
+      },
+    });
+    console.log(`  + BidExpert「${name}」userId=${user.id}${name === '阴红宇' ? ' (isLead)' : ''}`);
+  }
+}
 async function stepAi() { console.log('▶ ai（Task 6 填充）'); }
 async function stepAdvance() { console.log('▶ advance（Task 7 填充）'); }
 
