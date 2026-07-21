@@ -288,6 +288,25 @@ async function stepAi() {
         console.log('  + PRICE 手动得分点：评审价（50）');
         continue;
       }
+      // QUALIFICATION 资格性审查：LLM 对该 pass/fail 类易与符合性审查串混（实测 8 项里 6 项跑偏），
+      // 直接按招标文件「资格审查要求」表手动落库 6 项（稳定、准确），criteriaSource=manual。
+      if (item.category === 'QUALIFICATION') {
+        await prisma.bidScorePoint.deleteMany({ where: { scoreItemId: item.id } });
+        const qualPoints = [
+          { name: '有效营业执照/事业单位法人证书', hint: '企业提供营业执照、事业单位提供法人证书等证明文件' },
+          { name: '供应商资格声明书', hint: '提供符合采购文件要求的《供应商资格声明书》' },
+          { name: '具有独立法人资格', hint: '供应商须具有独立法人资格' },
+          { name: '工程钻探劳务资质或地勘红名单', hint: '具备工程钻探劳务资质，或在中国矿业联合会地质勘查信用信息公示系统红名单内' },
+          { name: '近5年内≥2项500米及以上钻孔业绩', hint: '近5年内至少两项500米及以上水平/倾斜钻孔施工业绩，附中标通知书或合同关键页' },
+          { name: '联合体资格要求', hint: '本项目是否接受联合体及联合体各方资格分工要求' },
+        ];
+        for (const [idx, p] of qualPoints.entries()) {
+          await prisma.bidScorePoint.create({ data: { scoreItemId: item.id, name: p.name, fullScore: 0, seq: idx, evidenceHint: p.hint, objective: true } });
+        }
+        await prisma.bidScoreItem.update({ where: { id: item.id }, data: { criteriaSource: 'manual' } });
+        console.log(`  + QUALIFICATION 手动建 ${qualPoints.length} 个资格审查项`);
+        continue;
+      }
 
       console.log(`  · 提取 ${item.category}（${item.name}）...`);
       let suggestions: { name: string; fullScore: number; evidenceHint?: string; objective?: boolean }[] = [];
