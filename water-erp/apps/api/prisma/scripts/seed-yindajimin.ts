@@ -37,7 +37,83 @@ const BID_PDFS: { name: string; path: string }[] = [
   { name: '四川省第四地质大队', path: `${FILE_DIR}/引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务-四川省第四地质大队.pdf` },
 ];
 
-async function stepBasics() { console.log('▶ basics（Task 1 填充）'); }
+async function stepBasics() {
+  console.log('▶ basics: Supplier ×3 + BidProject + Announcement');
+
+  // ── 3 家 Supplier（按 normalizedName 复用已存在的真实供应商，如 procurement 移植数据；不存在才新建 User+Supplier）──
+  for (const s of BID_PDFS) {
+    const existingSupp = await prisma.supplier.findUnique({ where: { normalizedName: s.name.trim().toLowerCase() } });
+    if (existingSupp) {
+      console.log(`  · Supplier「${s.name}」已存在，复用 (id=${existingSupp.id})`);
+      continue;
+    }
+    const u = await prisma.user.create({
+      data: {
+        username: s.name,
+        displayName: s.name,
+        passwordHash: hashSync(`${s.name}@2026`, 10),
+        role: 'supplier',
+        isActive: true,
+      },
+    });
+    await prisma.supplier.create({
+      data: {
+        userId: u.id,
+        name: s.name,
+        normalizedName: s.name.trim().toLowerCase(),
+        enterpriseType: s.name.includes('地质大队') ? '事业单位' : '有限责任公司',
+        legalPerson: '-',
+        registeredAddress: '-',
+        businessScope: '地质钻探技术服务',
+        status: 'APPROVED',
+      },
+    });
+    console.log(`  + Supplier「${s.name}」userId=${u.id}`);
+  }
+
+  // ── BidProject（幂等：存在则跳过）──
+  const existing = await prisma.bidProject.findUnique({ where: { projectCode: PROJECT_CODE } });
+  if (existing) {
+    console.log(`  · BidProject「${PROJECT_CODE}」已存在，跳过 (id=${existing.id})`);
+    return;
+  }
+  const project = await prisma.bidProject.create({
+    data: {
+      projectCode: PROJECT_CODE,
+      name: '引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务',
+      procurementMethod: '内部竞标（竞价）',
+      openTime: new Date('2026-07-25T02:00:00.000Z'),
+      deadline: new Date('2026-07-24T01:00:00.000Z'),
+      stage: 'DOWNLOAD',
+      scope: '为查明引大济岷隧洞工程地质条件，在千池山隧洞洞身中段布置千隧ZK10（700m）和千隧ZK12（600m）两个斜钻孔。',
+      qualification:
+        '1.具有独立法人资格；2.具备工程钻探劳务资质或在中国矿业联合会地质勘查信用信息公示系统红名单内；3.近5年内至少有两项类似项目钻探业绩（500米及以上水平或倾斜钻孔施工）。',
+      contact: '四川水发勘测设计研究有限公司 勘察分院',
+      bondRequired: false,
+    },
+  });
+  console.log(`  + BidProject id=${project.id} code=${PROJECT_CODE}`);
+
+  // ── Announcement（BID_NOTICE / PUBLISHED）──
+  const ann = await prisma.announcement.findFirst({ where: { relatedProjectCode: PROJECT_CODE } });
+  if (ann) {
+    console.log(`  · Announcement 已存在，跳过 (id=${ann.id})`);
+    return;
+  }
+  const staff = await prisma.user.findFirst({ where: { role: 'procurement_staff' } });
+  await prisma.announcement.create({
+    data: {
+      title: '引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务 采购公告',
+      content: '四川水发勘测设计研究有限公司拟对引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务采用内部竞标（竞价）方式进行采购，兹邀请符合要求的供应商参加投标。',
+      type: 'BID_NOTICE',
+      status: 'PUBLISHED',
+      relatedProjectCode: PROJECT_CODE,
+      publishDate: new Date(),
+      authorId: staff?.id ?? null,
+    },
+  });
+  console.log('  + Announcement BID_NOTICE/PUBLISHED');
+}
 async function stepTender() { console.log('▶ tender（Task 2 填充）'); }
 async function stepBids() { console.log('▶ bids（Task 3 填充）'); }
 async function stepScore() { console.log('▶ score（Task 4 填充）'); }
